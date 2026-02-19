@@ -27,6 +27,8 @@ interface Template {
   buttons?: { kind: string; title: string; url?: string }[];
   language?: string;
   status?: string;
+  metaTemplateId?: string;
+  metaStatus?: string;
 }
 
 interface BroadcastRun {
@@ -169,6 +171,38 @@ export default function BroadcastPage() {
   const [bulkStats, setBulkStats] = useState<BulkStats | null>(null);
   const [validation, setValidation] = useState<BroadcastValidation | null>(null);
   const [processingRuns, setProcessingRuns] = useState<any[]>([]);
+  
+  // Meta submission state
+  const [metaSubmitting, setMetaSubmitting] = useState<string | null>(null);
+
+  // Submit template to Meta for approval
+  const submitToMeta = useCallback(async (templateId: string, event: React.MouseEvent) => {
+    event.stopPropagation(); // Prevent template selection
+    if (!token) return;
+    setMetaSubmitting(templateId);
+    try {
+      const res = await fetch('/api/admin/crm/templates/meta/submit', {
+        method: 'POST',
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ templateId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to submit');
+      setResult({ success: true, message: data.message || 'Template submitted to Meta for approval' });
+      // Refresh templates to get updated status
+      const templatesRes = await fetch('/api/admin/crm/templates', { headers: { Authorization: `Bearer ${token}` } });
+      const templatesData = await templatesRes.json();
+      setTemplates(templatesData.data?.templates || templatesData.templates || []);
+    } catch (err) {
+      setResult({ success: false, message: err instanceof Error ? err.message : 'Failed to submit to Meta' });
+    } finally {
+      setMetaSubmitting(null);
+      setTimeout(() => setResult(null), 5000);
+    }
+  }, [token]);
 
   // ============================================================================
   // DATA FETCHING
@@ -331,11 +365,26 @@ export default function BroadcastPage() {
   // ============================================================================
   const canProceedToStep2 = selectedLeads.size > 0;
   const canProceedToStep3 = selectedTemplate !== null;
+  
+  // Check if selected template is Meta-approved (required for Meta provider)
+  const templateApprovalWarning = useMemo(() => {
+    if (!selectedTemplate || provider !== 'meta') return null;
+    if (!selectedTemplate.metaTemplateId) {
+      return `Template "${selectedTemplate.templateName}" is not submitted to Meta. Submit it for approval first or use QR provider.`;
+    }
+    if (selectedTemplate.metaStatus !== 'APPROVED') {
+      return `Template "${selectedTemplate.templateName}" is not Meta-approved (status: ${selectedTemplate.metaStatus || 'unknown'}). Wait for approval or use QR provider.`;
+    }
+    return null;
+  }, [selectedTemplate, provider]);
+
   const canSend = useMemo(() => {
     if (!selectedTemplate || selectedLeads.size === 0) return false;
     if (sendMode === 'schedule' && (!scheduleDate || !scheduleTime)) return false;
+    // Check Meta approval if using Meta provider
+    if (provider === 'meta' && templateApprovalWarning) return false;
     return true;
-  }, [selectedTemplate, selectedLeads, sendMode, scheduleDate, scheduleTime]);
+  }, [selectedTemplate, selectedLeads, sendMode, scheduleDate, scheduleTime, provider, templateApprovalWarning]);
 
   // ============================================================================
   // SEND BROADCAST
@@ -963,6 +1012,24 @@ export default function BroadcastPage() {
                       {t.buttons?.length ? (
                         <span className="text-xs bg-green-100 text-green-600 px-2 py-0.5 rounded-full">🔘 {t.buttons.length}</span>
                       ) : null}
+                      {/* Meta Approval Status Badge */}
+                      {t.metaTemplateId ? (
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                          t.metaStatus === 'APPROVED' ? 'bg-green-100 text-green-700' :
+                          t.metaStatus === 'PENDING' ? 'bg-yellow-100 text-yellow-700' :
+                          t.metaStatus === 'REJECTED' ? 'bg-red-100 text-red-700' :
+                          'bg-gray-100 text-gray-600'
+                        }`}>
+                          {t.metaStatus === 'APPROVED' ? '✅ Approved' :
+                           t.metaStatus === 'PENDING' ? '⏳ Pending' :
+                           t.metaStatus === 'REJECTED' ? '❌ Rejected' :
+                           `📋 ${t.metaStatus || 'Submitted'}`}
+                        </span>
+                      ) : (
+                        <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
+                          🔸 Not Submitted
+                        </span>
+                      )}
                     </div>
                     <p className="text-sm text-gray-600 line-clamp-2">{t.templateContent}</p>
                     {t.buttons && t.buttons.length > 0 && (
@@ -973,6 +1040,16 @@ export default function BroadcastPage() {
                           </span>
                         ))}
                       </div>
+                    )}
+                    {/* Submit to Meta Button */}
+                    {!t.metaTemplateId && (
+                      <button
+                        onClick={(e) => submitToMeta(t._id, e)}
+                        disabled={metaSubmitting === t._id}
+                        className="mt-3 w-full px-3 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-blue-400 disabled:to-blue-500 text-white rounded-lg text-sm font-medium transition-all"
+                      >
+                        {metaSubmitting === t._id ? '⏳ Submitting...' : '🚀 Submit for Meta Approval'}
+                      </button>
                     )}
                   </div>
                 ))
@@ -1040,15 +1117,33 @@ export default function BroadcastPage() {
                   </button>
                   <button
                     onClick={() => setProvider('qr')}
-                    className={`p-4 rounded-xl border-2 transition-all duration-300 hover:shadow-md group ${
-                      provider === 'qr' ? 'border-emerald-500 bg-emerald-50 shadow-md' : 'border-gray-200 hover:border-emerald-300'
-                    }`}
+                    disabled={true}
+                    className="p-4 rounded-xl border-2 border-gray-200 opacity-50 cursor-not-allowed"
                   >
-                    <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">💚</div>
-                    <div className="font-bold text-gray-800">QR Bridge</div>
-                    <div className="text-xs text-orange-600 mt-1">📝 Text Buttons</div>
+                    <div className="text-3xl mb-2">💚</div>
+                    <div className="font-bold text-gray-400">QR Bridge</div>
+                    <div className="text-xs text-gray-400 mt-1">❌ Disabled</div>
                   </button>
                 </div>
+                
+                {/* Template Approval Warning */}
+                {templateApprovalWarning && (
+                  <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                    <div className="flex items-start gap-2">
+                      <span className="text-amber-600 text-lg">⚠️</span>
+                      <div>
+                        <div className="font-medium text-amber-800">Template Not Approved</div>
+                        <div className="text-sm text-amber-700 mt-1">{templateApprovalWarning}</div>
+                        <Link 
+                          href="/admin/crm/whatsapp/templates" 
+                          className="inline-block mt-2 text-sm text-blue-600 hover:text-blue-700 font-medium"
+                        >
+                          → Go to Templates to Submit for Approval
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Send Mode */}

@@ -4,7 +4,8 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useAuth } from '@/hooks/useAuth';
 import EmojiPicker, { Theme } from 'emoji-picker-react';
 import { useCRM } from '@/hooks/useCRM';
-import { LoadingSpinner, MediaPreview, InlineMediaPreview, getFilenameFromUrl, TemplateSelector, type WhatsAppTemplate } from '@/components/admin/crm';
+import { LoadingSpinner, MediaPreview, InlineMediaPreview, getFilenameFromUrl, TemplateSelector, type WhatsAppTemplate, ChatStatusBadge, type ChatStatus } from '@/components/admin/crm';
+import { calculateChatStatus, getChatStatusInfo, getChatStatusOptions, getStatusPriority } from '@/lib/utils/chatStatus';
 import { useRouter } from 'next/navigation';
 import { usePathname } from 'next/navigation';
 import { useModal } from '@/hooks/useModal';
@@ -60,6 +61,7 @@ type ConversationRow = {
   status?: string;
   labels?: string[];
   assignedToUserId?: string;
+  chatStatus?: ChatStatus; // Manual override status
 };
 
 type Message = {
@@ -135,6 +137,7 @@ export default function MetaInboxPage() {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [messageLimit, setMessageLimit] = useState(5);
   const [searchQuery, setSearchQuery] = useState('');
+  const [chatStatusFilter, setChatStatusFilter] = useState<ChatStatus | 'all'>('all'); // Chat status filter
   const [composerText, setComposerText] = useState('');
   const [attachedMedia, setAttachedMedia] = useState<{ url: string; type: 'image' | 'video' | 'document' } | null>(null);
   const [sending, setSending] = useState(false);
@@ -708,6 +711,27 @@ export default function MetaInboxPage() {
     }
   };
 
+  // Handle chat status change (close/reopen)
+  const handleChatStatusChange = async (newStatus: ChatStatus) => {
+    if (!selected?.leadId) return;
+    try {
+      await crmFetch(`/api/admin/crm/leads/${selected.leadId}/chat-status`, {
+        method: 'PATCH',
+        body: { chatStatus: newStatus }
+      });
+      
+      // Update the selected conversation state
+      setSelected(prev => prev ? { ...prev, chatStatus: newStatus } : null);
+      
+      // Update the conversations list
+      setConversations(prev => prev.map(c => 
+        c.leadId === selected.leadId ? { ...c, chatStatus: newStatus } : c
+      ));
+    } catch (err) {
+      console.error('Failed to update chat status:', err);
+    }
+  };
+
   const handleSendMessage = async () => {
     if (!selected) return;
     // Allow sending media-only or text-only messages
@@ -793,13 +817,39 @@ export default function MetaInboxPage() {
   };
 
   const filteredConversations = useMemo(() => {
-    if (!searchQuery) return conversations;
-    const lower = searchQuery.toLowerCase();
-    return conversations.filter(c => 
-      c.name?.toLowerCase().includes(lower) || 
-      c.phoneNumber?.includes(lower)
-    );
-  }, [conversations, searchQuery]);
+    let result = conversations;
+    
+    // Filter by search query
+    if (searchQuery) {
+      const lower = searchQuery.toLowerCase();
+      result = result.filter(c => 
+        c.name?.toLowerCase().includes(lower) || 
+        c.phoneNumber?.includes(lower)
+      );
+    }
+    
+    // Filter by chat status
+    if (chatStatusFilter !== 'all') {
+      result = result.filter(c => {
+        const computedStatus = calculateChatStatus(c.lastMessageAt, c.chatStatus);
+        return computedStatus === chatStatusFilter;
+      });
+    }
+    
+    // Sort by status priority (overdue first) then by lastMessageAt
+    result = [...result].sort((a, b) => {
+      const statusA = calculateChatStatus(a.lastMessageAt, a.chatStatus);
+      const statusB = calculateChatStatus(b.lastMessageAt, b.chatStatus);
+      const priorityDiff = getStatusPriority(statusA) - getStatusPriority(statusB);
+      if (priorityDiff !== 0) return priorityDiff;
+      // Then sort by lastMessageAt (most recent first)
+      const dateA = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
+      const dateB = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+      return dateB - dateA;
+    });
+    
+    return result;
+  }, [conversations, searchQuery, chatStatusFilter]);
 
   const anyChecked = selectedIds.length > 0;
   const allChecked = useMemo(() => {
@@ -989,6 +1039,7 @@ export default function MetaInboxPage() {
              {toolsDropdownOpen && (
                 <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-100 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.15)] z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 p-2">
                    {[
+                      { label: 'Dashboard', icon: 'ph-chart-bar', href: '/admin/crm/meta-dashboard', color: 'text-indigo-600', bg: 'bg-indigo-50' },
                       { label: 'Chatbots', icon: 'ph-robot', href: '/admin/crm/chatbots', color: 'text-blue-600', bg: 'bg-blue-50' },
                       { label: 'Templates', icon: 'ph-file-text', href: '/admin/crm/templates', color: 'text-emerald-600', bg: 'bg-emerald-50' },
                       { label: 'Broadcasts', icon: 'ph-broadcast', href: '/admin/crm/broadcasts', color: 'text-pink-600', bg: 'bg-pink-50' },
@@ -1079,6 +1130,77 @@ export default function MetaInboxPage() {
             >
               <i className="ph ph-plus-bold text-lg"></i>
             </button>
+          </div>
+
+          {/* Chat Status Filter Tabs */}
+          <div className="px-3 py-2.5 border-b border-slate-200/70 bg-slate-50/30 shrink-0">
+            <div className="flex gap-1 overflow-x-auto no-scrollbar pb-0.5">
+              <button
+                onClick={() => setChatStatusFilter('all')}
+                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all whitespace-nowrap ${
+                  chatStatusFilter === 'all'
+                    ? 'bg-slate-800 text-white shadow-md'
+                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                }`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => setChatStatusFilter('new')}
+                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all whitespace-nowrap flex items-center gap-1 ${
+                  chatStatusFilter === 'new'
+                    ? 'bg-emerald-600 text-white shadow-md'
+                    : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+                }`}
+              >
+                <i className="ph ph-sparkle"></i>
+                New
+              </button>
+              <button
+                onClick={() => setChatStatusFilter('open')}
+                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all whitespace-nowrap flex items-center gap-1 ${
+                  chatStatusFilter === 'open'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'
+                }`}
+              >
+                <i className="ph ph-envelope-open"></i>
+                Open
+              </button>
+              <button
+                onClick={() => setChatStatusFilter('pending')}
+                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all whitespace-nowrap flex items-center gap-1 ${
+                  chatStatusFilter === 'pending'
+                    ? 'bg-amber-600 text-white shadow-md'
+                    : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200'
+                }`}
+              >
+                <i className="ph ph-clock"></i>
+                Pending
+              </button>
+              <button
+                onClick={() => setChatStatusFilter('overdue')}
+                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all whitespace-nowrap flex items-center gap-1 ${
+                  chatStatusFilter === 'overdue'
+                    ? 'bg-red-600 text-white shadow-md animate-pulse'
+                    : 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'
+                }`}
+              >
+                <i className="ph ph-warning"></i>
+                Overdue
+              </button>
+              <button
+                onClick={() => setChatStatusFilter('closed')}
+                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all whitespace-nowrap flex items-center gap-1 ${
+                  chatStatusFilter === 'closed'
+                    ? 'bg-slate-600 text-white shadow-md'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-300'
+                }`}
+              >
+                <i className="ph ph-check-circle"></i>
+                Closed
+              </button>
+            </div>
           </div>
 
           {/* Diagnostics panel (quick verification for inbound messages) */}
@@ -1439,13 +1561,19 @@ export default function MetaInboxPage() {
                     )}
 
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className={`w-2 h-2 rounded-full shrink-0 ${conv.unreadCount ? 'bg-blue-600' : 'bg-emerald-500'}`}></span>
-                      {/* NEW: User ID Button */}
+                      {/* Chat Status Badge */}
+                      <ChatStatusBadge
+                        lastMessageAt={conv.lastMessageAt}
+                        manualStatus={conv.chatStatus}
+                        size="xs"
+                      />
+
+                      {/* User ID Button */}
                       <span className={`text-[9px] font-[900] px-2 py-1 rounded-lg bg-pink-50 text-pink-700 border border-pink-200 uppercase tracking-wide`} title="User ID">
                         ID: {conv.leadNumber || 'N/A'}
                       </span>
 
-                      {/* Status Button */}
+                      {/* Lead Status Button */}
                       <span className={`text-[9px] font-[900] px-2.5 py-1 rounded-lg uppercase tracking-[0.05em] border ${
                         (conv.status || 'lead').toLowerCase() === 'customer' 
                           ? 'text-indigo-700 bg-indigo-50 border-indigo-100'
@@ -1458,7 +1586,7 @@ export default function MetaInboxPage() {
                         {conv.status || 'Lead'}
                       </span>
 
-                      {/* NEW: Labels Count/First Label Button */}
+                      {/* Labels Count/First Label Button */}
                       <span className="text-[9px] font-[900] px-2 py-1 rounded-lg bg-cyan-50 text-cyan-700 border border-cyan-200 uppercase tracking-wide truncate max-w-[80px]" title="Main Label">
                         {conv.labels?.[0] || 'No Label'}
                       </span>
@@ -1628,6 +1756,35 @@ export default function MetaInboxPage() {
                 >
                   <i className="ph ph-check text-lg"></i>
                 </button>
+                
+                {/* Chat Status Badge - Interactive */}
+                <ChatStatusBadge
+                  lastMessageAt={selected.lastMessageAt}
+                  manualStatus={selected.chatStatus}
+                  size="sm"
+                  interactive={true}
+                  onStatusChange={handleChatStatusChange}
+                />
+                
+                {/* Quick Close/Reopen Button */}
+                {calculateChatStatus(selected.lastMessageAt, selected.chatStatus) !== 'closed' ? (
+                  <button
+                    className="p-2 text-slate-600 hover:text-slate-700 hover:bg-slate-100 rounded-xl border border-slate-200/70 transition-all"
+                    title="Mark as Closed (Completed)"
+                    onClick={() => handleChatStatusChange('closed')}
+                  >
+                    <i className="ph ph-check-circle text-lg"></i>
+                  </button>
+                ) : (
+                  <button
+                    className="p-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-xl border border-emerald-200 transition-all"
+                    title="Reopen Chat"
+                    onClick={() => handleChatStatusChange('new')}
+                  >
+                    <i className="ph ph-arrow-counter-clockwise text-lg"></i>
+                  </button>
+                )}
+                
                 <button
                   className={`p-2 rounded-xl border transition-all ${showSidebar ? 'bg-blue-50 text-blue-700 border-blue-200' : 'text-slate-600 hover:bg-slate-50 border-slate-200/70'}`}
                   title={showSidebar ? "Hide Sidebar" : "Show Sidebar"}

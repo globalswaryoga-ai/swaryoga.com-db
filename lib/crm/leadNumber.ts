@@ -54,9 +54,9 @@ export function normalizeLeadNumberInput(raw: string): string | null {
 }
 
 /**
- * Ensures a lead exists for the given phone number and returns its leadNumber.
- * If multiple leads exist (shouldn't happen with unique index), it returns the first one with a leadNumber.
- * If no lead exists, it creates one and allocates a new leadNumber.
+ * Ensures a lead exists for the given phone/email and returns its leadNumber.
+ * DEDUPLICATION: Checks BOTH phone AND email - if either matches, reuses that lead.
+ * One person = One ID across all touchpoints.
  */
 export async function getOrCreateLeadIdForPhone(
   phone: string, 
@@ -72,61 +72,34 @@ export async function getOrCreateLeadIdForPhone(
   const cleanEmail = String(email || '').trim().toLowerCase();
   const cleanName = String(name || '').trim();
   
-  // 1. Try to find existing lead by phone (primary identity)
-  let lead = await Lead.findOne({ phoneNumber: cleanPhone });
+  // UNIFIED ID: Find existing lead by EITHER phone OR email (one person = one ID)
+  const searchQuery: any[] = [{ phoneNumber: cleanPhone }];
+  if (cleanEmail) searchQuery.push({ email: cleanEmail });
   
-  if (lead && lead.leadNumber) {
-    // Opportunistically add labels if provided
-    if (labels.length > 0) {
-      await Lead.updateOne(
-        { _id: lead._id },
-        { $addToSet: { labels: { $each: labels } } }
-      );
+  let lead = await Lead.findOne({ $or: searchQuery });
+  
+  if (lead) {
+    // Ensure leadNumber exists (for legacy leads)
+    if (!lead.leadNumber) {
+      const { leadNumber } = await allocateNextLeadNumber();
+      lead.leadNumber = leadNumber;
     }
-    return lead.leadNumber;
-  }
-
-  // 1b. If not found by phone, try by email (only when email is present)
-  // We do NOT auto-merge two different phone numbers just because email matches.
-  // If we find an email match, we reuse the leadNumber but keep the original phone.
-  // This avoids accidental merges while still preventing duplicate IDs.
-  if (!lead && cleanEmail) {
-    const byEmail = await Lead.findOne({ email: cleanEmail });
-    if (byEmail) {
-      // Ensure leadNumber exists.
-      if (!byEmail.leadNumber) {
-        const { leadNumber } = await allocateNextLeadNumber();
-        byEmail.leadNumber = leadNumber;
-      }
-
-      // Opportunistically fill missing fields (non-destructive).
-      if (cleanName && !byEmail.name) byEmail.name = cleanName;
-      if (cleanEmail && !byEmail.email) byEmail.email = cleanEmail;
-      
-      if (labels.length > 0) {
-        byEmail.labels = Array.from(new Set([...(byEmail.labels || []), ...labels]));
-      }
-
-      await byEmail.save();
-
-      return String(byEmail.leadNumber);
-    }
-  }
-
-  // 2. If lead exists but no leadNumber (legacy), allocate one
-  if (lead && !lead.leadNumber) {
-    const { leadNumber } = await allocateNextLeadNumber();
-    lead.leadNumber = leadNumber;
     
+    // Opportunistically fill missing fields (non-destructive merge)
+    if (cleanName && !lead.name) lead.name = cleanName;
+    if (cleanEmail && !lead.email) lead.email = cleanEmail;
+    if (cleanPhone && !lead.phoneNumber) lead.phoneNumber = cleanPhone;
+    
+    // Add labels if provided
     if (labels.length > 0) {
       lead.labels = Array.from(new Set([...(lead.labels || []), ...labels]));
     }
     
     await lead.save();
-    return leadNumber;
+    return lead.leadNumber;
   }
 
-  // 3. Create new lead if none exists
+  // No existing lead found - create new one
   const { leadNumber } = await allocateNextLeadNumber();
   lead = new Lead({
     name: cleanName || 'CRM Lead',

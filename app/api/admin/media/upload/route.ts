@@ -11,8 +11,8 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 // Max file sizes
-const MAX_IMAGE_SIZE = 25 * 1024 * 1024; // 25MB
-const MAX_VIDEO_SIZE = 500 * 1024 * 1024; // 500MB
+const MAX_IMAGE_SIZE = 500 * 1024 * 1024; // 500MB for high-quality images
+const MAX_VIDEO_SIZE = 2 * 1024 * 1024 * 1024; // 2GB for long recordings
 const MAX_DOC_SIZE = 50 * 1024 * 1024; // 50MB
 
 /**

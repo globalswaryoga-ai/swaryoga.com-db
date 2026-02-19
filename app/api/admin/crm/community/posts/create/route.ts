@@ -30,6 +30,19 @@ type Body = {
   imageUrls?: string[];
   scheduledAt?: string;
   category?: 'general' | 'experiences' | 'tips' | 'transformations' | 'questions';
+  categoryMetadata?: {
+    participantName?: string;
+    workshopName?: string;
+    batchName?: string;
+    experienceDetails?: string;
+    problemHeading?: string;
+    problemDescription?: string;
+    tipsDetails?: string;
+    beforeStory?: string;
+    afterStory?: string;
+    question?: string;
+    answer?: string;
+  };
   crossPost?: {
     media?: boolean;
     socialMedia?: boolean;
@@ -117,6 +130,7 @@ export async function POST(request: NextRequest) {
     const extraLinks = Array.isArray(body?.links) ? body.links.filter(Boolean) : [];
     const scheduledFor = body?.scheduledAt ? new Date(body.scheduledAt) : undefined;
     const category = body?.category || 'general';
+    const categoryMetadata = body?.categoryMetadata || null;
 
     if (communityIds.length === 0) {
       return NextResponse.json({ error: 'communityIds is required' }, { status: 400 });
@@ -236,6 +250,7 @@ export async function POST(request: NextRequest) {
           mediaPostId,
           socialPostId,
           postId: postResults.length + 1,
+          categoryMetadata,
         },
         createdAt: now,
         updatedAt: now,

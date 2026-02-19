@@ -32,50 +32,80 @@ export async function POST(request: NextRequest) {
       ],
     });
 
+    let leadToUse: any;
+    let isExisting = false;
+
     if (existingLead) {
-      return NextResponse.json(
-        { error: 'This phone number or email is already registered', data: existingLead },
-        { status: 409 }
+      // UNIFIED ID: Reuse existing lead - update with youth workshop info
+      isExisting = true;
+      
+      // Ensure leadNumber exists on legacy leads
+      if (!existingLead.leadNumber) {
+        const { leadNumber } = await allocateNextLeadNumber();
+        existingLead.leadNumber = leadNumber;
+      }
+
+      // Update existing lead with youth workshop labels
+      await Lead.updateOne(
+        { _id: existingLead._id },
+        {
+          $addToSet: { labels: { $each: ['youth-workshop', 'website-form'] } },
+          $set: {
+            workshopName: existingLead.workshopName || 'Youth Workshop',
+            'metadata.youthWorkshop': {
+              state: state.trim(),
+              registeredAt: new Date(),
+            },
+          },
+        }
       );
+      
+      // Auto-add to main broadcast list
+      await addLeadToMainBroadcastList(existingLead);
+      leadToUse = existingLead;
+    } else {
+      // Allocate next lead number for new lead
+      const { leadNumber } = await allocateNextLeadNumber();
+
+      // Create new lead with youth workshop source
+      const newLead = await Lead.create({
+        leadNumber,
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        phoneNumber: phoneNumber.trim(),
+        status: 'lead',
+        source: 'website', // Youth workshop form
+        workshopName: 'Youth Workshop', // ← This is the key field for filtering in CRM
+        labels: ['youth-workshop', 'website-form'],
+        metadata: {
+          state: state.trim(),
+          formType: 'youth-workshop',
+          submittedAt: new Date(),
+        },
+      });
+
+      // Auto-add to main broadcast list
+      await addLeadToMainBroadcastList(newLead);
+      leadToUse = newLead;
     }
 
-    // Allocate next lead number
-    const { leadNumber } = await allocateNextLeadNumber();
-
-    // Create new lead with youth workshop source
-    const newLead = await Lead.create({
-      leadNumber,
-      name: name.trim(),
-      email: email.trim().toLowerCase(),
-      phoneNumber: phoneNumber.trim(),
-      status: 'lead',
-      source: 'website', // Youth workshop form
-      workshopName: 'Youth Workshop', // ← This is the key field for filtering in CRM
-      labels: ['youth-workshop', 'website-form'],
-      metadata: {
-        state: state.trim(),
-        formType: 'youth-workshop',
-        submittedAt: new Date(),
-      },
-    });
-
-    // Auto-add to main broadcast list
-    await addLeadToMainBroadcastList(newLead);
-
-    console.log(`✓ Youth workshop lead created: ${newLead._id}`);
+    console.log(`✓ Youth workshop lead ${isExisting ? 'updated' : 'created'}: ${leadToUse._id}`);
 
     return NextResponse.json(
       {
         success: true,
-        message: 'Registration successful! We will contact you soon.',
+        message: isExisting 
+          ? 'You are already registered! Your information has been updated.' 
+          : 'Registration successful! We will contact you soon.',
         data: {
-          leadId: newLead._id,
-          leadNumber: newLead.leadNumber,
-          name: newLead.name,
-          email: newLead.email,
+          leadId: leadToUse._id,
+          leadNumber: leadToUse.leadNumber,
+          name: leadToUse.name,
+          email: leadToUse.email,
+          isExisting,
         },
       },
-      { status: 201 }
+      { status: isExisting ? 200 : 201 }
     );
   } catch (error) {
     console.error('Youth workshop registration error:', error);

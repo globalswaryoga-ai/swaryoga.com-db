@@ -156,6 +156,7 @@ export default function CRMDashboard() {
                   <div className="absolute top-full left-0 mt-1 w-48 bg-slate-800 border border-purple-500/30 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
                     <Link href="/admin/crm/leads" className="flex items-center gap-2 px-4 py-2.5 text-purple-100 hover:bg-purple-600/30 hover:text-white text-sm rounded-t-lg">👥 All Leads</Link>
                     <Link href="/admin/crm/leads-followup" className="flex items-center gap-2 px-4 py-2.5 text-purple-100 hover:bg-purple-600/30 hover:text-white text-sm">📞 Lead Followup</Link>
+                    <Link href="/admin/crm/form-links" className="flex items-center gap-2 px-4 py-2.5 text-purple-100 hover:bg-purple-600/30 hover:text-white text-sm">🔗 Form Links</Link>
                     <Link href="/admin/crm/meta" className="flex items-center gap-2 px-4 py-2.5 text-purple-100 hover:bg-purple-600/30 hover:text-white text-sm">🟢 Meta WhatsApp</Link>
                     <Link href="/admin/crm/qr" className="flex items-center gap-2 px-4 py-2.5 text-purple-100 hover:bg-purple-600/30 hover:text-white text-sm">💚 QR WhatsApp</Link>
                     <Link href="/admin/crm/sales" className="flex items-center gap-2 px-4 py-2.5 text-purple-100 hover:bg-purple-600/30 hover:text-white text-sm">💰 Sales</Link>

@@ -62,6 +62,9 @@ interface SaleRecord {
   reportedByUserId?: string;
   status?: string;
   labels?: string[];
+  superAdminApproved?: boolean;
+  superAdminApprovedAt?: string;
+  superAdminApprovedBy?: string;
   saleAmount: number;
   workshopFee?: number;
   paidAmount?: number;
@@ -108,6 +111,29 @@ export default function SalesPage() {
   const enableMetaWhatsApp = (process.env.NEXT_PUBLIC_ENABLE_META_WHATSAPP || '').toLowerCase() === 'true';
   const crm = useCRM({ token });
   const crmFetch = crm.fetch;
+
+  // Super admin state for approval checkbox visibility
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [viewerUserId, setViewerUserId] = useState<string>('');
+
+  // Load user role on mount
+  useEffect(() => {
+    if (!token) return;
+    (async () => {
+      try {
+        const res = await fetch('/api/admin/crm/users/me', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const json = await res.json();
+        const u = json?.data;
+        const perms = Array.isArray(u?.permissions) ? u.permissions : [];
+        setViewerUserId(u?.userId || '');
+        setIsSuperAdmin((u?.userId === 'admin' || u?.userId === 'admincrm') || perms.includes('all'));
+      } catch {
+        setIsSuperAdmin(false);
+      }
+    })();
+  }, [token]);
 
   // Bulk selection + header actions
   const [selectedSaleIds, setSelectedSaleIds] = useState<Set<string>>(new Set());
@@ -419,6 +445,7 @@ export default function SalesPage() {
       status: sale.status || 'completed',
       labelsText: Array.isArray(sale.labels) ? sale.labels.join(', ') : '',
       targetAchieved: (sale as any).targetAchieved ? true : false,
+      superAdminApproved: sale.superAdminApproved ? true : false,
     });
     setShowEditModal(true);
   };
@@ -426,23 +453,33 @@ export default function SalesPage() {
   const handleEditSale = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const updateBody: any = {
+        saleId: editData.saleId,
+        customerId: editData.customerId || undefined,
+        customerName: editData.customerName || undefined,
+        customerPhone: editData.customerPhone || undefined,
+        workshopName: editData.workshopName || undefined,
+        batchDate: editData.batchDate || undefined,
+        saleAmount: editData.saleAmount,
+        paymentMode: editData.paymentMode,
+        saleDate: editData.saleDate || undefined,
+        reportedByUserId: editData.reportedByUserId || undefined,
+        status: editData.status || undefined,
+        labels: parseLabelsText(editData.labelsText),
+        targetAchieved: Boolean((editData as any).targetAchieved),
+      };
+      
+      // Only super admin can set approval
+      if (isSuperAdmin) {
+        updateBody.superAdminApproved = Boolean((editData as any).superAdminApproved);
+        if (updateBody.superAdminApproved) {
+          updateBody.superAdminApprovedBy = viewerUserId;
+        }
+      }
+
       await crm.fetch('/api/admin/crm/sales', {
         method: 'PUT',
-        body: {
-          saleId: editData.saleId,
-          customerId: editData.customerId || undefined,
-          customerName: editData.customerName || undefined,
-          customerPhone: editData.customerPhone || undefined,
-          workshopName: editData.workshopName || undefined,
-          batchDate: editData.batchDate || undefined,
-          saleAmount: editData.saleAmount,
-          paymentMode: editData.paymentMode,
-          saleDate: editData.saleDate || undefined,
-          reportedByUserId: editData.reportedByUserId || undefined,
-          status: editData.status || undefined,
-          labels: parseLabelsText(editData.labelsText),
-          targetAchieved: Boolean((editData as any).targetAchieved),
-        },
+        body: updateBody,
       });
       setShowEditModal(false);
       fetchSalesData();
@@ -597,7 +634,14 @@ export default function SalesPage() {
       key: 'status',
       label: 'Status',
       render: (_: any, sale: SaleRecord) => (
-        <StatusBadge status={String(sale.status || '—')} size="sm" />
+        <div className="flex flex-col gap-1">
+          <StatusBadge status={String(sale.status || '—')} size="sm" />
+          {sale.superAdminApproved && (
+            <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium">
+              ✓ Approved
+            </span>
+          )}
+        </div>
       ),
     },
     {
@@ -667,17 +711,16 @@ export default function SalesPage() {
                 return;
               }
 
-              // Route into QR WhatsApp page (shared WhatsApp session).
-              // If leadId exists, prefer it; otherwise fallback to phone.
+              // Route to leads-followup page for Meta WhatsApp
               const params = new URLSearchParams();
               if (sale.leadId) params.set('leadId', getLeadIdString(sale.leadId));
               if (phone) params.set('phone', phone);
               if (sale.customerName) params.set('name', sale.customerName);
 
-              router.push(`/admin/crm/qr?${params.toString()}`);
+              router.push(`/admin/crm/leads-followup?${params.toString()}`);
             }}
-            className="px-3 py-1.5 bg-[#E8A645] hover:bg-[#d4941e] text-white rounded-lg text-sm font-medium transition-colors"
-            title="QR WhatsApp"
+            className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
+            title="Meta WhatsApp"
           >
             WhatsApp
           </button>
@@ -1346,6 +1389,22 @@ export default function SalesPage() {
                 Target achieved
               </label>
             </div>
+
+            {/* Super Admin Approval Checkbox - Only visible to super admins */}
+            {isSuperAdmin && (
+              <div className="flex items-center gap-3 p-3 bg-green-900/30 border border-green-500/30 rounded-lg">
+                <input
+                  id="superAdminApprovedEdit"
+                  type="checkbox"
+                  checked={Boolean((editData as any).superAdminApproved)}
+                  onChange={(e) => setEditData({ ...(editData as any), superAdminApproved: e.target.checked })}
+                  className="h-4 w-4"
+                />
+                <label htmlFor="superAdminApprovedEdit" className="text-green-200 text-sm font-medium">
+                  Super Admin Approved ✓
+                </label>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>

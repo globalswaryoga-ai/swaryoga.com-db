@@ -1,7 +1,8 @@
+require('dotenv').config({ path: '.env.local' });
 const { MongoClient } = require('mongodb');
 
 async function check() {
-  const client = new MongoClient(process.env.MONGODB_URI_MAIN || 'mongodb+srv://mohan:nA4xLLpxL1kxHe2O@cluster0.ydq4q.mongodb.net/swaryoga_admin_crm?retryWrites=true&w=majority&appName=Cluster0');
+  const client = new MongoClient(process.env.MONGODB_URI_MAIN);
   await client.connect();
   const db = client.db('swaryoga_admin_crm');
   

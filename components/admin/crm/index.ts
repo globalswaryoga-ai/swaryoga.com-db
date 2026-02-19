@@ -55,3 +55,12 @@ export {
   type WhatsAppTemplate,
   formatWhatsAppText,
 } from './TemplateSelector';
+
+// Chat Status Badge component for conversation status display
+export {
+  default as ChatStatusBadge,
+  ChatStatusDot,
+  type ChatStatus,
+  type ChatStatusInfo,
+  type ChatStatusBadgeProps,
+} from './ChatStatusBadge';

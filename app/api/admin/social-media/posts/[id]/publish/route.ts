@@ -39,7 +39,7 @@ function createFriendlyPublishErrorMessage(error: string, platform: string): str
     return `❌ ${platform.toUpperCase()}: Account/Page ID invalid or inaccessible. Verify the account is connected and active.`;
   }
   if (error.includes('video') || error.includes('youtube')) {
-    return `❌ YOUTUBE: Video upload not yet supported through this interface. Please upload videos directly to YouTube.`;
+    return `❌ YOUTUBE: ${error}. Make sure you've connected via OAuth and included a video URL.`;
   }
   
   // Truncate long errors
@@ -351,6 +351,148 @@ async function publishXPost(args: {
   return tweetId;
 }
 
+/**
+ * Refresh YouTube OAuth token if expired
+ */
+async function refreshYouTubeToken(refreshToken: string): Promise<{ access_token: string; expires_in: number }> {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    throw new Error('YouTube OAuth not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.');
+  }
+
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken,
+      grant_type: 'refresh_token',
+    }),
+  });
+
+  const data = await response.json();
+  if (!response.ok || !data.access_token) {
+    throw new Error(`Failed to refresh YouTube token: ${data.error_description || data.error || 'Unknown error'}`);
+  }
+
+  return { access_token: data.access_token, expires_in: data.expires_in };
+}
+
+/**
+ * Upload video to YouTube using resumable upload protocol
+ * Supports large files by uploading in chunks
+ */
+async function publishYouTubeVideo(args: {
+  accessToken: string;
+  refreshToken?: string;
+  videoUrl: string;
+  title: string;
+  description: string;
+}): Promise<string> {
+  const { accessToken, refreshToken, videoUrl, title, description } = args;
+
+  // First, download the video from the provided URL
+  console.log(`[YouTube] Fetching video from: ${videoUrl}`);
+  const videoResponse = await fetch(videoUrl, { cache: 'no-store' });
+  if (!videoResponse.ok) {
+    throw new Error(`Failed to fetch video: ${videoResponse.statusText}`);
+  }
+
+  const contentType = videoResponse.headers.get('content-type') || 'video/mp4';
+  const videoBuffer = await videoResponse.arrayBuffer();
+  const videoSize = videoBuffer.byteLength;
+
+  console.log(`[YouTube] Video size: ${(videoSize / 1024 / 1024).toFixed(2)} MB`);
+
+  // Maximum video size: 128GB (YouTube limit), but we'll set a practical limit
+  if (videoSize > 5 * 1024 * 1024 * 1024) { // 5GB practical limit
+    throw new Error('Video file too large. Maximum size is 5GB for this upload method.');
+  }
+
+  // Step 1: Initialize resumable upload session
+  const metadata = {
+    snippet: {
+      title: title || 'Untitled Video',
+      description: description || '',
+      categoryId: '22', // "People & Blogs" - generic category
+    },
+    status: {
+      privacyStatus: 'public',
+      selfDeclaredMadeForKids: false,
+    },
+  };
+
+  const initResponse = await fetch(
+    'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json; charset=UTF-8',
+        'X-Upload-Content-Type': contentType,
+        'X-Upload-Content-Length': videoSize.toString(),
+      },
+      body: JSON.stringify(metadata),
+    }
+  );
+
+  if (!initResponse.ok) {
+    const errorData = await initResponse.json().catch(() => ({}));
+    const errorMsg = errorData?.error?.message || errorData?.error?.errors?.[0]?.message || 'Failed to initialize upload';
+    
+    // Check for token expiry
+    if (initResponse.status === 401 && refreshToken) {
+      console.log('[YouTube] Token expired, attempting refresh...');
+      const newTokens = await refreshYouTubeToken(refreshToken);
+      // Retry with new token
+      return publishYouTubeVideo({
+        accessToken: newTokens.access_token,
+        refreshToken,
+        videoUrl,
+        title,
+        description,
+      });
+    }
+    
+    throw new Error(`YouTube upload init failed: ${errorMsg}`);
+  }
+
+  const uploadUrl = initResponse.headers.get('location');
+  if (!uploadUrl) {
+    throw new Error('YouTube did not return an upload URL');
+  }
+
+  console.log(`[YouTube] Upload session initialized, uploading video...`);
+
+  // Step 2: Upload the video content
+  const uploadResponse = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': contentType,
+      'Content-Length': videoSize.toString(),
+    },
+    body: videoBuffer,
+  });
+
+  if (!uploadResponse.ok) {
+    const errorData = await uploadResponse.json().catch(() => ({}));
+    throw new Error(`YouTube video upload failed: ${errorData?.error?.message || uploadResponse.statusText}`);
+  }
+
+  const uploadResult = await uploadResponse.json();
+  const videoId = uploadResult?.id;
+
+  if (!videoId) {
+    throw new Error('YouTube upload succeeded but no video ID returned');
+  }
+
+  console.log(`[YouTube] ✅ Video uploaded successfully: https://www.youtube.com/watch?v=${videoId}`);
+  return videoId;
+}
+
 async function publishLinkedInPost(args: {
   accessToken: string;
   companyId: string;
@@ -475,9 +617,17 @@ async function publishLinkedInPost(args: {
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
-    const decoded = verifyToken(token);
-    if (!decoded?.isAdmin) {
-      return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
+    
+    // Allow internal scheduler token for automated publishing
+    const internalToken = process.env.INTERNAL_API_TOKEN || process.env.CRON_SECRET;
+    const isInternalCall = internalToken && token === internalToken;
+    
+    let decoded: any = null;
+    if (!isInternalCall) {
+      decoded = verifyToken(token);
+      if (!decoded?.isAdmin) {
+        return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
+      }
     }
 
     const postId = params?.id;
@@ -583,8 +733,34 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         }
 
         if (platform === 'youtube') {
-          // YouTube posting is complex (requires video processing). For now, mark as not implemented.
-          throw new Error('YouTube publishing not implemented yet. Video upload requires special handling.');
+          // YouTube requires video URLs
+          if (videoUrls.length === 0) {
+            throw new Error('YouTube publishing requires at least one video URL. Text-only posts are not supported.');
+          }
+          if (videoUrls.length > 1) {
+            throw new Error('YouTube publishing currently supports only 1 video per post.');
+          }
+
+          // Get refresh token for token renewal
+          let refreshToken = '';
+          try {
+            if (acc.refreshToken) {
+              refreshToken = decryptCredential(String(acc.refreshToken));
+            }
+          } catch {
+            console.warn('[YouTube] Could not decrypt refresh token, proceeding without it');
+          }
+
+          const ytId = await publishYouTubeVideo({
+            accessToken,
+            refreshToken,
+            videoUrl: videoUrls[0],
+            title: text.slice(0, 100) || 'Video from Swar Yoga', // YouTube title limit
+            description: text,
+          });
+          platformPostIds.youtube = ytId;
+          results.push({ platform, ok: true, platformPostId: ytId });
+          continue;
         }
 
         if (platform === 'linkedin') {
@@ -647,7 +823,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         },
       },
       status: okAny ? 'published' : 'draft',
-      author: decoded.username || decoded.userId || 'Admin',
+      author: decoded?.username || decoded?.userId || 'Scheduler',
     });
 
     return NextResponse.json({

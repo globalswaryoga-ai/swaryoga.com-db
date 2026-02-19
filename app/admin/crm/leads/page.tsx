@@ -519,11 +519,11 @@ export default function LeadsPage() {
 
           {canMessage ? (
             <button
-              onClick={() => router.push(`/admin/crm/qr?leadId=${encodeURIComponent(lead._id)}&phone=${encodeURIComponent(lead.phoneNumber || '')}&name=${encodeURIComponent(lead.name || '')}`)}  
-              className="px-3 py-1.5 bg-[#E8A645] hover:bg-[#d4941e] text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-1"
-              title="Open QR WhatsApp"
+              onClick={() => router.push(`/admin/crm/leads-followup?leadId=${encodeURIComponent(lead._id)}`)}  
+              className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-1"
+              title="Send WhatsApp via Meta"
             >
-              <span aria-hidden>🟢</span>
+              <span aria-hidden>💬</span>
               WhatsApp
             </button>
           ) : (

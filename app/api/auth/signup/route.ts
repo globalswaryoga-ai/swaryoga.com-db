@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, User } from '@/lib/db';
+import { connectDB, User, CommunityMember } from '@/lib/db';
 import { getLead } from '@/lib/schemas/enterpriseSchemas';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import { normalizePhone } from '@/lib/whatsapp';
@@ -139,8 +139,13 @@ export async function POST(request: NextRequest) {
         };
 
         if (cleanedPhone) {
-          const existingLead = await Lead.findOne({ phoneNumber: cleanedPhone }).lean();
+          // UNIFIED ID: Find by EITHER phone OR email (one person = one ID)
+          const searchQuery: any[] = [{ phoneNumber: cleanedPhone }];
+          if (cleanedEmail) searchQuery.push({ email: cleanedEmail });
+          
+          const existingLead = await Lead.findOne({ $or: searchQuery }).lean();
           if (existingLead) {
+            // UPDATE EXISTING LEAD AND LINK TO USER ACCOUNT
             await Lead.updateOne(
               { _id: (existingLead as any)._id },
               {
@@ -159,6 +164,10 @@ export async function POST(request: NextRequest) {
                   ...(cleanedName ? { name: cleanedName } : {}),
                   ...(cleanedEmail ? { email: cleanedEmail } : {}),
                   metadata: meta,
+                  // UNIFIED ID: Link Lead to User account
+                  linkedUserId: user._id,
+                  linkedProfileId: (user as any).profileId,
+                  isLinkedToAccount: true,
                 },
               },
               { upsert: false }
@@ -169,6 +178,7 @@ export async function POST(request: NextRequest) {
             leadNumber = String((existingLead as any).leadNumber || '') || null;
           } else {
             const { leadNumber: allocatedLeadNumber } = await allocateNextLeadNumber();
+            // CREATE NEW LEAD WITH USER LINK
             const newLead = await Lead.create({
               leadNumber: allocatedLeadNumber,
               name: cleanedName,
@@ -181,11 +191,51 @@ export async function POST(request: NextRequest) {
               createdByUserId: 'system',
               assignedToUserId: 'system',
               metadata: meta,
+              // UNIFIED ID: Link Lead to User account
+              linkedUserId: user._id,
+              linkedProfileId: (user as any).profileId,
+              isLinkedToAccount: true,
             });
             // Auto-add to main broadcast list
             await addLeadToMainBroadcastList(newLead);
 
             leadNumber = String((newLead as any).leadNumber || allocatedLeadNumber || '') || null;
+          }
+
+          // AUTO-JOIN to Global Community
+          try {
+            const existingGlobalMember = await CommunityMember.findOne({
+              mobile: cleanedPhone,
+              communityId: 'global',
+            });
+            
+            if (!existingGlobalMember) {
+              await CommunityMember.create({
+                name: cleanedName,
+                email: cleanedEmail,
+                mobile: cleanedPhone,
+                countryCode: countryCode || '+91',
+                userId: leadNumber || user._id.toString(),
+                communityId: 'global',
+                communityName: 'Global Community',
+                status: 'active',
+                approved: true,
+                joinedAt: new Date(),
+                chatEnabled: true,
+                chatPermissions: {
+                  canSend: true,
+                  allowText: true,
+                  allowLinks: true,
+                  allowImages: true,
+                  allowVideos: true,
+                  allowDocuments: true,
+                },
+              });
+              console.log(`✅ Auto-joined ${cleanedName} to Global Community on signup`);
+            }
+          } catch (globalJoinError) {
+            console.error('❌ Auto-join Global on signup failed:', globalJoinError);
+            // Non-fatal: signup should still succeed
           }
 
           // Optional warning: same name exists in CRM. Public response must not leak PII.

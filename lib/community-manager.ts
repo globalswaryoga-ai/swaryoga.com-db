@@ -347,7 +347,7 @@ export async function getUserCommunities(userId: string): Promise<{
     match: { type: COMMUNITY_TYPES.OLD_SADHAK, isArchived: false },
   });
 
-  let oldSadhak = null;
+  let oldSadhak: any = null;
   if (oldSadhakMembership) {
     oldSadhak = await Community.findOne({
       type: COMMUNITY_TYPES.OLD_SADHAK,
@@ -417,7 +417,7 @@ export async function getUserRecordings(
   };
 
   // Get common recordings
-  const commonQuery = { ...baseQuery, isCommon: true };
+  const commonQuery: Record<string, unknown> = { ...baseQuery, isCommon: true };
   if (workshopId) {
     commonQuery.workshopId = new mongoose.Types.ObjectId(workshopId);
   }

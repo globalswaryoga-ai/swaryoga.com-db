@@ -52,10 +52,11 @@ export async function GET(
 
     // Check if user is member of this community
     const { CommunityMembership } = await import('@/lib/db');
+    const decodedAny = decoded as any;
     const membership = await CommunityMembership.findOne({
       communityId,
       $or: [
-        { odId: decoded.odId },
+        { odId: decodedAny.odId },
         { odId: decoded.userId },
         { userId: decoded.userId }
       ],
@@ -78,21 +79,60 @@ export async function GET(
       .sort({ createdAt: -1 })
       .lean();
 
-    // Generate signed URLs for each video
+    // Process videos based on their source type
     const videosWithUrls = await Promise.all(
       videos.map(async (video: any) => {
         try {
-          const signedUrl = await getProtectedUrl(video.s3Key, 'community', 3600);
-          return {
-            ...video,
-            url: signedUrl,
-          };
-        } catch (error) {
-          console.error(`Error generating URL for video ${video._id}:`, error);
+          // For YouTube videos, no signed URL needed
+          if (video.videoSource === 'youtube' && video.youtubeVideoId) {
+            return {
+              _id: video._id,
+              title: video.title,
+              description: video.description,
+              videoSource: 'youtube',
+              youtubeVideoId: video.youtubeVideoId,
+              thumbnailUrl: video.thumbnailUrl || `https://img.youtube.com/vi/${video.youtubeVideoId}/maxresdefault.jpg`,
+              duration: video.duration,
+              views: video.views,
+              createdAt: video.createdAt,
+              isCommon: video.isCommon,
+              tags: video.tags,
+              uploadedBy: video.uploadedBy,
+              url: null, // YouTube uses embed instead
+            };
+          }
+          
+          // For AWS S3 videos, generate signed URL
+          if (video.s3Key) {
+            const signedUrl = await getProtectedUrl(video.s3Key, 'community', 3600);
+            return {
+              _id: video._id,
+              title: video.title,
+              description: video.description,
+              videoSource: video.videoSource || 'aws',
+              thumbnailUrl: video.thumbnailUrl,
+              duration: video.duration,
+              views: video.views,
+              createdAt: video.createdAt,
+              isCommon: video.isCommon,
+              tags: video.tags,
+              uploadedBy: video.uploadedBy,
+              url: signedUrl,
+            };
+          }
+          
+          // Fallback
           return {
             ...video,
             url: null,
-            error: 'Failed to generate video URL',
+            error: 'Video source not configured',
+          };
+        } catch (error) {
+          console.error(`Error processing video ${video._id}:`, error);
+          return {
+            ...video,
+            url: null,
+            error: 'Failed to process video',
           };
         }
       })
@@ -156,11 +196,11 @@ export async function POST(
       );
     }
 
-    // Max 500MB
-    const maxSize = 500 * 1024 * 1024;
+    // Max 2GB for videos (supports 2-hour recordings)
+    const maxSize = 2 * 1024 * 1024 * 1024;
     if (file.size > maxSize) {
       return NextResponse.json(
-        { error: 'Video too large. Maximum size is 500MB' },
+        { error: 'Video too large. Maximum size is 2GB' },
         { status: 400 }
       );
     }

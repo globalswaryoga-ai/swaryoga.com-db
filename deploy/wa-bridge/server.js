@@ -21,7 +21,9 @@ const BRIDGE_SECRET = process.env.WHATSAPP_WEB_BRIDGE_SECRET ||
                         process.env.WHATSAPP_BRIDGE_SECRET || 
                         'swar-bridge-secret-2024';
 
-const SESSION_DIR = process.env.SESSION_DIR || './.wwebjs_auth';
+// Use persistent session directory in home folder (survives restarts)
+const HOME_DIR = process.env.HOME || require('os').homedir();
+const SESSION_DIR = process.env.SESSION_DIR || path.join(HOME_DIR, '.whatsapp-bridge-session');
 const CLIENT_ID = process.env.CLIENT_ID || 'swar-bridge-session';
 const DATA_PATH = path.resolve(SESSION_DIR);
 
@@ -34,7 +36,7 @@ if (!fs.existsSync(DATA_PATH)) {
 setInterval(() => {
   const memoryUsage = process.memoryUsage().heapUsed / 1024 / 1024;
   if (memoryUsage > 800) {
-    console.warn(\`[system] High Memory Usage: \${memoryUsage.toFixed(2)} MB\`);
+    console.warn(`[system] High Memory Usage: ${memoryUsage.toFixed(2)} MB`);
   }
 }, 60000);
 
@@ -50,7 +52,7 @@ async function getMediaFromUrl(url) {
     const mime = response.headers['content-type'];
     return new MessageMedia(mime, b64);
   } catch (err) {
-    console.error(\`[media] Failed to fetch from \${url}: \`, err.message);
+    console.error(`[media] Failed to fetch from ${url}: `, err.message);
     return null;
   }
 }
@@ -63,7 +65,7 @@ app.use(express.json({ limit: '50mb' }));
 const authMiddleware = (req, res, next) => {
   const secret = req.headers['x-bridge-secret'] || req.headers['x-whatsapp-web-bridge-secret'];
   if (!secret || secret !== BRIDGE_SECRET) {
-    console.warn(\`[auth] Unauthorized access attempt from \${req.ip}\`);
+    console.warn(`[auth] Unauthorized access attempt from ${req.ip}`);
     return res.status(401).json({ error: 'Unauthorized bridge access' });
   }
   next();
@@ -284,7 +286,7 @@ function startHeartbeat() {
       try {
         const state = await client.getState().catch(() => 'error');
         if (state !== 'CONNECTED') {
-          console.warn(\`[heartbeat] Client state: \${state}\`);
+          console.warn(`[heartbeat] Client state: ${state}`);
         }
       } catch (e) {
         console.error('[heartbeat] Error:', e.message);
@@ -299,7 +301,7 @@ async function processMessageQueue() {
   while (messageQueue.length > 0 && sessionReady) {
     const task = messageQueue[0];
     try {
-      const formattedTo = task.chatId.includes('@') ? task.chatId : \`\${task.chatId}@c.us\`;
+      const formattedTo = task.chatId.includes('@') ? task.chatId : `${task.chatId}@c.us`;
       let content = task.message;
       let options = {};
       if (task.media) {
@@ -313,7 +315,7 @@ async function processMessageQueue() {
       messageQueue.shift();
       await new Promise(r => setTimeout(r, 2000));
     } catch (err) {
-      console.error(\`[queue] Failed: \`, err.message);
+      console.error(`[queue] Failed: `, err.message);
       if (task.retryCount > 2) messageQueue.shift();
       else {
         task.retryCount = (task.retryCount || 0) + 1;
@@ -332,7 +334,7 @@ app.get('/status', authMiddleware, (req, res) => {
 app.get('/qr', authMiddleware, async (req, res) => {
   if (qrCodeData) {
     const url = await qrcode.toDataURL(qrCodeData);
-    res.send(\`<img src="\${url}" style="display:block;margin:auto;">\`);
+    res.send(`<img src="${url}" style="display:block;margin:auto;">`);
   } else if (sessionReady) res.send('<h1>Connected</h1>');
   else res.send('<h1>Initializing... Refresh in 10s</h1>');
 });
@@ -366,14 +368,14 @@ app.post('/send-template', authMiddleware, async (req, res) => {
   }
 
   try {
-    const formattedTo = to.includes('@') ? to : \`\${to}@c.us\`;
+    const formattedTo = to.includes('@') ? to : `${to}@c.us`;
     const results = [];
     let lastMessageId = null;
 
     // 1. Send image first (if provided)
     if (imageUrl) {
       try {
-        console.log(\`[send-template] Fetching image: \${imageUrl.substring(0, 80)}...\`);
+        console.log(`[send-template] Fetching image: ${imageUrl.substring(0, 80)}...`);
         const media = await getMediaFromUrl(imageUrl);
         if (media) {
           // Caption goes with the image
@@ -403,8 +405,8 @@ app.post('/send-template', authMiddleware, async (req, res) => {
         
         try {
           const buttonList = validButtons.map((btn, idx) => ({
-            id: \`btn_\${idx}_\${Date.now()}\`,
-            body: typeof btn === 'string' ? btn : (btn.text || btn.body || btn.title || \`Option \${idx + 1}\`)
+            id: `btn_${idx}_${Date.now()}`,
+            body: typeof btn === 'string' ? btn : (btn.text || btn.body || btn.title || `Option ${idx + 1}`)
           }));
 
           // If no image was sent, include body text in buttons message
@@ -428,7 +430,7 @@ app.post('/send-template', authMiddleware, async (req, res) => {
 
         // If native buttons failed, send as text with numbered options
         if (!buttonsSent) {
-          const buttonTexts = validButtons.map((b, i) => \`\${i + 1}. \${typeof b === 'string' ? b : b.text || b.body}\`).join('\\n');
+          const buttonTexts = validButtons.map((b, i) => `${i + 1}. ${typeof b === 'string' ? b : b.text || b.body}`).join('\\n');
           
           // Build the message
           let textMessage = '';
@@ -846,6 +848,6 @@ Body:
 });
 
 app.listen(PORT, () => {
-  console.log(\`Bridge v2.2.0 with Blue Buttons on port \${PORT}\`);
+  console.log(`Bridge v2.2.0 with Blue Buttons on port ${PORT}`);
   initializeClient();
 });

@@ -307,7 +307,7 @@ export default function MediaManagerPage() {
                     <p className="text-slate-300 font-medium">Click or drag file to upload</p>
                     <p className="text-slate-500 text-sm mt-2">
                       {fileType === 'images' && 'JPG, PNG, GIF, WebP (max 25MB)'}
-                      {fileType === 'videos' && 'MP4, WebM, MOV (max 500MB)'}
+                      {fileType === 'videos' && 'MP4, WebM, MOV (max 2GB)'}
                       {fileType === 'documents' && 'PDF, DOC, XLS, TXT (max 50MB)'}
                     </p>
                   </>

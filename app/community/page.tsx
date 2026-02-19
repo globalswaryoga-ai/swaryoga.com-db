@@ -1028,6 +1028,12 @@ function CommunityPageContent() {
                 {/* Show action buttons for members */}
                 {currentCommunity && (userMemberships.includes(currentCommunity.id) || currentCommunity.id === 'global') && (
                   <div className="flex gap-2 sm:gap-3 flex-row sm:flex-col">
+                    <Link
+                      href="/community/submit"
+                      className="flex-1 sm:flex-none px-4 sm:px-8 py-3 sm:py-4 bg-white text-gray-900 rounded-xl font-bold hover:bg-gray-100 transition-all active:scale-95 shadow-lg text-sm sm:text-lg flex items-center justify-center gap-2"
+                    >
+                      ✨ Share Your Story
+                    </Link>
                     {currentCommunity.id === 'global' && !user && (
                       <button
                         onClick={() => {
@@ -1149,7 +1155,17 @@ function CommunityPageContent() {
                       <div key={video._id} className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300">
                         {/* Video Player */}
                         <div className="relative aspect-video bg-gray-900">
-                          {video.url ? (
+                          {video.videoSource === 'youtube' && video.youtubeVideoId ? (
+                            // YouTube embed (privacy-enhanced mode)
+                            <iframe
+                              src={`https://www.youtube-nocookie.com/embed/${video.youtubeVideoId}?modestbranding=1&rel=0&showinfo=0&iv_load_policy=3`}
+                              className="w-full h-full"
+                              frameBorder="0"
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                              allowFullScreen
+                              title={video.title}
+                            />
+                          ) : video.url ? (
                             <video 
                               controls 
                               className="w-full h-full"
@@ -1169,6 +1185,12 @@ function CommunityPageContent() {
                           <div className="absolute top-3 right-3 bg-black/60 text-white px-3 py-1 rounded-full text-xs font-bold">
                             🔒 Members Only
                           </div>
+                          {/* Source badge */}
+                          {video.videoSource === 'youtube' && (
+                            <div className="absolute bottom-3 left-3 bg-red-600 text-white px-2 py-1 rounded text-xs font-bold">
+                              ▶ YouTube
+                            </div>
+                          )}
                         </div>
                         {/* Video Info */}
                         <div className="p-4">

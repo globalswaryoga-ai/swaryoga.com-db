@@ -297,12 +297,11 @@ function LeadsFollowupPageContent() {
   const [whatsappBroadcast, setWhatsappBroadcast] = useState(false);
   const [whatsappBroadcastLabel, setWhatsappBroadcastLabel] = useState('');
   
-  // WhatsApp provider toggle (QR Bridge vs Meta API)
-  const [whatsappProvider, setWhatsappProvider] = useState<'qr' | 'meta'>('qr');
+  // WhatsApp via Meta API only
   const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
 
-  // Send WhatsApp message via QR Bridge or Meta API
-  const sendWhatsAppMessage = async (provider: 'qr' | 'meta') => {
+  // Send WhatsApp message via Meta API
+  const sendWhatsAppMessage = async () => {
     if (!selectedLead || !message.trim() || sendingWhatsApp) return;
 
     setSendingWhatsApp(true);
@@ -323,7 +322,7 @@ function LeadsFollowupPageContent() {
           leadId: selectedLead._id,
           phoneNumber,
           messageContent: message.trim(),
-          provider, // 'qr' or 'meta'
+          provider: 'meta',
         }),
       });
 
@@ -332,15 +331,12 @@ function LeadsFollowupPageContent() {
         throw new Error(data?.error || 'Failed to send WhatsApp message');
       }
 
-      setSuccess(`✅ WhatsApp sent via ${provider.toUpperCase()}!`);
+      setSuccess('✅ WhatsApp sent via Meta!');
       setMessage('');
 
       // Refresh chat history
-      if (provider === 'qr') {
-        await fetchLeadChat(selectedLead);
-      } else {
-        await fetchMetaMessages(selectedLead);
-      }
+      await fetchMetaMessages(selectedLead);
+      await fetchLeadChat(selectedLead);
 
       // Also save a note about the sent message
       await fetch('/api/admin/crm/leads/followup', {
@@ -352,7 +348,7 @@ function LeadsFollowupPageContent() {
         body: JSON.stringify({
           leadId: selectedLead._id,
           actionType: 'notes',
-          followupNotes: `[WhatsApp-${provider.toUpperCase()}] ${message.trim()}`,
+          followupNotes: `[WhatsApp-META] ${message.trim()}`,
         }),
       });
 
@@ -696,6 +692,7 @@ function LeadsFollowupPageContent() {
     try {
       const url = new URL('/api/admin/crm/messages', window.location.origin);
       url.searchParams.set('leadId', lead._id);
+      url.searchParams.set('provider', 'meta'); // Meta messages only
       url.searchParams.set('limit', '100');
       url.searchParams.set('skip', '0');
       url.searchParams.set('order', 'asc');
@@ -745,7 +742,7 @@ function LeadsFollowupPageContent() {
       console.log('[Followup] Fetching Meta messages for lead:', lead._id);
       const url = new URL('/api/admin/crm/messages', window.location.origin);
       url.searchParams.set('leadId', lead._id);
-      url.searchParams.set('messageType', 'meta');
+      url.searchParams.set('provider', 'meta'); // Use provider filter for Meta API messages
       url.searchParams.set('limit', '100');
       url.searchParams.set('skip', '0');
       url.searchParams.set('order', 'asc');
@@ -1627,37 +1624,6 @@ function LeadsFollowupPageContent() {
                         </div>
                       </div>
 
-                      {/* Provider Selection: QR Bridge vs Meta API */}
-                      <div className="bg-gradient-to-r from-green-50 to-cyan-50 border border-green-200 rounded-xl p-4">
-                        <label className="block text-sm font-bold text-slate-900 mb-3">📡 Send via:</label>
-                        <div className="flex gap-3">
-                          <button
-                            type="button"
-                            onClick={() => setWhatsappProvider('qr')}
-                            className={`flex-1 px-4 py-3 rounded-lg font-semibold transition-all text-sm border-2 ${
-                              whatsappProvider === 'qr'
-                                ? 'bg-green-600 text-white border-green-600 shadow-lg'
-                                : 'bg-white text-green-700 border-green-300 hover:border-green-500'
-                            }`}
-                          >
-                            🔗 QR Bridge
-                            <span className="block text-xs mt-1 opacity-80">Personal WhatsApp</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setWhatsappProvider('meta')}
-                            className={`flex-1 px-4 py-3 rounded-lg font-semibold transition-all text-sm border-2 ${
-                              whatsappProvider === 'meta'
-                                ? 'bg-cyan-600 text-white border-cyan-600 shadow-lg'
-                                : 'bg-white text-cyan-700 border-cyan-300 hover:border-cyan-500'
-                            }`}
-                          >
-                            📱 Meta API
-                            <span className="block text-xs mt-1 opacity-80">Business WhatsApp</span>
-                          </button>
-                        </div>
-                      </div>
-
                       {/* Message Type Tabs */}
                       <div className="flex gap-2 flex-wrap border-b border-slate-200 pb-4">
                         <button
@@ -2023,37 +1989,18 @@ function LeadsFollowupPageContent() {
                         )}
                       </div>
 
-                      {/* Send WhatsApp Now Buttons */}
-                      <div className="border-t-2 border-green-200 pt-4 bg-gradient-to-r from-green-50 to-cyan-50 -mx-8 px-8 pb-4 -mb-8 rounded-b-xl">
-                        <label className="block text-sm font-bold text-slate-900 mb-3">📤 Send Message Now:</label>
-                        <div className="flex gap-3">
-                          <button
-                            type="button"
-                            onClick={() => sendWhatsAppMessage('qr')}
-                            disabled={!message.trim() || sendingWhatsApp}
-                            className={`flex-1 px-4 py-3 rounded-lg font-bold transition-all text-sm shadow-md disabled:opacity-50 disabled:cursor-not-allowed ${
-                              whatsappProvider === 'qr'
-                                ? 'bg-green-600 hover:bg-green-700 text-white'
-                                : 'bg-green-100 hover:bg-green-200 text-green-700 border border-green-300'
-                            }`}
-                          >
-                            {sendingWhatsApp && whatsappProvider === 'qr' ? '⏳ Sending...' : '🔗 Send via QR'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => sendWhatsAppMessage('meta')}
-                            disabled={!message.trim() || sendingWhatsApp}
-                            className={`flex-1 px-4 py-3 rounded-lg font-bold transition-all text-sm shadow-md disabled:opacity-50 disabled:cursor-not-allowed ${
-                              whatsappProvider === 'meta'
-                                ? 'bg-cyan-600 hover:bg-cyan-700 text-white'
-                                : 'bg-cyan-100 hover:bg-cyan-200 text-cyan-700 border border-cyan-300'
-                            }`}
-                          >
-                            {sendingWhatsApp && whatsappProvider === 'meta' ? '⏳ Sending...' : '📱 Send via Meta'}
-                          </button>
-                        </div>
+                      {/* Send WhatsApp Now Button */}
+                      <div className="border-t-2 border-cyan-200 pt-4 bg-gradient-to-r from-cyan-50 to-blue-50 -mx-8 px-8 pb-4 -mb-8 rounded-b-xl">
+                        <button
+                          type="button"
+                          onClick={() => sendWhatsAppMessage()}
+                          disabled={!message.trim() || sendingWhatsApp}
+                          className="w-full px-4 py-3 rounded-lg font-bold transition-all text-sm shadow-md disabled:opacity-50 disabled:cursor-not-allowed bg-cyan-600 hover:bg-cyan-700 text-white"
+                        >
+                          {sendingWhatsApp ? '⏳ Sending...' : '📱 Send via Meta WhatsApp'}
+                        </button>
                         <p className="text-xs text-slate-500 mt-2 text-center">
-                          💡 QR Bridge uses your personal WhatsApp • Meta API uses the business number
+                          💡 Sends via Meta Business WhatsApp API
                         </p>
                       </div>
                     </div>
@@ -2383,16 +2330,16 @@ function LeadsFollowupPageContent() {
           <div className="p-4 border-b border-slate-200 bg-white sticky top-0 z-10">
             <div className="flex gap-2">
               <a
-                href="/admin/crm/qr"
-                className="flex-1 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-colors text-sm text-center flex items-center justify-center gap-2"
-              >
-                🔗 QR WhatsApp
-              </a>
-              <a
                 href="/admin/crm/meta"
                 className="flex-1 px-4 py-2.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg font-semibold transition-colors text-sm text-center flex items-center justify-center gap-2"
               >
-                📱 Meta API
+                📱 Meta Inbox
+              </a>
+              <a
+                href="/admin/crm/broadcast"
+                className="flex-1 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold transition-colors text-sm text-center flex items-center justify-center gap-2"
+              >
+                📢 Broadcast
               </a>
             </div>
           </div>

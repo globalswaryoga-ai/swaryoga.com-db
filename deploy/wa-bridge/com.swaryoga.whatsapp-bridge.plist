@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.swaryoga.whatsapp-bridge</string>
+    
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/node</string>
+        <string>/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-bridge/server.js</string>
+    </array>
+    
+    <key>WorkingDirectory</key>
+    <string>/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-bridge</string>
+    
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>WHATSAPP_BRIDGE_SECRET</key>
+        <string>swar-bridge-secret-2024</string>
+    </dict>
+    
+    <key>RunAtLoad</key>
+    <true/>
+    
+    <key>KeepAlive</key>
+    <true/>
+    
+    <key>StandardOutPath</key>
+    <string>/tmp/whatsapp-bridge.log</string>
+    
+    <key>StandardErrorPath</key>
+    <string>/tmp/whatsapp-bridge-error.log</string>
+    
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+</dict>
+</plist>

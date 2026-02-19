@@ -69,14 +69,17 @@ interface CommunityMember {
 
 interface Community {
   id: string;
+  _id?: string;
   name: string;
   icon: string;
   memberCount: number;
   joinLink?: string;
+  type?: string;
 }
 
-const COMMUNITIES: Community[] = [
-  { id: 'global', name: 'Global Community', icon: '🌍', memberCount: 0, joinLink: 'https://swaryoga.com/community?join=global' },
+// Default communities as fallback - will be merged with DB communities
+const DEFAULT_COMMUNITIES: Community[] = [
+  { id: 'global', name: 'Global Community', icon: '🌍', memberCount: 0, joinLink: 'https://swaryoga.com/community?join=global', type: 'global' },
   { id: 'swar-yoga', name: 'Swar Yoga', icon: '🎵', memberCount: 0, joinLink: 'https://swaryoga.com/community?join=swar-yoga' },
   { id: 'aham-bramhasmi', name: 'Aham Bramhasmi', icon: '✨', memberCount: 0, joinLink: 'https://swaryoga.com/community?join=aham-bramhasmi' },
   { id: 'astavakra', name: 'Astavakra', icon: '🧘', memberCount: 0, joinLink: 'https://swaryoga.com/community?join=astavakra' },
@@ -95,9 +98,23 @@ const COMMUNITIES: Community[] = [
   { id: 'businessman', name: 'Businessman', icon: '💼', memberCount: 0, joinLink: 'https://swaryoga.com/community?join=businessman' },
 ];
 
+// Icon map for assigning icons to new communities
+const COMMUNITY_ICONS: Record<string, string> = {
+  global: '🌍', yoga: '🧘', workshop: '📚', fitness: '💪', youth: '🚀', 
+  children: '👶', business: '💼', spiritual: '✨', music: '🎵', default: '🌟'
+};
+
 export default function AdminCommunityPage() {
   const router = useRouter();
   const token = useAuth();
+  
+  // Dynamic communities state - loaded from DB, fallback to defaults
+  const [communities, setCommunities] = useState<Community[]>(DEFAULT_COMMUNITIES);
+  const [loadingCommunities, setLoadingCommunities] = useState(true);
+  const [showCreateCommunityModal, setShowCreateCommunityModal] = useState(false);
+  const [newCommunityInput, setNewCommunityInput] = useState({ name: '', description: '', icon: '🌟' });
+  const [creatingCommunity, setCreatingCommunity] = useState(false);
+  
   const [selectedCommunity, setSelectedCommunity] = useState('global');
   const [members, setMembers] = useState<CommunityMember[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -141,6 +158,24 @@ export default function AdminCommunityPage() {
   const [postScheduledAt, setPostScheduledAt] = useState('');
   const [postCategory, setPostCategory] = useState<'general' | 'experiences' | 'tips' | 'transformations' | 'questions'>('general');
   
+  // Category-specific fields
+  // Experiences & Transformations & Questions
+  const [postParticipantName, setPostParticipantName] = useState('');
+  const [postWorkshopName, setPostWorkshopName] = useState('');
+  const [postBatchName, setPostBatchName] = useState('');
+  // Experiences
+  const [postExperienceDetails, setPostExperienceDetails] = useState('');
+  // Tips & Tricks
+  const [postProblemHeading, setPostProblemHeading] = useState('');
+  const [postProblemDescription, setPostProblemDescription] = useState('');
+  const [postTipsDetails, setPostTipsDetails] = useState('');
+  // Transformations
+  const [postBeforeStory, setPostBeforeStory] = useState('');
+  const [postAfterStory, setPostAfterStory] = useState('');
+  // Questions
+  const [postQuestion, setPostQuestion] = useState('');
+  const [postAnswer, setPostAnswer] = useState('');
+  
   const [editingCommunityName, setEditingCommunityName] = useState(false);
   const [newCommunityName, setNewCommunityName] = useState('');
   const [editingWAId, setEditingWAId] = useState(false);
@@ -152,7 +187,13 @@ export default function AdminCommunityPage() {
   const [previewZoom, setPreviewZoom] = useState(1);
 
   // Posts Manager State
-  const [activeTab, setActiveTab] = useState<'members' | 'posts' | 'recordings' | 'videos'>('members');
+  const [activeTab, setActiveTab] = useState<'members' | 'posts' | 'recordings' | 'videos' | 'submissions'>('members');
+  
+  // User Submissions State
+  const [submissions, setSubmissions] = useState<any[]>([]);
+  const [loadingSubmissions, setLoadingSubmissions] = useState(false);
+  const [submissionsCounts, setSubmissionsCounts] = useState({ pending: 0, approved: 0, rejected: 0, posted: 0 });
+  const [submissionsFilter, setSubmissionsFilter] = useState<'pending' | 'approved' | 'rejected' | 'posted' | 'all'>('pending');
   const [communityPosts, setCommunityPosts] = useState<any[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
   const [postsPage, setPostsPage] = useState(1);
@@ -168,6 +209,13 @@ export default function AdminCommunityPage() {
   const [videoTitle, setVideoTitle] = useState('');
   const [videoDescription, setVideoDescription] = useState('');
   const [showUploadVideoModal, setShowUploadVideoModal] = useState(false);
+  
+  // YouTube Video Add Modal State
+  const [showAddYouTubeModal, setShowAddYouTubeModal] = useState(false);
+  const [youtubeUrl, setYoutubeUrl] = useState('');
+  const [youtubeTitle, setYoutubeTitle] = useState('');
+  const [youtubeDescription, setYoutubeDescription] = useState('');
+  const [addingYouTube, setAddingYouTube] = useState(false);
   
   // Recording Upload Modal State (Folder > Playlist > Video structure)
   const [showUploadRecordingModal, setShowUploadRecordingModal] = useState(false);
@@ -471,21 +519,107 @@ export default function AdminCommunityPage() {
     setPostButtons((prev) => prev.filter((b) => b.id !== id));
   };
 
+  // Reset category-specific fields when category changes
+  const resetCategoryFields = () => {
+    setPostParticipantName('');
+    setPostWorkshopName('');
+    setPostBatchName('');
+    setPostExperienceDetails('');
+    setPostProblemHeading('');
+    setPostProblemDescription('');
+    setPostTipsDetails('');
+    setPostBeforeStory('');
+    setPostAfterStory('');
+    setPostQuestion('');
+    setPostAnswer('');
+  };
+
+  // Build formatted content based on category
+  const buildCategoryContent = (): string => {
+    switch (postCategory) {
+      case 'experiences':
+        return [
+          postParticipantName && `*👤 ${postParticipantName}*`,
+          postWorkshopName && `📚 Workshop: ${postWorkshopName}`,
+          postBatchName && `🎯 Batch: ${postBatchName}`,
+          '',
+          postExperienceDetails && `_${postExperienceDetails}_`,
+        ].filter(Boolean).join('\n');
+
+      case 'tips':
+        return [
+          postProblemHeading && `*💡 ${postProblemHeading}*`,
+          '',
+          postProblemDescription && `❓ *Problem:*\n${postProblemDescription}`,
+          '',
+          postTipsDetails && `✨ *Tips & Tricks:*\n${postTipsDetails}`,
+        ].filter(Boolean).join('\n');
+
+      case 'transformations':
+        return [
+          postParticipantName && `*🦋 ${postParticipantName}*`,
+          postWorkshopName && `📚 Workshop: ${postWorkshopName}`,
+          postBatchName && `🎯 Batch: ${postBatchName}`,
+          '',
+          postBeforeStory && `*Before:*\n${postBeforeStory}`,
+          '',
+          postAfterStory && `*After:*\n${postAfterStory}`,
+        ].filter(Boolean).join('\n');
+
+      case 'questions':
+        return [
+          postParticipantName && `*👤 ${postParticipantName}*`,
+          (postWorkshopName || postBatchName) && `📚 ${[postWorkshopName, postBatchName].filter(Boolean).join(' | ')}`,
+          '',
+          postQuestion && `*❓ Question:*\n${postQuestion}`,
+          '',
+          postAnswer && `*✅ Answer:*\n${postAnswer}`,
+        ].filter(Boolean).join('\n');
+
+      default: // general
+        return postContent;
+    }
+  };
+
   const createAdminPost = async () => {
-    if (!postHeader.trim() && !postContent.trim() && postImageUrls.length === 0) {
+    // For general category, use postContent; for others, build from category fields
+    const finalContent = postCategory === 'general' ? postContent : buildCategoryContent();
+    
+    if (!postHeader.trim() && !finalContent.trim() && postImageUrls.length === 0) {
       alert('Post content required');
       return;
     }
     if (!token) return;
-    const communityIds = postTargetMode === 'all' ? COMMUNITIES.map((c) => c.id) : [...postSelectedCommunityIds];
+    const communityIds = postTargetMode === 'all' ? communities.map((c) => c.id) : [...postSelectedCommunityIds];
     try {
+      // Build category-specific metadata
+      const categoryMetadata = postCategory !== 'general' ? {
+        participantName: postParticipantName,
+        workshopName: postWorkshopName,
+        batchName: postBatchName,
+        ...(postCategory === 'experiences' && { experienceDetails: postExperienceDetails }),
+        ...(postCategory === 'tips' && { 
+          problemHeading: postProblemHeading, 
+          problemDescription: postProblemDescription, 
+          tipsDetails: postTipsDetails 
+        }),
+        ...(postCategory === 'transformations' && { 
+          beforeStory: postBeforeStory, 
+          afterStory: postAfterStory 
+        }),
+        ...(postCategory === 'questions' && { 
+          question: postQuestion, 
+          answer: postAnswer 
+        }),
+      } : undefined;
+
       const response = await fetch('/api/admin/crm/community/posts/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ 
           communityIds, 
           headerText: postHeader, 
-          content: postContent, 
+          content: finalContent, 
           footerText: postFooter, 
           buttons: postButtons, 
           type: postType, 
@@ -494,6 +628,7 @@ export default function AdminCommunityPage() {
           imageUrls: postImageUrls, 
           scheduledAt: postScheduledAt,
           category: postCategory,
+          categoryMetadata,
           crossPost: { media: crossPostMedia, socialMedia: crossPostSocial } 
         }),
       });
@@ -561,6 +696,99 @@ export default function AdminCommunityPage() {
       alert('❌ Failed to approve member');
     } finally {
       setApproving(null);
+    }
+  };
+
+  // Fetch communities from database
+  const fetchCommunities = async () => {
+    if (!token) return;
+    setLoadingCommunities(true);
+    try {
+      const res = await fetch('/api/admin/communities', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.status === 401 || res.status === 403) {
+        localStorage.removeItem('adminToken');
+        localStorage.removeItem('admin_token');
+        router.push('/admin/login');
+        return;
+      }
+
+      const json = await res.json();
+      if (json.success && json.communities) {
+        // Merge DB communities with defaults, prioritizing DB data
+        const dbCommunities = json.communities.map((c: any) => ({
+          id: c.id || c._id,
+          _id: c._id,
+          name: c.name,
+          icon: COMMUNITY_ICONS[c.type] || COMMUNITY_ICONS.default,
+          memberCount: c.memberCount || 0,
+          joinLink: c.joinLink || `https://swaryoga.com/community?join=${c.id || c._id}`,
+          type: c.type
+        }));
+        
+        // Merge: Start with defaults, update with DB data, add any new DB communities
+        const mergedMap = new Map<string, Community>();
+        DEFAULT_COMMUNITIES.forEach(c => mergedMap.set(c.id, c));
+        dbCommunities.forEach((c: Community) => {
+          const existing = mergedMap.get(c.id);
+          mergedMap.set(c.id, { ...existing, ...c, icon: existing?.icon || c.icon });
+        });
+        
+        setCommunities(Array.from(mergedMap.values()));
+      }
+    } catch (error) {
+      console.error('[Communities] Fetch error:', error);
+      // Keep default communities on error
+    } finally {
+      setLoadingCommunities(false);
+    }
+  };
+
+  // Create a new community
+  const createCommunity = async () => {
+    if (!newCommunityInput.name.trim()) {
+      alert('❌ Community name is required');
+      return;
+    }
+    if (!token) return;
+    
+    setCreatingCommunity(true);
+    try {
+      const res = await fetch('/api/admin/communities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          name: newCommunityInput.name.trim(),
+          description: newCommunityInput.description.trim(),
+        }),
+      });
+
+      if (res.status === 401 || res.status === 403) {
+        localStorage.removeItem('adminToken');
+        router.push('/admin/login');
+        return;
+      }
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Failed to create community');
+
+      alert('✅ Community created successfully!');
+      setShowCreateCommunityModal(false);
+      setNewCommunityInput({ name: '', description: '', icon: '🌟' });
+      
+      // Refresh communities list
+      await fetchCommunities();
+      
+      // Select the new community
+      if (json.community?.id) {
+        setSelectedCommunity(json.community.id);
+      }
+    } catch (error: any) {
+      alert('❌ ' + error.message);
+    } finally {
+      setCreatingCommunity(false);
     }
   };
 
@@ -894,6 +1122,95 @@ export default function AdminCommunityPage() {
     }
   };
 
+  // Fetch User Submissions
+  const fetchSubmissions = async (status?: string) => {
+    if (!token) return;
+    setLoadingSubmissions(true);
+    try {
+      const filterStatus = status || submissionsFilter;
+      const res = await fetch(`/api/admin/crm/community/submissions?status=${filterStatus}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.status === 401 || res.status === 403) {
+        localStorage.removeItem('adminToken');
+        router.push('/admin/login');
+        return;
+      }
+      const json = await res.json();
+      if (json.success) {
+        setSubmissions(json.submissions || []);
+        setSubmissionsCounts(json.counts || { pending: 0, approved: 0, rejected: 0, posted: 0 });
+      }
+    } catch (error) {
+      console.error('[Submissions] Fetch error:', error);
+    } finally {
+      setLoadingSubmissions(false);
+    }
+  };
+
+  // Update Submission Status
+  const updateSubmissionStatus = async (submissionId: string, newStatus: string, adminNotes?: string) => {
+    if (!token) return;
+    try {
+      const res = await fetch('/api/admin/crm/community/submissions', {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ submissionId, status: newStatus, adminNotes }),
+      });
+      if (res.ok) {
+        fetchSubmissions();
+      } else {
+        const json = await res.json();
+        alert('❌ Failed: ' + (json.error || 'Unknown error'));
+      }
+    } catch (error: any) {
+      alert('❌ Error: ' + error.message);
+    }
+  };
+
+  // Delete Submission
+  const deleteSubmission = async (submissionId: string) => {
+    if (!token) return;
+    if (!confirm('Delete this submission?')) return;
+    try {
+      const res = await fetch(`/api/admin/crm/community/submissions?id=${submissionId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        fetchSubmissions();
+      } else {
+        const json = await res.json();
+        alert('❌ Failed: ' + (json.error || 'Unknown error'));
+      }
+    } catch (error: any) {
+      alert('❌ Error: ' + error.message);
+    }
+  };
+
+  // Convert submission to post modal data
+  const loadSubmissionToPost = (submission: any) => {
+    setPostCategory(submission.category);
+    setPostParticipantName(submission.participantName || '');
+    setPostWorkshopName(submission.workshopName || '');
+    setPostBatchName(submission.batchName || '');
+    setPostExperienceDetails(submission.experienceDetails || '');
+    setPostProblemHeading(submission.problemHeading || '');
+    setPostProblemDescription(submission.problemDescription || '');
+    setPostTipsDetails(submission.tipsDetails || '');
+    setPostBeforeStory(submission.beforeStory || '');
+    setPostAfterStory(submission.afterStory || '');
+    setPostQuestion(submission.question || '');
+    setPostAnswer(submission.answer || '');
+    if (submission.imageUrl) {
+      setPostImageUrls([submission.imageUrl]);
+      setPostType('image');
+    } else {
+      setPostType('text');
+    }
+    setShowPostModal(true);
+  };
+
   // Upload new video
   const uploadNewVideo = async (file: File) => {
     if (!token || !file) return;
@@ -1005,6 +1322,12 @@ export default function AdminCommunityPage() {
     }
   };
 
+  // Fetch communities on mount
+  useEffect(() => {
+    if (token) {
+      fetchCommunities();
+    }
+  }, [token]);
 
   useEffect(() => {
     if (activeTab === 'posts') {
@@ -1116,7 +1439,7 @@ export default function AdminCommunityPage() {
     (statusFilter === 'all' || member.status === statusFilter)
   );
 
-  const currentCommunity = COMMUNITIES.find(c => c.id === selectedCommunity);
+  const currentCommunity = communities.find(c => c.id === selectedCommunity);
 
   return (
     <div className="min-h-screen bg-slate-50 flex font-sans antialiased text-slate-900">
@@ -1132,15 +1455,32 @@ export default function AdminCommunityPage() {
           </div>
         </div>
         <div className="p-4 space-y-1">
-          {COMMUNITIES.map((community) => {
-            const isActive = selectedCommunity === community.id;
-            return (
-              <button key={community.id} onClick={() => setSelectedCommunity(community.id)} className={`w-full text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 ${isActive ? 'bg-indigo-600/10 text-indigo-400 border border-indigo-500/20 shadow-lg' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'}`}>
-                <span className="text-xl">{community.icon}</span>
-                <span className="font-semibold text-[13px] truncate">{community.name}</span>
+          {loadingCommunities ? (
+            <div className="text-center py-4">
+              <Loader size={20} className="animate-spin text-indigo-400 mx-auto" />
+              <p className="text-xs text-slate-500 mt-2">Loading...</p>
+            </div>
+          ) : (
+            <>
+              {communities.map((community) => {
+                const isActive = selectedCommunity === community.id;
+                return (
+                  <button key={community.id} onClick={() => setSelectedCommunity(community.id)} className={`w-full text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 ${isActive ? 'bg-indigo-600/10 text-indigo-400 border border-indigo-500/20 shadow-lg' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'}`}>
+                    <span className="text-xl">{community.icon}</span>
+                    <span className="font-semibold text-[13px] truncate">{community.name}</span>
+                  </button>
+                );
+              })}
+              {/* Create New Community Button */}
+              <button
+                onClick={() => setShowCreateCommunityModal(true)}
+                className="w-full text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 text-emerald-400 hover:bg-emerald-800/20 hover:text-emerald-300 border border-dashed border-emerald-500/30 mt-4"
+              >
+                <span className="text-xl">➕</span>
+                <span className="font-semibold text-[13px]">Create New Group</span>
               </button>
-            );
-          })}
+            </>
+          )}
         </div>
       </div>
 
@@ -1307,6 +1647,16 @@ export default function AdminCommunityPage() {
               }`}
             >
               📹 Videos ({videos.length})
+            </button>
+            <button
+              onClick={() => { setActiveTab('submissions'); fetchSubmissions(); }}
+              className={`px-6 py-4 font-bold text-sm uppercase tracking-tight border-b-2 transition-all ${
+                activeTab === 'submissions'
+                  ? 'border-orange-600 text-orange-600'
+                  : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              📝 Submissions {submissionsCounts.pending > 0 && <span className="ml-1 px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-xs">{submissionsCounts.pending}</span>}
             </button>
           </div>
 
@@ -1932,8 +2282,8 @@ export default function AdminCommunityPage() {
             <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 mb-6">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900">📹 Uploaded Videos</h3>
-                  <p className="text-sm text-slate-500">Manually uploaded videos for this community</p>
+                  <h3 className="text-lg font-bold text-slate-900">📹 Community Videos</h3>
+                  <p className="text-sm text-slate-500">AWS uploads and YouTube links (non-shareable)</p>
                 </div>
                 <div className="flex gap-3">
                   <button
@@ -1942,6 +2292,12 @@ export default function AdminCommunityPage() {
                   >
                     <Loader size={16} className={loadingVideos ? 'animate-spin' : ''} />
                     Refresh
+                  </button>
+                  <button
+                    onClick={() => setShowAddYouTubeModal(true)}
+                    className="px-4 py-2 bg-red-600 text-white rounded-xl font-bold text-sm hover:bg-red-700 transition-all flex items-center gap-2"
+                  >
+                    ▶ Add YouTube
                   </button>
                   <button
                     onClick={() => setShowUploadVideoModal(true)}
@@ -1978,15 +2334,29 @@ export default function AdminCommunityPage() {
                   <div key={video._id} className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden hover:shadow-lg transition-all group">
                     <div className="aspect-video bg-gradient-to-br from-purple-100 to-purple-50 flex items-center justify-center relative">
                       {video.thumbnailUrl ? (
-                        <img src={getProxiedMediaUrl(video.thumbnailUrl, token)} alt={video.title} className="w-full h-full object-cover" />
+                        <img 
+                          src={video.source === 'youtube_import' 
+                            ? video.thumbnailUrl 
+                            : getProxiedMediaUrl(video.thumbnailUrl, token)} 
+                          alt={video.title} 
+                          className="w-full h-full object-cover" 
+                        />
                       ) : (
                         <VideoIcon size={48} className="text-purple-300" />
                       )}
-                      {video.duration && (
+                      {video.duration && video.duration > 0 && (
                         <span className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded-lg font-bold">
                           {Math.floor(video.duration / 60)}:{(video.duration % 60).toString().padStart(2, '0')}
                         </span>
                       )}
+                      {/* Source badge */}
+                      <span className={`absolute top-2 left-2 px-2 py-1 rounded text-xs font-bold ${
+                        video.source === 'youtube_import' 
+                          ? 'bg-red-600 text-white' 
+                          : 'bg-purple-600 text-white'
+                      }`}>
+                        {video.source === 'youtube_import' ? '▶ YouTube' : '☁️ AWS'}
+                      </span>
                     </div>
                     <div className="p-5">
                       <h4 className="font-bold text-slate-900 mb-1 line-clamp-2">{video.title}</h4>
@@ -1994,14 +2364,25 @@ export default function AdminCommunityPage() {
                         <p className="text-xs text-slate-500 mb-2 line-clamp-2">{video.description}</p>
                       )}
                       <p className="text-xs text-slate-400 mb-3">
-                        Uploaded {new Date(video.createdAt).toLocaleDateString()}
+                        Added {new Date(video.createdAt).toLocaleDateString()}
                       </p>
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-purple-600 bg-purple-50 px-3 py-1 rounded-full">
                           📊 {video.views || 0} views
                         </span>
                         <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                          {video.s3Url && (
+                          {video.source === 'youtube_import' && video.youtubeVideoId && (
+                            <a 
+                              href={`https://www.youtube.com/watch?v=${video.youtubeVideoId}`} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="p-2 hover:bg-red-600 hover:text-white rounded-lg transition-all text-red-500 border border-red-100"
+                              title="Open on YouTube"
+                            >
+                              <ArrowRight size={16} />
+                            </a>
+                          )}
+                          {video.s3Url && video.source !== 'youtube_import' && (
                             <a 
                               href={getProxiedMediaUrl(video.s3Url, token)} 
                               target="_blank" 
@@ -2018,6 +2399,188 @@ export default function AdminCommunityPage() {
                             <Trash2 size={16} />
                           </button>
                         </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Submissions Tab */}
+        {activeTab === 'submissions' && (
+          <div className="flex-1 overflow-auto bg-slate-50/80 p-6">
+            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">📝 User Submissions</h3>
+                  <p className="text-sm text-slate-500">Review and approve community content from users</p>
+                </div>
+                <div className="flex gap-3">
+                  <select 
+                    value={submissionsFilter} 
+                    onChange={(e) => { setSubmissionsFilter(e.target.value as any); fetchSubmissions(e.target.value); }}
+                    className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none"
+                  >
+                    <option value="pending">⏳ Pending ({submissionsCounts.pending})</option>
+                    <option value="approved">✅ Approved ({submissionsCounts.approved})</option>
+                    <option value="rejected">❌ Rejected ({submissionsCounts.rejected})</option>
+                    <option value="posted">📤 Posted ({submissionsCounts.posted})</option>
+                    <option value="all">All</option>
+                  </select>
+                  <button
+                    onClick={() => fetchSubmissions()}
+                    className="px-4 py-2 bg-slate-50 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-100 transition-all flex items-center gap-2"
+                  >
+                    <Loader size={16} className={loadingSubmissions ? 'animate-spin' : ''} />
+                    Refresh
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {loadingSubmissions ? (
+              <div className="flex flex-col items-center justify-center h-80 space-y-4">
+                <div className="w-10 h-10 border-4 border-orange-500/20 border-t-orange-500 rounded-full animate-spin" />
+                <p className="text-sm text-slate-500">Loading submissions...</p>
+              </div>
+            ) : submissions.length === 0 ? (
+              <div className="bg-white rounded-[2.5rem] border border-slate-200/60 h-[400px] flex flex-col items-center justify-center text-center p-20 shadow-sm">
+                <MessageSquare size={48} className="text-slate-200 mb-6" />
+                <h3 className="text-xl font-bold text-slate-900 mb-2">No Submissions</h3>
+                <p className="text-slate-500 text-sm">No user submissions found for this filter.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {submissions.map((sub: any) => (
+                  <div key={sub._id} className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
+                    <div className={`px-6 py-4 border-b flex items-center justify-between ${
+                      sub.category === 'experiences' ? 'bg-purple-50 border-purple-100' :
+                      sub.category === 'tips' ? 'bg-yellow-50 border-yellow-100' :
+                      sub.category === 'transformations' ? 'bg-emerald-50 border-emerald-100' :
+                      'bg-blue-50 border-blue-100'
+                    }`}>
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">
+                          {sub.category === 'experiences' ? '✨' : sub.category === 'tips' ? '💡' : sub.category === 'transformations' ? '🦋' : '❓'}
+                        </span>
+                        <div>
+                          <h4 className="font-bold text-slate-900 capitalize">{sub.category}</h4>
+                          <p className="text-xs text-slate-500">
+                            by {sub.userName || sub.participantName} • {new Date(sub.createdAt).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                      <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                        sub.status === 'pending' ? 'bg-orange-100 text-orange-700' :
+                        sub.status === 'approved' ? 'bg-green-100 text-green-700' :
+                        sub.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                        'bg-blue-100 text-blue-700'
+                      }`}>
+                        {sub.status.toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="p-6">
+                      <div className="grid grid-cols-3 gap-4 mb-4 text-sm">
+                        <div><span className="text-slate-500">Name:</span> <strong>{sub.participantName}</strong></div>
+                        {sub.workshopName && <div><span className="text-slate-500">Workshop:</span> <strong>{sub.workshopName}</strong></div>}
+                        {sub.batchName && <div><span className="text-slate-500">Batch:</span> <strong>{sub.batchName}</strong></div>}
+                      </div>
+                      
+                      {/* Category-specific content */}
+                      {sub.category === 'experiences' && sub.experienceDetails && (
+                        <div className="bg-purple-50 rounded-xl p-4 mb-4">
+                          <h5 className="text-sm font-bold text-purple-700 mb-2">Experience Story</h5>
+                          <p className="text-sm text-slate-700 whitespace-pre-wrap">{sub.experienceDetails}</p>
+                        </div>
+                      )}
+                      
+                      {sub.category === 'tips' && (
+                        <div className="bg-yellow-50 rounded-xl p-4 mb-4 space-y-3">
+                          {sub.problemHeading && <h5 className="text-lg font-bold text-yellow-800">{sub.problemHeading}</h5>}
+                          {sub.problemDescription && <p className="text-sm text-slate-600">{sub.problemDescription}</p>}
+                          {sub.tipsDetails && (
+                            <div className="pt-2 border-t border-yellow-200">
+                              <h6 className="text-sm font-bold text-yellow-700 mb-1">Tips & Tricks</h6>
+                              <p className="text-sm text-slate-700 whitespace-pre-wrap">{sub.tipsDetails}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
+                      {sub.category === 'transformations' && (
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                          <div className="bg-red-50 rounded-xl p-4">
+                            <h5 className="text-sm font-bold text-red-700 mb-2">⬅️ Before</h5>
+                            <p className="text-sm text-slate-700 whitespace-pre-wrap">{sub.beforeStory}</p>
+                          </div>
+                          <div className="bg-green-50 rounded-xl p-4">
+                            <h5 className="text-sm font-bold text-green-700 mb-2">➡️ After</h5>
+                            <p className="text-sm text-slate-700 whitespace-pre-wrap">{sub.afterStory}</p>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {sub.category === 'questions' && sub.question && (
+                        <div className="bg-blue-50 rounded-xl p-4 mb-4">
+                          <h5 className="text-sm font-bold text-blue-700 mb-2">❓ Question</h5>
+                          <p className="text-sm text-slate-700 whitespace-pre-wrap">{sub.question}</p>
+                          {sub.answer && (
+                            <div className="mt-3 pt-3 border-t border-blue-200">
+                              <h6 className="text-sm font-bold text-green-700 mb-1">✅ Answer</h6>
+                              <p className="text-sm text-slate-700 whitespace-pre-wrap">{sub.answer}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
+                      {sub.imageUrl && (
+                        <div className="mb-4">
+                          <img src={sub.imageUrl} alt="Submission" className="max-h-48 rounded-xl object-cover" />
+                        </div>
+                      )}
+                      
+                      {/* Actions */}
+                      <div className="flex items-center gap-3 pt-4 border-t">
+                        {sub.status === 'pending' && (
+                          <>
+                            <button
+                              onClick={() => loadSubmissionToPost(sub)}
+                              className="px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-all flex items-center gap-2"
+                            >
+                              <Send size={16} />
+                              Create Post
+                            </button>
+                            <button
+                              onClick={() => updateSubmissionStatus(sub._id, 'approved')}
+                              className="px-4 py-2 bg-green-100 text-green-700 rounded-xl font-bold text-sm hover:bg-green-200 transition-all"
+                            >
+                              ✅ Approve
+                            </button>
+                            <button
+                              onClick={() => updateSubmissionStatus(sub._id, 'rejected')}
+                              className="px-4 py-2 bg-red-100 text-red-700 rounded-xl font-bold text-sm hover:bg-red-200 transition-all"
+                            >
+                              ❌ Reject
+                            </button>
+                          </>
+                        )}
+                        {sub.status === 'approved' && (
+                          <button
+                            onClick={() => loadSubmissionToPost(sub)}
+                            className="px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-all flex items-center gap-2"
+                          >
+                            <Send size={16} />
+                            Create Post
+                          </button>
+                        )}
+                        <button
+                          onClick={() => deleteSubmission(sub._id)}
+                          className="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all ml-auto"
+                        >
+                          <Trash2 size={16} />
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -2073,7 +2636,7 @@ export default function AdminCommunityPage() {
                     <>
                       <Upload className="text-slate-400 mb-2" size={32} />
                       <span className="text-sm font-medium text-slate-600">Click to select video</span>
-                      <span className="text-xs text-slate-400">MP4, WebM, MOV (max 500MB)</span>
+                      <span className="text-xs text-slate-400">MP4, WebM, MOV (max 2GB)</span>
                     </>
                   )}
                   <input 
@@ -2088,6 +2651,188 @@ export default function AdminCommunityPage() {
                   />
                 </label>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add YouTube Video Modal */}
+      {showAddYouTubeModal && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[100] flex items-center justify-center animate-in fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-8 m-4">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-slate-900">▶ Add YouTube Video</h3>
+              <button onClick={() => setShowAddYouTubeModal(false)} className="p-2 hover:bg-slate-100 rounded-xl transition-all">
+                <Plus className="rotate-45" size={20} />
+              </button>
+            </div>
+            
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+              <p className="text-amber-800 text-sm">
+                <strong>🔒 Privacy:</strong> YouTube videos should be <strong>unlisted</strong> to prevent unauthorized access. 
+                Members can watch via embed but cannot share the direct URL.
+              </p>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-bold text-slate-700 mb-2 block">YouTube URL or Video ID *</label>
+                <input 
+                  type="text" 
+                  value={youtubeUrl} 
+                  onChange={e => setYoutubeUrl(e.target.value)}
+                  placeholder="https://www.youtube.com/watch?v=... or video ID"
+                  className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 transition-all"
+                />
+              </div>
+              
+              <div>
+                <label className="text-sm font-bold text-slate-700 mb-2 block">Video Title *</label>
+                <input 
+                  type="text" 
+                  value={youtubeTitle} 
+                  onChange={e => setYoutubeTitle(e.target.value)}
+                  placeholder="Enter video title..."
+                  className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 transition-all"
+                />
+              </div>
+              
+              <div>
+                <label className="text-sm font-bold text-slate-700 mb-2 block">Description (Optional)</label>
+                <textarea 
+                  value={youtubeDescription} 
+                  onChange={e => setYoutubeDescription(e.target.value)}
+                  placeholder="Enter video description..."
+                  className="w-full h-24 p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 transition-all resize-none"
+                />
+              </div>
+              
+              <button
+                onClick={async () => {
+                  if (!youtubeUrl.trim() || !youtubeTitle.trim()) {
+                    alert('YouTube URL and title are required');
+                    return;
+                  }
+                  setAddingYouTube(true);
+                  try {
+                    const res = await fetch('/api/admin/communities/youtube-videos', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${token}`,
+                      },
+                      body: JSON.stringify({
+                        communityId: selectedCommunity,
+                        youtubeUrl: youtubeUrl.trim(),
+                        title: youtubeTitle.trim(),
+                        description: youtubeDescription.trim(),
+                        isCommon: true,
+                      }),
+                    });
+                    const json = await res.json();
+                    if (!res.ok) throw new Error(json.error || 'Failed to add video');
+                    alert('✅ YouTube video added successfully!');
+                    setShowAddYouTubeModal(false);
+                    setYoutubeUrl('');
+                    setYoutubeTitle('');
+                    setYoutubeDescription('');
+                    fetchVideos();
+                  } catch (err: any) {
+                    alert('❌ Error: ' + err.message);
+                  } finally {
+                    setAddingYouTube(false);
+                  }
+                }}
+                disabled={addingYouTube || !youtubeUrl.trim() || !youtubeTitle.trim()}
+                className="w-full h-12 bg-red-600 text-white rounded-xl font-bold text-sm hover:bg-red-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {addingYouTube ? (
+                  <>
+                    <Loader className="animate-spin" size={18} />
+                    Adding...
+                  </>
+                ) : (
+                  <>▶ Add YouTube Video</>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create New Community Modal */}
+      {showCreateCommunityModal && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[100] flex items-center justify-center animate-in fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-8 m-4">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-slate-900">➕ Create New Community</h3>
+              <button onClick={() => setShowCreateCommunityModal(false)} className="p-2 hover:bg-slate-100 rounded-xl transition-all">
+                <Plus className="rotate-45" size={20} />
+              </button>
+            </div>
+            
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-6">
+              <p className="text-emerald-800 text-sm">
+                <strong>ℹ️ Note:</strong> New communities are <strong>members-only</strong> by default. 
+                Only the <strong>Global Community</strong> is open to everyone.
+              </p>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-bold text-slate-700 mb-2 block">Community Name *</label>
+                <input 
+                  type="text" 
+                  value={newCommunityInput.name} 
+                  onChange={e => setNewCommunityInput(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="e.g., Advanced Yoga Masters"
+                  className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 transition-all"
+                />
+              </div>
+              
+              <div>
+                <label className="text-sm font-bold text-slate-700 mb-2 block">Description (Optional)</label>
+                <textarea 
+                  value={newCommunityInput.description} 
+                  onChange={e => setNewCommunityInput(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Describe what this community is for..."
+                  className="w-full h-24 p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 transition-all resize-none"
+                />
+              </div>
+              
+              <div>
+                <label className="text-sm font-bold text-slate-700 mb-2 block">Icon</label>
+                <div className="flex flex-wrap gap-2">
+                  {['🌟', '🧘', '✨', '🎵', '🔱', '💪', '🚀', '👶', '💍', '📈', '🌐', '📚', '🕉️', '💼', '🌍'].map(icon => (
+                    <button 
+                      key={icon}
+                      onClick={() => setNewCommunityInput(prev => ({ ...prev, icon }))}
+                      className={`w-10 h-10 rounded-xl border-2 transition-all text-xl flex items-center justify-center ${
+                        newCommunityInput.icon === icon 
+                          ? 'border-emerald-500 bg-emerald-50' 
+                          : 'border-slate-200 hover:border-emerald-300'
+                      }`}
+                    >
+                      {icon}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              <button
+                onClick={createCommunity}
+                disabled={creatingCommunity || !newCommunityInput.name.trim()}
+                className="w-full h-12 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed mt-4"
+              >
+                {creatingCommunity ? (
+                  <>
+                    <Loader className="animate-spin" size={18} />
+                    Creating...
+                  </>
+                ) : (
+                  <>➕ Create Community</>
+                )}
+              </button>
             </div>
           </div>
         </div>
@@ -2181,7 +2926,7 @@ export default function AdminCommunityPage() {
                     <>
                       <Upload className="text-slate-400 mb-2" size={32} />
                       <span className="text-sm font-medium text-slate-600">Click to select video</span>
-                      <span className="text-xs text-slate-400">MP4, WebM, MOV (max 500MB)</span>
+                      <span className="text-xs text-slate-400">MP4, WebM, MOV (max 2GB)</span>
                     </>
                   )}
                   <input 
@@ -2512,7 +3257,7 @@ export default function AdminCommunityPage() {
                     <section className="bg-white p-8 rounded-[2rem] border shadow-sm space-y-6">
                        <h3 className="text-sm font-bold uppercase tracking-widest">1. Audience</h3>
                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                          {COMMUNITIES.map(c => (
+                          {communities.map(c => (
                              <label key={c.id} className={`flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-all ${postSelectedCommunityIds.has(c.id) ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 'bg-white hover:border-slate-300'}`}>
                                 <input type="checkbox" className="hidden" checked={postSelectedCommunityIds.has(c.id)} onChange={e => {
                                    const next = new Set(postSelectedCommunityIds);
@@ -2538,7 +3283,7 @@ export default function AdminCommunityPage() {
                           ].map(cat => (
                              <button
                                 key={cat.key}
-                                onClick={() => setPostCategory(cat.key as any)}
+                                onClick={() => { resetCategoryFields(); setPostCategory(cat.key as any); }}
                                 className={`px-5 py-3 rounded-xl text-sm font-semibold transition-all flex items-center gap-2 border ${
                                    postCategory === cat.key
                                       ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-600/25'
@@ -2555,6 +3300,8 @@ export default function AdminCommunityPage() {
 
                     <section className="bg-white p-8 rounded-[2rem] border shadow-sm space-y-6">
                        <h3 className="text-sm font-bold uppercase tracking-widest">3. Content</h3>
+                       
+                       {/* Common Header/Footer for all categories */}
                        <div className="grid grid-cols-2 gap-6">
                           <div className="relative">
                              <input type="text" value={postHeader} onChange={e => setPostHeader(e.target.value)} placeholder="Headline (Optional)" className="w-full h-14 px-6 bg-slate-50 border rounded-xl font-semibold outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 transition-all" />
@@ -2565,11 +3312,15 @@ export default function AdminCommunityPage() {
                              <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">Footer</div>
                           </div>
                        </div>
+
+                       {/* Media Type Selection */}
                        <div className="grid grid-cols-5 gap-2 p-1.5 bg-slate-100 rounded-2xl">
                           {['text', 'image', 'video', 'document', 'link'].map((t: any) => (
                              <button key={t} onClick={() => setPostType(t)} className={`h-11 rounded-xl text-[10px] font-bold uppercase border transition-all ${postType === t ? 'bg-white text-indigo-600 shadow-sm border-white' : 'text-slate-500 border-transparent hover:text-slate-700'}`}>{t}</button>
                           ))}
                        </div>
+
+                       {/* Image Upload (common for image type) */}
                        {postType === 'image' && (
                           <div className="flex flex-col gap-4">
                              <div className="flex gap-3">
@@ -2589,14 +3340,7 @@ export default function AdminCommunityPage() {
                                    <input type="file" className="hidden" accept="image/*" onChange={e => handleFileUpload(e, 'image')} disabled={uploading} />
                                 </label>
                                 {(postImageUrls.length > 0 || localImagePreview) && (
-                                   <button 
-                                      onClick={() => {
-                                         setPostImageUrls([]);
-                                         setLocalImagePreview(null);
-                                      }}
-                                      className="h-14 px-4 border border-red-100 text-red-500 rounded-xl hover:bg-red-50 transition-all"
-                                      title="Remove Image"
-                                   >
+                                   <button onClick={() => { setPostImageUrls([]); setLocalImagePreview(null); }} className="h-14 px-4 border border-red-100 text-red-500 rounded-xl hover:bg-red-50 transition-all" title="Remove Image">
                                       <Trash2 size={18} />
                                    </button>
                                 )}
@@ -2608,116 +3352,126 @@ export default function AdminCommunityPage() {
                              )}
                           </div>
                        )}
+
                        {postType === 'video' && (
                           <div className="flex gap-3">
                              <input type="text" value={postVideoUrl} onChange={e => setPostVideoUrl(e.target.value)} placeholder="Video URL..." className="flex-1 h-14 px-6 bg-slate-50 border rounded-xl font-semibold outline-none text-xs" />
                              <label className={`h-14 px-6 border rounded-xl flex items-center justify-center gap-2 cursor-pointer font-black text-[10px] uppercase tracking-wider transition-all shadow-sm ${uploading ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>
-                                {uploading ? (
-                                   <>
-                                      <Loader className="animate-spin" size={16}/>
-                                      <span>Uploading...</span>
-                                   </>
-                                ) : (
-                                   <>
-                                      <VideoIcon size={16}/>
-                                      <span>Upload</span>
-                                   </>
-                                )}
+                                {uploading ? (<><Loader className="animate-spin" size={16}/><span>Uploading...</span></>) : (<><VideoIcon size={16}/><span>Upload</span></>)}
                                 <input type="file" className="hidden" accept="video/*" onChange={e => handleFileUpload(e, 'video')} disabled={uploading} />
                              </label>
                           </div>
                        )}
 
-                       <div className="relative group">
-                          {/* Rich Text Toolbar */}
-                          <div className="flex items-center gap-1 p-2 bg-white border-x border-t rounded-t-[2rem] border-slate-200">
-                             {WHATSAPP_FORMATS.map(f => (
-                                <button key={f.label} title={f.desc} onClick={() => insertTextAtCursor(f.prefix, f.suffix)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-indigo-600 transition-colors">
-                                   {f.icon}
-                                </button>
-                             ))}
-                             <div className="w-px h-4 bg-slate-200 mx-1" />
-                             <button onClick={() => setShowEmojiPicker(!showEmojiPicker)} className={`p-2 hover:bg-slate-100 rounded-lg transition-colors ${showEmojiPicker ? 'text-indigo-600 bg-indigo-50' : 'text-slate-500'}`}>
-                                <Smile size={18} />
-                             </button>
-                             
-                             <div className="flex-1" />
-                             
-                             <div className="relative">
-                                <button onClick={() => setShowToolsDropdown(!showToolsDropdown)} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase transition-all ${showToolsDropdown ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
-                                   <Wand2 size={14} /> Tools <ChevronDown size={14} className={`transition-transform ${showToolsDropdown ? 'rotate-180' : ''}`} />
-                                </button>
-                                
-                                {showToolsDropdown && (
-                                   <>
-                                      <div className="fixed inset-0 z-40" onClick={() => setShowToolsDropdown(false)} />
-                                      <div className="absolute right-0 top-full mt-2 w-64 bg-white border rounded-2xl shadow-xl z-50 overflow-hidden py-2 animate-in fade-in slide-in-from-top-2">
-                                         <div className="px-4 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Global Tools</div>
-                                         <button onClick={() => { insertTextAtCursor('{{name}}'); setShowToolsDropdown(false); }} className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50 text-left transition-colors">
-                                            <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600"><User size={14}/></div>
-                                            <div>
-                                               <div className="text-sm font-bold">Personalized Name</div>
-                                               <div className="text-[10px] text-slate-400">Inserts dynamic member name</div>
-                                            </div>
-                                         </button>
-                                         <button onClick={() => { 
-                                            document.getElementById('scheduling-section')?.scrollIntoView({ behavior: 'smooth' });
-                                            setShowToolsDropdown(false); 
-                                         }} className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50 text-left transition-colors">
-                                            <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600"><Calendar size={14}/></div>
-                                            <div>
-                                               <div className="text-sm font-bold">Schedule Campaign</div>
-                                               <div className="text-[10px] text-slate-400">Pick date & time for broadcast</div>
-                                            </div>
-                                         </button>
-                                         <button onClick={() => { setPostType('link'); setShowToolsDropdown(false); }} className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50 text-left transition-colors">
-                                            <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center text-orange-600"><LinkIcon size={14}/></div>
-                                            <div>
-                                               <div className="text-sm font-bold">Trackable Link</div>
-                                               <div className="text-[10px] text-slate-400">Add click-counting URL</div>
-                                            </div>
-                                         </button>
-                                         <div className="h-px bg-slate-100 my-1" />
-                                         <div className="px-4 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Media Quick-Add</div>
-                                         <div className="grid grid-cols-3 gap-1 px-3 pb-2">
-                                            <button onClick={() => setPostType('image')} className="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-slate-50 group">
-                                               <ImageIcon size={16} className="text-slate-400 group-hover:text-indigo-600"/>
-                                               <span className="text-[9px] font-bold">Photo</span>
-                                            </button>
-                                            <button onClick={() => setPostType('video')} className="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-slate-50 group">
-                                               <VideoIcon size={16} className="text-slate-400 group-hover:text-indigo-600"/>
-                                               <span className="text-[9px] font-bold">Video</span>
-                                            </button>
-                                            <button onClick={() => setPostType('document')} className="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-slate-50 group">
-                                               <FileText size={16} className="text-slate-400 group-hover:text-indigo-600"/>
-                                               <span className="text-[9px] font-bold">PDF</span>
-                                            </button>
-                                         </div>
-                                      </div>
-                                   </>
-                                )}
-                             </div>
-                          </div>
-
-                          {showEmojiPicker && (
-                             <div className="absolute left-10 top-12 w-64 bg-white border shadow-xl rounded-2xl z-50 p-3 grid grid-cols-6 gap-2 animate-in zoom-in-95">
-                                {EMOJIS.map(e => (
-                                   <button key={e} onClick={() => { insertTextAtCursor(e); setShowEmojiPicker(false); }} className="w-8 h-8 flex items-center justify-center hover:bg-slate-100 rounded-lg text-xl">
-                                      {e}
+                       {/* CATEGORY-SPECIFIC FORMS */}
+                       
+                       {/* GENERAL CATEGORY - Original text editor */}
+                       {postCategory === 'general' && (
+                          <div className="relative group">
+                             <div className="flex items-center gap-1 p-2 bg-white border-x border-t rounded-t-[2rem] border-slate-200">
+                                {WHATSAPP_FORMATS.map(f => (
+                                   <button key={f.label} title={f.desc} onClick={() => insertTextAtCursor(f.prefix, f.suffix)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-indigo-600 transition-colors">
+                                      {f.icon}
                                    </button>
                                 ))}
+                                <div className="w-px h-4 bg-slate-200 mx-1" />
+                                <button onClick={() => setShowEmojiPicker(!showEmojiPicker)} className={`p-2 hover:bg-slate-100 rounded-lg transition-colors ${showEmojiPicker ? 'text-indigo-600 bg-indigo-50' : 'text-slate-500'}`}>
+                                   <Smile size={18} />
+                                </button>
+                                <div className="flex-1" />
                              </div>
-                          )}
+                             {showEmojiPicker && (
+                                <div className="absolute left-10 top-12 w-64 bg-white border shadow-xl rounded-2xl z-50 p-3 grid grid-cols-6 gap-2 animate-in zoom-in-95">
+                                   {EMOJIS.map(e => (
+                                      <button key={e} onClick={() => { insertTextAtCursor(e); setShowEmojiPicker(false); }} className="w-8 h-8 flex items-center justify-center hover:bg-slate-100 rounded-lg text-xl">{e}</button>
+                                   ))}
+                                </div>
+                             )}
+                             <textarea ref={textAreaRef} value={postContent} onChange={e => setPostContent(e.target.value)} rows={6} placeholder="Message body..." className="w-full p-8 bg-slate-50 border border-t-0 rounded-b-[2rem] focus:bg-white transition-all outline-none font-medium resize-none shadow-inner" />
+                          </div>
+                       )}
 
-                          <textarea 
-                             ref={textAreaRef}
-                             value={postContent} 
-                             onChange={e => setPostContent(e.target.value)} 
-                             rows={6} 
-                             placeholder="Message body..." 
-                             className="w-full p-8 bg-slate-50 border border-t-0 rounded-b-[2rem] focus:bg-white transition-all outline-none font-medium resize-none shadow-inner" 
-                          />
-                       </div>
+                       {/* EXPERIENCES CATEGORY */}
+                       {postCategory === 'experiences' && (
+                          <div className="space-y-4 p-6 bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl border border-indigo-100">
+                             <div className="flex items-center gap-2 mb-4">
+                                <span className="text-2xl">✨</span>
+                                <span className="text-sm font-bold text-indigo-700 uppercase tracking-wider">Experience Story</span>
+                             </div>
+                             <div className="grid grid-cols-3 gap-4">
+                                <input type="text" value={postParticipantName} onChange={e => setPostParticipantName(e.target.value)} placeholder="Participant Name *" className="h-12 px-4 bg-white border border-indigo-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/20" />
+                                <input type="text" value={postWorkshopName} onChange={e => setPostWorkshopName(e.target.value)} placeholder="Workshop Name" className="h-12 px-4 bg-white border border-indigo-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/20" />
+                                <input type="text" value={postBatchName} onChange={e => setPostBatchName(e.target.value)} placeholder="Batch Name/Number" className="h-12 px-4 bg-white border border-indigo-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/20" />
+                             </div>
+                             <textarea value={postExperienceDetails} onChange={e => setPostExperienceDetails(e.target.value)} rows={5} placeholder="Share the experience story... What happened? How did they feel? What changed?" className="w-full p-4 bg-white border border-indigo-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/20 resize-none" />
+                          </div>
+                       )}
+
+                       {/* TIPS & TRICKS CATEGORY */}
+                       {postCategory === 'tips' && (
+                          <div className="space-y-4 p-6 bg-gradient-to-br from-yellow-50 to-orange-50 rounded-2xl border border-yellow-200">
+                             <div className="flex items-center gap-2 mb-4">
+                                <span className="text-2xl">💡</span>
+                                <span className="text-sm font-bold text-orange-700 uppercase tracking-wider">Tips & Tricks</span>
+                             </div>
+                             <input type="text" value={postProblemHeading} onChange={e => setPostProblemHeading(e.target.value)} placeholder="Problem/Tip Heading *" className="w-full h-12 px-4 bg-white border border-yellow-300 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-yellow-500/20" />
+                             <textarea value={postProblemDescription} onChange={e => setPostProblemDescription(e.target.value)} rows={3} placeholder="Describe the problem or situation..." className="w-full p-4 bg-white border border-yellow-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-yellow-500/20 resize-none" />
+                             <textarea value={postTipsDetails} onChange={e => setPostTipsDetails(e.target.value)} rows={4} placeholder="Share the tips and tricks to solve this problem..." className="w-full p-4 bg-white border border-yellow-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-yellow-500/20 resize-none" />
+                          </div>
+                       )}
+
+                       {/* TRANSFORMATIONS CATEGORY */}
+                       {postCategory === 'transformations' && (
+                          <div className="space-y-4 p-6 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl border border-emerald-200">
+                             <div className="flex items-center gap-2 mb-4">
+                                <span className="text-2xl">🦋</span>
+                                <span className="text-sm font-bold text-emerald-700 uppercase tracking-wider">Transformation Story</span>
+                             </div>
+                             <div className="grid grid-cols-3 gap-4">
+                                <input type="text" value={postParticipantName} onChange={e => setPostParticipantName(e.target.value)} placeholder="Participant Name *" className="h-12 px-4 bg-white border border-emerald-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500/20" />
+                                <input type="text" value={postWorkshopName} onChange={e => setPostWorkshopName(e.target.value)} placeholder="Workshop Name" className="h-12 px-4 bg-white border border-emerald-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500/20" />
+                                <input type="text" value={postBatchName} onChange={e => setPostBatchName(e.target.value)} placeholder="Batch Name/Number" className="h-12 px-4 bg-white border border-emerald-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500/20" />
+                             </div>
+                             <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                   <label className="text-xs font-bold text-red-600 uppercase tracking-wider flex items-center gap-1">
+                                      <span>⬅️</span> Before
+                                   </label>
+                                   <textarea value={postBeforeStory} onChange={e => setPostBeforeStory(e.target.value)} rows={4} placeholder="What was their situation before? What challenges did they face?" className="w-full p-4 bg-red-50 border border-red-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-red-500/20 resize-none" />
+                                </div>
+                                <div className="space-y-2">
+                                   <label className="text-xs font-bold text-green-600 uppercase tracking-wider flex items-center gap-1">
+                                      <span>➡️</span> After
+                                   </label>
+                                   <textarea value={postAfterStory} onChange={e => setPostAfterStory(e.target.value)} rows={4} placeholder="What is their situation now? How have they transformed?" className="w-full p-4 bg-green-50 border border-green-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-green-500/20 resize-none" />
+                                </div>
+                             </div>
+                          </div>
+                       )}
+
+                       {/* QUESTIONS CATEGORY */}
+                       {postCategory === 'questions' && (
+                          <div className="space-y-4 p-6 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl border border-blue-200">
+                             <div className="flex items-center gap-2 mb-4">
+                                <span className="text-2xl">❓</span>
+                                <span className="text-sm font-bold text-blue-700 uppercase tracking-wider">Q&A Post</span>
+                             </div>
+                             <div className="grid grid-cols-3 gap-4">
+                                <input type="text" value={postParticipantName} onChange={e => setPostParticipantName(e.target.value)} placeholder="Participant Name" className="h-12 px-4 bg-white border border-blue-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/20" />
+                                <input type="text" value={postWorkshopName} onChange={e => setPostWorkshopName(e.target.value)} placeholder="Workshop Name" className="h-12 px-4 bg-white border border-blue-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/20" />
+                                <input type="text" value={postBatchName} onChange={e => setPostBatchName(e.target.value)} placeholder="Batch Name/Number" className="h-12 px-4 bg-white border border-blue-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/20" />
+                             </div>
+                             <div className="space-y-2">
+                                <label className="text-xs font-bold text-blue-700 uppercase tracking-wider">Question</label>
+                                <textarea value={postQuestion} onChange={e => setPostQuestion(e.target.value)} rows={3} placeholder="What is the question?" className="w-full p-4 bg-white border border-blue-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/20 resize-none" />
+                             </div>
+                             <div className="space-y-2">
+                                <label className="text-xs font-bold text-green-700 uppercase tracking-wider">Answer</label>
+                                <textarea value={postAnswer} onChange={e => setPostAnswer(e.target.value)} rows={4} placeholder="What is the answer?" className="w-full p-4 bg-green-50 border border-green-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-green-500/20 resize-none" />
+                             </div>
+                          </div>
+                       )}
+
                     </section>
                     <section className="bg-white p-10 rounded-[2rem] border shadow-sm space-y-8">
                        <div className="flex items-center justify-between">
@@ -2737,22 +3491,33 @@ export default function AdminCommunityPage() {
                     <section id="scheduling-section" className="bg-white p-10 rounded-[2rem] border shadow-sm space-y-8">
                        <div className="flex items-center justify-between">
                           <h3 className="text-sm font-bold uppercase tracking-widest">4. Scheduling</h3>
-                          {postScheduledAt && (
-                             <button onClick={() => setPostScheduledAt('')} className="text-[10px] font-bold text-red-500 hover:text-red-600 uppercase">Clear Schedule</button>
-                          )}
+                          <div className="flex gap-3">
+                             <button 
+                                onClick={() => {
+                                   setPostScheduledAt('');
+                                   createAdminPost();
+                                }} 
+                                className="h-10 px-5 bg-emerald-600 text-white rounded-xl font-bold text-[10px] uppercase hover:bg-emerald-700 transition-all flex items-center gap-2"
+                             >
+                                <Send size={14} /> Post Now
+                             </button>
+                             {postScheduledAt && (
+                                <button onClick={() => setPostScheduledAt('')} className="text-[10px] font-bold text-red-500 hover:text-red-600 uppercase px-3">Clear</button>
+                             )}
+                          </div>
                        </div>
                        <div className="flex gap-4 items-center">
                           <div className="relative flex-1">
                              <Calendar className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                              <input 
                                 type="datetime-local" 
-                                value={postScheduledAt} 
+                                value={postScheduledAt || new Date().toISOString().slice(0, 16)} 
                                 onChange={e => setPostScheduledAt(e.target.value)}
                                 className="w-full pl-14 pr-6 h-14 bg-slate-50 border rounded-2xl font-bold text-xs outline-none focus:bg-white transition-all"
                              />
                           </div>
                           <div className="text-xs text-slate-400 font-medium">
-                             {postScheduledAt ? 'Post will be results at selected time' : 'Leave empty to post immediately'}
+                             {postScheduledAt ? `Scheduled: ${new Date(postScheduledAt).toLocaleString()}` : 'Click "Post Now" or set schedule time'}
                           </div>
                        </div>
                     </section>
@@ -2850,7 +3615,10 @@ export default function AdminCommunityPage() {
                              {/* WhatsApp Style 3: Body (Text) */}
                              <div className="mb-6">
                                 <div className="text-sm text-slate-700 leading-relaxed font-medium whitespace-pre-wrap">
-                                   {renderFormattedText(postContent)}
+                                   {postCategory === 'general' 
+                                      ? renderFormattedText(postContent)
+                                      : renderFormattedText(buildCategoryContent())
+                                   }
                                 </div>
                              </div>
 

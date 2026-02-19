@@ -121,6 +121,22 @@ export async function POST(request: NextRequest) {
     const template = await WhatsAppTemplate.findById(templateId).lean();
     if (!template) return NextResponse.json({ error: 'Template not found' }, { status: 404 });
 
+    // Validate template is Meta-approved if using Meta provider
+    if (provider === 'meta') {
+      const metaTemplateId = (template as any).metaTemplateId;
+      const metaStatus = (template as any).metaStatus;
+      if (!metaTemplateId) {
+        return NextResponse.json({ 
+          error: `Template "${(template as any).templateName}" is not submitted to Meta. Please submit it for approval first.` 
+        }, { status: 400 });
+      }
+      if (metaStatus !== 'APPROVED') {
+        return NextResponse.json({ 
+          error: `Template "${(template as any).templateName}" is not Meta-approved (status: ${metaStatus || 'unknown'}). Wait for approval before creating broadcast.` 
+        }, { status: 400 });
+      }
+    }
+
     const target = body?.target || { type: 'filters', filters: {} };
     const leadIds = await resolveLeadIdsFromTarget(target);
 

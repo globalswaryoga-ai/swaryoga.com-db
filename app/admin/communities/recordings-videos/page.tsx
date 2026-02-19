@@ -151,10 +151,10 @@ export default function AdminRecordingsVideosPage() {
         return;
       }
       
-      // Validate file size (500MB max)
-      const maxSize = 500 * 1024 * 1024;
+      // Validate file size (2GB max for long recordings)
+      const maxSize = 2 * 1024 * 1024 * 1024;
       if (file.size > maxSize) {
-        alert('Video too large. Maximum size is 500MB');
+        alert('Video too large. Maximum size is 2GB');
         return;
       }
       
@@ -590,7 +590,7 @@ export default function AdminRecordingsVideosPage() {
                       <div>
                         <Upload className="h-10 w-10 text-gray-400 mx-auto mb-2" />
                         <p className="text-gray-600">Click to select a video</p>
-                        <p className="text-xs text-gray-400 mt-1">MP4, WebM, MOV, AVI (max 500MB)</p>
+                        <p className="text-xs text-gray-400 mt-1">MP4, WebM, MOV, AVI (max 2GB)</p>
                       </div>
                     )}
                   </div>

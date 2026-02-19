@@ -178,7 +178,7 @@ export default function ExperiencesPage() {
                 <div className="text-emerald-200 text-xs sm:text-sm">5-Star Reviews</div>
               </div>
             </div>
-          )}}
+          )}
         </div>
       </div>
 

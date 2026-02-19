@@ -255,7 +255,7 @@ export async function GET(request: NextRequest) {
     } else if (view === 'weekly') {
       const weekly = await SalesReport.aggregate([
         { $match: filter },
-        { $group: { _id: { $week: '$saleDate', $year: '$saleDate' }, totalSales: { $sum: '$saleAmount' }, count: { $sum: 1 } } },
+        { $group: { _id: { week: { $week: '$saleDate' }, year: { $year: '$saleDate' } }, totalSales: { $sum: '$saleAmount' }, count: { $sum: 1 } } },
         { $sort: { '_id.year': -1, '_id.week': -1 } },
         { $limit: 52 },
       ]);
@@ -310,6 +310,7 @@ export async function POST(request: NextRequest) {
     if (!saleAmount) throw new Error('Missing: saleAmount');
 
     await connectDB();
+    const SalesReport = getSalesReport();
 
     // Admin JWTs use string userIds like "admincrm". Only treat as ObjectId if valid.
     const reporterObjectId = adminUserId && isValidObjectId(adminUserId) ? toObjectId(adminUserId) : undefined;
@@ -373,6 +374,7 @@ export async function PUT(request: NextRequest) {
     if (!viewerUserId) throw new Error('Unauthorized: Missing user identity');
 
     const visibleUserIds = getVisibleUserIds(decoded);
+    const superAdmin = visibleUserIds === null; // Super admin can see all users
 
     const body = await request.json().catch(() => null);
     if (!body) throw new Error('Invalid JSON body');
@@ -382,6 +384,7 @@ export async function PUT(request: NextRequest) {
     if (!isValidObjectId(saleId)) throw new Error('Invalid saleId');
 
     await connectDB();
+    const SalesReport = getSalesReport();
     const existing = await SalesReport.findById(saleId).lean();
     if (!existing) throw new Error('Sale record not found');
     
@@ -432,6 +435,19 @@ export async function PUT(request: NextRequest) {
       safeUpdates.reportedByUserId = String(updates.reportedByUserId || '').trim() || undefined;
     }
 
+    // Only super admin can approve sales
+    if (superAdmin && updates.superAdminApproved !== undefined) {
+      safeUpdates.superAdminApproved = Boolean(updates.superAdminApproved);
+      if (safeUpdates.superAdminApproved) {
+        safeUpdates.superAdminApprovedAt = new Date();
+        safeUpdates.superAdminApprovedBy = updates.superAdminApprovedBy || viewerUserId;
+      } else {
+        // If unapproving, clear the approval info
+        safeUpdates.superAdminApprovedAt = null;
+        safeUpdates.superAdminApprovedBy = null;
+      }
+    }
+
     const sale = await SalesReport.findByIdAndUpdate(saleId, { $set: safeUpdates }, { new: true });
     if (!sale) throw new Error('Sale record not found');
     return formatCrmSuccess({ sale }, {});
@@ -457,6 +473,7 @@ export async function DELETE(request: NextRequest) {
     if (!isValidObjectId(saleId)) throw new Error('Invalid saleId');
 
     await connectDB();
+    const SalesReport = getSalesReport();
     const existing = await SalesReport.findById(saleId).lean();
     if (!existing) throw new Error('Sale record not found');
     

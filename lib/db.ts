@@ -457,14 +457,26 @@ const communityVideoSchema = new mongoose.Schema({
   communityId: { type: String, required: true, index: true },
   title: { type: String, required: true },
   description: { type: String, default: '' },
-  s3Key: { type: String, required: true }, // Path in S3: community/{id}/videos/{filename}
+  
+  // === Video Source ===
+  // 'aws' - Uploaded to S3, requires signed URL
+  // 'youtube' - YouTube unlisted video, proxy through embed
+  videoSource: { type: String, enum: ['aws', 'youtube'], default: 'aws', index: true },
+  
+  // For AWS videos
+  s3Key: { type: String }, // Path in S3: community/{id}/videos/{filename}
+  
+  // For YouTube videos (unlisted)
+  youtubeVideoId: { type: String }, // Just the video ID (not full URL)
+  youtubeUnlisted: { type: Boolean, default: true }, // Must be unlisted for security
+  
   duration: { type: Number }, // Duration in seconds
   thumbnailUrl: { type: String },
   uploadedBy: { type: String, required: true },
   isShareable: { type: Boolean, default: false }, // Always false for community videos
   views: { type: Number, default: 0 },
   
-  // === NEW: Recording categorization ===
+  // === Recording categorization ===
   // For batch-wise recordings linked to specific workshop batch
   workshopId: { type: mongoose.Schema.Types.ObjectId, ref: 'Workshop', index: true },
   batchId: { type: mongoose.Schema.Types.ObjectId, ref: 'Batch', index: true },
@@ -473,7 +485,7 @@ const communityVideoSchema = new mongoose.Schema({
   isCommon: { type: Boolean, default: false, index: true },
   
   // Recording source (manual upload or Zoom auto-sync)
-  source: { type: String, enum: ['manual', 'zoom'], default: 'manual' },
+  source: { type: String, enum: ['manual', 'zoom', 'youtube_import'], default: 'manual' },
   zoomMeetingId: { type: String }, // If from Zoom
   zoomRecordingId: { type: String }, // Zoom recording file ID
   
@@ -490,6 +502,7 @@ communityVideoSchema.index({ communityId: 1, createdAt: -1 });
 communityVideoSchema.index({ workshopId: 1, batchId: 1 });
 communityVideoSchema.index({ communityId: 1, isCommon: 1 });
 communityVideoSchema.index({ zoomMeetingId: 1 });
+communityVideoSchema.index({ videoSource: 1 });
 
 export const CommunityVideo =
   mongoose.models.CommunityVideo || mongoose.model('CommunityVideo', communityVideoSchema);
@@ -515,6 +528,23 @@ communityMembershipSchema.index({ odId: 1, communityId: 1 }, { unique: true, spa
 
 export const CommunityMembership =
   mongoose.models.CommunityMembership || mongoose.model('CommunityMembership', communityMembershipSchema);
+
+// Getter functions for Community models (for dynamic imports after connectDB)
+export function getCommunity() {
+  return mongoose.models.Community || mongoose.model('Community', communitySchema);
+}
+
+export function getCommunityVideo() {
+  return mongoose.models.CommunityVideo || mongoose.model('CommunityVideo', communityVideoSchema);
+}
+
+export function getCommunityPost() {
+  return mongoose.models.CommunityPost || mongoose.model('CommunityPost', communityPostSchema);
+}
+
+export function getCommunityMembership() {
+  return mongoose.models.CommunityMembership || mongoose.model('CommunityMembership', communityMembershipSchema);
+}
 
 // =====================================================
 // DEVICE CONTROL SYSTEM - For preventing credential sharing

@@ -77,6 +77,8 @@ export async function GET(request: NextRequest) {
         thumbnailUrl: v.thumbnailUrl,
         duration: v.duration,
         source: v.source || 'manual',
+        videoSource: v.videoSource || 'aws',
+        youtubeVideoId: v.youtubeVideoId,
         isCommon: v.isCommon || false,
         recordingType: v.recordingType,
         tags: v.tags || [],
@@ -160,11 +162,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Max 500MB
-    const maxSize = 500 * 1024 * 1024;
+    // Max 2GB for videos (supports 2-hour recordings)
+    const maxSize = 2 * 1024 * 1024 * 1024;
     if (file.size > maxSize) {
       return NextResponse.json(
-        { error: 'Video too large. Maximum size is 500MB' },
+        { error: 'Video too large. Maximum size is 2GB' },
         { status: 400 }
       );
     }

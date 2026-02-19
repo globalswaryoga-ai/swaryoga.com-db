@@ -137,6 +137,19 @@ export async function processDueBroadcastRuns(options?: {
         throw new Error('Template not found for run');
       }
 
+      // Validate template is Meta-approved if using Meta provider
+      const runProvider = String((run as any).provider || 'meta');
+      if (runProvider === 'meta') {
+        const metaTemplateId = (template as any).metaTemplateId;
+        const metaStatus = (template as any).metaStatus;
+        if (!metaTemplateId) {
+          throw new Error(`Template "${(template as any).templateName}" is not submitted to Meta. Please submit it for approval first.`);
+        }
+        if (metaStatus !== 'APPROVED') {
+          throw new Error(`Template "${(template as any).templateName}" is not Meta-approved (status: ${metaStatus || 'unknown'}). Wait for approval before broadcasting.`);
+        }
+      }
+
       // Fetch pending messages
       const pending = await BroadcastRunMessage.find({ runId: (run as any)._id, status: 'pending' })
         .sort({ createdAt: 1 })

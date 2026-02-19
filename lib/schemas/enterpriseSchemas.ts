@@ -151,6 +151,21 @@ const LeadSchema = new mongoose.Schema(
     // Receipt linkage (created when moving into sales/enrolled)
     lastReceiptId: { type: mongoose.Schema.Types.ObjectId, ref: 'CrmReceipt', sparse: true, index: true },
     lastMessageAt: { type: Date, index: true },
+
+    // =====================================================
+    // CHAT STATUS TRACKING
+    // Time-based: new (0-5h), open (5-12h), pending (12-24h), overdue (>24h)
+    // Manual: closed (completed by user)
+    // =====================================================
+    chatStatus: {
+      type: String,
+      enum: ['new', 'open', 'pending', 'overdue', 'closed'],
+      default: 'new',
+      index: true,
+    },
+    chatStatusClosedAt: { type: Date }, // When user manually closed the chat
+    chatStatusClosedBy: { type: String, trim: true }, // Who closed the chat (userId)
+
     metadata: mongoose.Schema.Types.Mixed,
   },
   { timestamps: true, collection: 'leads' }
@@ -868,6 +883,10 @@ const SalesReportSchema = new mongoose.Schema(
     daysToConversion: Number,
     touchpointCount: Number, // Number of messages/interactions before sale
     targetAchieved: { type: Boolean, default: false },
+    // Super admin approval for sales records
+    superAdminApproved: { type: Boolean, default: false, index: true },
+    superAdminApprovedAt: { type: Date },
+    superAdminApprovedBy: { type: String, trim: true },
     reportedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     metadata: mongoose.Schema.Types.Mixed,
   },

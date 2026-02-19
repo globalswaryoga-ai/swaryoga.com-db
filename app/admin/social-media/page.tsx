@@ -531,14 +531,18 @@ export default function SocialMediaAdmin() {
               <div className="bg-slate-800 rounded-lg p-8 border border-slate-700">
                 <h2 className="text-2xl font-bold text-white mb-6">Create New Post</h2>
 
-                <div className="mb-6 bg-amber-500/10 border border-amber-500/30 rounded-lg px-4 py-3 text-amber-100 text-sm">
-                  <p className="font-semibold mb-1">Important:</p>
-                  <p className="text-amber-100/90">
-                    You can now publish to <span className="font-semibold">Facebook Pages</span> and <span className="font-semibold">Instagram (image posts)</span> using the “Publish now” button after saving.
-                    X/LinkedIn/YouTube publishing needs additional official API setup and is not enabled yet.
+                <div className="mb-6 bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-4 py-3 text-emerald-100 text-sm">
+                  <p className="font-semibold mb-1">✅ Supported Platforms:</p>
+                  <p className="text-emerald-100/90">
+                    <span className="font-semibold">Facebook</span> (text, images, videos) •
+                    <span className="font-semibold"> Instagram</span> (images, Reels) •
+                    <span className="font-semibold"> LinkedIn</span> (text, images) •
+                    <span className="font-semibold"> X/Twitter</span> (text only, 280 chars)
+                  </p>
+                  <p className="text-emerald-100/70 mt-1 text-xs">
+                    ✅ YouTube (videos with OAuth) • ⚠️ X/Twitter images need OAuth 1.0a.
                   </p>
                 </div>
-
                 {/* Text Input */}
                 <div className="mb-6">
                   <label className="block text-slate-300 font-semibold mb-3">Post Content</label>

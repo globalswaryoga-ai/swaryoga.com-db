@@ -140,8 +140,8 @@ async function publishPostToPlatforms(post: any): Promise<{ success: boolean; er
     }
 
     // Call the publish API endpoint internally
-    // We'll make an authenticated request to the publish endpoint
-    const token = process.env.INTERNAL_API_TOKEN || 'internal-scheduler';
+    // We'll make an authenticated request to the publish endpoint using CRON_SECRET
+    const token = process.env.CRON_SECRET || process.env.INTERNAL_API_TOKEN || 'internal-scheduler';
 
     const response = await fetch(
       `${process.env.NEXTAUTH_URL || process.env.VERCEL_URL || 'http://localhost:3000'}/api/admin/social-media/posts/${post._id}/publish`,

@@ -15,6 +15,7 @@ interface PlatformConfig {
   idError: string;
   instructions: string[];
   helpLink: string;
+  useOAuth?: boolean; // For platforms that use OAuth flow
 }
 
 interface ConnectedAccount {
@@ -100,30 +101,35 @@ const platforms: Record<string, PlatformConfig> = {
     icon: '▶️',
     name: 'YouTube Channel',
     color: 'from-red-600 to-red-700',
-    fields: ['accountName', 'accountHandle', 'accountId', 'accessToken'],
-    idPlaceholder: 'UCxxxxxxxxxxxxxxxxxxxxxxxx',
-    idValidation: (id: string) => id.startsWith('UC') && id.length === 24,
-    idError: '⚠️ Channel ID must start with "UC" and be exactly 24 characters (e.g., UCxxxxxx...)',
+    fields: [], // Uses OAuth - no manual fields needed
+    idPlaceholder: '',
+    idValidation: () => true,
+    idError: '',
+    useOAuth: true, // Special flag for OAuth platforms
     instructions: [
-      '📍 STEP 1: Find Your YouTube Channel ID',
-      '   → Go to: studio.youtube.com',
-      '   → Click your profile icon (top right)',
-      '   → Click "Settings"',
-      '   → Go to "Channel" → "Advanced settings"',
-      '   → Copy your "Channel ID"',
-      '   → It starts with UC and is 24 characters',
+      '🔐 YouTube uses OAuth 2.0 for secure video uploads.',
       '',
-      '📍 STEP 2: Get API Key',
-      '   → Go to: console.cloud.google.com',
-      '   → Create a new project (or select existing)',
-      '   → Go to "APIs & Services" → "Library"',
-      '   → Search for "YouTube Data API v3"',
-      '   → Click "Enable"',
-      '   → Go to "Credentials" → "Create Credentials" → "API Key"',
-      '   → Copy the API key (starts with AIza...)',
+      '📍 ONE-TIME SETUP (Admin only):',
+      '   1. Go to: console.cloud.google.com',
+      '   2. Create a project or select existing',
+      '   3. Enable "YouTube Data API v3"',
+      '   4. Go to "APIs & Services" → "OAuth consent screen"',
+      '   5. Configure consent screen (External, fill required fields)',
+      '   6. Add scopes: youtube.upload, youtube.readonly',
+      '   7. Go to "Credentials" → "Create Credentials" → "OAuth client ID"',
+      '   8. Select "Web application"',
+      '   9. Add authorized redirect URI:',
+      '      YOUR_DOMAIN/api/admin/social-media/youtube/oauth/callback',
+      '   10. Copy Client ID and Secret to .env:',
+      '       GOOGLE_CLIENT_ID=your_client_id',
+      '       GOOGLE_CLIENT_SECRET=your_client_secret',
       '',
-      '📌 Current support: Read channel stats',
-      '   Video uploads require OAuth (coming soon)'
+      '📍 CONNECT YOUR CHANNEL:',
+      '   → Click "Connect with Google" below',
+      '   → Sign in and authorize access',
+      '   → Your channel will be connected automatically',
+      '',
+      '✅ Video uploads, channel stats, and analytics supported!'
     ],
     helpLink: 'https://console.cloud.google.com/apis/library/youtube.googleapis.com'
   },
@@ -227,8 +233,52 @@ function SocialMediaSetupContent() {
     if (platform && Object.prototype.hasOwnProperty.call(platforms, platform)) {
       setSelectedPlatform(platform);
     }
+    
+    // Handle OAuth success/error from redirect
+    const success = searchParams.get('success');
+    const error = searchParams.get('error');
+    const channel = searchParams.get('channel');
+    
+    if (success === 'connected' && channel) {
+      setSuccessMessage(`✅ YouTube channel "${decodeURIComponent(channel)}" connected successfully!`);
+      fetchConnectedAccounts();
+    } else if (error) {
+      const errorMessages: Record<string, string> = {
+        'access_denied': 'Authorization was denied. Please try again.',
+        'missing_code': 'No authorization code received from Google.',
+        'missing_credentials': 'Server misconfiguration: GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET not set.',
+        'token_exchange_failed': 'Failed to exchange authorization code. Please try again.',
+        'no_channel_found': 'No YouTube channel found for this Google account.',
+        'internal_error': 'An unexpected error occurred. Please try again.',
+      };
+      setErrorMessage(`❌ ${errorMessages[error] || error}`);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
+
+  const [oauthLoading, setOauthLoading] = useState(false);
+
+  const handleYouTubeOAuth = async () => {
+    setOauthLoading(true);
+    setErrorMessage('');
+    try {
+      const response = await fetch(`/api/admin/social-media/youtube/oauth?token=${token}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok || !data.authUrl) {
+        throw new Error(data.error || 'Failed to get OAuth URL');
+      }
+      
+      // Redirect to Google OAuth
+      window.location.href = data.authUrl;
+    } catch (error) {
+      setErrorMessage(`❌ ${error instanceof Error ? error.message : 'Failed to start OAuth flow'}`);
+      setOauthLoading(false);
+    }
+  };
 
   const fetchConnectedAccounts = async () => {
     try {
@@ -277,10 +327,7 @@ function SocialMediaSetupContent() {
       return false;
     }
 
-    if (selectedPlatform === 'youtube' && formData.accessToken && !formData.accessToken.startsWith('AIza')) {
-      setValidationError('⚠️ YouTube API Key should start with "AIza". Make sure you\'re using an API Key, not OAuth token.');
-      return false;
-    }
+    // YouTube uses OAuth - no manual validation needed
 
     return true;
   };
@@ -567,6 +614,47 @@ function SocialMediaSetupContent() {
                 </details>
 
                 {/* Form */}
+                {currentPlatform.useOAuth ? (
+                  /* OAuth-based platform (YouTube) */
+                  <div className="space-y-6">
+                    <div className="bg-slate-700/50 rounded-lg p-6 border border-slate-600">
+                      <p className="text-slate-300 mb-4">
+                        Click the button below to connect your YouTube channel. You'll be redirected to Google to authorize access.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleYouTubeOAuth}
+                        disabled={oauthLoading}
+                        className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 disabled:opacity-50 text-white font-bold py-4 px-6 rounded-lg transition flex items-center justify-center gap-3"
+                      >
+                        {oauthLoading ? (
+                          <>
+                            <RefreshCw className="animate-spin" size={20} />
+                            Connecting...
+                          </>
+                        ) : (
+                          <>
+                            <svg viewBox="0 0 24 24" className="w-6 h-6" fill="currentColor">
+                              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                            </svg>
+                            Connect with Google
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    
+                    <div className="text-slate-400 text-sm">
+                      <p className="font-semibold text-white mb-2">Required scopes:</p>
+                      <ul className="list-disc pl-5 space-y-1">
+                        <li>youtube.upload - Upload videos to your channel</li>
+                        <li>youtube.readonly - Read channel info and stats</li>
+                      </ul>
+                    </div>
+                  </div>
+                ) : (
                 <form onSubmit={handleSubmit} className="space-y-6">
                   {/* Account Name */}
                   <div>
@@ -606,7 +694,6 @@ function SocialMediaSetupContent() {
                       <label className="block text-white font-semibold mb-2">
                         {selectedPlatform === 'facebook' && 'Facebook Page ID'}
                         {selectedPlatform === 'instagram' && 'Instagram Business Account ID'}
-                        {selectedPlatform === 'youtube' && 'YouTube Channel ID'}
                         {selectedPlatform === 'linkedin' && 'LinkedIn Organization ID'}
                         <span className="text-red-400"> *</span>
                       </label>
@@ -656,7 +743,6 @@ function SocialMediaSetupContent() {
                       placeholder={
                         selectedPlatform === 'facebook' ? 'Paste your Page Access Token (very long string)...' :
                         selectedPlatform === 'instagram' ? 'Paste your Page Access Token...' :
-                        selectedPlatform === 'youtube' ? 'Paste your API Key (starts with AIza...)' :
                         selectedPlatform === 'x' ? 'Paste your Bearer Token (starts with AAAA...)' :
                         'Paste your access token...'
                       }
@@ -702,6 +788,7 @@ function SocialMediaSetupContent() {
                     </button>
                   </div>
                 </form>
+                )}
 
                 {/* Security Note */}
                 <div className="mt-8 pt-6 border-t border-slate-700">

@@ -112,12 +112,14 @@ export async function POST(req: NextRequest) {
         name,
         description || `Community for ${name} workshop participants`
       );
-      console.log(`[Workshop] Created workshop community: ${community.name} (type: workshop_active)`);
-      
-      // Update workshop with community info
-      workshop.communityId = community._id;
-      workshop.communityName = community.name;
-      await workshop.save();
+      if (community) {
+        console.log(`[Workshop] Created workshop community: ${community.name} (type: workshop_active)`);
+        
+        // Update workshop with community info
+        workshop.communityId = community._id;
+        workshop.communityName = community.name;
+        await workshop.save();
+      }
     } catch (communityError: unknown) {
       console.error('[Workshop] Failed to create community:', communityError);
       // Continue without community - not critical

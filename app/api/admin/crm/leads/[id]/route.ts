@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { DeletedLead, Lead, LeadNote } from '@/lib/schemas/enterpriseSchemas';
+import { DeletedLead, Lead, LeadNote, getSalesReport } from '@/lib/schemas/enterpriseSchemas';
 import mongoose from 'mongoose';
 
 // Mark as dynamic since this route uses request.headers or request.url
@@ -124,6 +124,19 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         createdByUserId: 'system',
         pinned: false,
       });
+
+      // AUTO-ADD TO SALES: When status changes to 'customer', create a sale record
+      if (update.status === 'customer' && existing.status !== 'customer') {
+        const saleCreated = await autoAddToSales(existing, lead, viewerUserId);
+        if (saleCreated) {
+          notesToCreate.push({
+            leadId: existing._id,
+            note: `System: Auto-added to Sales as customer converted`,
+            createdByUserId: 'system',
+            pinned: false,
+          });
+        }
+      }
     }
 
     // 2. Labels Change
@@ -159,6 +172,35 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to update lead';
     return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+// Helper function to auto-create a sale when lead becomes a customer
+async function autoAddToSales(existing: any, lead: any, viewerUserId: string) {
+  try {
+    const SalesReport = getSalesReport();
+    // Check if a sale already exists for this lead to avoid duplicates
+    const existingSale = await SalesReport.findOne({ leadId: existing._id }).lean();
+    if (!existingSale) {
+      await SalesReport.create({
+        leadId: existing._id,
+        customerId: lead.leadNumber || existing._id.toString(),
+        customerName: lead.name || existing.name || '',
+        customerPhone: lead.phoneNumber || existing.phoneNumber || '',
+        customerEmail: lead.email || existing.email || '',
+        workshopName: lead.workshopName || existing.workshopName || '',
+        reportedByUserId: viewerUserId,
+        saleAmount: 0, // To be updated manually
+        paymentMode: 'other',
+        status: 'pending', // Pending until payment details are added
+        saleDate: new Date(),
+      });
+      return true; // Sale created
+    }
+    return false; // Sale already exists
+  } catch (saleError) {
+    console.error('Auto-add to sales failed:', saleError);
+    return false;
   }
 }
 
@@ -231,6 +273,19 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         createdByUserId: 'system',
         pinned: false,
       });
+
+      // AUTO-ADD TO SALES: When status changes to 'customer', create a sale record
+      if (update.status === 'customer' && existing.status !== 'customer') {
+        const saleCreated = await autoAddToSales(existing, lead, viewerUserId);
+        if (saleCreated) {
+          notesToCreate.push({
+            leadId: existing._id,
+            note: `System: Auto-added to Sales as customer converted`,
+            createdByUserId: 'system',
+            pinned: false,
+          });
+        }
+      }
     }
 
     // 2. Labels Change

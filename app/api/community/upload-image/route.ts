@@ -18,9 +18,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid file type. Only JPEG, PNG, WebP, and GIF are allowed.' }, { status: 400 });
     }
 
-    // Validate file size (10MB max)
-    if (file.size > 10 * 1024 * 1024) {
-      return NextResponse.json({ error: 'File size exceeds 10MB limit' }, { status: 400 });
+    // Validate file size (500MB max for high-quality images)
+    if (file.size > 500 * 1024 * 1024) {
+      return NextResponse.json({ error: 'File size exceeds 500MB limit' }, { status: 400 });
     }
 
     // Convert file to buffer
