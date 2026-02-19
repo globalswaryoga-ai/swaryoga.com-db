@@ -1377,7 +1377,7 @@ export default function AdminCommunityPage() {
       setLoading(true);
       try {
         // Fetch members
-        const res = await fetch(`/api/admin/community/members?communityId=${selectedCommunity}&status=${statusFilter}&limit=100`, {
+        const res = await fetch(`/api/admin/community/members?communityId=${selectedCommunity}&status=${statusFilter}&limit=500`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         
