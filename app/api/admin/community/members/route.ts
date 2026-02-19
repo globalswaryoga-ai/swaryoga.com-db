@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     const communityId = searchParams.get('communityId');
     const status = searchParams.get('status') || 'active';
     const skip = parseInt(searchParams.get('skip') || '0');
-    const limit = parseInt(searchParams.get('limit') || '50');
+    const limitParam = searchParams.get('limit');
 
     const query: any = { communityId };
     if (status === 'pending') {
@@ -27,11 +27,16 @@ export async function GET(request: NextRequest) {
       query.status = status;
     }
 
-    const members = await CommunityMember.find(query)
+    let membersQuery = CommunityMember.find(query)
       .sort({ joinedAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean();
+      .skip(skip);
+    
+    // Only apply limit if explicitly provided
+    if (limitParam) {
+      membersQuery = membersQuery.limit(parseInt(limitParam));
+    }
+    
+    const members = await membersQuery.lean();
 
     const total = await CommunityMember.countDocuments(query);
 

@@ -165,7 +165,6 @@ export async function GET(request: NextRequest) {
 
     const blockedMembers = await CommunityMember.find(filter)
       .sort({ 'metadata.bannedAt': -1 })
-      .limit(100)
       .lean();
 
     return NextResponse.json({

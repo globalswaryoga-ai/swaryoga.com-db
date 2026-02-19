@@ -62,7 +62,6 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const status = searchParams.get('status') || 'pending';
     const category = searchParams.get('category');
-    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 100);
     
     const CommunitySubmission = getCommunitySubmissionModel();
     
@@ -76,7 +75,6 @@ export async function GET(req: NextRequest) {
     
     const submissions = await CommunitySubmission.find(query)
       .sort({ createdAt: -1 })
-      .limit(limit)
       .lean();
     
     // Get counts by status
