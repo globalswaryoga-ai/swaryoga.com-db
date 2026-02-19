@@ -217,6 +217,11 @@ export default function AdminCommunityPage() {
   const [youtubeDescription, setYoutubeDescription] = useState('');
   const [addingYouTube, setAddingYouTube] = useState(false);
   
+  // YouTube Recording Add Modal State
+  const [showAddYouTubeRecordingModal, setShowAddYouTubeRecordingModal] = useState(false);
+  const [youtubeRecordingUrl, setYoutubeRecordingUrl] = useState('');
+  const [addingYouTubeRecording, setAddingYouTubeRecording] = useState(false);
+  
   // Recording Upload Modal State (Folder > Playlist > Video structure)
   const [showUploadRecordingModal, setShowUploadRecordingModal] = useState(false);
   const [recordingFolderName, setRecordingFolderName] = useState(''); // Workshop name
@@ -1085,9 +1090,9 @@ export default function AdminCommunityPage() {
       }
       const json = await res.json();
       if (json.success) {
-        // Filter to only show recordings with folder structure (title contains " > ")
+        // Filter to only show recordings with folder structure (title contains " > ") or marked as recording
         const folderRecordings = (json.content || []).filter((r: any) => 
-          r.title?.includes(' > ') || r.source === 'zoom'
+          r.title?.includes(' > ') || r.source === 'zoom' || r.source === 'youtube_recording'
         );
         setRecordings(folderRecordings);
       }
@@ -2003,13 +2008,21 @@ export default function AdminCommunityPage() {
                 </div>
                 <h3 className="text-2xl font-bold text-white mb-3">No Workshop Recordings Yet</h3>
                 <p className="text-slate-400 text-sm mb-8 max-w-md">Upload your workshop recordings organized by Workshop → Batch → Video for easy access.</p>
-                <button
-                  onClick={() => setShowUploadRecordingModal(true)}
-                  className="px-8 py-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-2xl font-bold text-sm hover:from-emerald-600 hover:to-teal-600 transition-all flex items-center gap-3 shadow-xl shadow-emerald-500/20"
-                >
-                  <Upload size={20} />
-                  Upload First Recording
-                </button>
+                <div className="flex gap-4">
+                  <button
+                    onClick={() => setShowUploadRecordingModal(true)}
+                    className="px-8 py-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-2xl font-bold text-sm hover:from-emerald-600 hover:to-teal-600 transition-all flex items-center gap-3 shadow-xl shadow-emerald-500/20"
+                  >
+                    <Upload size={20} />
+                    Upload Recording
+                  </button>
+                  <button
+                    onClick={() => setShowAddYouTubeRecordingModal(true)}
+                    className="px-8 py-4 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-2xl font-bold text-sm hover:from-red-600 hover:to-red-700 transition-all flex items-center gap-3 shadow-xl shadow-red-500/20"
+                  >
+                    ▶ Add YouTube URL
+                  </button>
+                </div>
               </div>
             ) : (() => {
               // Parse recordings into folder/playlist structure
@@ -2068,6 +2081,12 @@ export default function AdminCommunityPage() {
                         >
                           <Upload size={16} />
                           Upload
+                        </button>
+                        <button
+                          onClick={() => setShowAddYouTubeRecordingModal(true)}
+                          className="px-4 py-2 bg-red-500 text-white rounded-xl font-bold text-sm hover:bg-red-600 transition-all flex items-center gap-2"
+                        >
+                          ▶ YouTube
                         </button>
                       </div>
                       
@@ -2944,6 +2963,161 @@ export default function AdminCommunityPage() {
                   <p className="text-xs text-amber-600 mt-2">⚠️ Fill all required fields above before uploading</p>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add YouTube Recording Modal - with Folder/Playlist structure */}
+      {showAddYouTubeRecordingModal && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[100] flex items-center justify-center animate-in fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-8 m-4">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-slate-900">▶ Add YouTube Recording</h3>
+              <button onClick={() => setShowAddYouTubeRecordingModal(false)} className="p-2 hover:bg-slate-100 rounded-xl transition-all">
+                <Plus className="rotate-45" size={20} />
+              </button>
+            </div>
+            
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+              <p className="text-amber-800 text-sm">
+                <strong>🔒 Privacy:</strong> YouTube videos should be <strong>unlisted</strong> to prevent unauthorized access. 
+              </p>
+            </div>
+            
+            <div className="space-y-4">
+              {/* YouTube URL */}
+              <div>
+                <label className="text-sm font-bold text-slate-700 mb-2 block">YouTube URL or Video ID *</label>
+                <input 
+                  type="text" 
+                  value={youtubeRecordingUrl} 
+                  onChange={e => setYoutubeRecordingUrl(e.target.value)}
+                  placeholder="https://www.youtube.com/watch?v=... or video ID"
+                  className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 transition-all"
+                />
+              </div>
+              
+              {/* Folder/Workshop Name */}
+              <div>
+                <label className="text-sm font-bold text-slate-700 mb-2 block">
+                  📁 Workshop Name (Folder) *
+                </label>
+                <input 
+                  type="text" 
+                  value={recordingFolderName} 
+                  onChange={e => setRecordingFolderName(e.target.value)}
+                  placeholder="e.g., Swar Yoga Workshop"
+                  className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 transition-all"
+                />
+              </div>
+              
+              {/* Playlist/Batch Name */}
+              <div>
+                <label className="text-sm font-bold text-slate-700 mb-2 block">
+                  🎬 Batch Name (Playlist) *
+                </label>
+                <input 
+                  type="text" 
+                  value={recordingPlaylistName} 
+                  onChange={e => setRecordingPlaylistName(e.target.value)}
+                  placeholder="e.g., February 2026 Batch"
+                  className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 transition-all"
+                />
+              </div>
+              
+              {/* Video Number */}
+              <div>
+                <label className="text-sm font-bold text-slate-700 mb-2 block">
+                  🔢 Video Number *
+                </label>
+                <input 
+                  type="text" 
+                  value={recordingVideoNumber} 
+                  onChange={e => setRecordingVideoNumber(e.target.value)}
+                  placeholder="e.g., 1, 2, 3..."
+                  className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 transition-all"
+                />
+              </div>
+              
+              {/* Description */}
+              <div>
+                <label className="text-sm font-bold text-slate-700 mb-2 block">Description (Optional)</label>
+                <textarea 
+                  value={recordingDescription} 
+                  onChange={e => setRecordingDescription(e.target.value)}
+                  placeholder="e.g., Introduction to Nadi, Breathing techniques..."
+                  className="w-full h-20 p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 transition-all resize-none"
+                />
+              </div>
+              
+              {/* Preview */}
+              {recordingFolderName && recordingPlaylistName && recordingVideoNumber && (
+                <div className="p-3 bg-red-50 rounded-xl border border-red-100">
+                  <p className="text-xs font-bold text-red-700 uppercase mb-1">Video will be saved as:</p>
+                  <p className="text-sm text-red-800 font-medium">
+                    📁 {recordingFolderName} → 🎬 {recordingPlaylistName} → 🎥 Video {recordingVideoNumber}
+                  </p>
+                </div>
+              )}
+              
+              <button
+                onClick={async () => {
+                  if (!youtubeRecordingUrl.trim()) {
+                    alert('YouTube URL is required');
+                    return;
+                  }
+                  if (!recordingFolderName.trim() || !recordingPlaylistName.trim() || !recordingVideoNumber.trim()) {
+                    alert('Workshop name, Batch name, and Video number are required');
+                    return;
+                  }
+                  setAddingYouTubeRecording(true);
+                  try {
+                    const title = `${recordingFolderName} > ${recordingPlaylistName} > Video ${recordingVideoNumber}`;
+                    const res = await fetch('/api/admin/communities/youtube-videos', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${token}`,
+                      },
+                      body: JSON.stringify({
+                        communityId: selectedCommunity,
+                        youtubeUrl: youtubeRecordingUrl.trim(),
+                        title: title,
+                        description: recordingDescription.trim(),
+                        isCommon: true,
+                        tags: [`folder:${recordingFolderName}`, `playlist:${recordingPlaylistName}`, 'recording'],
+                        isRecording: true,
+                      }),
+                    });
+                    const json = await res.json();
+                    if (!res.ok) throw new Error(json.error || 'Failed to add recording');
+                    alert('✅ YouTube recording added successfully!');
+                    setShowAddYouTubeRecordingModal(false);
+                    setYoutubeRecordingUrl('');
+                    setRecordingFolderName('');
+                    setRecordingPlaylistName('');
+                    setRecordingVideoNumber('');
+                    setRecordingDescription('');
+                    fetchRecordings();
+                  } catch (err: any) {
+                    alert('❌ Error: ' + err.message);
+                  } finally {
+                    setAddingYouTubeRecording(false);
+                  }
+                }}
+                disabled={addingYouTubeRecording || !youtubeRecordingUrl.trim() || !recordingFolderName.trim() || !recordingPlaylistName.trim() || !recordingVideoNumber.trim()}
+                className="w-full h-12 bg-red-600 text-white rounded-xl font-bold text-sm hover:bg-red-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {addingYouTubeRecording ? (
+                  <>
+                    <Loader className="animate-spin" size={18} />
+                    Adding...
+                  </>
+                ) : (
+                  <>▶ Add YouTube Recording</>
+                )}
+              </button>
             </div>
           </div>
         </div>

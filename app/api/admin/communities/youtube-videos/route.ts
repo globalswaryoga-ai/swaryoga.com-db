@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { communityId, youtubeUrl, title, description, isCommon, tags, duration } = body;
+    const { communityId, youtubeUrl, title, description, isCommon, tags, duration, isRecording } = body;
 
     if (!communityId || !youtubeUrl || !title) {
       return NextResponse.json({ 
@@ -173,6 +173,7 @@ export async function POST(request: NextRequest) {
     const thumbnailUrl = `https://img.youtube.com/vi/${youtubeVideoId}/maxresdefault.jpg`;
 
     // Create video record
+    // If isRecording is true, mark as recording so it shows in recordings tab
     const video = await CommunityVideo.create({
       communityId,
       title,
@@ -185,7 +186,7 @@ export async function POST(request: NextRequest) {
       uploadedBy: decoded.email || decoded.userId || 'admin',
       isShareable: false, // Never shareable
       isCommon: isCommon || false,
-      source: 'youtube_import',
+      source: isRecording ? 'youtube_recording' : 'youtube_import',
       tags: tags || [],
       views: 0,
       createdAt: new Date(),
