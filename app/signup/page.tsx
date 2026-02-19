@@ -47,6 +47,8 @@ function SignUpInner() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitStatus, setSubmitStatus] = useState<'success' | 'error' | null>(null);
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
+  const [useCustomState, setUseCustomState] = useState(false);
+  const [customState, setCustomState] = useState('');
 
   // Auto-detect user's country based on geolocation
   useEffect(() => {
@@ -727,7 +729,7 @@ function SignUpInner() {
     'South Africa', 'South Korea', 'South Sudan', 'Spain', 'Sri Lanka', 'Sudan', 'Suriname', 'Sweden', 'Switzerland', 'Syria',
     'Taiwan', 'Tajikistan', 'Tanzania', 'Thailand', 'Timor-Leste', 'Togo', 'Tonga', 'Trinidad and Tobago', 'Tunisia', 'Turkey',
     'Turkmenistan', 'Tuvalu', 'Uganda', 'Ukraine', 'United Arab Emirates', 'United Kingdom', 'United States', 'Uruguay', 'Uzbekistan', 'Vanuatu',
-    'Vatican City', 'Venezuela', 'Vietnam', 'Yemen', 'Zambia', 'Zimbabwe'
+    'Vatican City', 'Venezuela', 'Vietnam', 'Yemen', 'Zambia', 'Zimbabwe', 'Other'
   ];
 
   const validateForm = () => {
@@ -889,6 +891,13 @@ function SignUpInner() {
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
     }));
+
+    // Reset state when country changes
+    if (name === 'country') {
+      setFormData(prev => ({ ...prev, state: '' }));
+      setUseCustomState(false);
+      setCustomState('');
+    }
 
     // Clear error when user starts typing
     if (errors[name]) {
@@ -1059,20 +1068,57 @@ function SignUpInner() {
                       State/Province {formData.country && '*'}
                     </label>
                     {formData.country ? (
-                      <select
-                        id="state"
-                        name="state"
-                        value={formData.state}
-                        onChange={handleInputChange}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent"
-                      >
-                        <option value="">Select State/Province</option>
-                        {getStatesList(formData.country).map((state) => (
-                          <option key={state} value={state}>
-                            {state}
-                          </option>
-                        ))}
-                      </select>
+                      formData.country === 'Other' || useCustomState ? (
+                        <div className="relative">
+                          <input
+                            type="text"
+                            id="state"
+                            name="state"
+                            value={customState}
+                            onChange={(e) => {
+                              setCustomState(e.target.value);
+                              setFormData(prev => ({ ...prev, state: e.target.value }));
+                            }}
+                            className="w-full px-4 py-3 pr-24 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent"
+                            placeholder="Enter your state/province"
+                          />
+                          {formData.country !== 'Other' && getStatesList(formData.country).length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setUseCustomState(false);
+                                setCustomState('');
+                                setFormData(prev => ({ ...prev, state: '' }));
+                              }}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-yoga-600 hover:underline bg-white px-2"
+                            >
+                              ↓ Show list
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <select
+                          id="state"
+                          name="state"
+                          value={formData.state}
+                          onChange={(e) => {
+                            if (e.target.value === 'Other') {
+                              setUseCustomState(true);
+                              setFormData(prev => ({ ...prev, state: '' }));
+                            } else {
+                              handleInputChange(e);
+                            }
+                          }}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent"
+                        >
+                          <option value="">Select State/Province</option>
+                          {getStatesList(formData.country).map((state) => (
+                            <option key={state} value={state}>
+                              {state}
+                            </option>
+                          ))}
+                        </select>
+                      )
                     ) : (
                       <input
                         type="text"
