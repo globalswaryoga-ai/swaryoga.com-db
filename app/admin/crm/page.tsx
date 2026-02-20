@@ -1,9 +1,26 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import AdminSidebar from '@/components/AdminSidebar';
+import {
+  Menu,
+  X,
+  UserPlus,
+  Home,
+  LogOut,
+  Users,
+  TrendingUp,
+  DollarSign,
+  MessageCircle,
+  BarChart3,
+  Radio,
+  FileText,
+  ArrowUpRight,
+  AlertCircle,
+} from 'lucide-react';
 
 interface CRMStats {
   totalLeads: number;
@@ -14,6 +31,17 @@ interface CRMStats {
   conversionRate: number;
 }
 
+interface DashboardData {
+  totalUsers: number;
+  totalSignins: number;
+  totalMessages: number;
+  totalOrders: number;
+  totalAmountUSD: number;
+  completedOrders: number;
+  pendingOrders: number;
+  currencyBreakdown: { INR: number; USD: number; NPR: number };
+}
+
 export default function CRMDashboard() {
   const router = useRouter();
   const token = useAuth();
@@ -21,10 +49,31 @@ export default function CRMDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Add User Modal State
+  const [showAddUser, setShowAddUser] = useState(false);
+  const [newUserId, setNewUserId] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [permissionMode, setPermissionMode] = useState<'selected' | 'all'>('selected');
+  const [selectedPermissions, setSelectedPermissions] = useState({ crm: true, whatsapp: false, email: false });
+  const [createUserBusy, setCreateUserBusy] = useState(false);
+  const [createUserMsg, setCreateUserMsg] = useState('');
+
+  // Dashboard data for super admins
+  const [dashboardData, setDashboardData] = useState<DashboardData>({
+    totalUsers: 0,
+    totalSignins: 0,
+    totalMessages: 0,
+    totalOrders: 0,
+    totalAmountUSD: 0,
+    completedOrders: 0,
+    pendingOrders: 0,
+    currencyBreakdown: { INR: 0, USD: 0, NPR: 0 },
+  });
 
   useEffect(() => {
-    // Keep access rules consistent with `/admin/dashboard`.
-    // Super admin: userId === 'admin' OR permissions includes 'all'.
     try {
       const userStr = localStorage.getItem('admin_user');
       const fallbackUserId = localStorage.getItem('adminUser') || localStorage.getItem('adminUserId') || '';
@@ -39,14 +88,46 @@ export default function CRMDashboard() {
       const permissions: string[] = Array.isArray(u?.permissions) ? u.permissions : [];
       setIsSuperAdmin(userId === 'admin' || permissions.includes('all'));
     } catch {
-      // If parsing fails, fall back to the plain userId.
       const fallbackUserId = localStorage.getItem('adminUser') || localStorage.getItem('adminUserId') || '';
       setIsSuperAdmin(fallbackUserId === 'admin');
     }
   }, []);
 
+  const toggleSelectedPermission = (key: 'crm' | 'whatsapp' | 'email') => {
+    setSelectedPermissions((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const createAdminUser = useCallback(async () => {
+    if (!newUserId || !newEmail || !newPassword) {
+      setCreateUserMsg('Please fill all required fields');
+      return;
+    }
+    setCreateUserBusy(true);
+    setCreateUserMsg('');
+    try {
+      const permissions = permissionMode === 'all' ? ['all'] : Object.entries(selectedPermissions)
+        .filter(([, v]) => v)
+        .map(([k]) => k);
+
+      const res = await fetch('/api/admin/create-admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ userId: newUserId, email: newEmail, password: newPassword, permissions }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to create user');
+      setCreateUserMsg(`User "${newUserId}" created successfully!`);
+      setNewUserId('');
+      setNewEmail('');
+      setNewPassword('');
+    } catch (err: any) {
+      setCreateUserMsg(err.message || 'Error creating user');
+    } finally {
+      setCreateUserBusy(false);
+    }
+  }, [newUserId, newEmail, newPassword, permissionMode, selectedPermissions, token]);
+
   useEffect(() => {
-    // Don't attempt fetch if token isn't loaded yet
     if (token === null) return;
 
     const fetchStats = async () => {
@@ -60,25 +141,15 @@ export default function CRMDashboard() {
         setLoading(true);
         setError(null);
 
-        // Never log auth tokens (even partially) in production.
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('[CRM Dashboard] Fetching analytics (token present):', Boolean(token));
-        }
-        
         const response = await fetch('/api/admin/crm/analytics?view=overview', {
           method: 'GET',
-          headers: { 
-            'Authorization': `Bearer ${token}`,
+          headers: {
+            Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
         });
 
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('[CRM Dashboard] Analytics API response status:', response.status);
-        }
-
         if (response.status === 401 || response.status === 403) {
-          console.error('[CRM Dashboard] Auth failure:', response.status);
           localStorage.removeItem('adminToken');
           localStorage.removeItem('admin_token');
           router.push('/admin/login');
@@ -87,18 +158,12 @@ export default function CRMDashboard() {
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({ error: 'Failed to parse error response' }));
-          console.error('[CRM Dashboard] Analytics API error:', { status: response.status, data: errorData });
           throw new Error(errorData.error || `HTTP ${response.status}`);
         }
 
         const data = await response.json();
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('[CRM Dashboard] Analytics response data:', data);
-        }
-        
-        // Check if response has the expected structure
+
         if (!data.data || !data.data.overview) {
-          console.warn('[CRM Dashboard] Unexpected response structure:', data);
           setError('Analytics data unavailable. Please refresh.');
           setLoading(false);
           return;
@@ -120,7 +185,6 @@ export default function CRMDashboard() {
         setError(null);
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : String(err);
-        console.error('[CRM Dashboard] Fetch error:', errorMessage, err);
         setError(errorMessage || 'Failed to load dashboard stats');
       } finally {
         setLoading(false);
@@ -130,330 +194,414 @@ export default function CRMDashboard() {
     fetchStats();
   }, [token, router]);
 
+  useEffect(() => {
+    if (!token || !isSuperAdmin) return;
+
+    const fetchDashboardData = async () => {
+      try {
+        const res = await fetch('/api/admin/dashboard', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.data) {
+            setDashboardData(json.data);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch dashboard data:', err);
+      }
+    };
+
+    fetchDashboardData();
+  }, [token, isSuperAdmin]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('adminToken');
+    localStorage.removeItem('adminUser');
+    localStorage.removeItem('admin_token');
+    localStorage.removeItem('admin_user');
+    router.push('/admin/login');
+  };
+
   return (
-    <div className="dark-theme min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      {/* Navigation Header with Dropdowns */}
-      <nav className="bg-slate-800/50 backdrop-blur border-b border-purple-500/20 sticky top-0 z-50">
-        <div className="max-w-full mx-auto px-4 py-3">
-          <div className="flex items-center justify-between">
-            {/* Logo and Title */}
-            <div className="flex items-center gap-4">
-              <Link href="/admin/crm" className="flex items-center gap-3">
-                <img src="/logo.png" alt="Swar Yoga" className="w-8 h-8 rounded-lg" />
-                <h1 className="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-                  CRM
-                </h1>
-              </Link>
-              
-              {/* Header Menu Items */}
-              <div className="hidden md:flex items-center gap-1 ml-6">
-                {/* Leads Dropdown */}
-                <div className="relative group">
-                  <button className="px-3 py-2 text-purple-200 hover:text-white hover:bg-purple-600/30 rounded-lg transition-colors flex items-center gap-1 text-sm font-medium">
-                    👥 Leads
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                  </button>
-                  <div className="absolute top-full left-0 mt-1 w-48 bg-slate-800 border border-purple-500/30 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-                    <Link href="/admin/crm/leads" className="flex items-center gap-2 px-4 py-2.5 text-purple-100 hover:bg-purple-600/30 hover:text-white text-sm rounded-t-lg">👥 All Leads</Link>
-                    <Link href="/admin/crm/leads-followup" className="flex items-center gap-2 px-4 py-2.5 text-purple-100 hover:bg-purple-600/30 hover:text-white text-sm">📞 Lead Followup</Link>
-                    <Link href="/admin/crm/form-links" className="flex items-center gap-2 px-4 py-2.5 text-purple-100 hover:bg-purple-600/30 hover:text-white text-sm">🔗 Form Links</Link>
-                    <Link href="/admin/crm/meta" className="flex items-center gap-2 px-4 py-2.5 text-purple-100 hover:bg-purple-600/30 hover:text-white text-sm">🟢 Meta WhatsApp</Link>
-                    <Link href="/admin/crm/qr" className="flex items-center gap-2 px-4 py-2.5 text-purple-100 hover:bg-purple-600/30 hover:text-white text-sm">💚 QR WhatsApp</Link>
-                    <Link href="/admin/crm/sales" className="flex items-center gap-2 px-4 py-2.5 text-purple-100 hover:bg-purple-600/30 hover:text-white text-sm">💰 Sales</Link>
-                    <Link href="/admin/crm/messages" className="flex items-center gap-2 px-4 py-2.5 text-purple-100 hover:bg-purple-600/30 hover:text-white text-sm rounded-b-lg">💬 Messages</Link>
+    <div className="min-h-screen bg-gray-50 flex">
+      <AdminSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
+      <div className="flex-1 flex flex-col min-h-screen md:ml-0">
+        {/* Header */}
+        <header className="bg-white border-b border-gray-200 px-4 md:px-6 py-4 flex items-center justify-between sticky top-0 z-30">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="md:hidden p-2 rounded-lg hover:bg-gray-100"
+            >
+              <Menu className="h-6 w-6" />
+            </button>
+            <div>
+              <h1 className="text-xl md:text-2xl font-bold text-gray-900">Dashboard</h1>
+              <p className="text-sm text-gray-500">Welcome to Swar Yoga CRM</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {isSuperAdmin && (
+              <button
+                onClick={() => setShowAddUser(true)}
+                className="hidden sm:flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+              >
+                <UserPlus className="h-4 w-4" />
+                <span className="hidden md:inline">Add User</span>
+              </button>
+            )}
+            <Link
+              href="/"
+              className="p-2 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+              title="Go to Home"
+            >
+              <Home className="h-5 w-5" />
+            </Link>
+            <button
+              onClick={handleLogout}
+              className="p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+              title="Logout"
+            >
+              <LogOut className="h-5 w-5" />
+            </button>
+          </div>
+        </header>
+
+        {/* Add User Modal */}
+        {showAddUser && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/50" onClick={() => setShowAddUser(false)} />
+            <div className="relative w-full max-w-lg mx-4 bg-white rounded-2xl shadow-2xl">
+              <div className="flex items-center justify-between px-6 py-4 border-b">
+                <h2 className="text-lg font-bold text-gray-900">Add Admin User</h2>
+                <button onClick={() => setShowAddUser(false)} className="p-2 rounded-lg hover:bg-gray-100">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                  <input
+                    value={newUserId}
+                    onChange={(e) => setNewUserId(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="e.g., usercrm1"
+                    disabled={createUserBusy}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  <input
+                    type="email"
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="user@example.com"
+                    disabled={createUserBusy}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Enter strong password"
+                    disabled={createUserBusy}
+                  />
+                </div>
+
+                <div className="pt-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Permissions</label>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        checked={permissionMode === 'selected'}
+                        onChange={() => setPermissionMode('selected')}
+                        disabled={createUserBusy}
+                      />
+                      <span className="text-sm">Custom permissions</span>
+                    </label>
+                    {permissionMode === 'selected' && (
+                      <div className="ml-6 flex gap-4">
+                        {(['crm', 'whatsapp', 'email'] as const).map((p) => (
+                          <label key={p} className="flex items-center gap-1.5 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={selectedPermissions[p]}
+                              onChange={() => toggleSelectedPermission(p)}
+                              disabled={createUserBusy}
+                            />
+                            {p.toUpperCase()}
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        checked={permissionMode === 'all'}
+                        onChange={() => setPermissionMode('all')}
+                        disabled={createUserBusy}
+                      />
+                      <span className="text-sm">Super Admin (all permissions)</span>
+                    </label>
                   </div>
                 </div>
 
-                {/* Community Dropdown */}
-                <div className="relative group">
-                  <button className="px-3 py-2 text-green-200 hover:text-white hover:bg-green-600/30 rounded-lg transition-colors flex items-center gap-1 text-sm font-medium">
-                    🌍 Community
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                  </button>
-                  <div className="absolute top-full left-0 mt-1 w-48 bg-slate-800 border border-green-500/30 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-                    <Link href="/admin/crm/community" className="flex items-center gap-2 px-4 py-2.5 text-green-100 hover:bg-green-600/30 hover:text-white text-sm rounded-t-lg">🏠 Dashboard</Link>
-                    <Link href="/admin/community" className="flex items-center gap-2 px-4 py-2.5 text-green-100 hover:bg-green-600/30 hover:text-white text-sm">📝 Posts</Link>
-                    <Link href="/admin/crm/send-template" className="flex items-center gap-2 px-4 py-2.5 text-green-100 hover:bg-green-600/30 hover:text-white text-sm">📨 Send Template</Link>
-                    <Link href="/admin/crm/broadcast" className="flex items-center gap-2 px-4 py-2.5 text-green-100 hover:bg-green-600/30 hover:text-white text-sm">📢 Broadcast</Link>
-                    <Link href="/admin/crm/reports/meta" className="flex items-center gap-2 px-4 py-2.5 text-green-100 hover:bg-green-600/30 hover:text-white text-sm">🟢 Meta Reports</Link>
-                    <Link href="/admin/crm/reports/qr" className="flex items-center gap-2 px-4 py-2.5 text-green-100 hover:bg-green-600/30 hover:text-white text-sm">💚 QR Reports</Link>
-                    <Link href="/admin/crm/whatsapp-groups" className="flex items-center gap-2 px-4 py-2.5 text-green-100 hover:bg-green-600/30 hover:text-white text-sm rounded-b-lg">👥 Groups</Link>
-                  </div>
-                </div>
+                {createUserMsg && (
+                  <p className={`text-sm ${createUserMsg.includes('success') ? 'text-green-600' : 'text-red-600'}`}>
+                    {createUserMsg}
+                  </p>
+                )}
+              </div>
 
-                {/* Device & Users */}
-                <div className="relative group">
-                  <button className="px-3 py-2 text-cyan-200 hover:text-white hover:bg-cyan-600/30 rounded-lg transition-colors flex items-center gap-1 text-sm font-medium">
-                    📱 Devices
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                  </button>
-                  <div className="absolute top-full left-0 mt-1 w-48 bg-slate-800 border border-cyan-500/30 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-                    <Link href="/admin/crm/devices" className="flex items-center gap-2 px-4 py-2.5 text-cyan-100 hover:bg-cyan-600/30 hover:text-white text-sm rounded-t-lg">📱 Device Control</Link>
-                    <Link href="/admin/crm/devices/settings" className="flex items-center gap-2 px-4 py-2.5 text-cyan-100 hover:bg-cyan-600/30 hover:text-white text-sm">⚙️ Settings</Link>
-                    <Link href="/admin/crm/users/profile" className="flex items-center gap-2 px-4 py-2.5 text-cyan-100 hover:bg-cyan-600/30 hover:text-white text-sm rounded-b-lg">👤 User Profiles</Link>
-                  </div>
-                </div>
-
-                {/* Admin Dropdown */}
-                <div className="relative group">
-                  <button className="px-3 py-2 text-red-200 hover:text-white hover:bg-red-600/30 rounded-lg transition-colors flex items-center gap-1 text-sm font-medium">
-                    🔐 Admin
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                  </button>
-                  <div className="absolute top-full left-0 mt-1 w-48 bg-slate-800 border border-red-500/30 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-                    <Link href="/admin/crm/users" className="flex items-center gap-2 px-4 py-2.5 text-red-100 hover:bg-red-600/30 hover:text-white text-sm rounded-t-lg">👨‍💼 Admin Users</Link>
-                    <Link href="/admin/crm/permissions" className="flex items-center gap-2 px-4 py-2.5 text-red-100 hover:bg-red-600/30 hover:text-white text-sm">✅ Permissions</Link>
-                    <Link href="/admin/crm/analytics" className="flex items-center gap-2 px-4 py-2.5 text-red-100 hover:bg-red-600/30 hover:text-white text-sm">📈 Analytics</Link>
-                    <Link href="/admin/crm/media" className="flex items-center gap-2 px-4 py-2.5 text-red-100 hover:bg-red-600/30 hover:text-white text-sm rounded-b-lg">🖼️ Media</Link>
-                  </div>
-                </div>
+              <div className="px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end gap-3">
+                <button
+                  onClick={() => setShowAddUser(false)}
+                  className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={createAdminUser}
+                  className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+                  disabled={createUserBusy}
+                >
+                  {createUserBusy ? 'Creating...' : 'Create User'}
+                </button>
               </div>
             </div>
+          </div>
+        )}
 
-            {/* Right Side Actions */}
-            <div className="flex items-center gap-3">
-              {isSuperAdmin && (
-                <Link
-                  href="/admin/dashboard"
-                  className="px-3 py-2 bg-slate-700/60 hover:bg-slate-700 text-white rounded-lg transition-colors border border-slate-600 text-sm"
-                  title="Go to Admin Dashboard"
-                >
-                  Admin Dashboard
-                </Link>
-              )}
-              <Link
-                href="/"
-                className="px-3 py-2 bg-purple-600/60 hover:bg-purple-600 text-white rounded-lg transition-colors text-sm"
-              >
-                🏠 Home
-              </Link>
-              <button
-                onClick={() => {
-                  localStorage.removeItem('adminToken');
-                  localStorage.removeItem('adminUser');
-                  localStorage.removeItem('admin_token');
-                  localStorage.removeItem('admin_user');
-                  router.push('/admin/login');
-                }}
-                className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors text-sm"
-              >
-                Logout
+        {/* Dashboard Content */}
+        <main className="flex-1 p-4 md:p-6 space-y-6">
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center gap-3">
+              <AlertCircle className="h-5 w-5 flex-shrink-0" />
+              <span>{error}</span>
+              <button onClick={() => window.location.reload()} className="ml-auto underline text-sm">
+                Retry
               </button>
             </div>
-          </div>
-        </div>
-      </nav>
+          )}
 
-      {/* Sidebar Navigation */}
-      <div className="flex">
-        <aside className="w-56 bg-slate-800/50 backdrop-blur border-r border-purple-500/20 min-h-screen p-4 fixed left-0 top-16 overflow-y-auto">
-          <nav className="space-y-2">
-            {/* Main Links */}
-            {[
-              { href: '/admin/crm', label: 'Dashboard', icon: '📊' },
-              { href: '/admin/crm/leads', label: 'Leads', icon: '👥' },
-              { href: '/admin/crm/meta', label: 'Meta WhatsApp', icon: '🟢' },
-              { href: '/admin/crm/qr', label: 'QR WhatsApp', icon: '💚' },
-              { href: '/admin/crm/send-template', label: 'Send Template', icon: '📨' },
-              { href: '/admin/crm/broadcast', label: 'Broadcast', icon: '📢' },
-              { href: '/admin/crm/reports/meta', label: 'Meta Reports', icon: '📊' },
-              { href: '/admin/crm/reports/qr', label: 'QR Reports', icon: '📈' },
-              { href: '/admin/crm/sales', label: 'Sales', icon: '💰' },
-              { href: '/admin/crm/community', label: 'Community', icon: '🌍' },
-              { href: '/admin/crm/devices', label: 'Devices', icon: '📱' },
-              { href: '/admin/crm/analytics', label: 'Analytics', icon: '📈' },
-              { href: '/admin/crm/chatbot', label: 'Chatbot (AI)', icon: '🤖' },
-              { href: '/admin/crm/investment', label: 'Investment', icon: '💹' },
-            ].map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-purple-600/30 text-purple-100 hover:text-white transition-colors"
-              >
-                <span className="text-lg">{item.icon}</span>
-                <span>{item.label}</span>
-              </Link>
-            ))}
-          </nav>
-        </aside>
-
-        {/* Main Content */}
-        <main className="ml-56 flex-1 p-8">
-          {/* Header */}
-          <div className="mb-8">
-            <h2 className="text-3xl font-bold text-white mb-2">Welcome Back</h2>
-            <p className="text-purple-200">Manage your yoga business with our CRM system</p>
-          </div>
-
-          {/* Stats Grid */}
           {loading ? (
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="bg-slate-700/50 backdrop-blur rounded-xl p-6 animate-pulse h-24" />
-              ))}
-            </div>
-          ) : error ? (
-            <div className="bg-red-950 border-2 border-red-500 rounded-xl p-6 mb-8">
-              <div className="flex items-start gap-4">
-                <div className="text-3xl">⚠️</div>
-                <div className="flex-1">
-                  <h3 className="text-red-200 font-semibold mb-2">Failed to Load Dashboard Stats</h3>
-                  <p className="text-red-300 text-sm mb-4">{error}</p>
-                  <div className="text-red-400 text-xs mb-4">
-                    <p>💡 Tips:</p>
-                    <ul className="list-disc pl-5 mt-2 space-y-1">
-                      <li>Check your browser console (F12) for detailed error logs</li>
-                      <li>Ensure the API server is running</li>
-                      <li>Try refreshing the page</li>
-                    </ul>
-                  </div>
-                  <button
-                    onClick={() => window.location.reload()}
-                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors"
-                  >
-                    🔄 Retry
-                  </button>
-                </div>
+            <div className="flex items-center justify-center min-h-[60vh]">
+              <div className="text-center">
+                <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                <p className="text-gray-500">Loading dashboard...</p>
               </div>
             </div>
-          ) : stats ? (
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
-              <StatCard
-                label="Total Leads"
-                value={stats.totalLeads}
-                icon="👥"
-                color="from-blue-500 to-blue-600"
-                href="/admin/crm/leads"
-              />
-              <StatCard
-                label="Total Sales"
-                value={stats.totalSales}
-                icon="💰"
-                color="from-green-500 to-green-700"
-                href="/admin/crm/sales"
-              />
-              <StatCard
-                label="Meta Messages"
-                value={stats.metaMessagesSent}
-                icon="💬"
-                color="from-purple-500 to-purple-600"
-                href="/admin/crm/meta"
-              />
-              <StatCard
-                label="QR WhatsApp Messages"
-                value={stats.qrWhatsappMessagesSent}
-                icon="💚"
-                color="from-emerald-500 to-teal-600"
-                href="/admin/crm/qr"
-              />
-              <StatCard
-                label="Conversion Rate"
-                value={`${stats.conversionRate}%`}
-                icon="📊"
-                color="from-orange-500 to-orange-600"
-                href="/admin/crm/analytics"
-              />
-            </div>
-          ) : null}
-
-          {/* Quick Actions */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Recent Leads */}
-            <div className="bg-slate-800/50 backdrop-blur rounded-xl border border-purple-500/20 p-6">
-              <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                <span>👥</span> Quick Actions
-              </h3>
-              <div className="space-y-3">
-                <Link
-                  href="/admin/crm/leads?action=create"
-                  className="block bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-3 rounded-lg transition-colors text-center font-medium"
-                >
-                  + Add New Lead
-                </Link>
-                <Link
-                  href="/admin/crm/meta"
-                  className="block bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white px-4 py-3 rounded-lg transition-colors text-center font-medium"
-                >
-                  🟢 Meta Inbox
-                </Link>
-                <Link
-                  href="/admin/crm/qr"
-                  className="block bg-gradient-to-r from-purple-400 to-purple-500 hover:from-purple-500 hover:to-purple-600 text-white px-4 py-3 rounded-lg transition-colors text-center font-medium"
-                >
-                  🟢 QR WhatsApp Inbox
-                </Link>
-                <Link
+          ) : (
+            <>
+              {/* Main Stats - Big Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <BigStatCard
+                  label="Total Leads"
+                  value={stats?.totalLeads || 0}
+                  icon={Users}
+                  color="blue"
+                  href="/admin/crm/leads"
+                />
+                <BigStatCard
+                  label="Total Sales"
+                  value={stats?.totalSales || 0}
+                  icon={DollarSign}
+                  color="green"
                   href="/admin/crm/sales"
-                  className="block bg-[#1E7F43] hover:bg-[#166235] text-white px-4 py-3 rounded-lg transition-colors text-center font-medium"
-                >
-                  Record a Sale
-                </Link>
+                />
+                <BigStatCard
+                  label="Meta Messages"
+                  value={stats?.metaMessagesSent || 0}
+                  icon={MessageCircle}
+                  color="purple"
+                  href="/admin/crm/meta"
+                />
+                <BigStatCard
+                  label="Conversion Rate"
+                  value={`${stats?.conversionRate || 0}%`}
+                  icon={TrendingUp}
+                  color="orange"
+                  href="/admin/crm/analytics"
+                />
               </div>
-            </div>
 
-            {/* System Status */}
-            <div className="bg-slate-800/50 backdrop-blur rounded-xl border border-purple-500/20 p-6">
-              <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                <span>⚙️</span> System Status
-              </h3>
-              <div className="space-y-3 text-purple-100">
-                <div className="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg">
-                  <span>Database</span>
-                  <span className="flex items-center gap-2">
-                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                    Connected
-                  </span>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg">
-                  <span>API Server</span>
-                  <span className="flex items-center gap-2">
-                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                    Running
-                  </span>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg">
-                  <span>Admin Access</span>
-                  <span className="flex items-center gap-2">
-                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                    Authenticated
-                  </span>
-                </div>
+              {/* Super Admin Stats */}
+              {isSuperAdmin && (
+                <>
+                  <h2 className="text-lg font-bold text-gray-900 mt-8">Platform Overview</h2>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                    <SmallStatCard label="Total Users" value={dashboardData.totalUsers} />
+                    <SmallStatCard label="Total Logins" value={dashboardData.totalSignins} />
+                    <SmallStatCard label="Total Orders" value={dashboardData.totalOrders} />
+                    <SmallStatCard label="Completed" value={dashboardData.completedOrders} />
+                    <SmallStatCard label="Pending" value={dashboardData.pendingOrders} />
+                    <SmallStatCard label="Revenue (USD)" value={`$${(dashboardData.totalAmountUSD || 0).toFixed(0)}`} />
+                  </div>
+
+                  {/* Currency Breakdown */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <RevenueCard label="INR Revenue" value={dashboardData.currencyBreakdown?.INR || 0} currency="₹" color="blue" />
+                    <RevenueCard label="USD Revenue" value={dashboardData.currencyBreakdown?.USD || 0} currency="$" color="green" />
+                    <RevenueCard label="NPR Revenue" value={dashboardData.currencyBreakdown?.NPR || 0} currency="Rs" color="purple" />
+                  </div>
+                </>
+              )}
+
+              {/* Quick Actions */}
+              <h2 className="text-lg font-bold text-gray-900 mt-8">Quick Actions</h2>
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                <QuickActionCard href="/admin/crm/leads?action=create" icon={UserPlus} label="Add Lead" color="blue" />
+                <QuickActionCard href="/admin/crm/meta" icon={MessageCircle} label="WhatsApp" color="green" />
+                <QuickActionCard href="/admin/crm/sales" icon={DollarSign} label="Sales" color="emerald" />
+                <QuickActionCard href="/admin/crm/broadcast" icon={Radio} label="Broadcast" color="pink" />
+                <QuickActionCard href="/admin/crm/templates" icon={FileText} label="Templates" color="orange" />
+                <QuickActionCard href="/admin/crm/analytics" icon={BarChart3} label="Analytics" color="purple" />
               </div>
-            </div>
-          </div>
 
-          {/* Footer */}
-          <div className="mt-12 text-center text-purple-300 text-sm">
-            <p>CRM Dashboard v1.0 | Last updated: {new Date().toLocaleDateString()}</p>
-          </div>
+              {/* Footer */}
+              <div className="text-center text-gray-400 text-sm pt-8 pb-4">
+                Dashboard v2.0 | {new Date().toLocaleDateString()}
+              </div>
+            </>
+          )}
         </main>
       </div>
     </div>
   );
 }
 
-function StatCard({
+// Big Stat Card Component
+function BigStatCard({
   label,
   value,
-  icon,
+  icon: Icon,
   color,
   href,
 }: {
   label: string;
   value: string | number;
-  icon: string;
-  color: string;
+  icon: React.ElementType;
+  color: 'blue' | 'green' | 'purple' | 'orange';
   href: string;
 }) {
+  const colors = {
+    blue: 'from-blue-500 to-blue-600',
+    green: 'from-green-500 to-green-600',
+    purple: 'from-purple-500 to-purple-600',
+    orange: 'from-orange-500 to-orange-600',
+  };
+
   return (
     <Link href={href}>
-      <div className={`bg-gradient-to-br ${color} rounded-xl p-6 text-white cursor-pointer transition-colors hover:opacity-90 shadow-lg`}>
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-3xl drop-shadow-md">{icon}</span>
-          <span className="text-xs bg-white/30 px-2 py-1 rounded-full font-medium">↗</span>
+      <div className={`bg-gradient-to-br ${colors[color]} rounded-2xl p-6 text-white cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg shadow-md`}>
+        <div className="flex items-center justify-between mb-4">
+          <div className="p-3 bg-white/20 rounded-xl">
+            <Icon className="h-6 w-6" />
+          </div>
+          <ArrowUpRight className="h-5 w-5 opacity-60" />
         </div>
-        <div className="text-3xl font-bold mb-1 drop-shadow-sm">{value}</div>
-        <div className="text-white text-sm font-medium drop-shadow-sm">{label}</div>
+        <div className="text-3xl font-bold mb-1">{value}</div>
+        <div className="text-white/80 text-sm font-medium">{label}</div>
+      </div>
+    </Link>
+  );
+}
+
+// Small Stat Card Component
+function SmallStatCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200">
+      <div className="text-2xl font-bold text-gray-900">{value}</div>
+      <div className="text-xs text-gray-500 mt-1">{label}</div>
+    </div>
+  );
+}
+
+// Revenue Card Component
+function RevenueCard({
+  label,
+  value,
+  currency,
+  color,
+}: {
+  label: string;
+  value: number;
+  currency: string;
+  color: 'blue' | 'green' | 'purple';
+}) {
+  const colors = {
+    blue: 'border-l-blue-500 bg-blue-50',
+    green: 'border-l-green-500 bg-green-50',
+    purple: 'border-l-purple-500 bg-purple-50',
+  };
+  const textColors = {
+    blue: 'text-blue-700',
+    green: 'text-green-700',
+    purple: 'text-purple-700',
+  };
+
+  return (
+    <div className={`rounded-xl p-5 border-l-4 ${colors[color]}`}>
+      <div className="text-sm font-medium text-gray-600 mb-1">{label}</div>
+      <div className={`text-2xl font-bold ${textColors[color]}`}>
+        {currency}{value.toFixed(2)}
+      </div>
+    </div>
+  );
+}
+
+// Quick Action Card Component
+function QuickActionCard({
+  href,
+  icon: Icon,
+  label,
+  color,
+}: {
+  href: string;
+  icon: React.ElementType;
+  label: string;
+  color: string;
+}) {
+  const bgColors: Record<string, string> = {
+    blue: 'hover:bg-blue-50 hover:border-blue-200',
+    green: 'hover:bg-green-50 hover:border-green-200',
+    emerald: 'hover:bg-emerald-50 hover:border-emerald-200',
+    pink: 'hover:bg-pink-50 hover:border-pink-200',
+    orange: 'hover:bg-orange-50 hover:border-orange-200',
+    purple: 'hover:bg-purple-50 hover:border-purple-200',
+  };
+  const iconColors: Record<string, string> = {
+    blue: 'text-blue-600 bg-blue-100',
+    green: 'text-green-600 bg-green-100',
+    emerald: 'text-emerald-600 bg-emerald-100',
+    pink: 'text-pink-600 bg-pink-100',
+    orange: 'text-orange-600 bg-orange-100',
+    purple: 'text-purple-600 bg-purple-100',
+  };
+
+  return (
+    <Link href={href}>
+      <div className={`bg-white rounded-xl p-4 border border-gray-200 transition-all cursor-pointer ${bgColors[color]}`}>
+        <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${iconColors[color]}`}>
+          <Icon className="h-5 w-5" />
+        </div>
+        <div className="text-sm font-medium text-gray-900">{label}</div>
       </div>
     </Link>
   );

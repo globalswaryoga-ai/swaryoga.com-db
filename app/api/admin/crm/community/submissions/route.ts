@@ -74,13 +74,13 @@ export async function GET(req: NextRequest) {
     
     const authHeader = req.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
-      return apiError('Unauthorized', 401);
+      return apiError('UNAUTHORIZED');
     }
     
     const token = authHeader.substring(7);
     const decoded = verifyToken(token);
     if (!decoded || !decoded.isAdmin) {
-      return apiError('Admin access required', 403);
+      return apiError('FORBIDDEN', 'Admin access required');
     }
     
     const { searchParams } = new URL(req.url);
@@ -194,7 +194,7 @@ export async function GET(req: NextRequest) {
     
   } catch (error) {
     console.error('Get admin submissions error:', error);
-    return apiError('Failed to fetch submissions', 500);
+    return apiError('SERVER_ERROR', 'Failed to fetch submissions');
   }
 }
 
@@ -205,20 +205,20 @@ export async function PATCH(req: NextRequest) {
     
     const authHeader = req.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
-      return apiError('Unauthorized', 401);
+      return apiError('UNAUTHORIZED');
     }
     
     const token = authHeader.substring(7);
     const decoded = verifyToken(token);
     if (!decoded || !decoded.isAdmin) {
-      return apiError('Admin access required', 403);
+      return apiError('FORBIDDEN', 'Admin access required');
     }
     
     const body = await req.json();
     const { submissionId, status, adminNotes, answer, source } = body;
     
     if (!submissionId) {
-      return apiError('Submission ID required', 400);
+      return apiError('VALIDATION_ERROR', 'Submission ID required');
     }
     
     // Handle experience source
@@ -240,7 +240,7 @@ export async function PATCH(req: NextRequest) {
       ).lean();
       
       if (!experience) {
-        return apiError('Experience not found', 404);
+        return apiError('NOT_FOUND', 'Experience not found');
       }
       
       return apiSuccess({ submission: experience, message: 'Experience updated' });
@@ -274,14 +274,14 @@ export async function PATCH(req: NextRequest) {
     ).lean();
     
     if (!submission) {
-      return apiError('Submission not found', 404);
+      return apiError('NOT_FOUND', 'Submission not found');
     }
     
     return apiSuccess({ submission, message: 'Submission updated' });
     
   } catch (error) {
     console.error('Update submission error:', error);
-    return apiError('Failed to update submission', 500);
+    return apiError('SERVER_ERROR', 'Failed to update submission');
   }
 }
 
@@ -292,13 +292,13 @@ export async function DELETE(req: NextRequest) {
     
     const authHeader = req.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
-      return apiError('Unauthorized', 401);
+      return apiError('UNAUTHORIZED');
     }
     
     const token = authHeader.substring(7);
     const decoded = verifyToken(token);
     if (!decoded || !decoded.isAdmin) {
-      return apiError('Admin access required', 403);
+      return apiError('FORBIDDEN', 'Admin access required');
     }
     
     const { searchParams } = new URL(req.url);
@@ -306,7 +306,7 @@ export async function DELETE(req: NextRequest) {
     const source = searchParams.get('source');
     
     if (!submissionId) {
-      return apiError('Submission ID required', 400);
+      return apiError('VALIDATION_ERROR', 'Submission ID required');
     }
     
     // Handle experience source
@@ -314,7 +314,7 @@ export async function DELETE(req: NextRequest) {
       const Experience = getExperienceModel();
       const result = await Experience.findByIdAndDelete(submissionId);
       if (!result) {
-        return apiError('Experience not found', 404);
+        return apiError('NOT_FOUND', 'Experience not found');
       }
       return apiSuccess({ message: 'Experience deleted' });
     }
@@ -325,13 +325,13 @@ export async function DELETE(req: NextRequest) {
     const result = await CommunitySubmission.findByIdAndDelete(submissionId);
     
     if (!result) {
-      return apiError('Submission not found', 404);
+      return apiError('NOT_FOUND', 'Submission not found');
     }
     
     return apiSuccess({ message: 'Submission deleted' });
     
   } catch (error) {
     console.error('Delete submission error:', error);
-    return apiError('Failed to delete submission', 500);
+    return apiError('SERVER_ERROR', 'Failed to delete submission');
   }
 }

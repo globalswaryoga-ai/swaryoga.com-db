@@ -1,26 +1,115 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { useCRM } from '@/hooks/useCRM';
-import { LayoutDashboard, Users, LogIn, MessageSquare, Gift, X, Calculator, Mail, Home, Calendar, Share2, ArrowLeft, MessageCircle, TrendingUp, Globe, Video, FileText, Send, Radio, Settings, BarChart3, Activity } from 'lucide-react';
+import {
+  LayoutDashboard,
+  Users,
+  LogIn,
+  MessageSquare,
+  X,
+  Home,
+  Calendar,
+  Share2,
+  ArrowLeft,
+  MessageCircle,
+  TrendingUp,
+  Video,
+  FileText,
+  Radio,
+  BarChart3,
+  ChevronDown,
+  DollarSign,
+  Globe,
+  Settings,
+  ShoppingBag,
+  Phone,
+  Bot,
+  Tag,
+  Activity,
+  Shield,
+} from 'lucide-react';
 
 interface AdminSidebarProps {
   isOpen?: boolean;
   onClose?: () => void;
 }
 
+// Dropdown Menu Component
+function HeaderDropdown({
+  label,
+  icon: Icon,
+  items,
+  isOpen,
+  onToggle,
+  onClose,
+}: {
+  label: string;
+  icon: React.ElementType;
+  items: { label: string; href: string; icon: React.ElementType }[];
+  isOpen: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+}) {
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        onClose();
+      }
+    }
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen, onClose]);
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={onToggle}
+        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+          isOpen ? 'bg-gray-700 text-white' : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+        }`}
+      >
+        <Icon className="h-3.5 w-3.5" />
+        <span>{label}</span>
+        <ChevronDown className={`h-3 w-3 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+      {isOpen && (
+        <div className="absolute top-full left-0 mt-1 w-52 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 py-1">
+          {items.map((item) => {
+            const ItemIcon = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={onClose}
+                className="flex items-center gap-3 px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+              >
+                <ItemIcon className="h-4 w-4" />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AdminSidebar({ isOpen = true, onClose = () => {} }: AdminSidebarProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const token = useAuth();
-  const crm = useCRM({ token });
   const [unreadCount, setUnreadCount] = useState(0);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
-  // Determine super-admin status from stored admin user info.
-  // This is consistent with other CRM screens and avoids needing to decode JWT in the browser.
+  // Determine super-admin status
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const userStr = localStorage.getItem('admin_user');
@@ -47,7 +136,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
     setIsSuperAdmin(superAdmin);
   }, []);
 
-  // Fetch unread message count - only once on mount, then every 60 seconds
+  // Fetch unread message count
   useEffect(() => {
     if (!token) return;
 
@@ -57,202 +146,172 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
 
     const fetchUnreadCount = async () => {
       if (!isMounted || retryCount >= maxRetries) return;
-      
+
       try {
         const response = await window.fetch('/api/admin/crm/messages/unread-count', {
           headers: {
-            'Authorization': `Bearer ${token}`,
+            Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
         });
-        
+
         if (!response.ok) {
           retryCount++;
           return;
         }
-        
+
         const result = await response.json();
         if (isMounted) {
           setUnreadCount(result?.unreadCount || 0);
           retryCount = 0;
         }
-      } catch (err) {
+      } catch {
         retryCount++;
       }
     };
 
-    // Initial fetch after small delay
     const initialTimeout = setTimeout(fetchUnreadCount, 1000);
-
-    // Poll every 60 seconds (not 30)
     const interval = setInterval(fetchUnreadCount, 60000);
-    
+
     return () => {
       isMounted = false;
       clearTimeout(initialTimeout);
       clearInterval(interval);
     };
-  }, [token]); // Only depend on token, not crm
+  }, [token]);
 
   const handleNavClick = () => {
-    // Auto-close sidebar on mobile when a link is clicked
     if (window.innerWidth < 768) {
       onClose();
     }
   };
 
-  // Sidebar menu
-  // - CRM links should be available for CRM users.
-  // - Super-admin should also see the full legacy admin modules (Signup/Signin/Messages/etc).
-  const adminModuleItems = isSuperAdmin
-    ? [
-        {
-          icon: LayoutDashboard,
-          label: 'Dashboard',
-          href: '/admin/dashboard',
-          color: 'text-blue-600',
-        },
-        {
-          icon: Users,
-          label: 'Signup Data',
-          href: '/admin/signup-data',
-          color: 'text-green-600',
-        },
-        {
-          icon: LogIn,
-          label: 'Signin Data',
-          href: '/admin/signin-data',
-          color: 'text-purple-600',
-        },
-        {
-          icon: MessageSquare,
-          label: 'Contact Messages',
-          href: '/admin/contact-messages',
-          color: 'text-orange-600',
-        },
-        {
-          icon: Calendar,
-          label: 'Workshop Schedules',
-          href: '/admin/workshops/schedules',
-          color: 'text-teal-600',
-        },
-        {
-          icon: Share2,
-          label: 'Social Media',
-          href: '/admin/social-media',
-          color: 'text-sky-600',
-        },
-        {
-          icon: Share2,
-          label: 'Social Setup',
-          href: '/admin/social-media-setup',
-          color: 'text-indigo-600',
-        },
-        {
-          icon: Calculator,
-          label: 'Accounting',
-          href: '/admin/accounting',
-          color: 'text-amber-600',
-        },
-        {
-          icon: Gift,
-          label: 'Offers',
-          href: '/admin/offers',
-          color: 'text-pink-600',
-        },
-        {
-          icon: Globe,
-          label: 'Communities',
-          href: '/admin/communities',
-          color: 'text-teal-600',
-        },
-        {
-          icon: Video,
-          label: 'Recordings & Videos',
-          href: '/admin/communities/recordings-videos',
-          color: 'text-purple-600',
-        },
-        {
-          icon: Video,
-          label: '🎬 Video Library',
-          href: '/admin/videos',
-          color: 'text-indigo-600',
-        },
-        {
-          icon: Users,
-          label: 'Users',
-          href: '/admin/users',
-          color: 'text-rose-600',
-        },
-      ]
-    : [];
+  // Header dropdown items
+  const userDataItems = [
+    { label: 'Signup Data', href: '/admin/signup-data', icon: Users },
+    { label: 'Signin Data', href: '/admin/signin-data', icon: LogIn },
+    { label: 'Contact Messages', href: '/admin/contact-messages', icon: MessageSquare },
+    { label: 'Workshop Dates', href: '/admin/workshops/schedules', icon: Calendar },
+    { label: 'Users', href: '/admin/users', icon: Users },
+    { label: 'Enquiries', href: '/admin/enquiries', icon: MessageSquare },
+  ];
 
-  const crmItems = [
+  const socialMediaItems = [
+    { label: 'Social Media', href: '/admin/social-media', icon: Share2 },
+    { label: 'Social Setup', href: '/admin/social-media-setup', icon: Settings },
+    { label: 'Video Library', href: '/admin/videos', icon: Video },
+    { label: 'Communities', href: '/admin/communities', icon: Globe },
+    { label: 'Recordings & Videos', href: '/admin/communities/recordings-videos', icon: Video },
+  ];
+
+  const moreItems = [
+    { label: 'Accounting', href: '/admin/accounting', icon: DollarSign },
+    { label: 'Offers', href: '/admin/offers', icon: Tag },
+    { label: 'Youth Program', href: '/admin/youth-program', icon: Users },
+    { label: 'Investment', href: '/admin/crm/investment', icon: TrendingUp },
+    { label: 'Settings', href: '/admin/settings', icon: Settings },
+  ];
+
+  // Main sidebar menu items
+  const sidebarItems = [
     {
-      icon: MessageSquare,
-      label: 'CRM Leads',
+      icon: LayoutDashboard,
+      label: 'Dashboard',
+      href: '/admin/crm',
+      color: 'text-blue-500',
+    },
+    {
+      icon: Users,
+      label: 'Leads',
       href: '/admin/crm/leads',
-      color: 'text-emerald-600',
+      color: 'text-emerald-500',
+    },
+    {
+      icon: Phone,
+      label: 'Leads Followup',
+      href: '/admin/crm/leads-followup',
+      color: 'text-violet-500',
+    },
+    {
+      icon: ShoppingBag,
+      label: 'Sales',
+      href: '/admin/crm/sales',
+      color: 'text-green-500',
     },
     {
       icon: MessageCircle,
       label: 'Meta Inbox',
       href: '/admin/crm/meta',
-      color: 'text-cyan-600',
+      color: 'text-cyan-500',
+      badge: unreadCount,
     },
     {
       icon: TrendingUp,
-      label: 'Meta Dashboard',
+      label: 'Meta Report',
       href: '/admin/crm/meta-dashboard',
-      color: 'text-blue-600',
+      color: 'text-blue-400',
     },
     {
-      icon: LayoutDashboard,
-      label: 'Meta Setup',
-      href: '/admin/crm/whatsapp-meta',
-      color: 'text-indigo-600',
+      icon: BarChart3,
+      label: 'Analytics',
+      href: '/admin/crm/analytics',
+      color: 'text-purple-500',
     },
     {
       icon: FileText,
       label: 'Templates',
       href: '/admin/crm/templates',
-      color: 'text-orange-600',
-    },
-    {
-      icon: Send,
-      label: 'Send Template',
-      href: '/admin/crm/send-template',
-      color: 'text-blue-600',
+      color: 'text-orange-500',
     },
     {
       icon: Radio,
       label: 'Broadcast',
       href: '/admin/crm/broadcast',
-      color: 'text-pink-600',
+      color: 'text-pink-500',
+    },
+    {
+      icon: Globe,
+      label: 'Community',
+      href: '/admin/crm/community',
+      color: 'text-teal-500',
+    },
+  ];
+
+  // Additional CRM items in a secondary section
+  const toolsItems = [
+    {
+      icon: MessageSquare,
+      label: 'Messages',
+      href: '/admin/crm/messages',
+      color: 'text-indigo-500',
+    },
+    {
+      icon: Bot,
+      label: 'Chatbots',
+      href: '/admin/crm/chatbots',
+      color: 'text-emerald-400',
+    },
+    {
+      icon: Tag,
+      label: 'Labels',
+      href: '/admin/crm/labels',
+      color: 'text-amber-500',
     },
     {
       icon: Settings,
-      label: 'Lead Assignment',
-      href: '/admin/crm/lead-assignment-settings',
-      color: 'text-gray-600',
+      label: 'WhatsApp Settings',
+      href: '/admin/crm/whatsapp/settings',
+      color: 'text-gray-400',
     },
+  ];
+
+  // Super admin only items
+  const superAdminItems = [
     {
-      icon: MessageSquare,
-      label: 'Lead Followup',
-      href: '/admin/crm/leads-followup',
-      color: 'text-violet-600',
-    },
-    {
-      icon: TrendingUp,
-      label: 'Investment',
-      href: '/admin/crm/investment',
-      color: 'text-green-600',
-    },
-    {
-      icon: BarChart3,
-      label: 'WA Analytics',
-      href: '/admin/crm/whatsapp-analytics',
-      color: 'text-teal-600',
+      icon: Shield,
+      label: 'Permissions',
+      href: '/admin/crm/permissions',
+      color: 'text-red-500',
     },
     {
       icon: Activity,
@@ -262,11 +321,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
     },
   ];
 
-  const menuItems = [...adminModuleItems, ...crmItems];
-
-  // Meta WhatsApp chat should always be visible in CRM sidebar.
-  // Even if Cloud sending isn't enabled, the screen can show setup/status guidance.
-  const visibleMenuItems = menuItems;
+  const isActive = (href: string) => pathname === href;
 
   return (
     <>
@@ -284,16 +339,12 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
           isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
       >
-        {/* Sidebar Header with Logo */}
-        <div className="p-4 sm:p-6 border-b border-gray-800 space-y-4 flex-shrink-0">
-          <div className="flex items-center justify-between">
+        {/* Sidebar Header */}
+        <div className="p-4 border-b border-gray-800 flex-shrink-0">
+          <div className="flex items-center justify-between mb-3">
             <div className="flex items-center space-x-3 min-w-0 flex-1">
-              <img
-                src="/logo.png"
-                alt="Swar Yoga Logo"
-                className="w-10 h-10 rounded-lg flex-shrink-0"
-              />
-              <h2 className="font-bold text-base sm:text-lg truncate">Swar Yoga</h2>
+              <img src="/logo.png" alt="Swar Yoga" className="w-9 h-9 rounded-lg flex-shrink-0" />
+              <h2 className="font-bold text-lg truncate">Swar Yoga</h2>
             </div>
             <button
               onClick={onClose}
@@ -302,16 +353,45 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
               <X className="h-5 w-5" />
             </button>
           </div>
-          
-          {/* Navigation Buttons */}
-          <div className="flex gap-2 pt-2">
+
+          {/* Header Dropdowns */}
+          {isSuperAdmin && (
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              <HeaderDropdown
+                label="User Data"
+                icon={Users}
+                items={userDataItems}
+                isOpen={openDropdown === 'userData'}
+                onToggle={() => setOpenDropdown(openDropdown === 'userData' ? null : 'userData')}
+                onClose={() => setOpenDropdown(null)}
+              />
+              <HeaderDropdown
+                label="Social"
+                icon={Share2}
+                items={socialMediaItems}
+                isOpen={openDropdown === 'social'}
+                onToggle={() => setOpenDropdown(openDropdown === 'social' ? null : 'social')}
+                onClose={() => setOpenDropdown(null)}
+              />
+              <HeaderDropdown
+                label="More"
+                icon={Settings}
+                items={moreItems}
+                isOpen={openDropdown === 'more'}
+                onToggle={() => setOpenDropdown(openDropdown === 'more' ? null : 'more')}
+                onClose={() => setOpenDropdown(null)}
+              />
+            </div>
+          )}
+
+          {/* Quick Navigation */}
+          <div className="flex gap-2">
             <button
               onClick={() => {
                 router.push('/');
                 onClose();
               }}
               className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-swar-primary hover:bg-swar-primary-dark rounded-lg text-white text-sm font-medium transition"
-              title="Go to Home"
             >
               <Home className="h-4 w-4" />
               <span>Home</span>
@@ -322,7 +402,6 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
                 onClose();
               }}
               className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-white text-sm font-medium transition"
-              title="Go Back"
             >
               <ArrowLeft className="h-4 w-4" />
               <span>Back</span>
@@ -330,48 +409,98 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
           </div>
         </div>
 
-        {/* Navigation Menu */}
-        <nav className="flex-1 p-4 sm:p-6 space-y-1 sm:space-y-2 overflow-y-auto">
-          {visibleMenuItems.map((item) => {
+        {/* Main Navigation */}
+        <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
+          <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider px-3 py-2">
+            CRM
+          </p>
+          {sidebarItems.map((item) => {
             const Icon = item.icon;
-            const showBadge = (item.label === 'WhatsApp Inbox' || item.label === 'Meta Inbox') && unreadCount > 0;
+            const active = isActive(item.href);
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 onClick={handleNavClick}
-                className="flex items-center space-x-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg hover:bg-gray-800 transition-colors group touch-target text-sm sm:text-base active:scale-95 relative"
+                className={`flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
+                  active
+                    ? 'bg-swar-primary/20 border-l-3 border-swar-primary'
+                    : 'hover:bg-gray-800'
+                }`}
               >
-                <Icon className={`h-5 w-5 flex-shrink-0 ${item.color}`} />
-                <span className="font-medium truncate">{item.label}</span>
-                {showBadge && (
+                <Icon className={`h-4 w-4 flex-shrink-0 ${active ? 'text-swar-primary' : item.color}`} />
+                <span className={`font-medium text-sm ${active ? 'text-white' : 'text-gray-300'}`}>
+                  {item.label}
+                </span>
+                {item.badge && item.badge > 0 && (
                   <span className="ml-auto bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">
-                    {unreadCount > 99 ? '99+' : unreadCount}
+                    {item.badge > 99 ? '99+' : item.badge}
                   </span>
                 )}
               </Link>
             );
           })}
-          
-          {/* Home link for mobile */}
-          <div className="pt-2 border-t border-gray-800 mt-2">
-            <Link
-              href="/"
-              onClick={handleNavClick}
-              className="flex items-center space-x-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg hover:bg-gray-800 transition-colors group touch-target text-sm sm:text-base active:scale-95 text-gray-300"
-            >
-              <Home className="h-5 w-5 flex-shrink-0" />
-              <span className="font-medium truncate">Back to Home</span>
-            </Link>
-          </div>
+
+          {/* Tools Items */}
+          <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider px-3 pt-4 pb-2">
+            Tools
+          </p>
+          {toolsItems.map((item) => {
+            const Icon = item.icon;
+            const active = isActive(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={handleNavClick}
+                className={`flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
+                  active
+                    ? 'bg-swar-primary/20 border-l-3 border-swar-primary'
+                    : 'hover:bg-gray-800'
+                }`}
+              >
+                <Icon className={`h-4 w-4 flex-shrink-0 ${active ? 'text-swar-primary' : item.color}`} />
+                <span className={`font-medium text-sm ${active ? 'text-white' : 'text-gray-300'}`}>
+                  {item.label}
+                </span>
+              </Link>
+            );
+          })}
+
+          {/* Super Admin Section */}
+          {isSuperAdmin && (
+            <>
+              <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider px-3 pt-4 pb-2">
+                Admin
+              </p>
+              {superAdminItems.map((item) => {
+                const Icon = item.icon;
+                const active = isActive(item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={handleNavClick}
+                    className={`flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
+                      active
+                        ? 'bg-swar-primary/20 border-l-3 border-swar-primary'
+                        : 'hover:bg-gray-800'
+                    }`}
+                  >
+                    <Icon className={`h-4 w-4 flex-shrink-0 ${active ? 'text-swar-primary' : item.color}`} />
+                    <span className={`font-medium text-sm ${active ? 'text-white' : 'text-gray-300'}`}>
+                      {item.label}
+                    </span>
+                  </Link>
+                );
+              })}
+            </>
+          )}
         </nav>
 
-        {/* Footer Info */}
-        <div className="p-4 sm:p-6 border-t border-gray-800 flex-shrink-0 safe-area-bottom">
-          <div className="text-xs text-swar-text-secondary">
-            <p className="font-semibold text-gray-300 mb-2">Admin Panel v1.0</p>
-            <p className="line-clamp-2">Manage all user data and site content</p>
-          </div>
+        {/* Footer */}
+        <div className="p-4 border-t border-gray-800 flex-shrink-0">
+          <p className="text-xs text-gray-500">Admin Panel v2.0</p>
         </div>
       </aside>
     </>

@@ -4,7 +4,6 @@ import { verifyToken } from '@/lib/auth';
 import { CommunityMember } from '@/lib/db';
 import { contentHasLink, enforceCommunityChatPolicy, getMyCommunityChatPolicy } from '@/lib/communityChatPolicy';
 import { upsertMediaPostFromSocialPost } from '@/lib/socialToMediaPost';
-import { sendMetaTemplate } from '@/lib/whatsapp';
 import { normalizePhone } from '@/lib/whatsapp';
 import { broadcastToTelegram as sendToTelegram, convertToTelegramHTML } from '@/lib/telegram';
 import axios from 'axios';
@@ -385,8 +384,8 @@ export async function POST(request: NextRequest) {
         }
         
         // Get image URL if available
-        const imageUrl = body.imageUrls?.[0];
-        const videoUrl = body.videoUrl;
+        const imageUrl = body?.imageUrls?.[0];
+        const videoUrl = body?.videoUrl;
         
         telegramStats = await sendToTelegram(telegramChatIds, {
           text: telegramMessage,

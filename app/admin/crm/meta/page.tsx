@@ -189,14 +189,43 @@ export default function MetaInboxPage() {
     mode: 'daily' as 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom',
     customText: '',
   });
+  // Schedule/Delay/Repeat state
+  const [scheduleAt, setScheduleAt] = useState('');
+  const [scheduleMessage, setScheduleMessage] = useState('');
+  const [scheduleBusy, setScheduleBusy] = useState(false);
 
-  // NEW: Quick Replies State
-  const [quickReplies, setQuickReplies] = useState([
+  // Quick Replies State - persisted to localStorage
+  const defaultQuickReplies = [
     { id: '1', text: 'Hello! How can I help you today?' },
     { id: '2', text: 'Thank you for your interest in Swar Yoga.' },
     { id: '3', text: 'Can we schedule a call for tomorrow?' },
-  ]);
+  ];
+  const [quickReplies, setQuickReplies] = useState<Array<{id: string; text: string}>>(defaultQuickReplies);
   const [newQuickReply, setNewQuickReply] = useState('');
+
+  // Load quick replies from localStorage on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('crm_quick_replies');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setQuickReplies(parsed);
+          }
+        } catch {
+          // ignore parse errors
+        }
+      }
+    }
+  }, []);
+
+  // Save quick replies to localStorage when changed
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('crm_quick_replies', JSON.stringify(quickReplies));
+    }
+  }, [quickReplies]);
 
   // Monthly Expense Summary for header widget
   const [monthlyExpenseSummary, setMonthlyExpenseSummary] = useState<{
@@ -919,6 +948,96 @@ export default function MetaInboxPage() {
   const handleQuickReply = (text: string) => {
     setComposerText(text);
     setActionModal(null);
+  };
+
+  // Scheduled/Delayed/Repeat message handler
+  const createScheduledMessage = async (mode: 'schedule' | 'delay' | 'repeat') => {
+    if (!selected) {
+      alert('No conversation selected');
+      return;
+    }
+    
+    const text = scheduleMessage.trim() || composerText.trim();
+    if (!text) {
+      alert('Please enter a message to send');
+      return;
+    }
+    
+    try {
+      setScheduleBusy(true);
+      
+      const body: any = {
+        name: mode === 'schedule' 
+          ? 'Scheduled Message' 
+          : mode === 'delay' 
+            ? 'Delayed Message' 
+            : 'Recurring Message',
+        messageType: 'text',
+        messageContent: text,
+        targetType: 'leadIds',
+        targetLeadIds: [selected.leadId || selected._id],
+        timezone: 'Asia/Kolkata',
+      };
+      
+      if (mode === 'schedule') {
+        if (!scheduleAt) {
+          alert('Please select a date and time');
+          setScheduleBusy(false);
+          return;
+        }
+        body.sendAt = new Date(scheduleAt).toISOString();
+      } else if (mode === 'delay') {
+        const totalMinutes = 
+          (delayConfig.days * 24 * 60) + 
+          (delayConfig.hours * 60) + 
+          delayConfig.minutes + 
+          Math.ceil(delayConfig.seconds / 60);
+        if (totalMinutes <= 0) {
+          alert('Please set a delay duration');
+          setScheduleBusy(false);
+          return;
+        }
+        body.delayMinutes = totalMinutes;
+      } else if (mode === 'repeat') {
+        body.recurrence = { 
+          frequency: repeatConfig.mode,
+          customRule: repeatConfig.mode === 'custom' ? repeatConfig.customText : undefined
+        };
+        // For repeat, also need a first run time
+        if (!scheduleAt) {
+          // Default to 5 minutes from now for first run
+          body.delayMinutes = 5;
+        } else {
+          body.sendAt = new Date(scheduleAt).toISOString();
+        }
+      }
+      
+      const res = await fetch('/api/admin/crm/scheduled-messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+      
+      const data = await res.json();
+      
+      if (res.ok) {
+        alert(`Message ${mode === 'schedule' ? 'scheduled' : mode === 'delay' ? 'delayed' : 'set to repeat'} successfully!`);
+        closeActionModal();
+        setScheduleMessage('');
+        setScheduleAt('');
+        setDelayConfig({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+      } else {
+        alert(data.error || `Failed to ${mode} message`);
+      }
+    } catch (err) {
+      console.error(`Error ${mode}ing message:`, err);
+      alert(`Failed to ${mode} message`);
+    } finally {
+      setScheduleBusy(false);
+    }
   };
 
   const filteredConversations = useMemo(() => {
@@ -2451,44 +2570,61 @@ export default function MetaInboxPage() {
 
                     {actionModal.type === 'delay' ? (
                       <div className="mt-4">
-                        <div className="text-sm font-bold text-slate-700 mb-2">Delay duration</div>
-                        <div className="grid grid-cols-4 gap-2">
-                          {(
-                            [
-                              ['days', 'Days'],
-                              ['hours', 'Hours'],
-                              ['minutes', 'Minutes'],
-                              ['seconds', 'Seconds'],
-                            ] as const
-                          ).map(([k, label]) => (
-                            <label key={k} className="text-xs font-semibold text-slate-600">
-                              <span className="block mb-1">{label}</span>
-                              <input
-                                type="number"
-                                min={0}
-                                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
-                                value={delayConfig[k]}
-                                onChange={(e) =>
-                                  setDelayConfig((prev) => ({
-                                    ...prev,
-                                    [k]: Math.max(0, Number(e.target.value || 0)),
-                                  }))
-                                }
-                              />
-                            </label>
-                          ))}
+                        <div className="text-sm font-bold text-slate-700 mb-2">Delay message</div>
+                        <div className="space-y-3">
+                          <label className="text-xs font-semibold text-slate-600">
+                            <span className="block mb-1">Message</span>
+                            <textarea
+                              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 resize-none"
+                              rows={3}
+                              placeholder="Type your message..."
+                              value={scheduleMessage || composerText}
+                              onChange={(e) => setScheduleMessage(e.target.value)}
+                            />
+                          </label>
+                          <div className="text-xs font-semibold text-slate-600 mb-1">Delay duration</div>
+                          <div className="grid grid-cols-4 gap-2">
+                            {(
+                              [
+                                ['days', 'Days'],
+                                ['hours', 'Hours'],
+                                ['minutes', 'Minutes'],
+                                ['seconds', 'Seconds'],
+                              ] as const
+                            ).map(([k, label]) => (
+                              <label key={k} className="text-xs font-semibold text-slate-600">
+                                <span className="block mb-1">{label}</span>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                                  value={delayConfig[k]}
+                                  onChange={(e) =>
+                                    setDelayConfig((prev) => ({
+                                      ...prev,
+                                      [k]: Math.max(0, Number(e.target.value || 0)),
+                                    }))
+                                  }
+                                />
+                              </label>
+                            ))}
+                          </div>
                         </div>
-                        <div className="mt-4 text-right">
+                        <div className="mt-4 flex justify-end gap-2">
                           <button
                             type="button"
-                            className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-xl font-extrabold text-sm shadow-sm"
-                            onClick={() => {
-                              console.log('Delay config:', delayConfig);
-                              closeActionModal();
-                            }}
-                            disabled={!selected}
+                            className="text-slate-500 hover:text-slate-700 px-4 py-2 rounded-xl font-semibold text-sm"
+                            onClick={closeActionModal}
                           >
-                            Save delay
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-xl font-extrabold text-sm shadow-sm disabled:opacity-50"
+                            onClick={() => createScheduledMessage('delay')}
+                            disabled={scheduleBusy || !selected}
+                          >
+                            {scheduleBusy ? 'Scheduling...' : 'Send with delay'}
                           </button>
                         </div>
                       </div>
@@ -2497,54 +2633,81 @@ export default function MetaInboxPage() {
                     {actionModal.type === 'repeat' ? (
                       <div className="mt-4">
                         <div className="text-sm font-bold text-slate-700 mb-2">Repeat mode</div>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-3">
                           <label className="text-xs font-semibold text-slate-600">
-                            <span className="block mb-1">Mode</span>
-                            <select
-                              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
-                              value={repeatConfig.mode}
-                              onChange={(e) =>
-                                setRepeatConfig((prev) => ({
-                                  ...prev,
-                                  mode: e.target.value as any,
-                                }))
-                              }
-                            >
-                              <option value="daily">Daily</option>
-                              <option value="weekly">Weekly</option>
-                              <option value="monthly">Monthly</option>
-                              <option value="yearly">Yearly</option>
-                              <option value="custom">Custom</option>
-                            </select>
-                          </label>
-                          <label className="text-xs font-semibold text-slate-600">
-                            <span className="block mb-1">Custom rule</span>
-                            <input
-                              type="text"
-                              placeholder="e.g. every 2 days at 10:00"
-                              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
-                              value={repeatConfig.customText}
-                              onChange={(e) =>
-                                setRepeatConfig((prev) => ({
-                                  ...prev,
-                                  customText: e.target.value,
-                                }))
-                              }
-                              disabled={repeatConfig.mode !== 'custom'}
+                            <span className="block mb-1">Message</span>
+                            <textarea
+                              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 resize-none"
+                              rows={3}
+                              placeholder="Type your message..."
+                              value={scheduleMessage || composerText}
+                              onChange={(e) => setScheduleMessage(e.target.value)}
                             />
                           </label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <label className="text-xs font-semibold text-slate-600">
+                              <span className="block mb-1">Frequency</span>
+                              <select
+                                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
+                                value={repeatConfig.mode}
+                                onChange={(e) =>
+                                  setRepeatConfig((prev) => ({
+                                    ...prev,
+                                    mode: e.target.value as any,
+                                  }))
+                                }
+                              >
+                                <option value="daily">Daily</option>
+                                <option value="weekly">Weekly</option>
+                                <option value="monthly">Monthly</option>
+                                <option value="yearly">Yearly</option>
+                                <option value="custom">Custom</option>
+                              </select>
+                            </label>
+                            <label className="text-xs font-semibold text-slate-600">
+                              <span className="block mb-1">First send at</span>
+                              <input
+                                type="datetime-local"
+                                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
+                                value={scheduleAt}
+                                onChange={(e) => setScheduleAt(e.target.value)}
+                                min={new Date().toISOString().slice(0, 16)}
+                              />
+                            </label>
+                          </div>
+                          {repeatConfig.mode === 'custom' && (
+                            <label className="text-xs font-semibold text-slate-600">
+                              <span className="block mb-1">Custom rule (e.g., every 2 days at 10:00)</span>
+                              <input
+                                type="text"
+                                placeholder="e.g. every 2 days at 10:00"
+                                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
+                                value={repeatConfig.customText}
+                                onChange={(e) =>
+                                  setRepeatConfig((prev) => ({
+                                    ...prev,
+                                    customText: e.target.value,
+                                  }))
+                                }
+                              />
+                            </label>
+                          )}
                         </div>
-                        <div className="mt-4 text-right">
+                        <div className="mt-4 flex justify-end gap-2">
                           <button
                             type="button"
-                            className="bg-violet-600 hover:bg-violet-700 text-white px-4 py-2 rounded-xl font-extrabold text-sm shadow-sm"
-                            onClick={() => {
-                              console.log('Repeat config:', repeatConfig);
-                              closeActionModal();
-                            }}
-                            disabled={!selected}
+                            className="text-slate-500 hover:text-slate-700 px-4 py-2 rounded-xl font-semibold text-sm"
+                            onClick={closeActionModal}
                           >
-                            Save repeat
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            className="bg-violet-600 hover:bg-violet-700 text-white px-4 py-2 rounded-xl font-extrabold text-sm shadow-sm disabled:opacity-50"
+                            onClick={() => createScheduledMessage('repeat')}
+                            disabled={scheduleBusy || !selected}
+                          >
+                            {scheduleBusy ? 'Scheduling...' : 'Set repeat'}
                           </button>
                         </div>
                       </div>
@@ -2670,22 +2833,49 @@ export default function MetaInboxPage() {
                             provider="meta"
                           />
                         ) : (
-                          <>
-                            <div className="text-sm font-semibold text-slate-700">
-                              Schedule message
+                          <div className="space-y-4">
+                            <div className="text-sm font-bold text-slate-700">Schedule message</div>
+                            <div className="space-y-3">
+                              <label className="text-xs font-semibold text-slate-600">
+                                <span className="block mb-1">Message</span>
+                                <textarea
+                                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none"
+                                  rows={3}
+                                  placeholder="Type your message..."
+                                  value={scheduleMessage || composerText}
+                                  onChange={(e) => setScheduleMessage(e.target.value)}
+                                />
+                              </label>
+                              <label className="text-xs font-semibold text-slate-600">
+                                <span className="block mb-1">Send at</span>
+                                <input
+                                  type="datetime-local"
+                                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                                  value={scheduleAt}
+                                  onChange={(e) => setScheduleAt(e.target.value)}
+                                  min={new Date().toISOString().slice(0, 16)}
+                                />
+                              </label>
                             </div>
-                            <div className="text-xs text-slate-500 mt-1">
-                              Coming soon: Schedule messages to be sent at a specific time.
+                            <div className="text-right">
+                              <button
+                                type="button"
+                                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-extrabold text-sm shadow-sm disabled:opacity-50"
+                                onClick={() => createScheduledMessage('schedule')}
+                                disabled={scheduleBusy || !selected}
+                              >
+                                {scheduleBusy ? 'Scheduling...' : 'Schedule'}
+                              </button>
                             </div>
-                          </>
+                          </div>
                         )}
                         <div className="mt-4 text-right">
                           <button
                             type="button"
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-extrabold text-sm shadow-sm"
+                            className="text-slate-500 hover:text-slate-700 px-4 py-2 rounded-xl font-semibold text-sm"
                             onClick={closeActionModal}
                           >
-                            Done
+                            Cancel
                           </button>
                         </div>
                       </div>

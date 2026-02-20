@@ -273,12 +273,6 @@ export default function MetaReportsPage() {
             </div>
             <div className="flex items-center gap-3">
               <Link
-                href="/admin/crm/reports/qr"
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm"
-              >
-                💚 QR Reports
-              </Link>
-              <Link
                 href="/admin/crm/broadcast"
                 className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm"
               >

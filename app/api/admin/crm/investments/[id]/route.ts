@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { getInvestment } from '@/lib/schemas/investmentSchemas';
-import { verifyToken } from '@/lib/crm-handlers';
+import { verifyToken } from '@/lib/auth';
 
 export async function PUT(
   request: NextRequest,

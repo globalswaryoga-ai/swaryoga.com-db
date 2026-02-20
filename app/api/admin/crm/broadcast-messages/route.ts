@@ -143,7 +143,7 @@ export async function GET(request: NextRequest) {
     };
 
     const formattedMessages = messages.map((msg: any) => {
-      const lead = msg.leadId ? leadMap.get(String(msg.leadId)) : null;
+      const lead = msg.leadId ? leadMap.get(String(msg.leadId)) as any : null;
       return {
         _id: msg._id,
         phoneNumber: msg.phoneNumber,
@@ -312,7 +312,7 @@ export async function POST(request: NextRequest) {
             result = await sendWhatsAppTemplate({
               to: msg.phoneNumber,
               templateName: msg.metadata?.templateName || '',
-              templateVariables: msg.templateVariables || [],
+              bodyParams: msg.templateVariables || [],
               language: msg.metadata?.language || 'en',
             });
           } else if (msg.messageType === 'media' && msg.media?.url) {

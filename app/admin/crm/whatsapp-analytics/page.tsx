@@ -54,6 +54,43 @@ interface Expense {
   approved?: boolean;
 }
 
+interface MetaStatus {
+  phone?: {
+    id: string;
+    displayNumber: string;
+    verifiedName: string;
+    qualityRating: 'HIGH' | 'MEDIUM' | 'LOW';
+    messagingLimitTier: string;
+    currentLimit: number;
+    isOfficialBusinessAccount: boolean;
+    accountMode: string;
+    status: string;
+    nameStatus: string;
+    codeVerificationStatus: string;
+    platformType: string;
+  };
+  waba?: {
+    id: string;
+    name: string;
+    accountReviewStatus: string;
+    businessVerificationStatus: string;
+    ownershipType: string;
+    timezoneId: string;
+  };
+  templates?: {
+    total: number;
+    approved: number;
+    pending: number;
+    rejected: number;
+    byCategory: {
+      marketing: number;
+      utility: number;
+      authentication: number;
+    };
+  };
+  fetchedAt: string;
+}
+
 // Simple bar chart component
 function BarChart({ data, maxValue, color = 'emerald' }: { data: { label: string; value: number }[]; maxValue: number; color?: string }) {
   const colors: Record<string, string> = {
@@ -129,6 +166,7 @@ export default function WhatsAppAnalyticsPage() {
 
   const [stats, setStats] = useState<WhatsAppStats>({});
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [metaStatus, setMetaStatus] = useState<MetaStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'by-admin' | 'expenses'>('overview');
@@ -154,11 +192,14 @@ export default function WhatsAppAnalyticsPage() {
     if (!token) return;
     setLoading(true);
     try {
-      const [statsRes, expensesRes] = await Promise.all([
+      const [statsRes, expensesRes, metaRes] = await Promise.all([
         fetch(`/api/admin/crm/analytics/whatsapp?view=all&startDate=${startDate}&endDate=${endDate}`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
         fetch(`/api/admin/crm/expenses?startDate=${startDate}&endDate=${endDate}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch('/api/admin/crm/analytics/meta-status', {
           headers: { Authorization: `Bearer ${token}` },
         }),
       ]);
@@ -171,6 +212,11 @@ export default function WhatsAppAnalyticsPage() {
       if (expensesRes.ok) {
         const data = await expensesRes.json();
         if (data.success) setExpenses(data.data.expenses || []);
+      }
+
+      if (metaRes.ok) {
+        const data = await metaRes.json();
+        if (data.success) setMetaStatus(data.data);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch data');
@@ -297,6 +343,90 @@ export default function WhatsAppAnalyticsPage() {
                 <div className="text-lg font-bold text-slate-900">
                   {stats.overview.currentMonth.monthName} {stats.overview.currentMonth.year}
                 </div>
+
+                {/* Meta Account Status */}
+                {metaStatus && (
+                  <div className="bg-gradient-to-r from-emerald-600 to-green-600 rounded-2xl p-6 shadow-lg text-white">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                      <div className="flex items-center gap-4">
+                        <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center text-3xl">
+                          📱
+                        </div>
+                        <div>
+                          <h3 className="text-xl font-bold">{metaStatus.phone?.verifiedName || 'Swar Yoga'}</h3>
+                          <p className="text-emerald-100">{metaStatus.phone?.displayNumber}</p>
+                          <p className="text-xs text-emerald-200 mt-1">
+                            Status: <span className="font-semibold">{metaStatus.phone?.status === 'CONNECTED' ? '✅ Connected' : metaStatus.phone?.status || 'Unknown'}</span>
+                          </p>
+                        </div>
+                      </div>
+                      
+                      {/* Quality Rating */}
+                      <div className="flex items-center gap-6">
+                        <div className="text-center">
+                          <div className={`text-3xl font-black ${
+                            metaStatus.phone?.qualityRating === 'HIGH' ? 'text-white' :
+                            metaStatus.phone?.qualityRating === 'MEDIUM' ? 'text-yellow-200' : 'text-red-200'
+                          }`}>
+                            {metaStatus.phone?.qualityRating === 'HIGH' ? '🟢' : 
+                             metaStatus.phone?.qualityRating === 'MEDIUM' ? '🟡' : '🔴'}
+                            {' '}{metaStatus.phone?.qualityRating || 'N/A'}
+                          </div>
+                          <p className="text-xs text-emerald-200 mt-1">Quality Rating</p>
+                        </div>
+                        
+                        <div className="text-center">
+                          <div className="text-2xl font-black text-white">
+                            {metaStatus.phone?.messagingLimitTier?.replace('TIER_', '').replace('K', 'K') || 'N/A'}
+                          </div>
+                          <p className="text-xs text-emerald-200 mt-1">Msg Limit/Day</p>
+                        </div>
+
+                        {metaStatus.phone?.isOfficialBusinessAccount && (
+                          <div className="bg-white/20 rounded-xl px-3 py-2 text-center">
+                            <div className="text-lg">✓</div>
+                            <p className="text-xs text-emerald-200">Official</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Template Stats */}
+                    {metaStatus.templates && (
+                      <div className="mt-4 pt-4 border-t border-white/20 grid grid-cols-2 md:grid-cols-5 gap-4">
+                        <div className="text-center">
+                          <div className="text-2xl font-bold">{metaStatus.templates.total}</div>
+                          <div className="text-xs text-emerald-200">Total Templates</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-white">✅ {metaStatus.templates.approved}</div>
+                          <div className="text-xs text-emerald-200">Approved</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-yellow-200">⏳ {metaStatus.templates.pending}</div>
+                          <div className="text-xs text-emerald-200">Pending</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold">{metaStatus.templates.byCategory.marketing}</div>
+                          <div className="text-xs text-emerald-200">Marketing</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold">{metaStatus.templates.byCategory.utility}</div>
+                          <div className="text-xs text-emerald-200">Utility</div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* WABA Info */}
+                    {metaStatus.waba && (
+                      <div className="mt-4 pt-4 border-t border-white/20 flex flex-wrap gap-4 text-xs text-emerald-200">
+                        <span>WABA: <strong className="text-white">{metaStatus.waba.name}</strong></span>
+                        <span>Business: <strong className="text-white">{metaStatus.waba.businessVerificationStatus || 'Not verified'}</strong></span>
+                        <span>Mode: <strong className="text-white">{metaStatus.phone?.accountMode || 'LIVE'}</strong></span>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Message Stats */}
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">

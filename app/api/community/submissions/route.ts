@@ -54,13 +54,13 @@ export async function POST(req: NextRequest) {
     
     const authHeader = req.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
-      return apiError('Unauthorized', 401);
+      return apiError('UNAUTHORIZED');
     }
     
     const token = authHeader.substring(7);
     const decoded = verifyToken(token);
     if (!decoded || !decoded.userId) {
-      return apiError('Invalid token', 401);
+      return apiError('AUTHENTICATION_FAILED', 'Invalid token');
     }
     
     const body = await req.json();
@@ -81,25 +81,25 @@ export async function POST(req: NextRequest) {
     
     // Validation
     if (!category || !['experiences', 'tips', 'transformations', 'questions'].includes(category)) {
-      return apiError('Invalid category', 400);
+      return apiError('VALIDATION_ERROR', 'Invalid category');
     }
     
     if (!participantName?.trim()) {
-      return apiError('Participant name is required', 400);
+      return apiError('VALIDATION_ERROR', 'Participant name is required');
     }
     
     // Category-specific validation
     if (category === 'experiences' && !experienceDetails?.trim()) {
-      return apiError('Experience details are required', 400);
+      return apiError('VALIDATION_ERROR', 'Experience details are required');
     }
     if (category === 'tips' && (!problemHeading?.trim() || !tipsDetails?.trim())) {
-      return apiError('Problem heading and tips details are required', 400);
+      return apiError('VALIDATION_ERROR', 'Problem heading and tips details are required');
     }
     if (category === 'transformations' && (!beforeStory?.trim() || !afterStory?.trim())) {
-      return apiError('Before and after stories are required', 400);
+      return apiError('VALIDATION_ERROR', 'Before and after stories are required');
     }
     if (category === 'questions' && !question?.trim()) {
-      return apiError('Question is required', 400);
+      return apiError('VALIDATION_ERROR', 'Question is required');
     }
     
     const CommunitySubmission = getCommunitySubmissionModel();
@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
     const submission = new CommunitySubmission({
       userId: decoded.userId,
       userEmail: decoded.email || '',
-      userName: decoded.name || participantName,
+      userName: (decoded as any).name || participantName,
       category,
       status: 'pending',
       participantName: participantName.trim(),
@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
     
   } catch (error) {
     console.error('Community submission error:', error);
-    return apiError('Failed to submit', 500);
+    return apiError('SERVER_ERROR', 'Failed to submit');
   }
 }
 
@@ -143,13 +143,13 @@ export async function GET(req: NextRequest) {
     
     const authHeader = req.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
-      return apiError('Unauthorized', 401);
+      return apiError('UNAUTHORIZED');
     }
     
     const token = authHeader.substring(7);
     const decoded = verifyToken(token);
     if (!decoded || !decoded.userId) {
-      return apiError('Invalid token', 401);
+      return apiError('AUTHENTICATION_FAILED', 'Invalid token');
     }
     
     const CommunitySubmission = getCommunitySubmissionModel();
@@ -163,6 +163,6 @@ export async function GET(req: NextRequest) {
     
   } catch (error) {
     console.error('Get submissions error:', error);
-    return apiError('Failed to fetch submissions', 500);
+    return apiError('SERVER_ERROR', 'Failed to fetch submissions');
   }
 }

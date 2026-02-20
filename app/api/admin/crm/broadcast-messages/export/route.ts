@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length) 
                 || request.nextUrl.searchParams.get('token'); // Support token in query for direct download
-    const decoded = verifyToken(token);
+    const decoded = verifyToken(token || undefined);
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -129,7 +129,7 @@ export async function GET(request: NextRequest) {
     ];
 
     const rows = messages.map((msg: any) => {
-      const lead = msg.leadId ? leadMap.get(String(msg.leadId)) : null;
+      const lead = msg.leadId ? leadMap.get(String(msg.leadId)) as any : null;
       return [
         msg.phoneNumber || '',
         lead?.name || '',

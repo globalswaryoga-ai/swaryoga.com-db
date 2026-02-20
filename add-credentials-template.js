@@ -32,15 +32,15 @@ async function addTemplate() {
     provider: 'meta',
     status: 'draft', // Will change to pending_approval after submit
     
-    // Body with 3 variables: {{1}}=Profile ID, {{2}}=Email, {{3}}=Password
+    // Body with 3 variables: {{profile_id}}, {{email}}, {{password}}
     templateContent: `Welcome to Swar Yoga!
 
 Your account has been created successfully.
 
 Your Login Credentials:
-Profile ID: {{1}}
-Email: {{2}}
-Password: {{3}}
+Profile ID: {{profile_id}}
+Email: {{email}}
+Password: {{password}}
 
 Login here: https://swaryoga.com/signin
 
@@ -56,9 +56,9 @@ Har Har Mahadev`,
     
     // Variable definitions
     variables: [
-      { name: '1', description: 'Profile ID (6 digits)', example: '518520' },
-      { name: '2', description: 'Email address', example: 'user@example.com' },
-      { name: '3', description: 'Password', example: 'moha6820@#' },
+      { name: 'profile_id', description: 'Profile ID (6 digits)', example: '518520' },
+      { name: 'email', description: 'Email address', example: 'user@example.com' },
+      { name: 'password', description: 'Password', example: 'moha6820@#' },
     ],
     
     // Meta submission tracking

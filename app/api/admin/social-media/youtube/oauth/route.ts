@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     const token = request.headers.get('authorization')?.slice('Bearer '.length) ||
                   request.nextUrl.searchParams.get('token');
     
-    const decoded = verifyToken(token);
+    const decoded = verifyToken(token || undefined);
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
     }

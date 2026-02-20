@@ -25,7 +25,7 @@ const FORM_RATE_LIMIT = {
 const SYMBOLS = ['@', '#', '$', '%', '&', '*', '!', '?'];
 
 /**
- * Generate password: 4 letters of name + 4 digits of phone + 2 symbols
+ * Generate password: 4 letters of name + 4 digits of phone + @#
  * Example: mohan + 9309986820 = moha6820@#
  */
 function generatePassword(name: string, phone: string): string {
@@ -37,11 +37,8 @@ function generatePassword(name: string, phone: string): string {
   const cleanPhone = phone.replace(/\D/g, '');
   const phonePart = cleanPhone.slice(-4).padStart(4, '0'); // pad if phone too short
   
-  // Generate 2 random symbols
-  const symbol1 = SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)];
-  const symbol2 = SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)];
-  
-  return `${namePart}${phonePart}${symbol1}${symbol2}`;
+  // Fixed symbols @#
+  return `${namePart}${phonePart}@#`;
 }
 
 /**
@@ -92,9 +89,9 @@ async function sendWhatsAppCredentials(
               {
                 type: 'body',
                 parameters: [
-                  { type: 'text', text: userId },      // {{1}} Profile ID
-                  { type: 'text', text: email },       // {{2}} Email  
-                  { type: 'text', text: password },    // {{3}} Password
+                  { type: 'text', text: userId },      // {{profile_id}}
+                  { type: 'text', text: email },       // {{email}}  
+                  { type: 'text', text: password },    // {{password}}
                 ],
               },
             ],
@@ -288,7 +285,7 @@ export async function POST(request: NextRequest) {
     
     if (!rateLimitCheck.allowed) {
       const retryAfter = Math.ceil((rateLimitCheck.resetTime - Date.now()) / 1000);
-      return apiError('Too many submissions. Please try again later.', 429);
+      return apiError('RATE_LIMIT_EXCEEDED', 'Too many submissions. Please try again later.');
     }
 
     const body = await request.json();
@@ -317,13 +314,13 @@ export async function POST(request: NextRequest) {
 
     // Validate required fields
     if (!name?.trim() || !email?.trim() || !phone?.trim()) {
-      return apiError('Name, email, and phone are required', 400);
+      return apiError('VALIDATION_ERROR', 'Name, email, and phone are required');
     }
 
     // Validate email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email.trim())) {
-      return apiError('Invalid email format', 400);
+      return apiError('VALIDATION_ERROR', 'Invalid email format');
     }
 
     await connectDB();
@@ -522,6 +519,6 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     logError('forms/submit', error);
-    return apiError('Failed to process form', 500);
+    return apiError('SERVER_ERROR', 'Failed to process form');
   }
 }
