@@ -231,6 +231,10 @@ function LeadsFollowupPageContent() {
   const [newLabel, setNewLabel] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Email-specific state
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailSending, setEmailSending] = useState(false);
+
   const applyAutocorrectMessage = async () => {
     const text = message.trim();
     if (!text) return;
@@ -2100,16 +2104,84 @@ function LeadsFollowupPageContent() {
 
                   {/* Email Form */}
                   {actionMode === 'email' && (
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-900 mb-3">Email Message</label>
-                      <textarea
-                        value={message}
-                        onChange={(e) => setMessage(e.target.value)}
-                        placeholder="Type your email message here..."
-                        className="w-full px-4 py-4 border border-slate-300 rounded-lg focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 resize-none text-sm"
-                        rows={10}
-                      />
-                      <div className="mt-2 text-xs text-slate-500 text-right">{message.length} characters</div>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-900 mb-2">Subject *</label>
+                        <input
+                          type="text"
+                          value={emailSubject}
+                          onChange={(e) => setEmailSubject(e.target.value)}
+                          placeholder="Email subject..."
+                          className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-900 mb-2">Email Content *</label>
+                        <textarea
+                          value={message}
+                          onChange={(e) => setMessage(e.target.value)}
+                          placeholder="Type your email message here...\n\nAvailable variables: {name}, {email}, {phone}"
+                          className="w-full px-4 py-4 border border-slate-300 rounded-lg focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 resize-none text-sm"
+                          rows={10}
+                        />
+                        <div className="mt-2 flex items-center justify-between">
+                          <p className="text-xs text-slate-400">Variables: {'{name}'}, {'{email}'}, {'{phone}'}</p>
+                          <span className="text-xs text-slate-500">{message.length} characters</span>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-3 pt-2">
+                        <button
+                          onClick={async () => {
+                            if (!selectedLead || !emailSubject.trim() || !message.trim()) {
+                              setError('Please fill in both subject and content');
+                              return;
+                            }
+                            setEmailSending(true);
+                            setError(null);
+                            try {
+                              const res = await fetch('/api/admin/crm/email/send', {
+                                method: 'POST',
+                                headers: {
+                                  'Content-Type': 'application/json',
+                                  Authorization: `Bearer ${token}`,
+                                },
+                                body: JSON.stringify({
+                                  recipients: [{
+                                    email: selectedLead.email,
+                                    name: selectedLead.name,
+                                    leadId: selectedLead._id,
+                                    phone: selectedLead.phoneNumber,
+                                  }],
+                                  subject: emailSubject,
+                                  body: message,
+                                  source: 'followup',
+                                }),
+                              });
+                              const data = await res.json();
+                              if (!res.ok) throw new Error(data?.error || 'Failed to send email');
+                              setSuccess(`Email sent to ${selectedLead.email}`);
+                              setEmailSubject('');
+                              setMessage('');
+                            } catch (err: any) {
+                              setError(err.message || 'Failed to send email');
+                            } finally {
+                              setEmailSending(false);
+                            }
+                          }}
+                          disabled={emailSending || !emailSubject.trim() || !message.trim()}
+                          className="flex-1 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-bold transition-colors flex items-center justify-center gap-2"
+                        >
+                          {emailSending ? '📧 Sending...' : '📧 Send Email'}
+                        </button>
+                        <button
+                          onClick={handleSaveFollowup}
+                          disabled={loading || !message.trim()}
+                          className="px-6 py-3 bg-slate-200 hover:bg-slate-300 disabled:opacity-50 text-slate-700 rounded-lg font-semibold transition-colors"
+                        >
+                          💾 Save as Note
+                        </button>
+                      </div>
                     </div>
                   )}
 
@@ -2282,8 +2354,8 @@ function LeadsFollowupPageContent() {
                     </>
                   )}
 
-                  {/* Actions - Hide for whatsapp/meta since they have dedicated send buttons */}
-                  {actionMode !== 'whatsapp' && actionMode !== 'meta' && (
+                  {/* Actions - Hide for whatsapp/meta/email since they have dedicated send buttons */}
+                  {actionMode !== 'whatsapp' && actionMode !== 'meta' && actionMode !== 'email' && (
                     <div className="flex gap-3 pt-6 border-t border-slate-200">
                       <button
                         onClick={handleSaveFollowup}

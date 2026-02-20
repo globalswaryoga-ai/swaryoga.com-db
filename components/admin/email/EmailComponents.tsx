@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Mail, Calendar, Users, TrendingUp, Eye, Trash2, 
   Clock, CheckCircle, XCircle, AlertCircle, BarChart3,
-  Plus, Edit, Play, Pause, RefreshCw, Download
+  Plus, Edit, Play, Pause, RefreshCw, Download,
+  Search, Filter, ChevronLeft, ChevronRight, Send
 } from 'lucide-react';
 
 interface EmailTemplate {
@@ -483,6 +484,490 @@ export function AnalyticsTab({ campaigns }: { campaigns: EmailCampaign[] }) {
           <p className="text-center text-gray-500 py-8">No campaign data available</p>
         )}
       </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// REPORTS TAB - Full email delivery reports with sent/delivered/failed/resend/view
+// ============================================================================
+interface EmailLogEntry {
+  _id: string;
+  campaignId?: string;
+  leadId?: string;
+  recipientEmail: string;
+  recipientName?: string;
+  subject: string;
+  body?: string;
+  status: 'queued' | 'sent' | 'delivered' | 'failed' | 'bounced' | 'opened' | 'clicked';
+  resendId?: string;
+  error?: string;
+  sentAt?: string;
+  deliveredAt?: string;
+  openedAt?: string;
+  sentBy?: string;
+  source?: string;
+  createdAt: string;
+}
+
+interface LogSummary {
+  total: number;
+  queued: number;
+  sent: number;
+  delivered: number;
+  failed: number;
+  bounced: number;
+  opened: number;
+  clicked: number;
+}
+
+export function ReportsTab({ token }: { token: string }) {
+  const [logs, setLogs] = useState<EmailLogEntry[]>([]);
+  const [summary, setSummary] = useState<LogSummary>({
+    total: 0, queued: 0, sent: 0, delivered: 0, failed: 0, bounced: 0, opened: 0, clicked: 0,
+  });
+  const [loading, setLoading] = useState(false);
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [sourceFilter, setSourceFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(0);
+  const [total, setTotal] = useState(0);
+  const [selectedLogs, setSelectedLogs] = useState<Set<string>>(new Set());
+  const [viewingLog, setViewingLog] = useState<EmailLogEntry | null>(null);
+  const [resending, setResending] = useState(false);
+  const [message, setMessage] = useState('');
+  const limit = 25;
+
+  const fetchLogs = useCallback(async () => {
+    try {
+      setLoading(true);
+      const params = new URLSearchParams({
+        limit: String(limit),
+        skip: String(page * limit),
+      });
+      if (statusFilter !== 'all') params.set('status', statusFilter);
+      if (sourceFilter !== 'all') params.set('source', sourceFilter);
+      if (searchQuery.trim()) params.set('search', searchQuery.trim());
+
+      const response = await fetch(`/api/admin/crm/email/logs?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const d = data.data || data;
+        setLogs(d.logs || []);
+        setTotal(d.pagination?.total || 0);
+        if (d.summary) setSummary(d.summary);
+      }
+    } catch (err) {
+      console.error('Failed to fetch email logs:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [token, page, statusFilter, sourceFilter, searchQuery]);
+
+  useEffect(() => {
+    fetchLogs();
+  }, [fetchLogs]);
+
+  const handleResendSelected = async () => {
+    const failedIds = Array.from(selectedLogs).filter(id => {
+      const log = logs.find(l => l._id === id);
+      return log && (log.status === 'failed' || log.status === 'bounced');
+    });
+
+    if (failedIds.length === 0) {
+      setMessage('No failed emails selected to resend');
+      return;
+    }
+
+    setResending(true);
+    try {
+      const response = await fetch('/api/admin/crm/email/logs/resend', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ logIds: failedIds }),
+      });
+
+      const data = await response.json();
+      const d = data.data || data;
+      setMessage(d.message || 'Resend complete');
+      setSelectedLogs(new Set());
+      await fetchLogs();
+    } catch (err) {
+      setMessage('Resend failed. Please try again.');
+    } finally {
+      setResending(false);
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedLogs(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAllOnPage = () => {
+    const ids = new Set(logs.map(l => l._id));
+    setSelectedLogs(ids);
+  };
+
+  const clearSelection = () => setSelectedLogs(new Set());
+
+  const totalPages = Math.ceil(total / limit);
+
+  const getStatusColor = (status: string) => {
+    const colors: Record<string, string> = {
+      queued: 'bg-gray-100 text-gray-700',
+      sent: 'bg-blue-100 text-blue-700',
+      delivered: 'bg-green-100 text-green-700',
+      failed: 'bg-red-100 text-red-700',
+      bounced: 'bg-orange-100 text-orange-700',
+      opened: 'bg-purple-100 text-purple-700',
+      clicked: 'bg-indigo-100 text-indigo-700',
+    };
+    return colors[status] || 'bg-gray-100 text-gray-700';
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'sent': return <Send className="w-3 h-3" />;
+      case 'delivered': return <CheckCircle className="w-3 h-3" />;
+      case 'failed': return <XCircle className="w-3 h-3" />;
+      case 'bounced': return <AlertCircle className="w-3 h-3" />;
+      case 'opened': return <Eye className="w-3 h-3" />;
+      case 'clicked': return <TrendingUp className="w-3 h-3" />;
+      default: return <Clock className="w-3 h-3" />;
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+        {[
+          { label: 'Total', value: summary.total, color: 'text-gray-900', bg: 'bg-gray-50' },
+          { label: 'Sent', value: summary.sent, color: 'text-blue-700', bg: 'bg-blue-50' },
+          { label: 'Delivered', value: summary.delivered, color: 'text-green-700', bg: 'bg-green-50' },
+          { label: 'Opened', value: summary.opened, color: 'text-purple-700', bg: 'bg-purple-50' },
+          { label: 'Clicked', value: summary.clicked, color: 'text-indigo-700', bg: 'bg-indigo-50' },
+          { label: 'Failed', value: summary.failed, color: 'text-red-700', bg: 'bg-red-50' },
+          { label: 'Bounced', value: summary.bounced, color: 'text-orange-700', bg: 'bg-orange-50' },
+        ].map(({ label, value, color, bg }) => (
+          <div key={label} className={`${bg} rounded-lg p-4 border`}>
+            <p className="text-xs font-medium text-gray-500">{label}</p>
+            <p className={`text-2xl font-bold ${color}`}>{value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Filters & Actions */}
+      <div className="bg-white rounded-lg border border-gray-200 p-4">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Search */}
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }}
+              placeholder="Search by email, name, or subject..."
+              className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm"
+            />
+          </div>
+
+          {/* Status filter */}
+          <select
+            value={statusFilter}
+            onChange={(e) => { setStatusFilter(e.target.value); setPage(0); }}
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+          >
+            <option value="all">All Status</option>
+            <option value="sent">Sent</option>
+            <option value="delivered">Delivered</option>
+            <option value="failed">Failed</option>
+            <option value="bounced">Bounced</option>
+            <option value="opened">Opened</option>
+            <option value="clicked">Clicked</option>
+            <option value="queued">Queued</option>
+          </select>
+
+          {/* Source filter */}
+          <select
+            value={sourceFilter}
+            onChange={(e) => { setSourceFilter(e.target.value); setPage(0); }}
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+          >
+            <option value="all">All Sources</option>
+            <option value="bulk">Bulk Email</option>
+            <option value="followup">Followup</option>
+            <option value="single">Single</option>
+            <option value="automation">Automation</option>
+          </select>
+
+          <button
+            onClick={fetchLogs}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
+
+        {/* Selection Actions */}
+        {selectedLogs.size > 0 && (
+          <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-200">
+            <span className="text-sm text-gray-600">{selectedLogs.size} selected</span>
+            <button
+              onClick={handleResendSelected}
+              disabled={resending}
+              className="px-3 py-1.5 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 flex items-center gap-1.5 text-sm disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${resending ? 'animate-spin' : ''}`} />
+              Resend Failed
+            </button>
+            <button
+              onClick={clearSelection}
+              className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm"
+            >
+              Clear
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Message */}
+      {message && (
+        <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800 flex items-center justify-between">
+          <span>{message}</span>
+          <button onClick={() => setMessage('')} className="text-green-600 hover:text-green-800">
+            <XCircle className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Email Logs Table */}
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="px-4 py-3 text-left">
+                  <input
+                    type="checkbox"
+                    onChange={(e) => e.target.checked ? selectAllOnPage() : clearSelection()}
+                    checked={selectedLogs.size === logs.length && logs.length > 0}
+                    className="rounded"
+                  />
+                </th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Recipient</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Subject</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Status</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Source</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Sent At</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Sent By</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {loading ? (
+                <tr>
+                  <td colSpan={8} className="px-4 py-12 text-center">
+                    <RefreshCw className="w-6 h-6 animate-spin text-gray-400 mx-auto mb-2" />
+                    <p className="text-gray-500">Loading...</p>
+                  </td>
+                </tr>
+              ) : logs.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-4 py-12 text-center">
+                    <Mail className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                    <p className="text-gray-500">No email logs found</p>
+                  </td>
+                </tr>
+              ) : (
+                logs.map(log => (
+                  <tr key={log._id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedLogs.has(log._id)}
+                        onChange={() => toggleSelect(log._id)}
+                        className="rounded"
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div>
+                        <p className="font-medium text-gray-900 truncate max-w-[180px]">
+                          {log.recipientName || 'Unknown'}
+                        </p>
+                        <p className="text-xs text-gray-500 truncate max-w-[180px]">
+                          {log.recipientEmail}
+                        </p>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="text-gray-900 truncate max-w-[200px]">{log.subject}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${getStatusColor(log.status)}`}>
+                        {getStatusIcon(log.status)}
+                        {log.status.charAt(0).toUpperCase() + log.status.slice(1)}
+                      </span>
+                      {log.error && (
+                        <p className="text-xs text-red-500 mt-1 truncate max-w-[150px]" title={log.error}>
+                          {log.error}
+                        </p>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-xs text-gray-600 capitalize">{log.source || '-'}</span>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-600">
+                      {log.sentAt ? new Date(log.sentAt).toLocaleString() : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-600">
+                      {log.sentBy || '-'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => setViewingLog(log)}
+                          className="p-1.5 bg-gray-100 text-gray-600 rounded hover:bg-gray-200"
+                          title="View"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                        {(log.status === 'failed' || log.status === 'bounced') && (
+                          <button
+                            onClick={() => {
+                              setSelectedLogs(new Set([log._id]));
+                              handleResendSelected();
+                            }}
+                            className="p-1.5 bg-orange-100 text-orange-600 rounded hover:bg-orange-200"
+                            title="Resend"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-gray-50">
+            <p className="text-sm text-gray-600">
+              Showing {page * limit + 1} - {Math.min((page + 1) * limit, total)} of {total}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage(p => Math.max(0, p - 1))}
+                disabled={page === 0}
+                className="p-1.5 bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="text-sm text-gray-600">
+                Page {page + 1} of {totalPages}
+              </span>
+              <button
+                onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+                disabled={page >= totalPages - 1}
+                className="p-1.5 bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* View Email Modal */}
+      {viewingLog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-lg w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-900">Email Details</h2>
+              <button onClick={() => setViewingLog(null)} className="text-gray-500 hover:text-gray-700">
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs font-medium text-gray-500">Recipient</p>
+                  <p className="text-sm font-semibold text-gray-900">{viewingLog.recipientName || 'Unknown'}</p>
+                  <p className="text-sm text-gray-600">{viewingLog.recipientEmail}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500">Status</p>
+                  <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${getStatusColor(viewingLog.status)}`}>
+                    {getStatusIcon(viewingLog.status)}
+                    {viewingLog.status.charAt(0).toUpperCase() + viewingLog.status.slice(1)}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500">Sent At</p>
+                  <p className="text-sm text-gray-900">
+                    {viewingLog.sentAt ? new Date(viewingLog.sentAt).toLocaleString() : 'Not sent'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500">Source</p>
+                  <p className="text-sm text-gray-900 capitalize">{viewingLog.source || '-'}</p>
+                </div>
+                {viewingLog.resendId && (
+                  <div>
+                    <p className="text-xs font-medium text-gray-500">Resend ID</p>
+                    <p className="text-xs text-gray-600 font-mono">{viewingLog.resendId}</p>
+                  </div>
+                )}
+                {viewingLog.error && (
+                  <div className="col-span-2">
+                    <p className="text-xs font-medium text-red-500">Error</p>
+                    <p className="text-sm text-red-700 bg-red-50 p-2 rounded">{viewingLog.error}</p>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <p className="text-xs font-medium text-gray-500 mb-1">Subject</p>
+                <p className="text-sm font-semibold text-gray-900 bg-gray-50 p-3 rounded">{viewingLog.subject}</p>
+              </div>
+
+              {viewingLog.body && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-1">Body</p>
+                  <div
+                    className="text-sm text-gray-900 bg-gray-50 p-3 rounded max-h-60 overflow-y-auto whitespace-pre-wrap"
+                    dangerouslySetInnerHTML={{ __html: viewingLog.body }}
+                  />
+                </div>
+              )}
+            </div>
+            <div className="p-4 border-t border-gray-200 flex justify-end">
+              <button
+                onClick={() => setViewingLog(null)}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,9 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { hasPermission } from '@/lib/permissions';
 import { apiError, apiSuccess } from '@/lib/api-error';
-import { getEmailCampaign } from '@/lib/schemas/enterpriseSchemas';
+import { getEmailCampaign, getEmailLog } from '@/lib/schemas/enterpriseSchemas';
+import { sendBulkEmails, sendEmailToLead } from '@/lib/email';
+import type { EmailRecipient } from '@/lib/email';
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,7 +18,6 @@ export async function POST(request: NextRequest) {
       return apiError('UNAUTHORIZED');
     }
 
-    // Check email send permission
     const isSuperAdmin = decoded?.userId === 'admin' || 
                         decoded?.userId === 'admincrm' ||
                         (Array.isArray(decoded?.permissions) && decoded.permissions.includes('all'));
@@ -28,7 +31,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { recipients, subject, body: emailBody, templateId, scheduleMode, scheduledAt } = body;
+    const { recipients, subject, body: emailBody, templateId, scheduleMode, scheduledAt, source } = body;
 
     if (!recipients || !Array.isArray(recipients) || recipients.length === 0) {
       return apiError('VALIDATION_ERROR', 'Recipients array is required and must not be empty');
@@ -44,14 +47,51 @@ export async function POST(request: NextRequest) {
 
     await connectDB();
     const EmailCampaign = getEmailCampaign();
+    const EmailLog = getEmailLog();
 
-    // Create campaign record
+    // Single-email mode (from leads-followup page)
+    if (source === 'followup' && recipients.length === 1) {
+      const recipient: EmailRecipient = {
+        email: recipients[0].email,
+        name: recipients[0].name,
+        leadId: recipients[0].leadId,
+        phone: recipients[0].phone,
+      };
+
+      const result = await sendEmailToLead(recipient, subject, emailBody);
+
+      // Log the email
+      await EmailLog.create({
+        leadId: recipient.leadId,
+        recipientEmail: recipient.email,
+        recipientName: recipient.name,
+        subject,
+        body: emailBody,
+        status: result.status === 'sent' ? 'sent' : 'failed',
+        resendId: result.resendId,
+        error: result.error,
+        sentAt: result.sentAt,
+        sentBy: decoded.userId || 'unknown',
+        source: 'followup',
+      });
+
+      if (result.status === 'failed') {
+        return apiError('SERVER_ERROR', result.error || 'Failed to send email');
+      }
+
+      return apiSuccess({
+        message: 'Email sent successfully',
+        result,
+      });
+    }
+
+    // Bulk email mode — create campaign record
     const campaign = new EmailCampaign({
       name: subject,
       subject,
       body: emailBody,
       templateId: templateId || undefined,
-      recipients: recipients.map(r => r.email),
+      recipients: recipients.map((r: any) => r.email),
       status: scheduleMode === 'later' ? 'scheduled' : 'draft',
       scheduledAt: scheduledAt || undefined,
       stats: {
@@ -69,30 +109,69 @@ export async function POST(request: NextRequest) {
 
     await campaign.save();
 
-    // If sending now, trigger email sending (in production, use a queue system)
+    // If sending now, send emails via Resend API
     if (scheduleMode === 'now') {
-      // Update status to sending
       campaign.status = 'sending';
       await campaign.save();
 
-      // Send emails (simplified - in production use a proper email service)
       try {
-        await sendBulkEmails(recipients, subject, emailBody);
-        
-        campaign.status = 'sent';
-        campaign.stats.sent = recipients.length;
-        campaign.stats.delivered = recipients.length; // Simplified
+        const emailRecipients: EmailRecipient[] = recipients.map((r: any) => ({
+          email: r.email,
+          name: r.name,
+          leadId: r.leadId,
+          phone: r.phone,
+        }));
+
+        const bulkResult = await sendBulkEmails(emailRecipients, subject, emailBody);
+
+        // Create email log entries for each recipient
+        const logEntries = bulkResult.results.map(result => ({
+          campaignId: campaign._id,
+          leadId: result.recipient.leadId,
+          recipientEmail: result.recipient.email,
+          recipientName: result.recipient.name,
+          subject,
+          body: emailBody,
+          status: result.status === 'sent' ? 'sent' : 'failed',
+          resendId: result.resendId,
+          error: result.error,
+          sentAt: result.sentAt,
+          sentBy: decoded.userId || 'unknown',
+          source: 'bulk' as const,
+        }));
+
+        if (logEntries.length > 0) {
+          await EmailLog.insertMany(logEntries);
+        }
+
+        // Update campaign stats
+        campaign.status = bulkResult.failed === bulkResult.total ? 'failed' : 'sent';
+        campaign.stats.sent = bulkResult.sent;
+        campaign.stats.delivered = bulkResult.sent;
+        campaign.stats.failed = bulkResult.failed;
         campaign.sentAt = new Date();
         await campaign.save();
-      } catch (err) {
+
+        return apiSuccess({
+          message: `Email sent: ${bulkResult.sent} delivered, ${bulkResult.failed} failed`,
+          campaignId: campaign._id,
+          stats: campaign.stats,
+          summary: {
+            total: bulkResult.total,
+            sent: bulkResult.sent,
+            failed: bulkResult.failed,
+          },
+        });
+      } catch (err: any) {
         campaign.status = 'failed';
         await campaign.save();
-        throw err;
+        console.error('Bulk email error:', err);
+        return apiError('SERVER_ERROR', err.message || 'Failed to send bulk emails');
       }
     }
 
     return apiSuccess({
-      message: scheduleMode === 'now' ? 'Email sent successfully' : 'Email scheduled successfully',
+      message: 'Email campaign scheduled successfully',
       campaignId: campaign._id,
       stats: campaign.stats,
     });
@@ -100,36 +179,4 @@ export async function POST(request: NextRequest) {
     console.error('Error sending email:', error);
     return apiError('SERVER_ERROR', error.message || 'Failed to send email');
   }
-}
-
-// Helper function to send bulk emails
-
-// Mark as dynamic since this route uses request.headers or request.url
-export const dynamic = 'force-dynamic';
-
-async function sendBulkEmails(recipients: any[], subject: string, body: string) {
-  // TODO: Integrate with actual email service (SendGrid, AWS SES, etc.)
-  // For now, this is a placeholder
-  console.log(`Sending email to ${recipients.length} recipients:`);
-  console.log(`Subject: ${subject}`);
-  console.log(`Body: ${body.substring(0, 100)}...`);
-  
-  // Simulate email sending
-  for (const recipient of recipients) {
-    console.log(`Sent to: ${recipient.email} (${recipient.name})`);
-    // Replace {name}, {email}, {phone} variables
-    const personalizedBody = body
-      .replace(/\{name\}/g, recipient.name || 'Customer')
-      .replace(/\{email\}/g, recipient.email || '')
-      .replace(/\{phone\}/g, recipient.phone || '');
-    
-    // In production, call email service API here
-    // await emailService.send({
-    //   to: recipient.email,
-    //   subject,
-    //   html: personalizedBody,
-    // });
-  }
-  
-  return { success: true };
 }

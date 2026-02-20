@@ -15,6 +15,7 @@ import {
   TemplatesTab, 
   FollowupsTab, 
   AnalyticsTab,
+  ReportsTab,
   TemplateModal,
   FollowupModal
 } from '@/components/admin/email/EmailComponents';
@@ -102,7 +103,7 @@ export default function EmailAutomationPage() {
   
   // UI State
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [activeTab, setActiveTab] = useState<'compose' | 'campaigns' | 'templates' | 'followups' | 'analytics'>('compose');
+  const [activeTab, setActiveTab] = useState<'compose' | 'campaigns' | 'reports' | 'templates' | 'followups' | 'analytics'>('compose');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -598,6 +599,19 @@ export default function EmailAutomationPage() {
               </div>
             </button>
             <button
+              onClick={() => setActiveTab('reports')}
+              className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
+                activeTab === 'reports'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Download className="w-4 h-4" />
+                Reports
+              </div>
+            </button>
+            <button
               onClick={() => setActiveTab('templates')}
               className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
                 activeTab === 'templates'
@@ -708,6 +722,10 @@ export default function EmailAutomationPage() {
               fetchCampaigns={fetchCampaigns}
               token={token}
             />
+          )}
+
+          {activeTab === 'reports' && (
+            <ReportsTab token={token} />
           )}
 
           {activeTab === 'templates' && (

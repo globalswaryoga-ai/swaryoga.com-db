@@ -1764,6 +1764,40 @@ const FollowUpInstanceSchema = new mongoose.Schema(
 FollowUpInstanceSchema.index({ leadId: 1, status: 1 });
 FollowUpInstanceSchema.index({ nextExecutionAt: 1, status: 1 });
 
+// ============================================================================
+// EMAIL LOG SCHEMA - Per-recipient delivery tracking
+// ============================================================================
+const EmailLogSchema = new mongoose.Schema(
+  {
+    campaignId: { type: mongoose.Schema.Types.ObjectId, ref: 'EmailCampaign' },
+    leadId: { type: String },
+    recipientEmail: { type: String, required: true },
+    recipientName: { type: String },
+    subject: { type: String, required: true },
+    body: { type: String },
+    status: { 
+      type: String, 
+      enum: ['queued', 'sent', 'delivered', 'failed', 'bounced', 'opened', 'clicked'],
+      default: 'queued'
+    },
+    resendId: { type: String },
+    error: { type: String },
+    sentAt: { type: Date },
+    deliveredAt: { type: Date },
+    openedAt: { type: Date },
+    clickedAt: { type: Date },
+    sentBy: { type: String },
+    source: { type: String, enum: ['bulk', 'followup', 'single', 'automation'], default: 'bulk' },
+    metadata: mongoose.Schema.Types.Mixed,
+  },
+  { timestamps: true, collection: 'email_logs' }
+);
+
+EmailLogSchema.index({ campaignId: 1, status: 1 });
+EmailLogSchema.index({ recipientEmail: 1, createdAt: -1 });
+EmailLogSchema.index({ leadId: 1, createdAt: -1 });
+EmailLogSchema.index({ status: 1, createdAt: -1 });
+EmailLogSchema.index({ sentBy: 1, createdAt: -1 });
 
 // ============================================================================
 // ZOOM RECORDING SYNC SCHEMA
@@ -1927,6 +1961,7 @@ export function getEmailTemplate() { return getModel('EmailTemplate', EmailTempl
 export function getEmailCampaign() { return getModel('EmailCampaign', EmailCampaignSchema); }
 export function getFollowUpSequence() { return getModel('FollowUpSequence', FollowUpSequenceSchema); }
 export function getFollowUpInstance() { return getModel('FollowUpInstance', FollowUpInstanceSchema); }
+export function getEmailLog() { return getModel('EmailLog', EmailLogSchema); }
 export function getZoomRecordingSync() { return getModel('ZoomRecordingSync', ZoomRecordingSyncSchema); }
 export function getLeadAssignmentSettings() { return getModel('LeadAssignmentSettings', LeadAssignmentSettingsSchema); }
 
@@ -1968,5 +2003,6 @@ export const EmailTemplate = createModelProxy('EmailTemplate', EmailTemplateSche
 export const EmailCampaign = createModelProxy('EmailCampaign', EmailCampaignSchema);
 export const FollowUpSequence = createModelProxy('FollowUpSequence', FollowUpSequenceSchema);
 export const FollowUpInstance = createModelProxy('FollowUpInstance', FollowUpInstanceSchema);
+export const EmailLog = createModelProxy('EmailLog', EmailLogSchema);
 export const ZoomRecordingSync = createModelProxy('ZoomRecordingSync', ZoomRecordingSyncSchema);
 export const LeadAssignmentSettings = createModelProxy('LeadAssignmentSettings', LeadAssignmentSettingsSchema);
