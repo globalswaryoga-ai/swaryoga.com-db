@@ -13,6 +13,7 @@ import { useForm } from '@/hooks/useForm';
 import { FormModal } from '@/components/admin/crm';
 import { normalizePhoneForMeta } from '@/lib/utils/phone';
 import LanguageSelector from './_components/LanguageSelector'; // Imported new component
+import SpellCheckTextarea from '@/components/admin/crm/SpellCheckTextarea';
 
 type MetaInboxDiagnostics = {
   ok: boolean;
@@ -159,6 +160,9 @@ export default function MetaInboxPage() {
   const [isBotMode, setIsBotMode] = useState(false);
   const [isFixing, setIsFixing] = useState(false);
   const [isReplying, setIsReplying] = useState(false);
+  const [autoCorrectEnabled, setAutoCorrectEnabled] = useState(true); // Auto-correction toggle
+  const [lastCorrectionTime, setLastCorrectionTime] = useState(0);
+  const autoCorrectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Spell check suggestions popup state
   const [spellSuggestions, setSpellSuggestions] = useState<{ 
@@ -193,6 +197,15 @@ export default function MetaInboxPage() {
     { id: '3', text: 'Can we schedule a call for tomorrow?' },
   ]);
   const [newQuickReply, setNewQuickReply] = useState('');
+
+  // Monthly Expense Summary for header widget
+  const [monthlyExpenseSummary, setMonthlyExpenseSummary] = useState<{
+    total: number;
+    marketing: number;
+    utility: number;
+    whatsapp_api: number;
+    messagesSent: number;
+  } | null>(null);
   
   // NEW: File Upload State
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -304,6 +317,36 @@ export default function MetaInboxPage() {
     };
     
     fetchAdminUsers();
+  }, [token]);
+
+  // Load monthly expense summary for header widget
+  useEffect(() => {
+    if (!token) return;
+    
+    const fetchMonthlyExpenses = async () => {
+      try {
+        const res = await fetch('/api/admin/crm/analytics/whatsapp?view=overview', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.data?.overview) {
+            const { expenses, messages } = data.data.overview;
+            setMonthlyExpenseSummary({
+              total: expenses?.total || 0,
+              marketing: expenses?.marketing || 0,
+              utility: expenses?.utility || 0,
+              whatsapp_api: expenses?.whatsapp_api || 0,
+              messagesSent: messages?.sent || 0,
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to load monthly expenses:', e);
+      }
+    };
+    
+    fetchMonthlyExpenses();
   }, [token]);
 
   // Search-triggered reload (debounced)
@@ -514,6 +557,65 @@ export default function MetaInboxPage() {
     }
   }, [spellSuggestions]);
 
+  // Auto-correction handler (debounced)
+  const handleAutoCorrect = useCallback(async (text: string) => {
+    if (!autoCorrectEnabled || !text.trim()) return;
+    
+    // Only auto-correct after a space or punctuation (word boundary)
+    const lastChar = text.slice(-1);
+    if (!/[\s.,!?;:]/.test(lastChar)) return;
+    
+    // Debounce - don't correct too frequently
+    const now = Date.now();
+    if (now - lastCorrectionTime < 500) return;
+    
+    try {
+      const res = await fetch('/api/admin/crm/ai-assist', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ text, mode: 'autocorrect' })
+      });
+      const data = await res.json();
+      
+      if (data.success && data.changed && data.result) {
+        setComposerText(data.result);
+        setLastCorrectionTime(now);
+      }
+    } catch (err) {
+      // Silent fail for auto-correction
+      console.debug('Auto-correct failed:', err);
+    }
+  }, [autoCorrectEnabled, lastCorrectionTime, token]);
+
+  // Debounced auto-correction on text change
+  const handleComposerChange = useCallback((newText: string) => {
+    setComposerText(newText);
+    
+    // Clear existing timeout
+    if (autoCorrectTimeoutRef.current) {
+      clearTimeout(autoCorrectTimeoutRef.current);
+    }
+    
+    // Set new timeout for auto-correction
+    if (autoCorrectEnabled && newText.trim()) {
+      autoCorrectTimeoutRef.current = setTimeout(() => {
+        handleAutoCorrect(newText);
+      }, 300);
+    }
+  }, [autoCorrectEnabled, handleAutoCorrect]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (autoCorrectTimeoutRef.current) {
+        clearTimeout(autoCorrectTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const appendToComposer = (text: string) => {
     setComposerText((prev) => (prev ? `${prev}${text}` : text));
   };
@@ -711,21 +813,24 @@ export default function MetaInboxPage() {
     }
   };
 
-  // Handle chat status change (close/reopen)
-  const handleChatStatusChange = async (newStatus: ChatStatus) => {
-    if (!selected?.leadId) return;
+  // Handle chat status change (close/reopen) - works for selected or any leadId
+  const handleChatStatusChange = async (newStatus: ChatStatus, targetLeadId?: string) => {
+    const leadId = targetLeadId || selected?.leadId;
+    if (!leadId) return;
     try {
-      await crmFetch(`/api/admin/crm/leads/${selected.leadId}/chat-status`, {
+      await crmFetch(`/api/admin/crm/leads/${leadId}/chat-status`, {
         method: 'PATCH',
         body: { chatStatus: newStatus }
       });
       
-      // Update the selected conversation state
-      setSelected(prev => prev ? { ...prev, chatStatus: newStatus } : null);
+      // Update the selected conversation state if it matches
+      if (selected?.leadId === leadId) {
+        setSelected(prev => prev ? { ...prev, chatStatus: newStatus } : null);
+      }
       
       // Update the conversations list
       setConversations(prev => prev.map(c => 
-        c.leadId === selected.leadId ? { ...c, chatStatus: newStatus } : c
+        c.leadId === leadId ? { ...c, chatStatus: newStatus } : c
       ));
     } catch (err) {
       console.error('Failed to update chat status:', err);
@@ -1062,6 +1167,31 @@ export default function MetaInboxPage() {
                 </div>
              )}
           </div>
+
+          {/* Monthly Expense Widget */}
+          {monthlyExpenseSummary && (
+            <div 
+              className="flex items-center gap-3 px-4 py-2 rounded-2xl bg-gradient-to-r from-rose-50 to-orange-50 border border-rose-200/60 cursor-pointer hover:shadow-md transition-all"
+              onClick={() => router.push('/admin/crm/whatsapp-analytics')}
+              title="Click to view full analytics"
+            >
+              <div className="text-center">
+                <div className="text-[9px] font-bold text-rose-500 uppercase tracking-wider">This Month</div>
+                <div className="text-[15px] font-black text-rose-700">₹{monthlyExpenseSummary.total.toLocaleString()}</div>
+              </div>
+              <div className="h-8 w-px bg-rose-200/60"></div>
+              <div className="flex flex-col gap-0.5 text-[9px]">
+                <div className="flex justify-between gap-3">
+                  <span className="text-slate-500">Msgs:</span>
+                  <span className="font-bold text-slate-700">{monthlyExpenseSummary.messagesSent.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <span className="text-slate-500">Mktg:</span>
+                  <span className="font-bold text-rose-600">₹{monthlyExpenseSummary.marketing.toLocaleString()}</span>
+                </div>
+              </div>
+            </div>
+          )}
 
           <button
             className={`flex items-center gap-2 px-3 py-2.5 rounded-2xl border transition-all active:scale-95 ${
@@ -1561,11 +1691,13 @@ export default function MetaInboxPage() {
                     )}
 
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      {/* Chat Status Badge */}
+                      {/* Chat Status Badge - Interactive */}
                       <ChatStatusBadge
                         lastMessageAt={conv.lastMessageAt}
                         manualStatus={conv.chatStatus}
                         size="xs"
+                        interactive={true}
+                        onStatusChange={(newStatus) => handleChatStatusChange(newStatus, conv.leadId)}
                       />
 
                       {/* User ID Button */}
@@ -2115,6 +2247,16 @@ export default function MetaInboxPage() {
 
                            {/* AI Tools */}
                            <div className="flex items-center gap-1 mx-1 pl-2 border-l border-slate-200/60">
+                             {/* Auto-Correct Toggle */}
+                             <button
+                               onClick={() => setAutoCorrectEnabled(!autoCorrectEnabled)}
+                               className={`h-8 px-2.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${autoCorrectEnabled ? 'bg-emerald-100 text-emerald-700' : 'text-slate-400 hover:bg-slate-100'}`}
+                               title={autoCorrectEnabled ? 'Auto-correct ON (click to disable)' : 'Auto-correct OFF (click to enable)'}
+                             >
+                               <i className={`ph-fill ${autoCorrectEnabled ? 'ph-check-circle' : 'ph-circle'} text-lg`}></i>
+                               <span className="hidden xl:inline">Auto</span>
+                             </button>
+
                              <button
                                onClick={handleAIFix}
                                disabled={isFixing || !composerText}
@@ -2244,26 +2386,19 @@ export default function MetaInboxPage() {
                         </div>
                       )}
 
-                      <textarea 
-                          className="w-full px-5 py-3 bg-transparent border-none focus:ring-0 resize-none max-h-40 min-h-[52px] placeholder:text-slate-400 font-medium text-slate-700 text-[15px]" 
-                          placeholder="Type your message... (right-click misspelled words for suggestions)"
-                          spellCheck={true}
-                          autoComplete="on"
-                          autoCorrect="on"
-                          autoCapitalize="sentences"
-                          lang="en"
-                          data-gramm="true"
-                          rows={1}
-                          value={composerText}
-                          onChange={(e) => setComposerText(e.target.value)}
-                          onContextMenu={(e) => handleSpellCheck(e)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.shiftKey) {
-                              e.preventDefault();
-                              handleSendMessage();
-                            }
-                          }}
-                        />
+                      <SpellCheckTextarea
+                        value={composerText}
+                        onChange={handleComposerChange}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handleSendMessage();
+                          }
+                        }}
+                        placeholder={autoCorrectEnabled ? "Type your message... (Auto-correct ON)" : "Type your message..."}
+                        className="px-5 py-3 border-none focus:ring-0 max-h-40 min-h-[52px] placeholder:text-slate-400 font-medium text-slate-700 text-[15px]"
+                        token={token || ''}
+                      />
                   </div>
 
                   <button 

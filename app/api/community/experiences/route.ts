@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
       .limit(limit)
       .lean();
     
-    // Calculate stats
+    // Calculate stats with full breakdown
     const stats = await Experience.aggregate([
       { $match: { status: 'approved' } },
       { $group: {
@@ -72,13 +72,17 @@ export async function GET(request: NextRequest) {
         avgRating: { $avg: '$rating' },
         totalCount: { $sum: 1 },
         fiveStars: { $sum: { $cond: [{ $eq: ['$rating', 5] }, 1, 0] } },
+        fourStars: { $sum: { $cond: [{ $eq: ['$rating', 4] }, 1, 0] } },
+        threeStars: { $sum: { $cond: [{ $eq: ['$rating', 3] }, 1, 0] } },
+        twoStars: { $sum: { $cond: [{ $eq: ['$rating', 2] }, 1, 0] } },
+        oneStars: { $sum: { $cond: [{ $eq: ['$rating', 1] }, 1, 0] } },
       }}
     ]);
     
     return NextResponse.json({
       success: true,
       experiences,
-      stats: stats[0] || { avgRating: 5, totalCount: 0, fiveStars: 0 },
+      stats: stats[0] || { avgRating: 5, totalCount: 0, fiveStars: 0, fourStars: 0, threeStars: 0, twoStars: 0, oneStars: 0 },
     });
   } catch (error) {
     console.error('[Experiences] GET error:', error);

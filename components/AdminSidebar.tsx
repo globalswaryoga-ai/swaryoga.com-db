@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
-import { LayoutDashboard, Users, LogIn, MessageSquare, Gift, X, Calculator, Mail, Home, Calendar, Share2, ArrowLeft, MessageCircle, TrendingUp, Globe, Video, FileText, Send, Radio, Settings } from 'lucide-react';
+import { LayoutDashboard, Users, LogIn, MessageSquare, Gift, X, Calculator, Mail, Home, Calendar, Share2, ArrowLeft, MessageCircle, TrendingUp, Globe, Video, FileText, Send, Radio, Settings, BarChart3, Activity } from 'lucide-react';
 
 interface AdminSidebarProps {
   isOpen?: boolean;
@@ -247,6 +247,18 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
       label: 'Investment',
       href: '/admin/crm/investment',
       color: 'text-green-600',
+    },
+    {
+      icon: BarChart3,
+      label: 'WA Analytics',
+      href: '/admin/crm/whatsapp-analytics',
+      color: 'text-teal-600',
+    },
+    {
+      icon: Activity,
+      label: 'Admin Activity',
+      href: '/admin/crm/admin-activity',
+      color: 'text-yellow-500',
     },
   ];
 

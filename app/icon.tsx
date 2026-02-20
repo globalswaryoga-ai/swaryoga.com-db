@@ -23,23 +23,22 @@ export default function Icon() {
 					backgroundColor: '#ffffff',
 				}}
 			>
-				<div
-					style={{
-						width: '80%',
-						height: '80%',
-						display: 'flex',
-						alignItems: 'center',
-						justifyContent: 'center',
-						borderRadius: 40,
-						backgroundColor: '#1E7F43',
-						color: '#ffffff',
-						fontSize: 64,
-						fontWeight: 800,
-						fontFamily: 'system-ui',
-					}}
+				{/* Infinity symbol in green */}
+				<svg
+					width="160"
+					height="160"
+					viewBox="0 0 100 100"
+					style={{ marginTop: 10 }}
 				>
-					SW
-				</div>
+					<path
+						d="M25 50c0-8.28 6.72-15 15-15 5.52 0 10.35 2.99 12.95 7.44L60 50l-7.05 7.56C50.35 62.01 45.52 65 40 65c-8.28 0-15-6.72-15-15zm50 0c0 8.28-6.72 15-15 15-5.52 0-10.35-2.99-12.95-7.44L40 50l7.05-7.56C49.65 37.99 54.48 35 60 35c8.28 0 15 6.72 15 15z"
+						fill="none"
+						stroke="#1E7F43"
+						strokeWidth="8"
+						strokeLinecap="round"
+						strokeLinejoin="round"
+					/>
+				</svg>
 			</div>
 		),
 		size

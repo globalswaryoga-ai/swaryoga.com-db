@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, CommunityMember } from '@/lib/db';
 import { getOrCreateLeadIdForPhone } from '@/lib/crm/leadNumber';
 import { getLead } from '@/lib/schemas/enterpriseSchemas';
+import { generateToken } from '@/lib/auth';
 
 function escapeRegexLiteral(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -109,6 +110,12 @@ export async function POST(request: NextRequest) {
 
       const message = '👋 Welcome back! Messaging will be enabled after admin approval if not already done.';
 
+      // Generate JWT token for the community user
+      const token = generateToken({ 
+        userId: existingMember.userId,
+        email: existingMember.email || undefined,
+      });
+
       return NextResponse.json(
         {
           success: true,
@@ -123,6 +130,7 @@ export async function POST(request: NextRequest) {
             joinedAt: existingMember.joinedAt,
             approved: existingMember.approved,
             status: existingMember.status,
+            token, // JWT token for like/comment
           },
           isUpdate: true,
         },
@@ -179,6 +187,12 @@ export async function POST(request: NextRequest) {
       ? '✅ Welcome! You have successfully joined the Global Community.'
       : '👋 Registration successful! Messaging will be enabled after admin approval.';
 
+    // Generate JWT token for the community user
+    const token = generateToken({ 
+      userId: newMember.userId,
+      email: newMember.email || undefined,
+    });
+
     return NextResponse.json(
       {
         success: true,
@@ -191,6 +205,7 @@ export async function POST(request: NextRequest) {
           communityName: newMember.communityName,
           joinedAt: newMember.joinedAt,
           approved: newMember.approved,
+          token, // JWT token for like/comment
         },
       },
       { status: 201 }

@@ -49,7 +49,7 @@ const experienceSchema = new mongoose.Schema({
   rating: { type: Number, min: 1, max: 5, required: true },
   photoUrl: { type: String },
   communityId: { type: String, default: 'global' },
-  status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+  status: { type: String, enum: ['pending', 'approved', 'rejected', 'posted'], default: 'pending' },
   featured: { type: Boolean, default: false },
   approvedBy: { type: String },
   approvedAt: { type: Date },
@@ -62,7 +62,9 @@ function getCommunitySubmissionModel() {
 }
 
 function getExperienceModel() {
-  return mongoose.models.Experience || mongoose.model('Experience', experienceSchema);
+  // Use main DB explicitly to avoid caching issues with mongoose models
+  const mainDb = mongoose.connection.useDb(process.env.MONGODB_MAIN_DB_NAME || 'swaryogaDB');
+  return mainDb.models.Experience || mainDb.model('Experience', experienceSchema);
 }
 
 // GET - Get all pending submissions (admin only)
@@ -124,9 +126,11 @@ export async function GET(req: NextRequest) {
     let experiences: any[] = [];
     if (!expQuery._skipFetch) {
       delete expQuery._skipFetch;
+      console.log('[Submissions API] Fetching experiences with query:', expQuery);
       experiences = await Experience.find(expQuery)
         .sort({ createdAt: -1 })
         .lean();
+      console.log('[Submissions API] Found experiences:', experiences.length);
     }
     
     // Transform experiences to match submission format

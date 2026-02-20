@@ -30,14 +30,28 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'communityId is required' }, { status: 400 });
     }
 
-    // Build query
-    const query: any = { communityId };
+    // Build query - check both communityId and metadata.targetCommunityIds
+    const communityFilter = {
+      $or: [
+        { communityId },
+        { 'metadata.targetCommunityIds': communityId }
+      ]
+    };
+    
+    let query: any = communityFilter;
     
     if (search) {
-      query.$or = [
-        { content: { $regex: search, $options: 'i' } },
-        { userId: { $regex: search, $options: 'i' } },
-      ];
+      query = {
+        $and: [
+          communityFilter,
+          {
+            $or: [
+              { content: { $regex: search, $options: 'i' } },
+              { userId: { $regex: search, $options: 'i' } },
+            ]
+          }
+        ]
+      };
     }
 
     // Get total count
@@ -62,8 +76,9 @@ export async function GET(request: NextRequest) {
       links: post.links || [],
       type: post.type || 'text',
       status: post.status || 'published',
-      likes: (post.likes || []).length,
-      comments: (post.comments || []).length,
+      likes: post.likes || [],
+      comments: post.comments || [],
+      metadata: post.metadata || {},
       createdAt: post.createdAt,
       updatedAt: post.updatedAt,
       scheduledFor: post.scheduledFor,

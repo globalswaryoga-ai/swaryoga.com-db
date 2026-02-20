@@ -21,6 +21,8 @@ interface Transformation {
   isPost?: boolean;
   content?: string;
   images?: string[];
+  likes?: string[];
+  likesCount?: number;
 }
 
 const communities = [
@@ -46,6 +48,9 @@ export default function TransformationsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [selectedStory, setSelectedStory] = useState<Transformation | null>(null);
+  const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
+  const [likeCounts, setLikeCounts] = useState<Record<string, number>>({});
+  const [likingPost, setLikingPost] = useState<string | null>(null);
   
   const [form, setForm] = useState({
     userName: '',
@@ -95,8 +100,17 @@ export default function TransformationsPage() {
         featured: false,
         createdAt: post.createdAt,
         isPost: true,
-        images: post.images
+        images: post.images,
+        likes: post.likes || [],
+        likesCount: post.likes?.length || 0
       }));
+      
+      // Initialize like counts from posts
+      const counts: Record<string, number> = {};
+      postsAsTransformations.forEach(p => {
+        counts[p._id] = p.likesCount || 0;
+      });
+      setLikeCounts(prev => ({ ...prev, ...counts }));
       
       // Merge and sort
       const allTransformations = [...(transData.transformations || []), ...postsAsTransformations]
@@ -146,6 +160,50 @@ export default function TransformationsPage() {
       setMessage({ type: 'error', text: 'Failed to submit transformation' });
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleLike(postId: string, isPost?: boolean) {
+    if (!isPost) return;
+    
+    setLikingPost(postId);
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setMessage({ type: 'error', text: 'Please join the community to like posts' });
+        return;
+      }
+      
+      const res = await fetch('/api/community/post/like', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ postId }),
+      });
+      
+      const data = await res.json();
+      if (data.success) {
+        const isLiked = likedPosts.has(postId);
+        setLikedPosts(prev => {
+          const next = new Set(prev);
+          if (isLiked) {
+            next.delete(postId);
+          } else {
+            next.add(postId);
+          }
+          return next;
+        });
+        setLikeCounts(prev => ({
+          ...prev,
+          [postId]: data.data?.likesCount ?? (isLiked ? (prev[postId] || 1) - 1 : (prev[postId] || 0) + 1)
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to like post:', error);
+    } finally {
+      setLikingPost(null);
     }
   }
 
@@ -439,7 +497,23 @@ export default function TransformationsPage() {
                   
                   <div className="flex items-center justify-between text-sm text-gray-500 pt-3 border-t border-gray-100">
                     <span className="font-medium text-gray-700">{t.userName}</span>
-                    <span>{new Date(t.createdAt).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}</span>
+                    <div className="flex items-center gap-3">
+                      {t.isPost && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleLike(t._id, t.isPost); }}
+                          disabled={likingPost === t._id}
+                          className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-all ${
+                            likedPosts.has(t._id) 
+                              ? 'text-red-500 bg-red-50' 
+                              : 'text-gray-400 hover:text-red-400 hover:bg-red-50'
+                          } ${likingPost === t._id ? 'opacity-50' : ''}`}
+                        >
+                          <span className="text-base">{likedPosts.has(t._id) ? '❤️' : '🤍'}</span>
+                          <span className="font-medium">{likeCounts[t._id] || 0}</span>
+                        </button>
+                      )}
+                      <span>{new Date(t.createdAt).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}</span>
+                    </div>
                   </div>
                 </div>
               </div>

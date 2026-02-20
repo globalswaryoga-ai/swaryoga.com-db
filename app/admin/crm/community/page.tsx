@@ -150,6 +150,8 @@ export default function AdminCommunityPage() {
   const [crossPostMedia, setCrossPostMedia] = useState(false);
   const [crossPostSocial, setCrossPostSocial] = useState(false);
   const [broadcastToMembers, setBroadcastToMembers] = useState(false);
+  const [broadcastToTelegram, setBroadcastToTelegram] = useState(false);
+  const [telegramChatIds, setTelegramChatIds] = useState('');
   const [broadcastSending, setBroadcastSending] = useState(false);
   const [postVideoUrl, setPostVideoUrl] = useState('');
   const [postDocUrl, setPostDocUrl] = useState('');
@@ -195,6 +197,8 @@ export default function AdminCommunityPage() {
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [loadingSubmissions, setLoadingSubmissions] = useState(false);
   const [submissionsCounts, setSubmissionsCounts] = useState({ pending: 0, approved: 0, rejected: 0, posted: 0 });
+  const [postingSubmissionId, setPostingSubmissionId] = useState<string | null>(null);
+  const [postingSubmissionSource, setPostingSubmissionSource] = useState<string | null>(null);
   const [submissionsFilter, setSubmissionsFilter] = useState<'pending' | 'approved' | 'rejected' | 'posted' | 'all'>('pending');
   const [communityPosts, setCommunityPosts] = useState<any[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
@@ -351,7 +355,57 @@ export default function AdminCommunityPage() {
   // Rich Text & Tools States
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showToolsDropdown, setShowToolsDropdown] = useState(false);
+  const [activeTextareaId, setActiveTextareaId] = useState<string>('general');
   const textAreaRef = React.useRef<HTMLTextAreaElement>(null);
+  const experienceTextAreaRef = React.useRef<HTMLTextAreaElement>(null);
+  const tipsTextAreaRef = React.useRef<HTMLTextAreaElement>(null);
+  const transformTextAreaRef = React.useRef<HTMLTextAreaElement>(null);
+  const questionTextAreaRef = React.useRef<HTMLTextAreaElement>(null);
+
+  // Generic insert function that works with any textarea
+  const insertTextToActiveTextarea = (textBefore: string, textAfter: string = '') => {
+    let ref: React.RefObject<HTMLTextAreaElement> = textAreaRef;
+    let content = postContent;
+    let setContent = setPostContent;
+    
+    if (activeTextareaId === 'experience') {
+      ref = experienceTextAreaRef;
+      content = postExperienceDetails;
+      setContent = setPostExperienceDetails;
+    } else if (activeTextareaId === 'tips') {
+      ref = tipsTextAreaRef;
+      content = postTipsDetails;
+      setContent = setPostTipsDetails;
+    } else if (activeTextareaId === 'transform') {
+      ref = transformTextAreaRef;
+      content = postAfterStory;
+      setContent = setPostAfterStory;
+    } else if (activeTextareaId === 'question') {
+      ref = questionTextAreaRef;
+      content = postAnswer;
+      setContent = setPostAnswer;
+    }
+    
+    if (!ref.current) {
+      // Fallback: just append
+      setContent(content + textBefore + textAfter);
+      return;
+    }
+    
+    const start = ref.current.selectionStart;
+    const end = ref.current.selectionEnd;
+    const selected = content.substring(start, end);
+    const newText = content.substring(0, start) + textBefore + selected + textAfter + content.substring(end);
+    setContent(newText);
+    
+    setTimeout(() => {
+      if (ref.current) {
+        ref.current.focus();
+        const newCursorPos = start + textBefore.length + selected.length + textAfter.length;
+        ref.current.setSelectionRange(newCursorPos, newCursorPos);
+      }
+    }, 10);
+  };
 
   const insertTextAtCursor = (textBefore: string, textAfter: string = '') => {
     if (!textAreaRef.current) return;
@@ -361,7 +415,6 @@ export default function AdminCommunityPage() {
     const newText = postContent.substring(0, start) + textBefore + selected + textAfter + postContent.substring(end);
     setPostContent(newText);
     
-    // Reset focus and selection
     setTimeout(() => {
         if (textAreaRef.current) {
             textAreaRef.current.focus();
@@ -371,7 +424,9 @@ export default function AdminCommunityPage() {
     }, 10);
   };
 
-  const EMOJIS = ['✨', '🙏', '🧘‍♂️', '🌞', '🕉️', '🕉', '🪷', '🌙', '📅', '🔔', '📍', '📱', '🔗', '🔥', '💎', '🚀'];
+  // Extended emojis with symbols
+  const EMOJIS = ['✨', '🙏', '🧘‍♂️', '🌞', '🕉️', '🕉', '🪷', '🌙', '📅', '🔔', '📍', '📱', '🔗', '🔥', '💎', '🚀', '❤️', '💚', '💛', '💪', '👍', '🎯', '📊', '⭐', '🏆', '✅', '❌', '⚠️', '💡', '🎵', '🌸', '🌿'];
+  const SYMBOLS = ['→', '←', '↑', '↓', '•', '●', '○', '◆', '◇', '★', '☆', '✓', '✗', '♦', '♠', '♣', '♥', '©', '®', '™', '℃', '℉', '№', '§', '¶', '†', '‡', '‰', '∞', '≈', '≠', '≤', '≥', '±', '×', '÷'];
 
   const WHATSAPP_FORMATS = [
     { label: 'Bold', icon: <Bold size={16}/>, prefix: '*', suffix: '*', desc: '*bold text*' },
@@ -638,6 +693,8 @@ export default function AdminCommunityPage() {
           categoryMetadata,
           crossPost: { media: crossPostMedia, socialMedia: crossPostSocial },
           broadcastToMembers,
+          broadcastToTelegram,
+          telegramChatIds: telegramChatIds.split(',').map(id => id.trim()).filter(Boolean),
         }),
       });
 
@@ -656,9 +713,23 @@ export default function AdminCommunityPage() {
       if (data.data?.broadcast) {
         successMsg += `\n📱 WhatsApp Broadcast: ${data.data.broadcast.sent} sent, ${data.data.broadcast.failed} failed`;
       }
+      if (data.data?.telegram) {
+        successMsg += `\n✈️ Telegram: ${data.data.telegram.sent} sent, ${data.data.telegram.failed} failed`;
+      }
       alert(successMsg);
+      
+      // If this was from a submission, mark it as posted
+      if (postingSubmissionId) {
+        updateSubmissionStatus(postingSubmissionId, 'posted', undefined, postingSubmissionSource || 'experiences');
+        setPostingSubmissionId(null);
+        setPostingSubmissionSource(null);
+        fetchSubmissions(); // Refresh submissions list
+      }
+      
       setShowPostModal(false);
       setBroadcastToMembers(false);
+      setBroadcastToTelegram(false);
+      setTelegramChatIds('');
     } catch (err: any) {
       alert('❌ Error deploying campaign: ' + err.message);
     }
@@ -1151,8 +1222,8 @@ export default function AdminCommunityPage() {
       }
       const json = await res.json();
       if (json.success) {
-        setSubmissions(json.submissions || []);
-        setSubmissionsCounts(json.counts || { pending: 0, approved: 0, rejected: 0, posted: 0 });
+        setSubmissions(json.data?.submissions || []);
+        setSubmissionsCounts(json.data?.counts || { pending: 0, approved: 0, rejected: 0, posted: 0 });
       }
     } catch (error) {
       console.error('[Submissions] Fetch error:', error);
@@ -1203,6 +1274,10 @@ export default function AdminCommunityPage() {
 
   // Convert submission to post modal data
   const loadSubmissionToPost = (submission: any) => {
+    // Track which submission we're posting
+    setPostingSubmissionId(submission._id);
+    setPostingSubmissionSource(submission.source || 'experiences');
+    
     setPostCategory(submission.category);
     setPostParticipantName(submission.participantName || '');
     setPostWorkshopName(submission.workshopName || '');
@@ -1221,6 +1296,9 @@ export default function AdminCommunityPage() {
     } else {
       setPostType('text');
     }
+    // Pre-enable Telegram broadcast with default channel
+    setBroadcastToTelegram(true);
+    setTelegramChatIds('@swaryoga1');
     setShowPostModal(true);
   };
 
@@ -1352,7 +1430,17 @@ export default function AdminCommunityPage() {
     if (activeTab === 'videos') {
       fetchVideos();
     }
+    if (activeTab === 'submissions') {
+      fetchSubmissions();
+    }
   }, [selectedCommunity, activeTab, token]);
+
+  // Fetch submissions count on community change for tab display
+  useEffect(() => {
+    if (token && selectedCommunity) {
+      fetchSubmissions();
+    }
+  }, [selectedCommunity, token]);
 
   // Also fetch post count for header display
   useEffect(() => {
@@ -1669,7 +1757,7 @@ export default function AdminCommunityPage() {
                   : 'border-transparent text-slate-500 hover:text-slate-700'
               }`}
             >
-              📝 Submissions {submissionsCounts.pending > 0 && <span className="ml-1 px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-xs">{submissionsCounts.pending}</span>}
+              📝 Submissions ({submissionsCounts.pending + submissionsCounts.approved + submissionsCounts.rejected + submissionsCounts.posted})
             </button>
           </div>
 
@@ -3581,11 +3669,53 @@ export default function AdminCommunityPage() {
                                 <span className="text-sm font-bold text-indigo-700 uppercase tracking-wider">Experience Story</span>
                              </div>
                              <div className="grid grid-cols-3 gap-4">
-                                <input type="text" value={postParticipantName} onChange={e => setPostParticipantName(e.target.value)} placeholder="Participant Name *" className="h-12 px-4 bg-white border border-indigo-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/20" />
-                                <input type="text" value={postWorkshopName} onChange={e => setPostWorkshopName(e.target.value)} placeholder="Workshop Name" className="h-12 px-4 bg-white border border-indigo-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/20" />
-                                <input type="text" value={postBatchName} onChange={e => setPostBatchName(e.target.value)} placeholder="Batch Name/Number" className="h-12 px-4 bg-white border border-indigo-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/20" />
+                                <input type="text" value={postParticipantName} onChange={e => setPostParticipantName(e.target.value)} placeholder="Participant Name *" className="h-12 px-4 bg-white border border-indigo-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/20" spellCheck={true} />
+                                <input type="text" value={postWorkshopName} onChange={e => setPostWorkshopName(e.target.value)} placeholder="Workshop Name" className="h-12 px-4 bg-white border border-indigo-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/20" spellCheck={true} />
+                                <input type="text" value={postBatchName} onChange={e => setPostBatchName(e.target.value)} placeholder="Batch Name/Number" className="h-12 px-4 bg-white border border-indigo-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/20" spellCheck={true} />
                              </div>
-                             <textarea value={postExperienceDetails} onChange={e => setPostExperienceDetails(e.target.value)} rows={5} placeholder="Share the experience story... What happened? How did they feel? What changed?" className="w-full p-4 bg-white border border-indigo-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/20 resize-none" />
+                             <div className="relative">
+                                <div className="flex items-center gap-1 p-2 bg-white border border-b-0 rounded-t-xl border-indigo-200">
+                                   {WHATSAPP_FORMATS.map(f => (
+                                      <button key={f.label} title={f.desc} onClick={() => insertTextToActiveTextarea(f.prefix, f.suffix)} className="p-2 hover:bg-indigo-100 rounded-lg text-slate-500 hover:text-indigo-600 transition-colors">
+                                         {f.icon}
+                                      </button>
+                                   ))}
+                                   <div className="w-px h-4 bg-slate-200 mx-1" />
+                                   <div className="relative">
+                                      <button onClick={() => { setActiveTextareaId('experience'); setShowEmojiPicker(!showEmojiPicker); }} className={`p-2 hover:bg-indigo-100 rounded-lg transition-colors ${showEmojiPicker && activeTextareaId === 'experience' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-500'}`} title="Emojis">
+                                         <Smile size={18} />
+                                      </button>
+                                      {showEmojiPicker && activeTextareaId === 'experience' && (
+                                         <div className="absolute left-0 top-10 w-72 bg-white border shadow-xl rounded-xl z-50 p-3 animate-in zoom-in-95">
+                                            <div className="text-[10px] font-bold text-slate-400 uppercase mb-2">Emojis</div>
+                                            <div className="grid grid-cols-8 gap-1 mb-3">
+                                               {EMOJIS.map(e => (
+                                                  <button key={e} onClick={() => { insertTextToActiveTextarea(e); setShowEmojiPicker(false); }} className="w-7 h-7 flex items-center justify-center hover:bg-indigo-100 rounded-lg text-lg">{e}</button>
+                                               ))}
+                                            </div>
+                                            <div className="text-[10px] font-bold text-slate-400 uppercase mb-2">Symbols</div>
+                                            <div className="grid grid-cols-8 gap-1">
+                                               {SYMBOLS.map(s => (
+                                                  <button key={s} onClick={() => { insertTextToActiveTextarea(s); setShowEmojiPicker(false); }} className="w-7 h-7 flex items-center justify-center hover:bg-indigo-100 rounded-lg text-sm font-mono">{s}</button>
+                                               ))}
+                                            </div>
+                                         </div>
+                                      )}
+                                   </div>
+                                   <div className="flex-1" />
+                                   <span className="text-[10px] text-slate-400 font-medium">Spell check enabled</span>
+                                </div>
+                                <textarea 
+                                   ref={experienceTextAreaRef}
+                                   onFocus={() => setActiveTextareaId('experience')}
+                                   value={postExperienceDetails} 
+                                   onChange={e => setPostExperienceDetails(e.target.value)} 
+                                   rows={5} 
+                                   placeholder="Share the experience story... What happened? How did they feel? What changed?" 
+                                   className="w-full p-4 bg-white border border-indigo-200 rounded-b-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/20 resize-none" 
+                                   spellCheck={true}
+                                />
+                             </div>
                           </div>
                        )}
 
@@ -3596,9 +3726,51 @@ export default function AdminCommunityPage() {
                                 <span className="text-2xl">💡</span>
                                 <span className="text-sm font-bold text-orange-700 uppercase tracking-wider">Tips & Tricks</span>
                              </div>
-                             <input type="text" value={postProblemHeading} onChange={e => setPostProblemHeading(e.target.value)} placeholder="Problem/Tip Heading *" className="w-full h-12 px-4 bg-white border border-yellow-300 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-yellow-500/20" />
-                             <textarea value={postProblemDescription} onChange={e => setPostProblemDescription(e.target.value)} rows={3} placeholder="Describe the problem or situation..." className="w-full p-4 bg-white border border-yellow-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-yellow-500/20 resize-none" />
-                             <textarea value={postTipsDetails} onChange={e => setPostTipsDetails(e.target.value)} rows={4} placeholder="Share the tips and tricks to solve this problem..." className="w-full p-4 bg-white border border-yellow-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-yellow-500/20 resize-none" />
+                             <input type="text" value={postProblemHeading} onChange={e => setPostProblemHeading(e.target.value)} placeholder="Problem/Tip Heading *" className="w-full h-12 px-4 bg-white border border-yellow-300 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-yellow-500/20" spellCheck={true} />
+                             <textarea value={postProblemDescription} onChange={e => setPostProblemDescription(e.target.value)} rows={3} placeholder="Describe the problem or situation..." className="w-full p-4 bg-white border border-yellow-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-yellow-500/20 resize-none" spellCheck={true} />
+                             <div className="relative">
+                                <div className="flex items-center gap-1 p-2 bg-white border border-b-0 rounded-t-xl border-yellow-300">
+                                   {WHATSAPP_FORMATS.map(f => (
+                                      <button key={f.label} title={f.desc} onClick={() => insertTextToActiveTextarea(f.prefix, f.suffix)} className="p-2 hover:bg-yellow-100 rounded-lg text-slate-500 hover:text-orange-600 transition-colors">
+                                         {f.icon}
+                                      </button>
+                                   ))}
+                                   <div className="w-px h-4 bg-slate-200 mx-1" />
+                                   <div className="relative">
+                                      <button onClick={() => { setActiveTextareaId('tips'); setShowEmojiPicker(!showEmojiPicker); }} className={`p-2 hover:bg-yellow-100 rounded-lg transition-colors ${showEmojiPicker && activeTextareaId === 'tips' ? 'text-orange-600 bg-yellow-50' : 'text-slate-500'}`} title="Emojis">
+                                         <Smile size={18} />
+                                      </button>
+                                      {showEmojiPicker && activeTextareaId === 'tips' && (
+                                         <div className="absolute left-0 top-10 w-72 bg-white border shadow-xl rounded-xl z-50 p-3 animate-in zoom-in-95">
+                                            <div className="text-[10px] font-bold text-slate-400 uppercase mb-2">Emojis</div>
+                                            <div className="grid grid-cols-8 gap-1 mb-3">
+                                               {EMOJIS.map(e => (
+                                                  <button key={e} onClick={() => { insertTextToActiveTextarea(e); setShowEmojiPicker(false); }} className="w-7 h-7 flex items-center justify-center hover:bg-yellow-100 rounded-lg text-lg">{e}</button>
+                                               ))}
+                                            </div>
+                                            <div className="text-[10px] font-bold text-slate-400 uppercase mb-2">Symbols</div>
+                                            <div className="grid grid-cols-8 gap-1">
+                                               {SYMBOLS.map(s => (
+                                                  <button key={s} onClick={() => { insertTextToActiveTextarea(s); setShowEmojiPicker(false); }} className="w-7 h-7 flex items-center justify-center hover:bg-yellow-100 rounded-lg text-sm font-mono">{s}</button>
+                                               ))}
+                                            </div>
+                                         </div>
+                                      )}
+                                   </div>
+                                   <div className="flex-1" />
+                                   <span className="text-[10px] text-slate-400 font-medium">Spell check enabled</span>
+                                </div>
+                                <textarea 
+                                   ref={tipsTextAreaRef}
+                                   onFocus={() => setActiveTextareaId('tips')}
+                                   value={postTipsDetails} 
+                                   onChange={e => setPostTipsDetails(e.target.value)} 
+                                   rows={4} 
+                                   placeholder="Share the tips and tricks to solve this problem..." 
+                                   className="w-full p-4 bg-white border border-yellow-300 rounded-b-xl text-sm font-medium outline-none focus:ring-2 focus:ring-yellow-500/20 resize-none" 
+                                   spellCheck={true}
+                                />
+                             </div>
                           </div>
                        )}
 
@@ -3610,22 +3782,63 @@ export default function AdminCommunityPage() {
                                 <span className="text-sm font-bold text-emerald-700 uppercase tracking-wider">Transformation Story</span>
                              </div>
                              <div className="grid grid-cols-3 gap-4">
-                                <input type="text" value={postParticipantName} onChange={e => setPostParticipantName(e.target.value)} placeholder="Participant Name *" className="h-12 px-4 bg-white border border-emerald-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500/20" />
-                                <input type="text" value={postWorkshopName} onChange={e => setPostWorkshopName(e.target.value)} placeholder="Workshop Name" className="h-12 px-4 bg-white border border-emerald-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500/20" />
-                                <input type="text" value={postBatchName} onChange={e => setPostBatchName(e.target.value)} placeholder="Batch Name/Number" className="h-12 px-4 bg-white border border-emerald-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500/20" />
+                                <input type="text" value={postParticipantName} onChange={e => setPostParticipantName(e.target.value)} placeholder="Participant Name *" className="h-12 px-4 bg-white border border-emerald-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500/20" spellCheck={true} />
+                                <input type="text" value={postWorkshopName} onChange={e => setPostWorkshopName(e.target.value)} placeholder="Workshop Name" className="h-12 px-4 bg-white border border-emerald-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500/20" spellCheck={true} />
+                                <input type="text" value={postBatchName} onChange={e => setPostBatchName(e.target.value)} placeholder="Batch Name/Number" className="h-12 px-4 bg-white border border-emerald-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500/20" spellCheck={true} />
                              </div>
                              <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                    <label className="text-xs font-bold text-red-600 uppercase tracking-wider flex items-center gap-1">
                                       <span>⬅️</span> Before
                                    </label>
-                                   <textarea value={postBeforeStory} onChange={e => setPostBeforeStory(e.target.value)} rows={4} placeholder="What was their situation before? What challenges did they face?" className="w-full p-4 bg-red-50 border border-red-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-red-500/20 resize-none" />
+                                   <textarea value={postBeforeStory} onChange={e => setPostBeforeStory(e.target.value)} rows={4} placeholder="What was their situation before? What challenges did they face?" className="w-full p-4 bg-red-50 border border-red-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-red-500/20 resize-none" spellCheck={true} />
                                 </div>
                                 <div className="space-y-2">
-                                   <label className="text-xs font-bold text-green-600 uppercase tracking-wider flex items-center gap-1">
-                                      <span>➡️</span> After
+                                   <label className="text-xs font-bold text-green-600 uppercase tracking-wider flex items-center gap-1 justify-between">
+                                      <span className="flex items-center gap-1"><span>➡️</span> After</span>
+                                      <span className="text-[10px] text-slate-400 font-normal">Spell check enabled</span>
                                    </label>
-                                   <textarea value={postAfterStory} onChange={e => setPostAfterStory(e.target.value)} rows={4} placeholder="What is their situation now? How have they transformed?" className="w-full p-4 bg-green-50 border border-green-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-green-500/20 resize-none" />
+                                   <div className="relative">
+                                      <div className="flex items-center gap-1 p-2 bg-green-50 border border-b-0 rounded-t-xl border-green-200">
+                                         {WHATSAPP_FORMATS.map(f => (
+                                            <button key={f.label} title={f.desc} onClick={() => insertTextToActiveTextarea(f.prefix, f.suffix)} className="p-2 hover:bg-emerald-100 rounded-lg text-slate-500 hover:text-emerald-600 transition-colors">
+                                               {f.icon}
+                                            </button>
+                                         ))}
+                                         <div className="w-px h-4 bg-slate-200 mx-1" />
+                                         <div className="relative">
+                                            <button onClick={() => { setActiveTextareaId('transform'); setShowEmojiPicker(!showEmojiPicker); }} className={`p-2 hover:bg-emerald-100 rounded-lg transition-colors ${showEmojiPicker && activeTextareaId === 'transform' ? 'text-emerald-600 bg-emerald-50' : 'text-slate-500'}`} title="Emojis">
+                                               <Smile size={18} />
+                                            </button>
+                                            {showEmojiPicker && activeTextareaId === 'transform' && (
+                                               <div className="absolute left-0 top-10 w-72 bg-white border shadow-xl rounded-xl z-50 p-3 animate-in zoom-in-95">
+                                                  <div className="text-[10px] font-bold text-slate-400 uppercase mb-2">Emojis</div>
+                                                  <div className="grid grid-cols-8 gap-1 mb-3">
+                                                     {EMOJIS.map(e => (
+                                                        <button key={e} onClick={() => { insertTextToActiveTextarea(e); setShowEmojiPicker(false); }} className="w-7 h-7 flex items-center justify-center hover:bg-emerald-100 rounded-lg text-lg">{e}</button>
+                                                     ))}
+                                                  </div>
+                                                  <div className="text-[10px] font-bold text-slate-400 uppercase mb-2">Symbols</div>
+                                                  <div className="grid grid-cols-8 gap-1">
+                                                     {SYMBOLS.map(s => (
+                                                        <button key={s} onClick={() => { insertTextToActiveTextarea(s); setShowEmojiPicker(false); }} className="w-7 h-7 flex items-center justify-center hover:bg-emerald-100 rounded-lg text-sm font-mono">{s}</button>
+                                                     ))}
+                                                  </div>
+                                               </div>
+                                            )}
+                                         </div>
+                                      </div>
+                                      <textarea 
+                                         ref={transformTextAreaRef}
+                                         onFocus={() => setActiveTextareaId('transform')}
+                                         value={postAfterStory} 
+                                         onChange={e => setPostAfterStory(e.target.value)} 
+                                         rows={4} 
+                                         placeholder="What is their situation now? How have they transformed?" 
+                                         className="w-full p-4 bg-green-50 border border-green-200 rounded-b-xl text-sm font-medium outline-none focus:ring-2 focus:ring-green-500/20 resize-none" 
+                                         spellCheck={true}
+                                      />
+                                   </div>
                                 </div>
                              </div>
                           </div>
@@ -3639,17 +3852,60 @@ export default function AdminCommunityPage() {
                                 <span className="text-sm font-bold text-blue-700 uppercase tracking-wider">Q&A Post</span>
                              </div>
                              <div className="grid grid-cols-3 gap-4">
-                                <input type="text" value={postParticipantName} onChange={e => setPostParticipantName(e.target.value)} placeholder="Participant Name" className="h-12 px-4 bg-white border border-blue-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/20" />
-                                <input type="text" value={postWorkshopName} onChange={e => setPostWorkshopName(e.target.value)} placeholder="Workshop Name" className="h-12 px-4 bg-white border border-blue-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/20" />
-                                <input type="text" value={postBatchName} onChange={e => setPostBatchName(e.target.value)} placeholder="Batch Name/Number" className="h-12 px-4 bg-white border border-blue-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/20" />
+                                <input type="text" value={postParticipantName} onChange={e => setPostParticipantName(e.target.value)} placeholder="Participant Name" className="h-12 px-4 bg-white border border-blue-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/20" spellCheck={true} />
+                                <input type="text" value={postWorkshopName} onChange={e => setPostWorkshopName(e.target.value)} placeholder="Workshop Name" className="h-12 px-4 bg-white border border-blue-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/20" spellCheck={true} />
+                                <input type="text" value={postBatchName} onChange={e => setPostBatchName(e.target.value)} placeholder="Batch Name/Number" className="h-12 px-4 bg-white border border-blue-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/20" spellCheck={true} />
                              </div>
                              <div className="space-y-2">
                                 <label className="text-xs font-bold text-blue-700 uppercase tracking-wider">Question</label>
-                                <textarea value={postQuestion} onChange={e => setPostQuestion(e.target.value)} rows={3} placeholder="What is the question?" className="w-full p-4 bg-white border border-blue-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/20 resize-none" />
+                                <textarea value={postQuestion} onChange={e => setPostQuestion(e.target.value)} rows={3} placeholder="What is the question?" className="w-full p-4 bg-white border border-blue-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/20 resize-none" spellCheck={true} />
                              </div>
                              <div className="space-y-2">
-                                <label className="text-xs font-bold text-green-700 uppercase tracking-wider">Answer</label>
-                                <textarea value={postAnswer} onChange={e => setPostAnswer(e.target.value)} rows={4} placeholder="What is the answer?" className="w-full p-4 bg-green-50 border border-green-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-green-500/20 resize-none" />
+                                <label className="text-xs font-bold text-green-700 uppercase tracking-wider flex items-center justify-between">
+                                   <span>Answer</span>
+                                   <span className="text-[10px] text-slate-400 font-normal">Spell check enabled</span>
+                                </label>
+                                <div className="relative">
+                                   <div className="flex items-center gap-1 p-2 bg-green-50 border border-b-0 rounded-t-xl border-green-300">
+                                      {WHATSAPP_FORMATS.map(f => (
+                                         <button key={f.label} title={f.desc} onClick={() => insertTextToActiveTextarea(f.prefix, f.suffix)} className="p-2 hover:bg-blue-100 rounded-lg text-slate-500 hover:text-blue-600 transition-colors">
+                                            {f.icon}
+                                         </button>
+                                      ))}
+                                      <div className="w-px h-4 bg-slate-200 mx-1" />
+                                      <div className="relative">
+                                         <button onClick={() => { setActiveTextareaId('question'); setShowEmojiPicker(!showEmojiPicker); }} className={`p-2 hover:bg-blue-100 rounded-lg transition-colors ${showEmojiPicker && activeTextareaId === 'question' ? 'text-blue-600 bg-blue-50' : 'text-slate-500'}`} title="Emojis">
+                                            <Smile size={18} />
+                                         </button>
+                                         {showEmojiPicker && activeTextareaId === 'question' && (
+                                            <div className="absolute left-0 top-10 w-72 bg-white border shadow-xl rounded-xl z-50 p-3 animate-in zoom-in-95">
+                                               <div className="text-[10px] font-bold text-slate-400 uppercase mb-2">Emojis</div>
+                                               <div className="grid grid-cols-8 gap-1 mb-3">
+                                                  {EMOJIS.map(e => (
+                                                     <button key={e} onClick={() => { insertTextToActiveTextarea(e); setShowEmojiPicker(false); }} className="w-7 h-7 flex items-center justify-center hover:bg-blue-100 rounded-lg text-lg">{e}</button>
+                                                  ))}
+                                               </div>
+                                               <div className="text-[10px] font-bold text-slate-400 uppercase mb-2">Symbols</div>
+                                               <div className="grid grid-cols-8 gap-1">
+                                                  {SYMBOLS.map(s => (
+                                                     <button key={s} onClick={() => { insertTextToActiveTextarea(s); setShowEmojiPicker(false); }} className="w-7 h-7 flex items-center justify-center hover:bg-blue-100 rounded-lg text-sm font-mono">{s}</button>
+                                                  ))}
+                                               </div>
+                                            </div>
+                                         )}
+                                      </div>
+                                   </div>
+                                   <textarea 
+                                      ref={questionTextAreaRef}
+                                      onFocus={() => setActiveTextareaId('question')}
+                                      value={postAnswer} 
+                                      onChange={e => setPostAnswer(e.target.value)} 
+                                      rows={4} 
+                                      placeholder="What is the answer?" 
+                                      className="w-full p-4 bg-green-50 border border-green-300 rounded-b-xl text-sm font-medium outline-none focus:ring-2 focus:ring-green-500/20 resize-none" 
+                                      spellCheck={true}
+                                   />
+                                </div>
                              </div>
                           </div>
                        )}
@@ -3719,10 +3975,28 @@ export default function AdminCommunityPage() {
                              <input type="checkbox" checked={broadcastToMembers} onChange={e => setBroadcastToMembers(e.target.checked)} className="w-5 h-5 rounded border-green-300 text-green-600 focus:ring-green-500" />
                              <span className="text-sm font-bold text-green-700">📱 WhatsApp Broadcast to Members</span>
                           </label>
+                          <label className="flex items-center gap-3 cursor-pointer bg-blue-50 px-4 py-2 rounded-xl border border-blue-200">
+                             <input type="checkbox" checked={broadcastToTelegram} onChange={e => setBroadcastToTelegram(e.target.checked)} className="w-5 h-5 rounded border-blue-300 text-blue-600 focus:ring-blue-500" />
+                             <span className="text-sm font-bold text-blue-700">✈️ Telegram Channel/Groups</span>
+                          </label>
                        </div>
                        {broadcastToMembers && (
                           <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-800">
                              <strong>ℹ️ Note:</strong> This will send WhatsApp messages directly to all members of the selected communities using Meta API.
+                          </div>
+                       )}
+                       {broadcastToTelegram && (
+                          <div className="space-y-3">
+                             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800">
+                                <strong>✈️ Telegram:</strong> Enter channel/group IDs (comma-separated). Example: <code className="bg-blue-100 px-1 rounded">@swaryoga, -1001234567890</code>
+                             </div>
+                             <input 
+                                type="text" 
+                                value={telegramChatIds} 
+                                onChange={e => setTelegramChatIds(e.target.value)} 
+                                placeholder="@channel_username, -1001234567890 (group ID)" 
+                                className="w-full h-12 px-4 bg-white border border-blue-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/20"
+                             />
                           </div>
                        )}
                     </section>

@@ -18,7 +18,15 @@ export async function GET(request: NextRequest) {
 
     const userId = await requireCommunityMembership(request, communityId);
 
-    const posts = await CommunityPost.find({ communityId })
+    // Find posts where:
+    // 1. communityId matches directly, OR
+    // 2. The requested community is in metadata.targetCommunityIds
+    const posts = await CommunityPost.find({
+      $or: [
+        { communityId },
+        { 'metadata.targetCommunityIds': communityId }
+      ]
+    })
       .sort({ createdAt: -1 })
       .limit(200)
       .lean();

@@ -105,6 +105,18 @@ function CommunityPageContent() {
     'yogasana': false,
   });
 
+  // Rating stats state
+  const [ratingStats, setRatingStats] = useState<{
+    avgRating: number;
+    totalCount: number;
+    fiveStars: number;
+    fourStars: number;
+    threeStars: number;
+    twoStars: number;
+    oneStars: number;
+  } | null>(null);
+  const [showRatingModal, setShowRatingModal] = useState(false);
+
   // Toggle group expansion
   const toggleGroup = (groupId: string) => {
     setExpandedGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }));
@@ -203,7 +215,11 @@ function CommunityPageContent() {
     if (communityUserStr) {
       try {
         const communityUser = JSON.parse(communityUserStr);
-        setUser(communityUser);
+        // Ensure _id is set from userId for like/comment functionality
+        setUser({ 
+          ...communityUser, 
+          _id: communityUser._id || communityUser.userId 
+        });
         setAuthChecked(true);
         return;
       } catch (error) {
@@ -351,6 +367,22 @@ function CommunityPageContent() {
   useEffect(() => {
     fetchPosts();
   }, [fetchPosts]);
+
+  // Fetch rating stats on mount
+  useEffect(() => {
+    async function fetchRatingStats() {
+      try {
+        const res = await fetch('/api/community/experiences?limit=1');
+        const data = await res.json();
+        if (data.success && data.stats) {
+          setRatingStats(data.stats);
+        }
+      } catch (error) {
+        console.error('Error fetching rating stats:', error);
+      }
+    }
+    fetchRatingStats();
+  }, []);
 
   // Fetch community videos (only for members)
   const fetchVideos = useCallback(async () => {
@@ -510,12 +542,19 @@ function CommunityPageContent() {
       }
 
       const serverUserId = result?.data?.userId || result?.data?.member?.userId || result?.data?.leadNumber;
+      
+      // Store JWT token for like/comment functionality
+      if (result?.data?.token) {
+        localStorage.setItem('token', result.data.token);
+      }
+      
       localStorage.setItem('community_user', JSON.stringify({
         name: joinFormData.name,
         email: joinFormData.email,
         userId: serverUserId || JSON.parse(localStorage.getItem('community_user') || 'null')?.userId,
+        _id: serverUserId, // Also store as _id for compatibility
       }));
-      setUser({ name: joinFormData.name, email: joinFormData.email });
+      setUser({ name: joinFormData.name, email: joinFormData.email, _id: serverUserId });
       setShowJoinModal(false);
       setJoinFormData({ name: '', email: '', mobile: '' });
       
@@ -998,6 +1037,19 @@ function CommunityPageContent() {
                   <div className="mt-3 sm:mt-4 flex flex-wrap items-center gap-3 sm:gap-6 text-xs sm:text-sm font-semibold">
                     <span>👥 {currentCommunity?.members} members</span>
                     {currentCommunity?.isPublic && <span className="bg-white/30 px-3 sm:px-4 py-1 rounded-full">🌐 Public</span>}
+                    
+                    {/* Star Rating Display */}
+                    {ratingStats && ratingStats.totalCount > 0 && (
+                      <button 
+                        onClick={() => setShowRatingModal(true)}
+                        className="bg-white/30 px-3 sm:px-4 py-1 rounded-full flex items-center gap-1 hover:bg-white/40 transition-all cursor-pointer"
+                      >
+                        <span className="text-yellow-300">⭐</span>
+                        <span>{ratingStats.avgRating?.toFixed(1)}</span>
+                        <span className="opacity-75">({ratingStats.totalCount})</span>
+                      </button>
+                    )}
+                    
                     {/* Show membership status */}
                     {currentCommunity && userMemberships.includes(currentCommunity.id) && (
                       <span className="bg-green-500/40 px-3 sm:px-4 py-1 rounded-full flex items-center gap-1">
@@ -1479,6 +1531,55 @@ function CommunityPageContent() {
           </div>
         </div>
       </div>
+
+      {/* Rating Breakdown Modal */}
+      {showRatingModal && ratingStats && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowRatingModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden" onClick={e => e.stopPropagation()}>
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-amber-500 to-yellow-500 p-6 text-white text-center">
+              <div className="text-5xl mb-2">⭐</div>
+              <h2 className="text-3xl font-bold">{ratingStats.avgRating?.toFixed(1)}</h2>
+              <p className="text-sm opacity-90">{ratingStats.totalCount} total ratings</p>
+            </div>
+
+            {/* Rating Breakdown */}
+            <div className="p-6 space-y-3">
+              {[
+                { stars: 5, count: ratingStats.fiveStars, label: '5 Star' },
+                { stars: 4, count: ratingStats.fourStars, label: '4 Star' },
+                { stars: 3, count: ratingStats.threeStars, label: '3 Star' },
+                { stars: 2, count: ratingStats.twoStars, label: '2 Star' },
+                { stars: 1, count: ratingStats.oneStars, label: '1 Star' },
+              ].map(({ stars, count, label }) => {
+                const percentage = ratingStats.totalCount > 0 ? (count / ratingStats.totalCount) * 100 : 0;
+                return (
+                  <div key={stars} className="flex items-center gap-3">
+                    <span className="w-16 text-sm font-medium text-gray-700">{label}</span>
+                    <div className="flex-1 h-3 bg-gray-200 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-gradient-to-r from-amber-400 to-yellow-400 rounded-full transition-all duration-500"
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
+                    <span className="w-8 text-sm font-bold text-gray-900">{count}</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Close Button */}
+            <div className="px-6 pb-6">
+              <button
+                onClick={() => setShowRatingModal(false)}
+                className="w-full py-3 bg-gray-100 hover:bg-gray-200 rounded-xl font-semibold text-gray-700 transition-all"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Join Community Modal */}
       {showJoinModal && (

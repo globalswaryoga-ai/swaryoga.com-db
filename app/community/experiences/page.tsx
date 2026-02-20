@@ -16,6 +16,8 @@ interface Experience {
   isPost?: boolean;
   images?: string[];
   userId?: string;
+  likes?: string[];
+  likesCount?: number;
 }
 
 interface Stats {
@@ -46,6 +48,9 @@ export default function ExperiencesPage() {
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
+  const [likeCounts, setLikeCounts] = useState<Record<string, number>>({});
+  const [likingPost, setLikingPost] = useState<string | null>(null);
   
   const [form, setForm] = useState({
     userName: '',
@@ -90,8 +95,17 @@ export default function ExperiencesPage() {
         featured: false,
         createdAt: post.createdAt,
         isPost: true,
-        userId: post.userId
+        userId: post.userId,
+        likes: post.likes || [],
+        likesCount: post.likes?.length || 0
       }));
+      
+      // Initialize like counts from posts
+      const counts: Record<string, number> = {};
+      postsAsExperiences.forEach(p => {
+        counts[p._id] = p.likesCount || 0;
+      });
+      setLikeCounts(prev => ({ ...prev, ...counts }));
       
       // Merge and sort by date
       const allExperiences = [...(expData.experiences || []), ...postsAsExperiences]
@@ -137,6 +151,50 @@ export default function ExperiencesPage() {
       setMessage({ type: 'error', text: 'Failed to submit experience' });
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleLike(postId: string, isPost?: boolean) {
+    if (!isPost) return; // Only posts can be liked
+    
+    setLikingPost(postId);
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setMessage({ type: 'error', text: 'Please join the community to like posts' });
+        return;
+      }
+      
+      const res = await fetch('/api/community/post/like', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ postId }),
+      });
+      
+      const data = await res.json();
+      if (data.success) {
+        const isLiked = likedPosts.has(postId);
+        setLikedPosts(prev => {
+          const next = new Set(prev);
+          if (isLiked) {
+            next.delete(postId);
+          } else {
+            next.add(postId);
+          }
+          return next;
+        });
+        setLikeCounts(prev => ({
+          ...prev,
+          [postId]: data.data?.likesCount ?? (isLiked ? (prev[postId] || 1) - 1 : (prev[postId] || 0) + 1)
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to like post:', error);
+    } finally {
+      setLikingPost(null);
     }
   }
 
@@ -364,7 +422,23 @@ export default function ExperiencesPage() {
                 
                 <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between text-xs sm:text-sm text-gray-500">
                   <span className="bg-emerald-50 px-2 py-1 rounded-lg">{communities.find(c => c.id === exp.communityId)?.name || 'Community'}</span>
-                  <span>{new Date(exp.createdAt).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}</span>
+                  <div className="flex items-center gap-3">
+                    {exp.isPost && (
+                      <button
+                        onClick={() => handleLike(exp._id, exp.isPost)}
+                        disabled={likingPost === exp._id}
+                        className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-all ${
+                          likedPosts.has(exp._id) 
+                            ? 'text-red-500 bg-red-50' 
+                            : 'text-gray-400 hover:text-red-400 hover:bg-red-50'
+                        } ${likingPost === exp._id ? 'opacity-50' : ''}`}
+                      >
+                        <span className="text-base">{likedPosts.has(exp._id) ? '❤️' : '🤍'}</span>
+                        <span className="font-medium">{likeCounts[exp._id] || 0}</span>
+                      </button>
+                    )}
+                    <span>{new Date(exp.createdAt).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}</span>
+                  </div>
                 </div>
               </div>
             ))}

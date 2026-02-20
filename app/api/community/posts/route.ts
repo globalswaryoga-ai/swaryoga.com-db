@@ -11,6 +11,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const category = (searchParams.get('category') || 'all').trim();
+    const communityId = searchParams.get('communityId')?.trim();
     const limit = parseInt(searchParams.get('limit') || '20');
     const skip = parseInt(searchParams.get('skip') || '0');
 
@@ -21,6 +22,14 @@ export async function GET(request: NextRequest) {
     // Filter by category if provided and not 'all'
     if (category !== 'all') {
       query.category = category;
+    }
+
+    // Filter by community if provided (check both communityId and metadata.targetCommunityIds)
+    if (communityId) {
+      query.$or = [
+        { communityId },
+        { 'metadata.targetCommunityIds': communityId }
+      ];
     }
 
     // Fetch posts with pagination

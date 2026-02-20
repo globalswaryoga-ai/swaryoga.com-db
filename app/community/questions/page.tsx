@@ -16,6 +16,8 @@ interface Question {
   isPost?: boolean;
   content?: string;
   images?: string[];
+  likes?: string[];
+  likesCount?: number;
 }
 
 const categories = [
@@ -41,6 +43,9 @@ export default function QuestionsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
+  const [likeCounts, setLikeCounts] = useState<Record<string, number>>({});
+  const [likingPost, setLikingPost] = useState<string | null>(null);
   
   const [form, setForm] = useState({
     userName: '',
@@ -80,8 +85,17 @@ export default function QuestionsPage() {
         featured: false,
         createdAt: post.createdAt,
         isPost: true,
-        images: post.images
+        images: post.images,
+        likes: post.likes || [],
+        likesCount: post.likes?.length || 0
       }));
+      
+      // Initialize like counts from posts
+      const counts: Record<string, number> = {};
+      postsAsQuestions.forEach(p => {
+        counts[p._id] = p.likesCount || 0;
+      });
+      setLikeCounts(prev => ({ ...prev, ...counts }));
       
       // Merge and sort
       const allQuestions = [...(questionsData.questions || []), ...postsAsQuestions]
@@ -126,6 +140,50 @@ export default function QuestionsPage() {
       setMessage({ type: 'error', text: 'Failed to submit question' });
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleLike(postId: string, isPost?: boolean) {
+    if (!isPost) return;
+    
+    setLikingPost(postId);
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setMessage({ type: 'error', text: 'Please join the community to like posts' });
+        return;
+      }
+      
+      const res = await fetch('/api/community/post/like', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ postId }),
+      });
+      
+      const data = await res.json();
+      if (data.success) {
+        const isLiked = likedPosts.has(postId);
+        setLikedPosts(prev => {
+          const next = new Set(prev);
+          if (isLiked) {
+            next.delete(postId);
+          } else {
+            next.add(postId);
+          }
+          return next;
+        });
+        setLikeCounts(prev => ({
+          ...prev,
+          [postId]: data.data?.likesCount ?? (isLiked ? (prev[postId] || 1) - 1 : (prev[postId] || 0) + 1)
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to like post:', error);
+    } finally {
+      setLikingPost(null);
     }
   }
 
@@ -315,6 +373,20 @@ export default function QuestionsPage() {
                       </div>
                       <h3 className="text-base sm:text-lg font-semibold text-gray-900 line-clamp-2">{q.question}</h3>
                       <p className="text-xs sm:text-sm text-gray-500 mt-1">Asked by {q.userName}</p>
+                      {q.isPost && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleLike(q._id, q.isPost); }}
+                          disabled={likingPost === q._id}
+                          className={`mt-2 flex items-center gap-1 px-2 py-1 rounded-lg transition-all ${
+                            likedPosts.has(q._id) 
+                              ? 'text-red-500 bg-red-50' 
+                              : 'text-gray-400 hover:text-red-400 hover:bg-red-50'
+                          } ${likingPost === q._id ? 'opacity-50' : ''}`}
+                        >
+                          <span className="text-base">{likedPosts.has(q._id) ? '❤️' : '🤍'}</span>
+                          <span className="font-medium text-sm">{likeCounts[q._id] || 0}</span>
+                        </button>
+                      )}
                     </div>
                     <div className="text-xl sm:text-2xl text-gray-400 shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-gray-50">
                       {expandedId === q._id ? '−' : '+'}

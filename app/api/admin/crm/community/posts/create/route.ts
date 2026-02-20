@@ -6,6 +6,7 @@ import { contentHasLink, enforceCommunityChatPolicy, getMyCommunityChatPolicy } 
 import { upsertMediaPostFromSocialPost } from '@/lib/socialToMediaPost';
 import { sendMetaTemplate } from '@/lib/whatsapp';
 import { normalizePhone } from '@/lib/whatsapp';
+import { broadcastToTelegram as sendToTelegram, convertToTelegramHTML } from '@/lib/telegram';
 import axios from 'axios';
 
 export const dynamic = 'force-dynamic';
@@ -50,6 +51,8 @@ type Body = {
     socialMedia?: boolean;
   };
   broadcastToMembers?: boolean;
+  broadcastToTelegram?: boolean;
+  telegramChatIds?: string[];
 };
 
 function buildMessage(params: {
@@ -232,35 +235,40 @@ export async function POST(request: NextRequest) {
     }
 
     const postResults: any[] = [];
-    for (const communityId of communityIds) {
-      // 1. Save to Internal Community DB
-      const dbPost = await CommunityPost.create({
-        communityId,
-        userId,
-        content: message,
-        type: postType,
-        category,
-        images: imageUrls,
-        videos: videoUrl ? [videoUrl] : [],
-        documents: docUrl ? [docUrl] : [],
-        links: extraLinks,
-        scheduledFor,
-        status: scheduledFor ? 'scheduled' : 'published', // Explicitly set status
-        metadata: {
-          originalHeader: headerText,
-          originalBody: content,
-          originalFooter: footerText,
-          buttons,
-          mediaPostId,
-          socialPostId,
-          postId: postResults.length + 1,
-          categoryMetadata,
-        },
-        createdAt: now,
-        updatedAt: now,
-      });
+    
+    // Create only ONE post (use 'global' or first communityId) to avoid duplicates
+    const primaryCommunityId = communityIds.includes('global') ? 'global' : communityIds[0];
+    
+    // 1. Save to Internal Community DB - SINGLE POST ONLY
+    const dbPost = await CommunityPost.create({
+      communityId: primaryCommunityId,
+      userId,
+      content: message,
+      type: postType,
+      category,
+      images: imageUrls,
+      videos: videoUrl ? [videoUrl] : [],
+      documents: docUrl ? [docUrl] : [],
+      links: extraLinks,
+      scheduledFor,
+      status: scheduledFor ? 'scheduled' : 'published',
+      metadata: {
+        originalHeader: headerText,
+        originalBody: content,
+        originalFooter: footerText,
+        buttons,
+        mediaPostId,
+        socialPostId,
+        targetCommunityIds: communityIds, // Store all target communities for reference
+        categoryMetadata,
+      },
+      createdAt: now,
+      updatedAt: now,
+    });
+    postResults.push(dbPost);
 
-      // 2. Send to WhatsApp QR Group (if linked)
+    // 2. Send to WhatsApp QR Groups (for ALL selected communities that have WhatsApp groups)
+    for (const communityId of communityIds) {
       try {
         const comm = await Community.findOne({ id: communityId });
         if (comm?.whatsappGroupId) {
@@ -282,8 +290,6 @@ export async function POST(request: NextRequest) {
       } catch (err) {
         console.error(`Error sending campaign to WhatsApp group ${communityId}:`, err);
       }
-
-      postResults.push(dbPost);
     }
 
     // 3. Broadcast to community members' WhatsApp (if enabled)
@@ -361,13 +367,48 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // 4. Broadcast to Telegram (if enabled)
+    let telegramStats = { sent: 0, failed: 0, errors: [] as string[] };
+    const { broadcastToTelegram, telegramChatIds } = body as Body & { broadcastToTelegram?: boolean; telegramChatIds?: string[] };
+    
+    if (broadcastToTelegram && telegramChatIds && telegramChatIds.length > 0) {
+      try {
+        console.log(`[Telegram] Broadcasting to ${telegramChatIds.length} chats`);
+        
+        // Convert WhatsApp-style formatting to Telegram HTML
+        let telegramMessage = convertToTelegramHTML(message);
+        
+        // Add post URL for engagement
+        const postId = dbPost._id?.toString();
+        if (postId) {
+          telegramMessage += `\n\n👍 <a href="https://swaryoga.com/community/post/${postId}">Like & Comment on this post</a>`;
+        }
+        
+        // Get image URL if available
+        const imageUrl = body.imageUrls?.[0];
+        const videoUrl = body.videoUrl;
+        
+        telegramStats = await sendToTelegram(telegramChatIds, {
+          text: telegramMessage,
+          imageUrl,
+          videoUrl,
+        });
+        
+        console.log(`[Telegram] Complete: ${telegramStats.sent} sent, ${telegramStats.failed} failed`);
+      } catch (err) {
+        console.error('[Telegram] Error:', err);
+      }
+    }
+
     return NextResponse.json({
       success: true,
-      message: `Successfully posted to ${communityIds.length} communities${broadcastToMembers ? ` and broadcast to ${broadcastStats.sent} members` : ''}`,
+      message: `Post created successfully${broadcastToMembers ? ` and broadcast to ${broadcastStats.sent} members` : ''}${broadcastToTelegram ? ` and sent to ${telegramStats.sent} Telegram chats` : ''}`,
       data: {
-        postCount: postResults.length,
+        postCount: 1,
+        postId: dbPost._id?.toString(),
         communityIds,
         broadcast: broadcastToMembers ? broadcastStats : undefined,
+        telegram: broadcastToTelegram ? telegramStats : undefined,
       },
     });
   } catch (error) {

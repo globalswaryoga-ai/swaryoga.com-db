@@ -1,0 +1,341 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { connectDB } from '@/lib/db';
+import { verifyToken } from '@/lib/auth';
+import { getWhatsAppMessage, getExpense, getLead } from '@/lib/schemas/enterpriseSchemas';
+import { getViewerUserId, isSuperAdmin } from '@/lib/crm-handlers';
+
+export const dynamic = 'force-dynamic';
+
+/**
+ * WhatsApp Analytics API
+ * Provides detailed WhatsApp messaging stats:
+ * - Daily, Weekly, Monthly, Yearly breakdowns
+ * - By Admin User
+ * - Combined with expense tracking
+ */
+
+export async function GET(request: NextRequest) {
+  try {
+    const token = request.headers.get('authorization')?.slice('Bearer '.length);
+    const decoded = verifyToken(token);
+    if (!decoded?.isAdmin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    await connectDB();
+    const WhatsAppMessage = getWhatsAppMessage();
+    const Expense = getExpense();
+    const Lead = getLead();
+
+    const url = new URL(request.url);
+    const view = url.searchParams.get('view') || 'overview'; // overview, daily, weekly, monthly, yearly, by-admin
+    const startDate = url.searchParams.get('startDate');
+    const endDate = url.searchParams.get('endDate');
+    const adminUserId = url.searchParams.get('adminUserId');
+
+    // Default to current month if no dates specified
+    const now = new Date();
+    const defaultStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const defaultEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
+    const dateFilter: any = {
+      $gte: startDate ? new Date(startDate) : defaultStart,
+      $lte: endDate ? new Date(endDate) : defaultEnd,
+    };
+
+    const analytics: any = {};
+
+    if (view === 'overview' || view === 'all') {
+      // Get current month stats
+      const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
+      const [
+        totalSent,
+        totalReceived,
+        totalDelivered,
+        totalRead,
+        totalFailed,
+        byProvider,
+        monthlyExpenses,
+      ] = await Promise.all([
+        WhatsAppMessage.countDocuments({
+          direction: 'outbound',
+          sentAt: { $gte: currentMonthStart, $lte: currentMonthEnd },
+        }),
+        WhatsAppMessage.countDocuments({
+          direction: 'inbound',
+          sentAt: { $gte: currentMonthStart, $lte: currentMonthEnd },
+        }),
+        WhatsAppMessage.countDocuments({
+          direction: 'outbound',
+          status: 'delivered',
+          sentAt: { $gte: currentMonthStart, $lte: currentMonthEnd },
+        }),
+        WhatsAppMessage.countDocuments({
+          direction: 'outbound',
+          status: 'read',
+          sentAt: { $gte: currentMonthStart, $lte: currentMonthEnd },
+        }),
+        WhatsAppMessage.countDocuments({
+          direction: 'outbound',
+          status: 'failed',
+          sentAt: { $gte: currentMonthStart, $lte: currentMonthEnd },
+        }),
+        WhatsAppMessage.aggregate([
+          {
+            $match: {
+              direction: 'outbound',
+              sentAt: { $gte: currentMonthStart, $lte: currentMonthEnd },
+            },
+          },
+          { $group: { _id: '$provider', count: { $sum: 1 } } },
+        ]),
+        Expense.aggregate([
+          {
+            $match: {
+              expenseDate: { $gte: currentMonthStart, $lte: currentMonthEnd },
+            },
+          },
+          {
+            $group: {
+              _id: '$category',
+              total: { $sum: '$amount' },
+              count: { $sum: 1 },
+            },
+          },
+        ]),
+      ]);
+
+      const expensesByCategory = Object.fromEntries(
+        monthlyExpenses.map((e: any) => [e._id, { total: e.total, count: e.count }])
+      );
+      const totalExpenses = monthlyExpenses.reduce((sum: number, e: any) => sum + e.total, 0);
+
+      analytics.overview = {
+        currentMonth: {
+          year: now.getFullYear(),
+          month: now.getMonth() + 1,
+          monthName: now.toLocaleString('default', { month: 'long' }),
+        },
+        messages: {
+          sent: totalSent,
+          received: totalReceived,
+          delivered: totalDelivered,
+          read: totalRead,
+          failed: totalFailed,
+          deliveryRate: totalSent > 0 ? Math.round((totalDelivered / totalSent) * 100) : 0,
+          readRate: totalSent > 0 ? Math.round((totalRead / totalSent) * 100) : 0,
+        },
+        byProvider: Object.fromEntries(byProvider.map((p: any) => [p._id || 'unknown', p.count])),
+        expenses: {
+          byCategory: expensesByCategory,
+          total: totalExpenses,
+          marketing: expensesByCategory.marketing?.total || 0,
+          utility: expensesByCategory.utility?.total || 0,
+          whatsapp_api: expensesByCategory.whatsapp_api?.total || 0,
+        },
+      };
+    }
+
+    if (view === 'daily' || view === 'all') {
+      const daily = await WhatsAppMessage.aggregate([
+        {
+          $match: {
+            direction: 'outbound',
+            sentAt: dateFilter,
+          },
+        },
+        {
+          $group: {
+            _id: { $dateToString: { format: '%Y-%m-%d', date: '$sentAt' } },
+            sent: { $sum: 1 },
+            delivered: { $sum: { $cond: [{ $eq: ['$status', 'delivered'] }, 1, 0] } },
+            read: { $sum: { $cond: [{ $eq: ['$status', 'read'] }, 1, 0] } },
+            failed: { $sum: { $cond: [{ $eq: ['$status', 'failed'] }, 1, 0] } },
+          },
+        },
+        { $sort: { _id: 1 } },
+      ]);
+
+      analytics.daily = daily.map((d: any) => ({
+        date: d._id,
+        sent: d.sent,
+        delivered: d.delivered,
+        read: d.read,
+        failed: d.failed,
+      }));
+    }
+
+    if (view === 'weekly' || view === 'all') {
+      const weekly = await WhatsAppMessage.aggregate([
+        {
+          $match: {
+            direction: 'outbound',
+            sentAt: dateFilter,
+          },
+        },
+        {
+          $group: {
+            _id: {
+              year: { $year: '$sentAt' },
+              week: { $week: '$sentAt' },
+            },
+            sent: { $sum: 1 },
+            delivered: { $sum: { $cond: [{ $eq: ['$status', 'delivered'] }, 1, 0] } },
+            read: { $sum: { $cond: [{ $eq: ['$status', 'read'] }, 1, 0] } },
+            failed: { $sum: { $cond: [{ $eq: ['$status', 'failed'] }, 1, 0] } },
+          },
+        },
+        { $sort: { '_id.year': 1, '_id.week': 1 } },
+      ]);
+
+      analytics.weekly = weekly.map((w: any) => ({
+        year: w._id.year,
+        week: w._id.week,
+        sent: w.sent,
+        delivered: w.delivered,
+        read: w.read,
+        failed: w.failed,
+      }));
+    }
+
+    if (view === 'monthly' || view === 'all') {
+      const monthly = await WhatsAppMessage.aggregate([
+        {
+          $match: {
+            direction: 'outbound',
+            sentAt: {
+              $gte: new Date(now.getFullYear() - 1, now.getMonth(), 1),
+              $lte: now,
+            },
+          },
+        },
+        {
+          $group: {
+            _id: {
+              year: { $year: '$sentAt' },
+              month: { $month: '$sentAt' },
+            },
+            sent: { $sum: 1 },
+            delivered: { $sum: { $cond: [{ $eq: ['$status', 'delivered'] }, 1, 0] } },
+            read: { $sum: { $cond: [{ $eq: ['$status', 'read'] }, 1, 0] } },
+            failed: { $sum: { $cond: [{ $eq: ['$status', 'failed'] }, 1, 0] } },
+          },
+        },
+        { $sort: { '_id.year': 1, '_id.month': 1 } },
+      ]);
+
+      // Get monthly expenses too
+      const monthlyExpenses = await Expense.aggregate([
+        {
+          $match: {
+            expenseDate: {
+              $gte: new Date(now.getFullYear() - 1, now.getMonth(), 1),
+              $lte: now,
+            },
+          },
+        },
+        {
+          $group: {
+            _id: {
+              year: { $year: '$expenseDate' },
+              month: { $month: '$expenseDate' },
+              category: '$category',
+            },
+            total: { $sum: '$amount' },
+          },
+        },
+        { $sort: { '_id.year': 1, '_id.month': 1 } },
+      ]);
+
+      // Merge expenses into monthly data
+      const expenseMap: Record<string, any> = {};
+      for (const e of monthlyExpenses) {
+        const key = `${e._id.year}-${e._id.month}`;
+        if (!expenseMap[key]) expenseMap[key] = {};
+        expenseMap[key][e._id.category] = e.total;
+      }
+
+      analytics.monthly = monthly.map((m: any) => {
+        const key = `${m._id.year}-${m._id.month}`;
+        const expenses = expenseMap[key] || {};
+        return {
+          year: m._id.year,
+          month: m._id.month,
+          monthName: new Date(m._id.year, m._id.month - 1).toLocaleString('default', { month: 'short' }),
+          sent: m.sent,
+          delivered: m.delivered,
+          read: m.read,
+          failed: m.failed,
+          expenses: {
+            marketing: expenses.marketing || 0,
+            utility: expenses.utility || 0,
+            whatsapp_api: expenses.whatsapp_api || 0,
+            total: Object.values(expenses).reduce((sum: any, v: any) => sum + v, 0),
+          },
+        };
+      });
+    }
+
+    if (view === 'yearly' || view === 'all') {
+      const yearly = await WhatsAppMessage.aggregate([
+        { $match: { direction: 'outbound' } },
+        {
+          $group: {
+            _id: { $year: '$sentAt' },
+            sent: { $sum: 1 },
+            delivered: { $sum: { $cond: [{ $eq: ['$status', 'delivered'] }, 1, 0] } },
+            read: { $sum: { $cond: [{ $eq: ['$status', 'read'] }, 1, 0] } },
+            failed: { $sum: { $cond: [{ $eq: ['$status', 'failed'] }, 1, 0] } },
+          },
+        },
+        { $sort: { _id: 1 } },
+      ]);
+
+      analytics.yearly = yearly.map((y: any) => ({
+        year: y._id,
+        sent: y.sent,
+        delivered: y.delivered,
+        read: y.read,
+        failed: y.failed,
+      }));
+    }
+
+    if (view === 'by-admin' || view === 'all') {
+      // Get messages sent by each admin (using sentByLabel or sentBy)
+      const byAdmin = await WhatsAppMessage.aggregate([
+        {
+          $match: {
+            direction: 'outbound',
+            sentAt: dateFilter,
+          },
+        },
+        {
+          $group: {
+            _id: { $ifNull: ['$sentByLabel', 'Unknown'] },
+            sent: { $sum: 1 },
+            delivered: { $sum: { $cond: [{ $eq: ['$status', 'delivered'] }, 1, 0] } },
+            read: { $sum: { $cond: [{ $eq: ['$status', 'read'] }, 1, 0] } },
+            failed: { $sum: { $cond: [{ $eq: ['$status', 'failed'] }, 1, 0] } },
+          },
+        },
+        { $sort: { sent: -1 } },
+      ]);
+
+      analytics.byAdmin = byAdmin.map((a: any) => ({
+        adminUser: a._id,
+        sent: a.sent,
+        delivered: a.delivered,
+        read: a.read,
+        failed: a.failed,
+        deliveryRate: a.sent > 0 ? Math.round((a.delivered / a.sent) * 100) : 0,
+      }));
+    }
+
+    return NextResponse.json({ success: true, data: analytics });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to fetch WhatsApp analytics';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}

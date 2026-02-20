@@ -898,6 +898,57 @@ SalesReportSchema.index({ saleDate: 1, paymentMode: 1 });
 SalesReportSchema.index({ reportedByUserId: 1, saleDate: -1 });
 
 // ============================================================================
+// 10b. EXPENSE TRACKING - Marketing, Utility, WhatsApp costs
+// ============================================================================
+const ExpenseSchema = new mongoose.Schema(
+  {
+    // Expense category
+    category: {
+      type: String,
+      enum: ['marketing', 'utility', 'whatsapp_api', 'software', 'other'],
+      required: true,
+      index: true,
+    },
+    // Sub-category for detailed tracking
+    subCategory: { type: String, trim: true, index: true },
+    
+    // Amount details
+    amount: { type: Number, required: true },
+    currency: { type: String, default: 'INR', trim: true },
+    
+    // Description and notes
+    title: { type: String, trim: true },
+    description: { type: String, trim: true },
+    
+    // Date of expense (for monthly reporting)
+    expenseDate: { type: Date, required: true, index: true },
+    
+    // Meta WhatsApp message cost tracking
+    metaMessageCount: { type: Number, default: 0 },
+    metaCostPerMessage: { type: Number, default: 0 },
+    
+    // Receipt/invoice reference
+    receiptUrl: { type: String, trim: true },
+    receiptId: { type: String, trim: true },
+    
+    // Who recorded this
+    createdByUserId: { type: String, trim: true, index: true },
+    
+    // Approval workflow
+    approved: { type: Boolean, default: false, index: true },
+    approvedByUserId: { type: String, trim: true },
+    approvedAt: { type: Date },
+    
+    metadata: mongoose.Schema.Types.Mixed,
+  },
+  { timestamps: true, collection: 'expenses' }
+);
+
+ExpenseSchema.index({ expenseDate: -1 });
+ExpenseSchema.index({ category: 1, expenseDate: -1 });
+ExpenseSchema.index({ createdByUserId: 1, expenseDate: -1 });
+
+// ============================================================================
 // 11. WHATSAPP SCHEDULED JOBS - One-time, delayed, scheduled, recurring campaigns
 // ============================================================================
 const WhatsAppScheduledJobSchema = new mongoose.Schema(
@@ -1855,6 +1906,7 @@ export function getBackup() { return getModel('Backup', BackupSchema); }
 export function getPermission() { return getModel('Permission', PermissionSchema); }
 export function getAnalyticsEvent() { return getModel('AnalyticsEvent', AnalyticsEventSchema); }
 export function getSalesReport() { return getModel('SalesReport', SalesReportSchema); }
+export function getExpense() { return getModel('Expense', ExpenseSchema); }
 export function getWhatsAppScheduledJob() { return getModel('WhatsAppScheduledJob', WhatsAppScheduledJobSchema); }
 export function getWhatsAppAutomationRule() { return getModel('WhatsAppAutomationRule', WhatsAppAutomationRuleSchema); }
 export function getLeadNote() { return getModel('LeadNote', LeadNoteSchema); }
@@ -1895,6 +1947,7 @@ export const Backup = createModelProxy('Backup', BackupSchema);
 export const Permission = createModelProxy('Permission', PermissionSchema);
 export const AnalyticsEvent = createModelProxy('AnalyticsEvent', AnalyticsEventSchema);
 export const SalesReport = createModelProxy('SalesReport', SalesReportSchema);
+export const Expense = createModelProxy('Expense', ExpenseSchema);
 export const WhatsAppScheduledJob = createModelProxy('WhatsAppScheduledJob', WhatsAppScheduledJobSchema);
 export const WhatsAppAutomationRule = createModelProxy('WhatsAppAutomationRule', WhatsAppAutomationRuleSchema);
 export const LeadNote = createModelProxy('LeadNote', LeadNoteSchema);

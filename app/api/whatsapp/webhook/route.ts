@@ -512,8 +512,12 @@ async function handleWebhookPayload(payload: any) {
               }
             } else {
               console.log(`[WEBHOOK DEBUG] Updating existing lead ${lead._id}`);
+              // When customer sends a new message, reset status to 'new' and reopen if closed/overdue
               const updatePayload: any = { 
                 lastMessageAt: now,
+                chatStatus: 'new', // Reset to new when customer replies
+                chatStatusClosedAt: null, // Clear closed timestamp
+                chatStatusClosedBy: null, // Clear who closed it
                 $addToSet: { labels: 'whatsapp' }
               };
               // Fill name if missing but Meta provided one
@@ -522,6 +526,7 @@ async function handleWebhookPayload(payload: any) {
               }
               
               await Lead.updateOne({ _id: lead._id }, updatePayload);
+              console.log(`[WEBHOOK DEBUG] Lead ${lead._id} chatStatus reset to 'new' on inbound message`);
             }
 
             // Store message
