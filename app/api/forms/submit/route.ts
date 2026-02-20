@@ -310,6 +310,7 @@ export async function POST(request: NextRequest) {
       courseName,
       paymentMode,
       message,
+      password: userPassword, // User-provided password (optional)
     } = body;
 
     // Validate required fields
@@ -329,8 +330,10 @@ export async function POST(request: NextRequest) {
     const cleanedPhone = normalizePhone(phone);
     const cleanedName = name.trim();
 
-    // Generate auto-password
-    const generatedPassword = generatePassword(cleanedName, phone);
+    // Use user-provided password if available, otherwise auto-generate
+    const generatedPassword = (userPassword && userPassword.trim().length >= 6)
+      ? userPassword.trim()
+      : generatePassword(cleanedName, phone);
     
     // Check if user already exists
     const existingUser = await User.findOne({
