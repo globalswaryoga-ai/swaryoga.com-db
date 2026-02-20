@@ -51,11 +51,16 @@ export async function POST(request: NextRequest) {
 
     // Single-email mode (from leads-followup page)
     if (source === 'followup' && recipients.length === 1) {
+      const r = recipients[0];
+      if (!r.email || !r.email.trim()) {
+        return apiError('VALIDATION_ERROR', 'Recipient email address is required');
+      }
+
       const recipient: EmailRecipient = {
-        email: recipients[0].email,
-        name: recipients[0].name,
-        leadId: recipients[0].leadId,
-        phone: recipients[0].phone,
+        email: r.email,
+        name: r.name || 'Customer',
+        leadId: r.leadId,
+        phone: r.phone || '',
       };
 
       const result = await sendEmailToLead(recipient, subject, emailBody);

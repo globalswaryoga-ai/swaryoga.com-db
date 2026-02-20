@@ -242,7 +242,8 @@ export default function EmailAutomationPage() {
       if (!response.ok) throw new Error('Failed to fetch leads');
       
       const data = await response.json();
-      const fetchedLeads = data.data || [];
+      const raw = data.data || data;
+      const fetchedLeads = Array.isArray(raw) ? raw : (raw.leads || []);
       setLeads(fetchedLeads);
 
       // Build assigned lead IDs set

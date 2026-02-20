@@ -2137,6 +2137,10 @@ function LeadsFollowupPageContent() {
                               setError('Please fill in both subject and content');
                               return;
                             }
+                            if (!selectedLead.email || !selectedLead.email.trim()) {
+                              setError('This lead does not have an email address');
+                              return;
+                            }
                             setEmailSending(true);
                             setError(null);
                             try {
@@ -2149,16 +2153,18 @@ function LeadsFollowupPageContent() {
                                 body: JSON.stringify({
                                   recipients: [{
                                     email: selectedLead.email,
-                                    name: selectedLead.name,
+                                    name: selectedLead.name || 'Customer',
                                     leadId: selectedLead._id,
-                                    phone: selectedLead.phoneNumber,
+                                    phone: selectedLead.phoneNumber || '',
                                   }],
                                   subject: emailSubject,
                                   body: message,
                                   source: 'followup',
                                 }),
                               });
-                              const data = await res.json();
+                              const text = await res.text();
+                              let data;
+                              try { data = JSON.parse(text); } catch { throw new Error('Server returned an invalid response. Please try again.'); }
                               if (!res.ok) throw new Error(data?.error || 'Failed to send email');
                               setSuccess(`Email sent to ${selectedLead.email}`);
                               setEmailSubject('');

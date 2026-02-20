@@ -30,6 +30,7 @@ import {
   Tag,
   Activity,
   Shield,
+  Mail,
 } from 'lucide-react';
 
 interface AdminSidebarProps {
@@ -268,6 +269,12 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
       label: 'Broadcast',
       href: '/admin/crm/broadcast',
       color: 'text-pink-500',
+    },
+    {
+      icon: Mail,
+      label: 'Email',
+      href: '/admin/crm/email',
+      color: 'text-blue-500',
     },
     {
       icon: Globe,
