@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { X, AlertCircle, CheckCircle } from 'lucide-react';
+import React, { useState, useCallback, useRef } from 'react';
+import { X, AlertCircle, CheckCircle, Eye, EyeOff, UserCheck } from 'lucide-react';
 
 interface EnquiryFormModalProps {
   workshopId: string;
@@ -32,18 +32,83 @@ export default function EnquiryFormModal({
     email: '',
     gender: '',
     city: '',
+    password: '',
+    confirmPassword: '',
   });
 
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [leadNumber, setLeadNumber] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+
+  // User existence check state
+  const [userExists, setUserExists] = useState(false);
+  const [existingUserInfo, setExistingUserInfo] = useState<{ profileId: string; name: string; maskedEmail: string } | null>(null);
+  const [checkingUser, setCheckingUser] = useState(false);
+  const checkTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  /** Debounced check if user exists by email or phone */
+  const checkUserExists = useCallback(async (email: string, phone: string) => {
+    if (checkTimerRef.current) clearTimeout(checkTimerRef.current);
+
+    // Need at least a valid email or 10+ digit phone
+    const hasValidEmail = email.trim().length > 3 && email.includes('@');
+    const hasValidPhone = phone.replace(/\D/g, '').length >= 10;
+
+    if (!hasValidEmail && !hasValidPhone) {
+      setUserExists(false);
+      setExistingUserInfo(null);
+      return;
+    }
+
+    checkTimerRef.current = setTimeout(async () => {
+      setCheckingUser(true);
+      try {
+        const res = await fetch('/api/auth/check-user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: hasValidEmail ? email.trim() : undefined,
+            phone: hasValidPhone ? phone.trim() : undefined,
+          }),
+        });
+        const data = await res.json();
+        const result = data?.data || data;
+
+        if (result?.exists) {
+          setUserExists(true);
+          setExistingUserInfo({
+            profileId: result.profileId || '',
+            name: result.name || '',
+            maskedEmail: result.maskedEmail || '',
+          });
+        } else {
+          setUserExists(false);
+          setExistingUserInfo(null);
+        }
+      } catch {
+        // Silently fail — user can still submit
+      } finally {
+        setCheckingUser(false);
+      }
+    }, 600); // 600ms debounce
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setFormData((prev) => {
+      const updated = { ...prev, [name]: value };
+
+      // Trigger user check when email or mobile changes
+      if (name === 'email' || name === 'mobile') {
+        checkUserExists(
+          name === 'email' ? value : prev.email,
+          name === 'mobile' ? value : prev.mobile
+        );
+      }
+
+      return updated;
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -83,6 +148,25 @@ export default function EnquiryFormModal({
       return;
     }
 
+    // Password validation for new users only
+    if (!userExists) {
+      if (!formData.password.trim()) {
+        setMessage({ type: 'error', text: 'Password is required for new registration' });
+        setLoading(false);
+        return;
+      }
+      if (formData.password.length < 6) {
+        setMessage({ type: 'error', text: 'Password must be at least 6 characters' });
+        setLoading(false);
+        return;
+      }
+      if (formData.password !== formData.confirmPassword) {
+        setMessage({ type: 'error', text: 'Passwords do not match' });
+        setLoading(false);
+        return;
+      }
+    }
+
     try {
       const res = await fetch('/api/workshop-leads', {
         method: 'POST',
@@ -94,25 +178,51 @@ export default function EnquiryFormModal({
           mode,
           language,
           priceInr,
-          ...formData,
+          name: formData.name,
+          mobile: formData.mobile,
+          email: formData.email,
+          gender: formData.gender,
+          city: formData.city,
+          // Only send password for new users  
+          ...(!userExists && formData.password ? { password: formData.password } : {}),
         }),
       });
 
       const data = await res.json();
       if (res.ok) {
-        const ln = data?.data?.leadNumber || data?.leadNumber;
+        const result = data?.data || data;
+        const ln = result?.leadNumber;
         if (ln) setLeadNumber(String(ln));
-        setMessage({ type: 'success', text: 'Thank you! Your form is submitted successfully.' });
+
+        if (result?.userCreated) {
+          setMessage({
+            type: 'success',
+            text: `Account created! Your credentials have been sent to your WhatsApp & Email. Lead ID: ${ln || ''}`,
+          });
+        } else if (result?.userExists || result?.updated) {
+          setMessage({
+            type: 'success',
+            text: `Form submitted successfully! Lead ID: ${ln || ''}`,
+          });
+        } else {
+          setMessage({ type: 'success', text: 'Thank you! Your form is submitted successfully.' });
+        }
+
         setFormData({
           name: '',
           mobile: '',
           email: '',
           gender: '',
           city: '',
+          password: '',
+          confirmPassword: '',
         });
+        setUserExists(false);
+        setExistingUserInfo(null);
+
         setTimeout(() => {
           onClose();
-        }, 2000);
+        }, 3000);
       } else {
         setMessage({ type: 'error', text: data.error || 'Failed to submit enquiry' });
       }
@@ -125,10 +235,10 @@ export default function EnquiryFormModal({
 
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="bg-green-700 text-white p-6 flex justify-between items-center">
-          <h2 className="text-xl font-bold">Enquiry Form</h2>
+        <div className="bg-green-700 text-white p-6 flex justify-between items-center sticky top-0 z-10">
+          <h2 className="text-xl font-bold">Registration Form</h2>
           <button
             onClick={onClose}
             className="hover:bg-green-600 p-1 rounded transition-colors"
@@ -157,6 +267,28 @@ export default function EnquiryFormModal({
               </p>
             )}
           </div>
+
+          {/* Already registered popup */}
+          {userExists && existingUserInfo && (
+            <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <UserCheck size={20} className="text-green-600" />
+                <span className="font-bold text-green-800">You&apos;re already registered!</span>
+              </div>
+              <p className="text-sm text-green-700">
+                No need to create a new password. Your existing account will be linked.
+              </p>
+              {existingUserInfo.profileId && (
+                <p className="text-xs text-green-600 mt-1">
+                  Profile ID: <strong>{existingUserInfo.profileId}</strong>
+                  {existingUserInfo.maskedEmail && ` • ${existingUserInfo.maskedEmail}`}
+                </p>
+              )}
+              <p className="text-xs text-green-600 mt-1">
+                You can login at <a href="/signin" className="underline font-semibold">swaryoga.com/signin</a> with your existing credentials.
+              </p>
+            </div>
+          )}
 
           {message && (
             <div
@@ -219,6 +351,9 @@ export default function EnquiryFormModal({
                 placeholder="your@email.com"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
               />
+              {checkingUser && (
+                <p className="text-xs text-gray-400 mt-1">Checking account...</p>
+              )}
             </div>
 
             {/* Gender */}
@@ -254,13 +389,66 @@ export default function EnquiryFormModal({
               />
             </div>
 
+            {/* Password fields — only shown for NEW users */}
+            {!userExists && (
+              <>
+                <div className="pt-2 border-t border-gray-200">
+                  <p className="text-xs text-gray-500 mb-3">
+                    Create a password to access your Swar Yoga account, Life Planner, and workshop materials.
+                  </p>
+                </div>
+
+                {/* Password */}
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wide text-gray-700 mb-1">
+                    Create Password *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      name="password"
+                      value={formData.password}
+                      onChange={handleChange}
+                      placeholder="Min. 6 characters"
+                      className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Confirm Password */}
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wide text-gray-700 mb-1">
+                    Confirm Password *
+                  </label>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    name="confirmPassword"
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    placeholder="Re-enter password"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                  {formData.confirmPassword && formData.password !== formData.confirmPassword && (
+                    <p className="text-xs text-red-500 mt-1">Passwords do not match</p>
+                  )}
+                </div>
+              </>
+            )}
+
             {/* Submit Button */}
             <button
               type="submit"
               disabled={loading}
               className="w-full bg-green-700 hover:bg-green-800 disabled:bg-gray-400 text-white font-bold py-2 px-4 rounded-lg transition-colors"
             >
-              {loading ? 'Submitting...' : 'Submit Enquiry'}
+              {loading ? 'Submitting...' : userExists ? 'Submit Enquiry' : 'Register & Create Account'}
             </button>
 
             {payNowHref && (
