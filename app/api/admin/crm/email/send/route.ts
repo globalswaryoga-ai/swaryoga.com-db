@@ -37,6 +37,12 @@ export async function POST(request: NextRequest) {
       return apiError('VALIDATION_ERROR', 'Recipients array is required and must not be empty');
     }
 
+    // Filter out recipients without valid email addresses
+    const validRecipients = recipients.filter((r: any) => r.email && r.email.trim());
+    if (validRecipients.length === 0) {
+      return apiError('VALIDATION_ERROR', 'No recipients with valid email addresses');
+    }
+
     if (!subject || !subject.trim()) {
       return apiError('VALIDATION_ERROR', 'Email subject is required');
     }
@@ -50,11 +56,8 @@ export async function POST(request: NextRequest) {
     const EmailLog = getEmailLog();
 
     // Single-email mode (from leads-followup page)
-    if (source === 'followup' && recipients.length === 1) {
-      const r = recipients[0];
-      if (!r.email || !r.email.trim()) {
-        return apiError('VALIDATION_ERROR', 'Recipient email address is required');
-      }
+    if (source === 'followup' && validRecipients.length === 1) {
+      const r = validRecipients[0];
 
       const recipient: EmailRecipient = {
         email: r.email,
@@ -96,11 +99,11 @@ export async function POST(request: NextRequest) {
       subject,
       body: emailBody,
       templateId: templateId || undefined,
-      recipients: recipients.map((r: any) => r.email),
+      recipients: validRecipients.map((r: any) => r.email),
       status: scheduleMode === 'later' ? 'scheduled' : 'draft',
       scheduledAt: scheduledAt || undefined,
       stats: {
-        total: recipients.length,
+        total: validRecipients.length,
         sent: 0,
         delivered: 0,
         opened: 0,
@@ -120,7 +123,7 @@ export async function POST(request: NextRequest) {
       await campaign.save();
 
       try {
-        const emailRecipients: EmailRecipient[] = recipients.map((r: any) => ({
+        const emailRecipients: EmailRecipient[] = validRecipients.map((r: any) => ({
           email: r.email,
           name: r.name,
           leadId: r.leadId,

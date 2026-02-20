@@ -1771,7 +1771,7 @@ const EmailLogSchema = new mongoose.Schema(
   {
     campaignId: { type: mongoose.Schema.Types.ObjectId, ref: 'EmailCampaign' },
     leadId: { type: String },
-    recipientEmail: { type: String, required: true },
+    recipientEmail: { type: String, default: '' },
     recipientName: { type: String },
     subject: { type: String, required: true },
     body: { type: String },
