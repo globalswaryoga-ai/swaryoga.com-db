@@ -223,6 +223,30 @@ export default function BroadcastPage() {
     }
   }, [token]);
 
+  // Sync template statuses from Meta
+  const syncTemplatesFromMeta = useCallback(async () => {
+    if (!token) return;
+    setMetaSubmitting('sync');
+    try {
+      const res = await fetch('/api/admin/crm/templates/meta/sync', {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to sync');
+      setResult({ success: true, message: `Synced ${data.updated || 0} templates from Meta` });
+      // Refresh templates to get updated statuses
+      const templatesRes = await fetch('/api/admin/crm/templates', { headers: { Authorization: `Bearer ${token}` } });
+      const templatesData = await templatesRes.json();
+      setTemplates(templatesData.data?.templates || templatesData.templates || []);
+    } catch (err) {
+      setResult({ success: false, message: err instanceof Error ? err.message : 'Failed to sync templates' });
+    } finally {
+      setMetaSubmitting(null);
+      setTimeout(() => setResult(null), 5000);
+    }
+  }, [token]);
+
   // ============================================================================
   // DATA FETCHING
   // ============================================================================
@@ -254,6 +278,36 @@ export default function BroadcastPage() {
       setLoading(false);
     }
   }, [token]);
+
+  // Process scheduled broadcasts now (for testing/manual trigger)
+  const processScheduledBroadcasts = useCallback(async () => {
+    if (!token) return;
+    setMetaSubmitting('process-scheduled');
+    try {
+      const res = await fetch('/api/admin/crm/broadcast-runs/run', {
+        method: 'POST',
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ runLimit: 10 }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to process');
+      const stats = data.data;
+      setResult({ 
+        success: true, 
+        message: `Processed scheduled broadcasts - Sent: ${stats.sent || 0}, Failed: ${stats.failed || 0}, Scanned: ${stats.scannedRuns || 0}` 
+      });
+      // Refresh data
+      fetchData();
+    } catch (err) {
+      setResult({ success: false, message: err instanceof Error ? err.message : 'Failed to process scheduled broadcasts' });
+    } finally {
+      setMetaSubmitting(null);
+      setTimeout(() => setResult(null), 5000);
+    }
+  }, [token, fetchData]);
 
   // Fetch active processing runs
   const fetchActiveProgress = useCallback(async () => {
@@ -600,25 +654,12 @@ export default function BroadcastPage() {
   const canProceedToStep2 = selectedLeads.size > 0;
   const canProceedToStep3 = selectedTemplate !== null;
   
-  // Check if selected template is Meta-approved (required for Meta provider)
-  const templateApprovalWarning = useMemo(() => {
-    if (!selectedTemplate || provider !== 'meta') return null;
-    if (!selectedTemplate.metaTemplateId) {
-      return `Template "${selectedTemplate.templateName}" is not submitted to Meta. Submit it for approval first or use QR provider.`;
-    }
-    if (selectedTemplate.metaStatus !== 'APPROVED') {
-      return `Template "${selectedTemplate.templateName}" is not Meta-approved (status: ${selectedTemplate.metaStatus || 'unknown'}). Wait for approval or use QR provider.`;
-    }
-    return null;
-  }, [selectedTemplate, provider]);
-
   const canSend = useMemo(() => {
     if (!selectedTemplate || selectedLeads.size === 0) return false;
     if (sendMode === 'schedule' && (!scheduleDate || !scheduleTime)) return false;
-    // Check Meta approval if using Meta provider
-    if (provider === 'meta' && templateApprovalWarning) return false;
+    // Templates are chargeable and can be sent anytime - no approval check required
     return true;
-  }, [selectedTemplate, selectedLeads, sendMode, scheduleDate, scheduleTime, provider, templateApprovalWarning]);
+  }, [selectedTemplate, selectedLeads, sendMode, scheduleDate, scheduleTime]);
 
   // ============================================================================
   // SEND BROADCAST
@@ -639,7 +680,13 @@ export default function BroadcastPage() {
         if (!scheduleDate || !scheduleTime) {
           throw new Error('Please select date and time for scheduling');
         }
-        scheduleAt = new Date(`${scheduleDate}T${scheduleTime}`).toISOString();
+        // Create date in local timezone (not UTC)
+        // scheduleDate is "YYYY-MM-DD", scheduleTime is "HH:mm"
+        const [year, month, day] = scheduleDate.split('-').map(Number);
+        const [hours, minutes] = scheduleTime.split(':').map(Number);
+        const localDate = new Date(year, month - 1, day, hours, minutes, 0);
+        scheduleAt = localDate.toISOString();
+        console.log('[Broadcast] Schedule - local:', localDate.toString(), 'ISO:', scheduleAt);
       } else if (sendMode === 'delay') {
         delayMins = delayMinutes;
       }
@@ -1359,6 +1406,21 @@ export default function BroadcastPage() {
                   onChange={(e) => setTemplateSearch(e.target.value)}
                   className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-48 text-sm"
                 />
+                <button
+                  onClick={syncTemplatesFromMeta}
+                  disabled={metaSubmitting === 'sync'}
+                  className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
+                >
+                  {metaSubmitting === 'sync' ? '🔄 Syncing...' : '🔄 Sync Meta'}
+                </button>
+                <button
+                  onClick={processScheduledBroadcasts}
+                  disabled={metaSubmitting === 'process-scheduled'}
+                  className="px-3 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
+                  title="Manually trigger processing of scheduled broadcasts (for testing)"
+                >
+                  {metaSubmitting === 'process-scheduled' ? '⏱️ Processing...' : '⏱️ Run Scheduled'}
+                </button>
                 <Link href="/admin/crm/templates" className="text-blue-600 hover:text-blue-700 text-sm font-medium whitespace-nowrap">
                   + New
                 </Link>
@@ -1513,25 +1575,6 @@ export default function BroadcastPage() {
                     <div className="text-xs text-gray-400 mt-1">❌ Disabled</div>
                   </button>
                 </div>
-                
-                {/* Template Approval Warning */}
-                {templateApprovalWarning && (
-                  <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl">
-                    <div className="flex items-start gap-2">
-                      <span className="text-amber-600 text-lg">⚠️</span>
-                      <div>
-                        <div className="font-medium text-amber-800">Template Not Approved</div>
-                        <div className="text-sm text-amber-700 mt-1">{templateApprovalWarning}</div>
-                        <Link 
-                          href="/admin/crm/whatsapp/templates" 
-                          className="inline-block mt-2 text-sm text-blue-600 hover:text-blue-700 font-medium"
-                        >
-                          → Go to Templates to Submit for Approval
-                        </Link>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
 
               {/* Send Mode */}

@@ -58,6 +58,7 @@ export async function GET(request: NextRequest) {
         totalFailed,
         byProvider,
         monthlyExpenses,
+        marketingFromMessages,
       ] = await Promise.all([
         WhatsAppMessage.countDocuments({
           direction: 'outbound',
@@ -105,12 +106,45 @@ export async function GET(request: NextRequest) {
             },
           },
         ]),
+        // Aggregate marketing costs from template messages (Meta charges for all sent templates)
+        // Include messages with metadata.cost OR messages with waMessageId (sent to Meta)
+        WhatsAppMessage.aggregate([
+          {
+            $match: {
+              messageType: 'template',
+              direction: 'outbound',
+              provider: 'meta',
+              $or: [
+                { 'metadata.cost': { $exists: true, $gt: 0 } },
+                { waMessageId: { $exists: true, $ne: null, $regex: /^wamid\./ } },
+              ],
+              sentAt: { $gte: currentMonthStart, $lte: currentMonthEnd },
+            },
+          },
+          {
+            $group: {
+              _id: null,
+              // Use metadata.cost if available, otherwise estimate ₹0.70 per message
+              total: { $sum: { $ifNull: ['$metadata.cost', 0.70] } },
+              count: { $sum: 1 },
+            },
+          },
+        ]),
       ]);
 
+      // Calculate marketing costs from both expenses collection AND message metadata
+      const templateMarketingCost = (marketingFromMessages as any[])?.[0]?.total || 0;
+      const templateMessageCount = (marketingFromMessages as any[])?.[0]?.count || 0;
+      
       const expensesByCategory = Object.fromEntries(
         monthlyExpenses.map((e: any) => [e._id, { total: e.total, count: e.count }])
       );
-      const totalExpenses = monthlyExpenses.reduce((sum: number, e: any) => sum + e.total, 0);
+      
+      // Add template costs to marketing category
+      const marketingFromExpenses = expensesByCategory.marketing?.total || 0;
+      const totalMarketingCost = marketingFromExpenses + templateMarketingCost;
+      
+      const totalExpenses = monthlyExpenses.reduce((sum: number, e: any) => sum + e.total, 0) + templateMarketingCost;
 
       analytics.overview = {
         currentMonth: {
@@ -131,9 +165,10 @@ export async function GET(request: NextRequest) {
         expenses: {
           byCategory: expensesByCategory,
           total: totalExpenses,
-          marketing: expensesByCategory.marketing?.total || 0,
+          marketing: totalMarketingCost,
           utility: expensesByCategory.utility?.total || 0,
           whatsapp_api: expensesByCategory.whatsapp_api?.total || 0,
+          templateMessages: templateMessageCount,
         },
       };
     }
