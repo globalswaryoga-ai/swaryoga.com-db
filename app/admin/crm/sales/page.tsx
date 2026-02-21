@@ -751,7 +751,7 @@ export default function SalesPage() {
           {/* Delete Button */}
           <button
             onClick={() => handleDeleteSale(sale._id)}
-            className="px-3 py-1.5 bg-black border border-red-500 text-red-400 rounded-lg text-sm font-medium transition-colors hover:bg-red-600 hover:text-white"
+            className="px-3 py-1.5 bg-white border border-red-500 text-red-600 rounded-lg text-sm font-medium transition-colors hover:bg-red-600 hover:text-white"
             title="Delete sale"
           >
             Delete
@@ -777,7 +777,7 @@ export default function SalesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-black to-gray-900 p-8">
+    <div className="min-h-screen bg-black p-8">
       <div className="w-full space-y-8">
         {/* Page Header - Professional */}
         <div className="flex items-center justify-between">
@@ -881,7 +881,7 @@ export default function SalesPage() {
 
               <button
                 onClick={() => bulkDeleteSelected({ clearAfter: clearSaleSelection, refreshAfter: fetchSalesData })}
-                className="px-3 py-1.5 bg-black border border-red-500 text-red-400 rounded-lg font-semibold hover:bg-red-600 hover:text-white transition-colors"
+                className="px-3 py-1.5 bg-white border border-red-500 text-red-600 rounded-lg font-semibold hover:bg-red-600 hover:text-white transition-colors"
                 title="Delete selected sales"
               >
                 Delete Selected
