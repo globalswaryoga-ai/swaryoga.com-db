@@ -10,7 +10,6 @@ import type { CSVContact, CSVColumnMap } from '@/components/admin/crm/CSVUploadP
 import {
   DataTable,
   FormModal,
-  StatCard,
   PageHeader,
   LoadingSpinner,
   AlertBox,
@@ -618,7 +617,7 @@ export default function SalesPage() {
       key: 'customerId',
       label: 'Customer ID',
       render: (_: any, sale: SaleRecord) => (
-        <div className="font-mono text-xs text-[#0f3a4d] break-words">{sale.customerId || '-'}</div>
+        <div className="font-mono text-xs text-white/70 break-words">{sale.customerId || '-'}</div>
       ),
     },
     {
@@ -626,8 +625,8 @@ export default function SalesPage() {
       label: 'Customer & Contact',
       render: (name: string, sale: SaleRecord) => (
         <div className="space-y-1">
-          <div className="font-semibold text-[#0f3a4d] break-words">{name || 'N/A'}</div>
-          <div className="text-xs text-slate-600 break-words">{sale.customerPhone || 'N/A'}</div>
+          <div className="font-semibold text-white break-words">{name || 'N/A'}</div>
+          <div className="text-xs text-gray-400 break-words">{sale.customerPhone || 'N/A'}</div>
         </div>
       )
     },
@@ -643,7 +642,7 @@ export default function SalesPage() {
         <div className="flex flex-col gap-1">
           <StatusBadge status={String(sale.status || '—')} size="sm" />
           {sale.superAdminApproved && (
-            <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium">
+            <span className="text-xs bg-emerald-600/30 text-emerald-400 px-1.5 py-0.5 rounded font-medium border border-emerald-500/30">
               ✓ Approved
             </span>
           )}
@@ -655,20 +654,20 @@ export default function SalesPage() {
       label: 'Label',
       render: (_: any, sale: SaleRecord) => {
         const labels = Array.isArray(sale.labels) ? sale.labels : [];
-        if (!labels.length) return <span className="text-[#0f3a4d]/60">-</span>;
+        if (!labels.length) return <span className="text-white/40">-</span>;
         return (
           <div className="flex flex-wrap gap-1">
             {labels.slice(0, 4).map((l) => (
               <span
                 key={l}
-                className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[#F5EBE0]/60 text-[#0f3a4d] border border-[#E8DFD5]"
+                className="px-2 py-0.5 rounded-full text-xs font-semibold bg-white/10 text-white border border-white/20"
                 title={l}
               >
                 {l}
               </span>
             ))}
             {labels.length > 4 && (
-              <span className="text-xs text-[#0f3a4d]/60">+{labels.length - 4}</span>
+              <span className="text-xs text-white/50">+{labels.length - 4}</span>
             )}
           </div>
         );
@@ -698,13 +697,13 @@ export default function SalesPage() {
         <div className="flex gap-2 items-center relative">
           {/* Receipt + messaging actions */}
 
-          {/* RPT Button */}
+          {/* Receipts Button */}
           <button
             onClick={() => router.push(`/admin/crm/sales/${sale._id}`)}
-            className="px-3 py-1.5 bg-[#E8A645] hover:bg-[#d4941e] text-white rounded-lg text-sm font-medium transition-colors"
-            title="Receipt (A4 PDF)"
+            className="px-3 py-1.5 bg-black border border-yellow-500 text-yellow-400 rounded-lg text-sm font-medium transition-colors hover:bg-yellow-400 hover:text-black"
+            title="View Receipt"
           >
-            RPT
+            Receipts
           </button>
 
           {/* WhatsApp Button */}
@@ -725,7 +724,7 @@ export default function SalesPage() {
 
               router.push(`/admin/crm/leads-followup?${params.toString()}`);
             }}
-            className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
+            className="px-3 py-1.5 bg-black border border-emerald-500 text-emerald-400 rounded-lg text-sm font-medium transition-colors hover:bg-emerald-600 hover:text-white"
             title="Meta WhatsApp"
           >
             WhatsApp
@@ -734,7 +733,7 @@ export default function SalesPage() {
           {/* Edit Button */}
           <button
             onClick={() => openEdit(sale)}
-            className="px-3 py-1.5 bg-[#F5EBE0] hover:bg-[#E8DFD5] text-[#0f3a4d] rounded-lg text-sm font-medium transition-colors"
+            className="px-3 py-1.5 bg-black border border-yellow-500 text-yellow-400 rounded-lg text-sm font-medium transition-colors hover:bg-yellow-400 hover:text-black"
             title="Edit sale"
           >
             Edit
@@ -743,7 +742,7 @@ export default function SalesPage() {
           {/* View Button */}
           <button
             onClick={() => router.push(`/admin/crm/sales/${sale._id}`)}
-            className="px-3 py-1.5 bg-[#E8A645] hover:bg-[#d4941e] text-white rounded-lg text-sm font-medium transition-colors"
+            className="px-3 py-1.5 bg-black border border-emerald-500 text-emerald-400 rounded-lg text-sm font-medium transition-colors hover:bg-emerald-600 hover:text-white"
             title="View sale details"
           >
             View
@@ -752,7 +751,7 @@ export default function SalesPage() {
           {/* Delete Button */}
           <button
             onClick={() => handleDeleteSale(sale._id)}
-            className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-sm font-medium transition-colors"
+            className="px-3 py-1.5 bg-black border border-red-500 text-red-400 rounded-lg text-sm font-medium transition-colors hover:bg-red-600 hover:text-white"
             title="Delete sale"
           >
             Delete
@@ -778,15 +777,15 @@ export default function SalesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAFAF8] p-8">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-black to-gray-900 p-8">
+      <div className="w-full space-y-8">
         {/* Page Header - Professional */}
         <div className="flex items-center justify-between">
           <div className="space-y-2">
             <div className="flex items-center gap-3">
               <button
                 onClick={() => router.push('/admin/crm')}
-                className="p-2 hover:bg-[#E8DFD5] rounded-lg transition-colors text-slate-600 hover:text-[#0f3a4d]"
+                className="p-2 hover:bg-white/10 rounded-lg transition-colors text-white/70 hover:text-white border border-white/20"
                 title="Go to CRM Dashboard"
               >
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -795,27 +794,27 @@ export default function SalesPage() {
                 </svg>
               </button>
               <div>
-                <h1 className="text-4xl font-bold text-[#0f3a4d]">Sales Management</h1>
-                <p className="text-slate-600 text-lg">Track revenue, transactions, and workshop sales</p>
+                <h1 className="text-4xl font-bold text-emerald-400">Sales Management</h1>
+                <p className="text-white/70 text-lg">Track revenue, transactions, and workshop sales</p>
               </div>
             </div>
           </div>
           <div className="flex gap-3 flex-wrap justify-end">
             <button
               onClick={downloadCsv}
-              className="bg-blue-50 hover:bg-blue-100 text-blue-700 px-4 py-2 rounded-lg transition-all font-semibold border border-blue-200 flex items-center gap-2"
+              className="bg-black border border-emerald-500 text-emerald-400 px-4 py-2 rounded-lg transition-all font-semibold flex items-center gap-2 hover:bg-emerald-600 hover:text-white"
             >
               📤 Export
             </button>
             <button
               onClick={() => setShowUploadModal(true)}
-              className="bg-amber-50 hover:bg-amber-100 text-amber-700 px-4 py-2 rounded-lg transition-all font-semibold border border-amber-200"
+              className="bg-black border border-yellow-500 text-yellow-400 px-4 py-2 rounded-lg transition-all font-semibold hover:bg-yellow-400 hover:text-black"
             >
               📤 Upload
             </button>
             <button
               onClick={() => setShowCreateModal(true)}
-              className="bg-gradient-to-r from-[#0f3a4d] to-[#0f3a4d] hover:from-emerald-600 hover:to-teal-700 text-white px-6 py-2 rounded-lg transition-all font-bold shadow-md hover:shadow-lg"
+              className="bg-black border-2 border-emerald-500 text-emerald-400 px-6 py-2 rounded-lg transition-all font-bold hover:bg-emerald-600 hover:text-white"
             >
               + Record Sale
             </button>
@@ -824,22 +823,22 @@ export default function SalesPage() {
 
         {/* Error Alert */}
         {error && (
-          <div className="bg-red-50 border border-red-300 rounded-lg p-4 text-red-700 flex justify-between items-center">
+          <div className="bg-red-900/30 border border-red-500/50 rounded-lg p-4 text-red-300 flex justify-between items-center backdrop-blur-sm">
             <span className="font-medium">{error}</span>
-            <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700 font-bold text-xl">×</button>
+            <button onClick={() => setError(null)} className="text-red-400 hover:text-red-300 font-bold text-xl">×</button>
           </div>
         )}
 
         {/* View Selector - Professional Tabs */}
-        <div className="flex gap-2 flex-wrap bg-white border border-[#E8DFD5] rounded-xl p-2 w-fit">
+        <div className="flex gap-2 flex-wrap bg-black border border-white/30 rounded-xl p-2 w-fit">
           {(['list', 'summary', 'yearly', 'monthly', 'weekly', 'daily'] as const).map((v) => (
             <button
               key={v}
               onClick={() => setView(v)}
               className={`px-6 py-2.5 rounded-lg font-semibold transition-all ${
                 view === v
-                  ? 'bg-gradient-to-r from-[#0f3a4d] to-[#0f3a4d] text-white shadow-md'
-                  : 'bg-[#F5EBE0]/60 text-[#0f3a4d] hover:bg-[#E8DFD5]'
+                  ? 'bg-black text-emerald-400 shadow-md border-2 border-emerald-500'
+                  : 'bg-black text-white hover:text-yellow-400 border border-white/30'
               }`}
             >
               {v === 'list' && '📋 List'}
@@ -854,20 +853,20 @@ export default function SalesPage() {
 
         {/* Bulk actions (header) */}
         {view === 'list' && selectedSaleIds.size > 0 && (
-          <div className="bg-[#F5EBE0] border border-[#E8DFD5] rounded-xl p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="bg-black border border-white/30 rounded-xl p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-3 flex-wrap">
-              <div className="font-semibold text-[#0f3a4d]">Selected: {selectedSaleIds.size}</div>
+              <div className="font-semibold text-white">Selected: {selectedSaleIds.size}</div>
 
               <button
                 onClick={clearSaleSelection}
-                className="px-3 py-1.5 bg-white border border-[#E8DFD5] text-[#0f3a4d] rounded-lg font-semibold hover:bg-[#E8A645] hover:text-white transition-colors"
+                className="px-3 py-1.5 bg-black border border-white/30 text-white rounded-lg font-semibold hover:bg-yellow-400 hover:text-black transition-colors"
               >
                 Clear
               </button>
 
               <button
                 onClick={() => toggleSelectAllOnPage()}
-                className="px-3 py-1.5 bg-white border border-[#E8DFD5] text-[#0f3a4d] rounded-lg font-semibold hover:bg-[#E8A645]/20 transition-colors"
+                className="px-3 py-1.5 bg-black border border-white/30 text-white rounded-lg font-semibold hover:text-yellow-400 transition-colors"
                 title="Select/deselect all on this page"
               >
                 Actions All
@@ -875,65 +874,65 @@ export default function SalesPage() {
 
               <button
                 onClick={() => setBulkActionsOpen(true)}
-                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold transition-colors"
+                className="px-3 py-1.5 bg-black border border-emerald-500 text-emerald-400 rounded-lg font-semibold hover:bg-emerald-600 hover:text-white transition-colors"
               >
                 Actions
               </button>
 
               <button
                 onClick={() => bulkDeleteSelected({ clearAfter: clearSaleSelection, refreshAfter: fetchSalesData })}
-                className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors"
+                className="px-3 py-1.5 bg-black border border-red-500 text-red-400 rounded-lg font-semibold hover:bg-red-600 hover:text-white transition-colors"
                 title="Delete selected sales"
               >
                 Delete Selected
               </button>
             </div>
 
-            <div className="text-sm text-[#0f3a4d]/70">
+            <div className="text-sm text-white/60">
               Tip: select 2+ sales to auto-open actions.
             </div>
           </div>
         )}
 
         {/* Filters - Professional Card */}
-        <div className="bg-white border border-[#E8DFD5] rounded-xl p-8 shadow-sm">
-          <h2 className="text-sm font-bold text-[#0f3a4d] uppercase tracking-wider mb-6">Filters</h2>
+        <div className="bg-black border border-white/30 rounded-xl p-8">
+          <h2 className="text-sm font-bold text-emerald-400 uppercase tracking-wider mb-6">Filters</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div>
-              <label className="block text-[#0f3a4d] text-sm font-semibold mb-3">Program/Workshop</label>
+              <label className="block text-white text-sm font-semibold mb-3">Program/Workshop</label>
               <input
                 type="text"
                 value={draftFilters.workshop}
                 onChange={(e) => setDraftFilters((p) => ({ ...p, workshop: e.target.value }))}
-                className="w-full bg-[#F5EBE0] border border-[#E8DFD5] rounded-lg px-4 py-2.5 text-[#0f3a4d] font-medium placeholder-slate-500 focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645] transition-all"
+                className="w-full bg-black border border-white/30 rounded-lg px-4 py-2.5 text-white font-medium placeholder-white/50 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
                 placeholder="Search workshop"
               />
             </div>
             <div>
-              <label className="block text-[#0f3a4d] text-sm font-semibold mb-3">Date Range From</label>
+              <label className="block text-white text-sm font-semibold mb-3">Date Range From</label>
               <input
                 type="date"
                 value={draftFilters.batchFrom}
                 onChange={(e) => setDraftFilters((p) => ({ ...p, batchFrom: e.target.value }))}
-                className="w-full bg-[#F5EBE0] border border-[#E8DFD5] rounded-lg px-4 py-2.5 text-[#0f3a4d] font-medium focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645] transition-all"
+                className="w-full bg-black border border-white/30 rounded-lg px-4 py-2.5 text-white font-medium focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
               />
             </div>
             <div>
-              <label className="block text-[#0f3a4d] text-sm font-semibold mb-3">Date Range To</label>
+              <label className="block text-white text-sm font-semibold mb-3">Date Range To</label>
               <input
                 type="date"
                 value={draftFilters.batchTo}
                 onChange={(e) => setDraftFilters((p) => ({ ...p, batchTo: e.target.value }))}
-                className="w-full bg-[#F5EBE0] border border-[#E8DFD5] rounded-lg px-4 py-2.5 text-[#0f3a4d] font-medium focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645] transition-all"
+                className="w-full bg-black border border-white/30 rounded-lg px-4 py-2.5 text-white font-medium focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
               />
             </div>
             <div>
-              <label className="block text-[#0f3a4d] text-sm font-semibold mb-3">Reported By (User ID)</label>
+              <label className="block text-white text-sm font-semibold mb-3">Reported By (User ID)</label>
               <input
                 type="text"
                 value={draftFilters.reportedByUserId}
                 onChange={(e) => setDraftFilters((p) => ({ ...p, reportedByUserId: e.target.value }))}
-                className="w-full bg-[#F5EBE0] border border-[#E8DFD5] rounded-lg px-4 py-2.5 text-[#0f3a4d] font-medium placeholder-slate-500 focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645] transition-all"
+                className="w-full bg-black border border-white/30 rounded-lg px-4 py-2.5 text-white font-medium placeholder-white/50 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
                 placeholder="Admin user ID"
               />
             </div>
@@ -941,13 +940,13 @@ export default function SalesPage() {
           <div className="mt-8 flex gap-3">
             <button
               onClick={applyFilters}
-              className="bg-gradient-to-r from-[#0f3a4d] to-[#0f3a4d] hover:from-emerald-600 hover:to-teal-700 text-white px-8 py-2.5 rounded-lg font-semibold transition-all shadow-md hover:shadow-lg"
+              className="bg-black border border-emerald-500 text-emerald-400 px-8 py-2.5 rounded-lg font-semibold transition-all hover:bg-emerald-600 hover:text-white"
             >
               ✓ Apply Filters
             </button>
             <button
               onClick={clearFilters}
-              className="bg-[#F5EBE0]/60 hover:bg-[#E8DFD5] text-[#0f3a4d] px-8 py-2.5 rounded-lg font-semibold transition-all border border-[#E8DFD5]"
+              className="bg-black border border-yellow-500 text-yellow-400 px-8 py-2.5 rounded-lg font-semibold transition-all hover:bg-yellow-400 hover:text-black"
             >
               ✕ Clear
             </button>
@@ -962,40 +961,50 @@ export default function SalesPage() {
             {/* Summary View */}
             {view === 'summary' && summary && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard
-                  label="Total Sales"
-                  value={String(summary.totalTransactions || 0)}
-                  icon="📊"
-                  color="indigo"
-                />
-                <StatCard
-                  label="Total Revenue"
-                  value={`₹${Number(summary.totalSales || 0).toLocaleString()}`}
-                  icon="💰"
-                  color="green"
-                />
-                <StatCard
-                  label="Average Sale"
-                  value={`₹${Number(summary.averageSale || 0).toLocaleString()}`}
-                  icon="📈"
-                  color="teal"
-                />
-                <div className="bg-[#F5EBE0] border border-[#E8DFD5] rounded-xl p-6">
-                  <div className="text-[#0f3a4d] font-extrabold mb-4 text-sm">
+                {/* Total Sales Card */}
+                <div className="bg-black border border-white/30 rounded-xl p-6">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-emerald-400 text-sm font-bold uppercase tracking-wider">Total Sales</h3>
+                    <span className="text-2xl">📊</span>
+                  </div>
+                  <p className="text-4xl font-black text-white mt-3">{String(summary.totalTransactions || 0)}</p>
+                </div>
+                
+                {/* Total Revenue Card */}
+                <div className="bg-black border border-white/30 rounded-xl p-6">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-emerald-400 text-sm font-bold uppercase tracking-wider">Total Revenue</h3>
+                    <span className="text-2xl">💰</span>
+                  </div>
+                  <p className="text-4xl font-black text-yellow-400 mt-3">₹{Number(summary.totalSales || 0).toLocaleString()}</p>
+                </div>
+                
+                {/* Average Sale Card */}
+                <div className="bg-black border border-white/30 rounded-xl p-6">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-emerald-400 text-sm font-bold uppercase tracking-wider">Average Sale</h3>
+                    <span className="text-2xl">📈</span>
+                  </div>
+                  <p className="text-4xl font-black text-yellow-400 mt-3">₹{Number(summary.averageSale || 0).toLocaleString()}</p>
+                </div>
+                
+                {/* Summary Card */}
+                <div className="bg-black border border-white/30 rounded-xl p-6">
+                  <div className="text-emerald-400 font-bold mb-4 text-sm uppercase tracking-wider">
                     Summary
                   </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-[#0f3a4d] text-xs">
-                      <span className="text-[#0f3a4d]/80">Max Sale</span>
-                      <span className="font-bold text-[#E8A645]">₹{Number(summary.maxSale || 0).toLocaleString()}</span>
+                  <div className="space-y-3">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-white/70">Max Sale</span>
+                      <span className="font-bold text-yellow-400">₹{Number(summary.maxSale || 0).toLocaleString()}</span>
                     </div>
-                    <div className="flex justify-between text-[#0f3a4d] text-xs">
-                      <span className="text-[#0f3a4d]/80">Min Sale</span>
-                      <span className="font-bold text-[#E8A645]">₹{Number(summary.minSale || 0).toLocaleString()}</span>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-white/70">Min Sale</span>
+                      <span className="font-bold text-yellow-400">₹{Number(summary.minSale || 0).toLocaleString()}</span>
                     </div>
-                    <div className="flex justify-between text-[#0f3a4d] text-xs">
-                      <span className="text-[#0f3a4d]/80">Target Achieved</span>
-                      <span className="font-bold text-[#0f3a4d]">{Number(summary.targetAchieved || 0)}</span>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-white/70">Target Achieved</span>
+                      <span className="font-bold text-white">{Number(summary.targetAchieved || 0)}</span>
                     </div>
                   </div>
                 </div>
@@ -1075,7 +1084,7 @@ export default function SalesPage() {
         >
           <div className="space-y-4">
             <div>
-              <label className="block text-[#0f3a4d] text-sm mb-2 font-semibold">Customer ID *</label>
+              <label className="block text-white text-sm mb-2 font-semibold">Customer ID *</label>
               <input
                 type="text"
                 required
@@ -1086,7 +1095,7 @@ export default function SalesPage() {
                     customerId: e.target.value,
                   })
                 }
-                className="w-full bg-white border border-[#E8DFD5] rounded-lg px-4 py-2 text-[#0f3a4d] placeholder-[#0f3a4d]/50 focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645]"
+                className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white placeholder-white/50 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                 placeholder="Enter customer id / phone / email"
               />
               <div className="mt-2 flex items-center gap-2">
@@ -1094,12 +1103,12 @@ export default function SalesPage() {
                   type="button"
                   onClick={lookupCustomer}
                   disabled={lookupBusy}
-                  className="px-3 py-1.5 rounded-lg bg-[#E8A645] text-white text-sm hover:bg-[#d4941e] disabled:opacity-60 font-medium"
+                  className="px-3 py-1.5 rounded-lg bg-black border border-yellow-500 text-yellow-400 text-sm hover:bg-yellow-400 hover:text-black disabled:opacity-60 font-medium"
                 >
                   {lookupBusy ? 'Loading...' : 'Load Customer'}
                 </button>
                 {lookupMsg && (
-                  <span className={lookupMsg.toLowerCase().includes('loaded') ? 'text-emerald-600 text-xs font-medium' : 'text-[#0f3a4d] text-xs'}>
+                  <span className={lookupMsg.toLowerCase().includes('loaded') ? 'text-emerald-400 text-xs font-medium' : 'text-white/70 text-xs'}>
                     {lookupMsg}
                   </span>
                 )}
@@ -1108,17 +1117,17 @@ export default function SalesPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-[#0f3a4d] text-sm mb-2 font-semibold">Name</label>
+                <label className="block text-white text-sm mb-2 font-semibold">Name</label>
                 <input
                   type="text"
                   value={formData.customerName}
                   onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
-                  className="w-full bg-white border border-[#E8DFD5] rounded-lg px-4 py-2 text-[#0f3a4d] placeholder-[#0f3a4d]/50 focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645]"
+                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white placeholder-white/50 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                   placeholder="Customer name"
                 />
               </div>
               <div>
-                <label className="block text-[#0f3a4d] text-sm mb-2 font-semibold">Mobile</label>
+                <label className="block text-white text-sm mb-2 font-semibold">Mobile</label>
                 <input
                   type="text"
                   value={formData.customerPhone}
@@ -1127,16 +1136,16 @@ export default function SalesPage() {
                     const normalized = normalizePhoneForMeta(e.target.value);
                     if (normalized) setFormData({ ...formData, customerPhone: normalized });
                   }}
-                  className="w-full bg-white border border-[#E8DFD5] rounded-lg px-4 py-2 text-[#0f3a4d] placeholder-[#0f3a4d]/50 focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645]"
+                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white placeholder-white/50 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                   placeholder="Phone number"
                 />
               </div>
               <div>
-                <label className="block text-[#0f3a4d] text-sm mb-2 font-semibold">Workshop Name</label>
+                <label className="block text-white text-sm mb-2 font-semibold">Workshop Name</label>
                 <select
                   value={formData.workshopName}
                   onChange={(e) => setFormData({ ...formData, workshopName: e.target.value })}
-                  className="w-full bg-white border border-[#E8DFD5] rounded-lg px-4 py-2 text-[#0f3a4d] focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645]"
+                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                 >
                   <option value="">(select)</option>
                   {workshopOptions.map((w) => (
@@ -1147,32 +1156,32 @@ export default function SalesPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-[#0f3a4d] text-sm mb-2 font-semibold">Batch Date</label>
+                <label className="block text-white text-sm mb-2 font-semibold">Batch Date</label>
                 <input
                   type="date"
                   value={toDateInputValue(formData.batchDate)}
                   onChange={(e) => setFormData({ ...formData, batchDate: e.target.value })}
-                  className="w-full bg-white border border-[#E8DFD5] rounded-lg px-4 py-2 text-[#0f3a4d] focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645]"
+                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                 />
               </div>
             </div>
             <div>
-              <label className="block text-[#0f3a4d] text-sm mb-2 font-semibold">Amount (₹) *</label>
+              <label className="block text-white text-sm mb-2 font-semibold">Amount (₹) *</label>
               <input
                 type="number"
                 required
                 value={formData.saleAmount}
                 onChange={(e) => setFormData({ ...formData, saleAmount: Number(e.target.value) })}
-                className="w-full bg-white border border-[#E8DFD5] rounded-lg px-4 py-2 text-[#0f3a4d] placeholder-[#0f3a4d]/50 focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645]"
+                className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white placeholder-white/50 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                 placeholder="5000"
               />
             </div>
             <div>
-              <label className="block text-[#0f3a4d] text-sm mb-2 font-semibold">Payment Mode</label>
+              <label className="block text-white text-sm mb-2 font-semibold">Payment Mode</label>
               <select
                 value={formData.paymentMode}
                 onChange={(e) => setFormData({ ...formData, paymentMode: e.target.value })}
-                className="w-full bg-white border border-[#E8DFD5] rounded-lg px-4 py-2 text-[#0f3a4d] focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645]"
+                className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
               >
                 <option value="payu">PayU</option>
                 <option value="card">Card</option>
@@ -1188,20 +1197,20 @@ export default function SalesPage() {
                 type="checkbox"
                 checked={Boolean(formData.targetAchieved)}
                 onChange={(e) => setFormData({ ...formData, targetAchieved: e.target.checked })}
-                className="h-4 w-4 rounded border-[#E8DFD5]"
+                className="h-4 w-4 rounded border-white/20"
               />
-              <label htmlFor="targetAchieved" className="text-[#0f3a4d] text-sm font-medium">
+              <label htmlFor="targetAchieved" className="text-white text-sm font-medium">
                 Target achieved
               </label>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-[#0f3a4d] text-sm mb-2 font-semibold">Status</label>
+                <label className="block text-white text-sm mb-2 font-semibold">Status</label>
                 <select
                   value={formData.status}
                   onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                  className="w-full bg-white border border-[#E8DFD5] rounded-lg px-4 py-2 text-[#0f3a4d] focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645]"
+                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                 >
                   {SALE_STATUS_OPTIONS.map((s) => (
                     <option key={s} value={s}>
@@ -1211,11 +1220,11 @@ export default function SalesPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-[#0f3a4d] text-sm mb-2 font-semibold">Label</label>
+                <label className="block text-white text-sm mb-2 font-semibold">Label</label>
                 <select
                   value={formData.labelsText}
                   onChange={(e) => setFormData({ ...formData, labelsText: e.target.value })}
-                  className="w-full bg-white border border-[#E8DFD5] rounded-lg px-4 py-2 text-[#0f3a4d] focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645]"
+                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                 >
                   <option value="">(select)</option>
                   {labelOptions.map((l) => (
@@ -1228,11 +1237,11 @@ export default function SalesPage() {
             </div>
 
             <div>
-              <label className="block text-[#0f3a4d] text-sm mb-2 font-semibold">Admin User (Reported by)</label>
+              <label className="block text-white text-sm mb-2 font-semibold">Admin User (Reported by)</label>
               <select
                 value={formData.reportedByUserId}
                 onChange={(e) => setFormData({ ...formData, reportedByUserId: e.target.value })}
-                className="w-full bg-white border border-[#E8DFD5] rounded-lg px-4 py-2 text-[#0f3a4d] focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645]"
+                className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
               >
                 <option value="">(use logged-in admin)</option>
                 {ADMIN_USERID_OPTIONS.map((u) => (
@@ -1248,10 +1257,10 @@ export default function SalesPage() {
 
       {/* Upload Sales Modal */}
       {showUploadModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-50">
-          <div className="bg-white border-2 border-purple-300 rounded-xl p-6 max-w-2xl w-full space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur flex items-center justify-center z-50">
+          <div className="bg-gray-950 border-2 border-white/30 rounded-xl p-6 max-w-2xl w-full space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold text-purple-700">📄 Bulk Import Sales</h2>
+              <h2 className="text-xl font-bold text-emerald-400">📄 Bulk Import Sales</h2>
               <button
                 onClick={() => {
                   if (csvImporting) return;
@@ -1260,7 +1269,7 @@ export default function SalesPage() {
                   setCsvColumnMap(null);
                   setCsvFileName('');
                 }}
-                className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+                className="text-white/40 hover:text-white text-2xl leading-none"
               >
                 ×
               </button>
@@ -1286,11 +1295,11 @@ export default function SalesPage() {
             />
 
             {csvContacts.length > 0 && (
-              <div className="bg-purple-50 rounded-lg p-3 border border-purple-200">
-                <p className="text-purple-800 text-sm font-semibold">
+              <div className="bg-emerald-900/30 rounded-lg p-3 border border-emerald-500/30">
+                <p className="text-emerald-300 text-sm font-semibold">
                   Ready to import {csvContacts.length} sale records
                 </p>
-                <p className="text-purple-600 text-xs mt-1">
+                <p className="text-emerald-400/70 text-xs mt-1">
                   Records without a valid amount will be skipped. Missing fields can be updated later.
                 </p>
               </div>
@@ -1299,12 +1308,12 @@ export default function SalesPage() {
             {/* Reported By override for super admin */}
             {isSuperAdmin && (
               <div>
-                <label className="block text-purple-700 text-sm mb-1 font-semibold">Reported By (optional)</label>
+                <label className="block text-emerald-400 text-sm mb-1 font-semibold">Reported By (optional)</label>
                 <input
                   type="text"
                   value={uploadReportedByUserId}
                   onChange={(e) => setUploadReportedByUserId(e.target.value)}
-                  className="w-full border border-purple-300 rounded-lg px-3 py-2 text-gray-800 focus:outline-none focus:border-purple-500"
+                  className="w-full bg-black border border-white/30 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
                   placeholder="Leave blank for logged-in admin"
                 />
               </div>
@@ -1394,7 +1403,7 @@ export default function SalesPage() {
                     setCsvImporting(false);
                   }
                 }}
-                className="flex-1 bg-purple-500/20 border border-purple-500 text-purple-700 px-4 py-2 rounded-lg hover:bg-purple-500/30 transition-colors font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex-1 bg-black border border-emerald-500 text-emerald-400 px-4 py-2 rounded-lg hover:bg-emerald-600 hover:text-white transition-colors font-medium disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {csvImporting ? '⏳ Importing...' : `Import ${csvContacts.length} Sales`}
               </button>
@@ -1408,7 +1417,7 @@ export default function SalesPage() {
                   setUploadReportedByUserId('');
                 }}
                 disabled={csvImporting}
-                className="flex-1 bg-slate-100 border border-slate-300 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-200 transition-colors font-medium disabled:opacity-40"
+                className="flex-1 bg-black border border-white/30 text-white px-4 py-2 rounded-lg hover:bg-white/10 transition-colors font-medium disabled:opacity-40"
               >
                 Cancel
               </button>
@@ -1430,20 +1439,20 @@ export default function SalesPage() {
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-purple-200 text-sm mb-2">Customer ID</label>
+                <label className="block text-white text-sm mb-2">Customer ID</label>
                 <input
                   type="text"
                   value={editData.customerId}
                   onChange={(e) => setEditData({ ...editData, customerId: e.target.value })}
-                  className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
               <div>
-                <label className="block text-purple-200 text-sm mb-2">Admin User (Reported by)</label>
+                <label className="block text-white text-sm mb-2">Admin User (Reported by)</label>
                 <select
                   value={editData.reportedByUserId}
                   onChange={(e) => setEditData({ ...editData, reportedByUserId: e.target.value })}
-                  className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500"
                 >
                   <option value="">(use logged-in admin)</option>
                   {ADMIN_USERID_OPTIONS.map((u) => (
@@ -1457,16 +1466,16 @@ export default function SalesPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-purple-200 text-sm mb-2">Name</label>
+                <label className="block text-white text-sm mb-2">Name</label>
                 <input
                   type="text"
                   value={editData.customerName}
                   onChange={(e) => setEditData({ ...editData, customerName: e.target.value })}
-                  className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
               <div>
-                <label className="block text-purple-200 text-sm mb-2">Mobile</label>
+                <label className="block text-white text-sm mb-2">Mobile</label>
                 <input
                   type="text"
                   value={editData.customerPhone}
@@ -1475,15 +1484,15 @@ export default function SalesPage() {
                     const normalized = normalizePhoneForMeta(e.target.value);
                     if (normalized) setEditData({ ...editData, customerPhone: normalized });
                   }}
-                  className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
               <div>
-                <label className="block text-purple-200 text-sm mb-2">Workshop Name</label>
+                <label className="block text-white text-sm mb-2">Workshop Name</label>
                 <select
                   value={editData.workshopName}
                   onChange={(e) => setEditData({ ...editData, workshopName: e.target.value })}
-                  className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500"
                 >
                   <option value="">(select)</option>
                   {workshopOptions.map((w) => (
@@ -1494,12 +1503,12 @@ export default function SalesPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-purple-200 text-sm mb-2">Batch Date</label>
+                <label className="block text-white text-sm mb-2">Batch Date</label>
                 <input
                   type="date"
                   value={toDateInputValue(editData.batchDate)}
                   onChange={(e) => setEditData({ ...editData, batchDate: e.target.value })}
-                  className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
             </div>
@@ -1512,7 +1521,7 @@ export default function SalesPage() {
                 onChange={(e) => setEditData({ ...(editData as any), targetAchieved: e.target.checked })}
                 className="h-4 w-4"
               />
-              <label htmlFor="targetAchievedEdit" className="text-purple-200 text-sm">
+              <label htmlFor="targetAchievedEdit" className="text-white text-sm">
                 Target achieved
               </label>
             </div>
@@ -1527,7 +1536,7 @@ export default function SalesPage() {
                   onChange={(e) => setEditData({ ...(editData as any), superAdminApproved: e.target.checked })}
                   className="h-4 w-4"
                 />
-                <label htmlFor="superAdminApprovedEdit" className="text-green-200 text-sm font-medium">
+                <label htmlFor="superAdminApprovedEdit" className="text-emerald-400 text-sm font-medium">
                   Super Admin Approved ✓
                 </label>
               </div>
@@ -1535,21 +1544,21 @@ export default function SalesPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-purple-200 text-sm mb-2">Amount (₹) *</label>
+                <label className="block text-white text-sm mb-2">Amount (₹) *</label>
                 <input
                   type="number"
                   required
                   value={editData.saleAmount}
                   onChange={(e) => setEditData({ ...editData, saleAmount: Number(e.target.value) })}
-                  className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
               <div>
-                <label className="block text-purple-200 text-sm mb-2">Payment Mode</label>
+                <label className="block text-white text-sm mb-2">Payment Mode</label>
                 <select
                   value={editData.paymentMode}
                   onChange={(e) => setEditData({ ...editData, paymentMode: e.target.value })}
-                  className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500"
                 >
                   <option value="payu">PayU</option>
                   <option value="card">Card</option>
@@ -1559,23 +1568,23 @@ export default function SalesPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-purple-200 text-sm mb-2">Sale Date</label>
+                <label className="block text-white text-sm mb-2">Sale Date</label>
                 <input
                   type="date"
                   value={toDateInputValue(editData.saleDate)}
                   onChange={(e) => setEditData({ ...editData, saleDate: e.target.value })}
-                  className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-purple-200 text-sm mb-2">Status</label>
+                <label className="block text-white text-sm mb-2">Status</label>
                 <select
                   value={editData.status}
                   onChange={(e) => setEditData({ ...editData, status: e.target.value })}
-                  className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500"
                 >
                   {SALE_STATUS_OPTIONS.map((s) => (
                     <option key={s} value={s}>
@@ -1585,11 +1594,11 @@ export default function SalesPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-purple-200 text-sm mb-2">Label</label>
+                <label className="block text-white text-sm mb-2">Label</label>
                 <select
                   value={editData.labelsText}
                   onChange={(e) => setEditData({ ...editData, labelsText: e.target.value })}
-                  className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500"
                 >
                   <option value="">(select)</option>
                   {labelOptions.map((l) => (
