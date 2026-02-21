@@ -1,0 +1,4 @@
+id,invoiceNumber,customerId,date,dueDate,lineItems,subtotal,gst,total,paymentStatus,paidAmount,notes
+INV-001,INV-2024-001,CUST-001,2024-01-15,2024-02-15,"[{""description"":""Online Yoga Workshop - 10 Sessions"",""quantity"":10,""rate"":1000}]",10000,1800,11800,paid,11800,"Workshop fee - paid in full"
+INV-002,INV-2024-002,CUST-002,2024-02-10,2024-03-10,"[{""description"":""Life Planner Consultation"",""quantity"":5,""rate"":2000}]",10000,1800,11800,partial,6000,"Partial payment received"
+INV-003,INV-2024-003,CUST-003,2024-02-20,2024-03-20,"[{""description"":""Naturopathy Training - 20 hours"",""quantity"":20,""rate"":500}]",10000,1800,11800,unpaid,0,"Invoice pending"

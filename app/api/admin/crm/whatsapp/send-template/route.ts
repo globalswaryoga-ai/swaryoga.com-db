@@ -2,10 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { Lead, WhatsAppMessage, WhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
+import { getAnalyticsEvent } from '@/lib/schemas/enterpriseSchemas';
 import { buildCloudTemplateSendInput, normalizePhone, sendWhatsAppTemplate } from '@/lib/whatsapp';
 
 // Mark as dynamic since this route uses request.headers or request.url
 export const dynamic = 'force-dynamic';
+
+// Cost per template message in INR (Meta charges ~₹0.70 for marketing templates in India)
+const TEMPLATE_COST_INR = parseFloat(process.env.META_TEMPLATE_COST_INR || '0.70');
 
 
 function isHttpUrl(value: unknown): boolean {
@@ -60,7 +64,7 @@ export async function POST(request: NextRequest) {
         lead = await Lead.create({
           phoneNumber: normalizedPhone,
           name: `WhatsApp ${normalizedPhone}`,
-          source: 'whatsapp-template',
+          source: 'whatsapp',
           status: 'lead',
           assignedToUserId: decoded?.userId,
           createdBy: decoded?.userId,
@@ -129,6 +133,8 @@ export async function POST(request: NextRequest) {
       status: 'queued',
       sentAt: new Date(),
       provider: 'meta',
+      sentByUserId: decoded?.userId,
+      sentByLabel: decoded?.username || decoded?.userId || 'admin',
       metadata: {
         template: {
           templateName: t.templateName,
@@ -170,7 +176,29 @@ export async function POST(request: NextRequest) {
         status: 'sent',
         provider: 'meta',
         waMessageId: apiResult.waMessageId,
+        'metadata.cost': TEMPLATE_COST_INR,
+        'metadata.costCurrency': 'INR',
       });
+
+      // Track analytics event for template send with cost
+      try {
+        const AnalyticsEvent = getAnalyticsEvent();
+        await AnalyticsEvent.create({
+          eventType: 'whatsapp_template_sent',
+          eventSource: 'inbox',
+          userId: decoded?.userId,
+          metadata: {
+            templateId: t._id,
+            templateName: t.templateName,
+            phoneNumber: to,
+            waMessageId: apiResult.waMessageId,
+            cost: TEMPLATE_COST_INR,
+            costCurrency: 'INR',
+          },
+        });
+      } catch (analyticsErr) {
+        console.warn('[send-template] Failed to track analytics:', analyticsErr);
+      }
 
       return NextResponse.json(
         {

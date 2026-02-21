@@ -28,6 +28,7 @@ export const dynamic = 'force-dynamic';
  *     address?: string;
  *   }>;
  *   assignedToUserId?: string;   // super-admin override
+ *   updateExisting?: boolean;    // if true, update existing leads instead of skipping
  * }
  */
 export async function POST(request: NextRequest) {
@@ -44,6 +45,7 @@ export async function POST(request: NextRequest) {
     const superAdmin = isSuperAdmin(decoded);
     const body = await request.json();
     const contacts: any[] = Array.isArray(body?.contacts) ? body.contacts : [];
+    const updateExisting = Boolean(body?.updateExisting);
 
     if (contacts.length === 0) {
       return NextResponse.json({ error: 'No contacts provided' }, { status: 400 });
@@ -58,7 +60,19 @@ export async function POST(request: NextRequest) {
     await connectDB();
     const Lead = getLead();
 
-    const results = { imported: 0, skipped: 0, failed: 0, errors: [] as any[] };
+    const results = { 
+      imported: 0, 
+      updated: 0,
+      skipped: 0, 
+      failed: 0, 
+      errors: [] as any[],
+      details: {
+        duplicatesSkipped: 0,
+        duplicatesUpdated: 0,
+        invalidPhones: 0,
+        batchDuplicates: 0,
+      }
+    };
     const seenPhones = new Set<string>();
 
     for (const c of contacts) {
@@ -66,14 +80,16 @@ export async function POST(request: NextRequest) {
         const rawPhone = String(c.phoneNumber || c.phone || '').trim();
         const normalized = normalizePhoneStrict(rawPhone, { defaultCountryCode: '91' });
         if (!normalized.ok) {
-          results.skipped++;
-          results.errors.push({ phone: rawPhone, reason: normalized.error });
+          results.failed++;
+          results.details.invalidPhones++;
+          results.errors.push({ phone: rawPhone, reason: `Invalid phone: ${normalized.error}` });
           continue;
         }
 
         const phoneNumber = normalized.phone;
         if (seenPhones.has(phoneNumber)) {
           results.skipped++;
+          results.details.batchDuplicates++;
           results.errors.push({ phone: phoneNumber, reason: 'Duplicate in this batch' });
           continue;
         }
@@ -82,16 +98,55 @@ export async function POST(request: NextRequest) {
         // Check for existing lead
         const existing = await Lead.findOne({ phoneNumber });
         if (existing) {
-          // Update fields that are currently empty
-          let updated = false;
-          const name = String(c.name || '').trim();
-          const email = String(c.email || '').trim();
-          const workshopName = String(c.workshopName || '').trim();
-          if (name && !existing.name) { existing.name = name; updated = true; }
-          if (email && !existing.email) { existing.email = email; updated = true; }
-          if (workshopName && !existing.workshopName) { existing.workshopName = workshopName; updated = true; }
-          if (updated) await existing.save();
-          results.skipped++;
+          if (updateExisting) {
+            // Update existing lead with new data
+            let updated = false;
+            const name = String(c.name || '').trim();
+            const email = String(c.email || '').trim();
+            const workshopName = String(c.workshopName || '').trim();
+            const source = String(c.source || '').trim();
+            const address = String(c.address || '').trim();
+            const status = String(c.status || '').trim();
+            
+            // Update empty fields OR overwrite with new values
+            if (name && name !== existing.name) { existing.name = name; updated = true; }
+            if (email && email !== existing.email) { existing.email = email; updated = true; }
+            if (workshopName && workshopName !== existing.workshopName) { existing.workshopName = workshopName; updated = true; }
+            if (source && !existing.source) { existing.source = source; updated = true; }
+            if (address && !existing.address) { existing.address = address; updated = true; }
+            if (status && status !== existing.status) { existing.status = status; updated = true; }
+            
+            if (Array.isArray(c.labels) && c.labels.length) {
+              const newLabels = c.labels.map((l: any) => String(l).trim()).filter(Boolean);
+              const existingLabels = existing.labels || [];
+              const merged = [...new Set([...existingLabels, ...newLabels])];
+              if (merged.length !== existingLabels.length) {
+                existing.labels = merged;
+                updated = true;
+              }
+            }
+            
+            if (updated) {
+              await existing.save();
+              results.updated++;
+              results.details.duplicatesUpdated++;
+            } else {
+              results.skipped++;
+              results.details.duplicatesSkipped++;
+            }
+          } else {
+            // Just update empty fields (original behavior)
+            let updated = false;
+            const name = String(c.name || '').trim();
+            const email = String(c.email || '').trim();
+            const workshopName = String(c.workshopName || '').trim();
+            if (name && !existing.name) { existing.name = name; updated = true; }
+            if (email && !existing.email) { existing.email = email; updated = true; }
+            if (workshopName && !existing.workshopName) { existing.workshopName = workshopName; updated = true; }
+            if (updated) await existing.save();
+            results.skipped++;
+            results.details.duplicatesSkipped++;
+          }
           continue;
         }
 

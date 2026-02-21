@@ -255,8 +255,8 @@ export async function GET(request: NextRequest) {
     } else if (view === 'weekly') {
       const weekly = await SalesReport.aggregate([
         { $match: filter },
-        { $group: { _id: { week: { $week: '$saleDate' }, year: { $year: '$saleDate' } }, totalSales: { $sum: '$saleAmount' }, count: { $sum: 1 } } },
-        { $sort: { '_id.year': -1, '_id.week': -1 } },
+        { $group: { _id: { $concat: [{ $toString: { $year: '$saleDate' } }, '-W', { $toString: { $week: '$saleDate' } }] }, totalSales: { $sum: '$saleAmount' }, count: { $sum: 1 } } },
+        { $sort: { _id: -1 } },
         { $limit: 52 },
       ]);
       return formatCrmSuccess({ weekly }, {});

@@ -2463,19 +2463,6 @@ export default function MetaInboxPage() {
                             // Proxy S3 URLs through our API to handle bucket access restrictions
                             const mediaUrl = rawMediaUrl ? getProxiedMediaUrl(rawMediaUrl, token) : null;
                             
-                            // Debug: Log media info for troubleshooting
-                            if (msg.messageType === 'media' || msg.media || msg.messageType === 'template') {
-                              console.log('[Meta Media Debug]', {
-                                msgId: msg._id,
-                                messageType: msg.messageType,
-                                hasMedia: !!msg.media,
-                                hasTemplateMedia: !!templateHeaderMedia,
-                                rawUrl: rawMediaUrl ? rawMediaUrl.substring(0, 50) + '...' : 'EMPTY',
-                                proxiedUrl: mediaUrl ? (mediaUrl.startsWith('/api') ? 'PROXIED' : 'DIRECT') : 'NONE',
-                                mediaKind,
-                              });
-                            }
-                            
                             if (mediaUrl) {
                               return (
                                 <div className="w-full">
@@ -3260,6 +3247,7 @@ export default function MetaInboxPage() {
                               
                               try {
                                 setSending(true);
+                                console.log('[Meta Inbox] Sending template:', template.templateName, 'to:', selected.phoneNumber);
                                 const res = await fetch('/api/admin/crm/whatsapp/send-template', {
                                   method: 'POST',
                                   headers: {
@@ -3274,16 +3262,18 @@ export default function MetaInboxPage() {
                                 });
                                 
                                 const data = await res.json();
+                                console.log('[Meta Inbox] Send template response:', data);
                                 if (data.success) {
                                   // Refresh messages to show the sent template
                                   loadMessages(selected.leadId || selected._id || selected.phoneNumber);
                                   closeActionModal();
                                 } else {
+                                  console.error('[Meta Inbox] Template send failed:', data);
                                   alert(data.error || 'Failed to send template');
                                 }
                               } catch (err) {
-                                console.error('Error sending template:', err);
-                                alert('Failed to send template');
+                                console.error('[Meta Inbox] Error sending template:', err);
+                                alert('Failed to send template: ' + (err instanceof Error ? err.message : String(err)));
                               } finally {
                                 setSending(false);
                               }

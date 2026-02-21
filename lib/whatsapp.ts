@@ -2,10 +2,10 @@
  * WhatsApp Cloud API helpers (Meta Graph API)
  * Centralized here so routes don't drift.
  * 
- * Enhanced with Protection Layer for unbreakable reliability:
+ * Enhanced with Protection Layer for reliability:
  * - Circuit breaker pattern
- * - Automatic fallback to EC2 bridge
  * - Retry with exponential backoff
+ * - Meta API only (no bridge fallback)
  */
 
 import crypto from 'crypto';
@@ -126,7 +126,8 @@ export function getWhatsAppEnv() {
   // Primary (preferred) env keys
   const accessToken = (process.env.WHATSAPP_ACCESS_TOKEN || process.env.WHATSAPP_BUSINESS_TOKEN || "").trim();
   const phoneNumberId = (process.env.WHATSAPP_PHONE_NUMBER_ID || process.env.WHATSAPP_BUSINESS_PHONE_NUMBER || "").trim();
-  const appSecret = (process.env.META_APP_SECRET || "").trim();
+  // Support both META_APP_SECRET and WHATSAPP_APP_SECRET
+  const appSecret = (process.env.META_APP_SECRET || process.env.WHATSAPP_APP_SECRET || "").trim();
   const phoneNumber = (process.env.WHATSAPP_PHONE_NUMBER || "9779006820").trim();
 
   // Cloud is ALWAYS enabled now as we are removing the Bridge
@@ -142,6 +143,11 @@ export function getWhatsAppEnv() {
   if (!accessToken || !phoneNumberId) {
     console.warn(`[WHATSAPP] Cloud API MISSING CONFIG: token=${accessToken?.[0] ? 'SET' : 'MISSING'}, id=${phoneNumberId ? 'SET' : 'MISSING'}`);
     return null; 
+  }
+  
+  // Warn if app secret is missing - Meta requires it!
+  if (!appSecret) {
+    console.warn(`[WHATSAPP] ⚠️ META_APP_SECRET is MISSING! Template sending may fail. Add META_APP_SECRET or WHATSAPP_APP_SECRET to .env.local`);
   }
 
   return { 
@@ -586,11 +592,18 @@ export async function sendWhatsAppTemplate(input: WhatsAppSendTemplateInput): Pr
   const templateName = String(input.templateName || '').trim();
   if (!templateName) throw new Error('templateName is required');
 
-  const bridgeUrl = (process.env.WHATSAPP_BRIDGE_HTTP_URL || '').trim();
-  const bridgeSecret = (process.env.WHATSAPP_WEB_BRIDGE_SECRET || process.env.WHATSAPP_BRIDGE_SECRET || '').trim();
+  // Check if Meta API is configured
+  if (!env) {
+    throw new Error('WhatsApp template sending failed: Meta API is not configured (WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID required)');
+  }
+  
+  // Check if app secret is configured - Meta requires it!
+  if (!env.appSecret) {
+    throw new Error('WhatsApp template sending failed: META_APP_SECRET or WHATSAPP_APP_SECRET is required. Please add it to .env.local');
+  }
 
   // Try Meta Cloud API first (with circuit breaker)
-  if (env && !isCircuitOpen('meta')) {
+  if (!isCircuitOpen('meta')) {
     try {
       const result = await withRetry(async () => {
         const { accessToken, phoneNumberId, appSecret } = env;
@@ -665,69 +678,12 @@ export async function sendWhatsAppTemplate(input: WhatsAppSendTemplateInput): Pr
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       recordFailure('meta', msg);
-      console.warn('[sendWhatsAppTemplate] Meta failed, trying bridge:', msg);
-      // Fall through to try bridge
-    }
-  } else if (isCircuitOpen('meta')) {
-    console.warn('[sendWhatsAppTemplate] Meta circuit breaker OPEN - trying bridge');
-  }
-
-  // Fallback to EC2 Bridge for templates (with circuit breaker)
-  if (bridgeUrl && bridgeSecret && !isCircuitOpen('qr_bridge')) {
-    try {
-      const result = await withRetry(async () => {
-        // Build template payload for bridge
-        const buttonTexts = input.buttons?.map(b => b.title) || [];
-        const imageUrl = input.headerMedia?.url || '';
-        const bodyText = input.bodyParams?.join(' ') || templateName;
-        
-        console.log('[sendWhatsAppTemplate] Sending via EC2 Bridge:', {
-          to,
-          templateName,
-          imageUrl: imageUrl.substring(0, 50),
-          buttons: buttonTexts
-        });
-
-        const res = await fetch(`${bridgeUrl}/send-template`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-bridge-secret': bridgeSecret,
-          },
-          body: JSON.stringify({
-            to,
-            imageUrl,
-            bodyText,
-            buttons: buttonTexts,
-            footerText: 'Swar Yoga',
-          }),
-          cache: 'no-store',
-        });
-
-        const data = await res.json().catch(() => ({}));
-        console.log('[sendWhatsAppTemplate] Bridge Response:', res.status, data);
-
-        if (res.ok && data.success) {
-          return { 
-            waMessageId: data.messageIds?.[0] || 'bridge-template-sent', 
-            raw: { ...data, provider: 'whatsapp_web_bridge' } 
-          };
-        }
-
-        throw new Error(data?.error || 'Bridge template send failed');
-      }, { maxRetries: 2 });
-
-      recordSuccess('qr_bridge');
-      return result;
-    } catch (err) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      recordFailure('qr_bridge', errMsg);
-      throw new Error(`WhatsApp template sending failed: Both Meta and Bridge failed (${errMsg})`);
+      throw new Error(`WhatsApp template sending failed via Meta API: ${msg}`);
     }
   }
 
-  // Neither provider available
-  throw new Error('WhatsApp template sending failed: Meta API not configured or circuit open, Bridge not configured or circuit open');
+  // Meta circuit breaker is open
+  throw new Error('WhatsApp template sending failed: Meta API circuit breaker is open, try again later');
 }
 
 // Helps server routes build a stable send contract from our stored template schema.

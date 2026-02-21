@@ -69,13 +69,18 @@ export async function POST(request: NextRequest) {
     } = body;
 
     const normalizedType = String(messageType || 'text');
-    if (normalizedType !== 'text') {
-      // Keep MVP strict; can be expanded later.
-      return NextResponse.json({ error: 'Only text scheduled messages are supported currently' }, { status: 400 });
+    if (normalizedType !== 'text' && normalizedType !== 'template') {
+      // Support text and template message types
+      return NextResponse.json({ error: 'messageType must be text or template' }, { status: 400 });
     }
 
     const content = String(messageContent || '').trim();
-    if (!content) return NextResponse.json({ error: 'messageContent is required' }, { status: 400 });
+    if (!content && normalizedType === 'text') return NextResponse.json({ error: 'messageContent is required for text messages' }, { status: 400 });
+    
+    // For template messages, require templateId
+    if (normalizedType === 'template' && !templateId) {
+      return NextResponse.json({ error: 'templateId is required for template messages' }, { status: 400 });
+    }
 
     let nextRunAt: Date | null = null;
     if (sendAt) nextRunAt = new Date(sendAt);

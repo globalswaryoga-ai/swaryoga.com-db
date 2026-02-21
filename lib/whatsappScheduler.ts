@@ -1,8 +1,8 @@
 import { connectDB } from '@/lib/db';
 import { ConsentManager } from '@/lib/consentManager';
 import { RateLimitManager } from '@/lib/rateLimitManager';
-import { Lead, WhatsAppMessage, WhatsAppScheduledJob } from '@/lib/schemas/enterpriseSchemas';
-import { normalizePhone, sendWhatsAppText } from '@/lib/whatsapp';
+import { Lead, WhatsAppMessage, WhatsAppScheduledJob, WhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
+import { normalizePhone, sendWhatsAppText, sendWhatsAppTemplate, buildCloudTemplateSendInput } from '@/lib/whatsapp';
 
 export type SchedulerRunResult = {
   scannedJobs: number;
@@ -230,6 +230,48 @@ export async function runDueWhatsAppScheduledJobs(options?: {
             jobStat.sent++;
           } catch (err) {
             const msg = err instanceof Error ? err.message : 'WhatsApp send failed';
+            await WhatsAppMessage.updateOne(
+              { _id: message._id },
+              {
+                $set: { status: 'failed', failureReason: String(msg), updatedAt: new Date() },
+              }
+            );
+            jobStat.failed++;
+          }
+        } else if (messageType === 'template' && job.templateId) {
+          // Handle template messages
+          try {
+            const template = await WhatsAppTemplate.findById(job.templateId).lean();
+            if (!template) {
+              throw new Error(`Template not found: ${job.templateId}`);
+            }
+            
+            const cloudInput = buildCloudTemplateSendInput(template, to);
+            const apiResult = await sendWhatsAppTemplate(cloudInput);
+            
+            await WhatsAppMessage.updateOne(
+              { _id: message._id },
+              {
+                $set: {
+                  status: 'sent',
+                  waMessageId: apiResult.waMessageId,
+                  templateId: job.templateId,
+                  messageType: 'template',
+                  updatedAt: new Date(),
+                  'metadata.template': {
+                    templateName: (template as any).templateName,
+                    headerFormat: (template as any).headerFormat,
+                  },
+                },
+                $unset: { failureReason: 1, nextRetryAt: 1 },
+              }
+            );
+
+            await RateLimitManager.incrementCount(createdByUserId, to);
+
+            jobStat.sent++;
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : 'Template send failed';
             await WhatsAppMessage.updateOne(
               { _id: message._id },
               {

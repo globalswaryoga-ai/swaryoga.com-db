@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
+import { connectDB, User } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import mongoose from 'mongoose';
+
+export const dynamic = 'force-dynamic';
 
 // GET - Fetch admin users
 export async function GET(request: NextRequest) {
@@ -20,27 +21,25 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
     
-    // Get the users collection from the CRM database
-    const crmDbName = process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm';
-    const db = mongoose.connection.useDb(crmDbName, { useCache: true });
-    const usersCollection = db.collection('users');
-
-    // Fetch all admin users
-    const adminUsers = await usersCollection.find({ isAdmin: true }).toArray();
+    // Fetch all admin users from main database
+    const adminUsers = await User.find({ isAdmin: true })
+      .select(['userId', 'name', 'email', 'role', '_id'])
+      .sort({ name: 1 })
+      .lean();
     
-    // Map to a safe response format
-    const users = adminUsers.map(user => ({
-      _id: user._id.toString(),
-      userId: user.userId || user._id.toString(),
-      name: user.name || user.email || 'Unknown',
+    // Map to safe response format
+    const users = adminUsers.map((user: any) => ({
+      _id: String(user._id),
+      userId: user.userId || String(user._id),
+      name: user.name || user.email || user.userId || 'Unknown',
       email: user.email || '',
-      isAdmin: user.isAdmin,
-      permissionsV2: user.permissionsV2 || {},
+      role: user.role || 'admin',
     }));
 
     return NextResponse.json({ 
       success: true, 
-      users 
+      users,
+      total: users.length,
     });
   } catch (error: any) {
     console.error('[Admin Users GET] Error:', error);

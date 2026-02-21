@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
       });
 
       if (existing) {
-        // Update status
+        // Update ONLY status fields - preserve local content (headerUrl, etc.)
         const localStatus = mapMetaStatusToLocal(metaTemplate.status);
         await WhatsAppTemplate.findByIdAndUpdate(existing._id, {
           $set: {
@@ -70,6 +70,8 @@ export async function GET(request: NextRequest) {
             metaRejectionReason: metaTemplate.rejected_reason || null,
             metaQualityScore: metaTemplate.quality_score?.score || null,
             lastMetaSyncAt: new Date(),
+            // NOTE: Don't overwrite templateContent, headerUrl, buttons, etc.
+            // Those are managed locally and Meta doesn't return media URLs
           },
         });
 

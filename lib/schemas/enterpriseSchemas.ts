@@ -1660,6 +1660,171 @@ CrmReceiptSchema.index({ leadId: 1, issuedAt: -1 });
 CrmReceiptSchema.index({ customerPhone: 1, issuedAt: -1 });
 
 // ============================================================================
+// TALLY SYNC SCHEMAS
+// For integrating Tally Prime financial data with CRM
+// ============================================================================
+
+const TallyCustomerSchema = new mongoose.Schema(
+  {
+    // Tally unique identifier
+    tallyId: { type: String, required: true, unique: true, trim: true, index: true },
+    tallyName: { type: String, required: true, trim: true, index: true },
+
+    // Link to CRM Lead (optional)
+    linkedLeadId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lead', sparse: true, index: true },
+
+    // Customer details from Tally
+    email: { type: String, trim: true, lowercase: true, sparse: true, index: true },
+    phone: { type: String, trim: true, sparse: true, index: true },
+    address: { type: String, trim: true },
+    state: { type: String, trim: true },
+    gstin: { type: String, trim: true, sparse: true }, // GST ID
+
+    // Financial summary
+    totalInvoices: { type: Number, default: 0 },
+    totalAmount: { type: Number, default: 0 },
+    totalPaid: { type: Number, default: 0 },
+    totalPending: { type: Number, default: 0 },
+
+    // Sync metadata
+    lastSyncedAt: { type: Date, default: Date.now },
+    syncStatus: { type: String, enum: ['success', 'pending', 'error'], default: 'pending' },
+    syncError: { type: String, sparse: true },
+
+    // Raw Tally data (for audit)
+    tallyRawData: mongoose.Schema.Types.Mixed,
+  },
+  { timestamps: true, collection: 'tally_customers' }
+);
+
+TallyCustomerSchema.index({ tallyId: 1 });
+TallyCustomerSchema.index({ linkedLeadId: 1 });
+TallyCustomerSchema.index({ lastSyncedAt: -1 });
+
+const TallyInvoiceSchema = new mongoose.Schema(
+  {
+    // Tally unique identifier
+    tallyId: { type: String, required: true, unique: true, trim: true, index: true },
+    tallyInvoiceNumber: { type: String, required: true, trim: true, index: true },
+
+    // Link to customer
+    tallyCustomerId: { type: String, required: true, trim: true, index: true },
+    linkedCustomerId: { type: mongoose.Schema.Types.ObjectId, ref: 'TallyCustomer', sparse: true, index: true },
+
+    // Link to CRM Lead (optional)
+    linkedLeadId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lead', sparse: true, index: true },
+
+    // Invoice details
+    date: { type: Date, required: true, index: true },
+    dueDate: { type: Date, sparse: true },
+    
+    // Items
+    lineItems: [
+      {
+        description: { type: String, trim: true },
+        quantity: { type: Number },
+        rate: { type: Number },
+        amount: { type: Number },
+      }
+    ],
+
+    // Amounts
+    subtotal: { type: Number, default: 0 },
+    gst: { type: Number, default: 0 },
+    total: { type: Number, required: true, index: true },
+
+    // Payment status
+    paymentStatus: { type: String, enum: ['unpaid', 'partial', 'paid'], default: 'unpaid', index: true },
+    paidAmount: { type: Number, default: 0 },
+    pendingAmount: { type: Number, default: 0 },
+
+    // Notes
+    notes: { type: String, trim: true },
+
+    // Sync metadata
+    lastSyncedAt: { type: Date, default: Date.now },
+    syncStatus: { type: String, enum: ['success', 'pending', 'error'], default: 'pending' },
+    syncError: { type: String, sparse: true },
+
+    // Raw Tally data
+    tallyRawData: mongoose.Schema.Types.Mixed,
+  },
+  { timestamps: true, collection: 'tally_invoices' }
+);
+
+TallyInvoiceSchema.index({ tallyId: 1 });
+TallyInvoiceSchema.index({ tallyInvoiceNumber: 1 });
+TallyInvoiceSchema.index({ tallyCustomerId: 1, date: -1 });
+TallyInvoiceSchema.index({ date: -1 });
+TallyInvoiceSchema.index({ paymentStatus: 1 });
+
+const TallyPaymentSchema = new mongoose.Schema(
+  {
+    // Tally unique identifier
+    tallyId: { type: String, required: true, unique: true, trim: true, index: true },
+    tallyPaymentVoucher: { type: String, required: true, trim: true, index: true },
+
+    // Link to customer and invoice
+    tallyCustomerId: { type: String, required: true, trim: true, index: true },
+    tallyInvoiceIds: [{ type: String, trim: true }], // Multiple invoices can be paid
+    linkedInvoiceIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'TallyInvoice' }],
+
+    // Payment details
+    paymentDate: { type: Date, required: true, index: true },
+    paymentMethod: { type: String, enum: ['cash', 'cheque', 'bank_transfer', 'online', 'other'], trim: true },
+    amount: { type: Number, required: true, index: true },
+    referenceNumber: { type: String, trim: true, sparse: true },
+
+    // Notes
+    notes: { type: String, trim: true },
+
+    // Sync metadata
+    lastSyncedAt: { type: Date, default: Date.now },
+    syncStatus: { type: String, enum: ['success', 'pending', 'error'], default: 'pending' },
+    syncError: { type: String, sparse: true },
+
+    // Raw Tally data
+    tallyRawData: mongoose.Schema.Types.Mixed,
+  },
+  { timestamps: true, collection: 'tally_payments' }
+);
+
+TallyPaymentSchema.index({ tallyId: 1 });
+TallyPaymentSchema.index({ paymentDate: -1 });
+TallyPaymentSchema.index({ tallyCustomerId: 1, paymentDate: -1 });
+
+const TallySyncLogSchema = new mongoose.Schema(
+  {
+    syncType: { type: String, enum: ['customers', 'invoices', 'payments', 'all'], required: true },
+    status: { type: String, enum: ['success', 'failed', 'partial'], default: 'success' },
+    
+    // Statistics
+    totalProcessed: { type: Number, default: 0 },
+    totalSucceeded: { type: Number, default: 0 },
+    totalFailed: { type: Number, default: 0 },
+
+    // Error tracking
+    errors: [
+      {
+        recordId: { type: String },
+        error: { type: String },
+      }
+    ],
+
+    // Duration
+    startTime: { type: Date, default: Date.now },
+    endTime: { type: Date },
+
+    // Details
+    details: mongoose.Schema.Types.Mixed,
+  },
+  { timestamps: true, collection: 'tally_sync_logs' }
+);
+
+TallySyncLogSchema.index({ createdAt: -1 });
+TallySyncLogSchema.index({ status: 1 });
+
+// ============================================================================
 // EMAIL AUTOMATION SCHEMAS
 // ============================================================================
 
@@ -2006,3 +2171,14 @@ export const FollowUpInstance = createModelProxy('FollowUpInstance', FollowUpIns
 export const EmailLog = createModelProxy('EmailLog', EmailLogSchema);
 export const ZoomRecordingSync = createModelProxy('ZoomRecordingSync', ZoomRecordingSyncSchema);
 export const LeadAssignmentSettings = createModelProxy('LeadAssignmentSettings', LeadAssignmentSettingsSchema);
+// Tally sync models
+export const TallyCustomer = createModelProxy('TallyCustomer', TallyCustomerSchema);
+export const TallyInvoice = createModelProxy('TallyInvoice', TallyInvoiceSchema);
+export const TallyPayment = createModelProxy('TallyPayment', TallyPaymentSchema);
+export const TallySyncLog = createModelProxy('TallySyncLog', TallySyncLogSchema);
+
+// Tally getter functions
+export function getTallyCustomer() { return getModel('TallyCustomer', TallyCustomerSchema); }
+export function getTallyInvoice() { return getModel('TallyInvoice', TallyInvoiceSchema); }
+export function getTallyPayment() { return getModel('TallyPayment', TallyPaymentSchema); }
+export function getTallySyncLog() { return getModel('TallySyncLog', TallySyncLogSchema); }

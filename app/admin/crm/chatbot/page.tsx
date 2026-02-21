@@ -481,7 +481,7 @@ export default function ChatbotPage() {
                       </select>
                       {templates.length === 0 && (
                         <p className="text-amber-300 text-sm mt-2">
-                          No templates found. <Link href="/admin/crm/whatsapp/templates" className="underline">Create templates first</Link>
+                          No templates found. <Link href="/admin/crm/meta/templates" className="underline">Create templates first</Link>
                         </p>
                       )}
                     </div>
@@ -552,7 +552,7 @@ export default function ChatbotPage() {
                     {loadingTemplates ? '⏳ Loading...' : '🔄 Refresh'}
                   </button>
                   <Link
-                    href="/admin/crm/whatsapp/templates"
+                    href="/admin/crm/meta/templates"
                     className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm"
                   >
                     ➕ Create New
@@ -566,7 +566,7 @@ export default function ChatbotPage() {
                 <div className="text-center py-8">
                   <p className="text-purple-300 mb-4">No templates created yet</p>
                   <Link
-                    href="/admin/crm/whatsapp/templates/new"
+                    href="/admin/crm/meta/templates/new"
                     className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg inline-block"
                   >
                     Create Your First Template
@@ -633,7 +633,7 @@ export default function ChatbotPage() {
                       <div className="flex items-center justify-between text-xs text-purple-300">
                         <span>Created: {t.createdAt ? new Date(t.createdAt).toLocaleDateString() : 'N/A'}</span>
                         <Link
-                          href={`/admin/crm/whatsapp/templates`}
+                          href={`/admin/crm/meta/templates`}
                           className="text-purple-400 hover:text-purple-300"
                         >
                           Edit →

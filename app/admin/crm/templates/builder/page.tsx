@@ -453,8 +453,8 @@ export default function CreateTemplatePage() {
           provider, // 'meta' or 'qr'
           category,
           language,
-          // We can construct a simple reliable string representation
-          templateContent: buildPreviewText({ headerText, bodyText, footerText, buttons }),
+          // Store ONLY the body text, not buttons - they're stored separately
+          templateContent: bodyText.trim(),
           headerFormat,
           headerContent: resolvedHeaderContent,
           headerMedia: resolvedHeaderMedia || undefined,
@@ -1092,7 +1092,7 @@ export default function CreateTemplatePage() {
 
                 <div className="flex gap-3 pt-4 border-t border-gray-200">
                   <Link
-                    href="/admin/crm/whatsapp/templates"
+                    href="/admin/crm/meta/templates"
                     className="flex-1 px-6 py-3 border border-gray-300 rounded-xl text-gray-700 font-semibold hover:bg-gray-50 transition-colors text-center"
                   >
                     Cancel

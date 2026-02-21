@@ -1,0 +1,4 @@
+id,voucherNumber,customerId,invoiceIds,date,method,amount,referenceNumber,notes
+PAY-001,RCP-2024-001,CUST-001,"[""INV-001""]",2024-02-01,bank_transfer,11800,"TXN-123456","Bank transfer for workshop fees"
+PAY-002,RCP-2024-002,CUST-002,"[""INV-002""]",2024-02-20,cheque,6000,"CHQ-789012","Check payment for consultation"
+PAY-003,RCP-2024-003,CUST-001,"[""INV-002""]",2024-03-05,online,5800,"RAZORPAY-45678","Online payment - remaining balance"
