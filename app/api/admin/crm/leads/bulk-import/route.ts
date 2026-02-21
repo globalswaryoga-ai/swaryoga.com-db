@@ -64,22 +64,16 @@ export async function POST(request: NextRequest) {
       try {
         const rawPhone = String(c.phoneNumber || c.phone || '').trim();
         
-        // Try international normalization first (no specific country restriction)
+        // Simple normalization: just keep digits (supports all countries)
         let phoneNumber = rawPhone.replace(/\D/g, '');
         
-        // Handle various formats
+        // Handle leading 00 (international prefix)
         if (phoneNumber.startsWith('00')) phoneNumber = phoneNumber.slice(2);
-        if (phoneNumber.startsWith('0') && phoneNumber.length > 10) phoneNumber = phoneNumber.replace(/^0+/, '');
         
-        // Add default country code for 10-digit numbers (India)
-        if (phoneNumber.length === 10) {
-          phoneNumber = `91${phoneNumber}`;
-        }
-        
-        // Validate length (E.164: 8-15 digits)
-        if (phoneNumber.length < 10 || phoneNumber.length > 15) {
+        // Skip empty or very short numbers
+        if (phoneNumber.length < 6) {
           results.skipped++;
-          results.errors.push({ phone: rawPhone, reason: `Invalid phone length: ${phoneNumber.length} digits` });
+          results.errors.push({ phone: rawPhone, reason: `Phone too short: ${phoneNumber.length} digits` });
           continue;
         }
 
@@ -89,16 +83,8 @@ export async function POST(request: NextRequest) {
         }
         seenPhones.add(phoneNumber);
 
-        // Check for existing lead (also try without country code variations)
-        const phoneVariants = [
-          phoneNumber,
-          // For Nepal (977): also check if stored as 977... or just local number
-          phoneNumber.startsWith('977') ? phoneNumber.slice(3) : null,
-          // For India (91): also check local number
-          phoneNumber.startsWith('91') && phoneNumber.length === 12 ? phoneNumber.slice(2) : null,
-        ].filter(Boolean);
-        
-        const existing = await Lead.findOne({ phoneNumber: { $in: phoneVariants } });
+        // Check for existing lead - exact match only (no country code manipulation)
+        const existing = await Lead.findOne({ phoneNumber });
         if (existing) {
           // Update fields that are currently empty
           let updated = false;
