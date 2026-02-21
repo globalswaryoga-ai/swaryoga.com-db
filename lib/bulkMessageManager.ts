@@ -90,10 +90,27 @@ export class BulkMessageManager {
     const todayStr = today.toISOString().split('T')[0];
     
     // Get today's usage from rate limits
-    const dailyLimit = await RateLimit.findOne({
+    let dailyLimit = await RateLimit.findOne({
       limitKey: 'broadcast:daily',
       limitType: 'daily',
     }).lean() as any;
+    
+    // Auto-reset if the counter is stale (resetAt has passed)
+    if (dailyLimit && dailyLimit.resetAt && new Date(dailyLimit.resetAt) <= new Date()) {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(0, 0, 0, 0);
+      
+      await RateLimit.updateOne(
+        { limitKey: 'broadcast:daily', limitType: 'daily' },
+        { $set: { messagesSent: 0, warningAlertSent: false, resetAt: tomorrow } }
+      );
+      // Refresh after reset
+      dailyLimit = await RateLimit.findOne({
+        limitKey: 'broadcast:daily',
+        limitType: 'daily',
+      }).lean() as any;
+    }
     
     const sent = dailyLimit?.messagesSent || 0;
     const limit = BULK_CONFIG.DAILY_LIMIT;
@@ -131,22 +148,38 @@ export class BulkMessageManager {
   static async incrementDailyUsage(count: number = 1): Promise<void> {
     await connectDB();
     
+    const now = new Date();
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     tomorrow.setHours(0, 0, 0, 0);
     
-    await RateLimit.findOneAndUpdate(
-      { limitKey: 'broadcast:daily', limitType: 'daily' },
-      {
-        $inc: { messagesSent: count },
-        $setOnInsert: {
-          messagesLimit: BULK_CONFIG.DAILY_LIMIT,
-          warningThreshold: BULK_CONFIG.WARNING_THRESHOLD,
+    // First, check if counter needs reset (stale from previous day)
+    const existing = await RateLimit.findOne({
+      limitKey: 'broadcast:daily',
+      limitType: 'daily',
+    }).lean() as any;
+    
+    if (existing && existing.resetAt && new Date(existing.resetAt) <= now) {
+      // Counter is stale - reset and set to new count
+      await RateLimit.updateOne(
+        { limitKey: 'broadcast:daily', limitType: 'daily' },
+        { $set: { messagesSent: count, warningAlertSent: false, resetAt: tomorrow } }
+      );
+    } else {
+      // Counter is current - increment normally
+      await RateLimit.findOneAndUpdate(
+        { limitKey: 'broadcast:daily', limitType: 'daily' },
+        {
+          $inc: { messagesSent: count },
+          $setOnInsert: {
+            messagesLimit: BULK_CONFIG.DAILY_LIMIT,
+            warningThreshold: BULK_CONFIG.WARNING_THRESHOLD,
+          },
+          resetAt: tomorrow,
         },
-        resetAt: tomorrow,
-      },
-      { upsert: true }
-    );
+        { upsert: true }
+      );
+    }
   }
   
   /**
@@ -456,7 +489,7 @@ export class BulkMessageManager {
     monthStart.setDate(1);
     monthStart.setHours(0, 0, 0, 0);
     
-    // Today's stats
+    // Today's stats from BroadcastRunMessage (for failed/pending breakdown)
     const todayMessages = await BroadcastRunMessage.aggregate([
       { $match: { updatedAt: { $gte: todayStart } } },
       { $group: { _id: '$status', count: { $sum: 1 } } },
@@ -477,25 +510,33 @@ export class BulkMessageManager {
     ]);
     const monthMap = new Map<string, number>(monthMessages.map((m: any) => [m._id, Number(m.count)]));
     
-    // Active runs
+    // Active runs - include 'draft' status as they are also active/queued
     const activeRuns = await BroadcastRun.countDocuments({
-      status: { $in: ['running', 'scheduled'] },
+      status: { $in: ['running', 'scheduled', 'draft'] },
     });
     
+    // Get quota (auto-resets stale counters)
     const quota = await this.getDailyQuotaStatus();
+    
+    // Use quota.sent as the authoritative "sent today" count (from RateLimit counter)
+    // since it's incremented on every successful send in broadcastRuns.ts.
+    // BroadcastRunMessage aggregate may undercount if updatedAt doesn't match today
+    // (e.g. delivered/read status updates happen later and change updatedAt).
+    const todaySentFromMessages = Number(todayMap.get('sent') || 0) + Number(todayMap.get('delivered') || 0) + Number(todayMap.get('read') || 0);
+    const todaySent = Math.max(quota.sent, todaySentFromMessages);
     
     return {
       today: {
-        sent: Number(todayMap.get('sent') || 0),
+        sent: todaySent,
         failed: Number(todayMap.get('failed') || 0),
         pending: Number(todayMap.get('pending') || 0) + Number(todayMap.get('sending') || 0),
       },
       thisWeek: {
-        sent: Number(weekMap.get('sent') || 0),
+        sent: Number(weekMap.get('sent') || 0) + Number(weekMap.get('delivered') || 0) + Number(weekMap.get('read') || 0),
         failed: Number(weekMap.get('failed') || 0),
       },
       thisMonth: {
-        sent: Number(monthMap.get('sent') || 0),
+        sent: Number(monthMap.get('sent') || 0) + Number(monthMap.get('delivered') || 0) + Number(monthMap.get('read') || 0),
         failed: Number(monthMap.get('failed') || 0),
       },
       quota,
