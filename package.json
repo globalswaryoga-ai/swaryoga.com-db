@@ -7,7 +7,6 @@
     "dev:no-check": "PORT=3000 next dev --port 3000",
     "dev:reset": "node scripts/dev-reset-3000.mjs",
     "health-check": "node scripts/health-check.js",
-
     "diagnose-bridge": "node scripts/diagnose-bridge.js",
     "repair-bridge": "bash scripts/repair-bridge.sh",
     "bridge:emergency-restart": "bash scripts/emergency-restart-bridge.sh",
@@ -43,7 +42,6 @@
     "pm2:logs": "pm2 logs swar-yoga-web",
     "pm2:status": "pm2 status",
     "pm2:monit": "pm2 monit",
-
     "test:load": "node scripts/test-domain-load.js",
     "test:load:domain": "BASE_URL=https://app.swaryoga.com node scripts/test-domain-load.js",
     "domain:show": "node scripts/domain-config.js show",
@@ -63,6 +61,7 @@
     "canvg": "^4.0.3",
     "clsx": "^2.1.0",
     "cors": "^2.8.5",
+    "csv-parse": "^6.1.0",
     "date-fns": "^4.1.0",
     "dictionary-en": "^4.0.0",
     "dompurify": "^3.3.1",
