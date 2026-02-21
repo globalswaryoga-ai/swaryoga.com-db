@@ -1493,7 +1493,11 @@ export default function LeadsPage() {
 
                     const data = await res.json();
                     if (res.ok && data.success) {
-                      alert(`✅ Imported ${data.data.imported} leads!\n${data.data.skipped} duplicates skipped.${data.data.failed ? `\n${data.data.failed} failed.` : ''}`);
+                      let msg = `✅ Imported ${data.data.imported} new leads!`;
+                      if (data.data.duplicates > 0) msg += `\n📋 ${data.data.duplicates} already exist (skipped)`;
+                      if (data.data.skipped > 0) msg += `\n⚠️ ${data.data.skipped} invalid (phone errors)`;
+                      if (data.data.failed > 0) msg += `\n❌ ${data.data.failed} failed`;
+                      alert(msg);
                       setBulkImportModalOpen(false);
                       setCsvContacts([]);
                       setCsvColumnMap(null);

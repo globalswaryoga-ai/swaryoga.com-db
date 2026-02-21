@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { getLead } from '@/lib/schemas/enterpriseSchemas';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
-import { normalizePhoneStrict } from '@/lib/crm/phone';
 import {
   verifyAdminAccess,
   getViewerUserId,
@@ -58,29 +57,48 @@ export async function POST(request: NextRequest) {
     await connectDB();
     const Lead = getLead();
 
-    const results = { imported: 0, skipped: 0, failed: 0, errors: [] as any[] };
+    const results = { imported: 0, skipped: 0, duplicates: 0, failed: 0, errors: [] as any[] };
     const seenPhones = new Set<string>();
 
     for (const c of contacts) {
       try {
         const rawPhone = String(c.phoneNumber || c.phone || '').trim();
-        const normalized = normalizePhoneStrict(rawPhone, { defaultCountryCode: '91' });
-        if (!normalized.ok) {
+        
+        // Try international normalization first (no specific country restriction)
+        let phoneNumber = rawPhone.replace(/\D/g, '');
+        
+        // Handle various formats
+        if (phoneNumber.startsWith('00')) phoneNumber = phoneNumber.slice(2);
+        if (phoneNumber.startsWith('0') && phoneNumber.length > 10) phoneNumber = phoneNumber.replace(/^0+/, '');
+        
+        // Add default country code for 10-digit numbers (India)
+        if (phoneNumber.length === 10) {
+          phoneNumber = `91${phoneNumber}`;
+        }
+        
+        // Validate length (E.164: 8-15 digits)
+        if (phoneNumber.length < 10 || phoneNumber.length > 15) {
           results.skipped++;
-          results.errors.push({ phone: rawPhone, reason: normalized.error });
+          results.errors.push({ phone: rawPhone, reason: `Invalid phone length: ${phoneNumber.length} digits` });
           continue;
         }
 
-        const phoneNumber = normalized.phone;
         if (seenPhones.has(phoneNumber)) {
-          results.skipped++;
-          results.errors.push({ phone: phoneNumber, reason: 'Duplicate in this batch' });
+          results.duplicates++;
           continue;
         }
         seenPhones.add(phoneNumber);
 
-        // Check for existing lead
-        const existing = await Lead.findOne({ phoneNumber });
+        // Check for existing lead (also try without country code variations)
+        const phoneVariants = [
+          phoneNumber,
+          // For Nepal (977): also check if stored as 977... or just local number
+          phoneNumber.startsWith('977') ? phoneNumber.slice(3) : null,
+          // For India (91): also check local number
+          phoneNumber.startsWith('91') && phoneNumber.length === 12 ? phoneNumber.slice(2) : null,
+        ].filter(Boolean);
+        
+        const existing = await Lead.findOne({ phoneNumber: { $in: phoneVariants } });
         if (existing) {
           // Update fields that are currently empty
           let updated = false;
@@ -91,7 +109,7 @@ export async function POST(request: NextRequest) {
           if (email && !existing.email) { existing.email = email; updated = true; }
           if (workshopName && !existing.workshopName) { existing.workshopName = workshopName; updated = true; }
           if (updated) await existing.save();
-          results.skipped++;
+          results.duplicates++;
           continue;
         }
 
