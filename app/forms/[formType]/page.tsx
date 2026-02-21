@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Loader, CheckCircle, User, Mail, Phone, MapPin, Briefcase, Calendar, Lock, Globe, BookOpen, Users, Search, ChevronDown } from 'lucide-react';
+import { Loader, CheckCircle, User, Mail, Phone, MapPin, Briefcase, Calendar, Lock, Globe, BookOpen, Users, Search, ChevronDown, Eye, EyeOff, UserCheck } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import { workshopCatalog } from '@/lib/workshopsData';
@@ -374,7 +374,20 @@ const getStatesList = (countryName: string): string[] => {
   return states.length > 0 ? [...states, 'Other'] : [];
 };
 
-export default function DynamicFormPage() {
+// Suspense wrapper required for useSearchParams() in Next.js 14
+export default function DynamicFormPageWrapper() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader className="animate-spin text-purple-600" size={32} />
+      </div>
+    }>
+      <DynamicFormPage />
+    </Suspense>
+  );
+}
+
+function DynamicFormPage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const formType = (params.formType as FormType) || 'lead';
@@ -422,6 +435,64 @@ export default function DynamicFormPage() {
   const [paymentMode, setPaymentMode] = useState('');
   const [message, setMessage] = useState('');
   
+  // Password fields (for signup & workshop forms)
+  const needsPassword = formType === 'signup' || formType === 'workshop';
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  
+  // Smart user detection (check if user already exists)
+  const [existingUser, setExistingUser] = useState(false);
+  const [existingUserInfo, setExistingUserInfo] = useState<{ name?: string; maskedEmail?: string } | null>(null);
+  const [checkingUser, setCheckingUser] = useState(false);
+  const checkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // Debounced check if user already exists (by email or phone)
+  const checkUserExists = useCallback((emailVal: string, phoneVal: string) => {
+    if (!needsPassword) return;
+    
+    // Clear previous timer
+    if (checkTimerRef.current) {
+      clearTimeout(checkTimerRef.current);
+    }
+    
+    // Need at least email or phone with minimum length
+    const hasEmail = emailVal && emailVal.includes('@') && emailVal.includes('.');
+    const hasPhone = phoneVal && phoneVal.replace(/\D/g, '').length >= 10;
+    
+    if (!hasEmail && !hasPhone) {
+      setExistingUser(false);
+      setExistingUserInfo(null);
+      return;
+    }
+    
+    checkTimerRef.current = setTimeout(async () => {
+      setCheckingUser(true);
+      try {
+        const res = await fetch('/api/auth/check-user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: emailVal || undefined,
+            phone: phoneVal || undefined,
+          }),
+        });
+        const data = await res.json();
+        if (data.exists) {
+          setExistingUser(true);
+          setExistingUserInfo({ name: data.name, maskedEmail: data.maskedEmail });
+        } else {
+          setExistingUser(false);
+          setExistingUserInfo(null);
+        }
+      } catch (_err) {
+        // Silently fail — don't block form
+      } finally {
+        setCheckingUser(false);
+      }
+    }, 600);
+  }, [needsPassword]);
+
   // Update states when country changes
   useEffect(() => {
     if (country && country !== 'Other') {
@@ -484,7 +555,7 @@ export default function DynamicFormPage() {
         setUserFound(true);
       } else {
         setUserFound(false);
-        setError('User ID not found. Please fill the form manually.');
+        // Don't show error — just let them fill manually
       }
     } catch {
       setError('Failed to lookup user. Please fill manually.');
@@ -506,6 +577,20 @@ export default function DynamicFormPage() {
     setLoading(true);
     setError('');
     
+    // Password validation for new users on signup/workshop forms
+    if (needsPassword && !existingUser) {
+      if (!password || password.length < 6) {
+        setError('Password must be at least 6 characters');
+        setLoading(false);
+        return;
+      }
+      if (password !== confirmPassword) {
+        setError('Passwords do not match');
+        setLoading(false);
+        return;
+      }
+    }
+    
     const effectiveState = getEffectiveState();
     
     try {
@@ -520,6 +605,7 @@ export default function DynamicFormPage() {
         countryCode,
         country,
         state: effectiveState,
+        ...(needsPassword && !existingUser && password ? { password } : {}),
         ...(config.fields.includes('gender') && { gender }),
         ...(config.fields.includes('age') && { age: parseInt(age) }),
         ...(config.fields.includes('profession') && { profession }),
@@ -709,7 +795,10 @@ export default function DynamicFormPage() {
                 <input
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (needsPassword) checkUserExists(e.target.value, phone);
+                  }}
                   placeholder="your.email@example.com"
                   className="w-full h-12 px-4 border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-300 focus:border-emerald-300"
                   required
@@ -744,7 +833,11 @@ export default function DynamicFormPage() {
                   <input
                     type="tel"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 15))}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '').slice(0, 15);
+                      setPhone(val);
+                      if (needsPassword) checkUserExists(email, val);
+                    }}
                     placeholder="9876543210"
                     className="flex-1 h-12 px-4 border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-300 focus:border-emerald-300"
                     required
@@ -986,6 +1079,93 @@ export default function DynamicFormPage() {
                   />
                 </div>
               )}
+              
+              {/* Already Registered Popup */}
+              {needsPassword && existingUser && existingUserInfo && (
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-4 flex items-start gap-3">
+                  <UserCheck className="text-green-600 mt-0.5 flex-shrink-0" size={20} />
+                  <div>
+                    <p className="text-sm font-bold text-green-800">
+                      Already Registered! 🎉
+                    </p>
+                    <p className="text-xs text-green-700 mt-1">
+                      {existingUserInfo.name ? `Welcome back, ${existingUserInfo.name}!` : 'Welcome back!'} 
+                      {existingUserInfo.maskedEmail ? ` (${existingUserInfo.maskedEmail})` : ''} 
+                      You already have an account — no need to create a password.
+                    </p>
+                  </div>
+                </div>
+              )}
+              
+              {/* Checking user indicator */}
+              {needsPassword && checkingUser && (
+                <div className="flex items-center gap-2 text-xs text-gray-500">
+                  <Loader className="animate-spin" size={12} />
+                  Checking if you&apos;re already registered...
+                </div>
+              )}
+              
+              {/* Password Fields (only for new users on signup/workshop) */}
+              {needsPassword && !existingUser && (
+                <div className="space-y-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
+                  <p className="text-xs text-blue-700 font-medium">
+                    🔐 Create a password to access your account after registration
+                  </p>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">
+                      <Lock size={14} className="inline mr-2" />
+                      Password *
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Min 6 characters"
+                        className="w-full h-12 px-4 pr-12 border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-300"
+                        required
+                        minLength={6}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">
+                      <Lock size={14} className="inline mr-2" />
+                      Confirm Password *
+                    </label>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Re-enter your password"
+                      className={`w-full h-12 px-4 border rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-300 ${
+                        confirmPassword && confirmPassword !== password
+                          ? 'border-red-300 bg-red-50'
+                          : confirmPassword && confirmPassword === password
+                          ? 'border-green-300 bg-green-50'
+                          : 'border-gray-200'
+                      }`}
+                      required
+                      minLength={6}
+                    />
+                    {confirmPassword && confirmPassword !== password && (
+                      <p className="text-xs text-red-500 mt-1">Passwords do not match</p>
+                    )}
+                    {confirmPassword && confirmPassword === password && (
+                      <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                        <CheckCircle size={12} /> Passwords match
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
             
             {/* Submit Button */}
@@ -1006,7 +1186,7 @@ export default function DynamicFormPage() {
                   </>
                 ) : (
                   <>
-                    Submit Registration
+                    {needsPassword && !existingUser ? 'Register & Create Account' : 'Submit Registration'}
                   </>
                 )}
               </button>

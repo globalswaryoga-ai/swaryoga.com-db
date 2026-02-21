@@ -168,13 +168,10 @@ function CommunityPageContent() {
       const community = communities.find(c => c.id === joinParam);
       if (community) {
         setSelectedCommunity(community.id);
-        if (community.isPublic) {
-          setJoiningCommunity(community);
-          setShowJoinModal(true);
-        } else {
-          setRequestingCommunity(community);
-          setShowRequestModal(true);
-        }
+        // Invite links (?join=<id>) always show direct Join modal
+        // so admin can share links that let paid members join directly
+        setJoiningCommunity(community);
+        setShowJoinModal(true);
       }
     }
   }, [joinParam, communities]);
@@ -519,6 +516,8 @@ function CommunityPageContent() {
           countryCode: '+91',
           communityId: joiningCommunity.id,
           communityName: joiningCommunity.name,
+          // If joining via invite link (?join=), mark as invited for auto-approval
+          viaInviteLink: !!joinParam,
         }),
       });
 
@@ -551,10 +550,17 @@ function CommunityPageContent() {
       localStorage.setItem('community_user', JSON.stringify({
         name: joinFormData.name,
         email: joinFormData.email,
+        mobile: joinFormData.mobile,
         userId: serverUserId || JSON.parse(localStorage.getItem('community_user') || 'null')?.userId,
         _id: serverUserId, // Also store as _id for compatibility
       }));
       setUser({ name: joinFormData.name, email: joinFormData.email, _id: serverUserId });
+      
+      // Add the community to user memberships so UI updates immediately
+      if (joiningCommunity?.id && !userMemberships.includes(joiningCommunity.id)) {
+        setUserMemberships(prev => [...prev, joiningCommunity.id]);
+      }
+      
       setShowJoinModal(false);
       setJoinFormData({ name: '', email: '', mobile: '' });
       

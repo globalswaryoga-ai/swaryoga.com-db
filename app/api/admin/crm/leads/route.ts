@@ -123,7 +123,7 @@ export async function GET(request: NextRequest) {
     // Lead model is initialized above via getLead()
 
     const leads = await Lead.find(filter)
-      .sort({ lastMessageAt: -1, updatedAt: -1 })
+      .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
       .lean();

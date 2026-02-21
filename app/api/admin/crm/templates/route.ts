@@ -155,7 +155,9 @@ export async function POST(request: NextRequest) {
 
     // QR templates are auto-approved (no Meta approval needed)
     const safeProvider = provider === 'qr' ? 'qr' : 'meta';
-    const finalStatus = safeProvider === 'qr' ? 'approved' : safeStatus; // QR = auto-approved
+    // NEW: Meta templates require internal approval workflow
+    // QR = auto-approved, Meta = pending_approval (waiting for admin review)
+    const finalStatus = safeProvider === 'qr' ? 'approved' : 'pending_approval';
 
     const template = await WhatsAppTemplate.create({
       templateName,

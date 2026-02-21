@@ -19,6 +19,7 @@ type Block = {
     condition?: string;
     action?: string;
     templateName?: string;
+    templateButtons?: { title: string; text?: string; type?: string; label?: string; nextNodeId?: string }[];
     // Timing/Delay fields
     delaySeconds?: number;
     delayMinutes?: number;
@@ -259,6 +260,7 @@ export default function ChatbotBuilder() {
           waitTimeoutMinutes: type === 'wait_reply' ? 60 : undefined, // Default: wait 1 hour
           replyDelayMinutes: type === 'wait_reply' ? 2 : undefined, // Default: 2 min delay after reply
           templateName: type === 'template' ? '' : undefined,
+          templateButtons: type === 'template' ? [] : undefined,
           conditionField: type === 'condition' ? 'text' : undefined,
           conditionOp: type === 'condition' ? 'contains' : undefined,
           conditionValue: type === 'condition' ? '' : undefined,
@@ -367,8 +369,8 @@ export default function ChatbotBuilder() {
     if (draggingFrom && draggingFrom !== targetBlockId) {
       const fromBlock = blocks.find(b => b.id === draggingFrom);
       
-      // For button/question blocks with optionIndex, check if this option already has a connection
-      if (draggingOptionIndex !== null && (fromBlock?.type === 'buttons' || fromBlock?.type === 'question')) {
+      // For button/question/template blocks with optionIndex, check if this option already has a connection
+      if (draggingOptionIndex !== null && (fromBlock?.type === 'buttons' || fromBlock?.type === 'question' || fromBlock?.type === 'template')) {
         // Remove existing connection from this option, then add new one
         setConnections(prev => [
           ...prev.filter(c => !(c.fromId === draggingFrom && c.optionIndex === draggingOptionIndex)),
@@ -434,7 +436,9 @@ export default function ChatbotBuilder() {
     try {
       // Map canvas to nodes for the engine
       const nodes = blocks.map(b => {
-        const nextConn = connections.find(c => c.fromId === b.id);
+        // For blocks with options (buttons/question/template), nextNodeId should be the
+        // connection WITHOUT an optionIndex (the default output). For simple blocks, any connection.
+        const nextConn = connections.find(c => c.fromId === b.id && c.optionIndex === undefined);
         
         // Calculate total delay in seconds for the engine
         let totalDelaySeconds = 0;
@@ -471,7 +475,13 @@ export default function ChatbotBuilder() {
           options: b.data?.options?.map((o, i) => ({
             label: typeof o === 'string' ? o : o.label,
             value: typeof o === 'string' ? o : o.value,
-            nextNodeId: connections.find(c => c.fromId === b.id && c.label === String(i))?.toId || undefined
+            nextNodeId: connections.find(c => c.fromId === b.id && (c.optionIndex === i || c.label === String(i)))?.toId || undefined
+          })),
+          // Template button connections
+          templateButtons: b.data?.templateButtons?.map((btn: any, i: number) => ({
+            title: btn.title || btn.text || `Button ${i + 1}`,
+            type: btn.type || 'QUICK_REPLY',
+            nextNodeId: connections.find(c => c.fromId === b.id && c.optionIndex === i)?.toId || undefined
           })),
           nextNodeId: nextConn?.toId,
           // Logic fields
@@ -682,9 +692,22 @@ export default function ChatbotBuilder() {
               const baseOffset = 100;
               const optionHeight = 32;
               y1 = fromBlock.y + baseOffset + (idx * optionHeight) + (optionHeight / 2);
-            } else if (fromBlock.type === 'template' && fromBlock.data?.templateName) {
-              // Template blocks are taller due to preview, adjust Y
-              y1 = fromBlock.y + 80;
+            } else if (fromBlock.type === 'template') {
+              // Template blocks with buttons get per-button output ports
+              const tplBtns = fromBlock.data?.templateButtons || [];
+              if (tplBtns.length > 0 && conn.optionIndex !== undefined) {
+                // Calculate Y based on template preview height + button index
+                const tpl = templates.find(t => t.templateName === fromBlock.data?.templateName);
+                const hasImage = !!(tpl?.headerMedia?.url);
+                const bodyText = tpl?.templateContent || tpl?.bodyText || '';
+                const bodyLines = Math.min(Math.ceil(bodyText.length / 25), 4);
+                const previewBaseHeight = 40 + (hasImage ? 60 : 0) + (bodyLines * 14) + 12;
+                const buttonHeight = 24;
+                const idx = conn.optionIndex;
+                y1 = fromBlock.y + previewBaseHeight + (idx * buttonHeight) + (buttonHeight / 2) + 8;
+              } else if (fromBlock.data?.templateName) {
+                y1 = fromBlock.y + 80;
+              }
             }
             
             const x2 = toBlock.x; // Left side (input port)
@@ -694,8 +717,15 @@ export default function ChatbotBuilder() {
             // Adjust for taller blocks
             if ((toBlock.type === 'buttons' || toBlock.type === 'question') && toBlock.data?.options) {
               y2 = toBlock.y + 80;
-            } else if (toBlock.type === 'template' && toBlock.data?.templateName) {
-              y2 = toBlock.y + 100;
+            } else if (toBlock.type === 'template') {
+              // Calculate midpoint of template block for input port
+              const tplBtns = toBlock.data?.templateButtons || [];
+              const tpl = templates.find(t => t.templateName === toBlock.data?.templateName);
+              const hasImage = !!(tpl?.headerMedia?.url);
+              const bodyText = tpl?.templateContent || tpl?.bodyText || '';
+              const bodyLines = Math.min(Math.ceil(bodyText.length / 25), 4);
+              const previewBaseHeight = 40 + (hasImage ? 60 : 0) + (bodyLines * 14) + 12 + (tplBtns.length * 24);
+              y2 = toBlock.y + Math.max(50, previewBaseHeight / 2);
             }
             
             // Calculate control points for smooth bezier curve
@@ -725,7 +755,7 @@ export default function ChatbotBuilder() {
                   strokeWidth="2"
                   fill="none"
                   className="group-hover:stroke-red-400 transition-colors"
-                  onClick={() => deleteConnection(conn.fromId, conn.toId)}
+                  onClick={() => deleteConnection(conn.fromId, conn.toId, conn.optionIndex)}
                 />
                 {/* Arrow head */}
                 <polygon
@@ -734,7 +764,7 @@ export default function ChatbotBuilder() {
                   className="group-hover:fill-red-400 transition-colors"
                 />
                 {/* Delete icon on hover */}
-                <g className="opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => deleteConnection(conn.fromId, conn.toId)}>
+                <g className="opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => deleteConnection(conn.fromId, conn.toId, conn.optionIndex)}>
                   <circle cx={(x1 + x2) / 2} cy={(y1 + y2) / 2} r="10" fill="#ef4444" />
                   <text x={(x1 + x2) / 2} y={(y1 + y2) / 2 + 4} textAnchor="middle" fill="white" fontSize="12" fontWeight="bold">×</text>
                 </g>
@@ -822,32 +852,45 @@ export default function ChatbotBuilder() {
             <div style={{ padding: '12px 14px', color: '#6b7280', fontSize: 12 }}>
               {/* Message types */}
               {block.type === 'message' && (
-                <div style={{ color: '#1f2937', fontSize: 12, lineHeight: 1.4 }}>
-                  {block.data?.message || 'Message'}
+                <div style={{ background: '#e5ddd5', borderRadius: 8, padding: 8, maxWidth: 210 }}>
+                  <div style={{ background: '#fff', borderRadius: 6, padding: '6px 8px' }}>
+                    <p style={{ color: '#1f2937', fontSize: 11, lineHeight: 1.5, margin: 0, whiteSpace: 'pre-wrap' }}
+                       dangerouslySetInnerHTML={{ __html: formatWhatsAppText((block.data?.message || 'Enter message...').length > 100 ? (block.data?.message || '').slice(0, 100) + '...' : (block.data?.message || 'Enter message...')) }}
+                    />
+                  </div>
                 </div>
               )}
               
-              {/* Question/Buttons types */}
+              {/* Question/Buttons types - WhatsApp style blue buttons */}
               {(['question', 'buttons'].includes(block.type)) && (
                 <div>
-                  <div style={{ color: '#1f2937', fontSize: 12, marginBottom: 8 }}>
-                    {block.data?.question || 'Question'}
+                  <div style={{ color: '#1f2937', fontSize: 12, marginBottom: 8, lineHeight: 1.4 }}>
+                    {block.data?.question || 'Enter question...'}
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    {(block.data?.options || []).map((opt, i) => (
-                      <div
-                        key={i}
-                        style={{
-                          fontSize: 11,
-                          padding: '4px 8px',
-                          background: '#f3f4f6',
-                          borderRadius: 4,
-                          color: '#1f2937',
-                        }}
-                      >
-                        ● {typeof opt === 'string' ? opt : opt.label}
-                      </div>
-                    ))}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3, borderTop: '1px solid #e5e7eb', paddingTop: 6 }}>
+                    {(block.data?.options || []).map((opt, i) => {
+                      const label = typeof opt === 'string' ? opt : opt.label;
+                      const hasConn = connections.some(c => c.fromId === block.id && c.optionIndex === i);
+                      return (
+                        <div
+                          key={i}
+                          style={{
+                            fontSize: 12,
+                            padding: '6px 10px',
+                            background: hasConn ? '#EFF6FF' : '#ffffff',
+                            borderRadius: 8,
+                            color: '#2563EB',
+                            fontWeight: 600,
+                            textAlign: 'center',
+                            border: `1.5px solid ${hasConn ? '#93C5FD' : '#BFDBFE'}`,
+                            cursor: 'default',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          {label || `Button ${i + 1}`}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -879,26 +922,36 @@ export default function ChatbotBuilder() {
                             dangerouslySetInnerHTML={{ __html: formatWhatsAppText(bodyText.length > 80 ? bodyText.slice(0, 80) + '...' : bodyText || '(No body)') }}
                           />
                         </div>
-                        {/* Buttons */}
-                        {tpl.buttons && tpl.buttons.length > 0 && (
-                          <div style={{ marginTop: 4 }}>
-                            {tpl.buttons.slice(0, 3).map((btn: any, i: number) => (
-                              <div key={i} style={{ 
-                                background: '#fff', 
-                                borderRadius: 4, 
-                                padding: '4px 8px', 
-                                textAlign: 'center', 
-                                color: '#0084ff', 
-                                fontSize: 10, 
-                                fontWeight: 500,
-                                marginTop: 2,
-                                border: '1px solid #e5e7eb'
-                              }}>
-                                {btn.title || btn.text || btn.label || 'Button'}
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                        {/* Buttons - use templateButtons (manual) or template buttons */}
+                        {(() => {
+                          const btns = block.data?.templateButtons && block.data.templateButtons.length > 0 
+                            ? block.data.templateButtons 
+                            : tpl.buttons || [];
+                          if (btns.length === 0) return null;
+                          return (
+                            <div style={{ marginTop: 4, borderTop: '1px solid #d1d5db' }}>
+                              {btns.slice(0, 3).map((btn: any, i: number) => {
+                                const hasConn = connections.some(c => c.fromId === block.id && c.optionIndex === i);
+                                return (
+                                  <div key={i} style={{ 
+                                    background: hasConn ? '#EFF6FF' : '#fff', 
+                                    borderRadius: 4, 
+                                    padding: '5px 8px', 
+                                    textAlign: 'center', 
+                                    color: '#2563EB', 
+                                    fontSize: 11, 
+                                    fontWeight: 600,
+                                    marginTop: 2,
+                                    border: `1.5px solid ${hasConn ? '#93C5FD' : '#BFDBFE'}`,
+                                    letterSpacing: '0.01em'
+                                  }}>
+                                    {btn.title || btn.text || btn.label || 'Button'}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
                       </div>
                     );
                   })()}
@@ -929,8 +982,9 @@ export default function ChatbotBuilder() {
               
               {/* End */}
               {block.type === 'end' && (
-                <div style={{ fontSize: 11, color: '#1f2937' }}>
-                  {block.data?.message || 'End conversation'}
+                <div style={{ fontSize: 11, color: '#6b7280', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 16 }}>🏁</span>
+                  <span>{block.data?.message || 'End conversation'}</span>
                 </div>
               )}
               
@@ -1087,6 +1141,54 @@ export default function ChatbotBuilder() {
 
             {/* Output Port (Right side - for creating connections) */}
             {/* For Button Menu / Question with options, show multiple output ports */}
+            {/* Also for Template blocks with buttons */}
+            {block.type === 'template' && (() => {
+              const tplBtns = block.data?.templateButtons || [];
+              if (tplBtns.length === 0) return null;
+              
+              // Calculate preview height to position button ports correctly
+              const tpl = templates.find(t => t.templateName === block.data?.templateName);
+              const hasImage = !!(tpl?.headerMedia?.url);
+              const bodyText = tpl?.templateContent || tpl?.bodyText || '';
+              const bodyLines = Math.min(Math.ceil(bodyText.length / 25), 4);
+              const previewBaseHeight = 40 + (hasImage ? 60 : 0) + (bodyLines * 14) + 12;
+              const buttonHeight = 24;
+              
+              return (
+                <>
+                  {tplBtns.map((btn: any, idx: number) => {
+                    const portY = previewBaseHeight + (idx * buttonHeight) + (buttonHeight / 2) + 8;
+                    const hasConnection = connections.some(c => c.fromId === block.id && c.optionIndex === idx);
+                    return (
+                      <div
+                        key={`tpl-port-${idx}`}
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          setDraggingFrom(block.id);
+                          setDraggingOptionIndex(idx);
+                          setMousePos({ x: e.clientX, y: e.clientY });
+                        }}
+                        style={{
+                          width: 14,
+                          height: 14,
+                          background: hasConnection ? '#22c55e' : '#3b82f6',
+                          borderRadius: '50%',
+                          border: '2px solid #fff',
+                          position: 'absolute',
+                          right: -7,
+                          top: portY,
+                          cursor: 'crosshair',
+                          transition: 'all 0.15s ease',
+                          boxShadow: hasConnection ? '0 0 4px rgba(34, 197, 94, 0.6)' : '0 0 4px rgba(59, 130, 246, 0.4)',
+                          zIndex: 10,
+                        }}
+                        title={`Connect: "${btn.title || btn.text || btn.label || 'Button ' + (idx+1)}" → ${hasConnection ? '(connected)' : 'drag to target'}`}
+                      />
+                    );
+                  })}
+                </>
+              );
+            })()}
             {(block.type === 'buttons' || block.type === 'question') && block.data?.options && block.data.options.length > 0 ? (
               <>
                 {block.data.options.map((opt: any, idx: number) => {
@@ -1127,6 +1229,8 @@ export default function ChatbotBuilder() {
                 })}
               </>
             ) : (
+              /* Show single default output port only if template block has no buttons */
+              (block.type !== 'template' || !(block.data?.templateButtons && block.data.templateButtons.length > 0)) && (
               <div
                 onMouseDown={(e) => {
                   e.stopPropagation();
@@ -1149,6 +1253,7 @@ export default function ChatbotBuilder() {
                 }}
                 title="Drag to connect"
               />
+              )
             )}
           </div>
         ))}
@@ -1214,37 +1319,58 @@ export default function ChatbotBuilder() {
                       </label>
                       <div>
                         <span className="text-xs font-semibold text-gray-700">Options</span>
+                        <p className="text-[11px] text-gray-500 mt-0.5 mb-2">Create clickable buttons for user responses</p>
                         <div className="mt-1 space-y-2">
-                          {(block.data?.options || []).map((opt, i) => (
-                            <div key={i} className="flex gap-2">
-                              <input
-                                value={typeof opt === 'string' ? opt : opt.label}
-                                onChange={(e) => {
-                                  const newOpts = [...(block.data?.options || [])];
-                                  newOpts[i] = { label: e.target.value, value: e.target.value };
-                                  updateBlockData(block.id, { options: newOpts });
-                                }}
-                                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                              />
-                              <button
-                                onClick={() => {
-                                  const newOpts = (block.data?.options || []).filter((_, idx) => idx !== i);
-                                  updateBlockData(block.id, { options: newOpts });
-                                }}
-                                className="px-2 text-red-500 hover:bg-red-50 rounded"
-                              >✕</button>
-                            </div>
-                          ))}
+                          {(block.data?.options || []).map((opt, i) => {
+                            const label = typeof opt === 'string' ? opt : opt.label;
+                            const hasConn = connections.some(c => c.fromId === block.id && c.optionIndex === i);
+                            return (
+                              <div key={i} className="flex gap-2 items-center">
+                                <div 
+                                  className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+                                  style={{ background: hasConn ? '#22c55e' : '#3b82f6' }}
+                                >
+                                  {i + 1}
+                                </div>
+                                <input
+                                  value={label}
+                                  onChange={(e) => {
+                                    const newOpts = [...(block.data?.options || [])];
+                                    newOpts[i] = { label: e.target.value, value: e.target.value };
+                                    updateBlockData(block.id, { options: newOpts });
+                                  }}
+                                  className="flex-1 px-3 py-2 border-2 border-blue-200 rounded-lg text-sm font-medium text-blue-700 bg-blue-50 focus:border-blue-400 focus:bg-white focus:outline-none transition-all"
+                                  placeholder={`Button ${i + 1} text`}
+                                />
+                                <button
+                                  onClick={() => {
+                                    const newOpts = (block.data?.options || []).filter((_, idx) => idx !== i);
+                                    updateBlockData(block.id, { options: newOpts });
+                                    // Remove connections from this option
+                                    setConnections(prev => prev.filter(c => !(c.fromId === block.id && c.optionIndex === i)));
+                                  }}
+                                  className="px-2 text-red-500 hover:bg-red-50 rounded text-lg"
+                                >✕</button>
+                              </div>
+                            );
+                          })}
                           <button
                             onClick={() => {
                               updateBlockData(block.id, {
-                                options: [...(block.data?.options || []), { label: 'New option', value: 'new_option' }],
+                                options: [...(block.data?.options || []), { label: 'New button', value: 'new_button' }],
                               });
                             }}
-                            className="w-full px-3 py-2 border border-dashed border-gray-300 rounded-lg text-gray-500 text-sm hover:border-blue-400"
+                            className="w-full px-3 py-2.5 bg-blue-50 border-2 border-dashed border-blue-300 rounded-lg text-blue-600 text-sm font-semibold hover:bg-blue-100 hover:border-blue-400 transition-all"
                           >
-                            + Add option
+                            + Add Button
                           </button>
+                          {(block.data?.options || []).length > 0 && (
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 mt-2">
+                              <p className="text-[11px] text-blue-700">
+                                💡 Each button creates an output connector on the canvas. Drag from the <span className="inline-block w-3 h-3 rounded-full bg-blue-500 align-middle"></span> port to connect each button to its next step.
+                              </p>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </>
@@ -1280,6 +1406,90 @@ export default function ChatbotBuilder() {
                           </span>
                         </div>
                       )}
+
+                      {/* Auto-sync template buttons when template is selected */}
+                      {block.data?.templateName && (() => {
+                        const tpl = templates.find(t => t.templateName === block.data?.templateName);
+                        const tplButtons = tpl?.buttons || [];
+                        const currentButtons = block.data?.templateButtons || [];
+                        
+                        return (
+                          <>
+                            {/* Show sync button if template has buttons */}
+                            {tplButtons.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  updateBlockData(block.id, {
+                                    templateButtons: tplButtons.map((btn: any) => ({
+                                      title: btn.title || btn.text || btn.label || 'Button',
+                                      type: btn.type || 'QUICK_REPLY',
+                                    }))
+                                  });
+                                }}
+                                className="w-full px-3 py-2 text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+                              >
+                                🔄 Sync {tplButtons.length} button{tplButtons.length > 1 ? 's' : ''} from template
+                              </button>
+                            )}
+                          </>
+                        );
+                      })()}
+
+                      {/* Manual Button Connectors Editor */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-gray-700">Button Connectors</span>
+                          <span className="text-[10px] text-gray-400">Each button = 1 output port</span>
+                        </div>
+                        <p className="text-[11px] text-gray-500">
+                          Add buttons to create per-button output connectors on the canvas. Drag each port to the next node.
+                        </p>
+                        <div className="space-y-2">
+                          {(block.data?.templateButtons || []).map((btn: any, i: number) => (
+                            <div key={i} className="flex gap-2 items-center">
+                              <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+                                style={{ background: connections.some(c => c.fromId === block.id && c.optionIndex === i) ? '#22c55e' : '#3b82f6' }}
+                              >{i + 1}</div>
+                              <input
+                                value={btn.title || btn.text || ''}
+                                onChange={(e) => {
+                                  const newBtns = [...(block.data?.templateButtons || [])];
+                                  newBtns[i] = { ...newBtns[i], title: e.target.value };
+                                  updateBlockData(block.id, { templateButtons: newBtns });
+                                }}
+                                className="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm"
+                                placeholder={`Button ${i + 1} label`}
+                              />
+                              <button
+                                onClick={() => {
+                                  const newBtns = (block.data?.templateButtons || []).filter((_: any, idx: number) => idx !== i);
+                                  updateBlockData(block.id, { templateButtons: newBtns });
+                                  // Also remove connections from this button
+                                  setConnections(prev => prev.filter(c => !(c.fromId === block.id && c.optionIndex === i)));
+                                }}
+                                className="px-2 text-red-500 hover:bg-red-50 rounded"
+                              >✕</button>
+                            </div>
+                          ))}
+                          <button
+                            onClick={() => {
+                              const newBtns = [...(block.data?.templateButtons || []), { title: `Button ${(block.data?.templateButtons || []).length + 1}`, type: 'QUICK_REPLY' }];
+                              updateBlockData(block.id, { templateButtons: newBtns });
+                            }}
+                            className="w-full px-3 py-2 border border-dashed border-gray-300 rounded-lg text-gray-500 text-sm hover:border-blue-400 hover:text-blue-500"
+                          >
+                            + Add Button Connector
+                          </button>
+                        </div>
+                        {(block.data?.templateButtons || []).length > 0 && (
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-2">
+                            <p className="text-[11px] text-blue-700">
+                              💡 Drag from each <span className="inline-block w-3 h-3 rounded-full bg-blue-500 align-middle"></span> port on the canvas to connect each button to its next step.
+                            </p>
+                          </div>
+                        )}
+                      </div>
                       
                       {/* Template Preview */}
                       {block.data?.templateName && (() => {

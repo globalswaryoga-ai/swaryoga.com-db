@@ -140,15 +140,46 @@ export async function POST(request: NextRequest) {
     const target = body?.target || { type: 'filters', filters: {} };
     const leadIds = await resolveLeadIdsFromTarget(target);
 
+    // Handle CSV contacts — create leads on-the-fly for new phone numbers
+    const csvContacts: Array<{ name?: string; phoneNumber: string; email?: string }> = target?.csvContacts || [];
+    if (csvContacts.length > 0) {
+      for (const c of csvContacts) {
+        const phone = String(c.phoneNumber || '').replace(/\D/g, '');
+        if (!phone || phone.length < 10) continue;
+        // Check if lead already exists by phone
+        const existing = await Lead.findOne({ phoneNumber: { $regex: phone.slice(-10) + '$' } }).select({ _id: 1 }).lean();
+        if (existing) {
+          // Already tracked via leadIds — add if not present
+          const oid = toObjectId(String((existing as any)._id));
+          if (!leadIds.find(id => id.equals(oid))) leadIds.push(oid);
+        } else {
+          // Create new lead from CSV contact
+          const newLead = await Lead.create({
+            name: c.name || 'CSV Import',
+            phoneNumber: phone,
+            email: c.email || undefined,
+            status: 'csv-import',
+            source: 'csv-broadcast',
+          });
+          leadIds.push(toObjectId(String(newLead._id)));
+        }
+      }
+    }
+
     const leads = await Lead.find({ _id: { $in: leadIds } }).select({ _id: 1, phoneNumber: 1 }).lean();
 
     const runStatus = mode === 'now' ? 'draft' : 'scheduled';
 
     // Message interval settings (following WhatsApp guidelines)
-    const messageInterval = {
+    const messageInterval: any = {
+      enabled: body?.messageInterval?.enabled !== false, // default true for backward compat
       minSeconds: Math.max(5, Math.min(300, Number(body?.messageInterval?.minSeconds ?? 30))),
       maxSeconds: Math.max(10, Math.min(300, Number(body?.messageInterval?.maxSeconds ?? 60))),
     };
+    // For Meta provider, disable interval by default (Meta handles rate-limiting)
+    if (provider === 'meta' && body?.messageInterval?.enabled === undefined) {
+      messageInterval.enabled = false;
+    }
     // Ensure max >= min
     if (messageInterval.maxSeconds < messageInterval.minSeconds) {
       messageInterval.maxSeconds = messageInterval.minSeconds;

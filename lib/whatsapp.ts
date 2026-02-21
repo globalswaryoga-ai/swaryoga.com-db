@@ -277,6 +277,12 @@ export async function sendWhatsAppText(toRaw: string, body: string): Promise<Wha
         if (res.ok) {
           const waMessageId =
             Array.isArray(data?.messages) && data.messages[0]?.id ? String(data.messages[0].id) : undefined;
+          
+          if (!waMessageId) {
+            console.error('[sendWhatsAppText] Meta API returned 200 but no message ID:', JSON.stringify(data));
+            throw new Error('Meta API returned success but no message ID in response. Response: ' + JSON.stringify(data));
+          }
+          
           return { waMessageId, raw: { ...data, provider: 'meta' } };
         }
         
@@ -645,6 +651,12 @@ export async function sendWhatsAppTemplate(input: WhatsAppSendTemplateInput): Pr
 
         const waMessageId =
           Array.isArray(data?.messages) && data.messages[0]?.id ? String(data.messages[0].id) : undefined;
+        
+        if (!waMessageId) {
+          console.error('[sendWhatsAppTemplate] Meta API returned 200 but no message ID:', JSON.stringify(data));
+          throw new Error('Meta API returned success but no message ID in response. Response: ' + JSON.stringify(data));
+        }
+        
         return { waMessageId, raw: { ...data, provider: 'meta' } };
       }, { maxRetries: 2 });
 

@@ -47,6 +47,7 @@ export async function PUT(request: NextRequest, context: { params: { id: string 
       enabled: body?.enabled,
       nodes: body?.nodes,
       startNodeId: body?.startNodeId,
+      metadata: body?.metadata,
     };
 
     const updated = await ChatbotFlow.findOneAndUpdate(

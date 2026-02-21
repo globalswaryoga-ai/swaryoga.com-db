@@ -51,7 +51,7 @@ const CHATBOT_TYPES = [
     icon: '🔀',
     title: 'Flow Builder',
     description: 'Visual drag-and-drop chatbot flow creator with nodes and connections',
-    link: '/admin/crm/chatbot-builder',
+    link: '/admin/crm/chatbots/builder/new',
     color: 'from-purple-500 to-indigo-600',
     features: ['Visual Flow Chart', 'Multiple Node Types', 'Conditional Logic', 'Delay & Timer'],
   },
@@ -180,7 +180,7 @@ export default function ChatbotsPage() {
                 ← WhatsApp
               </Link>
               <Link
-                href="/admin/crm/chatbot-builder"
+                href="/admin/crm/chatbots/builder/new"
                 className="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-semibold"
               >
                 + New Flow
@@ -270,7 +270,7 @@ export default function ChatbotsPage() {
             <div className="bg-white rounded-xl border border-gray-200 p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-bold text-gray-900">🔀 Recent Flows</h3>
-                <Link href="/admin/crm/chatbot-builder" className="text-sm text-purple-600 hover:underline">
+                <Link href="/admin/crm/chatbots/builder/new" className="text-sm text-purple-600 hover:underline">
                   View All
                 </Link>
               </div>
@@ -279,7 +279,7 @@ export default function ChatbotsPage() {
               ) : (
                 <div className="space-y-3">
                   {stats.recentFlows.map((flow) => (
-                    <div key={flow._id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <Link key={flow._id} href={`/admin/crm/chatbots/builder/${flow._id}`} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">
                       <div>
                         <div className="font-medium text-gray-900">{flow.name}</div>
                         <div className="text-xs text-gray-500">{flow.nodes?.length || 0} nodes</div>
@@ -289,7 +289,7 @@ export default function ChatbotsPage() {
                       }`}>
                         {flow.enabled ? 'ON' : 'OFF'}
                       </span>
-                    </div>
+                    </Link>
                   ))}
                 </div>
               )}

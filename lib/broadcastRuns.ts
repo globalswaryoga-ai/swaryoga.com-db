@@ -137,6 +137,12 @@ export async function processDueBroadcastRuns(options?: {
         throw new Error('Template not found for run');
       }
 
+      // **NEW**: Check internal approval status before using template
+      const templateStatus = String((template as any).status || 'draft').toLowerCase();
+      if (templateStatus !== 'approved') {
+        throw new Error(`Template "${(template as any).templateName}" is not approved for use. Status: ${templateStatus}. Please approve the template before broadcasting.`);
+      }
+
       // Validate template is Meta-approved if using Meta provider
       const runProvider = String((run as any).provider || 'meta');
       if (runProvider === 'meta') {
@@ -429,6 +435,10 @@ export async function processDueBroadcastRuns(options?: {
             }
           );
 
+          if (!apiResult.waMessageId) {
+            console.warn('[Broadcast] WARNING: Message marked as sent but waMessageId is undefined. API Result:', JSON.stringify(apiResult));
+          }
+
           await BroadcastRunMessage.updateOne(
             { _id: (item as any)._id },
             {
@@ -452,13 +462,18 @@ export async function processDueBroadcastRuns(options?: {
           stat.sent++;
           result.sent++;
           
-          // Add delay between messages using run's messageInterval or fallback to config
-          const minSec = (run as any).messageInterval?.minSeconds ?? 30;
-          const maxSec = (run as any).messageInterval?.maxSeconds ?? 60;
-          // Random delay between min and max seconds
-          const randomDelayMs = (Math.floor(Math.random() * (maxSec - minSec + 1)) + minSec) * 1000;
-          console.log(`[Broadcast] Waiting ${randomDelayMs / 1000}s before next message (min: ${minSec}s, max: ${maxSec}s)`);
-          await new Promise(resolve => setTimeout(resolve, randomDelayMs));
+          // Add delay between messages (only when interval is enabled — typically QR provider)
+          const intervalEnabled = (run as any).messageInterval?.enabled !== false;
+          if (intervalEnabled) {
+            const minSec = (run as any).messageInterval?.minSeconds ?? 30;
+            const maxSec = (run as any).messageInterval?.maxSeconds ?? 60;
+            const randomDelayMs = (Math.floor(Math.random() * (maxSec - minSec + 1)) + minSec) * 1000;
+            console.log(`[Broadcast] Waiting ${randomDelayMs / 1000}s before next message (min: ${minSec}s, max: ${maxSec}s)`);
+            await new Promise(resolve => setTimeout(resolve, randomDelayMs));
+          } else {
+            // Minimal 1s gap to avoid hammering the API
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
           
         } catch (err) {
           const m = err instanceof Error ? err.message : 'WhatsApp send failed';

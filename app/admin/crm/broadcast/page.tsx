@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -16,6 +16,15 @@ interface Lead {
   workshopName?: string;
   assignedToUserId?: string;
   userName?: string;
+  isCSV?: boolean; // Flag for CSV-imported contacts
+  email?: string;
+}
+
+interface CSVContact {
+  name?: string;
+  phoneNumber: string;
+  email?: string;
+  raw: Record<string, string>;
 }
 
 interface Template {
@@ -150,6 +159,7 @@ export default function BroadcastPage() {
   const [delayBetweenSeconds, setDelayBetweenSeconds] = useState(2);
   const [minIntervalSeconds, setMinIntervalSeconds] = useState(30);  // Min delay between messages
   const [maxIntervalSeconds, setMaxIntervalSeconds] = useState(60);  // Max delay between messages
+  const [intervalEnabled, setIntervalEnabled] = useState(true); // On/off for message interval (QR only)
   const [provider, setProvider] = useState<Provider>('meta');
   const [broadcastName, setBroadcastName] = useState('');
   
@@ -159,6 +169,15 @@ export default function BroadcastPage() {
   const [filterWorkshop, setFilterWorkshop] = useState('all');
   const [filterAssignedUser, setFilterAssignedUser] = useState('all');
   const [templateSearch, setTemplateSearch] = useState('');
+  
+  // CSV Upload State
+  const [csvContacts, setCSVContacts] = useState<CSVContact[]>([]);
+  const [csvFileName, setCSVFileName] = useState('');
+  const [csvParsing, setCSVParsing] = useState(false);
+  const [csvError, setCSVError] = useState<string | null>(null);
+  const [csvColumnMap, setCSVColumnMap] = useState<{ name?: string; phone?: string; email?: string } | null>(null);
+  const [showCSVPreview, setShowCSVPreview] = useState(false);
+  const csvFileRef = useRef<HTMLInputElement>(null);
   
   // UI State
   const [loading, setLoading] = useState(true);
@@ -212,7 +231,7 @@ export default function BroadcastPage() {
     setLoading(true);
     try {
       const [leadsRes, templatesRes, runsRes, bulkRes] = await Promise.all([
-        fetch('/api/admin/crm/leads?limit=1000', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/admin/crm/leads?limit=5000&selectAll=true&fields=name,phoneNumber,status,workshopName,assignedToUserId,userName,labels', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/admin/crm/templates', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/admin/crm/broadcast-runs?limit=10', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/admin/crm/bulk-status', { headers: { Authorization: `Bearer ${token}` } }),
@@ -292,7 +311,28 @@ export default function BroadcastPage() {
   // FILTERED DATA
   // ============================================================================
   const filteredLeads = useMemo(() => {
-    return leads.filter(lead => {
+    // Merge DB leads + CSV contacts
+    let allLeads = [...leads];
+    
+    // Add CSV contacts as virtual leads (if not already in DB by phone)
+    if (csvContacts.length > 0) {
+      const existingPhones = new Set(leads.map(l => l.phoneNumber.replace(/\D/g, '').slice(-10)));
+      csvContacts.forEach((c, idx) => {
+        const normalPhone = c.phoneNumber.replace(/\D/g, '').slice(-10);
+        if (!existingPhones.has(normalPhone)) {
+          allLeads.push({
+            _id: `csv_${idx}_${normalPhone}`,
+            name: c.name || '',
+            phoneNumber: c.phoneNumber,
+            email: c.email,
+            status: 'csv',
+            isCSV: true,
+          });
+        }
+      });
+    }
+    
+    return allLeads.filter(lead => {
       const matchesSearch = !searchQuery || 
         lead.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         lead.phoneNumber.includes(searchQuery);
@@ -301,7 +341,7 @@ export default function BroadcastPage() {
       const matchesUser = filterAssignedUser === 'all' || lead.assignedToUserId === filterAssignedUser;
       return matchesSearch && matchesStatus && matchesWorkshop && matchesUser;
     });
-  }, [leads, searchQuery, filterStatus, filterWorkshop, filterAssignedUser]);
+  }, [leads, csvContacts, searchQuery, filterStatus, filterWorkshop, filterAssignedUser]);
 
   const filteredTemplates = useMemo(() => {
     if (!templateSearch) return templates;
@@ -361,6 +401,200 @@ export default function BroadcastPage() {
   }, []);
 
   // ============================================================================
+  // CSV UPLOAD & AUTO-DETECT
+  // ============================================================================
+  const autoDetectColumns = useCallback((headers: string[]): { name?: string; phone?: string; email?: string } => {
+    const map: { name?: string; phone?: string; email?: string } = {};
+    const lower = headers.map(h => h.toLowerCase().replace(/[\s_\-]/g, ''));
+
+    // Phone detection (most important)
+    const phoneKeys = ['phone', 'phonenumber', 'mobile', 'mobilenumber', 'contact', 'number', 'whatsapp', 'wanumber', 'wa', 'cell', 'tel', 'telephone'];
+    for (const p of phoneKeys) {
+      const idx = lower.findIndex(h => h === p);
+      if (idx !== -1) { map.phone = headers[idx]; break; }
+    }
+    if (!map.phone) {
+      const idx = lower.findIndex(h => h.includes('phone') || h.includes('mobile') || h.includes('number') || h.includes('whatsapp'));
+      if (idx !== -1) map.phone = headers[idx];
+    }
+
+    // Name detection
+    const nameKeys = ['name', 'fullname', 'firstname', 'customername', 'leadname', 'contactname'];
+    for (const p of nameKeys) {
+      const idx = lower.findIndex(h => h === p);
+      if (idx !== -1) { map.name = headers[idx]; break; }
+    }
+    if (!map.name) {
+      const idx = lower.findIndex(h => h.includes('name') && !h.includes('file'));
+      if (idx !== -1) map.name = headers[idx];
+    }
+
+    // Email detection
+    const emailKeys = ['email', 'emailaddress', 'mail'];
+    for (const p of emailKeys) {
+      const idx = lower.findIndex(h => h === p);
+      if (idx !== -1) { map.email = headers[idx]; break; }
+    }
+    if (!map.email) {
+      const idx = lower.findIndex(h => h.includes('email') || h.includes('mail'));
+      if (idx !== -1) map.email = headers[idx];
+    }
+
+    return map;
+  }, []);
+
+  const parseCSVText = useCallback((text: string): { headers: string[]; rows: Record<string, string>[] } => {
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    if (lines.length < 2) return { headers: [], rows: [] };
+
+    // Detect delimiter
+    const first = lines[0];
+    let delim = ',';
+    if (first.includes('\t')) delim = '\t';
+    else if (first.split(';').length > first.split(',').length) delim = ';';
+
+    const parseRow = (line: string): string[] => {
+      const result: string[] = [];
+      let cur = '';
+      let inQ = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"') {
+          if (inQ && i + 1 < line.length && line[i + 1] === '"') { cur += '"'; i++; }
+          else inQ = !inQ;
+        } else if (ch === delim && !inQ) {
+          result.push(cur.trim()); cur = '';
+        } else cur += ch;
+      }
+      result.push(cur.trim());
+      return result;
+    };
+
+    const headers = parseRow(lines[0]);
+    const rows = lines.slice(1).map(line => {
+      const vals = parseRow(line);
+      const row: Record<string, string> = {};
+      headers.forEach((h, i) => { row[h] = vals[i] || ''; });
+      return row;
+    }).filter(row => Object.values(row).some(v => v.trim()));
+    return { headers, rows };
+  }, []);
+
+  const normalizePhoneCSV = useCallback((raw: string): string => {
+    if (!raw) return '';
+    let d = raw.replace(/[^0-9+]/g, '').replace(/^\+/, '');
+    if (d.length === 10) d = '91' + d;
+    return d;
+  }, []);
+
+  const handleCSVUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setCSVParsing(true);
+    setCSVError(null);
+    setCSVFileName(file.name);
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const text = ev.target?.result as string;
+        const { headers, rows } = parseCSVText(text);
+        if (headers.length === 0 || rows.length === 0) {
+          setCSVError('No data found in CSV file');
+          setCSVParsing(false);
+          return;
+        }
+
+        const colMap = autoDetectColumns(headers);
+
+        // Fallback: check data content for phone-like values
+        if (!colMap.phone) {
+          for (const h of headers) {
+            const sample = rows.slice(0, 10).map(r => r[h]).filter(Boolean);
+            if (sample.some(v => /^\+?\d[\d\s\-()]{6,}$/.test(v.trim()))) {
+              colMap.phone = h;
+              break;
+            }
+          }
+        }
+
+        setCSVColumnMap(colMap);
+
+        if (!colMap.phone) {
+          setCSVError(`Could not detect phone column. Found columns: ${headers.join(', ')}`);
+          setCSVParsing(false);
+          return;
+        }
+
+        // Parse and deduplicate contacts
+        const contacts: CSVContact[] = [];
+        const seen = new Set<string>();
+        for (const row of rows) {
+          const rawPhone = row[colMap.phone!] || '';
+          const phone = normalizePhoneCSV(rawPhone);
+          if (!phone || phone.length < 10 || seen.has(phone)) continue;
+          seen.add(phone);
+          contacts.push({
+            name: colMap.name ? row[colMap.name]?.trim() : undefined,
+            phoneNumber: phone,
+            email: colMap.email ? row[colMap.email]?.trim() : undefined,
+            raw: row,
+          });
+        }
+
+        if (contacts.length === 0) {
+          setCSVError('No valid phone numbers found in CSV');
+          setCSVParsing(false);
+          return;
+        }
+
+        setCSVContacts(contacts);
+        setShowCSVPreview(true);
+
+        // Auto-select all CSV contacts
+        setSelectedLeads(prev => {
+          const next = new Set(prev);
+          const existingPhones = new Set(leads.map(l => l.phoneNumber.replace(/\D/g, '').slice(-10)));
+          contacts.forEach((c, idx) => {
+            const last10 = c.phoneNumber.replace(/\D/g, '').slice(-10);
+            const dbLead = leads.find(l => l.phoneNumber.replace(/\D/g, '').slice(-10) === last10);
+            if (dbLead) next.add(dbLead._id);
+            else next.add(`csv_${idx}_${last10}`);
+          });
+          return next;
+        });
+      } catch (err) {
+        setCSVError(err instanceof Error ? err.message : 'Failed to parse CSV');
+      } finally {
+        setCSVParsing(false);
+      }
+    };
+    reader.onerror = () => {
+      setCSVError('Failed to read file');
+      setCSVParsing(false);
+    };
+    reader.readAsText(file);
+    if (csvFileRef.current) csvFileRef.current.value = '';
+  }, [parseCSVText, autoDetectColumns, normalizePhoneCSV, leads]);
+
+  const removeCSV = useCallback(() => {
+    // Remove CSV virtual IDs from selection
+    setSelectedLeads(prev => {
+      const next = new Set(prev);
+      for (const id of prev) {
+        if (typeof id === 'string' && id.startsWith('csv_')) next.delete(id);
+      }
+      return next;
+    });
+    setCSVContacts([]);
+    setCSVFileName('');
+    setCSVColumnMap(null);
+    setCSVError(null);
+    setShowCSVPreview(false);
+  }, []);
+
+  // ============================================================================
   // VALIDATION
   // ============================================================================
   const canProceedToStep2 = selectedLeads.size > 0;
@@ -410,6 +644,29 @@ export default function BroadcastPage() {
         delayMins = delayMinutes;
       }
 
+      // Split real leadIds from CSV virtual IDs
+      const allIds = Array.from(selectedLeads);
+      const realLeadIds = allIds.filter(id => !id.startsWith('csv_'));
+      const csvIds = allIds.filter(id => id.startsWith('csv_'));
+      const csvPhoneNumbers = csvIds.map(id => {
+        // csv_${idx}_${last10digits} — extract the full phone from csvContacts
+        const parts = id.split('_');
+        const idx = parseInt(parts[1], 10);
+        return csvContacts[idx]?.phoneNumber || parts.slice(2).join('_');
+      }).filter(Boolean);
+
+      // Build target — include both leadIds and csvPhoneNumbers
+      const target: Record<string, unknown> = { type: 'leadIds', leadIds: realLeadIds };
+      if (csvPhoneNumbers.length > 0) {
+        target.csvPhoneNumbers = csvPhoneNumbers;
+        // Include CSV contact details for lead creation
+        target.csvContacts = csvIds.map(id => {
+          const idx = parseInt(id.split('_')[1], 10);
+          const c = csvContacts[idx];
+          return c ? { name: c.name, phoneNumber: c.phoneNumber, email: c.email } : null;
+        }).filter(Boolean);
+      }
+
       const payload = {
         name: broadcastName.trim() || `Broadcast - ${new Date().toLocaleString('en-IN')}`,
         templateId: selectedTemplate._id,
@@ -418,13 +675,11 @@ export default function BroadcastPage() {
         scheduleAt,
         delayMins,
         messageInterval: {
+          enabled: provider === 'qr' ? intervalEnabled : false,
           minSeconds: minIntervalSeconds,
           maxSeconds: maxIntervalSeconds,
         },
-        target: {
-          type: 'leadIds',
-          leadIds: Array.from(selectedLeads),
-        },
+        target,
       };
 
       console.log('[Broadcast] Creating run with payload:', payload);
@@ -797,6 +1052,134 @@ export default function BroadcastPage() {
               />
             </div>
 
+            {/* CSV Upload Section */}
+            <div className="mb-4">
+              <input
+                ref={csvFileRef}
+                type="file"
+                accept=".csv,.txt,.tsv"
+                onChange={handleCSVUpload}
+                className="hidden"
+              />
+              {csvContacts.length === 0 ? (
+                <button
+                  onClick={() => csvFileRef.current?.click()}
+                  disabled={csvParsing}
+                  className="w-full border-2 border-dashed border-gray-300 hover:border-blue-400 rounded-xl p-4 flex items-center justify-center gap-3 text-gray-500 hover:text-blue-600 transition-all duration-200 hover:bg-blue-50/30 group"
+                >
+                  {csvParsing ? (
+                    <span className="animate-spin text-xl">⏳</span>
+                  ) : (
+                    <span className="text-2xl group-hover:scale-110 transition-transform">📄</span>
+                  )}
+                  <span className="font-medium">
+                    {csvParsing ? 'Parsing CSV...' : 'Upload CSV — Auto-detect Name, Phone, Email'}
+                  </span>
+                </button>
+              ) : (
+                <div className="border-2 border-green-200 bg-green-50/50 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">✅</span>
+                      <span className="font-semibold text-green-800">{csvFileName}</span>
+                      <span className="text-sm text-green-600">— {csvContacts.length} contacts loaded</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setShowCSVPreview(!showCSVPreview)}
+                        className="px-3 py-1 text-sm bg-white border border-green-300 rounded-lg hover:bg-green-50 text-green-700 font-medium transition-colors"
+                      >
+                        {showCSVPreview ? 'Hide Preview' : 'Preview'}
+                      </button>
+                      <button
+                        onClick={removeCSV}
+                        className="px-3 py-1 text-sm bg-white border border-red-300 rounded-lg hover:bg-red-50 text-red-600 font-medium transition-colors"
+                      >
+                        ✕ Remove
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Column mapping info */}
+                  {csvColumnMap && (
+                    <div className="flex flex-wrap gap-2 mt-2 text-xs">
+                      {csvColumnMap.phone && (
+                        <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full">
+                          📱 Phone → {csvColumnMap.phone}
+                        </span>
+                      )}
+                      {csvColumnMap.name && (
+                        <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full">
+                          👤 Name → {csvColumnMap.name}
+                        </span>
+                      )}
+                      {csvColumnMap.email && (
+                        <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded-full">
+                          ✉️ Email → {csvColumnMap.email}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Preview table */}
+                  {showCSVPreview && (
+                    <div className="mt-3 max-h-[200px] overflow-auto rounded-lg border border-green-200">
+                      <table className="w-full text-sm">
+                        <thead className="bg-green-100 sticky top-0">
+                          <tr>
+                            <th className="px-3 py-2 text-left text-green-800 font-semibold">#</th>
+                            <th className="px-3 py-2 text-left text-green-800 font-semibold">Name</th>
+                            <th className="px-3 py-2 text-left text-green-800 font-semibold">Phone</th>
+                            {csvColumnMap?.email && (
+                              <th className="px-3 py-2 text-left text-green-800 font-semibold">Email</th>
+                            )}
+                            <th className="px-3 py-2 text-left text-green-800 font-semibold">In DB?</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {csvContacts.slice(0, 50).map((c, i) => {
+                            const last10 = c.phoneNumber.replace(/\D/g, '').slice(-10);
+                            const existsInDB = leads.some(l => l.phoneNumber.replace(/\D/g, '').slice(-10) === last10);
+                            return (
+                              <tr key={i} className={`border-t border-green-100 ${existsInDB ? 'bg-blue-50/40' : ''}`}>
+                                <td className="px-3 py-1.5 text-gray-500">{i + 1}</td>
+                                <td className="px-3 py-1.5 text-gray-800">{c.name || '—'}</td>
+                                <td className="px-3 py-1.5 text-gray-700 font-mono text-xs">{c.phoneNumber}</td>
+                                {csvColumnMap?.email && (
+                                  <td className="px-3 py-1.5 text-gray-600 text-xs">{c.email || '—'}</td>
+                                )}
+                                <td className="px-3 py-1.5">
+                                  {existsInDB ? (
+                                    <span className="text-blue-600 text-xs font-medium">✓ Exists</span>
+                                  ) : (
+                                    <span className="text-orange-500 text-xs font-medium">New</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                      {csvContacts.length > 50 && (
+                        <div className="text-center py-2 text-xs text-gray-500 bg-green-50">
+                          ... and {csvContacts.length - 50} more contacts
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* CSV Error */}
+              {csvError && (
+                <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-center gap-2">
+                  <span>⚠️</span>
+                  <span>{csvError}</span>
+                  <button onClick={() => setCSVError(null)} className="ml-auto text-red-400 hover:text-red-600">×</button>
+                </div>
+              )}
+            </div>
+
             {/* Filters Row */}
             <div className="flex flex-wrap items-center gap-2 mb-4 p-3 bg-gray-50 rounded-xl">
               <span className="text-sm font-medium text-gray-600 mr-1">🎯 Filter:</span>
@@ -919,6 +1302,11 @@ export default function BroadcastPage() {
                       </div>
                       <div className="flex items-center gap-2 text-sm text-gray-500">
                         <span>{lead.phoneNumber}</span>
+                        {lead.isCSV && (
+                          <span className="px-1.5 py-0.5 bg-green-100 text-green-600 rounded text-xs font-medium">
+                            📄 CSV
+                          </span>
+                        )}
                         {lead.workshopName && (
                           <span className="px-1.5 py-0.5 bg-purple-100 text-purple-600 rounded text-xs">
                             {lead.workshopName}
@@ -1232,64 +1620,101 @@ export default function BroadcastPage() {
                 </div>
               </div>
 
-              {/* Message Interval Settings - Following WhatsApp Guidelines */}
-              <div className="bg-white rounded-2xl shadow-xl border p-6">
-                <h3 className="font-bold text-gray-800 mb-2 flex items-center gap-2">
-                  ⏱️ Message Interval (WhatsApp Safety)
-                </h3>
-                <p className="text-sm text-gray-500 mb-4">
-                  Random delay between messages to avoid WhatsApp spam detection. Higher values are safer.
-                </p>
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Min Interval */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Minimum (seconds)
-                    </label>
-                    <select
-                      value={minIntervalSeconds}
-                      onChange={(e) => {
-                        const val = Number(e.target.value);
-                        setMinIntervalSeconds(val);
-                        if (val > maxIntervalSeconds) setMaxIntervalSeconds(val);
-                      }}
-                      className="w-full px-3 py-2.5 border-2 rounded-xl focus:border-blue-500 bg-white"
-                    >
-                      {[5, 10, 15, 20, 30, 45, 60, 90, 120].map(sec => (
-                        <option key={sec} value={sec}>{sec} seconds</option>
-                      ))}
-                    </select>
-                  </div>
-                  {/* Max Interval */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Maximum (seconds)
-                    </label>
-                    <select
-                      value={maxIntervalSeconds}
-                      onChange={(e) => {
-                        const val = Number(e.target.value);
-                        setMaxIntervalSeconds(val);
-                        if (val < minIntervalSeconds) setMinIntervalSeconds(val);
-                      }}
-                      className="w-full px-3 py-2.5 border-2 rounded-xl focus:border-blue-500 bg-white"
-                    >
-                      {[10, 15, 20, 30, 45, 60, 90, 120, 180, 300].map(sec => (
-                        <option key={sec} value={sec}>{sec} seconds</option>
-                      ))}
-                    </select>
-                  </div>
+              {/* Message Interval Settings - Only for QR Provider */}
+              {provider === 'qr' && (
+              <div className={`bg-white rounded-2xl shadow-xl border p-6 transition-all ${!intervalEnabled ? 'opacity-60' : ''}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                    ⏱️ Message Interval (WhatsApp Safety)
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setIntervalEnabled(!intervalEnabled)}
+                    className={`relative inline-flex h-7 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                      intervalEnabled 
+                        ? 'bg-green-500 focus:ring-green-500' 
+                        : 'bg-gray-300 focus:ring-gray-400'
+                    }`}
+                    role="switch"
+                    aria-checked={intervalEnabled}
+                  >
+                    <span className="sr-only">Toggle message interval</span>
+                    <span
+                      className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                        intervalEnabled ? 'translate-x-7' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
                 </div>
-                <div className="mt-3 p-3 bg-amber-50 rounded-xl border border-amber-200">
-                  <p className="text-sm text-amber-800 flex items-start gap-2">
-                    <span className="text-lg">⚠️</span>
-                    <span>
-                      <strong>WhatsApp Guideline:</strong> Keep minimum at 30+ seconds to avoid account restrictions. 
-                      Sending too fast may result in temporary bans.
-                    </span>
+                <div className="flex items-center gap-2 mb-4">
+                  <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                    intervalEnabled 
+                      ? 'bg-green-100 text-green-700' 
+                      : 'bg-red-100 text-red-700'
+                  }`}>
+                    {intervalEnabled ? '✅ ON — Delay active' : '❌ OFF — No delay'}
+                  </span>
+                  <p className="text-sm text-gray-500">
+                    {intervalEnabled 
+                      ? 'Random delay between messages to avoid spam detection.' 
+                      : 'Messages will be sent without delay (faster but riskier).'}
                   </p>
                 </div>
+                {intervalEnabled && (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* Min Interval */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Minimum (seconds)
+                        </label>
+                        <select
+                          value={minIntervalSeconds}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            setMinIntervalSeconds(val);
+                            if (val > maxIntervalSeconds) setMaxIntervalSeconds(val);
+                          }}
+                          className="w-full px-3 py-2.5 border-2 rounded-xl focus:border-blue-500 bg-white"
+                        >
+                          {[5, 10, 15, 20, 30, 45, 60, 90, 120].map(sec => (
+                            <option key={sec} value={sec}>{sec} seconds</option>
+                          ))}
+                        </select>
+                      </div>
+                      {/* Max Interval */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Maximum (seconds)
+                        </label>
+                        <select
+                          value={maxIntervalSeconds}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            setMaxIntervalSeconds(val);
+                            if (val < minIntervalSeconds) setMinIntervalSeconds(val);
+                          }}
+                          className="w-full px-3 py-2.5 border-2 rounded-xl focus:border-blue-500 bg-white"
+                        >
+                          {[10, 15, 20, 30, 45, 60, 90, 120, 180, 300].map(sec => (
+                            <option key={sec} value={sec}>{sec} seconds</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="mt-3 p-3 bg-amber-50 rounded-xl border border-amber-200">
+                      <p className="text-sm text-amber-800 flex items-start gap-2">
+                        <span className="text-lg">⚠️</span>
+                        <span>
+                          <strong>WhatsApp Guideline:</strong> Keep minimum at 30+ seconds to avoid account restrictions. 
+                          Sending too fast may result in temporary bans.
+                        </span>
+                      </p>
+                    </div>
+                  </>
+                )}
               </div>
+              )}
             </div>
 
             {/* Right: Preview & Summary */}

@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { connectDB } from '@/lib/db';
+import { getLead } from '@/lib/schemas/enterpriseSchemas';
+import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
+import { normalizePhone } from '@/lib/whatsapp';
+import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 
 // Path to store enquiries as JSON file
 const enquiriesDir = path.join(process.cwd(), 'data');
@@ -105,10 +110,79 @@ export async function POST(request: NextRequest) {
     // Save enquiries
     saveEnquiries(enquiries);
 
+    // Also create/update CRM Lead so enquiries appear under Leads for unknown users
+    let leadNumber: string | null = null;
+    try {
+      await connectDB();
+      const Lead = getLead();
+      const cleanedPhone = normalizePhone(body.mobile);
+      const cleanedName = String(body.name || '').trim();
+
+      if (cleanedPhone) {
+        const existingLead = await Lead.findOne({ phoneNumber: cleanedPhone });
+
+        if (existingLead) {
+          // Update existing lead with enquiry info
+          if (!existingLead.leadNumber) {
+            const { leadNumber: num } = await allocateNextLeadNumber();
+            existingLead.leadNumber = num;
+          }
+          if (cleanedName && !existingLead.name) existingLead.name = cleanedName;
+          existingLead.labels = Array.from(new Set([
+            ...(existingLead.labels || []),
+            'enquiry',
+            'admin-form',
+            body.workshopName || 'general',
+          ]));
+          existingLead.metadata = {
+            ...(existingLead.metadata || {}),
+            lastEnquiry: {
+              workshopId: body.workshopId,
+              workshopName: body.workshopName,
+              gender: body.gender,
+              city: body.city,
+              submittedAt: new Date(),
+            },
+          };
+          await existingLead.save();
+          await addLeadToMainBroadcastList(existingLead);
+          leadNumber = existingLead.leadNumber;
+        } else {
+          // Create new lead for unknown user
+          const { leadNumber: allocatedLeadNumber } = await allocateNextLeadNumber();
+          const newLead = await Lead.create({
+            leadNumber: allocatedLeadNumber,
+            name: cleanedName || 'Unknown User',
+            phoneNumber: cleanedPhone,
+            status: 'lead',
+            source: 'website',
+            workshopName: body.workshopName || 'Enquiry Form',
+            labels: ['enquiry', 'admin-form', body.workshopName || 'general'],
+            createdByUserId: 'system',
+            assignedToUserId: 'system',
+            metadata: {
+              formType: 'admin-enquiry',
+              workshopId: body.workshopId,
+              workshopName: body.workshopName,
+              gender: body.gender,
+              city: body.city,
+              submittedAt: new Date(),
+            },
+          });
+          await addLeadToMainBroadcastList(newLead);
+          leadNumber = allocatedLeadNumber;
+          console.log(`✅ New CRM lead created from admin enquiry: ${allocatedLeadNumber}`);
+        }
+      }
+    } catch (leadError) {
+      // Non-fatal: enquiry should still succeed even if CRM write fails
+      console.error('❌ CRM lead creation from admin enquiry failed:', leadError);
+    }
+
     return NextResponse.json(
       {
         message: 'Enquiry submitted successfully',
-        data: newEnquiry,
+        data: { ...newEnquiry, leadNumber },
       },
       { status: 201 }
     );

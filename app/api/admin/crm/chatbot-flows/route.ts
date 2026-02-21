@@ -58,6 +58,7 @@ export async function POST(request: NextRequest) {
       createdByUserId: String(userId),
       nodes: Array.isArray(body?.nodes) ? body.nodes : [],
       startNodeId: String(body?.startNodeId || ''),
+      metadata: body?.metadata || undefined,
     });
 
     return formatCrmSuccess(created);

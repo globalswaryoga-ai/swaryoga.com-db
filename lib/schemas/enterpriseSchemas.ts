@@ -1280,7 +1280,7 @@ const ChatbotFlowSchema = new mongoose.Schema(
           type: String,
           enum: [
             // Basic nodes
-            'message', 'question', 'buttons', 'template', 'condition', 'delay', 'end',
+            'message', 'question', 'buttons', 'template', 'condition', 'delay', 'end', 'wait_reply',
             // Advanced nodes - Actions
             'api_call', 'webhook', 'crm_update', 'assign_agent', 'notification',
             // Advanced nodes - Logic

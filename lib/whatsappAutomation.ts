@@ -349,6 +349,35 @@ async function advanceChatbotFlow(lead: any, ctx: InboundContext, flow: any): Pr
   const md = lead?.metadata || {};
   const state = md.chatbotFlowState || { flowId: String(flow._id), nodeId: flow.startNodeId };
   
+  // ===== DUPLICATE MESSAGE PREVENTION =====
+  // If this exact node was already processed for this message, skip
+  const lastProcessedMsg = state.lastProcessedMessageBody;
+  const lastProcessedNode = state.lastProcessedNodeId;
+  const lastProcessedAt = state.lastProcessedAt ? new Date(state.lastProcessedAt).getTime() : 0;
+  const timeSinceLastProcess = ctx.now.getTime() - lastProcessedAt;
+  
+  // Prevent duplicate: same node + same message body within 30 seconds
+  if (
+    lastProcessedNode === state.nodeId &&
+    lastProcessedMsg === ctx.body &&
+    timeSinceLastProcess < 30000 &&
+    ctx.body !== '' // Allow empty body for auto-advance
+  ) {
+    console.log(`[Chatbot] DEDUP: Skipping duplicate - same node ${state.nodeId}, same message "${ctx.body.substring(0,30)}..." within ${Math.round(timeSinceLastProcess/1000)}s`);
+    return null;
+  }
+  
+  // Track this processing
+  await Lead.updateOne(
+    { _id: lead._id },
+    { $set: {
+      'metadata.chatbotFlowState.lastProcessedMessageBody': ctx.body,
+      'metadata.chatbotFlowState.lastProcessedNodeId': state.nodeId,
+      'metadata.chatbotFlowState.lastProcessedAt': ctx.now
+    } }
+  );
+  // ===== END DUPLICATE PREVENTION =====
+  
   // If user changed flows or something went wrong, restart or stay
   if (state.flowId !== String(flow._id)) {
     state.flowId = String(flow._id);
@@ -430,18 +459,72 @@ async function advanceChatbotFlow(lead: any, ctx: InboundContext, flow: any): Pr
   // 1) Handle current node based on type
   // ==========================================
   
+  // TEMPLATE node with buttons - match user response to template button
+  if (currentNode.type === 'template' && state.templateButtons?.length > 0) {
+    const userInput = ctx.body.trim().toLowerCase();
+    const tplButtons = state.templateButtons;
+    
+    // Match by number, exact text, or button title
+    const numInput = parseInt(userInput, 10);
+    let matchedBtn: any = null;
+    let matchedIdx = -1;
+    
+    if (!isNaN(numInput) && numInput >= 1 && numInput <= tplButtons.length) {
+      matchedBtn = tplButtons[numInput - 1];
+      matchedIdx = numInput - 1;
+    }
+    if (!matchedBtn) {
+      matchedIdx = tplButtons.findIndex((btn: any) => {
+        const title = String(btn.title || '').toLowerCase().trim();
+        return title === userInput || title.includes(userInput) || userInput.includes(title);
+      });
+      if (matchedIdx >= 0) matchedBtn = tplButtons[matchedIdx];
+    }
+    
+    if (matchedBtn && matchedBtn.nextNodeId) {
+      nextNodeId = matchedBtn.nextNodeId;
+      console.log(`[Chatbot] Template button matched: "${matchedBtn.title}" (idx ${matchedIdx}) -> ${nextNodeId}`);
+    } else if (matchedBtn) {
+      nextNodeId = currentNode.nextNodeId; // Fallback to default next
+      console.log(`[Chatbot] Template button matched but no nextNodeId, using default`);
+    } else {
+      // No match - show button options
+      const btnLabels = tplButtons.map((b: any, i: number) => `${i + 1}. ${b.title}`).join('\n');
+      return {
+        text: `Please choose:\n${btnLabels}`,
+        presenceType: 'composing',
+        presenceDelay: 1
+      };
+    }
+  }
+  
   // BUTTONS node - match user input to button option
   if (currentNode.type === 'buttons') {
     const userInput = ctx.body.trim().toLowerCase();
-    const matchedOption = currentNode.options?.find((opt: any) => {
-      const labelMatch = String(opt.label || '').toLowerCase();
-      const valueMatch = String(opt.value || '').toLowerCase();
-      // Match by full text, number (1, 2, 3), or partial contains
-      return labelMatch === userInput || 
-             valueMatch === userInput ||
-             userInput.includes(labelMatch) ||
-             labelMatch.includes(userInput);
-    });
+    
+    // First: try exact match by number ("1", "2", "3")
+    const numInput = parseInt(userInput, 10);
+    let matchedOption: any = null;
+    if (!isNaN(numInput) && numInput >= 1 && numInput <= (currentNode.options?.length || 0)) {
+      matchedOption = currentNode.options[numInput - 1];
+    }
+    
+    // Second: try exact match by label or value
+    if (!matchedOption) {
+      matchedOption = currentNode.options?.find((opt: any) => {
+        const labelMatch = String(opt.label || '').toLowerCase().trim();
+        const valueMatch = String(opt.value || '').toLowerCase().trim();
+        return labelMatch === userInput || valueMatch === userInput;
+      });
+    }
+    
+    // Third: try contains match (but only if input is 3+ chars to avoid false positives)
+    if (!matchedOption && userInput.length >= 3) {
+      matchedOption = currentNode.options?.find((opt: any) => {
+        const labelMatch = String(opt.label || '').toLowerCase().trim();
+        return labelMatch.includes(userInput) || userInput.includes(labelMatch);
+      });
+    }
 
     if (matchedOption) {
       nextNodeId = matchedOption.nextNodeId || currentNode.nextNodeId;
@@ -661,12 +744,46 @@ async function advanceChatbotFlow(lead: any, ctx: InboundContext, flow: any): Pr
   
   // TEMPLATE node - send WhatsApp template
   if (nextNode.type === 'template') {
-    replyObj = {
-      templateId: nextNode.templateId,
-      templateName: nextNode.templateName,
-      isTemplate: true
-    };
-    if (nextNode.nextNodeId) {
+    // Look up template by name or ID to get the actual template document
+    const { getWhatsAppTemplate } = await import('@/lib/schemas/enterpriseSchemas');
+    const WhatsAppTemplateModel = getWhatsAppTemplate();
+    let tplDoc: any = null;
+    if (nextNode.templateId) {
+      tplDoc = await WhatsAppTemplateModel.findById(nextNode.templateId).lean();
+    }
+    if (!tplDoc && nextNode.templateName) {
+      tplDoc = await WhatsAppTemplateModel.findOne({ templateName: nextNode.templateName }).lean();
+    }
+    
+    if (tplDoc) {
+      replyObj = {
+        isTemplate: true,
+        templateId: String(tplDoc._id),
+        templateName: (tplDoc as any).templateName,
+      };
+    } else {
+      console.warn(`[Chatbot] Template not found: ${nextNode.templateName || nextNode.templateId}`);
+      // Fallback: send template name as text so flow doesn't silently fail
+      replyObj = {
+        text: `[Template: ${nextNode.templateName || 'unknown'}]`,
+        presenceType: 'composing',
+        presenceDelay: 1
+      };
+    }
+    
+    // Handle template button routing - if user is responding to a template with buttons
+    if (nextNode.templateButtons?.length > 0) {
+      // Template with buttons: wait for user to click a button
+      await Lead.updateOne(
+        { _id: lead._id },
+        { $set: { 'metadata.chatbotFlowState': { 
+          flowId: state.flowId, 
+          nodeId: nextNodeId,
+          templateButtons: nextNode.templateButtons,
+          updatedAt: ctx.now 
+        } } }
+      );
+    } else if (nextNode.nextNodeId) {
       await Lead.updateOne(
         { _id: lead._id },
         { $set: { 'metadata.chatbotFlowState': { flowId: state.flowId, nodeId: nextNode.nextNodeId, updatedAt: ctx.now } } }
@@ -746,6 +863,23 @@ export async function handleInboundWhatsAppAutomations(input: {
 
   const lead: any = await Lead.findById(input.leadId).lean();
   if (!lead || Array.isArray(lead)) return;
+
+  // ===== GLOBAL DEDUP: Prevent processing same message twice =====
+  const lastAutoBody = (lead as any)?.metadata?._lastAutoProcessedBody;
+  const lastAutoAt = (lead as any)?.metadata?._lastAutoProcessedAt;
+  if (lastAutoBody === body && lastAutoAt) {
+    const elapsed = now.getTime() - new Date(lastAutoAt).getTime();
+    if (elapsed < 15000) { // Same message processed within 15 seconds
+      console.log(`[Automation] DEDUP: Skipping duplicate automation for "${body.substring(0, 30)}..." (${Math.round(elapsed/1000)}s ago)`);
+      return;
+    }
+  }
+  // Mark this message as being processed
+  await Lead.updateOne(
+    { _id: input.leadId },
+    { $set: { 'metadata._lastAutoProcessedBody': body, 'metadata._lastAutoProcessedAt': now } }
+  );
+  // ===== END GLOBAL DEDUP =====
 
   // Never auto-respond to opt-out keywords
   const keyword = body.toUpperCase();
@@ -921,17 +1055,42 @@ export async function handleInboundWhatsAppAutomations(input: {
       const activeFlow = await ChatbotFlow.findOne({ enabled: true }).lean();
       
       if (activeFlow) {
+        // Throttle chatbot: prevent duplicate replies to same message within 10 seconds
+        const chatbotThrottleKey = `metadata._chatbot_last_reply_at`;
+        const lastReplyAt = (lead as any)?.metadata?._chatbot_last_reply_at;
+        if (lastReplyAt) {
+          const elapsed = now.getTime() - new Date(lastReplyAt).getTime();
+          if (elapsed < 10000) {
+            console.log(`[Automation] Chatbot throttled: last reply ${Math.round(elapsed/1000)}s ago`);
+            continue;
+          }
+        }
+        
         try {
           const reply = await advanceChatbotFlow(lead, ctx, activeFlow);
-          if (reply && reply.text) {
-            await sendOutboundText(lead, fromPhone, reply.text, { 
-               chatbot: { 
-                  flowId: String(activeFlow._id),
-                  spintaxEnabled: reply.spintaxEnabled,
-                  presenceType: reply.presenceType,
-                  presenceDelay: reply.presenceDelay
-               } 
-            });
+          if (reply) {
+            // Mark chatbot reply timestamp to prevent duplicate
+            await Lead.updateOne(
+              { _id: lead._id },
+              { $set: { 'metadata._chatbot_last_reply_at': now } }
+            );
+            
+            if (reply.isTemplate && reply.templateId) {
+              // Send WhatsApp template message
+              await sendOutboundTemplate(lead, fromPhone, reply.templateId, [], {
+                chatbot: { flowId: String(activeFlow._id) }
+              });
+            } else if (reply.text) {
+              // Send regular text message
+              await sendOutboundText(lead, fromPhone, reply.text, { 
+                 chatbot: { 
+                    flowId: String(activeFlow._id),
+                    spintaxEnabled: reply.spintaxEnabled,
+                    presenceType: reply.presenceType,
+                    presenceDelay: reply.presenceDelay
+                 } 
+              });
+            }
             await markThrottle(lead._id, rule, now);
           }
         } catch (err) {

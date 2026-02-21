@@ -58,6 +58,7 @@ type ConversationRow = {
   phoneNumber: string;
   lastMessageContent?: string;
   lastMessageAt?: string;
+  lastDirection?: 'inbound' | 'outbound' | string;
   unreadCount?: number;
   status?: string;
   labels?: string[];
@@ -139,6 +140,9 @@ export default function MetaInboxPage() {
   const [messageLimit, setMessageLimit] = useState(5);
   const [searchQuery, setSearchQuery] = useState('');
   const [chatStatusFilter, setChatStatusFilter] = useState<ChatStatus | 'all'>('all'); // Chat status filter
+  const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'yesterday' | 'last_week'>('all'); // Date filter
+  const [archivedPhones, setArchivedPhones] = useState<Set<string>>(new Set()); // Archived conversations
+  const [showArchived, setShowArchived] = useState(false); // Toggle archived view
   const [composerText, setComposerText] = useState('');
   const [attachedMedia, setAttachedMedia] = useState<{ url: string; type: 'image' | 'video' | 'document' } | null>(null);
   const [sending, setSending] = useState(false);
@@ -155,6 +159,7 @@ export default function MetaInboxPage() {
   const [diagError, setDiagError] = useState<string | null>(null);
   const [lastRawEvents, setLastRawEvents] = useState<any[]>([]);
   const [expandDiagDetails, setExpandDiagDetails] = useState(false);
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
 
   // AI State
   const [isBotMode, setIsBotMode] = useState(false);
@@ -182,9 +187,13 @@ export default function MetaInboxPage() {
   const [labelOpen, setLabelOpen] = useState(false);
   const [bulkSelected, setBulkSelected] = useState<Record<string, boolean>>({});
   const [actionModal, setActionModal] = useState<null | {
-    type: 'quick' | 'schedule' | 'template' | 'delay' | 'repeat';
+    type: 'quick' | 'schedule' | 'template' | 'delay' | 'repeat' | 'chatbot_flow';
   }>(null);
   const [delayConfig, setDelayConfig] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+  // Chatbot flow state
+  const [chatbotFlows, setChatbotFlows] = useState<{_id:string;name:string;description?:string;enabled?:boolean;nodes?:any[]}[]>([]);
+  const [chatbotFlowsLoading, setChatbotFlowsLoading] = useState(false);
+  const [chatbotFlowAssigning, setChatbotFlowAssigning] = useState<string | null>(null);
   const [repeatConfig, setRepeatConfig] = useState({
     mode: 'daily' as 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom',
     customText: '',
@@ -202,6 +211,44 @@ export default function MetaInboxPage() {
   ];
   const [quickReplies, setQuickReplies] = useState<Array<{id: string; text: string}>>(defaultQuickReplies);
   const [newQuickReply, setNewQuickReply] = useState('');
+
+  // Load archived conversations from localStorage on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('crm_archived_phones');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) setArchivedPhones(new Set(parsed));
+        } catch { /* ignore */ }
+      }
+    }
+  }, []);
+
+  // Save archived conversations to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('crm_archived_phones', JSON.stringify([...archivedPhones]));
+    }
+  }, [archivedPhones]);
+
+  // Archive/Unarchive a conversation by phone number
+  const toggleArchive = useCallback((phoneNumber: string) => {
+    setArchivedPhones(prev => {
+      const next = new Set(prev);
+      if (next.has(phoneNumber)) {
+        next.delete(phoneNumber);
+      } else {
+        next.add(phoneNumber);
+        // If we archived the currently selected, deselect
+        if (selected?.phoneNumber === phoneNumber) {
+          setSelected(null);
+          setMessages([]);
+        }
+      }
+      return next;
+    });
+  }, [selected]);
 
   // Load quick replies from localStorage on mount
   useEffect(() => {
@@ -263,6 +310,7 @@ export default function MetaInboxPage() {
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<ConversationRow | null>(null);
+  const pendingPhoneRef = useRef<string | null>(null);
   useEffect(() => {
     selectedRef.current = selected;
   }, [selected]);
@@ -312,6 +360,19 @@ export default function MetaInboxPage() {
 
     // Load once immediately
     loadConversations(searchQuery);
+
+    // Auto-select from ?phone= query param
+    try {
+      const url = new URL(window.location.href);
+      const phoneParam = url.searchParams.get('phone')?.trim();
+      if (phoneParam) {
+        // Set a pending phone to auto-select once conversations load
+        pendingPhoneRef.current = phoneParam.replace(/\D/g, '');
+        // Clean the URL so it doesn't persist on refresh
+        url.searchParams.delete('phone');
+        window.history.replaceState({}, '', url.toString());
+      }
+    } catch {}
 
     // Auto-refresh every 30 seconds. Don't recreate the interval on every keystroke.
     const timer = setInterval(() => {
@@ -483,6 +544,19 @@ export default function MetaInboxPage() {
       });
       if (data?.conversations) {
         setConversations(data.conversations);
+
+        // Auto-select conversation from ?phone= query param
+        if (pendingPhoneRef.current) {
+          const target = pendingPhoneRef.current;
+          pendingPhoneRef.current = null; // Consume once
+          const match = (data.conversations as ConversationRow[]).find(c => {
+            const p = (c.phoneNumber || '').replace(/\D/g, '');
+            return p === target || p.endsWith(target.slice(-10));
+          });
+          if (match) {
+            handleSelectConversation(match);
+          }
+        }
       }
     } catch (err) {
       console.error('Failed to load conversations:', err);
@@ -772,9 +846,77 @@ export default function MetaInboxPage() {
     setToolsOpen(false);
   };
 
-  const openAction = (type: 'quick' | 'schedule' | 'template' | 'delay' | 'repeat') => {
+  const openAction = (type: 'quick' | 'schedule' | 'template' | 'delay' | 'repeat' | 'chatbot_flow') => {
     setQuickActionsOpen(false);
     setActionModal({ type });
+    if (type === 'chatbot_flow') {
+      loadChatbotFlows();
+    }
+  };
+
+  const loadChatbotFlows = async () => {
+    if (!token) return;
+    setChatbotFlowsLoading(true);
+    try {
+      const res = await fetch('/api/admin/crm/chatbot-flows?limit=50', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      setChatbotFlows(Array.isArray(json?.data?.flows) ? json.data.flows : []);
+    } catch {
+      setChatbotFlows([]);
+    } finally {
+      setChatbotFlowsLoading(false);
+    }
+  };
+
+  const assignChatbotFlow = async (flowId: string) => {
+    if (!token || !selected) return;
+    const leadId = selected.leadId || selected._id;
+    if (!leadId) { alert('No lead selected'); return; }
+    setChatbotFlowAssigning(flowId);
+    try {
+      const res = await fetch(`/api/admin/crm/leads/${leadId}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ metadata: { chatbotFlowState: { flowId, nodeId: '', updatedAt: new Date().toISOString() } } }),
+      });
+      if (res.ok) {
+        alert('✅ Chatbot flow assigned! It will activate on next inbound message.');
+        closeActionModal();
+      } else {
+        const d = await res.json().catch(() => ({}));
+        alert(d.error || 'Failed to assign flow');
+      }
+    } catch (err) {
+      alert('Failed to assign flow');
+    } finally {
+      setChatbotFlowAssigning(null);
+    }
+  };
+
+  const removeChatbotFlow = async () => {
+    if (!token || !selected) return;
+    const leadId = selected.leadId || selected._id;
+    if (!leadId) return;
+    setChatbotFlowAssigning('__remove__');
+    try {
+      const res = await fetch(`/api/admin/crm/leads/${leadId}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ metadata: { chatbotFlowState: null } }),
+      });
+      if (res.ok) {
+        alert('✅ Chatbot flow removed from this conversation.');
+        closeActionModal();
+      } else {
+        alert('Failed to remove flow');
+      }
+    } catch {
+      alert('Failed to remove flow');
+    } finally {
+      setChatbotFlowAssigning(null);
+    }
   };
 
   const closeActionModal = () => setActionModal(null);
@@ -1042,6 +1184,13 @@ export default function MetaInboxPage() {
 
   const filteredConversations = useMemo(() => {
     let result = conversations;
+
+    // Filter archived vs active
+    if (showArchived) {
+      result = result.filter(c => archivedPhones.has(c.phoneNumber));
+    } else {
+      result = result.filter(c => !archivedPhones.has(c.phoneNumber));
+    }
     
     // Filter by search query
     if (searchQuery) {
@@ -1059,21 +1208,72 @@ export default function MetaInboxPage() {
         return computedStatus === chatStatusFilter;
       });
     }
+
+    // Filter by date
+    if (dateFilter !== 'all') {
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const yesterdayStart = new Date(todayStart.getTime() - 24 * 60 * 60 * 1000);
+      const lastWeekStart = new Date(todayStart.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+      result = result.filter(c => {
+        if (!c.lastMessageAt) return false;
+        const msgDate = new Date(c.lastMessageAt).getTime();
+        if (dateFilter === 'today') return msgDate >= todayStart.getTime();
+        if (dateFilter === 'yesterday') return msgDate >= yesterdayStart.getTime() && msgDate < todayStart.getTime();
+        if (dateFilter === 'last_week') return msgDate >= lastWeekStart.getTime();
+        return true;
+      });
+    }
     
-    // Sort by status priority (overdue first) then by lastMessageAt
+    // Sort: unread first (blue dot), then by most recent
     result = [...result].sort((a, b) => {
-      const statusA = calculateChatStatus(a.lastMessageAt, a.chatStatus);
-      const statusB = calculateChatStatus(b.lastMessageAt, b.chatStatus);
-      const priorityDiff = getStatusPriority(statusA) - getStatusPriority(statusB);
-      if (priorityDiff !== 0) return priorityDiff;
-      // Then sort by lastMessageAt (most recent first)
+      const aUnread = (a.unreadCount || 0) > 0 ? 1 : 0;
+      const bUnread = (b.unreadCount || 0) > 0 ? 1 : 0;
+      if (bUnread !== aUnread) return bUnread - aUnread; // Unread always on top
       const dateA = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
       const dateB = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
       return dateB - dateA;
     });
     
     return result;
-  }, [conversations, searchQuery, chatStatusFilter]);
+  }, [conversations, searchQuery, chatStatusFilter, dateFilter, archivedPhones, showArchived]);
+
+  // Group filtered conversations by date sections
+  const groupedConversations = useMemo(() => {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const yesterdayStart = todayStart - 24 * 60 * 60 * 1000;
+
+    const groups: { label: string; conversations: ConversationRow[] }[] = [];
+    const buckets: Record<string, ConversationRow[]> = {};
+    const order: string[] = [];
+
+    for (const conv of filteredConversations) {
+      const ts = conv.lastMessageAt ? new Date(conv.lastMessageAt).getTime() : 0;
+      let label: string;
+      if (ts >= todayStart) {
+        label = 'Today';
+      } else if (ts >= yesterdayStart) {
+        label = 'Yesterday';
+      } else if (ts > 0) {
+        // Format as "Jan 30" or "Dec 15"
+        label = new Date(conv.lastMessageAt!).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      } else {
+        label = 'Older';
+      }
+      if (!buckets[label]) {
+        buckets[label] = [];
+        order.push(label);
+      }
+      buckets[label].push(conv);
+    }
+
+    for (const label of order) {
+      groups.push({ label, conversations: buckets[label] });
+    }
+    return groups;
+  }, [filteredConversations]);
 
   const anyChecked = selectedIds.length > 0;
   const allChecked = useMemo(() => {
@@ -1361,29 +1561,29 @@ export default function MetaInboxPage() {
         {/* LEFT CHAT LIST */}
         <aside className="w-80 border-r border-slate-200/70 flex flex-col bg-white overflow-hidden">
 
-          <div className="p-4 border-b border-slate-200/70 flex gap-2.5 items-center shrink-0 bg-white">
+          <div className="px-3 py-2 border-b border-slate-200/70 flex gap-2 items-center shrink-0 bg-white">
             <div className="relative flex-1 group">
-              <i className="ph ph-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors"></i>
+              <i className="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors text-[12px]"></i>
               <input 
-                className="w-full border border-slate-200/80 rounded-2xl pl-10 pr-4 py-3 text-[13px] focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-400 transition-all bg-slate-50/50 placeholder:text-slate-400 font-medium" 
+                className="w-full border border-slate-200/80 rounded-xl pl-8 pr-3 py-2 text-[12px] focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-400 transition-all bg-slate-50/50 placeholder:text-slate-400 font-medium" 
                 placeholder="Search name or phone..." 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
             <button
-              className="p-3 text-red-600 hover:bg-red-600 hover:text-white rounded-2xl border border-red-200/50 transition-all shadow-sm hover:shadow-lg active:scale-90"
+              className="p-2 text-red-600 hover:bg-red-600 hover:text-white rounded-xl border border-red-200/50 transition-all active:scale-90"
               title="Add New Lead"
               onClick={modal.open}
               type="button"
             >
-              <i className="ph ph-plus-bold text-lg"></i>
+              <i className="ph ph-plus-bold text-sm"></i>
             </button>
           </div>
 
           {/* Chat Status Filter Tabs */}
-          <div className="px-3 py-2.5 border-b border-slate-200/70 bg-slate-50/30 shrink-0">
-            <div className="flex gap-1 overflow-x-auto no-scrollbar pb-0.5">
+          <div className="px-2 py-1.5 border-b border-slate-200/70 bg-slate-50/30 shrink-0">
+            <div className="flex gap-1 overflow-x-auto no-scrollbar">
               <button
                 onClick={() => setChatStatusFilter('all')}
                 className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all whitespace-nowrap ${
@@ -1452,26 +1652,111 @@ export default function MetaInboxPage() {
             </div>
           </div>
 
-          {/* Diagnostics panel (quick verification for inbound messages) */}
-          <div className="px-4 py-3 border-b border-slate-200/70 bg-slate-50/50">
-            <div className="text-[11px] font-extrabold text-slate-700 tracking-wide">Diagnostics</div>
+          {/* Date Filter + Archive Toggle Row */}
+          <div className="px-2 py-1.5 border-b border-slate-200/70 bg-white shrink-0">
+            <div className="flex gap-1 items-center">
+              {/* Date filters */}
+              <button
+                onClick={() => { setDateFilter('all'); setShowArchived(false); }}
+                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all whitespace-nowrap flex items-center gap-1 ${
+                  dateFilter === 'all' && !showArchived
+                    ? 'bg-slate-800 text-white shadow-md'
+                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                }`}
+              >
+                <i className="ph ph-chat-dots"></i>
+                All
+              </button>
+              <button
+                onClick={() => { setDateFilter('today'); setShowArchived(false); }}
+                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all whitespace-nowrap flex items-center gap-1 ${
+                  dateFilter === 'today'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'
+                }`}
+              >
+                <i className="ph ph-calendar-blank"></i>
+                Today
+              </button>
+              <button
+                onClick={() => { setDateFilter('yesterday'); setShowArchived(false); }}
+                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all whitespace-nowrap flex items-center gap-1 ${
+                  dateFilter === 'yesterday'
+                    ? 'bg-violet-600 text-white shadow-md'
+                    : 'bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200'
+                }`}
+              >
+                <i className="ph ph-clock-counter-clockwise"></i>
+                Yesterday
+              </button>
+              <button
+                onClick={() => { setDateFilter('last_week'); setShowArchived(false); }}
+                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all whitespace-nowrap flex items-center gap-1 ${
+                  dateFilter === 'last_week'
+                    ? 'bg-teal-600 text-white shadow-md'
+                    : 'bg-teal-50 text-teal-700 hover:bg-teal-100 border border-teal-200'
+                }`}
+              >
+                <i className="ph ph-calendar-dots"></i>
+                Last 7 Days
+              </button>
 
+              {/* Separator */}
+              <div className="w-px h-5 bg-slate-200 mx-0.5"></div>
+
+              {/* Archived toggle */}
+              <button
+                onClick={() => { setShowArchived(!showArchived); if (!showArchived) setDateFilter('all'); }}
+                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all whitespace-nowrap flex items-center gap-1 ${
+                  showArchived
+                    ? 'bg-amber-600 text-white shadow-md'
+                    : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200'
+                }`}
+                title="View archived conversations"
+              >
+                <i className="ph ph-archive"></i>
+                Archived
+                {archivedPhones.size > 0 && (
+                  <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${
+                    showArchived ? 'bg-amber-500 text-white' : 'bg-amber-200 text-amber-800'
+                  }`}>
+                    {archivedPhones.size}
+                  </span>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Diagnostics panel (collapsible) */}
+          <div className="px-3 py-1.5 border-b border-slate-200/70 bg-slate-50/50 shrink-0">
+            <button
+              onClick={() => setShowDiagnostics(!showDiagnostics)}
+              className="w-full flex items-center justify-between text-[10px] font-extrabold text-slate-500 hover:text-slate-700 transition-colors"
+            >
+              <span className="flex items-center gap-1">
+                <i className="ph ph-wrench text-[11px]"></i>
+                Diagnostics
+              </span>
+              <i className={`ph ph-caret-${showDiagnostics ? 'up' : 'down'} text-[10px]`}></i>
+            </button>
+
+            {showDiagnostics && (<div className="mt-1.5">
             {crmError ? (
-              <div className="mt-2 text-[12px] font-semibold text-red-700">
+              <div className="mt-1 text-[11px] font-semibold text-red-700">
                 {crmError}
               </div>
             ) : null}
 
-            <div className="mt-2 flex gap-2">
+            <div className="mt-1 flex gap-1.5">
               <input
-                className="flex-1 border border-slate-200/80 rounded-xl px-3 py-2 text-[12px] focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-400 bg-white"
+                className="flex-1 border border-slate-200/80 rounded-lg px-2.5 py-1.5 text-[11px] focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-400 bg-white"
                 placeholder="Phone (e.g. 9075358557)"
                 value={diagPhone}
                 onChange={(e) => setDiagPhone(e.target.value)}
               />
               <button
                 type="button"
-                className="px-3 py-2 rounded-xl text-[12px] font-extrabold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60"
+                className="px-2.5 py-1.5 rounded-lg text-[11px] font-extrabold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60"
                 onClick={() => runDiagnostics(diagPhone)}
                 disabled={!token || isDiagnosing}
                 title="Run diagnostics for this phone"
@@ -1479,10 +1764,10 @@ export default function MetaInboxPage() {
                 {isDiagnosing ? '...' : 'Debug'}
               </button>
             </div>
-            <div className="mt-2 flex gap-2">
+            <div className="mt-1 flex gap-1.5">
               <button
                 type="button"
-                className="flex-1 px-3 py-2 rounded-xl text-[12px] font-extrabold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-100 disabled:opacity-60"
+                className="flex-1 px-2 py-1.5 rounded-lg text-[10px] font-extrabold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-100 disabled:opacity-60"
                 onClick={() => {
                   const p = selected?.phoneNumber || '';
                   setDiagPhone(p);
@@ -1495,7 +1780,7 @@ export default function MetaInboxPage() {
               </button>
               <button
                 type="button"
-                className="flex-1 px-3 py-2 rounded-xl text-[12px] font-extrabold bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 disabled:opacity-60"
+                className="flex-1 px-2 py-1.5 rounded-lg text-[10px] font-extrabold bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 disabled:opacity-60"
                 onClick={() => {
                   setDiagResult(null);
                   setDiagError(null);
@@ -1673,26 +1958,27 @@ export default function MetaInboxPage() {
                 </div>
               </div>
             )}
+            </div>)}
           </div>
 
           {/* Bulk select + actions */}
-          <div className="px-4 py-2 border-b border-slate-200/70 bg-white flex items-center gap-2 shrink-0">
-            <label className="flex items-center gap-2 text-xs font-bold text-slate-600 select-none">
+          <div className="px-3 py-1.5 border-b border-slate-200/70 bg-white flex items-center gap-2 shrink-0">
+            <label className="flex items-center gap-2 text-[11px] font-bold text-slate-600 select-none">
               <input
                 type="checkbox"
-                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                 checked={allChecked}
                 onChange={(e) => setAllChecked(e.target.checked)}
               />
               Check all
             </label>
-            <span className="ml-auto text-[11px] font-semibold text-slate-500">
+            <span className="ml-auto text-[10px] font-semibold text-slate-500">
               {anyChecked ? `${selectedIds.length} selected` : `${filteredConversations.length} total`}
             </span>
           </div>
 
           {anyChecked ? (
-            <div className="px-4 py-2 border-b border-slate-200/70 bg-white flex items-center gap-2 shrink-0">
+            <div className="px-3 py-1.5 border-b border-slate-200/70 bg-white flex items-center gap-1.5 shrink-0">
               <button
                 type="button"
                 className="px-3 py-1.5 rounded-xl text-xs font-extrabold bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-100"
@@ -1725,6 +2011,25 @@ export default function MetaInboxPage() {
               </button>
               <button
                 type="button"
+                className="px-3 py-1.5 rounded-xl text-xs font-extrabold bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-100"
+                onClick={() => {
+                  const toArchive = filteredConversations.filter((c) => bulkSelected[c._id]);
+                  setArchivedPhones(prev => {
+                    const next = new Set(prev);
+                    toArchive.forEach(c => {
+                      if (showArchived) next.delete(c.phoneNumber);
+                      else next.add(c.phoneNumber);
+                    });
+                    return next;
+                  });
+                  bulkClear();
+                }}
+              >
+                <i className={`ph ${showArchived ? 'ph-arrow-counter-clockwise' : 'ph-archive'} mr-1`}></i>
+                {showArchived ? 'Unarchive' : 'Archive'}
+              </button>
+              <button
+                type="button"
                 className="ml-auto px-3 py-1.5 rounded-xl text-xs font-extrabold bg-red-50 text-red-700 hover:bg-red-100 border border-red-100"
                 onClick={bulkClear}
               >
@@ -1736,17 +2041,56 @@ export default function MetaInboxPage() {
           <div className="flex-1 overflow-y-auto">
             {crmLoading && conversations.length === 0 ? (
               <div className="p-10 flex justify-center"><LoadingSpinner /></div>
+            ) : filteredConversations.length === 0 ? (
+              <div className="p-10 flex flex-col items-center justify-center text-center">
+                <i className={`ph ${showArchived ? 'ph-archive' : dateFilter !== 'all' ? 'ph-calendar-x' : 'ph-chat-circle-dots'} text-4xl text-slate-300 mb-3`}></i>
+                <div className="text-sm font-bold text-slate-400">
+                  {showArchived 
+                    ? 'No archived conversations' 
+                    : dateFilter === 'today' 
+                      ? 'No conversations today' 
+                      : dateFilter === 'yesterday' 
+                        ? 'No conversations yesterday'
+                        : dateFilter === 'last_week'
+                          ? 'No conversations in the last 7 days'
+                          : 'No conversations found'}
+                </div>
+                <div className="text-[11px] text-slate-400 mt-1">
+                  {showArchived ? 'Archive conversations using the archive icon on each chat' : 'Try adjusting your filters'}
+                </div>
+              </div>
             ) : (
-              filteredConversations.map((conv) => (
+              groupedConversations.map((group) => (
+                <div key={group.label}>
+                  {/* Date Section Header */}
+                  <div className="sticky top-0 z-10 px-4 py-1.5 bg-gradient-to-r from-slate-100 to-slate-50 border-b border-slate-200/60 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                    <span className="text-[11px] font-[800] text-slate-500 uppercase tracking-wider">{group.label}</span>
+                    <span className="text-[10px] font-medium text-slate-400">({group.conversations.length})</span>
+                  </div>
+                  {group.conversations.map((conv) => {
+                const isUnread = (conv.unreadCount || 0) > 0;
+                return (
                 <div 
                   key={conv._id} 
                   onClick={() => handleSelectConversation(conv)}
-                  className={`px-4 py-4 border-b border-slate-100/60 flex gap-3 items-start cursor-pointer transition-all duration-200 group relative ${
+                  className={`px-3 py-2.5 border-b border-slate-100/60 flex gap-2.5 items-start cursor-pointer transition-all duration-200 group relative ${
                     selected?._id === conv._id
                       ? 'bg-blue-50/60 border-l-[5px] border-l-blue-600 shadow-[inset_0_0_15px_rgba(59,130,246,0.08)]'
                       : 'hover:bg-slate-50/80 border-l-[5px] border-l-transparent'
                   }`}
                 >
+                  {/* Read/Unread Dot */}
+                  <div className="flex flex-col items-center gap-1 pt-1">
+                    <span
+                      className={`w-[10px] h-[10px] rounded-full shrink-0 ${
+                        isUnread
+                          ? 'bg-blue-500 shadow-[0_0_6px_rgba(59,130,246,0.5)]'
+                          : 'bg-emerald-400'
+                      }`}
+                      title={isUnread ? 'Unread' : 'Read'}
+                    />
+                  </div>
                   <div className="pt-0.5" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="checkbox"
@@ -1781,8 +2125,20 @@ export default function MetaInboxPage() {
                           </div>
                         )}
                       </div>
-                      <div className="text-[10px] font-bold text-slate-400 uppercase bg-slate-100/50 px-2 py-0.5 rounded-lg shrink-0 ml-2">
-                        {conv.lastMessageAt ? new Date(conv.lastMessageAt).toLocaleDateString([], { day: '2-digit', month: 'short' }) : 'Jan 10'}
+                      <div className="text-[10px] font-bold text-slate-400 uppercase bg-slate-100/50 px-2 py-0.5 rounded-lg shrink-0 ml-2 flex items-center gap-1.5">
+                        <span>{conv.lastMessageAt ? new Date(conv.lastMessageAt).toLocaleDateString([], { day: '2-digit', month: 'short' }) : 'Jan 10'}</span>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); toggleArchive(conv.phoneNumber); }}
+                          className={`p-1 rounded-lg transition-all ${
+                            showArchived 
+                              ? 'text-amber-600 hover:bg-amber-100 hover:text-amber-800'
+                              : 'text-slate-400 hover:bg-amber-100 hover:text-amber-700 opacity-0 group-hover:opacity-100'
+                          }`}
+                          title={showArchived ? 'Unarchive conversation' : 'Archive conversation'}
+                        >
+                          <i className={`ph ${showArchived ? 'ph-arrow-counter-clockwise' : 'ph-archive'} text-[12px]`}></i>
+                        </button>
                       </div>
                     </div>
                     
@@ -1849,6 +2205,9 @@ export default function MetaInboxPage() {
                       ) : null}
                     </div>
                   </div>
+                </div>
+                );
+              })}
                 </div>
               ))
             )}
@@ -2210,8 +2569,36 @@ export default function MetaInboxPage() {
                               });
                             };
                             
+                            // Detect video URLs in message text for thumbnail preview
+                            const videoUrlRegex = /(https?:\/\/[^\s]+\.(?:mp4|mov|avi|webm|mkv|3gp)(?:[?#][^\s]*)?)/gi;
+                            const youtubeRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/gi;
+                            const videoUrls = mainBody.match(videoUrlRegex) || [];
+                            const ytMatches = [...mainBody.matchAll(/(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/gi)];
+
                             return (
                               <div className="space-y-1">
+                                {/* YouTube video thumbnails */}
+                                {ytMatches.map((m, i) => (
+                                  <a key={`yt-${i}`} href={m[0].startsWith('http') ? m[0] : `https://${m[0]}`} target="_blank" rel="noopener noreferrer" className="block relative rounded-lg overflow-hidden mb-1">
+                                    <img src={`https://img.youtube.com/vi/${m[1]}/mqdefault.jpg`} alt="Video" className="w-full max-h-[160px] object-cover rounded-lg" />
+                                    <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                                      <div className="w-10 h-10 rounded-full bg-red-600 flex items-center justify-center shadow-lg">
+                                        <i className="ph-fill ph-play text-white text-lg ml-0.5"></i>
+                                      </div>
+                                    </div>
+                                  </a>
+                                ))}
+                                {/* Direct video file thumbnails */}
+                                {videoUrls.map((vUrl, i) => (
+                                  <div key={`vid-${i}`} className="relative rounded-lg overflow-hidden mb-1 bg-black">
+                                    <video src={vUrl} className="w-full max-h-[160px] object-cover rounded-lg" preload="metadata" muted />
+                                    <div className="absolute inset-0 flex items-center justify-center bg-black/30 cursor-pointer" onClick={() => window.open(vUrl, '_blank')}>
+                                      <div className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
+                                        <i className="ph-fill ph-play text-slate-800 text-lg ml-0.5"></i>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
                                 {mainBody && <div className="leading-relaxed">{formatWhatsAppText(mainBody)}</div>}
                               </div>
                             );
@@ -2332,6 +2719,14 @@ export default function MetaInboxPage() {
                           >
                             <i className="ph ph-repeat text-lg"></i>
                             Repeat mode
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openAction('chatbot_flow')}
+                            className="w-full px-3 py-2 text-sm text-slate-700 hover:bg-cyan-50 hover:text-cyan-700 rounded-xl flex items-center gap-3 transition-colors"
+                          >
+                            <i className="ph ph-robot text-lg"></i>
+                            Chatbot flow
                           </button>
                         </div>
                       </div>
@@ -2552,7 +2947,9 @@ export default function MetaInboxPage() {
                                 ? 'Templates'
                                 : actionModal.type === 'delay'
                                   ? 'Delay message'
-                                  : 'Repeat mode'}
+                                  : actionModal.type === 'chatbot_flow'
+                                    ? 'Chatbot flow'
+                                    : 'Repeat mode'}
                         </div>
                         <div className="text-sm font-extrabold text-slate-900 mt-1">
                           {selected ? selected.name || selected.phoneNumber : 'No lead selected'}
@@ -2720,13 +3117,15 @@ export default function MetaInboxPage() {
                         
                         {/* Add New */}
                         <div className="flex gap-2 mb-4">
-                          <input 
-                            className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none"
-                            placeholder="Type new quick reply..."
+                          <textarea 
+                            rows={3}
+                            className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none resize-none"
+                            placeholder="Type new quick reply (multi-line supported)..."
                             value={newQuickReply}
                             onChange={(e) => setNewQuickReply(e.target.value)}
                             onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
+                              if (e.key === 'Enter' && e.ctrlKey) {
+                                e.preventDefault();
                                 if (newQuickReply.trim()) {
                                   setQuickReplies(prev => [...prev, { id: Date.now().toString(), text: newQuickReply }]);
                                   setNewQuickReply('');
@@ -2747,12 +3146,14 @@ export default function MetaInboxPage() {
                           </button>
                         </div>
 
+                        <p className="text-[10px] text-slate-400 mb-3">Press <kbd className="px-1 py-0.5 bg-slate-100 rounded text-[9px] border border-slate-200">Ctrl+Enter</kbd> to add</p>
+
                         {/* List */}
                         <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
                           {quickReplies.map(qr => (
-                            <div key={qr.id} className="group flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-100 bg-slate-50 hover:border-blue-200 hover:bg-blue-50/50 transition-all">
+                            <div key={qr.id} className="group flex items-start justify-between gap-3 p-3 rounded-xl border border-slate-100 bg-slate-50 hover:border-blue-200 hover:bg-blue-50/50 transition-all">
                               <p 
-                                className="text-sm text-slate-700 font-medium cursor-pointer flex-1"
+                                className="text-sm text-slate-700 font-medium cursor-pointer flex-1 whitespace-pre-wrap line-clamp-4"
                                 onClick={() => {
                                   appendToComposer(qr.text);
                                   closeActionModal();
@@ -2779,6 +3180,69 @@ export default function MetaInboxPage() {
                           )}
                         </div>
 
+                      </div>
+                    ) : null}
+
+                    {actionModal.type === 'chatbot_flow' ? (
+                      <div className="mt-4">
+                        <div className="text-sm font-bold text-slate-700 mb-3">Assign a chatbot flow to this conversation</div>
+                        {chatbotFlowsLoading ? (
+                          <div className="flex items-center justify-center py-8 text-slate-400">
+                            <i className="ph ph-spinner animate-spin text-2xl mr-2"></i>
+                            Loading flows...
+                          </div>
+                        ) : chatbotFlows.length === 0 ? (
+                          <div className="text-center py-8">
+                            <i className="ph ph-robot text-4xl text-slate-300 mb-2"></i>
+                            <p className="text-sm text-slate-500">No chatbot flows found.</p>
+                            <a href="/admin/crm/chatbots" className="text-xs text-cyan-600 hover:underline mt-1 inline-block">Create one in Chatbot Builder →</a>
+                          </div>
+                        ) : (
+                          <div className="space-y-2 max-h-[350px] overflow-y-auto">
+                            {chatbotFlows.map(flow => (
+                              <div key={flow._id} className="flex items-center justify-between p-3 border border-slate-200 rounded-xl hover:bg-cyan-50/40 transition-colors group">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className={`w-2 h-2 rounded-full ${flow.enabled ? 'bg-green-500' : 'bg-slate-300'}`}></span>
+                                    <span className="text-sm font-semibold text-slate-800 truncate">{flow.name}</span>
+                                  </div>
+                                  {flow.description && (
+                                    <p className="text-xs text-slate-500 mt-0.5 truncate pl-4">{flow.description}</p>
+                                  )}
+                                  <div className="flex items-center gap-3 mt-1 pl-4">
+                                    <span className="text-[10px] text-slate-400">{flow.nodes?.length || 0} nodes</span>
+                                    <span className={`text-[10px] font-semibold ${flow.enabled ? 'text-green-600' : 'text-slate-400'}`}>{flow.enabled ? 'Active' : 'Disabled'}</span>
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  disabled={!!chatbotFlowAssigning}
+                                  onClick={() => assignChatbotFlow(flow._id)}
+                                  className="px-3 py-1.5 text-xs font-bold text-cyan-700 bg-cyan-100 hover:bg-cyan-200 rounded-lg transition-colors disabled:opacity-50 whitespace-nowrap"
+                                >
+                                  {chatbotFlowAssigning === flow._id ? '...' : 'Assign'}
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <div className="mt-4 flex items-center justify-between">
+                          <button
+                            type="button"
+                            onClick={removeChatbotFlow}
+                            disabled={!!chatbotFlowAssigning}
+                            className="text-xs text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-lg font-semibold transition-colors disabled:opacity-50"
+                          >
+                            {chatbotFlowAssigning === '__remove__' ? 'Removing...' : '🗑 Remove current flow'}
+                          </button>
+                          <button
+                            type="button"
+                            className="text-slate-500 hover:text-slate-700 px-4 py-2 rounded-xl font-semibold text-sm"
+                            onClick={closeActionModal}
+                          >
+                            Cancel
+                          </button>
+                        </div>
                       </div>
                     ) : null}
 

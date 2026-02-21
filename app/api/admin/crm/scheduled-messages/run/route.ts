@@ -39,3 +39,23 @@ export async function POST(request: NextRequest) {
     return handleCrmError(error, 'POST scheduled-messages/run');
   }
 }
+
+/**
+ * GET /api/admin/crm/scheduled-messages/run
+ *
+ * Vercel Cron sends GET requests. This handler processes all due scheduled messages.
+ * Security: requires CRON_SECRET or Vercel Cron header.
+ */
+export async function GET(request: NextRequest) {
+  try {
+    if (!verifyCronSecret(request)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    console.log('[Scheduled Messages GET] Processing due jobs...');
+    const data = await runDueWhatsAppScheduledJobs();
+    return NextResponse.json({ success: true, data }, { status: 200 });
+  } catch (error) {
+    return handleCrmError(error, 'GET scheduled-messages/run');
+  }
+}

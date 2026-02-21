@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import { normalizePhoneForMeta } from '@/lib/utils/phone';
+import CSVUploadPanel from '@/components/admin/crm/CSVUploadPanel';
+import type { CSVContact, CSVColumnMap } from '@/components/admin/crm/CSVUploadPanel';
 import {
   DataTable,
   FormModal,
@@ -185,6 +187,10 @@ export default function SalesPage() {
   const [uploadBusy, setUploadBusy] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadReportedByUserId, setUploadReportedByUserId] = useState('');
+  const [csvContacts, setCsvContacts] = useState<CSVContact[]>([]);
+  const [csvColumnMap, setCsvColumnMap] = useState<CSVColumnMap | null>(null);
+  const [csvFileName, setCsvFileName] = useState('');
+  const [csvImporting, setCsvImporting] = useState(false);
 
   const [formData, setFormData] = useState({
     customerId: '',
@@ -1242,52 +1248,173 @@ export default function SalesPage() {
 
       {/* Upload Sales Modal */}
       {showUploadModal && (
-        <FormModal
-          isOpen={true}
-          onClose={() => {
-            if (uploadBusy) return;
-            setShowUploadModal(false);
-            setUploadFile(null);
-            setUploadReportedByUserId('');
-          }}
-          onSubmit={async () => {
-            await handleUploadSales();
-          }}
-          title="Upload Sales (Old Data)"
-          submitLabel="Upload"
-          cancelLabel="Cancel"
-          loading={uploadBusy}
-          size="lg"
-        >
-          <div className="space-y-4">
-            <div>
-              <label className="block text-purple-200 text-sm mb-2">Excel File (.xlsx/.xls)</label>
-              <input
-                type="file"
-                accept=".xlsx,.xls"
-                onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
-                className="w-full text-purple-100"
-              />
-              <p className="text-purple-200 text-xs mt-2">
-                Supported columns: Customer ID, Name, Mobile/Phone, Workshop, Batch Date, Amount, Payment Mode, Sale Date.
-              </p>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-50">
+          <div className="bg-white border-2 border-purple-300 rounded-xl p-6 max-w-2xl w-full space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-purple-700">📄 Bulk Import Sales</h2>
+              <button
+                onClick={() => {
+                  if (csvImporting) return;
+                  setShowUploadModal(false);
+                  setCsvContacts([]);
+                  setCsvColumnMap(null);
+                  setCsvFileName('');
+                }}
+                className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+              >
+                ×
+              </button>
             </div>
 
-            <div>
-              <label className="block text-purple-200 text-sm mb-2">Reported By UserId (optional)</label>
-              <input
-                type="text"
-                value={uploadReportedByUserId}
-                onChange={(e) => setUploadReportedByUserId(e.target.value)}
-                className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
-                placeholder="(super admin can override)"
-              />
-              <p className="text-purple-200 text-xs mt-2">
-                If blank, uploads will be attributed to the logged-in admin user.
-              </p>
+            <CSVUploadPanel
+              previewColumns={['name', 'phone', 'email', 'workshop', 'amount', 'date', 'customerId']}
+              contacts={csvContacts}
+              fileName={csvFileName}
+              columnMap={csvColumnMap}
+              accent="purple"
+              label="Upload CSV or Excel — Auto-detect Name, Phone, Amount, Workshop, Date"
+              onContactsParsed={(contacts, colMap, name) => {
+                setCsvContacts(contacts);
+                setCsvColumnMap(colMap);
+                setCsvFileName(name);
+              }}
+              onRemove={() => {
+                setCsvContacts([]);
+                setCsvColumnMap(null);
+                setCsvFileName('');
+              }}
+            />
+
+            {csvContacts.length > 0 && (
+              <div className="bg-purple-50 rounded-lg p-3 border border-purple-200">
+                <p className="text-purple-800 text-sm font-semibold">
+                  Ready to import {csvContacts.length} sale records
+                </p>
+                <p className="text-purple-600 text-xs mt-1">
+                  Records without a valid amount will be skipped. Missing fields can be updated later.
+                </p>
+              </div>
+            )}
+
+            {/* Reported By override for super admin */}
+            {isSuperAdmin && (
+              <div>
+                <label className="block text-purple-700 text-sm mb-1 font-semibold">Reported By (optional)</label>
+                <input
+                  type="text"
+                  value={uploadReportedByUserId}
+                  onChange={(e) => setUploadReportedByUserId(e.target.value)}
+                  className="w-full border border-purple-300 rounded-lg px-3 py-2 text-gray-800 focus:outline-none focus:border-purple-500"
+                  placeholder="Leave blank for logged-in admin"
+                />
+              </div>
+            )}
+
+            <div className="flex gap-2 pt-2">
+              <button
+                disabled={csvContacts.length === 0 || csvImporting}
+                onClick={async () => {
+                  if (!token || csvContacts.length === 0) return;
+                  setCsvImporting(true);
+                  try {
+                    const records = csvContacts.map(c => {
+                      const rec: any = {
+                        customerPhone: c.phoneNumber,
+                      };
+                      if (c.name) rec.customerName = c.name;
+                      if (c.email) rec.customerEmail = c.email;
+                      if (csvColumnMap?.workshop) {
+                        const v = c.raw[csvColumnMap.workshop]?.trim();
+                        if (v) rec.workshopName = v;
+                      }
+                      if (csvColumnMap?.amount) {
+                        const v = Number(c.raw[csvColumnMap.amount]);
+                        if (Number.isFinite(v) && v > 0) rec.saleAmount = v;
+                      }
+                      if (csvColumnMap?.paymentMode) {
+                        const v = c.raw[csvColumnMap.paymentMode]?.trim();
+                        if (v) rec.paymentMode = v;
+                      }
+                      if (csvColumnMap?.date) {
+                        const v = c.raw[csvColumnMap.date]?.trim();
+                        if (v) rec.saleDate = v;
+                      }
+                      if (csvColumnMap?.batchDate) {
+                        const v = c.raw[csvColumnMap.batchDate]?.trim();
+                        if (v) rec.batchDate = v;
+                      }
+                      if (csvColumnMap?.customerId) {
+                        const v = c.raw[csvColumnMap.customerId]?.trim();
+                        if (v) rec.customerId = v;
+                      }
+                      if (csvColumnMap?.status) {
+                        const v = c.raw[csvColumnMap.status]?.trim();
+                        if (v) rec.status = v;
+                      }
+                      if (csvColumnMap?.address) {
+                        const v = c.raw[csvColumnMap.address]?.trim();
+                        if (v) rec.customerAddress = v;
+                      }
+                      if (csvColumnMap?.labels) {
+                        const v = c.raw[csvColumnMap.labels]?.trim();
+                        if (v) rec.labels = v.split(/[,|]+/).map((l: string) => l.trim()).filter(Boolean);
+                      }
+                      return rec;
+                    });
+
+                    const body: any = { records };
+                    if (uploadReportedByUserId.trim()) {
+                      body.reportedByUserId = uploadReportedByUserId.trim();
+                    }
+
+                    const res = await fetch('/api/admin/crm/sales/bulk-import', {
+                      method: 'POST',
+                      headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify(body),
+                    });
+
+                    const data = await res.json();
+                    if (res.ok && data.success) {
+                      alert(`✅ Imported ${data.data.imported} sale records!\n${data.data.skipped} skipped.${data.data.failed ? `\n${data.data.failed} failed.` : ''}`);
+                      setShowUploadModal(false);
+                      setCsvContacts([]);
+                      setCsvColumnMap(null);
+                      setCsvFileName('');
+                      setUploadReportedByUserId('');
+                      fetchSalesData();
+                    } else {
+                      alert(`Error: ${data.error || 'Import failed'}`);
+                    }
+                  } catch (err) {
+                    alert(`Upload failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+                  } finally {
+                    setCsvImporting(false);
+                  }
+                }}
+                className="flex-1 bg-purple-500/20 border border-purple-500 text-purple-700 px-4 py-2 rounded-lg hover:bg-purple-500/30 transition-colors font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {csvImporting ? '⏳ Importing...' : `Import ${csvContacts.length} Sales`}
+              </button>
+              <button
+                onClick={() => {
+                  if (csvImporting) return;
+                  setShowUploadModal(false);
+                  setCsvContacts([]);
+                  setCsvColumnMap(null);
+                  setCsvFileName('');
+                  setUploadReportedByUserId('');
+                }}
+                disabled={csvImporting}
+                className="flex-1 bg-slate-100 border border-slate-300 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-200 transition-colors font-medium disabled:opacity-40"
+              >
+                Cancel
+              </button>
             </div>
           </div>
-        </FormModal>
+        </div>
       )}
 
       {/* Edit Sale Modal */}

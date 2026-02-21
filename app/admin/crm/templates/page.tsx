@@ -76,6 +76,7 @@ export default function TemplatesPage() {
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [page, setPage] = useState(1);
   const [totalTemplates, setTotalTemplates] = useState(0);
+  const [syncLoading, setSyncLoading] = useState(false);
 
   const pageSize = 20;
 
@@ -160,18 +161,23 @@ export default function TemplatesPage() {
         body: { templateId, action: 'approve' },
       });
       fetchTemplates();
+      alert('✅ Template approved successfully!');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to approve');
     }
   };
 
   const handleRejectTemplate = async (templateId: string) => {
+    const reason = prompt('Enter rejection reason (optional):', '');
+    if (reason === null) return; // User cancelled
+    
     try {
       await crm.fetch('/api/admin/crm/templates', {
         method: 'PUT',
-        body: { templateId, action: 'reject', rejectionReason: 'Rejected from CRM UI' },
+        body: { templateId, action: 'reject', rejectionReason: reason || 'Rejected from CRM UI' },
       });
       fetchTemplates();
+      alert('❌ Template rejected successfully!');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to reject');
     }
@@ -187,6 +193,34 @@ export default function TemplatesPage() {
       fetchTemplates();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete');
+    }
+  };
+
+  const handleSyncMetaTemplates = async () => {
+    setSyncLoading(true);
+    try {
+      setError(null);
+      const result = await crm.fetch('/api/admin/crm/templates/meta/sync', {
+        params: { import: 'true' },
+      });
+
+      if (result?.success === false) {
+        setError(result?.error || 'Sync failed');
+      } else {
+        const syncResults = result?.results || [];
+        const imported = syncResults.filter((r: any) => r.action === 'imported').length;
+        const updated = syncResults.filter((r: any) => r.action === 'updated').length;
+        
+        alert(`✅ Sync completed!\n📥 Imported: ${imported} new templates\n🔄 Updated: ${updated} existing templates`);
+        
+        // Refresh the template list
+        setPage(1);
+        fetchTemplates();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to sync templates from Meta');
+    } finally {
+      setSyncLoading(false);
     }
   };
 
@@ -262,6 +296,16 @@ export default function TemplatesPage() {
                 <i className="ph-bold ph-plus-circle text-lg"></i>
                 Create {providerFilter === 'qr' ? 'QR ' : providerFilter === 'meta' ? 'Meta ' : ''}Template
               </button>
+
+              <button
+                onClick={handleSyncMetaTemplates}
+                disabled={syncLoading}
+                title="Sync Meta-approved templates into CRM and update their status"
+                className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-6 py-2 rounded-lg font-semibold transition-all shadow-md flex items-center justify-center gap-2"
+              >
+                <i className={`ph-bold ${syncLoading ? 'ph-spinner animate-spin' : 'ph-arrows-counterclockwise'} text-lg`}></i>
+                {syncLoading ? 'Syncing...' : 'Sync from Meta'}
+              </button>
             </div>
         </div>
 
@@ -303,9 +347,34 @@ export default function TemplatesPage() {
 
         {/* Info Banner */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
-          <strong>💡 Tip:</strong> Meta templates require WhatsApp approval and can be used in both Meta Inbox and QR WhatsApp. 
-          QR templates don&apos;t need approval and work only in QR WhatsApp.
+          <strong>💡 Workflow:</strong> New Meta templates require approval before use. Click the "Pending Approval" tab to review and approve/reject templates.
+          QR templates are auto-approved and ready to use immediately.
         </div>
+
+        {/* Pending Approval Alert */}
+        {templates.some(t => t.status === 'pending_approval') && (
+          <div className="bg-amber-50 border-2 border-amber-300 rounded-lg p-4 text-sm text-amber-900">
+            <div className="flex items-start gap-3">
+              <span className="text-2xl">⏳</span>
+              <div>
+                <strong>Templates Pending Approval</strong>
+                <p className="mt-1 text-amber-800">
+                  {templates.filter(t => t.status === 'pending_approval').length} template(s) waiting for approval. 
+                  Review them in the "Pending Approval" tab and approve or reject them.
+                </p>
+                <button
+                  onClick={() => {
+                    setStatusFilter('pending_approval');
+                    setPage(1);
+                  }}
+                  className="mt-2 px-3 py-1 bg-amber-700 text-white rounded font-semibold text-xs hover:bg-amber-800 transition-colors"
+                >
+                  View Pending
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Status Filter */}
         <div className="overflow-x-auto pb-2">
@@ -486,6 +555,15 @@ export default function TemplatesPage() {
                       <div className="text-xs text-gray-400 mb-4 space-y-1">
                         <div>Created: {new Date(template.createdAt).toLocaleDateString()}</div>
                         <div>Updated: {new Date(template.updatedAt).toLocaleDateString()}</div>
+                        {template.status === 'pending_approval' && (
+                          <div className="text-amber-600 font-semibold">⏳ Awaiting approval...</div>
+                        )}
+                        {template.status === 'approved' && (
+                          <div className="text-green-600 font-semibold">✅ Approved & Ready to use</div>
+                        )}
+                        {template.status === 'rejected' && (
+                          <div className="text-red-600 font-semibold">❌ Rejected</div>
+                        )}
                       </div>
 
                       {/* Actions */}

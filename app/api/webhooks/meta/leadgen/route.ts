@@ -12,6 +12,22 @@ const GRAPH_API_VERSION = process.env.META_GRAPH_API_VERSION || 'v24.0';
 const PAGE_ACCESS_TOKEN = process.env.META_PAGE_ACCESS_TOKEN || '';
 
 /**
+ * Build form_id → workshop name mapping from META_FORM_* env vars.
+ * Reads META_FORM_1_ID / META_FORM_1_NAME, META_FORM_2_ID / META_FORM_2_NAME, etc.
+ */
+function getFormWorkshopMap(): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (let i = 1; i <= 20; i++) {
+    const formId = process.env[`META_FORM_${i}_ID`];
+    const formName = process.env[`META_FORM_${i}_NAME`];
+    if (formId && formId !== 'your_form_id_here' && formName) {
+      map[formId] = formName;
+    }
+  }
+  return map;
+}
+
+/**
  * Verify webhook signature from Meta
  */
 function verifySignature(payload: string, signature: string): boolean {
@@ -72,13 +88,17 @@ function buildLeadName(fieldData: any[]): string {
 /**
  * Upsert lead from Meta leadgen webhook
  */
-async function upsertLeadFromMeta(leadgenData: any) {
+async function upsertLeadFromMeta(leadgenData: any, formId?: string) {
   try {
     const Lead = getLead();
     const fieldData = leadgenData.field_data || [];
 
     const leadgenId = leadgenData.id;
     const metaLeadgenId = `meta_${leadgenId}`;
+
+    // Resolve workshop name from form_id → env mapping
+    const formMap = getFormWorkshopMap();
+    const workshopName = formId ? formMap[formId] || '' : '';
 
     // Extract phone and email
     let phone = pickFieldValue(fieldData, 'phone_number') || pickFieldValue(fieldData, 'phone');
@@ -110,6 +130,14 @@ async function upsertLeadFromMeta(leadgenData: any) {
       existingLead.metadata.metaLeadgenId = metaLeadgenId;
       existingLead.source = 'meta_leadgen';
       
+      // Set workshop name if mapped and not already set
+      if (workshopName && !existingLead.workshopName) {
+        existingLead.workshopName = workshopName;
+      }
+
+      // Store form_id in metadata
+      if (formId) existingLead.metadata.metaFormId = formId;
+
       // Add 'social media' label
       if (!existingLead.labels || !existingLead.labels.includes('social media')) {
         existingLead.labels = Array.from(new Set([...(existingLead.labels || []), 'social media']));
@@ -135,9 +163,11 @@ async function upsertLeadFromMeta(leadgenData: any) {
       name: name || 'Instagram Lead',
       status: 'lead',
       source: 'meta_leadgen',
+      ...(workshopName ? { workshopName } : {}),
       labels: ['social media'],
       metadata: {
         metaLeadgenId,
+        ...(formId ? { metaFormId: formId } : {}),
         rawFieldData: fieldData,
       },
     });
@@ -184,8 +214,12 @@ export async function POST(req: Request) {
 
     // Verify signature
     if (!signature || !verifySignature(body, signature.replace('sha256=', ''))) {
-      console.warn('Invalid webhook signature');
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 403 });
+      if (process.env.SKIP_WEBHOOK_SIGNATURE === 'true') {
+        console.warn('Invalid webhook signature — skipping verification (SKIP_WEBHOOK_SIGNATURE=true)');
+      } else {
+        console.warn('Invalid webhook signature');
+        return NextResponse.json({ error: 'Invalid signature' }, { status: 403 });
+      }
     }
 
     const payload = JSON.parse(body);
@@ -200,13 +234,14 @@ export async function POST(req: Request) {
         for (const change of entry.changes || []) {
           if (change.field === 'leadgen') {
             const leadgenId = change.value.leadgen_id;
-            console.log(`Processing leadgen: ${leadgenId}`);
+            const formId = change.value.form_id ? String(change.value.form_id) : undefined;
+            console.log(`Processing leadgen: ${leadgenId}, form_id: ${formId || 'unknown'}`);
 
             // Fetch full leadgen details from Graph API
             const leadgenData = await fetchLeadgenDetails(leadgenId);
             if (leadgenData) {
-              // Upsert into CRM
-              const result = await upsertLeadFromMeta(leadgenData);
+              // Upsert into CRM (pass formId for workshop mapping)
+              const result = await upsertLeadFromMeta(leadgenData, formId);
               console.log(`Upsert result:`, result);
             } else {
               console.error(`Failed to fetch leadgen details: ${leadgenId}`);

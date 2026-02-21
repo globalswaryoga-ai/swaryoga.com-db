@@ -9,6 +9,8 @@ import { useModal } from '@/hooks/useModal';
 import { useForm } from '@/hooks/useForm';
 import * as XLSX from 'xlsx';
 import { normalizePhoneForMeta } from '@/lib/utils/phone';
+import CSVUploadPanel from '@/components/admin/crm/CSVUploadPanel';
+import type { CSVContact, CSVColumnMap } from '@/components/admin/crm/CSVUploadPanel';
 import {
   DataTable,
   FormModal,
@@ -74,6 +76,14 @@ export default function LeadsPage() {
   const [workshopCounts, setWorkshopCounts] = useState<Record<string, number>>({});
   const [loadingMetadata, setLoadingMetadata] = useState(false);
   const [bulkImportModalOpen, setBulkImportModalOpen] = useState(false);
+  const [csvContacts, setCsvContacts] = useState<CSVContact[]>([]);
+  const [csvColumnMap, setCsvColumnMap] = useState<CSVColumnMap | null>(null);
+  const [csvFileName, setCsvFileName] = useState('');
+  const [csvImporting, setCsvImporting] = useState(false);
+  const [csvWorkshopOverride, setCsvWorkshopOverride] = useState('');
+  const [csvSourceOverride, setCsvSourceOverride] = useState('');
+  const [csvAssignAdmin, setCsvAssignAdmin] = useState('');
+  const [adminUsersList, setAdminUsersList] = useState<Array<{ userId: string; name: string }>>([]);
   const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
   const [duplicateLead, setDuplicateLead] = useState<any>(null);
 
@@ -519,9 +529,12 @@ export default function LeadsPage() {
 
           {canMessage ? (
             <button
-              onClick={() => router.push(`/admin/crm/leads-followup?leadId=${encodeURIComponent(lead._id)}`)}  
+              onClick={() => {
+                const phone = (lead.phoneNumber || '').replace(/\D/g, '');
+                router.push(`/admin/crm/meta?phone=${encodeURIComponent(phone)}`);
+              }}
               className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-1"
-              title="Send WhatsApp via Meta"
+              title="Open in Meta Inbox"
             >
               <span aria-hidden>💬</span>
               WhatsApp
@@ -703,7 +716,20 @@ export default function LeadsPage() {
               </button>
             )}
             <button
-              onClick={() => setBulkImportModalOpen(true)}
+              onClick={() => {
+                setBulkImportModalOpen(true);
+                // Fetch admin users for assignment dropdown
+                if (token && adminUsersList.length === 0) {
+                  fetch('/api/admin/users', { headers: { Authorization: `Bearer ${token}` } })
+                    .then(r => r.json())
+                    .then(d => {
+                      if (d.success && d.users) {
+                        setAdminUsersList(d.users.map((u: any) => ({ userId: u.userId || u._id, name: u.name || u.email || u.userId })));
+                      }
+                    })
+                    .catch(() => {});
+                }
+              }}
               className="bg-[#F5EBE0] hover:bg-[#E8DFD5] text-[#0f3a4d] px-4 py-2 rounded-lg transition-all font-semibold border border-[#E8DFD5]"
             >
               📤 Bulk Upload
@@ -1229,117 +1255,198 @@ export default function LeadsPage() {
       {/* Bulk Import Modal */}
       {bulkImportModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-50">
-          <div className="bg-white border-2 border-teal-300 rounded-xl p-8 max-w-md w-full space-y-6 shadow-2xl">
-            <h2 className="text-xl font-bold text-teal-700">Bulk Import Leads</h2>
-            
-            <div className="space-y-4">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-teal-700 text-sm font-semibold">Download format (Excel template)</p>
-                <button
-                  onClick={async () => {
-                    if (!token) {
-                      alert('Please login again.');
-                      return;
-                    }
-
-                    try {
-                      const res = await fetch('/api/admin/crm/leads/template', {
-                        headers: { Authorization: `Bearer ${token}` },
-                      });
-
-                      if (!res.ok) {
-                        const err = await res.json().catch(() => ({}));
-                        throw new Error(err?.error || 'Failed to download template');
-                      }
-
-                      const blob = await res.blob();
-                      const url = window.URL.createObjectURL(blob);
-                      const a = document.createElement('a');
-                      a.href = url;
-                      a.download = 'leads-import-template.xlsx';
-                      document.body.appendChild(a);
-                      a.click();
-                      a.remove();
-                      window.URL.revokeObjectURL(url);
-                    } catch (e) {
-                      alert(e instanceof Error ? e.message : 'Failed to download template');
-                    }
-                  }}
-                  className="text-teal-700 underline font-semibold hover:text-teal-900"
-                >
-                  Download
-                </button>
-              </div>
-
-              <div>
-                <label className="block text-teal-700 text-sm mb-2 font-semibold">Upload Excel File</label>
-                <input
-                  type="file"
-                  accept=".xlsx,.xls,.csv"
-                  id="bulk-upload"
-                  className="w-full"
-                />
-                <p className="text-teal-600 text-xs mt-2">
-                  Format: Name, Email, Phone, Status, Source, Workshop/Program
-                </p>
-                <p className="text-teal-600 text-xs mt-1">
-                  Phone must be digits with country code (no plus): <span className="font-semibold">919309986820</span>
-                </p>
-              </div>
-
-              <div className="bg-teal-50 rounded-lg p-3 text-teal-700 text-sm border-2 border-teal-200">
-                <p className="font-semibold mb-2">Instructions:</p>
-                <ul className="list-disc pl-4 space-y-1">
-                  <li>Required: Name, Email, Phone</li>
-                  <li>Phone must be <span className="font-semibold">91 + 10 digits</span> (example: 919309986820)</li>
-                  <li>Optional: Status (lead/prospect/customer/inactive)</li>
-                  <li>Optional: Source (website/referral/social/event)</li>
-                  <li>Optional: Workshop/Program name</li>
-                </ul>
-              </div>
+          <div className="bg-white border-2 border-teal-300 rounded-xl p-6 max-w-2xl w-full space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-teal-700">📄 Bulk Import Leads</h2>
+              <button
+                onClick={() => {
+                  setBulkImportModalOpen(false);
+                  setCsvContacts([]);
+                  setCsvColumnMap(null);
+                  setCsvFileName('');
+                  setCsvWorkshopOverride('');
+                  setCsvSourceOverride('');
+                  setCsvAssignAdmin('');
+                }}
+                className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+              >
+                ×
+              </button>
             </div>
 
-            <div className="flex gap-2">
+            <CSVUploadPanel
+              previewColumns={['name', 'phone', 'email', 'status', 'source', 'workshop']}
+              contacts={csvContacts}
+              fileName={csvFileName}
+              columnMap={csvColumnMap}
+              accent="teal"
+              label="Upload CSV or Excel — Auto-detect Name, Phone, Email, Status, Source, Workshop"
+              onContactsParsed={(contacts, colMap, name) => {
+                setCsvContacts(contacts);
+                setCsvColumnMap(colMap);
+                setCsvFileName(name);
+                // Auto-detect first workshop value for override
+                if (colMap?.workshop) {
+                  const first = contacts.find(c => c.raw[colMap.workshop!]?.trim());
+                  setCsvWorkshopOverride(first ? first.raw[colMap.workshop!].trim() : '');
+                } else {
+                  setCsvWorkshopOverride('');
+                }
+                // Auto-detect first source value for override
+                if (colMap?.source) {
+                  const first = contacts.find(c => c.raw[colMap.source!]?.trim());
+                  setCsvSourceOverride(first ? first.raw[colMap.source!].trim() : '');
+                } else {
+                  setCsvSourceOverride('');
+                }
+              }}
+              onRemove={() => {
+                setCsvContacts([]);
+                setCsvColumnMap(null);
+                setCsvFileName('');
+                setCsvWorkshopOverride('');
+                setCsvSourceOverride('');
+                setCsvAssignAdmin('');
+              }}
+            />
+
+            {csvContacts.length > 0 && (
+              <>
+                {/* Editable overrides for workshop & source */}
+                <div className="bg-teal-50 rounded-lg p-3 border border-teal-200 space-y-2">
+                  <div>
+                    <label className="text-xs font-semibold text-teal-700 block mb-1">Workshop Name (applies to all)</label>
+                    <input
+                      type="text"
+                      value={csvWorkshopOverride}
+                      onChange={e => setCsvWorkshopOverride(e.target.value)}
+                      placeholder="e.g. Swar Vidnyan Feb 2026"
+                      className="w-full px-3 py-1.5 text-sm border border-teal-300 rounded-lg bg-white focus:ring-2 focus:ring-teal-400 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-teal-700 block mb-1">Assign to Admin</label>
+                    <select
+                      value={csvAssignAdmin}
+                      onChange={e => setCsvAssignAdmin(e.target.value)}
+                      className="w-full px-3 py-1.5 text-sm border border-teal-300 rounded-lg bg-white focus:ring-2 focus:ring-teal-400 focus:outline-none"
+                    >
+                      <option value="">— Current logged-in user —</option>
+                      {adminUsersList.map(u => (
+                        <option key={u.userId} value={u.userId}>{u.name} ({u.userId})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-teal-700 block mb-1">Source (applies to all)</label>
+                    <input
+                      type="text"
+                      value={csvSourceOverride}
+                      onChange={e => setCsvSourceOverride(e.target.value)}
+                      placeholder="e.g. Website, Referral, Event"
+                      className="w-full px-3 py-1.5 text-sm border border-teal-300 rounded-lg bg-white focus:ring-2 focus:ring-teal-400 focus:outline-none"
+                    />
+                  </div>
+                  <p className="text-teal-800 text-sm font-semibold pt-1">
+                    Ready to import {csvContacts.length} contacts as leads
+                  </p>
+                  <p className="text-teal-600 text-xs">
+                    Duplicate phone numbers will be skipped. Missing fields will be filled later.
+                  </p>
+                </div>
+              </>
+            )}
+
+            <div className="flex gap-2 pt-2">
               <button
+                disabled={csvContacts.length === 0 || csvImporting}
                 onClick={async () => {
-                  const input = document.getElementById('bulk-upload') as HTMLInputElement;
-                  const file = input?.files?.[0];
-                  if (!file) {
-                    alert('Please select a file');
-                    return;
-                  }
-
-                  const formData = new FormData();
-                  formData.append('file', file);
-
+                  if (!token || csvContacts.length === 0) return;
+                  setCsvImporting(true);
                   try {
-                    const response = await fetch('/api/admin/crm/leads/upload', {
-                      method: 'POST',
-                      headers: { 'Authorization': `Bearer ${token}` },
-                      body: formData,
+                    // Build contacts payload with all detected columns
+                    const payload = csvContacts.map(c => {
+                      const row: any = { phoneNumber: c.phoneNumber };
+                      if (c.name) row.name = c.name;
+                      if (c.email) row.email = c.email;
+                      // Extract extra columns from raw csv row
+                      if (csvColumnMap?.status) {
+                        const v = c.raw[csvColumnMap.status]?.trim();
+                        if (v) row.status = v;
+                      }
+                      // Use override values (editable by user) instead of raw CSV values
+                      if (csvSourceOverride.trim()) {
+                        row.source = csvSourceOverride.trim();
+                      } else if (csvColumnMap?.source) {
+                        const v = c.raw[csvColumnMap.source]?.trim();
+                        if (v) row.source = v;
+                      }
+                      if (csvWorkshopOverride.trim()) {
+                        row.workshopName = csvWorkshopOverride.trim();
+                      } else if (csvColumnMap?.workshop) {
+                        const v = c.raw[csvColumnMap.workshop]?.trim();
+                        if (v) row.workshopName = v;
+                      }
+                      if (csvColumnMap?.address) {
+                        const v = c.raw[csvColumnMap.address]?.trim();
+                        if (v) row.address = v;
+                      }
+                      if (csvColumnMap?.labels) {
+                        const v = c.raw[csvColumnMap.labels]?.trim();
+                        if (v) row.labels = v.split(/[,|]+/).map((l: string) => l.trim()).filter(Boolean);
+                      }
+                      return row;
                     });
 
-                    if (response.ok) {
-                      const data = await response.json();
-                      alert(`Successfully imported ${data.data.imported} leads!\n${data.data.skipped} duplicates skipped.`);
+                    const res = await fetch('/api/admin/crm/leads/bulk-import', {
+                      method: 'POST',
+                      headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify({
+                        contacts: payload,
+                        ...(csvAssignAdmin ? { assignedToUserId: csvAssignAdmin } : {}),
+                      }),
+                    });
+
+                    const data = await res.json();
+                    if (res.ok && data.success) {
+                      alert(`✅ Imported ${data.data.imported} leads!\n${data.data.skipped} duplicates skipped.${data.data.failed ? `\n${data.data.failed} failed.` : ''}`);
                       setBulkImportModalOpen(false);
+                      setCsvContacts([]);
+                      setCsvColumnMap(null);
+                      setCsvFileName('');
+                      setCsvWorkshopOverride('');
+                      setCsvSourceOverride('');
+                      setCsvAssignAdmin('');
                       fetchMetadata();
                       fetchLeads();
                     } else {
-                      const error = await response.json();
-                      alert(`Error: ${error.error}`);
+                      alert(`Error: ${data.error || 'Import failed'}`);
                     }
                   } catch (err) {
                     alert(`Upload failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+                  } finally {
+                    setCsvImporting(false);
                   }
                 }}
-                className="flex-1 bg-teal-500/20 border border-teal-500 text-teal-700 px-4 py-2 rounded-lg hover:bg-teal-500/30 transition-colors font-medium"
+                className="flex-1 bg-teal-500/20 border border-teal-500 text-teal-700 px-4 py-2 rounded-lg hover:bg-teal-500/30 transition-colors font-medium disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Upload
+                {csvImporting ? '⏳ Importing...' : `Import ${csvContacts.length} Leads`}
               </button>
               <button
-                onClick={() => setBulkImportModalOpen(false)}
-                className="flex-1 bg-slate-100 border border-slate-300 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-200 transition-colors font-medium"
+                onClick={() => {
+                  setBulkImportModalOpen(false);
+                  setCsvContacts([]);
+                  setCsvColumnMap(null);
+                  setCsvFileName('');
+                  setCsvWorkshopOverride('');
+                  setCsvSourceOverride('');
+                  setCsvAssignAdmin('');
+                }}
+                disabled={csvImporting}
+                className="flex-1 bg-slate-100 border border-slate-300 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-200 transition-colors font-medium disabled:opacity-40"
               >
                 Cancel
               </button>

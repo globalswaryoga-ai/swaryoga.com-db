@@ -91,3 +91,33 @@ export async function POST(request: NextRequest) {
     return handleCrmError(error, 'POST broadcast-runs/run');
   }
 }
+
+/**
+ * GET /api/admin/crm/broadcast-runs/run
+ *
+ * Vercel Cron sends GET requests. This handler processes all due broadcast runs.
+ * Security: requires CRON_SECRET or Vercel Cron header.
+ */
+export async function GET(request: NextRequest) {
+  try {
+    const hasCronSecret = verifyCronSecret(request);
+    const hasVercelCron = verifyVercelCron(request);
+    const hasAdminAuth = verifyAdmin(request);
+
+    console.log('[Broadcast Run GET] Auth check - cronSecret:', hasCronSecret, 'vercelCron:', hasVercelCron, 'adminAuth:', hasAdminAuth);
+
+    if (!hasCronSecret && !hasVercelCron && !hasAdminAuth) {
+      console.log('[Broadcast Run GET] Unauthorized');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    console.log('[Broadcast Run GET] Processing all due runs...');
+    const data = await processDueBroadcastRuns();
+    console.log('[Broadcast Run GET] Result:', JSON.stringify(data));
+
+    return NextResponse.json({ success: true, data }, { status: 200 });
+  } catch (error) {
+    console.error('[Broadcast Run GET] Error:', error);
+    return handleCrmError(error, 'GET broadcast-runs/run');
+  }
+}

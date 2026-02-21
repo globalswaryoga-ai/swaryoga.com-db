@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
   try {
     await connectDB();
 
-    const { name, email, mobile, countryCode, communityId, communityName } = await request.json();
+    const { name, email, mobile, countryCode, communityId, communityName, viaInviteLink } = await request.json();
 
     // Validate inputs
     if (!name || !mobile || !communityId || !communityName) {
@@ -138,7 +138,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // All members joining via public links now require admin approval (except global)
+    // Members joining via invite link (?join=<id>) are auto-approved like global.
+    // Sidebar-driven joins to non-public communities should use /api/community/request-access instead.
     const newMember = new CommunityMember({
       name: name.trim(),
       email: email ? email.trim().toLowerCase() : null,
@@ -148,7 +149,7 @@ export async function POST(request: NextRequest) {
       communityId,
       communityName,
       status: 'active',
-      approved: communityId === 'global', // Global is auto-approved
+      approved: communityId === 'global' || !!viaInviteLink, // Global + invite-link joins are auto-approved
       joinedAt: new Date(),
     });
 
@@ -183,8 +184,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const message = communityId === 'global'
-      ? '✅ Welcome! You have successfully joined the Global Community.'
+    const message = communityId === 'global' || !!viaInviteLink
+      ? `✅ Welcome! You have successfully joined ${communityName || 'the community'}.`
       : '👋 Registration successful! Messaging will be enabled after admin approval.';
 
     // Generate JWT token for the community user
