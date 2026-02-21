@@ -13,7 +13,7 @@ import {
 interface Template {
   _id: string;
   templateName: string;
-  provider?: 'meta' | 'qr';
+  provider?: 'meta';
   category: 'MARKETING' | 'OTP' | 'UTILITY' | 'ACCOUNT_UPDATE' | string;
   language?: string;
   templateContent: string;
@@ -71,7 +71,7 @@ export default function TemplatesPage() {
 
   const [templates, setTemplates] = useState<Template[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [providerFilter, setProviderFilter] = useState<'all' | 'meta' | 'qr'>('all');
+  const [providerFilter, setProviderFilter] = useState<'all' | 'meta'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | Template['status']>('all');
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [page, setPage] = useState(1);
@@ -294,7 +294,7 @@ export default function TemplatesPage() {
                 className="w-full md:w-auto bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-semibold transition-all shadow-md flex items-center justify-center gap-2"
               >
                 <i className="ph-bold ph-plus-circle text-lg"></i>
-                Create {providerFilter === 'qr' ? 'QR ' : providerFilter === 'meta' ? 'Meta ' : ''}Template
+                Create {providerFilter === 'meta' ? 'Meta ' : ''}Template
               </button>
 
               <button
@@ -309,7 +309,7 @@ export default function TemplatesPage() {
             </div>
         </div>
 
-        {/* Provider Tabs (Meta vs QR) */}
+        {/* Provider Tabs */}
         <div className="flex gap-1 p-1 bg-gray-100 rounded-xl w-fit">
           <button
             onClick={() => { setProviderFilter('all'); setPage(1); }}
@@ -332,23 +332,11 @@ export default function TemplatesPage() {
             <span>📱</span> Meta
             <span className="text-[10px] opacity-80">(Approved)</span>
           </button>
-          <button
-            onClick={() => { setProviderFilter('qr'); setPage(1); }}
-            className={`px-5 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${
-              providerFilter === 'qr'
-                ? 'bg-teal-600 text-white shadow-sm'
-                : 'text-gray-600 hover:text-teal-700'
-            }`}
-          >
-            <span>📲</span> QR Only
-            <span className="text-[10px] opacity-80">(No approval)</span>
-          </button>
         </div>
 
         {/* Info Banner */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
           <strong>💡 Workflow:</strong> New Meta templates require approval before use. Click the "Pending Approval" tab to review and approve/reject templates.
-          QR templates are auto-approved and ready to use immediately.
         </div>
 
         {/* Pending Approval Alert */}
@@ -573,6 +561,13 @@ export default function TemplatesPage() {
                           className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors shadow-sm"
                         >
                           View
+                        </button>
+                        {/* Edit button - always show for updating image URL */}
+                        <button
+                          onClick={() => router.push(`/admin/crm/meta/templates?edit=${template._id}`)}
+                          className="flex-1 px-3 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors shadow-sm"
+                        >
+                          Edit
                         </button>
                         {(template.status === 'draft' || template.status === 'pending_approval') && (
                           <button

@@ -87,7 +87,7 @@ interface BroadcastValidation {
 }
 
 type SendMode = 'now' | 'schedule' | 'delay';
-type Provider = 'meta' | 'qr';
+type Provider = 'meta';
 type Step = 1 | 2 | 3;
 
 // ============================================================================
@@ -157,10 +157,7 @@ export default function BroadcastPage() {
   const [scheduleTime, setScheduleTime] = useState('');
   const [delayMinutes, setDelayMinutes] = useState(5);
   const [delayBetweenSeconds, setDelayBetweenSeconds] = useState(2);
-  const [minIntervalSeconds, setMinIntervalSeconds] = useState(30);  // Min delay between messages
-  const [maxIntervalSeconds, setMaxIntervalSeconds] = useState(60);  // Max delay between messages
-  const [intervalEnabled, setIntervalEnabled] = useState(true); // On/off for message interval (QR only)
-  const [provider, setProvider] = useState<Provider>('meta');
+  const [provider] = useState<Provider>('meta');
   const [broadcastName, setBroadcastName] = useState('');
   
   // Filters
@@ -718,14 +715,9 @@ export default function BroadcastPage() {
         name: broadcastName.trim() || `Broadcast - ${new Date().toLocaleString('en-IN')}`,
         templateId: selectedTemplate._id,
         mode,
-        provider,
+        provider: 'meta',
         scheduleAt,
         delayMins,
-        messageInterval: {
-          enabled: provider === 'qr' ? intervalEnabled : false,
-          minSeconds: minIntervalSeconds,
-          maxSeconds: maxIntervalSeconds,
-        },
         target,
       };
 
@@ -1549,31 +1541,14 @@ export default function BroadcastPage() {
                 />
               </div>
 
-              {/* Provider Selection */}
-              <div className="bg-white rounded-2xl shadow-xl border p-6">
-                <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
-                  📡 Provider
-                </h3>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    onClick={() => setProvider('meta')}
-                    className={`p-4 rounded-xl border-2 transition-all duration-300 hover:shadow-md group ${
-                      provider === 'meta' ? 'border-green-500 bg-green-50 shadow-md' : 'border-gray-200 hover:border-green-300'
-                    }`}
-                  >
-                    <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">🟢</div>
+              {/* Provider - Meta WhatsApp Only */}
+              <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl shadow-xl border border-green-200 p-6">
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl">🟢</span>
+                  <div>
                     <div className="font-bold text-gray-800">Meta WhatsApp</div>
-                    <div className="text-xs text-green-600 mt-1">✅ Native Buttons</div>
-                  </button>
-                  <button
-                    onClick={() => setProvider('qr')}
-                    disabled={true}
-                    className="p-4 rounded-xl border-2 border-gray-200 opacity-50 cursor-not-allowed"
-                  >
-                    <div className="text-3xl mb-2">💚</div>
-                    <div className="font-bold text-gray-400">QR Bridge</div>
-                    <div className="text-xs text-gray-400 mt-1">❌ Disabled</div>
-                  </button>
+                    <div className="text-xs text-green-600">✅ Native Buttons & Templates</div>
+                  </div>
                 </div>
               </div>
 
@@ -1662,102 +1637,6 @@ export default function BroadcastPage() {
                   )}
                 </div>
               </div>
-
-              {/* Message Interval Settings - Only for QR Provider */}
-              {provider === 'qr' && (
-              <div className={`bg-white rounded-2xl shadow-xl border p-6 transition-all ${!intervalEnabled ? 'opacity-60' : ''}`}>
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                    ⏱️ Message Interval (WhatsApp Safety)
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={() => setIntervalEnabled(!intervalEnabled)}
-                    className={`relative inline-flex h-7 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-                      intervalEnabled 
-                        ? 'bg-green-500 focus:ring-green-500' 
-                        : 'bg-gray-300 focus:ring-gray-400'
-                    }`}
-                    role="switch"
-                    aria-checked={intervalEnabled}
-                  >
-                    <span className="sr-only">Toggle message interval</span>
-                    <span
-                      className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
-                        intervalEnabled ? 'translate-x-7' : 'translate-x-0'
-                      }`}
-                    />
-                  </button>
-                </div>
-                <div className="flex items-center gap-2 mb-4">
-                  <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
-                    intervalEnabled 
-                      ? 'bg-green-100 text-green-700' 
-                      : 'bg-red-100 text-red-700'
-                  }`}>
-                    {intervalEnabled ? '✅ ON — Delay active' : '❌ OFF — No delay'}
-                  </span>
-                  <p className="text-sm text-gray-500">
-                    {intervalEnabled 
-                      ? 'Random delay between messages to avoid spam detection.' 
-                      : 'Messages will be sent without delay (faster but riskier).'}
-                  </p>
-                </div>
-                {intervalEnabled && (
-                  <>
-                    <div className="grid grid-cols-2 gap-4">
-                      {/* Min Interval */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Minimum (seconds)
-                        </label>
-                        <select
-                          value={minIntervalSeconds}
-                          onChange={(e) => {
-                            const val = Number(e.target.value);
-                            setMinIntervalSeconds(val);
-                            if (val > maxIntervalSeconds) setMaxIntervalSeconds(val);
-                          }}
-                          className="w-full px-3 py-2.5 border-2 rounded-xl focus:border-blue-500 bg-white"
-                        >
-                          {[5, 10, 15, 20, 30, 45, 60, 90, 120].map(sec => (
-                            <option key={sec} value={sec}>{sec} seconds</option>
-                          ))}
-                        </select>
-                      </div>
-                      {/* Max Interval */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Maximum (seconds)
-                        </label>
-                        <select
-                          value={maxIntervalSeconds}
-                          onChange={(e) => {
-                            const val = Number(e.target.value);
-                            setMaxIntervalSeconds(val);
-                            if (val < minIntervalSeconds) setMinIntervalSeconds(val);
-                          }}
-                          className="w-full px-3 py-2.5 border-2 rounded-xl focus:border-blue-500 bg-white"
-                        >
-                          {[10, 15, 20, 30, 45, 60, 90, 120, 180, 300].map(sec => (
-                            <option key={sec} value={sec}>{sec} seconds</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                    <div className="mt-3 p-3 bg-amber-50 rounded-xl border border-amber-200">
-                      <p className="text-sm text-amber-800 flex items-start gap-2">
-                        <span className="text-lg">⚠️</span>
-                        <span>
-                          <strong>WhatsApp Guideline:</strong> Keep minimum at 30+ seconds to avoid account restrictions. 
-                          Sending too fast may result in temporary bans.
-                        </span>
-                      </p>
-                    </div>
-                  </>
-                )}
-              </div>
-              )}
             </div>
 
             {/* Right: Preview & Summary */}
@@ -1786,7 +1665,7 @@ export default function BroadcastPage() {
                   </div>
                   <div className="flex justify-between mt-1">
                     <span className="text-gray-600">Provider:</span>
-                    <span className="font-medium text-gray-800">{provider === 'meta' ? '🟢 Meta' : '💚 QR'}</span>
+                    <span className="font-medium text-gray-800">🟢 Meta WhatsApp</span>
                   </div>
                   {sendMode === 'schedule' && scheduleDate && scheduleTime && (
                     <div className="flex justify-between mt-1">
