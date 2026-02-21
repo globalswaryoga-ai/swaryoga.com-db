@@ -47,24 +47,21 @@ export function normalizePhoneStrict(rawValue: unknown, opts: NormalizePhoneOpti
   }
 
   // Basic length sanity. E.164 max is 15 digits.
-  if (digits.length < 10) {
-    return { ok: false, error: 'Phone number too short (min 10 digits)' };
+  if (digits.length < 11) {
+    return { ok: false, error: 'Phone number too short' };
   }
   if (digits.length > 15) {
-    return { ok: false, error: 'Phone number too long (max 15 digits)' };
+    return { ok: false, error: 'Phone number too long' };
   }
 
-  // For numbers that look like local Indian numbers but missing country code
-  // Only apply strict Indian validation if it looks like an Indian number
-  if (digits.startsWith('91') && digits.length === 12) {
-    // Valid Indian number - proceed
-    return { ok: true, phone: digits };
-  }
-
-  // Accept other international numbers (Nepal 977, US 1, etc.)
-  // They don't need strict country-specific validation
-  if (digits.length >= 10 && digits.length <= 15) {
-    return { ok: true, phone: digits };
+  // For India specifically, enforce 91 + 10 digits when CC is 91.
+  if (defaultCC === '91') {
+    if (!digits.startsWith('91')) {
+      return { ok: false, error: 'Phone number must include country code (91...)' };
+    }
+    if (digits.length !== 12) {
+      return { ok: false, error: 'Indian phone numbers must be 12 digits (91 + 10 digits)' };
+    }
   }
 
   return { ok: true, phone: digits };
