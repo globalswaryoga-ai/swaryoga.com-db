@@ -83,7 +83,6 @@ export default function LeadsPage() {
   const [csvWorkshopOverride, setCsvWorkshopOverride] = useState('');
   const [csvSourceOverride, setCsvSourceOverride] = useState('');
   const [csvAssignAdmin, setCsvAssignAdmin] = useState('');
-  const [csvUpdateExisting, setCsvUpdateExisting] = useState(false);
   const [adminUsersList, setAdminUsersList] = useState<Array<{ userId: string; name: string; email?: string; role?: string }>>([]);
   const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
   const [duplicateLead, setDuplicateLead] = useState<any>(null);
@@ -1268,7 +1267,6 @@ export default function LeadsPage() {
                   setCsvWorkshopOverride('');
                   setCsvSourceOverride('');
                   setCsvAssignAdmin('');
-                  setCsvUpdateExisting(false);
                 }}
                 className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
               >
@@ -1276,40 +1274,74 @@ export default function LeadsPage() {
               </button>
             </div>
 
-            {/* Demo Download Button */}
-            <div className="bg-blue-50 rounded-lg p-3 border border-blue-200 flex items-center justify-between">
-              <div className="text-sm text-blue-800">
-                <span className="font-semibold">📥 Need a template?</span>
-                <span className="ml-2 text-blue-600">Download sample Excel format</span>
+            {/* Download Demo Template */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-blue-800">📥 Need a sample format?</p>
+                  <p className="text-xs text-blue-600">Download demo Excel template with required columns</p>
+                </div>
+                <button
+                  onClick={() => {
+                    // Create demo Excel template
+                    const demoData = [
+                      { 
+                        'Name': 'Rahul Sharma', 
+                        'Phone Number': '9876543210', 
+                        'Email': 'rahul@example.com',
+                        'Status': 'lead',
+                        'Source': 'Website',
+                        'Workshop Name': 'Swar Vidnyan Feb 2026',
+                        'Address': 'Mumbai, Maharashtra',
+                        'Labels': 'New, Interested'
+                      },
+                      { 
+                        'Name': 'Priya Patel', 
+                        'Phone Number': '9123456789', 
+                        'Email': 'priya@example.com',
+                        'Status': 'prospect',
+                        'Source': 'Referral',
+                        'Workshop Name': 'Swar Vidnyan Feb 2026',
+                        'Address': 'Pune, Maharashtra',
+                        'Labels': 'Call Pending'
+                      },
+                      { 
+                        'Name': 'Amit Kumar', 
+                        'Phone Number': '9988776655', 
+                        'Email': 'amit@example.com',
+                        'Status': 'lead',
+                        'Source': 'Facebook',
+                        'Workshop Name': '',
+                        'Address': 'Delhi',
+                        'Labels': ''
+                      },
+                    ];
+                    const ws = XLSX.utils.json_to_sheet(demoData);
+                    // Set column widths
+                    ws['!cols'] = [
+                      { wch: 20 }, // Name
+                      { wch: 15 }, // Phone Number
+                      { wch: 25 }, // Email
+                      { wch: 12 }, // Status
+                      { wch: 12 }, // Source
+                      { wch: 25 }, // Workshop Name
+                      { wch: 25 }, // Address
+                      { wch: 20 }, // Labels
+                    ];
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, 'Leads');
+                    XLSX.writeFile(wb, 'leads_import_template.xlsx');
+                  }}
+                  className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                >
+                  ⬇️ Download Template
+                </button>
               </div>
-              <button
-                onClick={() => {
-                  // Generate demo Excel file
-                  const demoData = [
-                    { Name: 'John Doe', Phone: '9876543210', Email: 'john@example.com', Status: 'lead', Source: 'Website', Workshop: 'Swar Yoga Batch 1', Address: 'Mumbai' },
-                    { Name: 'Jane Smith', Phone: '+91 98765 12345', Email: 'jane@example.com', Status: 'prospect', Source: 'Referral', Workshop: 'Swar Yoga Batch 1', Address: 'Delhi' },
-                    { Name: 'Ram Kumar', Phone: '919876500001', Email: 'ram@example.com', Status: 'customer', Source: 'Facebook', Workshop: 'Swar Yoga Batch 2', Address: 'Chennai' },
-                    { Name: 'Priya Sharma', Phone: '9779856032334', Email: 'priya@example.com', Status: 'lead', Source: 'WhatsApp', Workshop: 'Online Workshop', Address: 'Kathmandu' },
-                  ];
-                  const worksheet = XLSX.utils.json_to_sheet(demoData);
-                  const workbook = XLSX.utils.book_new();
-                  XLSX.utils.book_append_sheet(workbook, worksheet, 'Leads');
-                  // Set column widths
-                  worksheet['!cols'] = [
-                    { wch: 15 }, // Name
-                    { wch: 18 }, // Phone
-                    { wch: 25 }, // Email
-                    { wch: 10 }, // Status
-                    { wch: 12 }, // Source
-                    { wch: 20 }, // Workshop
-                    { wch: 15 }, // Address
-                  ];
-                  XLSX.writeFile(workbook, 'leads-import-template.xlsx');
-                }}
-                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg font-medium flex items-center gap-1"
-              >
-                <span>📥</span> Download Template
-              </button>
+              <div className="mt-2 text-xs text-blue-700 space-y-0.5">
+                <p><strong>Required:</strong> Phone Number</p>
+                <p><strong>Optional:</strong> Name, Email, Status, Source, Workshop Name, Address, Labels</p>
+                <p><strong>Status values:</strong> lead, prospect, customer, inactive</p>
+              </div>
             </div>
 
             <CSVUploadPanel
@@ -1396,26 +1428,11 @@ export default function LeadsPage() {
                       className="w-full px-3 py-1.5 text-sm border border-teal-300 rounded-lg bg-white focus:ring-2 focus:ring-teal-400 focus:outline-none"
                     />
                   </div>
-                  {/* Update Existing Toggle */}
-                  <div className="flex items-center gap-2 pt-2">
-                    <input
-                      type="checkbox"
-                      id="csvUpdateExisting"
-                      checked={csvUpdateExisting}
-                      onChange={e => setCsvUpdateExisting(e.target.checked)}
-                      className="w-4 h-4 text-teal-600 rounded border-teal-300 focus:ring-teal-500"
-                    />
-                    <label htmlFor="csvUpdateExisting" className="text-sm text-teal-700 font-medium cursor-pointer">
-                      Update existing leads (instead of skipping duplicates)
-                    </label>
-                  </div>
                   <p className="text-teal-800 text-sm font-semibold pt-1">
                     Ready to import {csvContacts.length} contacts as leads
                   </p>
                   <p className="text-teal-600 text-xs">
-                    {csvUpdateExisting 
-                      ? 'Existing phone numbers will be updated with new data. Missing fields will be filled later.'
-                      : 'Duplicate phone numbers will be skipped. Missing fields will be filled later.'}
+                    Duplicate phone numbers will be skipped. Missing fields will be filled later.
                   </p>
                 </div>
               </>
@@ -1470,24 +1487,13 @@ export default function LeadsPage() {
                       },
                       body: JSON.stringify({
                         contacts: payload,
-                        updateExisting: csvUpdateExisting,
                         ...(csvAssignAdmin ? { assignedToUserId: csvAssignAdmin } : {}),
                       }),
                     });
 
                     const data = await res.json();
                     if (res.ok && data.success) {
-                      // Build detailed result message
-                      const d = data.data;
-                      const details = d.details || {};
-                      let msg = `✅ Import Complete!\n\n`;
-                      if (d.imported > 0) msg += `✓ ${d.imported} new leads imported\n`;
-                      if (d.updated > 0) msg += `✓ ${d.updated} existing leads updated\n`;
-                      if (details.duplicatesSkipped > 0) msg += `⊘ ${details.duplicatesSkipped} duplicates skipped\n`;
-                      if (details.invalidPhones > 0) msg += `⚠ ${details.invalidPhones} invalid phone numbers\n`;
-                      if (details.batchDuplicates > 0) msg += `⊘ ${details.batchDuplicates} duplicates within file\n`;
-                      if (d.failed > 0) msg += `✗ ${d.failed} failed to save\n`;
-                      alert(msg);
+                      alert(`✅ Imported ${data.data.imported} leads!\n${data.data.skipped} duplicates skipped.${data.data.failed ? `\n${data.data.failed} failed.` : ''}`);
                       setBulkImportModalOpen(false);
                       setCsvContacts([]);
                       setCsvColumnMap(null);
@@ -1495,7 +1501,6 @@ export default function LeadsPage() {
                       setCsvWorkshopOverride('');
                       setCsvSourceOverride('');
                       setCsvAssignAdmin('');
-                      setCsvUpdateExisting(false);
                       fetchMetadata();
                       fetchLeads();
                     } else {

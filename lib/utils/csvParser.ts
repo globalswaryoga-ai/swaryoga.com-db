@@ -100,13 +100,13 @@ export function autoDetectColumns(headers: string[]): CSVColumnMap {
 
   // Phone (most important)
   map.phone = findCol(
-    ['phone', 'phonenumber', 'mobile', 'mobilenumber', 'contact', 'number', 'whatsapp', 'wanumber', 'wa', 'cell', 'tel', 'telephone'],
-    ['phone', 'mobile', 'number', 'whatsapp']
+    ['phone', 'phonenumber', 'mobile', 'mobilenumber', 'mobileno', 'phoneno', 'contact', 'contactnumber', 'contactno', 'number', 'whatsapp', 'whatsappnumber', 'whatsappno', 'wanumber', 'wa', 'cell', 'cellphone', 'tel', 'telephone', 'मोबाइल', 'फोन'],
+    ['phone', 'mobile', 'number', 'whatsapp', 'contact', 'cell', 'tel']
   );
 
   // Name
   map.name = findCol(
-    ['name', 'fullname', 'firstname', 'customername', 'leadname', 'contactname', 'studentname'],
+    ['name', 'fullname', 'firstname', 'customername', 'leadname', 'contactname', 'studentname', 'personname', 'नाम'],
     ['name']
   );
 
@@ -181,15 +181,35 @@ export function autoDetectColumns(headers: string[]): CSVColumnMap {
 
 /**
  * Fallback: detect phone column by examining data content.
+ * Looks for columns where values look like phone numbers.
  */
 export function detectPhoneByData(headers: string[], rows: Record<string, string>[]): string | undefined {
+  // Score each column based on how many values look like phone numbers
+  const scores: { header: string; score: number }[] = [];
+  
   for (const h of headers) {
-    const sample = rows.slice(0, 10).map(r => r[h]).filter(Boolean);
-    if (sample.some(v => /^\+?\d[\d\s\-()]{6,}$/.test(v.trim()))) {
-      return h;
+    const sample = rows.slice(0, 20).map(r => r[h]).filter(Boolean);
+    let phoneCount = 0;
+    
+    for (const v of sample) {
+      const cleaned = v.replace(/[^0-9]/g, '');
+      // Check if it looks like a phone number (7-15 digits)
+      if (cleaned.length >= 7 && cleaned.length <= 15) {
+        // Additional check: original value should have phone-like format
+        if (/^\+?\d[\d\s\-().,]{6,}$/.test(v.trim()) || /^\d{10,}$/.test(cleaned)) {
+          phoneCount++;
+        }
+      }
+    }
+    
+    if (phoneCount > 0) {
+      scores.push({ header: h, score: phoneCount / sample.length });
     }
   }
-  return undefined;
+  
+  // Return the column with highest score (at least 50% phone-like values)
+  scores.sort((a, b) => b.score - a.score);
+  return scores.length > 0 && scores[0].score >= 0.5 ? scores[0].header : undefined;
 }
 
 /**
@@ -197,10 +217,17 @@ export function detectPhoneByData(headers: string[], rows: Record<string, string
  * - Strip non-digit chars (except leading +)
  * - Remove leading +
  * - If 10 digits, prefix with 91 (India)
+ * - Handle common formats
  */
 export function normalizePhoneCSV(raw: string): string {
   if (!raw) return '';
+  // Remove all non-digits except leading +
   let d = raw.replace(/[^0-9+]/g, '').replace(/^\+/, '');
+  // Remove leading 0 (common in Indian mobile with 0 prefix)
+  if (d.startsWith('0') && d.length === 11) d = d.slice(1);
+  // If 10 digits, prefix with 91 (India)
   if (d.length === 10) d = '91' + d;
+  // If starts with 91 and has extra 0, clean it (e.g., 910XXXXXXXXXX -> 91XXXXXXXXXX)
+  if (d.startsWith('910') && d.length === 13) d = '91' + d.slice(3);
   return d;
 }
