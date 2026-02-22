@@ -264,7 +264,10 @@ export async function sendWhatsAppText(toRaw: string, body: string): Promise<Wha
           messaging_product: 'whatsapp',
           to,
           type: 'text',
-          text: { body },
+          text: { 
+            body,
+            preview_url: true,
+          },
         };
 
         const res = await fetch(url, {

@@ -201,8 +201,13 @@ export default function SpellCheckTextarea({
           padding: '12px 20px',
           fontSize: '15px',
           fontFamily: 'inherit',
+          fontWeight: 500,
           lineHeight: '1.5',
           wordBreak: 'break-word',
+          overflowWrap: 'break-word',
+          letterSpacing: 'inherit',
+          color: 'transparent',
+          caretColor: 'transparent',
         }}
         aria-hidden="true"
       >
@@ -223,6 +228,10 @@ export default function SpellCheckTextarea({
         autoComplete="off"
         autoCorrect="off"
         className={`relative w-full bg-transparent resize-none ${className}`}
+        style={{
+          overflowWrap: 'break-word',
+          wordBreak: 'break-word',
+        }}
         rows={1}
       />
 
