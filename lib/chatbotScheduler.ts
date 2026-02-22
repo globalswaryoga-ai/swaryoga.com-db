@@ -175,7 +175,7 @@ async function executeAction(action: any): Promise<{ status: 'ok' | 'error'; err
         await sendAndLogMessage(lead, phone, result.text, String((flow as any)._id), action.targetNodeId);
         console.log(`[ChatbotScheduler] Sent delayed message to ${phone}`);
         
-        // Update lead state
+        // Update lead state and handle delay chaining
         const newNodeId = result.nextNodeId || action.targetNodeId;
         if (targetNode.type === 'question' || targetNode.type === 'buttons') {
           // Wait for user input
@@ -188,15 +188,48 @@ async function executeAction(action: any): Promise<{ status: 'ok' | 'error'; err
             } } }
           );
         } else if (result.nextNodeId) {
-          // Auto-advance to next node
-          await Lead.updateOne(
-            { _id: action.leadId },
-            { $set: { 'metadata.chatbotFlowState': { 
-              flowId: String((flow as any)._id), 
-              nodeId: result.nextNodeId, 
-              updatedAt: new Date() 
-            } } }
-          );
+          // Check if the next node is a delay — if so, schedule it
+          const afterNode = (flow as any).nodes?.find((n: any) => n.nodeId === result.nextNodeId);
+          
+          if (afterNode?.type === 'delay') {
+            let delaySec = afterNode.delaySeconds || 0;
+            if (afterNode.delayMinutes) delaySec += afterNode.delayMinutes * 60;
+            if (afterNode.delayHours) delaySec += afterNode.delayHours * 3600;
+            if (delaySec === 0) delaySec = 3;
+            
+            const executeAt = new Date(Date.now() + delaySec * 1000);
+            await ChatbotScheduledAction.create({
+              leadId: action.leadId,
+              phoneNumber: phone,
+              flowId: action.flowId,
+              actionType: 'delayed_message',
+              status: 'pending',
+              sourceNodeId: afterNode.nodeId,
+              targetNodeId: afterNode.nextNodeId,
+              executeAt,
+              metadata: { delaySec, chainedFromScheduler: true }
+            });
+            await Lead.updateOne(
+              { _id: action.leadId },
+              { $set: { 'metadata.chatbotFlowState': { 
+                flowId: String((flow as any)._id), 
+                nodeId: afterNode.nodeId,
+                scheduledAt: executeAt,
+                updatedAt: new Date() 
+              } } }
+            );
+            console.log(`[ChatbotScheduler] Chained delay: ${delaySec}s → execute at ${executeAt.toISOString()}`);
+          } else {
+            // Auto-advance to next node
+            await Lead.updateOne(
+              { _id: action.leadId },
+              { $set: { 'metadata.chatbotFlowState': { 
+                flowId: String((flow as any)._id), 
+                nodeId: result.nextNodeId, 
+                updatedAt: new Date() 
+              } } }
+            );
+          }
         } else {
           // Flow ended
           await Lead.updateOne(

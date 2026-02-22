@@ -711,10 +711,67 @@ async function advanceChatbotFlow(lead: any, ctx: InboundContext, flow: any): Pr
     
     // Auto-advance if message has a nextNodeId (it's just info, not expecting input)
     if (nextNode.nextNodeId) {
-      await Lead.updateOne(
-        { _id: lead._id },
-        { $set: { 'metadata.chatbotFlowState': { flowId: state.flowId, nodeId: nextNode.nextNodeId, updatedAt: ctx.now } } }
-      );
+      // Check if the next node after this message is a delay
+      const afterMsgNode = flow.nodes?.find((n: any) => n.nodeId === nextNode.nextNodeId);
+      
+      if (afterMsgNode?.type === 'delay') {
+        // Calculate delay
+        let delaySec = afterMsgNode.delaySeconds || 0;
+        if (afterMsgNode.delayMinutes) delaySec += afterMsgNode.delayMinutes * 60;
+        if (afterMsgNode.delayHours) delaySec += afterMsgNode.delayHours * 3600;
+        if (delaySec === 0) delaySec = 3;
+        
+        console.log(`[Chatbot] Message → Delay chain: scheduling ${delaySec}s delay`);
+        
+        if (delaySec <= 30) {
+          // Short delay: set state to the node AFTER the delay (will process on next call)
+          const afterDelayNodeId = afterMsgNode.nextNodeId;
+          if (afterDelayNodeId) {
+            const ChatbotScheduledAction = getChatbotScheduledAction();
+            await ChatbotScheduledAction.create({
+              leadId: lead._id,
+              phoneNumber: ctx.fromPhone,
+              flowId: flow._id,
+              actionType: 'delayed_message',
+              status: 'pending',
+              sourceNodeId: afterMsgNode.nodeId,
+              targetNodeId: afterDelayNodeId,
+              executeAt: new Date(ctx.now.getTime() + delaySec * 1000),
+              metadata: { delaySec, chainedFromMessage: true }
+            });
+            await Lead.updateOne(
+              { _id: lead._id },
+              { $set: { 'metadata.chatbotFlowState': { flowId: state.flowId, nodeId: afterMsgNode.nodeId, scheduledAt: new Date(ctx.now.getTime() + delaySec * 1000), updatedAt: ctx.now } } }
+            );
+          }
+        } else {
+          // Long delay: schedule it
+          const ChatbotScheduledAction = getChatbotScheduledAction();
+          const executeAt = new Date(ctx.now.getTime() + delaySec * 1000);
+          await ChatbotScheduledAction.create({
+            leadId: lead._id,
+            phoneNumber: ctx.fromPhone,
+            flowId: flow._id,
+            actionType: 'delayed_message',
+            status: 'pending',
+            sourceNodeId: afterMsgNode.nodeId,
+            targetNodeId: afterMsgNode.nextNodeId,
+            executeAt,
+            metadata: { delaySec, chainedFromMessage: true }
+          });
+          await Lead.updateOne(
+            { _id: lead._id },
+            { $set: { 'metadata.chatbotFlowState': { flowId: state.flowId, nodeId: afterMsgNode.nodeId, scheduledAt: executeAt, updatedAt: ctx.now } } }
+          );
+          console.log(`[Chatbot] Scheduled delayed action for ${executeAt.toISOString()}`);
+        }
+      } else {
+        // Not a delay - just advance to next node
+        await Lead.updateOne(
+          { _id: lead._id },
+          { $set: { 'metadata.chatbotFlowState': { flowId: state.flowId, nodeId: nextNode.nextNodeId, updatedAt: ctx.now } } }
+        );
+      }
     }
   }
   
