@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { getLead, getWhatsAppMessage, getChatbotFlow, getWhatsAppTemplate, getChatbotScheduledAction } from '@/lib/schemas/enterpriseSchemas';
-import { normalizePhone, sendWhatsAppText, sendWhatsAppPresence } from '@/lib/whatsapp';
+import { normalizePhone, sendWhatsAppText, sendWhatsAppPresence, sendWhatsAppInteractiveButtons } from '@/lib/whatsapp';
 
 export const dynamic = 'force-dynamic';
 
@@ -123,6 +123,54 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Helper: send interactive buttons
+    async function sendAndLogInteractive(bodyText: string, buttons: Array<{id: string; title: string}>, metadata?: any) {
+      const { getWhatsAppEnv } = await import('@/lib/whatsapp');
+      const env = getWhatsAppEnv();
+      const senderNumber = env?.phoneNumber || '9779006820';
+
+      const presenceType = metadata?.presenceType || 'composing';
+      const presenceDelay = Number(metadata?.presenceDelay || 1);
+      if (presenceType && presenceType !== 'none') {
+        try {
+          await sendWhatsAppPresence(phone, presenceType as any);
+          if (presenceDelay > 0) await sleep(Math.min(presenceDelay, 5) * 1000);
+        } catch (_) {}
+      }
+
+      const labels = buttons.map((b, i) => `${i + 1}. ${b.title}`).join('\n');
+      const displayContent = bodyText ? `${bodyText}\n\n${labels}` : labels;
+
+      const msg = await WhatsAppMessage.create({
+        leadId: lead._id,
+        phoneNumber: phone,
+        direction: 'outbound',
+        messageType: 'interactive',
+        messageContent: displayContent,
+        status: 'queued',
+        sentAt: now,
+        metadata: { chatbot: { flowId: flow._id, nodeId: metadata?.nodeId, autoStart: true } },
+        provider: 'meta',
+        senderNumber,
+      });
+
+      try {
+        const result = await sendWhatsAppInteractiveButtons(phone, bodyText, buttons);
+        await WhatsAppMessage.updateOne(
+          { _id: msg._id },
+          { $set: { status: 'sent', waMessageId: result.waMessageId, updatedAt: new Date() } }
+        );
+        return { success: true, waMessageId: result.waMessageId };
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : 'Send failed';
+        await WhatsAppMessage.updateOne(
+          { _id: msg._id },
+          { $set: { status: 'failed', failureReason: errMsg, updatedAt: new Date() } }
+        );
+        return { success: false, error: errMsg };
+      }
+    }
+
     // Helper: send template
     async function sendTemplate(node: any) {
       const TemplateModel = getWhatsAppTemplate();
@@ -197,10 +245,20 @@ export async function POST(request: NextRequest) {
     if (startNode.type === 'question' || startNode.type === 'buttons') {
       let text = startNode.messageText || startNode.questionText || '';
       if (startNode.type === 'buttons' && startNode.options?.length > 0) {
-        const labels = startNode.options.map((o: any, i: number) => `${i + 1}. ${o.label}`).join('\n');
-        text = text ? `${text}\n\n${labels}` : labels;
-      }
-      if (text) {
+        const btns = startNode.options.slice(0, 3).map((o: any, i: number) => ({
+          id: `btn_${i}_${(o.value || o.label || i).toString().substring(0, 20)}`,
+          title: String(o.label || '').substring(0, 20)
+        }));
+        const res = await sendAndLogInteractive(text || 'Please choose:', btns, {
+          nodeId: startNodeId,
+          presenceType: startNode.presenceType,
+          presenceDelay: startNode.presenceDelay
+        });
+        sentMessages.push(text || '[Buttons]');
+        if (!res.success) {
+          return NextResponse.json({ success: false, error: `Failed to send first message: ${res.error}` }, { status: 500 });
+        }
+      } else if (text) {
         const res = await sendAndLog(text, {
           nodeId: startNodeId,
           spintaxEnabled: startNode.spintaxEnabled,
@@ -242,11 +300,15 @@ export async function POST(request: NextRequest) {
         if (nextNode.type === 'question' || nextNode.type === 'buttons') {
           let text = nextNode.messageText || nextNode.questionText || '';
           if (nextNode.type === 'buttons' && nextNode.options?.length > 0) {
-            const labels = nextNode.options.map((o: any, i: number) => `${i + 1}. ${o.label}`).join('\n');
-            text = text ? `${text}\n\n${labels}` : labels;
-          }
-          if (text) {
-            await sleep(1000); // Brief pause between messages
+            const btns = nextNode.options.slice(0, 3).map((o: any, i: number) => ({
+              id: `btn_${i}_${(o.value || o.label || i).toString().substring(0, 20)}`,
+              title: String(o.label || '').substring(0, 20)
+            }));
+            await sleep(1000);
+            await sendAndLogInteractive(text || 'Please choose:', btns, { nodeId: nextNode.nodeId, presenceType: nextNode.presenceType, presenceDelay: nextNode.presenceDelay });
+            sentMessages.push(text || '[Buttons]');
+          } else if (text) {
+            await sleep(1000);
             await sendAndLog(text, { nodeId: nextNode.nodeId, presenceType: nextNode.presenceType, presenceDelay: nextNode.presenceDelay });
             sentMessages.push(text);
           }

@@ -7,7 +7,7 @@
 
 import { connectDB } from '@/lib/db';
 import { getChatbotScheduledAction, getChatbotFlow, Lead, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
-import { normalizePhone, sendWhatsAppText, sendWhatsAppPresence } from '@/lib/whatsapp';
+import { normalizePhone, sendWhatsAppText, sendWhatsAppPresence, sendWhatsAppInteractiveButtons } from '@/lib/whatsapp';
 
 export type ChatbotSchedulerResult = {
   scannedActions: number;
@@ -65,6 +65,55 @@ async function sendAndLogMessage(lead: any, phone: string, text: string, flowId:
 }
 
 /**
+ * Send interactive buttons via WhatsApp and log to database
+ */
+async function sendAndLogInteractiveMessage(
+  lead: any,
+  phone: string,
+  bodyText: string,
+  buttons: Array<{ id: string; title: string }>,
+  flowId: string,
+  nodeId?: string
+): Promise<void> {
+  const WhatsAppMessage = getWhatsAppMessage();
+  const { getWhatsAppEnv } = await import('@/lib/whatsapp');
+  const env = getWhatsAppEnv();
+  const senderNumber = env?.phoneNumber || '9779006820';
+  const now = new Date();
+
+  const labels = buttons.map((b, i) => `${i + 1}. ${b.title}`).join('\n');
+  const displayContent = bodyText ? `${bodyText}\n\n${labels}` : labels;
+
+  const msg = await WhatsAppMessage.create({
+    leadId: lead._id,
+    phoneNumber: phone,
+    direction: 'outbound',
+    messageType: 'interactive',
+    messageContent: displayContent,
+    status: 'queued',
+    sentAt: now,
+    metadata: { chatbot: { flowId, nodeId, scheduled: true } },
+    provider: 'meta',
+    senderNumber,
+  });
+
+  try {
+    const result = await sendWhatsAppInteractiveButtons(phone, bodyText, buttons);
+    await WhatsAppMessage.updateOne(
+      { _id: msg._id },
+      { $set: { status: 'sent', waMessageId: result.waMessageId, updatedAt: new Date() } }
+    );
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : 'Send failed';
+    await WhatsAppMessage.updateOne(
+      { _id: msg._id },
+      { $set: { status: 'failed', failureReason: errMsg, updatedAt: new Date() } }
+    );
+    throw err;
+  }
+}
+
+/**
  * Spintax processing: {Hello|Hi|Hey} becomes one of the options randomly
  */
 function applySpintax(text: string): string {
@@ -83,6 +132,7 @@ async function processNode(lead: any, node: any, flow: any): Promise<{
   nextNodeId?: string;
   presenceType?: string;
   presenceDelay?: number;
+  interactiveButtons?: Array<{ id: string; title: string }>;
 } | null> {
   if (!node) return null;
   
@@ -98,17 +148,21 @@ async function processNode(lead: any, node: any, flow: any): Promise<{
   if (node.type === 'question' || node.type === 'buttons') {
     let text = node.messageText || node.questionText || '';
     
-    if (node.type === 'buttons' && node.options?.length > 0) {
-      const buttonLabels = node.options.map((o: any, i: number) => `${i + 1}. ${o.label}`).join('\n');
-      text = text ? `${text}\n\n${buttonLabels}` : buttonLabels;
-    }
-    
-    return {
-      text: applySpintax(text),
+    const result: any = {
+      text: applySpintax(text) || 'Please choose:',
       nextNodeId: null, // Wait for user input, don't auto-advance
       presenceType: node.presenceType || 'composing',
       presenceDelay: node.presenceDelay || 1
     };
+    
+    if (node.type === 'buttons' && node.options?.length > 0) {
+      result.interactiveButtons = node.options.slice(0, 3).map((o: any, i: number) => ({
+        id: `btn_${i}_${(o.value || o.label || i).toString().substring(0, 20)}`,
+        title: String(o.label || '').substring(0, 20)
+      }));
+    }
+    
+    return result;
   }
   
   if (node.type === 'end') {
@@ -160,7 +214,7 @@ async function executeAction(action: any): Promise<{ status: 'ok' | 'error'; err
       }
       
       const result = await processNode(lead, targetNode, flow);
-      if (result?.text) {
+      if (result?.text || result?.interactiveButtons?.length) {
         // Send presence indicator first
         if (result.presenceType) {
           try {
@@ -171,9 +225,14 @@ async function executeAction(action: any): Promise<{ status: 'ok' | 'error'; err
           }
         }
         
-        // Send the message and log to database
-        await sendAndLogMessage(lead, phone, result.text, String((flow as any)._id), action.targetNodeId);
-        console.log(`[ChatbotScheduler] Sent delayed message to ${phone}`);
+        // Send the message — interactive buttons or plain text
+        if (result.interactiveButtons?.length) {
+          await sendAndLogInteractiveMessage(lead, phone, result.text || 'Please choose:', result.interactiveButtons, String((flow as any)._id), action.targetNodeId);
+          console.log(`[ChatbotScheduler] Sent interactive buttons to ${phone}`);
+        } else {
+          await sendAndLogMessage(lead, phone, result.text!, String((flow as any)._id), action.targetNodeId);
+          console.log(`[ChatbotScheduler] Sent delayed message to ${phone}`);
+        }
         
         // Update lead state and handle delay chaining
         const newNodeId = result.nextNodeId || action.targetNodeId;
@@ -256,7 +315,7 @@ async function executeAction(action: any): Promise<{ status: 'ok' | 'error'; err
         const timeoutNode = (flow as any).nodes?.find((n: any) => n.nodeId === timeoutNodeId);
         if (timeoutNode) {
           const result = await processNode(lead, timeoutNode, flow);
-          if (result?.text) {
+          if (result?.text || result?.interactiveButtons?.length) {
             if (result.presenceType) {
               try {
                 await sendWhatsAppPresence(phone, result.presenceType as any);
@@ -266,7 +325,11 @@ async function executeAction(action: any): Promise<{ status: 'ok' | 'error'; err
               }
             }
             
-            await sendAndLogMessage(lead, phone, result.text, String((flow as any)._id), timeoutNodeId);
+            if (result.interactiveButtons?.length) {
+              await sendAndLogInteractiveMessage(lead, phone, result.text || 'Please choose:', result.interactiveButtons, String((flow as any)._id), timeoutNodeId);
+            } else {
+              await sendAndLogMessage(lead, phone, result.text!, String((flow as any)._id), timeoutNodeId);
+            }
             console.log(`[ChatbotScheduler] Sent timeout message to ${phone}`);
           }
           

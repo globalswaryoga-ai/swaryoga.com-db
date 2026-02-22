@@ -1,7 +1,7 @@
 import { connectDB } from '@/lib/db';
 import { ConsentManager } from '@/lib/consentManager';
 import { Lead, WhatsAppAutomationRule, WhatsAppMessage, ChatbotFlow, getChatbotScheduledAction } from '@/lib/schemas/enterpriseSchemas';
-import { normalizePhone, sendWhatsAppText, sendWhatsAppPresence } from '@/lib/whatsapp';
+import { normalizePhone, sendWhatsAppText, sendWhatsAppPresence, sendWhatsAppInteractiveButtons } from '@/lib/whatsapp';
 import { getBotResponse, searchKnowledgeBase, isAdminAvailable } from '@/lib/chatbot/knowledge-bot';
 
 type InboundContext = {
@@ -251,6 +251,62 @@ async function sendOutboundText(lead: any, to: string, text: string, metadata?: 
   }
 }
 
+async function sendOutboundInteractiveButtons(
+  lead: any,
+  to: string,
+  bodyText: string,
+  buttons: Array<{ id: string; title: string }>,
+  metadata?: any
+) {
+  const compliance = await ConsentManager.validateCompliance(to);
+  if (!compliance.compliant) return;
+
+  const now = new Date();
+  const { getWhatsAppEnv } = await import('@/lib/whatsapp');
+  const env = getWhatsAppEnv();
+  const senderNumber = env?.phoneNumber || '9779006820';
+
+  const presenceType = metadata?.chatbot?.presenceType;
+  const presenceDelay = Number(metadata?.chatbot?.presenceDelay || 0);
+  if (presenceType && presenceType !== 'none') {
+    try {
+      await sendWhatsAppPresence(to, presenceType as any);
+      if (presenceDelay > 0) await sleep(Math.min(presenceDelay, 10) * 1000);
+    } catch (err) { console.warn('[Automation] Presence failed:', err); }
+  }
+
+  // Log what will be sent (body + button labels for the DB record)
+  const labels = buttons.map((b, i) => `${i + 1}. ${b.title}`).join('\n');
+  const displayContent = bodyText ? `${bodyText}\n\n${labels}` : labels;
+
+  const message = await WhatsAppMessage.create({
+    leadId: lead._id,
+    phoneNumber: to,
+    direction: 'outbound',
+    messageType: 'interactive',
+    messageContent: displayContent,
+    status: 'queued',
+    sentAt: now,
+    metadata,
+    provider: env ? 'meta' : 'whatsapp_web_bridge',
+    senderNumber,
+  });
+
+  try {
+    const apiResult = await sendWhatsAppInteractiveButtons(to, bodyText, buttons);
+    await WhatsAppMessage.updateOne(
+      { _id: message._id },
+      { $set: { status: 'sent', waMessageId: apiResult.waMessageId, provider: apiResult.raw?.provider || 'meta', senderNumber, updatedAt: new Date() }, $unset: { failureReason: 1 } }
+    );
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'WhatsApp interactive send failed';
+    await WhatsAppMessage.updateOne(
+      { _id: message._id },
+      { $set: { status: 'failed', failureReason: String(msg), updatedAt: new Date() } }
+    );
+  }
+}
+
 async function sendOutboundTemplate(lead: any, to: string, templateId: string, templateVariables?: any, metadata?: any) {
   const { getWhatsAppTemplate } = await import('@/lib/schemas/enterpriseSchemas');
   const TemplateModel = getWhatsAppTemplate();
@@ -488,10 +544,10 @@ async function advanceChatbotFlow(lead: any, ctx: InboundContext, flow: any): Pr
       nextNodeId = currentNode.nextNodeId; // Fallback to default next
       console.log(`[Chatbot] Template button matched but no nextNodeId, using default`);
     } else {
-      // No match - show button options
-      const btnLabels = tplButtons.map((b: any, i: number) => `${i + 1}. ${b.title}`).join('\n');
+      // No match - show button options as interactive buttons
       return {
-        text: `Please choose:\n${btnLabels}`,
+        text: 'Please choose:',
+        interactiveButtons: tplButtons.slice(0, 3).map((b: any, i: number) => ({ id: `tpl_btn_${i}`, title: String(b.title || '').substring(0, 20) })),
         presenceType: 'composing',
         presenceDelay: 1
       };
@@ -530,10 +586,10 @@ async function advanceChatbotFlow(lead: any, ctx: InboundContext, flow: any): Pr
       nextNodeId = matchedOption.nextNodeId || currentNode.nextNodeId;
       console.log(`[Chatbot] Button matched: "${matchedOption.label}" -> ${nextNodeId}`);
     } else {
-      // Show button options again
-      const buttonLabels = currentNode.options?.map((o: any, i: number) => `${i + 1}. ${o.label}`).join('\n') || '';
+      // Show button options again as interactive buttons
       return { 
-        text: `Please choose one of these options:\n${buttonLabels}`,
+        text: 'Please choose one of these options:',
+        interactiveButtons: (currentNode.options || []).slice(0, 3).map((o: any, i: number) => ({ id: `btn_${i}_${(o.value || o.label || i).toString().substring(0, 20)}`, title: String(o.label || '').substring(0, 20) })),
         spintaxEnabled: false,
         presenceType: 'composing',
         presenceDelay: 1
@@ -779,18 +835,20 @@ async function advanceChatbotFlow(lead: any, ctx: InboundContext, flow: any): Pr
   if (nextNode.type === 'question' || nextNode.type === 'buttons') {
     let text = nextNode.messageText || nextNode.questionText || '';
     
-    // Add button labels for buttons node
-    if (nextNode.type === 'buttons' && nextNode.options?.length > 0) {
-      const buttonLabels = nextNode.options.map((o: any, i: number) => `${i + 1}. ${o.label}`).join('\n');
-      text = text ? `${text}\n\n${buttonLabels}` : buttonLabels;
-    }
-    
     replyObj = {
       text: applySpintax(text),
       spintaxEnabled: nextNode.spintaxEnabled,
       presenceType: nextNode.presenceType || 'composing',
       presenceDelay: nextNode.presenceDelay || 1
     };
+    
+    // Add interactive buttons for buttons node (max 3 for WhatsApp API)
+    if (nextNode.type === 'buttons' && nextNode.options?.length > 0) {
+      replyObj.interactiveButtons = nextNode.options.slice(0, 3).map((o: any, i: number) => ({
+        id: `btn_${i}_${(o.value || o.label || i).toString().substring(0, 20)}`,
+        title: String(o.label || '').substring(0, 20)
+      }));
+    }
     
     // Update state to this node (waiting for user input)
     await Lead.updateOne(
@@ -967,6 +1025,10 @@ export async function handleInboundWhatsAppAutomations(input: {
             await sendOutboundTemplate(lead, fromPhone, reply.templateId, [], {
               chatbot: { flowId: String((activeFlow as any)._id) }
             });
+          } else if (reply.interactiveButtons?.length > 0) {
+            await sendOutboundInteractiveButtons(lead, fromPhone, reply.text || 'Please choose:', reply.interactiveButtons, {
+              chatbot: { flowId: String((activeFlow as any)._id), presenceType: reply.presenceType, presenceDelay: reply.presenceDelay }
+            });
           } else if (reply.text) {
             await sendOutboundText(lead, fromPhone, reply.text, {
               chatbot: { flowId: String((activeFlow as any)._id), spintaxEnabled: reply.spintaxEnabled, presenceType: reply.presenceType, presenceDelay: reply.presenceDelay }
@@ -1009,6 +1071,10 @@ export async function handleInboundWhatsAppAutomations(input: {
           if (reply.isTemplate && reply.templateId) {
             await sendOutboundTemplate(updatedLead || lead, fromPhone, reply.templateId, [], {
               chatbot: { flowId: String((flow as any)._id), autoTriggered: true }
+            });
+          } else if (reply.interactiveButtons?.length > 0) {
+            await sendOutboundInteractiveButtons(updatedLead || lead, fromPhone, reply.text || 'Please choose:', reply.interactiveButtons, {
+              chatbot: { flowId: String((flow as any)._id), autoTriggered: true, presenceType: reply.presenceType, presenceDelay: reply.presenceDelay }
             });
           } else if (reply.text) {
             await sendOutboundText(updatedLead || lead, fromPhone, reply.text, {
@@ -1210,6 +1276,11 @@ export async function handleInboundWhatsAppAutomations(input: {
               // Send WhatsApp template message
               await sendOutboundTemplate(lead, fromPhone, reply.templateId, [], {
                 chatbot: { flowId: String(activeFlow._id) }
+              });
+            } else if (reply.interactiveButtons?.length > 0) {
+              // Send interactive buttons
+              await sendOutboundInteractiveButtons(lead, fromPhone, reply.text || 'Please choose:', reply.interactiveButtons, {
+                chatbot: { flowId: String(activeFlow._id), presenceType: reply.presenceType, presenceDelay: reply.presenceDelay }
               });
             } else if (reply.text) {
               // Send regular text message

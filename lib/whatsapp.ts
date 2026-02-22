@@ -355,6 +355,98 @@ export async function sendWhatsAppText(toRaw: string, body: string): Promise<Wha
 }
 
 /**
+ * Send a WhatsApp interactive message with clickable reply buttons (max 3).
+ * For > 3 options, falls back to numbered text.
+ * 
+ * Meta API docs: https://developers.facebook.com/docs/whatsapp/cloud-api/messages/interactive-reply-buttons
+ */
+export async function sendWhatsAppInteractiveButtons(
+  toRaw: string,
+  body: string,
+  buttons: Array<{ id: string; title: string }>,
+  header?: string,
+  footer?: string,
+): Promise<WhatsAppSendTextResult> {
+  const env = getWhatsAppEnv();
+  const to = normalizePhone(toRaw);
+
+  // WhatsApp reply buttons: max 3 buttons, title max 20 chars
+  const safeButtons = buttons.slice(0, 3).map(b => ({
+    type: 'reply' as const,
+    reply: {
+      id: b.id.substring(0, 256),
+      title: b.title.substring(0, 20),
+    },
+  }));
+
+  if (!env || safeButtons.length === 0) {
+    // Fallback to plain text
+    const labels = buttons.map((b, i) => `${i + 1}. ${b.title}`).join('\n');
+    const fallback = body ? `${body}\n\n${labels}` : labels;
+    return sendWhatsAppText(to, fallback);
+  }
+
+  try {
+    const result = await withRetry(async () => {
+      const { accessToken, phoneNumberId, appSecret } = env;
+      const appSecretProof = generateAppSecretProof(accessToken, appSecret);
+      const url = buildGraphMessagesUrl(phoneNumberId, appSecretProof);
+
+      const interactive: any = {
+        type: 'button',
+        body: { text: body || 'Please choose an option:' },
+        action: { buttons: safeButtons },
+      };
+      if (header) interactive.header = { type: 'text', text: header.substring(0, 60) };
+      if (footer) interactive.footer = { text: footer.substring(0, 60) };
+
+      const payload = {
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to,
+        type: 'interactive',
+        interactive,
+      };
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(payload),
+        cache: 'no-store',
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        const waMessageId =
+          Array.isArray(data?.messages) && data.messages[0]?.id ? String(data.messages[0].id) : undefined;
+        if (!waMessageId) {
+          throw new Error('Meta API returned success but no message ID: ' + JSON.stringify(data));
+        }
+        return { waMessageId, raw: { ...data, provider: 'meta' } };
+      }
+
+      throw new Error(data?.error?.message || 'Meta Interactive API error');
+    }, { maxRetries: 2 });
+
+    recordSuccess('meta');
+    return result;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    recordFailure('meta', msg);
+    console.warn('[sendWhatsAppInteractiveButtons] Meta failed, falling back to text:', msg);
+    // Fallback to numbered text
+    const labels = buttons.map((b, i) => `${i + 1}. ${b.title}`).join('\n');
+    const fallback = body ? `${body}\n\n${labels}` : labels;
+    return sendWhatsAppText(to, fallback);
+  }
+}
+
+/**
  * Update presence status (typing, recording)
  */
 export async function sendWhatsAppPresence(toRaw: string, type: 'composing' | 'recording' | 'paused' | 'none'): Promise<void> {
