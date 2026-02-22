@@ -41,7 +41,7 @@ export const verifyAdminAccess = (request: NextRequest): string => {
  */
 export const parsePagination = (request: NextRequest): { limit: number; skip: number } => {
   const url = new URL(request.url);
-  const limit = Math.min(Number(url.searchParams.get('limit') || 50) || 50, 200);
+  const limit = Math.min(Number(url.searchParams.get('limit') || 50) || 50, 1000);
   const skip = Math.max(Number(url.searchParams.get('skip') || 0) || 0, 0);
   
   return { limit, skip };
