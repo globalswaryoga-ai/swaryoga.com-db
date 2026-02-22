@@ -893,6 +893,80 @@ export async function handleInboundWhatsAppAutomations(input: {
     wasFirstInbound: Boolean(input.wasFirstInbound),
   };
 
+  // ===== CHATBOT FLOW: Continue existing flow OR auto-start by keyword =====
+  try {
+    const md = (lead?.metadata && typeof lead.metadata === 'object') ? lead.metadata : {};
+    const existingFlowState = md.chatbotFlowState;
+    
+    if (existingFlowState?.flowId) {
+      // Lead already has an active flow - continue it
+      const activeFlow = await ChatbotFlow.findById(existingFlowState.flowId).lean();
+      if (activeFlow && (activeFlow as any).enabled) {
+        console.log(`[Automation] Continuing active flow "${(activeFlow as any).name}" for ${fromPhone}`);
+        const reply = await advanceChatbotFlow(lead, ctx, activeFlow);
+        if (reply) {
+          await Lead.updateOne({ _id: lead._id }, { $set: { 'metadata._chatbot_last_reply_at': now } });
+          if (reply.isTemplate && reply.templateId) {
+            await sendOutboundTemplate(lead, fromPhone, reply.templateId, [], {
+              chatbot: { flowId: String((activeFlow as any)._id) }
+            });
+          } else if (reply.text) {
+            await sendOutboundText(lead, fromPhone, reply.text, {
+              chatbot: { flowId: String((activeFlow as any)._id), spintaxEnabled: reply.spintaxEnabled, presenceType: reply.presenceType, presenceDelay: reply.presenceDelay }
+            });
+          }
+          return; // Flow handled this message
+        }
+      }
+    }
+    
+    // No active flow - check if any flow has trigger keywords matching this message
+    const lowerBody = body.toLowerCase().trim();
+    const keywordFlows = await ChatbotFlow.find({
+      enabled: true,
+      triggerKeywords: { $exists: true, $not: { $size: 0 } }
+    }).lean();
+    
+    for (const flow of keywordFlows) {
+      const keywords = ((flow as any).triggerKeywords || []).map((k: string) => k.toLowerCase().trim()).filter(Boolean);
+      const matched = keywords.some((kw: string) => lowerBody === kw || lowerBody.includes(kw));
+      
+      if (matched) {
+        console.log(`[Automation] Keyword match! Starting flow "${(flow as any).name}" for ${fromPhone}`);
+        
+        // Set flow state and advance from start
+        const startNodeId = (flow as any).startNodeId;
+        if (!startNodeId) continue;
+        
+        await Lead.updateOne(
+          { _id: lead._id },
+          { $set: { 'metadata.chatbotFlowState': { flowId: String((flow as any)._id), nodeId: startNodeId, updatedAt: now, autoTriggered: true, triggerKeyword: lowerBody } } }
+        );
+        
+        // Reload lead with updated state
+        const updatedLead = await Lead.findById(lead._id).lean();
+        const reply = await advanceChatbotFlow(updatedLead, { ...ctx, body: '' }, flow);
+        
+        if (reply) {
+          await Lead.updateOne({ _id: lead._id }, { $set: { 'metadata._chatbot_last_reply_at': now } });
+          if (reply.isTemplate && reply.templateId) {
+            await sendOutboundTemplate(updatedLead || lead, fromPhone, reply.templateId, [], {
+              chatbot: { flowId: String((flow as any)._id), autoTriggered: true }
+            });
+          } else if (reply.text) {
+            await sendOutboundText(updatedLead || lead, fromPhone, reply.text, {
+              chatbot: { flowId: String((flow as any)._id), autoTriggered: true, spintaxEnabled: reply.spintaxEnabled, presenceType: reply.presenceType, presenceDelay: reply.presenceDelay }
+            });
+          }
+        }
+        return; // Flow started, stop processing
+      }
+    }
+  } catch (flowErr) {
+    console.error('[Automation] Chatbot flow keyword check error:', flowErr);
+  }
+  // ===== END CHATBOT FLOW =====
+
   // Check if knowledge base auto-reply is enabled (when admin unavailable)
   const kbAutoReplyEnabled = getEnvFlag('WHATSAPP_KB_AUTO_REPLY', true);
   if (kbAutoReplyEnabled) {

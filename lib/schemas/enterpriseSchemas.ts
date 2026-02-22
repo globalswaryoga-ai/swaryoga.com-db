@@ -1287,6 +1287,9 @@ const ChatbotFlowSchema = new mongoose.Schema(
     enabled: { type: Boolean, default: true, index: true },
     createdByUserId: { type: String, trim: true, index: true },
     
+    // Trigger keywords: when a user sends any of these words, this flow auto-starts
+    triggerKeywords: { type: [String], default: [] },
+    
     // Starting node (first message in flow)
     startNodeId: { type: String, trim: true },
     

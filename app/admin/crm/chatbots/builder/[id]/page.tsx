@@ -144,6 +144,8 @@ export default function ChatbotBuilder() {
   const [activeCategory, setActiveCategory] = useState<string>('basic');
   const [flowName, setFlowName] = useState('Untitled Flow');
   const [flowEnabled, setFlowEnabled] = useState(true);
+  const [triggerKeywords, setTriggerKeywords] = useState<string[]>([]);
+  const [keywordInput, setKeywordInput] = useState('');
   const [templates, setTemplates] = useState<Array<{ _id: string; templateName: string; language: string; metaStatus?: string; headerMedia?: { url: string; type?: string }; headerFormat?: string; templateContent?: string; bodyText?: string; footerText?: string; buttons?: Array<{ type: string; text: string; url?: string; phone_number?: string }>; category?: string }>>([]);
   const [uploadingBlockId, setUploadingBlockId] = useState<string | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -281,6 +283,7 @@ export default function ChatbotBuilder() {
         const res = await crm.fetch(`/api/admin/crm/chatbot-flows/${chatbotId}`);
         setFlowName(res?.name || 'Untitled Flow');
         setFlowEnabled(res?.enabled !== false);
+        setTriggerKeywords(Array.isArray(res?.triggerKeywords) ? res.triggerKeywords : []);
         if (res?.metadata?.canvas) {
           setBlocks(res.metadata.canvas.blocks || []);
           setConnections(res.metadata.canvas.connections || []);
@@ -689,6 +692,7 @@ export default function ChatbotBuilder() {
         body: {
           name: flowName,
           enabled: flowEnabled,
+          triggerKeywords,
           nodes,
           startNodeId: blocks[0]?.id,
           metadata: {
@@ -706,7 +710,7 @@ export default function ChatbotBuilder() {
     } finally {
       setSaving(false);
     }
-  }, [chatbotId, crm, blocks, connections, router, flowName, flowEnabled]);
+  }, [chatbotId, crm, blocks, connections, router, flowName, flowEnabled, triggerKeywords]);
 
   if (loading) return <div className="flex items-center justify-center h-full bg-gray-50"><LoadingSpinner /></div>;
 
@@ -732,6 +736,35 @@ export default function ChatbotBuilder() {
           <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${flowEnabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
             {flowEnabled ? '✅ Active' : '❌ Inactive'}
           </span>
+          {/* Trigger Keywords */}
+          <div className="flex items-center gap-1 ml-2 border-l border-gray-200 pl-3">
+            <span className="text-[10px] text-gray-400 font-medium whitespace-nowrap">Keywords:</span>
+            <div className="flex items-center gap-1 flex-wrap max-w-[300px]">
+              {triggerKeywords.map((kw, i) => (
+                <span key={i} className="inline-flex items-center gap-0.5 px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full text-[10px] font-semibold">
+                  {kw}
+                  <button onClick={() => setTriggerKeywords(prev => prev.filter((_, idx) => idx !== i))} className="text-amber-500 hover:text-red-600 ml-0.5">×</button>
+                </span>
+              ))}
+              <input
+                value={keywordInput}
+                onChange={(e) => setKeywordInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if ((e.key === 'Enter' || e.key === ',') && keywordInput.trim()) {
+                    e.preventDefault();
+                    const kw = keywordInput.trim().toLowerCase();
+                    if (!triggerKeywords.includes(kw)) {
+                      setTriggerKeywords(prev => [...prev, kw]);
+                    }
+                    setKeywordInput('');
+                  }
+                }}
+                className="w-20 text-[11px] border-0 border-b border-transparent hover:border-gray-300 focus:border-amber-500 focus:outline-none bg-transparent py-0.5 px-1"
+                placeholder="+ add"
+                title="Type a keyword and press Enter. When a customer sends this word, this flow starts automatically."
+              />
+            </div>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-2 cursor-pointer">

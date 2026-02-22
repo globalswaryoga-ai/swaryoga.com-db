@@ -58,6 +58,7 @@ export async function POST(request: NextRequest) {
       createdByUserId: String(userId),
       nodes: Array.isArray(body?.nodes) ? body.nodes : [],
       startNodeId: String(body?.startNodeId || ''),
+      triggerKeywords: Array.isArray(body?.triggerKeywords) ? body.triggerKeywords : [],
       metadata: body?.metadata || undefined,
     });
 
