@@ -888,20 +888,24 @@ export default function MetaInboxPage() {
     if (!leadId) { alert('No lead selected'); return; }
     setChatbotFlowAssigning(flowId);
     try {
-      const res = await fetch(`/api/admin/crm/leads/${leadId}`, {
-        method: 'PUT',
+      // Call the new start API that assigns AND sends the first message immediately
+      const res = await fetch(`/api/admin/crm/chatbot-flows/start`, {
+        method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ metadata: { chatbotFlowState: { flowId, nodeId: '', updatedAt: new Date().toISOString() } } }),
+        body: JSON.stringify({ flowId, leadId }),
       });
-      if (res.ok) {
-        alert('✅ Chatbot flow assigned! It will activate on next inbound message.');
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        alert(`✅ Flow started! ${data.sentCount || 0} message(s) sent immediately to the customer.`);
         closeActionModal();
+        // Refresh messages to show the sent messages
+        const phoneOrLead = selected.leadId || selected.phoneNumber || selected._id;
+        if (phoneOrLead) loadMessages(phoneOrLead);
       } else {
-        const d = await res.json().catch(() => ({}));
-        alert(d.error || 'Failed to assign flow');
+        alert(data.error || 'Failed to start flow');
       }
     } catch (err) {
-      alert('Failed to assign flow');
+      alert('Failed to start flow');
     } finally {
       setChatbotFlowAssigning(null);
     }
@@ -3526,7 +3530,8 @@ export default function MetaInboxPage() {
 
                     {actionModal.type === 'chatbot_flow' ? (
                       <div className="mt-4">
-                        <div className="text-sm font-bold text-slate-700 mb-3">Assign a chatbot flow to this conversation</div>
+                        <div className="text-sm font-bold text-slate-700 mb-1">Start a chatbot flow for this conversation</div>
+                        <p className="text-[11px] text-slate-400 mb-3">First message sends immediately. Next messages follow on user reply.</p>
                         {chatbotFlowsLoading ? (
                           <div className="flex items-center justify-center py-8 text-slate-400">
                             <i className="ph ph-spinner animate-spin text-2xl mr-2"></i>
@@ -3561,7 +3566,7 @@ export default function MetaInboxPage() {
                                   onClick={() => assignChatbotFlow(flow._id)}
                                   className="px-3 py-1.5 text-xs font-bold text-cyan-700 bg-cyan-100 hover:bg-cyan-200 rounded-lg transition-colors disabled:opacity-50 whitespace-nowrap"
                                 >
-                                  {chatbotFlowAssigning === flow._id ? '...' : 'Assign'}
+                                  {chatbotFlowAssigning === flow._id ? 'Sending...' : '▶ Start'}
                                 </button>
                               </div>
                             ))}
