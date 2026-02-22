@@ -134,6 +134,7 @@ export default function MetaInboxPage() {
 
   // State
   const [conversations, setConversations] = useState<ConversationRow[]>([]);
+  const [conversationsTotal, setConversationsTotal] = useState(0);
   const [selected, setSelected] = useState<ConversationRow | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
@@ -539,11 +540,12 @@ export default function MetaInboxPage() {
   const loadConversations = async (q = '', silent = false) => {
     try {
       const data = await crmFetch('/api/admin/crm/conversations', {
-        params: { q, limit: 50, provider: providerScope },
+        params: { q, limit: 500, provider: providerScope },
         silent, // Pass silent flag to crmFetch
       });
       if (data?.conversations) {
         setConversations(data.conversations);
+        if (typeof data.total === 'number') setConversationsTotal(data.total);
 
         // Auto-select conversation from ?phone= query param
         if (pendingPhoneRef.current) {
@@ -1973,7 +1975,7 @@ export default function MetaInboxPage() {
               Check all
             </label>
             <span className="ml-auto text-[10px] font-semibold text-slate-500">
-              {anyChecked ? `${selectedIds.length} selected` : `${filteredConversations.length} total`}
+              {anyChecked ? `${selectedIds.length} selected` : conversationsTotal > filteredConversations.length ? `${filteredConversations.length} shown / ${conversationsTotal} total` : `${filteredConversations.length} total`}
             </span>
           </div>
 
