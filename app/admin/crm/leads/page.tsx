@@ -1496,7 +1496,14 @@ export default function LeadsPage() {
                       let msg = `✅ Imported ${data.data.imported} new leads!`;
                       if (data.data.duplicates > 0) msg += `\n📋 ${data.data.duplicates} already exist (skipped)`;
                       if (data.data.skipped > 0) msg += `\n⚠️ ${data.data.skipped} invalid (phone errors)`;
-                      if (data.data.failed > 0) msg += `\n❌ ${data.data.failed} failed`;
+                      if (data.data.failed > 0) {
+                        msg += `\n❌ ${data.data.failed} failed`;
+                        if (Array.isArray(data.data.errors) && data.data.errors.length > 0) {
+                          const reasons = data.data.errors.slice(0, 5).map((e: any) => `  ${e.phone}: ${e.reason}`).join('\n');
+                          msg += `\n${reasons}`;
+                          if (data.data.errors.length > 5) msg += `\n  ...and ${data.data.errors.length - 5} more`;
+                        }
+                      }
                       alert(msg);
                       setBulkImportModalOpen(false);
                       setCsvContacts([]);

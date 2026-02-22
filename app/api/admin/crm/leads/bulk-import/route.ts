@@ -110,8 +110,8 @@ export async function POST(request: NextRequest) {
 
         const name = String(c.name || '').trim();
         const email = String(c.email || '').trim();
-        const status = String(c.status || 'lead').trim();
-        const source = String(c.source || 'csv-import').trim();
+        const status = String(c.status || 'lead').trim().toLowerCase();
+        const source = String(c.source || 'csv-import').trim().toLowerCase();
         const workshopName = String(c.workshopName || '').trim();
         const address = String(c.address || '').trim();
 
