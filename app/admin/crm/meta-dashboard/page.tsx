@@ -18,6 +18,41 @@ interface DashboardStats {
     received: number;
     total: number;
   };
+  delivered: {
+    total: number;
+    sent: number;
+    failed: number;
+  };
+  messagesDelivered: {
+    total: number;
+    marketing: number;
+    marketingLite: number;
+    utility: number;
+    authentication: number;
+    authenticationIntl: number;
+    service: number;
+  };
+  freeMessages: {
+    total: number;
+    freeCustomerService: number;
+    freeEntryPoint: number;
+  };
+  paidMessages: {
+    total: number;
+    marketing: number;
+    marketingLite: number;
+    utility: number;
+    authentication: number;
+    authenticationIntl: number;
+  };
+  charges: {
+    total: number;
+    marketing: number;
+    marketingLite: number;
+    utility: number;
+    authentication: number;
+    authenticationIntl: number;
+  };
   chatStatuses: {
     new: number;
     open: number;
@@ -103,9 +138,10 @@ export default function MetaDashboardPage() {
     // Fetch admin users list
     crmFetch('/api/admin/crm/users')
       .then((res) => {
-        if (res?.data) {
+        const users = res?.users || res?.data || res;
+        if (Array.isArray(users)) {
           setAdminUsers(
-            res.data.map((u: any) => ({
+            users.map((u: any) => ({
               userId: u.userId || u._id,
               name: u.name || u.email || u.userId || 'Unknown',
             }))
@@ -128,8 +164,8 @@ export default function MetaDashboardPage() {
         if (period === 'custom' && customEndDate) params.append('endDate', customEndDate);
 
         const res = await crmFetch(`/api/admin/crm/meta-dashboard/stats?${params.toString()}`);
-        if (res?.data) {
-          setStats(res.data);
+        if (res) {
+          setStats(res);
         }
       } catch (err) {
         console.error('Failed to fetch stats:', err);
@@ -341,6 +377,165 @@ export default function MetaDashboardPage() {
               </div>
             </div>
 
+            {/* ─── Meta-Style Message Pricing Section ─── */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-8">
+              <div className="flex items-center gap-2 mb-2">
+                <i className="ph ph-currency-inr text-blue-600 text-xl"></i>
+                <h2 className="text-lg font-[900] text-slate-800">Message Pricing</h2>
+              </div>
+              <p className="text-xs text-slate-400 mb-6">
+                All insights data is approximate and may differ from what&apos;s shown on your invoices due to small variations in data processing.
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                {/* All Messages Card */}
+                <div className="border border-slate-200 rounded-xl p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-8 h-1 bg-blue-500 rounded-full"></div>
+                    <h3 className="text-sm font-[900] text-slate-800">All Messages</h3>
+                  </div>
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-5 h-0.5 border-t-2 border-dashed border-red-400"></div>
+                        <span className="text-sm text-slate-600">Messages sent</span>
+                      </div>
+                      <span className="text-sm font-bold text-slate-800">{stats.messages.sent}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-5 h-0.5 border-t-2 border-dashed border-emerald-400"></div>
+                        <span className="text-sm text-slate-600">Messages delivered</span>
+                      </div>
+                      <span className="text-sm font-bold text-slate-800">{stats.delivered?.total || 0}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-5 h-0.5 border-t-2 border-dashed border-slate-400"></div>
+                        <span className="text-sm text-slate-600">Messages received</span>
+                      </div>
+                      <span className="text-sm font-bold text-slate-800">{stats.messages.received}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Messages Delivered Card */}
+                <div className="border border-slate-200 rounded-xl p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-1 bg-emerald-500 rounded-full"></div>
+                      <h3 className="text-sm font-[900] text-slate-800">Messages Delivered</h3>
+                    </div>
+                    <span className="text-lg font-black text-slate-800">{stats.messagesDelivered?.total || 0}</span>
+                  </div>
+                  <div className="space-y-2.5">
+                    {[
+                      { label: 'Marketing', value: stats.messagesDelivered?.marketing || 0, color: 'border-blue-400' },
+                      { label: 'Marketing - lite', value: stats.messagesDelivered?.marketingLite || 0, color: 'border-yellow-400' },
+                      { label: 'Utility', value: stats.messagesDelivered?.utility || 0, color: 'border-red-400' },
+                      { label: 'Authentication', value: stats.messagesDelivered?.authentication || 0, color: 'border-rose-400' },
+                      { label: 'Authentication - international', value: stats.messagesDelivered?.authenticationIntl || 0, color: 'border-slate-400' },
+                      { label: 'Service', value: stats.messagesDelivered?.service || 0, color: 'border-teal-400' },
+                    ].map((item) => (
+                      <div key={item.label} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-5 h-0.5 border-t-2 border-dashed ${item.color}`}></div>
+                          <span className="text-sm text-slate-600">{item.label}</span>
+                        </div>
+                        <span className="text-sm font-bold text-slate-800">{item.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Free Messages Delivered Card */}
+                <div className="border border-slate-200 rounded-xl p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-1 bg-emerald-500 rounded-full"></div>
+                      <h3 className="text-sm font-[900] text-slate-800">Free Messages Delivered</h3>
+                    </div>
+                    <span className="text-lg font-black text-slate-800">{stats.freeMessages?.total || 0}</span>
+                  </div>
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-5 h-0.5 border-t-2 border-dashed border-teal-400"></div>
+                        <span className="text-sm text-slate-600">Free customer service</span>
+                      </div>
+                      <span className="text-sm font-bold text-slate-800">{stats.freeMessages?.freeCustomerService || 0}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-5 h-0.5 border-t-2 border-dashed border-slate-400"></div>
+                        <span className="text-sm text-slate-600">Free entry point</span>
+                      </div>
+                      <span className="text-sm font-bold text-slate-800">{stats.freeMessages?.freeEntryPoint || 0}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom row: Paid Messages + Charges */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Paid Messages Delivered Card */}
+                <div className="border border-slate-200 rounded-xl p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-1 bg-blue-500 rounded-full"></div>
+                      <h3 className="text-sm font-[900] text-slate-800">Paid Messages Delivered</h3>
+                    </div>
+                    <span className="text-lg font-black text-slate-800">{stats.paidMessages?.total || 0}</span>
+                  </div>
+                  <div className="space-y-2.5">
+                    {[
+                      { label: 'Marketing', value: stats.paidMessages?.marketing || 0, color: 'border-blue-400' },
+                      { label: 'Marketing - lite', value: stats.paidMessages?.marketingLite || 0, color: 'border-yellow-400' },
+                      { label: 'Utility', value: stats.paidMessages?.utility || 0, color: 'border-red-400' },
+                      { label: 'Authentication', value: stats.paidMessages?.authentication || 0, color: 'border-rose-400' },
+                      { label: 'Authentication - international', value: stats.paidMessages?.authenticationIntl || 0, color: 'border-slate-400' },
+                    ].map((item) => (
+                      <div key={item.label} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-5 h-0.5 border-t-2 border-dashed ${item.color}`}></div>
+                          <span className="text-sm text-slate-600">{item.label}</span>
+                        </div>
+                        <span className="text-sm font-bold text-slate-800">{item.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Approximate Total Charges Card */}
+                <div className="border border-slate-200 rounded-xl p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-1 bg-blue-500 rounded-full"></div>
+                      <h3 className="text-sm font-[900] text-slate-800">Approximate Total Charges</h3>
+                    </div>
+                    <span className="text-lg font-black text-slate-800">₹ {(stats.charges?.total || 0).toFixed(2)}</span>
+                  </div>
+                  <div className="space-y-2.5">
+                    {[
+                      { label: 'Marketing', value: stats.charges?.marketing || 0, color: 'border-blue-400' },
+                      { label: 'Marketing - lite', value: stats.charges?.marketingLite || 0, color: 'border-yellow-400' },
+                      { label: 'Utility', value: stats.charges?.utility || 0, color: 'border-red-400' },
+                      { label: 'Authentication', value: stats.charges?.authentication || 0, color: 'border-rose-400' },
+                      { label: 'Authentication - international', value: stats.charges?.authenticationIntl || 0, color: 'border-slate-400' },
+                    ].map((item) => (
+                      <div key={item.label} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-5 h-0.5 border-t-2 border-dashed ${item.color}`}></div>
+                          <span className="text-sm text-slate-600">{item.label}</span>
+                        </div>
+                        <span className="text-sm font-bold text-slate-800">₹ {item.value.toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Chat Status Cards */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-8">
               <h2 className="text-lg font-[900] text-slate-800 mb-6 flex items-center gap-2">
@@ -356,7 +551,7 @@ export default function MetaDashboardPage() {
                   </div>
                   <div className="text-3xl font-black text-emerald-700">{stats.chatStatuses.new}</div>
                   <div className="text-xs font-bold text-emerald-600 uppercase tracking-wide mt-1">New</div>
-                  <div className="text-[10px] text-emerald-500 mt-0.5">0-5 hours</div>
+                  <div className="text-[10px] text-emerald-500 mt-0.5">No reply yet</div>
                 </div>
 
                 {/* Open */}
@@ -366,7 +561,7 @@ export default function MetaDashboardPage() {
                   </div>
                   <div className="text-3xl font-black text-blue-700">{stats.chatStatuses.open}</div>
                   <div className="text-xs font-bold text-blue-600 uppercase tracking-wide mt-1">Open</div>
-                  <div className="text-[10px] text-blue-500 mt-0.5">5-12 hours</div>
+                  <div className="text-[10px] text-blue-500 mt-0.5">0-12 hours</div>
                 </div>
 
                 {/* Pending */}
@@ -376,7 +571,7 @@ export default function MetaDashboardPage() {
                   </div>
                   <div className="text-3xl font-black text-amber-700">{stats.chatStatuses.pending}</div>
                   <div className="text-xs font-bold text-amber-600 uppercase tracking-wide mt-1">Pending</div>
-                  <div className="text-[10px] text-amber-500 mt-0.5">12-24 hours</div>
+                  <div className="text-[10px] text-amber-500 mt-0.5">12-23 hours</div>
                 </div>
 
                 {/* Overdue */}
@@ -388,7 +583,7 @@ export default function MetaDashboardPage() {
                     </div>
                     <div className="text-3xl font-black text-red-700">{stats.chatStatuses.overdue}</div>
                     <div className="text-xs font-bold text-red-600 uppercase tracking-wide mt-1">Overdue</div>
-                    <div className="text-[10px] text-red-500 mt-0.5">&gt;24 hours</div>
+                    <div className="text-[10px] text-red-500 mt-0.5">23-24 hours</div>
                   </div>
                 </div>
 

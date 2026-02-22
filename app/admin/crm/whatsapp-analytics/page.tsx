@@ -443,7 +443,7 @@ export default function WhatsAppAnalyticsPage() {
                 <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
                   <h3 className="font-bold text-slate-900 mb-4">Messages by Provider</h3>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {Object.entries(stats.overview.byProvider).map(([provider, count]) => (
+                    {Object.entries(stats.overview.byProvider || {}).map(([provider, count]) => (
                       <div key={provider} className="bg-slate-50 rounded-xl p-4 text-center">
                         <div className="text-2xl font-black text-emerald-600">{count.toLocaleString()}</div>
                         <div className="text-xs text-slate-600 font-semibold mt-1 capitalize">{provider || 'Unknown'}</div>

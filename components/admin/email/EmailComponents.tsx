@@ -1,10 +1,19 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Mail, Calendar, Users, TrendingUp, Eye, Trash2, 
   Clock, CheckCircle, XCircle, AlertCircle, BarChart3,
   Plus, Edit, Play, Pause, RefreshCw, Download,
-  Search, Filter, ChevronLeft, ChevronRight, Send
+  Search, Filter, ChevronLeft, ChevronRight, Send,
+  Paperclip, FileText, Image, X, MessageSquare
 } from 'lucide-react';
+
+interface EmailAttachment {
+  fileName: string;
+  url: string;
+  mimeType?: string;
+  sizeBytes?: number;
+  fileType?: 'image' | 'video' | 'document';
+}
 
 interface EmailTemplate {
   _id: string;
@@ -13,6 +22,7 @@ interface EmailTemplate {
   body: string;
   category?: string;
   variables?: string[];
+  attachments?: EmailAttachment[];
   createdAt?: string;
   updatedAt?: string;
 }
@@ -63,6 +73,7 @@ interface FollowUpStep {
   subject: string;
   body: string;
   condition?: string;
+  attachments?: EmailAttachment[];
 }
 
 // Campaigns Tab
@@ -1010,11 +1021,46 @@ function StatCard({ title, value, subtitle, icon, color }: any) {
 }
 
 // Template Modal
-export function TemplateModal({ template, onSave, onClose }: any) {
+export function TemplateModal({ template, onSave, onClose, token }: any) {
   const [name, setName] = useState(template?.name || '');
   const [category, setCategory] = useState(template?.category || '');
   const [subject, setSubject] = useState(template?.subject || '');
   const [body, setBody] = useState(template?.body || '');
+  const [attachments, setAttachments] = useState<EmailAttachment[]>(template?.attachments || []);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    try {
+      for (const file of Array.from(files)) {
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await fetch('/api/admin/crm/email/upload', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        });
+        const data = await res.json();
+        if (res.ok && data.data) {
+          setAttachments(prev => [...prev, data.data]);
+        } else {
+          alert(`Upload failed: ${data.error || 'Unknown error'}`);
+        }
+      }
+    } catch (err: any) {
+      alert(`Upload error: ${err.message}`);
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
+  };
 
   const handleSubmit = () => {
     if (!name.trim() || !subject.trim() || !body.trim()) {
@@ -1022,7 +1068,7 @@ export function TemplateModal({ template, onSave, onClose }: any) {
       return;
     }
 
-    onSave({ name, category, subject, body });
+    onSave({ name, category, subject, body, attachments });
   };
 
   return (
@@ -1089,6 +1135,50 @@ export function TemplateModal({ template, onSave, onClose }: any) {
               Available variables: {'{name}'}, {'{email}'}, {'{phone}'}
             </p>
           </div>
+
+          {/* Attachments */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Attachments
+            </label>
+            <div className="flex items-center gap-2 mb-2">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                {uploading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
+                {uploading ? 'Uploading...' : 'Add Files'}
+              </button>
+              <span className="text-xs text-gray-500">Images, Videos, PDFs, Documents</span>
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+            {attachments.length > 0 && (
+              <div className="space-y-1.5 mt-2">
+                {attachments.map((att, i) => (
+                  <div key={i} className="flex items-center justify-between bg-gray-50 rounded px-3 py-1.5 border border-gray-200 text-sm">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {att.fileType === 'image' && <Image className="w-3.5 h-3.5 text-green-600" />}
+                      {att.fileType === 'video' && <Eye className="w-3.5 h-3.5 text-purple-600" />}
+                      {att.fileType === 'document' && <FileText className="w-3.5 h-3.5 text-blue-600" />}
+                      <span className="truncate text-gray-800">{att.fileName}</span>
+                    </div>
+                    <button onClick={() => removeAttachment(i)} className="text-red-500 hover:text-red-700 ml-2">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="p-6 border-t border-gray-200 flex items-center justify-end gap-3">
@@ -1111,12 +1201,53 @@ export function TemplateModal({ template, onSave, onClose }: any) {
 }
 
 // Follow-up Modal
-export function FollowupModal({ sequence, templates, onSave, onClose }: any) {
+export function FollowupModal({ sequence, templates, onSave, onClose, token }: any) {
   const [name, setName] = useState(sequence?.name || '');
   const [description, setDescription] = useState(sequence?.description || '');
   const [trigger, setTrigger] = useState(sequence?.trigger || 'manual');
   const [steps, setSteps] = useState<FollowUpStep[]>(sequence?.steps || []);
   const [active, setActive] = useState(sequence?.active ?? true);
+  const [uploadingStep, setUploadingStep] = useState<number | null>(null);
+
+  const stepFileRefs = useRef<Record<number, HTMLInputElement | null>>({});
+
+  const handleStepFileUpload = async (stepIndex: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setUploadingStep(stepIndex);
+    try {
+      for (const file of Array.from(files)) {
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await fetch('/api/admin/crm/email/upload', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        });
+        const data = await res.json();
+        if (res.ok && data.data) {
+          const updated = [...steps];
+          if (!updated[stepIndex].attachments) updated[stepIndex].attachments = [];
+          updated[stepIndex].attachments!.push(data.data);
+          setSteps(updated);
+        } else {
+          alert(`Upload failed: ${data.error || 'Unknown error'}`);
+        }
+      }
+    } catch (err: any) {
+      alert(`Upload error: ${err.message}`);
+    } finally {
+      setUploadingStep(null);
+      const ref = stepFileRefs.current[stepIndex];
+      if (ref) ref.value = '';
+    }
+  };
+
+  const removeStepAttachment = (stepIndex: number, attIndex: number) => {
+    const updated = [...steps];
+    updated[stepIndex].attachments = (updated[stepIndex].attachments || []).filter((_, i) => i !== attIndex);
+    setSteps(updated);
+  };
 
   const addStep = () => {
     setSteps([...steps, {
@@ -1298,6 +1429,46 @@ export function FollowupModal({ sequence, templates, onSave, onClose }: any) {
                       placeholder="Email content..."
                     />
                   </div>
+
+                  {/* Step Attachments */}
+                  <div>
+                    <div className="flex items-center gap-2 mt-2">
+                      <button
+                        type="button"
+                        onClick={() => stepFileRefs.current[index]?.click()}
+                        disabled={uploadingStep === index}
+                        className="flex items-center gap-1.5 px-2 py-1 border border-gray-300 rounded text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        {uploadingStep === index ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Paperclip className="w-3 h-3" />}
+                        {uploadingStep === index ? 'Uploading...' : 'Attach Files'}
+                      </button>
+                      <input
+                        ref={(el) => { stepFileRefs.current[index] = el; }}
+                        type="file"
+                        multiple
+                        accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+                        onChange={(e) => handleStepFileUpload(index, e)}
+                        className="hidden"
+                      />
+                    </div>
+                    {step.attachments && step.attachments.length > 0 && (
+                      <div className="space-y-1 mt-1.5">
+                        {step.attachments.map((att: EmailAttachment, ai: number) => (
+                          <div key={ai} className="flex items-center justify-between bg-gray-100 rounded px-2 py-1 text-xs">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              {att.fileType === 'image' && <Image className="w-3 h-3 text-green-600" />}
+                              {att.fileType === 'video' && <Eye className="w-3 h-3 text-purple-600" />}
+                              {att.fileType === 'document' && <FileText className="w-3 h-3 text-blue-600" />}
+                              <span className="truncate text-gray-700">{att.fileName}</span>
+                            </div>
+                            <button onClick={() => removeStepAttachment(index, ai)} className="text-red-500 hover:text-red-700 ml-1">
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               ))}
 
@@ -1332,6 +1503,199 @@ export function FollowupModal({ sequence, templates, onSave, onClose }: any) {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Replies Tab - Shows emails that received replies
+export function RepliesTab({ token }: { token: string }) {
+  const [replies, setReplies] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [viewingReply, setViewingReply] = useState<any>(null);
+  const [page, setPage] = useState(0);
+  const [total, setTotal] = useState(0);
+  const limit = 25;
+
+  const fetchReplies = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(
+        `/api/admin/crm/email/logs?status=replied&limit=${limit}&skip=${page * limit}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const raw = data?.data ?? data;
+        setReplies(raw?.logs || []);
+        setTotal(raw?.pagination?.total || 0);
+      }
+    } catch (err) {
+      console.error('Failed to fetch replies:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [token, page]);
+
+  useEffect(() => {
+    fetchReplies();
+  }, [fetchReplies]);
+
+  const totalPages = Math.ceil(total / limit);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-gray-900">Email Replies</h2>
+        <button
+          onClick={fetchReplies}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm"
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          Refresh
+        </button>
+      </div>
+
+      <p className="text-sm text-gray-500">
+        Replies are tracked via Resend webhooks. Configure the webhook URL in your Resend Dashboard
+        to <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">/api/admin/crm/email/webhook</code>
+      </p>
+
+      {/* Replies List */}
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <RefreshCw className="w-6 h-6 animate-spin text-gray-400" />
+          </div>
+        ) : replies.length === 0 ? (
+          <div className="text-center py-16 px-4">
+            <MessageSquare className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+            <p className="text-gray-500 font-medium">No replies yet</p>
+            <p className="text-sm text-gray-400 mt-1">
+              When recipients reply to your emails, they will appear here
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="divide-y divide-gray-100">
+              {replies.map((reply: any) => (
+                <div
+                  key={reply._id}
+                  onClick={() => setViewingReply(reply)}
+                  className="p-4 hover:bg-gray-50 cursor-pointer flex items-start gap-4"
+                >
+                  <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                    <Mail className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-medium text-gray-900 truncate">
+                        {reply.recipientName || reply.recipientEmail}
+                      </p>
+                      <span className="text-xs text-gray-500 flex-shrink-0">
+                        {reply.repliedAt ? new Date(reply.repliedAt).toLocaleString() : 
+                         reply.updatedAt ? new Date(reply.updatedAt).toLocaleString() : ''}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-600 truncate">{reply.subject}</p>
+                    {reply.replyBody && (
+                      <p className="text-sm text-gray-500 mt-1 line-clamp-2">
+                        {reply.replyBody.slice(0, 200)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-gray-50">
+                <p className="text-sm text-gray-600">
+                  Showing {page * limit + 1} - {Math.min((page + 1) * limit, total)} of {total}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setPage(p => Math.max(0, p - 1))}
+                    disabled={page === 0}
+                    className="p-1.5 bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <span className="text-sm text-gray-600">Page {page + 1} of {totalPages}</span>
+                  <button
+                    onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+                    disabled={page >= totalPages - 1}
+                    className="p-1.5 bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Reply Detail Modal */}
+      {viewingReply && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-lg w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-900">Reply Details</h2>
+              <button onClick={() => setViewingReply(null)} className="text-gray-500 hover:text-gray-700">
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs font-medium text-gray-500">From</p>
+                  <p className="text-sm font-semibold text-gray-900">{viewingReply.recipientName || 'Unknown'}</p>
+                  <p className="text-sm text-gray-600">{viewingReply.recipientEmail}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500">Replied At</p>
+                  <p className="text-sm text-gray-900">
+                    {viewingReply.repliedAt ? new Date(viewingReply.repliedAt).toLocaleString() : 'N/A'}
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-medium text-gray-500 mb-1">Original Subject</p>
+                <p className="text-sm font-semibold text-gray-900 bg-gray-50 p-3 rounded">{viewingReply.subject}</p>
+              </div>
+
+              {viewingReply.body && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-1">Original Email</p>
+                  <div
+                    className="text-sm text-gray-700 bg-gray-50 p-3 rounded max-h-40 overflow-y-auto whitespace-pre-wrap"
+                    dangerouslySetInnerHTML={{ __html: viewingReply.body }}
+                  />
+                </div>
+              )}
+
+              {viewingReply.replyBody && (
+                <div>
+                  <p className="text-xs font-medium text-blue-600 mb-1">Reply</p>
+                  <div className="text-sm text-gray-900 bg-blue-50 border border-blue-200 p-3 rounded max-h-60 overflow-y-auto whitespace-pre-wrap">
+                    {viewingReply.replyBody}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="p-4 border-t border-gray-200 flex justify-end">
+              <button
+                onClick={() => setViewingReply(null)}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

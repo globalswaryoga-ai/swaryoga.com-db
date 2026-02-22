@@ -7,10 +7,36 @@ import { getViewerUserId, isSuperAdmin, getVisibleUserIds } from '@/lib/crm-hand
 export const dynamic = 'force-dynamic';
 
 /**
+ * Meta WhatsApp pricing rates (INR per message, as of 2025)
+ * Source: Meta Business Platform pricing for India
+ */
+const META_PRICING_INR: Record<string, number> = {
+  MARKETING: 3.3054,
+  MARKETING_LITE: 3.3054,
+  UTILITY: 1.00,
+  AUTHENTICATION: 1.00,
+  AUTHENTICATION_INTL: 2.93,
+  SERVICE: 0, // Free within 24h customer service window
+};
+
+/**
+ * Determine if a phone number is international (non-India)
+ * India: starts with '91' followed by 10 digits
+ * Nepal (977), etc. = international
+ */
+function isInternationalPhone(phone: string): boolean {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (digits.length === 10) return false; // Bare 10-digit = India
+  if (digits.startsWith('91') && digits.length === 12) return false; // 91XXXXXXXXXX = India
+  return digits.length > 10; // Anything else with country code = international
+}
+
+/**
  * Meta Dashboard Stats API
  * 
  * Returns aggregated statistics for:
- * - Messages: received vs sent counts
+ * - Messages: received vs sent counts + delivered
+ * - Message pricing: category breakdown, free/paid, charges
  * - Chat statuses: new, open, pending, overdue, closed
  * - User breakdown: stats by admin user
  * 
@@ -89,7 +115,7 @@ export async function GET(request: NextRequest) {
     };
 
     // Aggregate message stats
-    const [messageStats, chatStatusStats, userStats, totalLeads, dailyTrend] = await Promise.all([
+    const [messageStats, chatStatusStats, userStats, totalLeads, dailyTrend, deliveryStats, categoryBreakdown] = await Promise.all([
       // 1. Messages: sent vs received
       WhatsAppMessage.aggregate([
         { $match: messageFilter },
@@ -101,7 +127,9 @@ export async function GET(request: NextRequest) {
         },
       ]),
 
-      // 2. Chat status breakdown
+      // 2. Chat status breakdown (24h WhatsApp window logic)
+      // Uses lastInboundAt for timing: new=no inbound, open=0-12h, pending=12-23h, overdue=23-24h
+      // Respects stored chatStatus='closed' from admin actions
       Lead.aggregate([
         { $match: leadUserFilter },
         {
@@ -112,31 +140,32 @@ export async function GET(request: NextRequest) {
                 then: 'closed',
                 else: {
                   $cond: {
-                    if: { $eq: [{ $ifNull: ['$lastMessageAt', null] }, null] },
+                    // No inbound message → new (broadcast sent, no reply)
+                    if: { $eq: [{ $ifNull: ['$lastInboundAt', null] }, null] },
                     then: 'new',
                     else: {
                       $let: {
                         vars: {
-                          hoursDiff: {
+                          hoursSinceInbound: {
                             $divide: [
-                              { $subtract: [new Date(), '$lastMessageAt'] },
+                              { $subtract: [new Date(), { $ifNull: ['$lastInboundAt', '$lastMessageAt'] }] },
                               1000 * 60 * 60,
                             ],
                           },
                         },
                         in: {
                           $cond: {
-                            if: { $lt: ['$$hoursDiff', 5] },
-                            then: 'new',
+                            if: { $gte: ['$$hoursSinceInbound', 24] },
+                            then: 'new', // Window expired, treat as new
                             else: {
                               $cond: {
-                                if: { $lt: ['$$hoursDiff', 12] },
+                                if: { $lt: ['$$hoursSinceInbound', 12] },
                                 then: 'open',
                                 else: {
                                   $cond: {
-                                    if: { $lt: ['$$hoursDiff', 24] },
+                                    if: { $lt: ['$$hoursSinceInbound', 23] },
                                     then: 'pending',
-                                    else: 'overdue',
+                                    else: 'overdue', // 23-24h
                                   },
                                 },
                               },
@@ -200,6 +229,59 @@ export async function GET(request: NextRequest) {
         },
         { $sort: { '_id.date': 1 } },
       ]),
+
+      // 6. Delivery status breakdown (sent vs delivered vs read vs failed)
+      WhatsAppMessage.aggregate([
+        { $match: { ...messageFilter, direction: 'outbound' } },
+        {
+          $group: {
+            _id: '$status',
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+
+      // 7. Message category breakdown for pricing (outbound only, join with templates)
+      WhatsAppMessage.aggregate([
+        { $match: { ...messageFilter, direction: 'outbound' } },
+        {
+          $lookup: {
+            from: 'whatsapp_templates',
+            localField: 'templateId',
+            foreignField: '_id',
+            as: 'templateDoc',
+          },
+        },
+        {
+          $project: {
+            phoneNumber: 1,
+            messageType: 1,
+            status: 1,
+            templateCategory: {
+              $cond: {
+                if: { $eq: ['$messageType', 'template'] },
+                then: {
+                  $ifNull: [
+                    { $arrayElemAt: ['$templateDoc.category', 0] },
+                    'MARKETING',
+                  ],
+                },
+                else: 'SERVICE',
+              },
+            },
+          },
+        },
+        {
+          $group: {
+            _id: {
+              category: '$templateCategory',
+              status: '$status',
+            },
+            count: { $sum: 1 },
+            phones: { $addToSet: '$phoneNumber' },
+          },
+        },
+      ]),
     ]);
 
     // Format message stats
@@ -208,6 +290,115 @@ export async function GET(request: NextRequest) {
       received: messageStats.find((s: any) => s._id === 'inbound')?.count || 0,
       total: messageStats.reduce((acc: number, s: any) => acc + s.count, 0),
     };
+
+    // Format delivery stats
+    const delivered = {
+      total: 0,
+      sent: 0, // sent but not yet delivered
+      failed: 0,
+    };
+    for (const s of deliveryStats as any[]) {
+      if (s._id === 'delivered' || s._id === 'read') delivered.total += s.count;
+      else if (s._id === 'sent' || s._id === 'queued' || s._id === 'pending') delivered.sent += s.count;
+      else if (s._id === 'failed') delivered.failed += s.count;
+    }
+
+    // ─── Build Meta-style pricing breakdown ───
+    // Categorize: MARKETING, UTILITY, OTP/ACCOUNT_UPDATE→AUTHENTICATION, SERVICE
+    // Detect international from phone numbers in each group
+    const pricingCategories = {
+      marketing: { delivered: 0, total: 0, international: 0 },
+      marketingLite: { delivered: 0, total: 0, international: 0 },
+      utility: { delivered: 0, total: 0, international: 0 },
+      authentication: { delivered: 0, total: 0, international: 0 },
+      authenticationIntl: { delivered: 0, total: 0 },
+      service: { delivered: 0, total: 0, international: 0 },
+    };
+
+    for (const bucket of categoryBreakdown as any[]) {
+      const cat = bucket._id?.category || 'SERVICE';
+      const status = bucket._id?.status || '';
+      const count = bucket.count || 0;
+      const phones: string[] = bucket.phones || [];
+      const isDelivered = ['delivered', 'read'].includes(status);
+
+      // Count international phones in this bucket
+      const intlCount = phones.filter((p: string) => isInternationalPhone(p)).length;
+      // Rough per-message international estimate (proportional)
+      const intlMsgEstimate = phones.length > 0 ? Math.round((intlCount / phones.length) * count) : 0;
+
+      if (cat === 'MARKETING') {
+        pricingCategories.marketing.total += count;
+        if (isDelivered) pricingCategories.marketing.delivered += count;
+        pricingCategories.marketing.international += intlMsgEstimate;
+      } else if (cat === 'UTILITY') {
+        pricingCategories.utility.total += count;
+        if (isDelivered) pricingCategories.utility.delivered += count;
+        pricingCategories.utility.international += intlMsgEstimate;
+      } else if (cat === 'OTP' || cat === 'ACCOUNT_UPDATE') {
+        pricingCategories.authentication.total += count;
+        if (isDelivered) pricingCategories.authentication.delivered += count;
+        pricingCategories.authentication.international += intlMsgEstimate;
+        // International auth messages also tracked separately
+        if (intlMsgEstimate > 0) {
+          pricingCategories.authenticationIntl.total += intlMsgEstimate;
+          if (isDelivered) pricingCategories.authenticationIntl.delivered += intlMsgEstimate;
+        }
+      } else if (cat === 'SERVICE') {
+        pricingCategories.service.total += count;
+        if (isDelivered) pricingCategories.service.delivered += count;
+        pricingCategories.service.international += intlMsgEstimate;
+      }
+    }
+
+    // Free messages = service (within 24h window)
+    const freeMessages = {
+      total: pricingCategories.service.delivered,
+      freeCustomerService: pricingCategories.service.delivered,
+      freeEntryPoint: 0, // We don't track click-to-WhatsApp ads entry separately
+    };
+
+    // Paid messages = all non-service delivered messages
+    const paidMessages = {
+      total: pricingCategories.marketing.delivered +
+             pricingCategories.marketingLite.delivered +
+             pricingCategories.utility.delivered +
+             pricingCategories.authentication.delivered,
+      marketing: pricingCategories.marketing.delivered,
+      marketingLite: pricingCategories.marketingLite.delivered,
+      utility: pricingCategories.utility.delivered,
+      authentication: pricingCategories.authentication.delivered - pricingCategories.authenticationIntl.delivered,
+      authenticationIntl: pricingCategories.authenticationIntl.delivered,
+    };
+
+    // Messages delivered by category (like Meta dashboard)
+    const messagesDelivered = {
+      total: delivered.total,
+      marketing: pricingCategories.marketing.delivered,
+      marketingLite: pricingCategories.marketingLite.delivered,
+      utility: pricingCategories.utility.delivered,
+      authentication: pricingCategories.authentication.delivered - pricingCategories.authenticationIntl.delivered,
+      authenticationIntl: pricingCategories.authenticationIntl.delivered,
+      service: pricingCategories.service.delivered,
+    };
+
+    // Calculate approximate charges (INR)
+    const domesticMarketing = pricingCategories.marketing.delivered - pricingCategories.marketing.international;
+    const intlMarketing = pricingCategories.marketing.international;
+    const domesticUtility = pricingCategories.utility.delivered - pricingCategories.utility.international;
+    const intlUtility = pricingCategories.utility.international;
+    const domesticAuth = (pricingCategories.authentication.delivered - pricingCategories.authenticationIntl.delivered);
+    const intlAuth = pricingCategories.authenticationIntl.delivered;
+
+    const charges = {
+      total: 0,
+      marketing: +(domesticMarketing * META_PRICING_INR.MARKETING + intlMarketing * (META_PRICING_INR.MARKETING * 2.5)).toFixed(2),
+      marketingLite: 0,
+      utility: +(domesticUtility * META_PRICING_INR.UTILITY + intlUtility * (META_PRICING_INR.UTILITY * 3)).toFixed(2),
+      authentication: +(domesticAuth * META_PRICING_INR.AUTHENTICATION).toFixed(2),
+      authenticationIntl: +(intlAuth * META_PRICING_INR.AUTHENTICATION_INTL).toFixed(2),
+    };
+    charges.total = +(charges.marketing + charges.marketingLite + charges.utility + charges.authentication + charges.authenticationIntl).toFixed(2);
 
     // Format chat status stats
     const chatStatuses = {
@@ -249,6 +440,11 @@ export async function GET(request: NextRequest) {
         startDate,
         endDate,
         messages,
+        delivered,
+        messagesDelivered,
+        freeMessages,
+        paidMessages,
+        charges,
         chatStatuses,
         totalLeads,
         users,

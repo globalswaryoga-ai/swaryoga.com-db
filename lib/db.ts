@@ -1169,6 +1169,7 @@ const communityMemberSchema = new mongoose.Schema({
   email: { type: String, required: false, trim: true, lowercase: true, sparse: true },
   mobile: { type: String, required: true, trim: true },
   countryCode: { type: String, default: '+91' },
+  country: { type: String, default: '', trim: true }, // Country name (e.g., 'India', 'Nepal')
   userId: { type: String, required: true, index: true }, // 6-digit user ID
   communityId: { type: String, required: true }, // 'general', 'swar-yoga', etc.
   communityName: { type: String, required: true }, // Denormalized for quick queries

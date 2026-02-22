@@ -920,22 +920,24 @@ export default function ChatbotBuilder() {
               {/* Message types */}
               {block.type === 'message' && (
                 <div style={{ background: '#e5ddd5', borderRadius: 8, padding: 8, maxWidth: 210 }}>
-                  <div style={{ background: '#fff', borderRadius: 6, padding: '6px 8px' }}>
+                  {/* Video/URL preview on top */}
+                  {block.data?.message && renderUrlPreview(block.data.message)}
+                  <div style={{ background: '#fff', borderRadius: 6, padding: '6px 8px', marginTop: block.data?.message && extractUrl(block.data.message) ? 6 : 0 }}>
                     <p style={{ color: '#1f2937', fontSize: 11, lineHeight: 1.5, margin: 0, whiteSpace: 'pre-wrap' }}
                        dangerouslySetInnerHTML={{ __html: formatWhatsAppText((block.data?.message || 'Enter message...').length > 100 ? (block.data?.message || '').slice(0, 100) + '...' : (block.data?.message || 'Enter message...')) }}
                     />
                   </div>
-                  {block.data?.message && renderUrlPreview(block.data.message)}
                 </div>
               )}
               
               {/* Question/Buttons types - WhatsApp style blue buttons */}
               {(['question', 'buttons'].includes(block.type)) && (
                 <div>
-                  <div style={{ color: '#1f2937', fontSize: 12, marginBottom: 4, lineHeight: 1.4 }}
+                  {/* Video/URL preview on top */}
+                  {block.data?.question && renderUrlPreview(block.data.question)}
+                  <div style={{ color: '#1f2937', fontSize: 12, marginBottom: 4, marginTop: block.data?.question && extractUrl(block.data.question) ? 6 : 0, lineHeight: 1.4 }}
                        dangerouslySetInnerHTML={{ __html: formatWhatsAppText((block.data?.question || 'Enter question...').length > 80 ? (block.data?.question || '').slice(0, 80) + '...' : (block.data?.question || 'Enter question...')) }}
                   />
-                  {block.data?.question && renderUrlPreview(block.data.question)}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 3, borderTop: '1px solid #e5e7eb', paddingTop: 6 }}>
                     {(block.data?.options || []).map((opt, i) => {
                       const label = typeof opt === 'string' ? opt : opt.label;

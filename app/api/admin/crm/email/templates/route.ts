@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, subject, body: emailBody, category, variables } = body;
+    const { name, subject, body: emailBody, category, variables, attachments } = body;
 
     // Validation
     if (!name || !subject || !emailBody) {
@@ -86,6 +86,7 @@ export async function POST(request: NextRequest) {
       body: emailBody,
       category: category || 'general',
       variables: variables || [],
+      attachments: Array.isArray(attachments) ? attachments : [],
       createdBy: decoded.userId || decoded.username,
     });
 

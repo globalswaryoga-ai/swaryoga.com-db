@@ -16,9 +16,18 @@ import {
   FollowupsTab, 
   AnalyticsTab,
   ReportsTab,
+  RepliesTab,
   TemplateModal,
   FollowupModal
 } from '@/components/admin/email/EmailComponents';
+
+interface EmailAttachment {
+  fileName: string;
+  url: string;
+  mimeType?: string;
+  sizeBytes?: number;
+  fileType?: 'image' | 'video' | 'document';
+}
 
 interface Lead {
   _id: string;
@@ -39,6 +48,7 @@ interface EmailTemplate {
   body: string;
   category?: string;
   variables?: string[];
+  attachments?: EmailAttachment[];
   createdAt?: string;
   updatedAt?: string;
 }
@@ -103,7 +113,7 @@ export default function EmailAutomationPage() {
   
   // UI State
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [activeTab, setActiveTab] = useState<'compose' | 'campaigns' | 'reports' | 'templates' | 'followups' | 'analytics'>('compose');
+  const [activeTab, setActiveTab] = useState<'compose' | 'campaigns' | 'reports' | 'templates' | 'followups' | 'analytics' | 'replies'>('compose');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -116,6 +126,7 @@ export default function EmailAutomationPage() {
   const [scheduleMode, setScheduleMode] = useState<'now' | 'later'>('now');
   const [scheduledDate, setScheduledDate] = useState('');
   const [scheduledTime, setScheduledTime] = useState('');
+  const [emailAttachments, setEmailAttachments] = useState<EmailAttachment[]>([]);
   
   // Leads State
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -350,6 +361,9 @@ export default function EmailAutomationPage() {
       setEmailSubject(template.subject);
       setEmailBody(template.body);
       setSelectedTemplate(templateId);
+      if (template.attachments && template.attachments.length > 0) {
+        setEmailAttachments(template.attachments);
+      }
     }
   };
 
@@ -402,6 +416,7 @@ export default function EmailAutomationPage() {
         subject: emailSubject,
         body: emailBody,
         templateId: selectedTemplate || undefined,
+        attachments: emailAttachments,
         scheduleMode,
         scheduledAt: scheduleMode === 'later' && scheduledDate && scheduledTime
           ? new Date(`${scheduledDate}T${scheduledTime}`).toISOString()
@@ -436,6 +451,7 @@ export default function EmailAutomationPage() {
       setScheduleMode('now');
       setScheduledDate('');
       setScheduledTime('');
+      setEmailAttachments([]);
 
       // Refresh campaigns
       await fetchCampaigns();
@@ -651,6 +667,19 @@ export default function EmailAutomationPage() {
                 Analytics
               </div>
             </button>
+            <button
+              onClick={() => setActiveTab('replies')}
+              className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
+                activeTab === 'replies'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Mail className="w-4 h-4" />
+                Replies
+              </div>
+            </button>
           </div>
         </header>
 
@@ -712,6 +741,9 @@ export default function EmailAutomationPage() {
               setSourceFilter={setSourceFilter}
               isSuperAdmin={isSuperAdmin}
               assignedLeadIds={assignedLeadIds}
+              attachments={emailAttachments}
+              setAttachments={setEmailAttachments}
+              token={token}
             />
           )}
 
@@ -753,6 +785,10 @@ export default function EmailAutomationPage() {
           {activeTab === 'analytics' && (
             <AnalyticsTab campaigns={campaigns} />
           )}
+
+          {activeTab === 'replies' && (
+            <RepliesTab token={token} />
+          )}
         </main>
       </div>
 
@@ -761,6 +797,7 @@ export default function EmailAutomationPage() {
         <TemplateModal
           template={editingTemplate}
           onSave={handleSaveTemplate}
+          token={token}
           onClose={() => {
             setShowTemplateModal(false);
             setEditingTemplate(null);
@@ -774,6 +811,7 @@ export default function EmailAutomationPage() {
           sequence={editingFollowup}
           templates={templates}
           onSave={handleSaveFollowup}
+          token={token}
           onClose={() => {
             setShowFollowupModal(false);
             setEditingFollowup(null);
@@ -792,8 +830,47 @@ function ComposeTab({
   scheduleMode, setScheduleMode, scheduledDate, setScheduledDate, scheduledTime, setScheduledTime,
   handleSendEmail, loading, canSendEmail,
   searchQuery, setSearchQuery, statusFilter, setStatusFilter, sourceFilter, setSourceFilter,
-  isSuperAdmin, assignedLeadIds
+  isSuperAdmin, assignedLeadIds,
+  attachments, setAttachments, token
 }: any) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploading(true);
+    try {
+      for (const file of Array.from(files)) {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const res = await fetch('/api/admin/crm/email/upload', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        });
+
+        const data = await res.json();
+        if (res.ok && data.data) {
+          setAttachments((prev: any[]) => [...prev, data.data]);
+        } else {
+          alert(`Upload failed: ${data.error || 'Unknown error'}`);
+        }
+      }
+    } catch (err: any) {
+      alert(`Upload error: ${err.message}`);
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments((prev: any[]) => prev.filter((_: any, i: number) => i !== index));
+  };
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* Recipients Panel */}
@@ -956,6 +1033,64 @@ function ComposeTab({
             <p className="text-xs text-gray-500 mt-2">
               Available variables: {'{name}'}, {'{email}'}, {'{phone}'}
             </p>
+          </div>
+
+          {/* Attachments */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Attachments
+            </label>
+            <div className="flex items-center gap-2 mb-2">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                {uploading ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Paperclip className="w-4 h-4" />
+                )}
+                {uploading ? 'Uploading...' : 'Add Files'}
+              </button>
+              <span className="text-xs text-gray-500">
+                Images, Videos, PDFs, Documents (max 25MB video, 10MB others)
+              </span>
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+            {attachments && attachments.length > 0 && (
+              <div className="space-y-2 mt-2">
+                {attachments.map((att: any, i: number) => (
+                  <div key={i} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 border border-gray-200">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {att.fileType === 'image' && <Image className="w-4 h-4 text-green-600 flex-shrink-0" />}
+                      {att.fileType === 'video' && <Eye className="w-4 h-4 text-purple-600 flex-shrink-0" />}
+                      {att.fileType === 'document' && <FileText className="w-4 h-4 text-blue-600 flex-shrink-0" />}
+                      <span className="text-sm text-gray-800 truncate">{att.fileName}</span>
+                      {att.sizeBytes && (
+                        <span className="text-xs text-gray-500 flex-shrink-0">
+                          ({(att.sizeBytes / 1024).toFixed(0)} KB)
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => removeAttachment(i)}
+                      className="text-red-500 hover:text-red-700 flex-shrink-0 ml-2"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Schedule Options */}

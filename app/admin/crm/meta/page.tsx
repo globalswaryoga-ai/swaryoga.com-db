@@ -3165,7 +3165,7 @@ export default function MetaInboxPage() {
                               if (e.key === 'Enter' && e.ctrlKey) {
                                 e.preventDefault();
                                 if (newQuickReply.trim()) {
-                                  setQuickReplies(prev => [...prev, { id: Date.now().toString(), text: newQuickReply }]);
+                                  setQuickReplies(prev => [{ id: Date.now().toString(), text: newQuickReply }, ...prev]);
                                   setNewQuickReply('');
                                 }
                               }
@@ -3175,7 +3175,7 @@ export default function MetaInboxPage() {
                             className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl text-sm font-bold"
                             onClick={() => {
                               if (newQuickReply.trim()) {
-                                setQuickReplies(prev => [...prev, { id: Date.now().toString(), text: newQuickReply }]);
+                                setQuickReplies(prev => [{ id: Date.now().toString(), text: newQuickReply }, ...prev]);
                                 setNewQuickReply('');
                               }
                             }}

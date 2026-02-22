@@ -262,7 +262,7 @@ export default function AnalyticsPage() {
                   <div className="bg-white border border-slate-200/70 rounded-2xl p-6 shadow-sm">
                     <div className="text-slate-900 font-extrabold mb-4 text-sm">By Status</div>
                     <div className="space-y-2">
-                      {Object.entries(analytics.leads.byStatus).map(([status, count]) => (
+                      {Object.entries(analytics.leads.byStatus || {}).map(([status, count]) => (
                         <div key={status} className="flex justify-between text-slate-700 text-sm">
                           <span className="capitalize">{status}</span>
                           <span className="font-bold text-slate-900">{count}</span>
@@ -283,7 +283,7 @@ export default function AnalyticsPage() {
                 <div className="bg-white border border-slate-200/70 rounded-2xl p-6 shadow-sm">
                   <div className="text-slate-900 font-extrabold mb-3 text-sm">Payment Methods</div>
                   <div className="space-y-2">
-                    {Object.entries(analytics.sales.byPaymentMode).map(([method]) => (
+                    {Object.entries(analytics.sales.byPaymentMode || {}).map(([method]) => (
                       <div key={method} className="text-slate-700 text-xs capitalize">{method}</div>
                     ))}
                   </div>

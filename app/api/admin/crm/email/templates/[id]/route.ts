@@ -24,7 +24,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { name, subject, body: emailBody, category, variables } = body;
+    const { name, subject, body: emailBody, category, variables, attachments } = body;
 
     await connectDB();
     const EmailTemplate = getEmailTemplate();
@@ -53,6 +53,7 @@ export async function PUT(
     if (emailBody) updateData.body = emailBody;
     if (category) updateData.category = category;
     if (variables !== undefined) updateData.variables = variables;
+    if (attachments !== undefined) updateData.attachments = attachments;
 
     const updatedTemplate = await EmailTemplate.findByIdAndUpdate(
       params.id,

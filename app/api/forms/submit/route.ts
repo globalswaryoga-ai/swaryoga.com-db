@@ -429,7 +429,7 @@ export async function POST(request: NextRequest) {
           email: cleanedEmail,
           phoneNumber: cleanedPhone,
           status: formType === 'workshop' || formType === 'sales' ? 'hot' : 'lead',
-          source: source || 'form-link',
+          source: source || 'website-form',
           workshopName: workshopName || (formType === 'signup' ? 'Website Signup' : 'Form Submission'),
           labels: ['form-submission', formType || 'lead', workshopName || 'general'].filter(Boolean),
           createdByUserId: 'system',

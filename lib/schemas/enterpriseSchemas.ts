@@ -80,7 +80,7 @@ const LeadSchema = new mongoose.Schema(
     email: { type: String, trim: true, lowercase: true },
     status: {
       type: String,
-      enum: ['lead', 'prospect', 'customer', 'inactive'],
+      enum: ['lead', 'hot', 'prospect', 'customer', 'inactive'],
       default: 'lead',
       index: true,
     },
@@ -92,6 +92,7 @@ const LeadSchema = new mongoose.Schema(
         'website',
         'website-form',
         'website-signup',
+        'form-link',
         'import',
         'csv-import',
         'api',

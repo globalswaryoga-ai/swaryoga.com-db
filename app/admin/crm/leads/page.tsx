@@ -30,7 +30,7 @@ interface Lead {
   name: string;
   email: string;
   phoneNumber: string;
-  status: 'lead' | 'prospect' | 'customer' | 'inactive';
+  status: 'lead' | 'hot' | 'prospect' | 'customer' | 'inactive';
   source: string;
   labels: string[];
   workshopId?: string;
@@ -491,6 +491,7 @@ export default function LeadsPage() {
           className="px-3 py-1.5 bg-green-500/90 border border-green-400/50 rounded-full text-sm text-white font-bold focus:outline-none focus:ring-2 focus:ring-green-400 cursor-pointer hover:bg-green-400 transition-all duration-300 shadow-lg shadow-green-500/20"
         >
           <option value="lead" className="bg-[#1a1a1a] text-white">Lead</option>
+          <option value="hot" className="bg-[#1a1a1a] text-white">🔥 Hot</option>
           <option value="prospect" className="bg-[#1a1a1a] text-white">Prospect</option>
           <option value="customer" className="bg-[#1a1a1a] text-white">Customer</option>
           <option value="inactive" className="bg-[#1a1a1a] text-white">Inactive</option>
@@ -779,6 +780,7 @@ export default function LeadsPage() {
               >
                 <option value="" className="bg-[#1a1a1a] text-white">All Status ({total})</option>
                 <option value="lead" className="bg-[#1a1a1a] text-white">Lead ({statusCounts.lead || 0})</option>
+                <option value="hot" className="bg-[#1a1a1a] text-white">🔥 Hot ({statusCounts.hot || 0})</option>
                 <option value="prospect" className="bg-[#1a1a1a] text-white">Prospect ({statusCounts.prospect || 0})</option>
                 <option value="customer" className="bg-[#1a1a1a] text-white">Customer ({statusCounts.customer || 0})</option>
                 <option value="inactive" className="bg-[#1a1a1a] text-white">Inactive ({statusCounts.inactive || 0})</option>
@@ -948,6 +950,7 @@ export default function LeadsPage() {
                   >
                     <option value="" className="bg-[#1a1a1a]">Set Status (optional)</option>
                     <option value="lead" className="bg-[#1a1a1a]">Lead</option>
+                    <option value="hot" className="bg-[#1a1a1a]">🔥 Hot</option>
                     <option value="prospect" className="bg-[#1a1a1a]">Prospect</option>
                     <option value="customer" className="bg-[#1a1a1a]">Customer</option>
                     <option value="inactive" className="bg-[#1a1a1a]">Inactive</option>
@@ -1340,7 +1343,7 @@ export default function LeadsPage() {
               <div className="mt-3 text-xs text-blue-300/80 space-y-0.5">
                 <p><strong className="text-blue-400">Required:</strong> Phone Number</p>
                 <p><strong className="text-blue-400">Optional:</strong> Name, Email, Status, Source, Workshop Name, Address, Labels</p>
-                <p><strong className="text-blue-400">Status values:</strong> lead, prospect, customer, inactive</p>
+                <p><strong className="text-blue-400">Status values:</strong> lead, hot, prospect, customer, inactive</p>
               </div>
             </div>
 

@@ -448,10 +448,10 @@ export default function AdminActivityPage() {
                 {/* Leads by Status */}
                 <div className="bg-slate-900/50 border-2 border-orange-500/30 rounded-2xl p-6 hover:border-orange-500/50 transition-all">
                   <h3 className="text-sm font-bold text-slate-400 mb-4">Leads by Status</h3>
-                  {Object.entries(activity.leadsByStatus).length > 0 ? (
+                  {Object.entries(activity.leadsByStatus || {}).length > 0 ? (
                     <div className="space-y-3">
-                      {Object.entries(activity.leadsByStatus).map(([status, count]) => {
-                        const total = Object.values(activity.leadsByStatus).reduce((a, b) => a + b, 0);
+                      {Object.entries(activity.leadsByStatus || {}).map(([status, count]) => {
+                        const total = Object.values(activity.leadsByStatus || {}).reduce((a, b) => a + b, 0);
                         return (
                           <ProgressBar 
                             key={status} 

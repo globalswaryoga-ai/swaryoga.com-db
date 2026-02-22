@@ -13,7 +13,7 @@ interface Message {
 interface ChatWindowProps {
   contactName: string;
   contactPhone?: string;
-  status: 'lead' | 'prospect' | 'customer' | 'inactive';
+  status: 'lead' | 'hot' | 'prospect' | 'customer' | 'inactive';
   onSendMessage?: (message: string, templates?: string[]) => void;
   onStatusChange?: (newStatus: string) => void;
 }

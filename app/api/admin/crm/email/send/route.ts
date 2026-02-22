@@ -5,7 +5,7 @@ import { hasPermission } from '@/lib/permissions';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { getEmailCampaign, getEmailLog } from '@/lib/schemas/enterpriseSchemas';
 import { sendBulkEmails, sendEmailToLead } from '@/lib/email';
-import type { EmailRecipient } from '@/lib/email';
+import type { EmailRecipient, EmailAttachment } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,7 +31,12 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { recipients, subject, body: emailBody, templateId, scheduleMode, scheduledAt, source } = body;
+    const { recipients, subject, body: emailBody, templateId, scheduleMode, scheduledAt, source, attachments } = body;
+
+    // Normalize attachments
+    const emailAttachments: EmailAttachment[] = Array.isArray(attachments) ? attachments.filter(
+      (a: any) => a && a.url && a.fileName
+    ) : [];
 
     if (!recipients || !Array.isArray(recipients) || recipients.length === 0) {
       return apiError('VALIDATION_ERROR', 'Recipients array is required and must not be empty');
@@ -66,7 +71,7 @@ export async function POST(request: NextRequest) {
         phone: r.phone || '',
       };
 
-      const result = await sendEmailToLead(recipient, subject, emailBody);
+      const result = await sendEmailToLead(recipient, subject, emailBody, { attachments: emailAttachments });
 
       // Log the email
       await EmailLog.create({
@@ -75,6 +80,7 @@ export async function POST(request: NextRequest) {
         recipientName: recipient.name,
         subject,
         body: emailBody,
+        attachments: emailAttachments,
         status: result.status === 'sent' ? 'sent' : 'failed',
         resendId: result.resendId,
         error: result.error,
@@ -100,6 +106,7 @@ export async function POST(request: NextRequest) {
       body: emailBody,
       templateId: templateId || undefined,
       recipients: validRecipients.map((r: any) => r.email),
+      attachments: emailAttachments,
       status: scheduleMode === 'later' ? 'scheduled' : 'draft',
       scheduledAt: scheduledAt || undefined,
       stats: {
@@ -130,7 +137,7 @@ export async function POST(request: NextRequest) {
           phone: r.phone,
         }));
 
-        const bulkResult = await sendBulkEmails(emailRecipients, subject, emailBody);
+        const bulkResult = await sendBulkEmails(emailRecipients, subject, emailBody, { attachments: emailAttachments });
 
         // Create email log entries for each recipient
         const logEntries = bulkResult.results.map(result => ({
@@ -140,6 +147,7 @@ export async function POST(request: NextRequest) {
           recipientName: result.recipient.name,
           subject,
           body: emailBody,
+          attachments: emailAttachments,
           status: result.status === 'sent' ? 'sent' : 'failed',
           resendId: result.resendId,
           error: result.error,

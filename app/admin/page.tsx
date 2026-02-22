@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { LayoutDashboard, Users, LogOut, UserCheck, Bell, ScrollText, Sparkles } from 'lucide-react';
+import { LayoutDashboard, Users, LogOut, UserCheck, Bell, ScrollText, Sparkles, UsersRound } from 'lucide-react';
 
 type AdminUserPayload = {
   userId?: string;
@@ -207,6 +207,20 @@ export default function AdminRoot() {
             icon={<UserCheck size={40} className="text-white" />}
           />
         </div>
+
+        {canDashboard && (
+          <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-8">
+            <Card
+              href="/admin/community/members"
+              enabled={true}
+              title="Community Members"
+              description="Approve or remove community join requests. Manage pending members."
+              cta="→ Manage Members"
+              gradientClass="bg-gradient-to-br from-emerald-600 to-teal-800"
+              icon={<UsersRound size={40} className="text-white" />}
+            />
+          </div>
+        )}
 
         <div className="mt-10">
           <h3 className="text-xl font-semibold text-white mb-4">More details</h3>

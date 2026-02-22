@@ -44,6 +44,7 @@ interface CommunityMember {
   name: string;
   email?: string;
   mobile: string;
+  country?: string;
   communityName: string;
   joinedAt: string;
   status: 'active' | 'inactive' | 'banned';
@@ -1833,6 +1834,7 @@ export default function AdminCommunityPage() {
                         <tr className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
                            <th className="pl-10 px-4 py-3">Profile</th>
                            <th className="px-4 py-3">Connectivity</th>
+                           <th className="px-4 py-3">Approved</th>
                            <th className="px-4 py-3">Status</th>
                            <th className="px-4 py-3">Interaction</th>
                            <th className="pr-10 px-4 py-3 text-right">Ops</th>
@@ -1850,16 +1852,42 @@ export default function AdminCommunityPage() {
                                    </div>
                                 </div>
                              </td>
-                             <td className="px-4 py-3 font-semibold text-sm text-slate-600">{member.mobile}</td>
+                             <td className="px-4 py-3">
+                                <div className="flex flex-col">
+                                   <span className="font-semibold text-sm text-slate-600">{member.mobile}</span>
+                                   {member.country && <span className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">{member.country}</span>}
+                                </div>
+                             </td>
+                             <td className="px-4 py-3">
+                                <label className="flex items-center gap-2 cursor-pointer group/approve">
+                                   <input
+                                      type="checkbox"
+                                      checked={!!member.approved}
+                                      onChange={() => {
+                                         if (!member.approved) {
+                                            approveMember(member._id);
+                                         }
+                                      }}
+                                      disabled={!!member.approved || approving === member._id}
+                                      className="w-5 h-5 rounded border-2 border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer disabled:cursor-default accent-emerald-600"
+                                   />
+                                   {approving === member._id ? (
+                                      <Loader size={14} className="animate-spin text-emerald-500" />
+                                   ) : member.approved ? (
+                                      <span className="text-[9px] font-bold text-emerald-600 uppercase">Approved</span>
+                                   ) : (
+                                      <span className="text-[9px] font-bold text-amber-600 uppercase">Pending</span>
+                                   )}
+                                </label>
+                             </td>
                              <td className="px-4 py-3">
                                 <div className="flex flex-col gap-0.5">
                                    <span className={`px-3 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest inline-block w-fit ${member.status === 'active' ? 'bg-emerald-50 text-emerald-700' : member.status === 'banned' ? 'bg-red-50 text-red-700' : 'bg-slate-50 text-slate-500'}`}>{member.status}</span>
                                    {!member.approved && (
                                       <>
-                                         <span className="px-2 py-0.5 text-[8px] font-bold text-amber-600 bg-amber-50 rounded border border-amber-100 uppercase w-fit">Pending Approval</span>
                                          {member.metadata?.requestMessage && (
                                             <p className="text-[9px] text-slate-500 italic max-w-[150px] truncate" title={member.metadata.requestMessage}>
-                                               "{member.metadata.requestMessage}"
+                                               &quot;{member.metadata.requestMessage}&quot;
                                             </p>
                                          )}
                                          {member.metadata?.workshopsCompleted && (
@@ -1879,16 +1907,6 @@ export default function AdminCommunityPage() {
                              </td>
                              <td className="pr-10 px-4 py-3 text-right opacity-0 group-hover:opacity-100 transition-all">
                                 <div className="flex justify-end gap-1.5">
-                                   {!member.approved && (
-                                      <button 
-                                         onClick={() => approveMember(member._id)} 
-                                         disabled={approving === member._id}
-                                         title="Approve Member"
-                                         className="p-2 hover:bg-emerald-600 hover:text-white rounded-lg transition-all text-emerald-600 border border-emerald-100 bg-emerald-50 disabled:opacity-50"
-                                      >
-                                         {approving === member._id ? <Loader size={16} className="animate-spin" /> : <CheckCircle size={16}/>}
-                                      </button>
-                                   )}
                                    <button onClick={() => openChatPermissions(member)} className="p-2 hover:bg-slate-900 hover:text-white rounded-lg transition-all text-slate-400 border border-slate-100" title="Chat Permissions"><Shield size={16}/></button>
                                    <button onClick={() => { setSelectedMember(member); setShowMessageModal(true); }} className="p-2 hover:bg-indigo-600 hover:text-white rounded-lg transition-all text-slate-400 border border-slate-100" title="Send Message"><Send size={16}/></button>
                                    {member.status === 'banned' ? (

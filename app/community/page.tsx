@@ -58,7 +58,7 @@ function CommunityPageContent() {
   const [userMemberships, setUserMemberships] = useState<string[]>([]); // Communities user is a member of
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [joiningCommunity, setJoiningCommunity] = useState<any>(null);
-  const [joinFormData, setJoinFormData] = useState({ name: '', email: '', mobile: '' });
+  const [joinFormData, setJoinFormData] = useState({ name: '', email: '', mobile: '', country: 'India' });
   const [joiningLoading, setJoiningLoading] = useState(false);
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [requestingCommunity, setRequestingCommunity] = useState<any>(null);
@@ -487,7 +487,7 @@ function CommunityPageContent() {
   };
 
   const handleJoinCommunity = async () => {
-    if (!joinFormData.name || !joinFormData.email || !joinFormData.mobile) {
+    if (!joinFormData.name || !joinFormData.email || !joinFormData.mobile || !joinFormData.country) {
       alert('Please fill all fields');
       return;
     }
@@ -513,7 +513,8 @@ function CommunityPageContent() {
           name: joinFormData.name,
           email: joinFormData.email,
           mobile: joinFormData.mobile,
-          countryCode: '+91',
+          country: joinFormData.country,
+          countryCode: joinFormData.country === 'India' ? '+91' : joinFormData.country === 'Nepal' ? '+977' : '+91',
           communityId: joiningCommunity.id,
           communityName: joiningCommunity.name,
           // If joining via invite link (?join=), mark as invited for auto-approval
@@ -562,7 +563,7 @@ function CommunityPageContent() {
       }
       
       setShowJoinModal(false);
-      setJoinFormData({ name: '', email: '', mobile: '' });
+      setJoinFormData({ name: '', email: '', mobile: '', country: 'India' });
       
       // Refresh community stats after joining
       fetchCommunityStats();
@@ -1639,11 +1640,31 @@ function CommunityPageContent() {
                 />
               </div>
 
+              <div>
+                <label className="block text-sm font-bold text-white mb-2">🌍 Country</label>
+                <select
+                  value={joinFormData.country}
+                  onChange={(e) => setJoinFormData({...joinFormData, country: e.target.value})}
+                  className="w-full px-4 py-3 bg-white text-black border border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-white shadow-sm"
+                >
+                  <option value="India">🇮🇳 India</option>
+                  <option value="Nepal">🇳🇵 Nepal</option>
+                  <option value="USA">🇺🇸 USA</option>
+                  <option value="UK">🇬🇧 UK</option>
+                  <option value="Canada">🇨🇦 Canada</option>
+                  <option value="Australia">🇦🇺 Australia</option>
+                  <option value="UAE">🇦🇪 UAE</option>
+                  <option value="Singapore">🇸🇬 Singapore</option>
+                  <option value="Germany">🇩🇪 Germany</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
               <div className="flex gap-3 pt-4">
                 <button
                   onClick={() => {
                     setShowJoinModal(false);
-                    setJoinFormData({ name: '', email: '', mobile: '' });
+                    setJoinFormData({ name: '', email: '', mobile: '', country: 'India' });
                   }}
                   className="flex-1 px-4 py-3 bg-white/20 hover:bg-white/30 text-white border border-white/40 rounded-lg font-bold transition-all duration-200 shadow-sm"
                 >

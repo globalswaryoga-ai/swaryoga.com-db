@@ -4,7 +4,7 @@ import { verifyToken } from '@/lib/auth';
 import { hasPermission } from '@/lib/permissions';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { getEmailLog } from '@/lib/schemas/enterpriseSchemas';
-import { sendEmail, wrapInEmailTemplate, personalizeEmail } from '@/lib/email';
+import { sendEmail, wrapInEmailTemplate, personalizeEmail, EmailAttachment } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,10 +60,16 @@ export async function POST(request: NextRequest) {
         });
         const html = wrapInEmailTemplate(personalizedBody, log.subject);
 
+        // Include original attachments if any
+        const emailAttachments: EmailAttachment[] = Array.isArray(log.attachments)
+          ? log.attachments.filter((a: any) => a.url && a.fileName)
+          : [];
+
         const result = await sendEmail({
           to: log.recipientEmail,
           subject: log.subject,
           html,
+          attachments: emailAttachments,
         });
 
         if (result.success) {

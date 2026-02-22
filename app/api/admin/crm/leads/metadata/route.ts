@@ -57,6 +57,7 @@ export async function GET(request: NextRequest) {
     // Get status counts (scoped to visible leads)
     const statusCounts = await Promise.all([
       Lead.countDocuments({ ...baseFilter, status: 'lead' }),
+      Lead.countDocuments({ ...baseFilter, status: 'hot' }),
       Lead.countDocuments({ ...baseFilter, status: 'prospect' }),
       Lead.countDocuments({ ...baseFilter, status: 'customer' }),
       Lead.countDocuments({ ...baseFilter, status: 'inactive' }),
@@ -101,9 +102,10 @@ export async function GET(request: NextRequest) {
           total,
           statusCounts: {
             lead: statusCounts[0],
-            prospect: statusCounts[1],
-            customer: statusCounts[2],
-            inactive: statusCounts[3],
+            hot: statusCounts[1],
+            prospect: statusCounts[2],
+            customer: statusCounts[3],
+            inactive: statusCounts[4],
           },
           workshops: uniqueWorkshops.sort(),
           workshopCounts,

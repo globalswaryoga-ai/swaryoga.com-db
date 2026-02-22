@@ -19,7 +19,7 @@ type AdminUserOption = {
   permissions?: string[];
 };
 
-type LeadStatus = 'lead' | 'prospect' | 'customer' | 'inactive';
+type LeadStatus = 'lead' | 'hot' | 'prospect' | 'customer' | 'inactive';
 
 export default function CreateLeadModal({ isOpen, token, onClose, initialPhone }: Props) {
   const router = useRouter();
@@ -267,6 +267,7 @@ export default function CreateLeadModal({ isOpen, token, onClose, initialPhone }
             className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2 text-slate-900 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400"
           >
             <option value="lead">Lead</option>
+            <option value="hot">🔥 Hot</option>
             <option value="prospect">Prospect</option>
             <option value="customer">Customer</option>
             <option value="inactive">Inactive</option>

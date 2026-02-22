@@ -15,7 +15,7 @@ interface Lead {
   name: string;
   email: string;
   phoneNumber: string;
-  status: 'lead' | 'prospect' | 'customer' | 'inactive';
+  status: 'lead' | 'hot' | 'prospect' | 'customer' | 'inactive';
   source: string;
   labels: string[];
   workshopId?: string;
@@ -429,7 +429,7 @@ export default function LeadDetailPage() {
               <div className="mt-6 lead-print-hide">
                 <div className="text-sm font-bold text-slate-900 mb-3">Quick status</div>
                 <div className="flex flex-wrap gap-3">
-                  {(['lead', 'prospect', 'customer', 'inactive'] as const).map((status) => (
+                  {(['lead', 'hot', 'prospect', 'customer', 'inactive'] as const).map((status) => (
                     <button
                       key={status}
                       onClick={() => handleStatusChange(status)}

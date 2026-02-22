@@ -9,7 +9,7 @@ interface Conversation {
   lastMessageTime: string;
   unreadCount: number;
   labels: string[];
-  status: 'lead' | 'prospect' | 'customer' | 'inactive';
+  status: 'lead' | 'hot' | 'prospect' | 'customer' | 'inactive';
   avatar?: string;
 }
 

@@ -12,12 +12,21 @@ export interface EmailRecipient {
   phone?: string;
 }
 
+export interface EmailAttachment {
+  fileName: string;
+  url: string;
+  mimeType?: string;
+  sizeBytes?: number;
+  fileType?: 'image' | 'video' | 'document';
+}
+
 export interface SendEmailOptions {
   to: string;
   subject: string;
   html: string;
   from?: string;
   replyTo?: string;
+  attachments?: EmailAttachment[];
 }
 
 export interface BulkEmailResult {
@@ -111,19 +120,46 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ success: b
   try {
     const apiKey = getResendApiKey();
 
+    // Build attachments array for Resend API (fetch remote URLs into base64)
+    let resendAttachments: Array<{ filename: string; content: string }> | undefined;
+    if (options.attachments && options.attachments.length > 0) {
+      resendAttachments = [];
+      for (const att of options.attachments) {
+        try {
+          const resp = await fetch(att.url);
+          if (resp.ok) {
+            const buffer = Buffer.from(await resp.arrayBuffer());
+            resendAttachments.push({
+              filename: att.fileName,
+              content: buffer.toString('base64'),
+            });
+          } else {
+            console.warn(`[Email] Failed to fetch attachment ${att.fileName}: HTTP ${resp.status}`);
+          }
+        } catch (fetchErr) {
+          console.warn(`[Email] Failed to fetch attachment ${att.fileName}:`, fetchErr);
+        }
+      }
+    }
+
+    const payload: any = {
+      from: options.from || getFromAddress(),
+      to: options.to,
+      subject: options.subject,
+      html: options.html,
+      reply_to: options.replyTo || undefined,
+    };
+    if (resendAttachments && resendAttachments.length > 0) {
+      payload.attachments = resendAttachments;
+    }
+
     const response = await fetch(RESEND_API_URL, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        from: options.from || getFromAddress(),
-        to: options.to,
-        subject: options.subject,
-        html: options.html,
-        reply_to: options.replyTo || undefined,
-      }),
+      body: JSON.stringify(payload),
     });
 
     const data = await response.json();
@@ -148,7 +184,7 @@ export async function sendBulkEmails(
   recipients: EmailRecipient[],
   subject: string,
   body: string,
-  options?: { wrapTemplate?: boolean; delayMs?: number }
+  options?: { wrapTemplate?: boolean; delayMs?: number; attachments?: EmailAttachment[] }
 ): Promise<BulkSendSummary> {
   const results: BulkEmailResult[] = [];
   let sent = 0;
@@ -166,6 +202,7 @@ export async function sendBulkEmails(
         to: recipient.email,
         subject: personalizedSubject,
         html: htmlContent,
+        attachments: options?.attachments,
       });
 
       if (result.success) {
@@ -209,7 +246,7 @@ export async function sendEmailToLead(
   recipient: EmailRecipient,
   subject: string,
   body: string,
-  options?: { wrapTemplate?: boolean }
+  options?: { wrapTemplate?: boolean; attachments?: EmailAttachment[] }
 ): Promise<BulkEmailResult> {
   const wrapTemplate = options?.wrapTemplate ?? true;
 
@@ -222,6 +259,7 @@ export async function sendEmailToLead(
       to: recipient.email,
       subject: personalizedSubject,
       html: htmlContent,
+      attachments: options?.attachments,
     });
 
     return {

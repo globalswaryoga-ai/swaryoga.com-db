@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
       phoneNumber: { type: String, required: true, unique: true, index: true },
       status: {
         type: String,
-        enum: ['lead', 'prospect', 'customer', 'inactive'],
+        enum: ['lead', 'hot', 'prospect', 'customer', 'inactive'],
         default: 'lead',
         index: true,
       },

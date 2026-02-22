@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
   try {
     await connectDB();
 
-    const { name, email, mobile, countryCode, communityId, communityName, viaInviteLink } = await request.json();
+    const { name, email, mobile, countryCode, country, communityId, communityName, viaInviteLink } = await request.json();
 
     // Validate inputs
     if (!name || !mobile || !communityId || !communityName) {
@@ -103,6 +103,7 @@ export async function POST(request: NextRequest) {
       existingMember.name = name.trim();
       existingMember.email = email ? email.trim().toLowerCase() : existingMember.email;
       existingMember.countryCode = countryCode || '+91';
+      existingMember.country = country || existingMember.country || '';
       existingMember.status = 'active';
       // Keep their previous approval status
       
@@ -138,18 +139,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Members joining via invite link (?join=<id>) are auto-approved like global.
-    // Sidebar-driven joins to non-public communities should use /api/community/request-access instead.
+    // Only Global community members are auto-approved.
+    // All other communities (including invite-link joins) require admin approval.
     const newMember = new CommunityMember({
       name: name.trim(),
       email: email ? email.trim().toLowerCase() : null,
       mobile: cleanMobile,
       countryCode: countryCode || '+91',
+      country: country || '',
       userId: leadUserId,
       communityId,
       communityName,
       status: 'active',
-      approved: communityId === 'global' || !!viaInviteLink, // Global + invite-link joins are auto-approved
+      approved: communityId === 'global', // Only Global is auto-approved; all others need admin approval
       joinedAt: new Date(),
     });
 
@@ -184,9 +186,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const message = communityId === 'global' || !!viaInviteLink
+    const message = communityId === 'global'
       ? `✅ Welcome! You have successfully joined ${communityName || 'the community'}.`
-      : '👋 Registration successful! Messaging will be enabled after admin approval.';
+      : '👋 Registration successful! Your request is pending admin approval. You will be notified once approved.';
 
     // Generate JWT token for the community user
     const token = generateToken({ 
