@@ -128,6 +128,7 @@ export async function POST(request: NextRequest) {
       const { getWhatsAppEnv } = await import('@/lib/whatsapp');
       const env = getWhatsAppEnv();
       const senderNumber = env?.phoneNumber || '9779006820';
+      const chatbotMeta = { chatbot: { flowId: flow._id, nodeId: metadata?.nodeId, autoStart: true } };
 
       const presenceType = metadata?.presenceType || 'composing';
       const presenceDelay = Number(metadata?.presenceDelay || 1);
@@ -138,6 +139,46 @@ export async function POST(request: NextRequest) {
         } catch (_) {}
       }
 
+      // If body contains a URL, split into 2 messages for link preview/thumbnail
+      const hasUrl = /https?:\/\/\S+/i.test(bodyText);
+
+      if (hasUrl && bodyText.trim()) {
+        // Step 1: Text with URL (gets link preview/video thumbnail)
+        const textMsg = await WhatsAppMessage.create({
+          leadId: lead._id, phoneNumber: phone, direction: 'outbound',
+          messageType: 'text', messageContent: bodyText, status: 'queued',
+          sentAt: now, metadata: chatbotMeta, provider: 'meta', senderNumber,
+        });
+        try {
+          const r = await sendWhatsAppText(phone, bodyText);
+          await WhatsAppMessage.updateOne({ _id: textMsg._id }, { $set: { status: 'sent', waMessageId: r.waMessageId, updatedAt: new Date() } });
+        } catch (err) {
+          const e = err instanceof Error ? err.message : 'Send failed';
+          await WhatsAppMessage.updateOne({ _id: textMsg._id }, { $set: { status: 'failed', failureReason: e, updatedAt: new Date() } });
+        }
+
+        await sleep(1000);
+
+        // Step 2: Buttons with short prompt
+        const btnPrompt = 'Please reply after watching:';
+        const labels = buttons.map((b, i) => `${i + 1}. ${b.title}`).join('\n');
+        const btnMsg = await WhatsAppMessage.create({
+          leadId: lead._id, phoneNumber: phone, direction: 'outbound',
+          messageType: 'interactive', messageContent: `${btnPrompt}\n\n${labels}`, status: 'queued',
+          sentAt: new Date(), metadata: chatbotMeta, provider: 'meta', senderNumber,
+        });
+        try {
+          const r = await sendWhatsAppInteractiveButtons(phone, btnPrompt, buttons);
+          await WhatsAppMessage.updateOne({ _id: btnMsg._id }, { $set: { status: 'sent', waMessageId: r.waMessageId, updatedAt: new Date() } });
+          return { success: true, waMessageId: r.waMessageId };
+        } catch (err) {
+          const e = err instanceof Error ? err.message : 'Send failed';
+          await WhatsAppMessage.updateOne({ _id: btnMsg._id }, { $set: { status: 'failed', failureReason: e, updatedAt: new Date() } });
+          return { success: false, error: e };
+        }
+      }
+
+      // No URL — single interactive message
       const labels = buttons.map((b, i) => `${i + 1}. ${b.title}`).join('\n');
       const displayContent = bodyText ? `${bodyText}\n\n${labels}` : labels;
 
@@ -149,7 +190,7 @@ export async function POST(request: NextRequest) {
         messageContent: displayContent,
         status: 'queued',
         sentAt: now,
-        metadata: { chatbot: { flowId: flow._id, nodeId: metadata?.nodeId, autoStart: true } },
+        metadata: chatbotMeta,
         provider: 'meta',
         senderNumber,
       });

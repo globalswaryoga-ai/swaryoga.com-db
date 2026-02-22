@@ -275,7 +275,77 @@ async function sendOutboundInteractiveButtons(
     } catch (err) { console.warn('[Automation] Presence failed:', err); }
   }
 
-  // Log what will be sent (body + button labels for the DB record)
+  // Check if body contains a URL — interactive messages don't show link previews,
+  // so we split: send the text (with URL) as a regular message first for the thumbnail,
+  // then send just the buttons as a separate interactive message.
+  const hasUrl = /https?:\/\/\S+/i.test(bodyText);
+
+  if (hasUrl && bodyText.trim()) {
+    // Step 1: Send the text with URL as a regular message (gets link preview/thumbnail)
+    const textMsg = await WhatsAppMessage.create({
+      leadId: lead._id,
+      phoneNumber: to,
+      direction: 'outbound',
+      messageType: 'text',
+      messageContent: bodyText,
+      status: 'queued',
+      sentAt: now,
+      metadata,
+      provider: env ? 'meta' : 'whatsapp_web_bridge',
+      senderNumber,
+    });
+
+    try {
+      const textResult = await sendWhatsAppText(to, bodyText);
+      await WhatsAppMessage.updateOne(
+        { _id: textMsg._id },
+        { $set: { status: 'sent', waMessageId: textResult.waMessageId, provider: textResult.raw?.provider || 'meta', senderNumber, updatedAt: new Date() }, $unset: { failureReason: 1 } }
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Text send failed';
+      await WhatsAppMessage.updateOne(
+        { _id: textMsg._id },
+        { $set: { status: 'failed', failureReason: String(msg), updatedAt: new Date() } }
+      );
+    }
+
+    // Brief pause so messages arrive in order
+    await sleep(1000);
+
+    // Step 2: Send just the interactive buttons with a short prompt
+    const btnPrompt = 'Please reply after watching:';
+    const labels = buttons.map((b, i) => `${i + 1}. ${b.title}`).join('\n');
+
+    const btnMsg = await WhatsAppMessage.create({
+      leadId: lead._id,
+      phoneNumber: to,
+      direction: 'outbound',
+      messageType: 'interactive',
+      messageContent: `${btnPrompt}\n\n${labels}`,
+      status: 'queued',
+      sentAt: new Date(),
+      metadata,
+      provider: env ? 'meta' : 'whatsapp_web_bridge',
+      senderNumber,
+    });
+
+    try {
+      const btnResult = await sendWhatsAppInteractiveButtons(to, btnPrompt, buttons);
+      await WhatsAppMessage.updateOne(
+        { _id: btnMsg._id },
+        { $set: { status: 'sent', waMessageId: btnResult.waMessageId, provider: btnResult.raw?.provider || 'meta', senderNumber, updatedAt: new Date() }, $unset: { failureReason: 1 } }
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Interactive send failed';
+      await WhatsAppMessage.updateOne(
+        { _id: btnMsg._id },
+        { $set: { status: 'failed', failureReason: String(msg), updatedAt: new Date() } }
+      );
+    }
+    return;
+  }
+
+  // No URL in body — send as a single interactive button message
   const labels = buttons.map((b, i) => `${i + 1}. ${b.title}`).join('\n');
   const displayContent = bodyText ? `${bodyText}\n\n${labels}` : labels;
 

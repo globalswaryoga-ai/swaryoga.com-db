@@ -80,7 +80,48 @@ async function sendAndLogInteractiveMessage(
   const env = getWhatsAppEnv();
   const senderNumber = env?.phoneNumber || '9779006820';
   const now = new Date();
+  const meta = { chatbot: { flowId, nodeId, scheduled: true } };
 
+  // If body contains a URL, split into 2 messages so the link preview/thumbnail shows
+  const hasUrl = /https?:\/\/\S+/i.test(bodyText);
+
+  if (hasUrl && bodyText.trim()) {
+    // Step 1: Regular text message with URL (gets link preview/thumbnail)
+    const textMsg = await WhatsAppMessage.create({
+      leadId: lead._id, phoneNumber: phone, direction: 'outbound',
+      messageType: 'text', messageContent: bodyText, status: 'queued',
+      sentAt: now, metadata: meta, provider: 'meta', senderNumber,
+    });
+    try {
+      const r = await sendWhatsAppText(phone, bodyText);
+      await WhatsAppMessage.updateOne({ _id: textMsg._id }, { $set: { status: 'sent', waMessageId: r.waMessageId, updatedAt: new Date() } });
+    } catch (err) {
+      const e = err instanceof Error ? err.message : 'Send failed';
+      await WhatsAppMessage.updateOne({ _id: textMsg._id }, { $set: { status: 'failed', failureReason: e, updatedAt: new Date() } });
+    }
+
+    await sleep(1000);
+
+    // Step 2: Interactive buttons with short prompt
+    const btnPrompt = 'Please reply after watching:';
+    const labels = buttons.map((b, i) => `${i + 1}. ${b.title}`).join('\n');
+    const btnMsg = await WhatsAppMessage.create({
+      leadId: lead._id, phoneNumber: phone, direction: 'outbound',
+      messageType: 'interactive', messageContent: `${btnPrompt}\n\n${labels}`, status: 'queued',
+      sentAt: new Date(), metadata: meta, provider: 'meta', senderNumber,
+    });
+    try {
+      const r = await sendWhatsAppInteractiveButtons(phone, btnPrompt, buttons);
+      await WhatsAppMessage.updateOne({ _id: btnMsg._id }, { $set: { status: 'sent', waMessageId: r.waMessageId, updatedAt: new Date() } });
+    } catch (err) {
+      const e = err instanceof Error ? err.message : 'Send failed';
+      await WhatsAppMessage.updateOne({ _id: btnMsg._id }, { $set: { status: 'failed', failureReason: e, updatedAt: new Date() } });
+      throw err;
+    }
+    return;
+  }
+
+  // No URL — single interactive message
   const labels = buttons.map((b, i) => `${i + 1}. ${b.title}`).join('\n');
   const displayContent = bodyText ? `${bodyText}\n\n${labels}` : labels;
 
@@ -92,7 +133,7 @@ async function sendAndLogInteractiveMessage(
     messageContent: displayContent,
     status: 'queued',
     sentAt: now,
-    metadata: { chatbot: { flowId, nodeId, scheduled: true } },
+    metadata: meta,
     provider: 'meta',
     senderNumber,
   });
