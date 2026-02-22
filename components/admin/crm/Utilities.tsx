@@ -10,11 +10,11 @@ interface StatusBadgeProps {
 }
 
 const variantClasses = {
-  success: 'bg-green-900/30 text-green-400 border-green-700',
-  danger: 'bg-red-900/30 text-red-400 border-red-700',
-  warning: 'bg-yellow-900/30 text-yellow-400 border-yellow-700',
-  info: 'bg-blue-900/30 text-blue-400 border-blue-700',
-  default: 'bg-slate-700 text-slate-200 border-slate-600',
+  success: 'bg-green-100 text-green-800 border-green-300',
+  danger: 'bg-red-100 text-red-800 border-red-300',
+  warning: 'bg-yellow-300 text-black border-yellow-500',
+  info: 'bg-blue-100 text-blue-800 border-blue-300',
+  default: 'bg-slate-100 text-slate-700 border-slate-300',
 };
 
 const sizeClasses = {
