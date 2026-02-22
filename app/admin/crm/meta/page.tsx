@@ -59,6 +59,7 @@ type ConversationRow = {
   lastMessageContent?: string;
   lastMessageAt?: string;
   lastDirection?: 'inbound' | 'outbound' | string;
+  lastInboundAt?: string;  // Timestamp of last user (inbound) message
   unreadCount?: number;
   status?: string;
   labels?: string[];
@@ -1037,6 +1038,25 @@ export default function MetaInboxPage() {
       });
       setComposerText('');
       setAttachedMedia(null);
+
+      // Auto-close chat status after admin replies
+      if (selected.leadId) {
+        try {
+          await crmFetch(`/api/admin/crm/leads/${selected.leadId}/chat-status`, {
+            method: 'PATCH',
+            body: { chatStatus: 'closed' }
+          });
+          // Update local state
+          setSelected(prev => prev ? { ...prev, chatStatus: 'closed' } : null);
+          setConversations(prev => prev.map(c =>
+            c.leadId === selected.leadId ? { ...c, chatStatus: 'closed' } : c
+          ));
+        } catch (e) {
+          // Non-fatal: status update failure shouldn't block messaging
+          console.warn('Auto-close status update failed:', e);
+        }
+      }
+
       // Refresh messages and conversations
       await Promise.all([
         loadMessages(leadId || phoneNumber),
@@ -1206,7 +1226,7 @@ export default function MetaInboxPage() {
     // Filter by chat status
     if (chatStatusFilter !== 'all') {
       result = result.filter(c => {
-        const computedStatus = calculateChatStatus(c.lastMessageAt, c.chatStatus);
+        const computedStatus = calculateChatStatus(c.lastMessageAt, c.chatStatus, c.lastInboundAt, c.lastDirection);
         return computedStatus === chatStatusFilter;
       });
     }
@@ -2172,6 +2192,8 @@ export default function MetaInboxPage() {
                       <ChatStatusBadge
                         lastMessageAt={conv.lastMessageAt}
                         manualStatus={conv.chatStatus}
+                        lastInboundAt={conv.lastInboundAt}
+                        lastDirection={conv.lastDirection}
                         size="xs"
                         interactive={true}
                         onStatusChange={(newStatus) => handleChatStatusChange(newStatus, conv.leadId)}
@@ -2373,13 +2395,15 @@ export default function MetaInboxPage() {
                 <ChatStatusBadge
                   lastMessageAt={selected.lastMessageAt}
                   manualStatus={selected.chatStatus}
+                  lastInboundAt={selected.lastInboundAt}
+                  lastDirection={selected.lastDirection}
                   size="sm"
                   interactive={true}
                   onStatusChange={handleChatStatusChange}
                 />
                 
                 {/* Quick Close/Reopen Button */}
-                {calculateChatStatus(selected.lastMessageAt, selected.chatStatus) !== 'closed' ? (
+                {calculateChatStatus(selected.lastMessageAt, selected.chatStatus, selected.lastInboundAt, selected.lastDirection) !== 'closed' ? (
                   <button
                     className="p-2 text-slate-600 hover:text-slate-700 hover:bg-slate-100 rounded-xl border border-slate-200/70 transition-all"
                     title="Mark as Closed (Completed)"

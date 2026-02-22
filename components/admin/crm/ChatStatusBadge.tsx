@@ -14,6 +14,10 @@ export interface ChatStatusBadgeProps {
   lastMessageAt?: Date | string | null;
   /** Manual status override (e.g., 'closed') */
   manualStatus?: ChatStatus;
+  /** Last inbound (user reply) timestamp for 24h window calculation */
+  lastInboundAt?: Date | string | null;
+  /** Direction of the most recent message */
+  lastDirection?: 'inbound' | 'outbound' | string;
   /** Show time remaining indicator */
   showTimeRemaining?: boolean;
   /** Size variant */
@@ -38,6 +42,8 @@ export interface ChatStatusBadgeProps {
 export default function ChatStatusBadge({
   lastMessageAt,
   manualStatus,
+  lastInboundAt,
+  lastDirection,
   showTimeRemaining = false,
   size = 'sm',
   interactive = false,
@@ -47,7 +53,7 @@ export default function ChatStatusBadge({
   const [isOpen, setIsOpen] = React.useState(false);
   const dropdownRef = React.useRef<HTMLDivElement>(null);
 
-  const statusInfo = getChatStatusInfo(lastMessageAt, manualStatus);
+  const statusInfo = getChatStatusInfo(lastMessageAt, manualStatus, lastInboundAt, lastDirection);
 
   // Close dropdown on outside click
   React.useEffect(() => {
@@ -97,7 +103,7 @@ export default function ChatStatusBadge({
         bgColor: 'bg-emerald-50',
         borderColor: 'border-emerald-200',
         icon: 'ph-sparkle',
-        description: 'Fresh (0-5h)',
+        description: 'Broadcast sent, no reply yet',
       },
     },
     open: {
@@ -107,7 +113,7 @@ export default function ChatStatusBadge({
         bgColor: 'bg-blue-50',
         borderColor: 'border-blue-200',
         icon: 'ph-envelope-open',
-        description: 'Active (5-12h)',
+        description: 'User replied (0-12h)',
       },
     },
     pending: {
@@ -117,7 +123,7 @@ export default function ChatStatusBadge({
         bgColor: 'bg-amber-50',
         borderColor: 'border-amber-200',
         icon: 'ph-clock',
-        description: 'Waiting (12-24h)',
+        description: 'Window closing (12-23h)',
       },
     },
     overdue: {
@@ -127,7 +133,7 @@ export default function ChatStatusBadge({
         bgColor: 'bg-red-50',
         borderColor: 'border-red-200',
         icon: 'ph-warning',
-        description: 'Urgent (>24h)',
+        description: 'Window expiring (23-24h)!',
       },
     },
     closed: {
@@ -137,7 +143,7 @@ export default function ChatStatusBadge({
         bgColor: 'bg-slate-100',
         borderColor: 'border-slate-300',
         icon: 'ph-check-circle',
-        description: 'Completed',
+        description: 'Admin replied',
       },
     },
   };

@@ -110,6 +110,16 @@ export async function GET(request: NextRequest) {
         lastDirection: { $first: '$direction' },
         lastStatus: { $first: '$status' },
         phoneNumber: { $first: '$phoneNumber' },
+        // Track the most recent INBOUND message time for 24h window status
+        lastInboundAt: {
+          $max: {
+            $cond: [
+              { $eq: ['$direction', 'inbound'] },
+              '$_messageTime',
+              null,
+            ],
+          },
+        },
         unreadCount: {
           $sum: {
             $cond: [
@@ -347,6 +357,8 @@ export async function GET(request: NextRequest) {
         lastMessageAt: 1,
         lastMessageContent: 1,
         lastDirection: 1,
+        lastInboundAt: 1,
+        chatStatus: '$lead.chatStatus',
         lastStatus: 1,
         unreadCount: 1,
       },
