@@ -1766,12 +1766,12 @@ export default function MetaInboxPage() {
               />
             </div>
             <button
-              className="p-2 text-red-600 hover:bg-red-600 hover:text-white rounded-xl border border-red-200/50 transition-all active:scale-90"
+              className="h-9 w-9 flex items-center justify-center bg-blue-600 text-white rounded-xl shadow-md hover:bg-blue-700 transition-all active:scale-90"
               title="Add New Lead"
               onClick={modal.open}
               type="button"
             >
-              <i className="ph ph-plus-bold text-sm"></i>
+              <i className="ph ph-plus-bold text-base"></i>
             </button>
           </div>
 
