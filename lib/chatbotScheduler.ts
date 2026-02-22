@@ -6,7 +6,7 @@
  */
 
 import { connectDB } from '@/lib/db';
-import { getChatbotScheduledAction, getChatbotFlow, Lead } from '@/lib/schemas/enterpriseSchemas';
+import { getChatbotScheduledAction, getChatbotFlow, Lead, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { normalizePhone, sendWhatsAppText, sendWhatsAppPresence } from '@/lib/whatsapp';
 
 export type ChatbotSchedulerResult = {
@@ -24,6 +24,45 @@ export type ChatbotSchedulerResult = {
 };
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Send a WhatsApp text message and log it to the database so it appears in Meta inbox
+ */
+async function sendAndLogMessage(lead: any, phone: string, text: string, flowId: string, nodeId?: string): Promise<void> {
+  const WhatsAppMessage = getWhatsAppMessage();
+  const { getWhatsAppEnv } = await import('@/lib/whatsapp');
+  const env = getWhatsAppEnv();
+  const senderNumber = env?.phoneNumber || '9779006820';
+  const now = new Date();
+
+  const msg = await WhatsAppMessage.create({
+    leadId: lead._id,
+    phoneNumber: phone,
+    direction: 'outbound',
+    messageType: 'text',
+    messageContent: text,
+    status: 'queued',
+    sentAt: now,
+    metadata: { chatbot: { flowId, nodeId, scheduled: true } },
+    provider: 'meta',
+    senderNumber,
+  });
+
+  try {
+    const result = await sendWhatsAppText(phone, text);
+    await WhatsAppMessage.updateOne(
+      { _id: msg._id },
+      { $set: { status: 'sent', waMessageId: result.waMessageId, updatedAt: new Date() } }
+    );
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : 'Send failed';
+    await WhatsAppMessage.updateOne(
+      { _id: msg._id },
+      { $set: { status: 'failed', failureReason: errMsg, updatedAt: new Date() } }
+    );
+    throw err;
+  }
+}
 
 /**
  * Spintax processing: {Hello|Hi|Hey} becomes one of the options randomly
@@ -132,8 +171,8 @@ async function executeAction(action: any): Promise<{ status: 'ok' | 'error'; err
           }
         }
         
-        // Send the message
-        await sendWhatsAppText(phone, result.text);
+        // Send the message and log to database
+        await sendAndLogMessage(lead, phone, result.text, String((flow as any)._id), action.targetNodeId);
         console.log(`[ChatbotScheduler] Sent delayed message to ${phone}`);
         
         // Update lead state
@@ -194,7 +233,7 @@ async function executeAction(action: any): Promise<{ status: 'ok' | 'error'; err
               }
             }
             
-            await sendWhatsAppText(phone, result.text);
+            await sendAndLogMessage(lead, phone, result.text, String((flow as any)._id), timeoutNodeId);
             console.log(`[ChatbotScheduler] Sent timeout message to ${phone}`);
           }
           

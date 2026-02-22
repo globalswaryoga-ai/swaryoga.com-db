@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
 /**
  * GET /api/admin/crm/chatbot-actions/run
  * 
- * Health check - returns status without processing
+ * Called by Vercel Cron every minute to process due chatbot scheduled actions.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -50,11 +50,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Chatbot action scheduler is ready',
-      timestamp: new Date().toISOString()
-    }, { status: 200 });
+    const data = await runDueChatbotActions({ limit: 100 });
+    return NextResponse.json({ success: true, data }, { status: 200 });
   } catch (error) {
     return handleCrmError(error, 'GET chatbot-actions/run');
   }
