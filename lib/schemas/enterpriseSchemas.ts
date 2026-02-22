@@ -173,6 +173,17 @@ const LeadSchema = new mongoose.Schema(
     chatStatusClosedAt: { type: Date }, // When user manually closed the chat
     chatStatusClosedBy: { type: String, trim: true }, // Who closed the chat (userId)
 
+    // =====================================================
+    // BLOCK / STOP SYSTEM
+    // Blocks a lead so no messages are sent and inbound is filtered
+    // Triggered manually or auto-detected via "stop" keyword
+    // =====================================================
+    isBlocked: { type: Boolean, default: false, index: true },
+    blockedAt: { type: Date },
+    blockedBy: { type: String, trim: true }, // userId who blocked
+    blockedReason: { type: String, trim: true }, // 'stop_keyword' | 'manual' | 'spam' | etc.
+    unblockedAt: { type: Date },
+
     metadata: mongoose.Schema.Types.Mixed,
   },
   { timestamps: true, collection: 'leads' }

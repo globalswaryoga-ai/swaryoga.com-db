@@ -359,6 +359,8 @@ export async function GET(request: NextRequest) {
         lastDirection: 1,
         lastInboundAt: 1,
         chatStatus: '$lead.chatStatus',
+        isBlocked: { $ifNull: ['$lead.isBlocked', false] },
+        blockedReason: '$lead.blockedReason',
         lastStatus: 1,
         unreadCount: 1,
       },

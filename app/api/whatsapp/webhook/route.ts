@@ -603,6 +603,32 @@ async function handleWebhookPayload(payload: any) {
               message: `Inbound from ${from} (${type}) for BID: ${businessPhoneNumberId || 'unknown'}: ${body?.substring(0, 50)}`,
             });
 
+            // ================================================================
+            // STOP / BLOCK KEYWORD DETECTION
+            // If user sends "stop", "unsubscribe", or "block" → auto-block lead
+            // ================================================================
+            const stopKeywords = ['stop', 'unsubscribe', 'block', 'opt out', 'opt-out', 'cancel'];
+            const normalizedBody = (body || '').toLowerCase().trim();
+            if (stopKeywords.includes(normalizedBody)) {
+              console.log(`🚫 [STOP DETECTED] Auto-blocking lead ${lead._id} (phone: ${from}) — keyword: "${normalizedBody}"`);
+              await Lead.updateOne({ _id: lead._id }, {
+                $set: {
+                  isBlocked: true,
+                  blockedAt: now,
+                  blockedReason: 'stop_keyword',
+                  blockedBy: 'system',
+                }
+              });
+              // Skip automations for blocked leads
+              continue;
+            }
+
+            // If lead is already blocked, skip automations but still store message
+            if (lead.isBlocked) {
+              console.log(`🚫 [BLOCKED] Skipping automations for blocked lead ${lead._id} (phone: ${from})`);
+              continue;
+            }
+
             // Trigger automation logic
             handleInboundWhatsAppAutomations({
               leadId: lead._id,

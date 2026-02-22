@@ -20,6 +20,9 @@ type Body = {
   labels?: string[];
   addLabels?: string[];
   removeLabels?: string[];
+  isBlocked?: boolean;
+  blockedReason?: string;
+  blockedBy?: string;
 };
 
 export async function POST(request: NextRequest) {
@@ -31,7 +34,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'leadIds is required' }, { status: 400 });
     }
 
-    const { assignedToUserId, workshopName, status, labels, addLabels, removeLabels } = body;
+    const { assignedToUserId, workshopName, status, labels, addLabels, removeLabels, isBlocked, blockedReason, blockedBy } = body;
 
     const objectIds = body.leadIds
       .map((id) => String(id))
@@ -49,6 +52,21 @@ export async function POST(request: NextRequest) {
     if (workshopName !== undefined) update.workshopName = String(workshopName).trim();
     if (status !== undefined) update.status = String(status).trim();
     if (labels !== undefined) update.labels = labels;
+
+    // Block / Unblock support
+    if (isBlocked !== undefined) {
+      update.isBlocked = Boolean(isBlocked);
+      if (isBlocked) {
+        update.blockedAt = new Date();
+        if (blockedReason) update.blockedReason = String(blockedReason).trim();
+        if (blockedBy) update.blockedBy = String(blockedBy).trim();
+      } else {
+        update.unblockedAt = new Date();
+        update.blockedAt = null;
+        update.blockedReason = null;
+        update.blockedBy = null;
+      }
+    }
 
     // Handle add/remove labels if provided (optional complexity)
     const arrayUpdates: Record<string, any> = {};

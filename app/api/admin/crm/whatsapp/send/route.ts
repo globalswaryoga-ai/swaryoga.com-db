@@ -65,6 +65,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Lead not found' }, { status: 404 });
     }
 
+    // BLOCK CHECK: Prevent sending to blocked leads
+    if (lead?.isBlocked) {
+      console.log(`[SEND:${requestId}] 🚫 Lead ${lead._id} is blocked — message rejected`);
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Cannot send message to a blocked user. Unblock them first.' 
+      }, { status: 403 });
+    }
+
     // ACCESS CONTROL: Check if regular admin is assigned to this lead
     if (!superAdmin && lead) {
       const assignedTo = String(lead.assignedToUserId || '').trim();

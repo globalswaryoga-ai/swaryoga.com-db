@@ -123,6 +123,7 @@ export default function ChatbotsPage() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [duplicating, setDuplicating] = useState<string | null>(null);
 
   const fetchStats = useCallback(async () => {
     setLoading(true);
@@ -164,6 +165,25 @@ export default function ChatbotsPage() {
     }
     fetchStats();
   }, [token, router, fetchStats]);
+
+  // Duplicate a flow
+  const duplicateFlow = useCallback(async (flowId: string) => {
+    if (duplicating) return;
+    setDuplicating(flowId);
+    try {
+      const res = await crmFetch(`/api/admin/crm/chatbot-flows/${flowId}/duplicate`, { method: 'POST' });
+      if (res?._id) {
+        // Refresh stats to show the new flow
+        await fetchStats();
+        // Navigate to the duplicated flow's builder
+        router.push(`/admin/crm/chatbots/builder/${res._id}`);
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Failed to duplicate flow');
+    } finally {
+      setDuplicating(null);
+    }
+  }, [duplicating, crmFetch, fetchStats, router]);
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -279,17 +299,27 @@ export default function ChatbotsPage() {
               ) : (
                 <div className="space-y-3">
                   {stats.recentFlows.map((flow) => (
-                    <Link key={flow._id} href={`/admin/crm/chatbots/builder/${flow._id}`} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">
-                      <div>
+                    <div key={flow._id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                      <Link href={`/admin/crm/chatbots/builder/${flow._id}`} className="flex-1 min-w-0">
                         <div className="font-medium text-gray-900">{flow.name}</div>
                         <div className="text-xs text-gray-500">{flow.nodes?.length || 0} nodes</div>
+                      </Link>
+                      <div className="flex items-center gap-2 ml-2">
+                        <button
+                          onClick={(e) => { e.preventDefault(); duplicateFlow(flow._id); }}
+                          disabled={duplicating === flow._id}
+                          className="px-2 py-1 rounded text-xs font-medium bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors disabled:opacity-50"
+                          title="Duplicate this flow"
+                        >
+                          {duplicating === flow._id ? '...' : '📋 Copy'}
+                        </button>
+                        <span className={`px-2 py-1 rounded text-xs font-bold ${
+                          flow.enabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                        }`}>
+                          {flow.enabled ? 'ON' : 'OFF'}
+                        </span>
                       </div>
-                      <span className={`px-2 py-1 rounded text-xs font-bold ${
-                        flow.enabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
-                      }`}>
-                        {flow.enabled ? 'ON' : 'OFF'}
-                      </span>
-                    </Link>
+                    </div>
                   ))}
                 </div>
               )}

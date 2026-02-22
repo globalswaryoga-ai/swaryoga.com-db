@@ -147,10 +147,37 @@ export default function ChatbotBuilder() {
   const [templates, setTemplates] = useState<Array<{ _id: string; templateName: string; language: string; metaStatus?: string; headerMedia?: { url: string; type?: string }; headerFormat?: string; templateContent?: string; bodyText?: string; footerText?: string; buttons?: Array<{ type: string; text: string; url?: string; phone_number?: string }>; category?: string }>>([]);
   const [uploadingBlockId, setUploadingBlockId] = useState<string | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const canvasInnerRef = useRef<HTMLDivElement>(null);
   const rafMoveRef = useRef<number | null>(null);
+
+  // Zoom & Pan
+  const [zoom, setZoom] = useState(1);
+  const [canvasPan, setCanvasPan] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const panStartRef = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
 
   const [showEmojiPicker, setShowEmojiPicker] = useState<string | null>(null); // blockId of emoji target
   const [emojiTarget, setEmojiTarget] = useState<'message' | 'question'>('message');
+
+  // Zoom helpers
+  const zoomIn = () => setZoom(z => Math.min(z + 0.1, 2));
+  const zoomOut = () => setZoom(z => Math.max(z - 0.1, 0.2));
+  const zoomReset = () => { setZoom(1); setCanvasPan({ x: 0, y: 0 }); };
+  const fitToView = () => {
+    if (blocks.length === 0 || !canvasRef.current) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const minX = Math.min(...blocks.map(b => b.x));
+    const maxX = Math.max(...blocks.map(b => b.x + 240));
+    const minY = Math.min(...blocks.map(b => b.y));
+    const maxY = Math.max(...blocks.map(b => b.y + 200));
+    const contentW = maxX - minX + 80;
+    const contentH = maxY - minY + 80;
+    const scaleX = rect.width / contentW;
+    const scaleY = rect.height / contentH;
+    const newZoom = Math.max(0.2, Math.min(Math.min(scaleX, scaleY), 1));
+    setZoom(newZoom);
+    setCanvasPan({ x: -minX + 40, y: -minY + 40 });
+  };
 
   // WhatsApp text formatting helper
   const formatWhatsAppText = (text: string) => {
@@ -307,11 +334,15 @@ export default function ChatbotBuilder() {
   const addBlock = useCallback(
     (type: string) => {
       const blockType = BLOCK_TYPES.find((b) => b.id === type);
+      // Place new blocks in the visible viewport area, accounting for pan
+      const canvasRect = canvasRef.current?.getBoundingClientRect();
+      const viewCenterX = canvasRect ? (canvasRect.width / 2) / zoom - canvasPan.x : 300;
+      const viewCenterY = canvasRect ? (canvasRect.height / 2) / zoom - canvasPan.y : 200;
       const newBlock: Block = {
         id: `block_${Date.now()}`,
         type: type as any,
-        x: 150 + blocks.length * 30,
-        y: 150 + blocks.length * 30,
+        x: viewCenterX - 120 + blocks.length * 30,
+        y: viewCenterY - 100 + blocks.length * 30,
         label: blockType?.name || 'Block',
         data: {
           message: type === 'message' || type === 'end' ? 'Enter message text...' : undefined,
@@ -363,17 +394,23 @@ export default function ChatbotBuilder() {
       setBlocks((prev) => [...prev, newBlock]);
       setSelectedBlock(newBlock.id);
     },
-    [blocks.length]
+    [blocks.length, zoom, canvasPan] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
-  // Canvas mouse down for dragging
+  // Canvas mouse down for dragging or panning
   const handleCanvasMouseDown = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
-      if (e.target === canvasRef.current) {
+      if (e.target === canvasRef.current || e.target === canvasInnerRef.current) {
         setSelectedBlock(null);
+        // Left click on canvas background → pan, or Middle mouse button
+        if (e.button === 0 || e.button === 1) {
+          e.preventDefault();
+          setIsPanning(true);
+          panStartRef.current = { x: e.clientX, y: e.clientY, panX: canvasPan.x, panY: canvasPan.y };
+        }
       }
     },
-    []
+    [canvasPan.x, canvasPan.y]
   );
 
   // Drag block
@@ -385,31 +422,44 @@ export default function ChatbotBuilder() {
         return;
       }
 
-      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
       const canvasRect = canvasRef.current?.getBoundingClientRect();
       if (canvasRect) {
-        setDraggingBlock({
-          id: blockId,
-          offsetX: e.clientX - rect.left,
-          offsetY: e.clientY - rect.top,
-        });
+        const block = blocks.find(b => b.id === blockId);
+        if (block) {
+          // Calculate offset in content-space
+          const contentX = (e.clientX - canvasRect.left) / zoom - canvasPan.x;
+          const contentY = (e.clientY - canvasRect.top) / zoom - canvasPan.y;
+          setDraggingBlock({
+            id: blockId,
+            offsetX: contentX - block.x,
+            offsetY: contentY - block.y,
+          });
+        }
       }
       setSelectedBlock(blockId);
     },
-    []
+    [blocks, zoom, canvasPan] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       if (!canvasRef.current) return;
       
+      // Handle panning
+      if (isPanning) {
+        const dx = e.clientX - panStartRef.current.x;
+        const dy = e.clientY - panStartRef.current.y;
+        setCanvasPan({ x: panStartRef.current.panX + dx / zoom, y: panStartRef.current.panY + dy / zoom });
+        return;
+      }
+      
       const canvasRect = canvasRef.current.getBoundingClientRect();
       
-      // Track mouse position for connection line drawing
+      // Track mouse position for connection line drawing (in content-space coords)
       if (draggingFrom) {
         setMousePos({
-          x: e.clientX - canvasRect.left,
-          y: e.clientY - canvasRect.top,
+          x: (e.clientX - canvasRect.left) / zoom - canvasPan.x,
+          y: (e.clientY - canvasRect.top) / zoom - canvasPan.y,
         });
         return;
       }
@@ -422,13 +472,13 @@ export default function ChatbotBuilder() {
         rafMoveRef.current = null;
         if (!canvasRef.current) return;
         const canvasRect = canvasRef.current.getBoundingClientRect();
-        const x = Math.max(0, e.clientX - canvasRect.left - draggingBlock.offsetX);
-        const y = Math.max(0, e.clientY - canvasRect.top - draggingBlock.offsetY);
+        const x = Math.max(0, (e.clientX - canvasRect.left) / zoom - canvasPan.x - draggingBlock.offsetX);
+        const y = Math.max(0, (e.clientY - canvasRect.top) / zoom - canvasPan.y - draggingBlock.offsetY);
 
         setBlocks((prev) => prev.map((b) => (b.id === draggingBlock.id ? { ...b, x, y } : b)));
       });
     },
-    [draggingBlock, draggingFrom]
+    [draggingBlock, draggingFrom, zoom, canvasPan, isPanning]
   );
 
   // Handle dropping connection on a block's input port
@@ -463,11 +513,27 @@ export default function ChatbotBuilder() {
     setDraggingOptionIndex(null);
     setMousePos(null);
     setHoveringBlock(null);
+    setIsPanning(false);
     if (rafMoveRef.current) {
       window.cancelAnimationFrame(rafMoveRef.current);
       rafMoveRef.current = null;
     }
   }, []);
+
+  // Wheel zoom handler (Ctrl+Scroll or pinch)
+  const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.05 : 0.05;
+      setZoom(prev => Math.min(2, Math.max(0.2, prev + delta)));
+    } else {
+      // Without Ctrl: pan
+      setCanvasPan(prev => ({
+        x: prev.x - e.deltaX / zoom,
+        y: prev.y - e.deltaY / zoom,
+      }));
+    }
+  }, [zoom]);
 
   // Delete block
   const deleteBlock = useCallback((blockId: string) => {
@@ -477,6 +543,23 @@ export default function ChatbotBuilder() {
     );
     if (selectedBlock === blockId) setSelectedBlock(null);
   }, [selectedBlock]);
+
+  // Duplicate block - creates a copy offset 40px down-right with same data
+  const duplicateBlock = useCallback((blockId: string) => {
+    const source = blocks.find(b => b.id === blockId);
+    if (!source) return;
+    const newId = `block_${Date.now()}`;
+    const cloned: Block = {
+      ...source,
+      id: newId,
+      x: source.x + 40,
+      y: source.y + 40,
+      label: `${source.label} (Copy)`,
+      data: source.data ? JSON.parse(JSON.stringify(source.data)) : undefined,
+    };
+    setBlocks(prev => [...prev, cloned]);
+    setSelectedBlock(newId);
+  }, [blocks]);
 
   // Delete connection - also handle optionIndex
   const deleteConnection = useCallback((fromId: string, toId: string, optionIndex?: number) => {
@@ -665,6 +748,20 @@ export default function ChatbotBuilder() {
           >
             {saving ? 'Saving…' : '💾 Save Flow'}
           </button>
+          {chatbotId && chatbotId !== 'new' && (
+            <button
+              onClick={async () => {
+                try {
+                  const res = await crm.fetch(`/api/admin/crm/chatbot-flows/${chatbotId}/duplicate`, { method: 'POST' });
+                  if (res?._id) router.push(`/admin/crm/chatbots/builder/${res._id}`);
+                } catch { alert('Failed to duplicate flow'); }
+              }}
+              className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold text-sm"
+              title="Create a copy of this flow"
+            >
+              📋 Duplicate Flow
+            </button>
+          )}
         </div>
       </div>
 
@@ -729,8 +826,15 @@ export default function ChatbotBuilder() {
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
-        className="flex-1 bg-gray-50 relative overflow-auto select-none"
-        style={{ cursor: draggingFrom ? 'crosshair' : 'default' }}
+        onWheel={handleWheel}
+        className="flex-1 relative overflow-hidden select-none"
+        style={{
+          cursor: isPanning ? 'grabbing' : draggingFrom ? 'crosshair' : 'grab',
+          backgroundColor: '#f8fafc',
+          backgroundImage: `radial-gradient(circle, #d1d5db ${zoom > 0.5 ? '1px' : '0.5px'}, transparent 1px)`,
+          backgroundSize: `${20 * zoom}px ${20 * zoom}px`,
+          backgroundPosition: `${canvasPan.x * zoom}px ${canvasPan.y * zoom}px`,
+        }}
       >
         {/* Connection drag hint */}
         {draggingFrom && (
@@ -738,6 +842,19 @@ export default function ChatbotBuilder() {
             🔗 Drop on a block's left port to connect
           </div>
         )}
+
+        {/* Zoom/Pan Transform Container */}
+        <div
+          ref={canvasInnerRef}
+          style={{
+            transform: `scale(${zoom}) translate(${canvasPan.x}px, ${canvasPan.y}px)`,
+            transformOrigin: '0 0',
+            position: 'absolute',
+            inset: 0,
+            width: '5000px',
+            height: '5000px',
+          }}
+        >
         
         <svg
           className="absolute inset-0 w-full h-full"
@@ -898,21 +1015,39 @@ export default function ChatbotBuilder() {
               }}
             >
               <div style={{ fontSize: 13, fontWeight: 600 }}>{block.label}</div>
-              <button
-                onClick={() => deleteBlock(block.id)}
-                style={{
-                  background: 'rgba(255,255,255,0.2)',
-                  border: 'none',
-                  color: '#fff',
-                  width: 24,
-                  height: 24,
-                  borderRadius: 4,
-                  cursor: 'pointer',
-                  fontSize: 12,
-                }}
-              >
-                ✕
-              </button>
+              <div style={{ display: 'flex', gap: 4 }}>
+                <button
+                  onClick={(e) => { e.stopPropagation(); duplicateBlock(block.id); }}
+                  style={{
+                    background: 'rgba(255,255,255,0.2)',
+                    border: 'none',
+                    color: '#fff',
+                    width: 24,
+                    height: 24,
+                    borderRadius: 4,
+                    cursor: 'pointer',
+                    fontSize: 12,
+                  }}
+                  title="Duplicate block"
+                >
+                  📋
+                </button>
+                <button
+                  onClick={() => deleteBlock(block.id)}
+                  style={{
+                    background: 'rgba(255,255,255,0.2)',
+                    border: 'none',
+                    color: '#fff',
+                    width: 24,
+                    height: 24,
+                    borderRadius: 4,
+                    cursor: 'pointer',
+                    fontSize: 12,
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
             {/* Block Content */}
@@ -1368,6 +1503,50 @@ export default function ChatbotBuilder() {
             )}
           </div>
         ))}
+        </div>{/* Close zoom/pan transform container */}
+
+        {/* Zoom Controls Bar */}
+        <div className="absolute bottom-4 left-4 flex items-center gap-1 bg-white rounded-lg shadow-lg border border-gray-200 px-2 py-1.5 z-50">
+          <button
+            onClick={zoomOut}
+            className="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-gray-600 font-bold text-lg transition-colors"
+            title="Zoom Out"
+            type="button"
+          >
+            −
+          </button>
+          <div className="w-14 text-center text-xs font-medium text-gray-700 select-none">
+            {Math.round(zoom * 100)}%
+          </div>
+          <button
+            onClick={zoomIn}
+            className="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-gray-600 font-bold text-lg transition-colors"
+            title="Zoom In"
+            type="button"
+          >
+            +
+          </button>
+          <div className="w-px h-5 bg-gray-300 mx-1" />
+          <button
+            onClick={fitToView}
+            className="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-gray-600 transition-colors"
+            title="Fit to View"
+            type="button"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <rect x="2" y="2" width="12" height="12" rx="1" />
+              <path d="M2 6h4V2M10 2v4h4M14 10h-4v4M6 14v-4H2" />
+            </svg>
+          </button>
+          <button
+            onClick={zoomReset}
+            className="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-gray-500 text-[10px] font-semibold transition-colors"
+            title="Reset Zoom"
+            type="button"
+          >
+            1:1
+          </button>
+        </div>
       </div>
 
       {/* RIGHT SIDEBAR - Block Settings */}
@@ -2527,7 +2706,13 @@ export default function ChatbotBuilder() {
 
         {/* Bottom Action */}
         {blocks.length > 0 && selectedBlock && (
-          <div className="p-4 border-t border-gray-100 bg-gray-50">
+          <div className="p-4 border-t border-gray-100 bg-gray-50 space-y-2">
+            <button
+              onClick={() => duplicateBlock(selectedBlock)}
+              className="w-full px-4 py-2 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg text-sm font-medium hover:bg-blue-100"
+            >
+              📋 Duplicate Node
+            </button>
             <button
               onClick={() => deleteBlock(selectedBlock)}
               className="w-full px-4 py-2 bg-red-50 text-red-600 border border-red-200 rounded-lg text-sm font-medium hover:bg-red-100"
