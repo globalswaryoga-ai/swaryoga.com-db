@@ -128,8 +128,8 @@ export default function ChatbotsPage() {
   const fetchStats = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch flows
-      const flowsRes = await crmFetch('/api/admin/crm/chatbot-flows', { params: { limit: 5 } }).catch(() => ({ flows: [] }));
+      // Fetch all flows (no limit)
+      const flowsRes = await crmFetch('/api/admin/crm/chatbot-flows', { params: { limit: 100 } }).catch(() => ({ flows: [] }));
       const flows = Array.isArray(flowsRes?.flows) ? flowsRes.flows : [];
       
       // Fetch automation rules
@@ -147,7 +147,7 @@ export default function ChatbotsPage() {
         activeRules: rules.filter((r: any) => r.enabled).length,
         kbArticles: kbRes?.total || articles.length,
         activeKb: articles.filter((a: any) => a.enabled).length,
-        recentFlows: flows.slice(0, 3),
+        recentFlows: flows, // Show ALL flows
         recentRules: rules.slice(0, 3),
         recentArticles: articles.slice(0, 3),
       });
@@ -283,52 +283,75 @@ export default function ChatbotsPage() {
           ))}
         </div>
 
-        {/* Recent Activity */}
-        {!loading && (stats.recentFlows.length > 0 || stats.recentRules.length > 0 || stats.recentArticles.length > 0) && (
-          <div className="grid gap-6 lg:grid-cols-3">
-            {/* Recent Flows */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-bold text-gray-900">🔀 Recent Flows</h3>
-                <Link href="/admin/crm/chatbots/builder/new" className="text-sm text-purple-600 hover:underline">
-                  View All
-                </Link>
-              </div>
-              {stats.recentFlows.length === 0 ? (
-                <p className="text-gray-500 text-sm">No flows created yet</p>
-              ) : (
-                <div className="space-y-3">
-                  {stats.recentFlows.map((flow) => (
-                    <div key={flow._id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                      <Link href={`/admin/crm/chatbots/builder/${flow._id}`} className="flex-1 min-w-0">
-                        <div className="font-medium text-gray-900">{flow.name}</div>
-                        <div className="text-xs text-gray-500">{flow.nodes?.length || 0} nodes</div>
-                      </Link>
-                      <div className="flex items-center gap-2 ml-2">
-                        <button
-                          onClick={(e) => { e.preventDefault(); duplicateFlow(flow._id); }}
-                          disabled={duplicating === flow._id}
-                          className="px-2 py-1 rounded text-xs font-medium bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors disabled:opacity-50"
-                          title="Duplicate this flow"
-                        >
-                          {duplicating === flow._id ? '...' : '📋 Copy'}
-                        </button>
-                        <span className={`px-2 py-1 rounded text-xs font-bold ${
-                          flow.enabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
-                        }`}>
-                          {flow.enabled ? 'ON' : 'OFF'}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+        {/* All Chatbot Flows - Full Grid */}
+        {!loading && (
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-900">🔀 Your Chatbot Flows</h2>
+              <span className="text-sm text-gray-500">{stats.flowsCount} flow{stats.flowsCount !== 1 ? 's' : ''}</span>
             </div>
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {/* + New Flow Card */}
+              <Link
+                href="/admin/crm/chatbots/builder/new"
+                className="flex flex-col items-center justify-center gap-3 p-8 bg-white rounded-xl border-2 border-dashed border-purple-300 hover:border-purple-500 hover:bg-purple-50 transition-all group min-h-[160px]"
+              >
+                <div className="w-14 h-14 rounded-full bg-purple-100 group-hover:bg-purple-200 flex items-center justify-center transition-colors">
+                  <span className="text-3xl text-purple-600">+</span>
+                </div>
+                <span className="text-sm font-bold text-purple-600 group-hover:text-purple-700">Create New Flow</span>
+              </Link>
+
+              {/* Existing Flow Cards */}
+              {stats.recentFlows.map((flow) => (
+                <div key={flow._id} className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md hover:border-gray-300 transition-all flex flex-col">
+                  <Link href={`/admin/crm/chatbots/builder/${flow._id}`} className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-bold text-gray-900 truncate">{flow.name}</h3>
+                        {flow.description && <p className="text-xs text-gray-500 mt-1 line-clamp-2">{flow.description}</p>}
+                      </div>
+                      <span className={`ml-2 shrink-0 px-2 py-1 rounded text-[10px] font-bold ${
+                        flow.enabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                      }`}>
+                        {flow.enabled ? 'ON' : 'OFF'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-gray-500">
+                      <span className="flex items-center gap-1"><span className="text-purple-500">◆</span> {flow.nodes?.length || 0} nodes</span>
+                      <span>{new Date(flow.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                    </div>
+                  </Link>
+                  <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100">
+                    <Link
+                      href={`/admin/crm/chatbots/builder/${flow._id}`}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-50 text-purple-600 hover:bg-purple-100 transition-colors"
+                    >
+                      ✏️ Edit
+                    </Link>
+                    <button
+                      onClick={(e) => { e.preventDefault(); duplicateFlow(flow._id); }}
+                      disabled={duplicating === flow._id}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors disabled:opacity-50"
+                      title="Duplicate this flow"
+                    >
+                      {duplicating === flow._id ? '...' : '📋 Copy'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Recent Activity */}
+        {!loading && (stats.recentRules.length > 0 || stats.recentArticles.length > 0) && (
+          <div className="grid gap-6 lg:grid-cols-2">
 
             {/* Recent Rules */}
             <div className="bg-white rounded-xl border border-gray-200 p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-bold text-gray-900">⚡ Recent Rules</h3>
+                <h3 className="font-bold text-gray-900">⚡ Automation Rules</h3>
                 <Link href="/admin/crm/automation" className="text-sm text-orange-600 hover:underline">
                   View All
                 </Link>

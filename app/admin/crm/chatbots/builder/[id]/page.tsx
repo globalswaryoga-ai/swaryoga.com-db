@@ -527,10 +527,12 @@ export default function ChatbotBuilder() {
       const delta = e.deltaY > 0 ? -0.05 : 0.05;
       setZoom(prev => Math.min(2, Math.max(0.2, prev + delta)));
     } else {
-      // Without Ctrl: pan
+      // Without Ctrl: pan (Shift+Scroll = horizontal pan for mouse wheel users)
+      const dx = e.shiftKey ? e.deltaY : e.deltaX;
+      const dy = e.shiftKey ? 0 : e.deltaY;
       setCanvasPan(prev => ({
-        x: prev.x - e.deltaX / zoom,
-        y: prev.y - e.deltaY / zoom,
+        x: prev.x - dx / zoom,
+        y: prev.y - dy / zoom,
       }));
     }
   }, [zoom]);
