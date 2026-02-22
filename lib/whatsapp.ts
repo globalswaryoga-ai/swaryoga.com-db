@@ -390,11 +390,20 @@ export async function sendWhatsAppInteractiveButtons(
   const to = normalizePhone(toRaw);
 
   // WhatsApp reply buttons: max 3 buttons, title max 20 chars
+  // Smart truncation: cut at word boundary to avoid mid-word cuts
+  const smartTruncate = (text: string, max: number): string => {
+    if (text.length <= max) return text;
+    const truncated = text.substring(0, max);
+    const lastSpace = truncated.lastIndexOf(' ');
+    // If there's a space in the last 5 chars, cut at word boundary
+    if (lastSpace > max - 6) return truncated.substring(0, lastSpace).trimEnd();
+    return truncated;
+  };
   const safeButtons = buttons.slice(0, 3).map(b => ({
     type: 'reply' as const,
     reply: {
       id: b.id.substring(0, 256),
-      title: b.title.substring(0, 20),
+      title: smartTruncate(b.title, 20),
     },
   }));
 

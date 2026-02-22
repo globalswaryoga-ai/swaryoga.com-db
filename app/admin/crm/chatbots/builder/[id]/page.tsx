@@ -1820,16 +1820,20 @@ export default function ChatbotBuilder() {
                                 >
                                   {i + 1}
                                 </div>
-                                <input
-                                  value={label}
-                                  onChange={(e) => {
-                                    const newOpts = [...(block.data?.options || [])];
-                                    newOpts[i] = { label: e.target.value, value: e.target.value };
-                                    updateBlockData(block.id, { options: newOpts });
-                                  }}
-                                  className="flex-1 px-3 py-2 border-2 border-blue-200 rounded-lg text-sm font-medium text-blue-700 bg-blue-50 focus:border-blue-400 focus:bg-white focus:outline-none transition-all"
-                                  placeholder={`Button ${i + 1} text`}
-                                />
+                                <div className="flex-1 relative">
+                                  <input
+                                    value={label}
+                                    onChange={(e) => {
+                                      const newOpts = [...(block.data?.options || [])];
+                                      newOpts[i] = { label: e.target.value, value: e.target.value };
+                                      updateBlockData(block.id, { options: newOpts });
+                                    }}
+                                    maxLength={20}
+                                    className={`w-full px-3 py-2 border-2 rounded-lg text-sm font-medium focus:outline-none transition-all ${label.length > 20 ? 'border-red-300 bg-red-50 text-red-700 focus:border-red-400' : 'border-blue-200 bg-blue-50 text-blue-700 focus:border-blue-400 focus:bg-white'}`}
+                                    placeholder={`Button ${i + 1} text`}
+                                  />
+                                  <span className={`absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-mono ${label.length >= 18 ? 'text-red-500' : 'text-gray-400'}`}>{label.length}/20</span>
+                                </div>
                                 <button
                                   onClick={() => {
                                     const newOpts = (block.data?.options || []).filter((_, idx) => idx !== i);
@@ -1939,16 +1943,20 @@ export default function ChatbotBuilder() {
                               <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
                                 style={{ background: connections.some(c => c.fromId === block.id && c.optionIndex === i) ? '#22c55e' : '#3b82f6' }}
                               >{i + 1}</div>
-                              <input
-                                value={btn.title || btn.text || ''}
-                                onChange={(e) => {
-                                  const newBtns = [...(block.data?.templateButtons || [])];
-                                  newBtns[i] = { ...newBtns[i], title: e.target.value };
-                                  updateBlockData(block.id, { templateButtons: newBtns });
-                                }}
-                                className="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm"
-                                placeholder={`Button ${i + 1} label`}
-                              />
+                              <div className="flex-1 relative">
+                                <input
+                                  value={btn.title || btn.text || ''}
+                                  onChange={(e) => {
+                                    const newBtns = [...(block.data?.templateButtons || [])];
+                                    newBtns[i] = { ...newBtns[i], title: e.target.value };
+                                    updateBlockData(block.id, { templateButtons: newBtns });
+                                  }}
+                                  maxLength={20}
+                                  className={`w-full px-3 py-1.5 border rounded-lg text-sm ${(btn.title || btn.text || '').length > 20 ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}
+                                  placeholder={`Button ${i + 1} label`}
+                                />
+                                <span className={`absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-mono ${(btn.title || btn.text || '').length >= 18 ? 'text-red-500' : 'text-gray-400'}`}>{(btn.title || btn.text || '').length}/20</span>
+                              </div>
                               <button
                                 onClick={() => {
                                   const newBtns = (block.data?.templateButtons || []).filter((_: any, idx: number) => idx !== i);
