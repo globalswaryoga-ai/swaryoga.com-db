@@ -73,11 +73,12 @@ type Message = {
   _id: string;
   leadId: string;
   messageContent: string;
+  messageType?: string;
   direction: 'inbound' | 'outbound';
   createdAt: string;
   status: 'queued' | 'sent' | 'delivered' | 'read' | 'failed';
   media?: {
-    kind?: 'image' | 'video' | 'document' | 'sticker';
+    kind?: 'image' | 'video' | 'document' | 'audio' | 'sticker';
     url?: string;
     fileName?: string;
     mimeType?: string;
@@ -222,6 +223,11 @@ export default function MetaInboxPage() {
   ];
   const [quickReplies, setQuickReplies] = useState<Array<{id: string; text: string}>>(defaultQuickReplies);
   const [newQuickReply, setNewQuickReply] = useState('');
+
+  // Forward media state
+  const [forwardMedia, setForwardMedia] = useState<{ url: string; kind: string; caption?: string } | null>(null);
+  const [forwardSearch, setForwardSearch] = useState('');
+  const [forwardBusy, setForwardBusy] = useState(false);
 
   // Load archived conversations from localStorage on mount
   useEffect(() => {
@@ -1085,6 +1091,52 @@ export default function MetaInboxPage() {
       alert('Failed to send message');
     } finally {
       setSending(false);
+    }
+  };
+
+  // ================================================================
+  // MEDIA DOWNLOAD / FORWARD HANDLERS
+  // ================================================================
+  const handleMediaDownload = async (mediaUrl: string, fileName?: string) => {
+    try {
+      const res = await fetch(mediaUrl);
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName || `download-${Date.now()}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Download failed:', err);
+      alert('Download failed. Please try again.');
+    }
+  };
+
+  const handleForwardMedia = async (targetLeadId: string, targetPhone: string) => {
+    if (!forwardMedia || forwardBusy) return;
+    setForwardBusy(true);
+    try {
+      await crmFetch('/api/admin/crm/whatsapp/send', {
+        method: 'POST',
+        body: {
+          leadId: targetLeadId,
+          phoneNumber: targetPhone,
+          messageContent: forwardMedia.caption || `[${forwardMedia.kind}]`,
+          media: { kind: forwardMedia.kind, url: forwardMedia.url },
+          provider: providerScope,
+        },
+      });
+      setForwardMedia(null);
+      setForwardSearch('');
+      alert('Media forwarded successfully!');
+    } catch (err) {
+      console.error('Forward failed:', err);
+      alert('Failed to forward media');
+    } finally {
+      setForwardBusy(false);
     }
   };
 
@@ -2779,13 +2831,32 @@ export default function MetaInboxPage() {
                             const mediaUrl = rawMediaUrl ? getProxiedMediaUrl(rawMediaUrl, token) : null;
                             
                             if (mediaUrl) {
+                              // Determine filename for download
+                              const dlName = msg.media?.fileName || getFilenameFromUrl(rawMediaUrl) || `media-${Date.now()}`;
                               return (
-                                <div className="w-full">
+                                <div className="w-full relative group/media">
                                   <InlineMediaPreview 
                                     url={mediaUrl} 
                                     type={mediaKind === 'sticker' ? 'image' : mediaKind}
                                     className="w-full max-h-[200px] object-cover"
                                   />
+                                  {/* Download + Forward overlay buttons */}
+                                  <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover/media:opacity-100 transition-opacity duration-200">
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); handleMediaDownload(mediaUrl, dlName); }}
+                                      className="w-8 h-8 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 text-white shadow-lg backdrop-blur-sm"
+                                      title="Download"
+                                    >
+                                      <i className="ph ph-download-simple text-sm"></i>
+                                    </button>
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); setForwardMedia({ url: rawMediaUrl, kind: mediaKind, caption: msg.messageContent || undefined }); }}
+                                      className="w-8 h-8 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 text-white shadow-lg backdrop-blur-sm"
+                                      title="Forward"
+                                    >
+                                      <i className="ph ph-share-fat text-sm"></i>
+                                    </button>
+                                  </div>
                                 </div>
                               );
                             }
@@ -2795,7 +2866,7 @@ export default function MetaInboxPage() {
                               return (
                                 <div className={`mx-3 mt-2 mb-2 flex items-center gap-2 p-2.5 rounded-lg ${msg.direction === 'outbound' ? 'bg-gray-100 border border-gray-200' : 'bg-white/20'}`}>
                                   <span className="text-lg">📎</span>
-                                  <span className={`text-sm ${msg.direction === 'outbound' ? 'text-gray-600' : 'text-white/80'}`}>Media attachment</span>
+                                  <span className={`text-sm ${msg.direction === 'outbound' ? 'text-gray-600' : 'text-white/80'}`}>Media attachment (file unavailable)</span>
                                 </div>
                               );
                             }
@@ -2808,13 +2879,19 @@ export default function MetaInboxPage() {
                           {/* Message Content - Extract [admincrm] tag to show below */}
                           {(() => {
                             const content = msg.messageContent || '';
-                            // Skip media placeholders
+                            // Skip media placeholders - match exact and prefix patterns
                             if (!content || 
                                 content === '(media)' || 
                                 content === '[media]' ||
                                 content === '[image]' ||
                                 content === '[video]' ||
                                 content === '[document]' ||
+                                content === '[audio]' ||
+                                content === '[sticker]' ||
+                                content === '[image message]' ||
+                                content === '[video message]' ||
+                                content === '[document message]' ||
+                                /^\[(image|video|document|audio|sticker|media)\]$/i.test(content.trim()) ||
                                 content.startsWith('🖼')) {
                               return null;
                             }
@@ -3921,6 +3998,80 @@ export default function MetaInboxPage() {
             </div>
           </div>
         </FormModal>
+      )}
+
+      {/* Forward Media Modal */}
+      {forwardMedia && (
+        <div className="fixed inset-0 z-[9999] bg-black/60 flex items-center justify-center p-4" onClick={() => { setForwardMedia(null); setForwardSearch(''); }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
+              <h3 className="font-bold text-slate-800 text-base">Forward Media</h3>
+              <button onClick={() => { setForwardMedia(null); setForwardSearch(''); }} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-500">
+                <i className="ph ph-x text-lg"></i>
+              </button>
+            </div>
+            
+            {/* Media Preview */}
+            <div className="px-5 pt-3 pb-2">
+              <div className="w-full max-h-[120px] rounded-lg overflow-hidden bg-slate-100 flex items-center justify-center">
+                {forwardMedia.kind === 'image' || forwardMedia.kind === 'sticker' ? (
+                  <img src={getProxiedMediaUrl(forwardMedia.url, token)} alt="Forward" className="max-h-[120px] object-contain" />
+                ) : forwardMedia.kind === 'video' ? (
+                  <video src={getProxiedMediaUrl(forwardMedia.url, token)} className="max-h-[120px]" controls />
+                ) : (
+                  <div className="p-3 flex items-center gap-2">
+                    <i className="ph ph-file text-2xl text-slate-400"></i>
+                    <span className="text-sm text-slate-600 truncate">{forwardMedia.caption || 'Document'}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Search */}
+            <div className="px-5 py-2">
+              <input
+                type="text"
+                value={forwardSearch}
+                onChange={(e) => setForwardSearch(e.target.value)}
+                placeholder="Search contacts to forward..."
+                className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                autoFocus
+              />
+            </div>
+
+            {/* Contact List */}
+            <div className="flex-1 overflow-y-auto px-2 pb-3">
+              {conversations
+                .filter(c => {
+                  if (!forwardSearch.trim()) return true;
+                  const q = forwardSearch.toLowerCase();
+                  return (c.name?.toLowerCase().includes(q)) || c.phoneNumber.includes(q);
+                })
+                .slice(0, 30)
+                .map(c => (
+                  <button
+                    key={c._id}
+                    disabled={forwardBusy}
+                    onClick={() => handleForwardMedia(c.leadId, c.phoneNumber)}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50 transition-colors text-left disabled:opacity-50"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-emerald-500 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                      {c.name ? c.name[0].toUpperCase() : '#'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-slate-800 truncate">{c.name || 'Unknown'}</p>
+                      <p className="text-xs text-slate-500">{c.phoneNumber}</p>
+                    </div>
+                    <i className="ph ph-paper-plane-right text-slate-400"></i>
+                  </button>
+                ))}
+              {conversations.length === 0 && (
+                <p className="text-center text-sm text-slate-400 py-8">No contacts found</p>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       <style jsx global>{`
