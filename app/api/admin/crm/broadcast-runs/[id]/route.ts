@@ -37,7 +37,8 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
     const statsMap = new Map<string, number>();
     statsCounts.forEach((c: any) => statsMap.set(String(c._id).toLowerCase(), Number(c.count || 0)));
     
-    const pendingRaw = (statsMap.get('pending') || 0) + (statsMap.get('sending') || 0);
+    const pendingRaw = statsMap.get('pending') || 0;
+    const sendingRaw = statsMap.get('sending') || 0;
     const sentRaw = statsMap.get('sent') || 0;
     const deliveredRaw = statsMap.get('delivered') || 0;
     const readRaw = statsMap.get('read') || 0;
@@ -47,8 +48,8 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
     
     // Status is cumulative: read implies delivered implies sent
     const calculatedStats = {
-      total: pendingRaw + sentRaw + deliveredRaw + readRaw + failed + skipped + blocked,
-      pending: pendingRaw,
+      total: pendingRaw + sendingRaw + sentRaw + deliveredRaw + readRaw + failed + skipped + blocked,
+      pending: pendingRaw + sendingRaw,
       sent: sentRaw + deliveredRaw + readRaw,
       delivered: deliveredRaw + readRaw,
       read: readRaw,
@@ -57,8 +58,19 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
       blocked,
     };
 
+    // Get error category breakdown for failed messages
+    const errorCategoryCounts = await BroadcastRunMessage.aggregate([
+      { $match: { runId: (run as any)._id, status: 'failed' } },
+      { $group: { _id: '$errorCategory', count: { $sum: 1 } } },
+    ]);
+    const errorsByCategory: Record<string, number> = {};
+    errorCategoryCounts.forEach((c: any) => {
+      const cat = String(c._id || 'unknown');
+      errorsByCategory[cat] = Number(c.count || 0);
+    });
+
     // Merge with run data
-    const runWithStats = { ...run, stats: calculatedStats };
+    const runWithStats = { ...run, stats: calculatedStats, errorsByCategory };
 
     const url = new URL(request.url);
     const status = url.searchParams.get('status');
@@ -208,9 +220,12 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
       {
         $set: {
           'stats.pending': (map.get('pending') || 0) + (map.get('sending') || 0),
-          'stats.sent': map.get('sent') || 0,
+          'stats.sent': (map.get('sent') || 0) + (map.get('delivered') || 0) + (map.get('read') || 0),
+          'stats.delivered': (map.get('delivered') || 0) + (map.get('read') || 0),
+          'stats.read': map.get('read') || 0,
           'stats.failed': map.get('failed') || 0,
           'stats.skipped': map.get('skipped') || 0,
+          'stats.blocked': map.get('blocked') || 0,
           updatedAt: now,
         },
       }

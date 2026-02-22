@@ -40,7 +40,8 @@ export async function POST(request: NextRequest) {
       counts.forEach((c: any) => map.set(String(c._id || '').toLowerCase(), Number(c.count || 0)));
 
       // Count by actual status
-      const pendingRaw = (map.get('pending') || 0) + (map.get('sending') || 0);
+      const pendingRaw = map.get('pending') || 0;
+      const sendingRaw = map.get('sending') || 0;
       const sentRaw = map.get('sent') || 0;
       const deliveredRaw = map.get('delivered') || 0;
       const readRaw = map.get('read') || 0;
@@ -52,7 +53,7 @@ export async function POST(request: NextRequest) {
       const read = readRaw;
       const delivered = deliveredRaw + readRaw;
       const sent = sentRaw + deliveredRaw + readRaw;
-      const pending = pendingRaw;
+      const pending = pendingRaw + sendingRaw;
       const total = pending + sent + failed + skipped + blocked;
 
       const newStats = { total, pending, sent, delivered, read, failed, skipped, blocked };

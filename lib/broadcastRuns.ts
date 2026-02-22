@@ -25,7 +25,8 @@ async function markRunStats(runId: any) {
   counts.forEach((c: any) => map.set(String(c._id).toLowerCase(), Number(c.count || 0)));
 
   // Count by actual status
-  const pendingRaw = (map.get('pending') || 0) + (map.get('sending') || 0);
+  const pendingRaw = map.get('pending') || 0;
+  const sendingRaw = map.get('sending') || 0;
   const sentRaw = map.get('sent') || 0;
   const deliveredRaw = map.get('delivered') || 0;
   const readRaw = map.get('read') || 0;
@@ -37,7 +38,7 @@ async function markRunStats(runId: any) {
   const read = readRaw;
   const delivered = deliveredRaw + readRaw;
   const sent = sentRaw + deliveredRaw + readRaw;
-  const pending = pendingRaw;
+  const pending = pendingRaw + sendingRaw;
   const total = pending + sent + failed + skipped + blocked;
 
   await BroadcastRun.updateOne(
@@ -97,6 +98,23 @@ export async function processDueBroadcastRuns(options?: {
     .sort({ scheduledAt: 1, createdAt: 1 })
     .limit(runLimit)
     .lean();
+
+  // Reset messages stuck in 'sending' for more than 5 minutes back to 'pending'
+  // This handles cases where the process crashed or timed out mid-send
+  const staleThreshold = new Date(now.getTime() - 5 * 60 * 1000);
+  for (const run of due) {
+    const resetResult = await BroadcastRunMessage.updateMany(
+      {
+        runId: (run as any)._id,
+        status: 'sending',
+        updatedAt: { $lt: staleThreshold },
+      },
+      { $set: { status: 'pending', failureReason: 'Reset from stale sending state', updatedAt: now } }
+    );
+    if (resetResult.modifiedCount > 0) {
+      console.log(`[Broadcast] Reset ${resetResult.modifiedCount} stale 'sending' messages to 'pending' for run ${(run as any)._id}`);
+    }
+  }
 
   console.log('[Broadcast] Found', due.length, 'due runs');
 
