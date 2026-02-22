@@ -355,7 +355,27 @@ export async function sendWhatsAppText(toRaw: string, body: string): Promise<Wha
 }
 
 /**
+ * Extract YouTube video ID from common URL formats.
+ * Returns null if not a YouTube URL.
+ */
+export function extractYouTubeVideoId(text: string): string | null {
+  // Match youtu.be/ID, youtube.com/watch?v=ID, youtube.com/embed/ID, youtube.com/shorts/ID
+  const patterns = [
+    /youtu\.be\/([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/watch\?.*v=([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/,
+  ];
+  for (const p of patterns) {
+    const m = text.match(p);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+/**
  * Send a WhatsApp interactive message with clickable reply buttons (max 3).
+ * Supports optional header image (e.g. YouTube thumbnail) for a rich single-card look.
  * For > 3 options, falls back to numbered text.
  * 
  * Meta API docs: https://developers.facebook.com/docs/whatsapp/cloud-api/messages/interactive-reply-buttons
@@ -364,8 +384,7 @@ export async function sendWhatsAppInteractiveButtons(
   toRaw: string,
   body: string,
   buttons: Array<{ id: string; title: string }>,
-  header?: string,
-  footer?: string,
+  options?: { header?: string; footer?: string; headerImageUrl?: string },
 ): Promise<WhatsAppSendTextResult> {
   const env = getWhatsAppEnv();
   const to = normalizePhone(toRaw);
@@ -397,8 +416,14 @@ export async function sendWhatsAppInteractiveButtons(
         body: { text: body || 'Please choose an option:' },
         action: { buttons: safeButtons },
       };
-      if (header) interactive.header = { type: 'text', text: header.substring(0, 60) };
-      if (footer) interactive.footer = { text: footer.substring(0, 60) };
+      
+      // Header: image takes priority over text
+      if (options?.headerImageUrl) {
+        interactive.header = { type: 'image', image: { link: options.headerImageUrl } };
+      } else if (options?.header) {
+        interactive.header = { type: 'text', text: options.header.substring(0, 60) };
+      }
+      if (options?.footer) interactive.footer = { text: options.footer.substring(0, 60) };
 
       const payload = {
         messaging_product: 'whatsapp',
@@ -407,6 +432,8 @@ export async function sendWhatsAppInteractiveButtons(
         type: 'interactive',
         interactive,
       };
+
+      console.log('[sendWhatsAppInteractiveButtons] Sending:', JSON.stringify(payload, null, 2));
 
       const res = await fetch(url, {
         method: 'POST',

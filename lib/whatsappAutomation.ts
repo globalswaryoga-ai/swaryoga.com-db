@@ -262,7 +262,7 @@ async function sendOutboundInteractiveButtons(
   if (!compliance.compliant) return;
 
   const now = new Date();
-  const { getWhatsAppEnv } = await import('@/lib/whatsapp');
+  const { getWhatsAppEnv, extractYouTubeVideoId } = await import('@/lib/whatsapp');
   const env = getWhatsAppEnv();
   const senderNumber = env?.phoneNumber || '9779006820';
 
@@ -275,77 +275,11 @@ async function sendOutboundInteractiveButtons(
     } catch (err) { console.warn('[Automation] Presence failed:', err); }
   }
 
-  // Check if body contains a URL — interactive messages don't show link previews,
-  // so we split: send the text (with URL) as a regular message first for the thumbnail,
-  // then send just the buttons as a separate interactive message.
-  const hasUrl = /https?:\/\/\S+/i.test(bodyText);
+  // Extract YouTube thumbnail if body contains a YouTube URL
+  const ytId = extractYouTubeVideoId(bodyText);
+  const headerImageUrl = ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : undefined;
 
-  if (hasUrl && bodyText.trim()) {
-    // Step 1: Send the text with URL as a regular message (gets link preview/thumbnail)
-    const textMsg = await WhatsAppMessage.create({
-      leadId: lead._id,
-      phoneNumber: to,
-      direction: 'outbound',
-      messageType: 'text',
-      messageContent: bodyText,
-      status: 'queued',
-      sentAt: now,
-      metadata,
-      provider: env ? 'meta' : 'whatsapp_web_bridge',
-      senderNumber,
-    });
-
-    try {
-      const textResult = await sendWhatsAppText(to, bodyText);
-      await WhatsAppMessage.updateOne(
-        { _id: textMsg._id },
-        { $set: { status: 'sent', waMessageId: textResult.waMessageId, provider: textResult.raw?.provider || 'meta', senderNumber, updatedAt: new Date() }, $unset: { failureReason: 1 } }
-      );
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Text send failed';
-      await WhatsAppMessage.updateOne(
-        { _id: textMsg._id },
-        { $set: { status: 'failed', failureReason: String(msg), updatedAt: new Date() } }
-      );
-    }
-
-    // Brief pause so messages arrive in order
-    await sleep(1000);
-
-    // Step 2: Send just the interactive buttons with a short prompt
-    const btnPrompt = 'Please reply after watching:';
-    const labels = buttons.map((b, i) => `${i + 1}. ${b.title}`).join('\n');
-
-    const btnMsg = await WhatsAppMessage.create({
-      leadId: lead._id,
-      phoneNumber: to,
-      direction: 'outbound',
-      messageType: 'interactive',
-      messageContent: `${btnPrompt}\n\n${labels}`,
-      status: 'queued',
-      sentAt: new Date(),
-      metadata,
-      provider: env ? 'meta' : 'whatsapp_web_bridge',
-      senderNumber,
-    });
-
-    try {
-      const btnResult = await sendWhatsAppInteractiveButtons(to, btnPrompt, buttons);
-      await WhatsAppMessage.updateOne(
-        { _id: btnMsg._id },
-        { $set: { status: 'sent', waMessageId: btnResult.waMessageId, provider: btnResult.raw?.provider || 'meta', senderNumber, updatedAt: new Date() }, $unset: { failureReason: 1 } }
-      );
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Interactive send failed';
-      await WhatsAppMessage.updateOne(
-        { _id: btnMsg._id },
-        { $set: { status: 'failed', failureReason: String(msg), updatedAt: new Date() } }
-      );
-    }
-    return;
-  }
-
-  // No URL in body — send as a single interactive button message
+  // Log what will be sent
   const labels = buttons.map((b, i) => `${i + 1}. ${b.title}`).join('\n');
   const displayContent = bodyText ? `${bodyText}\n\n${labels}` : labels;
 
@@ -363,7 +297,7 @@ async function sendOutboundInteractiveButtons(
   });
 
   try {
-    const apiResult = await sendWhatsAppInteractiveButtons(to, bodyText, buttons);
+    const apiResult = await sendWhatsAppInteractiveButtons(to, bodyText, buttons, { headerImageUrl });
     await WhatsAppMessage.updateOne(
       { _id: message._id },
       { $set: { status: 'sent', waMessageId: apiResult.waMessageId, provider: apiResult.raw?.provider || 'meta', senderNumber, updatedAt: new Date() }, $unset: { failureReason: 1 } }

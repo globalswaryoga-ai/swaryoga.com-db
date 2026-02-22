@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { getLead, getWhatsAppMessage, getChatbotFlow, getWhatsAppTemplate, getChatbotScheduledAction } from '@/lib/schemas/enterpriseSchemas';
-import { normalizePhone, sendWhatsAppText, sendWhatsAppPresence, sendWhatsAppInteractiveButtons } from '@/lib/whatsapp';
+import { normalizePhone, sendWhatsAppPresence, sendWhatsAppInteractiveButtons } from '@/lib/whatsapp';
 
 export const dynamic = 'force-dynamic';
 
@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
 
     // Helper: send interactive buttons
     async function sendAndLogInteractive(bodyText: string, buttons: Array<{id: string; title: string}>, metadata?: any) {
-      const { getWhatsAppEnv } = await import('@/lib/whatsapp');
+      const { getWhatsAppEnv, extractYouTubeVideoId } = await import('@/lib/whatsapp');
       const env = getWhatsAppEnv();
       const senderNumber = env?.phoneNumber || '9779006820';
       const chatbotMeta = { chatbot: { flowId: flow._id, nodeId: metadata?.nodeId, autoStart: true } };
@@ -139,46 +139,10 @@ export async function POST(request: NextRequest) {
         } catch (_) {}
       }
 
-      // If body contains a URL, split into 2 messages for link preview/thumbnail
-      const hasUrl = /https?:\/\/\S+/i.test(bodyText);
+      // Extract YouTube thumbnail if body contains a YouTube URL
+      const ytId = extractYouTubeVideoId(bodyText);
+      const headerImageUrl = ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : undefined;
 
-      if (hasUrl && bodyText.trim()) {
-        // Step 1: Text with URL (gets link preview/video thumbnail)
-        const textMsg = await WhatsAppMessage.create({
-          leadId: lead._id, phoneNumber: phone, direction: 'outbound',
-          messageType: 'text', messageContent: bodyText, status: 'queued',
-          sentAt: now, metadata: chatbotMeta, provider: 'meta', senderNumber,
-        });
-        try {
-          const r = await sendWhatsAppText(phone, bodyText);
-          await WhatsAppMessage.updateOne({ _id: textMsg._id }, { $set: { status: 'sent', waMessageId: r.waMessageId, updatedAt: new Date() } });
-        } catch (err) {
-          const e = err instanceof Error ? err.message : 'Send failed';
-          await WhatsAppMessage.updateOne({ _id: textMsg._id }, { $set: { status: 'failed', failureReason: e, updatedAt: new Date() } });
-        }
-
-        await sleep(1000);
-
-        // Step 2: Buttons with short prompt
-        const btnPrompt = 'Please reply after watching:';
-        const labels = buttons.map((b, i) => `${i + 1}. ${b.title}`).join('\n');
-        const btnMsg = await WhatsAppMessage.create({
-          leadId: lead._id, phoneNumber: phone, direction: 'outbound',
-          messageType: 'interactive', messageContent: `${btnPrompt}\n\n${labels}`, status: 'queued',
-          sentAt: new Date(), metadata: chatbotMeta, provider: 'meta', senderNumber,
-        });
-        try {
-          const r = await sendWhatsAppInteractiveButtons(phone, btnPrompt, buttons);
-          await WhatsAppMessage.updateOne({ _id: btnMsg._id }, { $set: { status: 'sent', waMessageId: r.waMessageId, updatedAt: new Date() } });
-          return { success: true, waMessageId: r.waMessageId };
-        } catch (err) {
-          const e = err instanceof Error ? err.message : 'Send failed';
-          await WhatsAppMessage.updateOne({ _id: btnMsg._id }, { $set: { status: 'failed', failureReason: e, updatedAt: new Date() } });
-          return { success: false, error: e };
-        }
-      }
-
-      // No URL — single interactive message
       const labels = buttons.map((b, i) => `${i + 1}. ${b.title}`).join('\n');
       const displayContent = bodyText ? `${bodyText}\n\n${labels}` : labels;
 
@@ -196,7 +160,7 @@ export async function POST(request: NextRequest) {
       });
 
       try {
-        const result = await sendWhatsAppInteractiveButtons(phone, bodyText, buttons);
+        const result = await sendWhatsAppInteractiveButtons(phone, bodyText, buttons, { headerImageUrl });
         await WhatsAppMessage.updateOne(
           { _id: msg._id },
           { $set: { status: 'sent', waMessageId: result.waMessageId, updatedAt: new Date() } }
