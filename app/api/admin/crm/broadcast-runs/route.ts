@@ -154,6 +154,46 @@ export async function POST(request: NextRequest) {
 
     const leads = await Lead.find({ _id: { $in: leadIds } }).select({ _id: 1, phoneNumber: 1 }).lean();
 
+    // --- Deduplicate leads by normalized phone number ---
+    // Same phone number may appear under multiple lead records (e.g. customer + lead).
+    // Keep only one entry per unique phone to avoid sending the same message twice.
+    const seenPhones = new Set<string>();
+    const uniqueLeads = leads.filter((l: any) => {
+      const raw = String(l.phoneNumber || '').replace(/\D/g, '');
+      const normalized = raw.length >= 10 ? raw.slice(-10) : raw;
+      if (!normalized || seenPhones.has(normalized)) return false;
+      seenPhones.add(normalized);
+      return true;
+    });
+    const duplicatesRemoved = leads.length - uniqueLeads.length;
+
+    // --- Check for recently sent same template to these numbers (last 24 hours) ---
+    // Prevent re-sending the same template to the same number within 24h
+    const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const uniquePhones = uniqueLeads.map((l: any) => String(l.phoneNumber || '').trim()).filter(Boolean);
+    const recentlySent = await BroadcastRunMessage.find({
+      phoneNumber: { $in: uniquePhones },
+      status: { $in: ['sent', 'delivered', 'read'] },
+      sentAt: { $gte: dayAgo },
+    }).populate({ path: 'runId', select: 'templateId' }).lean();
+    
+    // Build set of phones that already received this exact template in last 24h
+    const alreadySentPhones = new Set<string>();
+    for (const msg of recentlySent) {
+      const msgTemplateId = String((msg as any).runId?.templateId || '');
+      if (msgTemplateId === templateId) {
+        const norm = String((msg as any).phoneNumber || '').replace(/\D/g, '').slice(-10);
+        alreadySentPhones.add(norm);
+      }
+    }
+
+    // Filter out leads that already received this template recently
+    const finalLeads = uniqueLeads.filter((l: any) => {
+      const norm = String(l.phoneNumber || '').replace(/\D/g, '').slice(-10);
+      return !alreadySentPhones.has(norm);
+    });
+    const alreadySentCount = uniqueLeads.length - finalLeads.length;
+
     const runStatus = mode === 'now' ? 'draft' : 'scheduled';
 
     // Message interval settings (following WhatsApp guidelines)
@@ -190,17 +230,17 @@ export async function POST(request: NextRequest) {
       },
       target,
       stats: {
-        total: leads.length,
-        pending: leads.length,
+        total: finalLeads.length,
+        pending: finalLeads.length,
         sent: 0,
         failed: 0,
         skipped: 0,
       },
     });
 
-    if (leads.length) {
+    if (finalLeads.length) {
       await BroadcastRunMessage.insertMany(
-        leads
+        finalLeads
           .filter((l: any) => String(l.phoneNumber || '').trim())
           .map((l: any) => ({
             runId: run._id,
@@ -210,13 +250,13 @@ export async function POST(request: NextRequest) {
           }))
       );
 
-      const missingPhone = leads.filter((l: any) => !String(l.phoneNumber || '').trim()).length;
+      const missingPhone = finalLeads.filter((l: any) => !String(l.phoneNumber || '').trim()).length;
       if (missingPhone) {
         await BroadcastRun.findByIdAndUpdate(run._id, {
           $set: {
             'stats.skipped': missingPhone,
-            'stats.total': leads.length,
-            'stats.pending': Math.max(0, leads.length - missingPhone),
+            'stats.total': finalLeads.length,
+            'stats.pending': Math.max(0, finalLeads.length - missingPhone),
           },
         });
       }
@@ -225,7 +265,16 @@ export async function POST(request: NextRequest) {
     // If mode=now, the UI will call /broadcast-runs/run to start processing immediately.
 
     const fresh = await BroadcastRun.findById(run._id).lean();
-    return NextResponse.json({ success: true, data: fresh }, { status: 201 });
+    return NextResponse.json({
+      success: true,
+      data: fresh,
+      dedup: {
+        originalCount: leads.length,
+        duplicatesRemoved,
+        alreadySentRemoved: alreadySentCount,
+        finalCount: finalLeads.length,
+      },
+    }, { status: 201 });
   } catch (error) {
     return handleCrmError(error, 'POST broadcast-runs');
   }

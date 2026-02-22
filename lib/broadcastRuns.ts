@@ -163,6 +163,18 @@ export async function processDueBroadcastRuns(options?: {
       // Best-effort createdBy id label for rate-limit.
       const createdBy = String((run as any).createdByUserId || 'broadcast');
 
+      // Track phones already processed in this run to prevent duplicate sends at runtime
+      const processedPhones = new Set<string>();
+      // Pre-load phones already sent in this run (from previous batches)
+      const alreadySent = await BroadcastRunMessage.find({
+        runId: (run as any)._id,
+        status: { $in: ['sent', 'delivered', 'read', 'sending'] },
+      }).select({ phoneNumber: 1 }).lean();
+      for (const m of alreadySent) {
+        const norm = normalizePhone(String((m as any).phoneNumber || ''));
+        if (norm) processedPhones.add(norm);
+      }
+
       for (const item of pending) {
         const leadId = String((item as any).leadId || '').trim();
         const to = normalizePhone(String((item as any).phoneNumber || ''));
@@ -173,6 +185,15 @@ export async function processDueBroadcastRuns(options?: {
           result.skipped++;
           continue;
         }
+
+        // Skip duplicate phone numbers within the same run
+        if (processedPhones.has(to)) {
+          await BroadcastRunMessage.updateOne({ _id: (item as any)._id }, { $set: { status: 'skipped', failureReason: 'Duplicate phone in same run', updatedAt: now } });
+          stat.skipped++;
+          result.skipped++;
+          continue;
+        }
+        processedPhones.add(to);
 
         // Consent / opt-out compliance
         const compliance = await ConsentManager.validateCompliance(to);
@@ -460,14 +481,38 @@ export async function processDueBroadcastRuns(options?: {
           }
           
         } catch (err) {
-          const m = err instanceof Error ? err.message : 'WhatsApp send failed';
+          const errorMsg = err instanceof Error ? err.message : 'WhatsApp send failed';
+          
+          // Categorize error type for better reporting
+          let errorCategory = 'unknown';
+          const errorLower = errorMsg.toLowerCase();
+          
+          if (errorLower.includes('not a valid whatsapp') || 
+              errorLower.includes('recipient is not a valid') ||
+              errorLower.includes('does not exist') ||
+              errorLower.includes('invalid parameter') && errorLower.includes('phone')) {
+            errorCategory = 'invalid_number';
+          } else if (errorLower.includes('not registered') || 
+                     errorLower.includes('number not on whatsapp') ||
+                     errorLower.includes('wa_recipient_not_found')) {
+            errorCategory = 'not_on_whatsapp';
+          } else if (errorLower.includes('rate limit') || errorLower.includes('too many')) {
+            errorCategory = 'rate_limited';
+          } else if (errorLower.includes('blocked') || errorLower.includes('opt-out')) {
+            errorCategory = 'blocked';
+          } else if (errorLower.includes('template') && (errorLower.includes('paused') || errorLower.includes('rejected'))) {
+            errorCategory = 'template_issue';
+          }
+          
+          const failureReason = `[${errorCategory}] ${errorMsg}`;
+          console.log(`[Broadcast] Message failed for ${to}: ${failureReason}`);
 
           await WhatsAppMessage.updateOne(
             { _id: msg._id },
             {
               $set: {
                 status: 'failed',
-                failureReason: String(m),
+                failureReason: failureReason,
                 updatedAt: new Date(),
               },
             }
@@ -478,7 +523,8 @@ export async function processDueBroadcastRuns(options?: {
             {
               $set: {
                 status: 'failed',
-                failureReason: String(m),
+                failureReason: failureReason,
+                errorCategory: errorCategory,
                 whatsappMessageId: msg._id,
                 updatedAt: new Date(),
               },
@@ -487,6 +533,9 @@ export async function processDueBroadcastRuns(options?: {
 
           stat.failed++;
           result.failed++;
+          
+          // Continue to next message (don't stop on error)
+          console.log(`[Broadcast] Continuing to next message after failure...`);
         }
       }
 
