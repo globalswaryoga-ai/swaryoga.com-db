@@ -149,6 +149,9 @@ export default function ChatbotBuilder() {
   const canvasRef = useRef<HTMLDivElement>(null);
   const rafMoveRef = useRef<number | null>(null);
 
+  const [showEmojiPicker, setShowEmojiPicker] = useState<string | null>(null); // blockId of emoji target
+  const [emojiTarget, setEmojiTarget] = useState<'message' | 'question'>('message');
+
   // WhatsApp text formatting helper
   const formatWhatsAppText = (text: string) => {
     if (!text) return text;
@@ -158,8 +161,72 @@ export default function ChatbotBuilder() {
     formatted = formatted.replace(/_([^_]+)_/g, '<em>$1</em>');
     // Replace ~strikethrough~ with <s>
     formatted = formatted.replace(/~([^~]+)~/g, '<s>$1</s>');
+    // Replace ```monospace``` with <code>
+    formatted = formatted.replace(/```([^`]+)```/g, '<code>$1</code>');
     return formatted;
   };
+
+  // Extract YouTube video ID from URL
+  const getYouTubeId = (url: string): string | null => {
+    const patterns = [
+      /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/,
+      /youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/,
+      /youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/,
+    ];
+    for (const p of patterns) {
+      const m = url.match(p);
+      if (m) return m[1];
+    }
+    return null;
+  };
+
+  // Extract first URL from text
+  const extractUrl = (text: string): string | null => {
+    const m = text.match(/https?:\/\/[^\s<]+/);
+    return m ? m[0] : null;
+  };
+
+  // Render URL preview for a text (YouTube thumbnail or generic link badge)
+  const renderUrlPreview = (text: string) => {
+    const url = extractUrl(text);
+    if (!url) return null;
+    const ytId = getYouTubeId(url);
+    if (ytId) {
+      return (
+        <div style={{ marginTop: 6, borderRadius: 6, overflow: 'hidden', position: 'relative', background: '#000' }}>
+          <img
+            src={`https://img.youtube.com/vi/${ytId}/mqdefault.jpg`}
+            alt="YouTube"
+            style={{ width: '100%', height: 80, objectFit: 'cover', display: 'block', opacity: 0.9 }}
+            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+          />
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: 32, height: 22, background: 'red', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>▶</span>
+            </div>
+          </div>
+          <div style={{ padding: '4px 6px', background: '#fafafa', fontSize: 9, color: '#4b5563', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ color: '#ef4444' }}>▶</span> YouTube
+          </div>
+        </div>
+      );
+    }
+    // Generic link preview
+    const hostname = (() => { try { return new URL(url).hostname; } catch { return url.slice(0, 30); } })();
+    return (
+      <div style={{ marginTop: 6, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 6, padding: '4px 8px', fontSize: 10, color: '#166534', display: 'flex', alignItems: 'center', gap: 4 }}>
+        <span>🔗</span>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{hostname}</span>
+      </div>
+    );
+  };
+
+  // Common emojis for quick pick
+  const COMMON_EMOJIS = [
+    '😊','😂','❤️','🙏','👍','🎉','✅','⭐','🔥','💪',
+    '📞','💬','🙌','😍','🤝','👋','🎯','💡','📌','🌟',
+    '👏','😇','🧘','🕉️','☀️','🌙','🙂','🤩','💐','🎊',
+  ];
 
   // Get block color helper
   const getBlockColor = (type: string) => {
@@ -858,15 +925,17 @@ export default function ChatbotBuilder() {
                        dangerouslySetInnerHTML={{ __html: formatWhatsAppText((block.data?.message || 'Enter message...').length > 100 ? (block.data?.message || '').slice(0, 100) + '...' : (block.data?.message || 'Enter message...')) }}
                     />
                   </div>
+                  {block.data?.message && renderUrlPreview(block.data.message)}
                 </div>
               )}
               
               {/* Question/Buttons types - WhatsApp style blue buttons */}
               {(['question', 'buttons'].includes(block.type)) && (
                 <div>
-                  <div style={{ color: '#1f2937', fontSize: 12, marginBottom: 8, lineHeight: 1.4 }}>
-                    {block.data?.question || 'Enter question...'}
-                  </div>
+                  <div style={{ color: '#1f2937', fontSize: 12, marginBottom: 4, lineHeight: 1.4 }}
+                       dangerouslySetInnerHTML={{ __html: formatWhatsAppText((block.data?.question || 'Enter question...').length > 80 ? (block.data?.question || '').slice(0, 80) + '...' : (block.data?.question || 'Enter question...')) }}
+                  />
+                  {block.data?.question && renderUrlPreview(block.data.question)}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 3, borderTop: '1px solid #e5e7eb', paddingTop: 6 }}>
                     {(block.data?.options || []).map((opt, i) => {
                       const label = typeof opt === 'string' ? opt : opt.label;
@@ -958,10 +1027,16 @@ export default function ChatbotBuilder() {
                 </div>
               )}
               
-              {/* Delay - Enhanced with units */}
+              {/* Delay - Enhanced with units & visual timer */}
               {block.type === 'delay' && (
-                <div style={{ fontSize: 11, color: '#1f2937' }}>
-                  ⏱️ Wait {block.data?.delayMinutes || block.data?.delaySeconds || 0} {block.data?.delayUnit || 'minutes'}
+                <div style={{ textAlign: 'center', padding: '6px 0' }}>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 20, padding: '6px 14px' }}>
+                    <span style={{ fontSize: 18 }}>⏱️</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#1d4ed8' }}>
+                      {block.data?.delayMinutes || block.data?.delaySeconds || block.data?.delayHours || 0} {block.data?.delayUnit || 'minutes'}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 9, color: '#9ca3af', marginTop: 4 }}>then continue to next step</div>
                 </div>
               )}
               
@@ -1058,10 +1133,44 @@ export default function ChatbotBuilder() {
                 </div>
               )}
               
-              {/* Media types */}
+              {/* Media types - with inline preview */}
               {['image', 'document', 'audio', 'video'].includes(block.type) && (
                 <div style={{ fontSize: 11, color: '#1f2937' }}>
-                  {getBlockIcon(block.type)} {block.data?.mediaUrl?.substring(0, 30) || 'Enter media URL...'}
+                  {block.type === 'image' && block.data?.mediaUrl ? (
+                    <div>
+                      <img
+                        src={block.data.mediaUrl}
+                        alt="Preview"
+                        style={{ width: '100%', height: 80, objectFit: 'cover', borderRadius: 6, display: 'block', marginBottom: 4 }}
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      />
+                      {block.data?.mediaCaption && (
+                        <div style={{ fontSize: 10, color: '#6b7280', marginTop: 2 }}>{block.data.mediaCaption}</div>
+                      )}
+                    </div>
+                  ) : block.type === 'video' && block.data?.mediaUrl ? (
+                    <div>
+                      {(() => {
+                        const ytId = getYouTubeId(block.data.mediaUrl || '');
+                        if (ytId) return (
+                          <div style={{ position: 'relative', borderRadius: 6, overflow: 'hidden', marginBottom: 4 }}>
+                            <img src={`https://img.youtube.com/vi/${ytId}/mqdefault.jpg`} alt="" style={{ width: '100%', height: 80, objectFit: 'cover', display: 'block' }} />
+                            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <div style={{ width: 32, height: 22, background: 'red', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <span style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>▶</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                        return <div>🎬 {block.data.mediaUrl?.substring(0, 30)}...</div>;
+                      })()}
+                      {block.data?.mediaCaption && (
+                        <div style={{ fontSize: 10, color: '#6b7280' }}>{block.data.mediaCaption}</div>
+                      )}
+                    </div>
+                  ) : (
+                    <div>{getBlockIcon(block.type)} {block.data?.mediaUrl?.substring(0, 30) || 'Enter media URL...'}</div>
+                  )}
                 </div>
               )}
               
@@ -1295,13 +1404,94 @@ export default function ChatbotBuilder() {
                   {(['message', 'end'].includes(block.type)) && (
                     <label className="block">
                       <span className="text-xs font-semibold text-gray-700">Message Text</span>
-                      <textarea
-                        value={block.data?.message || ''}
-                        onChange={(e) => updateBlockData(block.id, { message: e.target.value })}
-                        className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none"
-                        rows={3}
-                        placeholder="Enter message..."
-                      />
+                      <div className="mt-1 border border-gray-200 rounded-lg overflow-hidden focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-200">
+                        {/* Formatting Toolbar */}
+                        <div className="flex items-center gap-1 px-2 py-1.5 bg-gray-50 border-b border-gray-200">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const ta = document.getElementById(`msg-ta-${block.id}`) as HTMLTextAreaElement;
+                              if (!ta) return;
+                              const start = ta.selectionStart;
+                              const end = ta.selectionEnd;
+                              const text = block.data?.message || '';
+                              const selected = text.slice(start, end);
+                              const newText = text.slice(0, start) + '*' + (selected || 'bold') + '*' + text.slice(end);
+                              updateBlockData(block.id, { message: newText });
+                            }}
+                            className="px-2 py-1 text-xs font-bold text-gray-700 bg-white border border-gray-200 rounded hover:bg-gray-100 transition-colors"
+                            title="Bold (*text*)"
+                          >B</button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const ta = document.getElementById(`msg-ta-${block.id}`) as HTMLTextAreaElement;
+                              if (!ta) return;
+                              const start = ta.selectionStart;
+                              const end = ta.selectionEnd;
+                              const text = block.data?.message || '';
+                              const selected = text.slice(start, end);
+                              const newText = text.slice(0, start) + '_' + (selected || 'italic') + '_' + text.slice(end);
+                              updateBlockData(block.id, { message: newText });
+                            }}
+                            className="px-2 py-1 text-xs italic text-gray-700 bg-white border border-gray-200 rounded hover:bg-gray-100 transition-colors"
+                            title="Italic (_text_)"
+                          >I</button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const ta = document.getElementById(`msg-ta-${block.id}`) as HTMLTextAreaElement;
+                              if (!ta) return;
+                              const start = ta.selectionStart;
+                              const end = ta.selectionEnd;
+                              const text = block.data?.message || '';
+                              const selected = text.slice(start, end);
+                              const newText = text.slice(0, start) + '~' + (selected || 'strikethrough') + '~' + text.slice(end);
+                              updateBlockData(block.id, { message: newText });
+                            }}
+                            className="px-2 py-1 text-xs line-through text-gray-700 bg-white border border-gray-200 rounded hover:bg-gray-100 transition-colors"
+                            title="Strikethrough (~text~)"
+                          >S</button>
+                          <div className="w-px h-5 bg-gray-300 mx-1" />
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={() => setShowEmojiPicker(showEmojiPicker === block.id + '-msg' ? null : block.id + '-msg')}
+                              className="px-2 py-1 text-sm bg-white border border-gray-200 rounded hover:bg-gray-100 transition-colors"
+                              title="Insert emoji"
+                            >😊</button>
+                            {showEmojiPicker === block.id + '-msg' && (
+                              <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-50 w-[220px]">
+                                <div className="grid grid-cols-10 gap-0.5">
+                                  {COMMON_EMOJIS.map(em => (
+                                    <button
+                                      key={em}
+                                      type="button"
+                                      onClick={() => {
+                                        const ta = document.getElementById(`msg-ta-${block.id}`) as HTMLTextAreaElement;
+                                        const pos = ta?.selectionStart || (block.data?.message || '').length;
+                                        const text = block.data?.message || '';
+                                        updateBlockData(block.id, { message: text.slice(0, pos) + em + text.slice(pos) });
+                                        setShowEmojiPicker(null);
+                                      }}
+                                      className="text-lg hover:bg-gray-100 rounded p-0.5 leading-none"
+                                    >{em}</button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <textarea
+                          id={`msg-ta-${block.id}`}
+                          value={block.data?.message || ''}
+                          onChange={(e) => updateBlockData(block.id, { message: e.target.value })}
+                          className="w-full px-3 py-2 text-sm resize-none border-0 focus:outline-none focus:ring-0"
+                          rows={3}
+                          placeholder="Enter message... Use *bold* _italic_ ~strike~"
+                        />
+                      </div>
+                      <p className="text-[10px] text-gray-400 mt-1">Use *bold* _italic_ ~strikethrough~</p>
                     </label>
                   )}
 
@@ -1310,12 +1500,94 @@ export default function ChatbotBuilder() {
                     <>
                       <label className="block">
                         <span className="text-xs font-semibold text-gray-700">Question Text</span>
-                        <textarea
-                          value={block.data?.question || ''}
-                          onChange={(e) => updateBlockData(block.id, { question: e.target.value })}
-                          className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none"
-                          rows={2}
-                        />
+                        <div className="mt-1 border border-gray-200 rounded-lg overflow-hidden focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-200">
+                          {/* Formatting Toolbar */}
+                          <div className="flex items-center gap-1 px-2 py-1.5 bg-gray-50 border-b border-gray-200">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const ta = document.getElementById(`q-ta-${block.id}`) as HTMLTextAreaElement;
+                                if (!ta) return;
+                                const start = ta.selectionStart;
+                                const end = ta.selectionEnd;
+                                const text = block.data?.question || '';
+                                const selected = text.slice(start, end);
+                                const newText = text.slice(0, start) + '*' + (selected || 'bold') + '*' + text.slice(end);
+                                updateBlockData(block.id, { question: newText });
+                              }}
+                              className="px-2 py-1 text-xs font-bold text-gray-700 bg-white border border-gray-200 rounded hover:bg-gray-100 transition-colors"
+                              title="Bold (*text*)"
+                            >B</button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const ta = document.getElementById(`q-ta-${block.id}`) as HTMLTextAreaElement;
+                                if (!ta) return;
+                                const start = ta.selectionStart;
+                                const end = ta.selectionEnd;
+                                const text = block.data?.question || '';
+                                const selected = text.slice(start, end);
+                                const newText = text.slice(0, start) + '_' + (selected || 'italic') + '_' + text.slice(end);
+                                updateBlockData(block.id, { question: newText });
+                              }}
+                              className="px-2 py-1 text-xs italic text-gray-700 bg-white border border-gray-200 rounded hover:bg-gray-100 transition-colors"
+                              title="Italic (_text_)"
+                            >I</button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const ta = document.getElementById(`q-ta-${block.id}`) as HTMLTextAreaElement;
+                                if (!ta) return;
+                                const start = ta.selectionStart;
+                                const end = ta.selectionEnd;
+                                const text = block.data?.question || '';
+                                const selected = text.slice(start, end);
+                                const newText = text.slice(0, start) + '~' + (selected || 'strikethrough') + '~' + text.slice(end);
+                                updateBlockData(block.id, { question: newText });
+                              }}
+                              className="px-2 py-1 text-xs line-through text-gray-700 bg-white border border-gray-200 rounded hover:bg-gray-100 transition-colors"
+                              title="Strikethrough (~text~)"
+                            >S</button>
+                            <div className="w-px h-5 bg-gray-300 mx-1" />
+                            <div className="relative">
+                              <button
+                                type="button"
+                                onClick={() => setShowEmojiPicker(showEmojiPicker === block.id + '-q' ? null : block.id + '-q')}
+                                className="px-2 py-1 text-sm bg-white border border-gray-200 rounded hover:bg-gray-100 transition-colors"
+                                title="Insert emoji"
+                              >😊</button>
+                              {showEmojiPicker === block.id + '-q' && (
+                                <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-50 w-[220px]">
+                                  <div className="grid grid-cols-10 gap-0.5">
+                                    {COMMON_EMOJIS.map(em => (
+                                      <button
+                                        key={em}
+                                        type="button"
+                                        onClick={() => {
+                                          const ta = document.getElementById(`q-ta-${block.id}`) as HTMLTextAreaElement;
+                                          const pos = ta?.selectionStart || (block.data?.question || '').length;
+                                          const text = block.data?.question || '';
+                                          updateBlockData(block.id, { question: text.slice(0, pos) + em + text.slice(pos) });
+                                          setShowEmojiPicker(null);
+                                        }}
+                                        className="text-lg hover:bg-gray-100 rounded p-0.5 leading-none"
+                                      >{em}</button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <textarea
+                            id={`q-ta-${block.id}`}
+                            value={block.data?.question || ''}
+                            onChange={(e) => updateBlockData(block.id, { question: e.target.value })}
+                            className="w-full px-3 py-2 text-sm resize-none border-0 focus:outline-none focus:ring-0"
+                            rows={2}
+                            placeholder="Enter question... Use *bold* _italic_"
+                          />
+                        </div>
+                        <p className="text-[10px] text-gray-400 mt-1">Use *bold* _italic_ ~strikethrough~</p>
                       </label>
                       <div>
                         <span className="text-xs font-semibold text-gray-700">Options</span>
