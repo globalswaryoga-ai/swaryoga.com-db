@@ -2508,13 +2508,35 @@ export default function MetaInboxPage() {
                             const mainBody = tagMatch ? content.replace(tagMatch[0], '').trim() : content;
                             const tag = tagMatch ? tagMatch[1] : null;
                             
-                            // Format WhatsApp-style text: *bold*, _italic_, ~strikethrough~
+                            // Format WhatsApp-style text: *bold*, _italic_, ~strikethrough~, and linkify URLs
                             const formatWhatsAppText = (text: string) => {
+                              // Helper: linkify URLs in a plain text string
+                              const linkifyText = (str: string, lineIdx: number, startKey: number) => {
+                                const urlRegex = /(https?:\/\/[^\s]+)/g;
+                                const nodes: React.ReactNode[] = [];
+                                let lastIdx = 0;
+                                let urlMatch;
+                                let k = startKey;
+                                while ((urlMatch = urlRegex.exec(str)) !== null) {
+                                  if (urlMatch.index > lastIdx) {
+                                    nodes.push(str.slice(lastIdx, urlMatch.index));
+                                  }
+                                  const url = urlMatch[1];
+                                  nodes.push(
+                                    <a key={`link-${lineIdx}-${k++}`} href={url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-800 break-all">{url}</a>
+                                  );
+                                  lastIdx = urlRegex.lastIndex;
+                                }
+                                if (lastIdx < str.length) {
+                                  nodes.push(str.slice(lastIdx));
+                                }
+                                return { nodes, nextKey: k };
+                              };
+
                               // Split by newlines to preserve line breaks
                               return text.split('\n').map((line, lineIdx) => {
                                 // Process each line for formatting
                                 const parts: React.ReactNode[] = [];
-                                let remaining = line;
                                 let keyIdx = 0;
                                 
                                 // Match *bold*, _italic_, ~strike~ patterns
@@ -2523,9 +2545,11 @@ export default function MetaInboxPage() {
                                 let match;
                                 
                                 while ((match = regex.exec(line)) !== null) {
-                                  // Add text before match
+                                  // Add text before match (with linkification)
                                   if (match.index > lastIndex) {
-                                    parts.push(line.slice(lastIndex, match.index));
+                                    const { nodes, nextKey } = linkifyText(line.slice(lastIndex, match.index), lineIdx, keyIdx);
+                                    parts.push(...nodes);
+                                    keyIdx = nextKey;
                                   }
                                   
                                   const matched = match[0];
@@ -2542,14 +2566,15 @@ export default function MetaInboxPage() {
                                   lastIndex = regex.lastIndex;
                                 }
                                 
-                                // Add remaining text
+                                // Add remaining text (with linkification)
                                 if (lastIndex < line.length) {
-                                  parts.push(line.slice(lastIndex));
+                                  const { nodes } = linkifyText(line.slice(lastIndex), lineIdx, keyIdx);
+                                  parts.push(...nodes);
                                 }
                                 
                                 return (
                                   <React.Fragment key={lineIdx}>
-                                    {parts.length > 0 ? parts : line}
+                                    {parts.length > 0 ? parts : (() => { const { nodes } = linkifyText(line, lineIdx, 0); return nodes.length > 0 ? nodes : [line]; })()}
                                     {lineIdx < text.split('\n').length - 1 && <br />}
                                   </React.Fragment>
                                 );
