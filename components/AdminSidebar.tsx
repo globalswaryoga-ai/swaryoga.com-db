@@ -31,6 +31,7 @@ import {
   Activity,
   Shield,
   Mail,
+  Building2,
 } from 'lucide-react';
 
 interface AdminSidebarProps {
@@ -281,6 +282,12 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
       label: 'Community',
       href: '/admin/crm/community',
       color: 'text-teal-500',
+    },
+    {
+      icon: Building2,
+      label: 'Tally Prime',
+      href: '/admin/crm/tally',
+      color: 'text-yellow-500',
     },
   ];
 
