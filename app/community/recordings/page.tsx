@@ -206,12 +206,15 @@ export default function RecordingsPage() {
               >
                 ✕ Close
               </button>
-              <div className="bg-black rounded-xl overflow-hidden">
+              <div className="bg-black rounded-xl overflow-hidden" onContextMenu={(e) => e.preventDefault()}>
                 <video
                   src={playingVideo.s3Url}
                   controls
                   autoPlay
                   className="w-full aspect-video"
+                  controlsList="nodownload nofullscreen noremoteplayback"
+                  disablePictureInPicture
+                  onContextMenu={(e) => e.preventDefault()}
                 />
                 <div className="p-4 bg-gray-900">
                   <h3 className="text-white font-semibold">{playingVideo.title}</h3>

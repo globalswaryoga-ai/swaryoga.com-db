@@ -152,20 +152,20 @@ export async function GET(request: NextRequest) {
         rel: '0',
         showinfo: '0',
         iv_load_policy: '3', // Hide annotations
-        disablekb: '1', // Disable keyboard controls (prevents seeking tricks)
-        fs: '0', // Disable fullscreen (optional, can enable)
+        disablekb: '1', // Disable keyboard controls
+        playsinline: '1',
         origin: process.env.NEXT_PUBLIC_BASE_URL || 'https://swaryoga.com'
       });
       
       accessUrl = `https://www.youtube-nocookie.com/embed/${video.youtubeVideoId}?${embedParams}`;
-      embedHtml = `<iframe 
+      embedHtml = `<div style="position:relative;width:100%;height:100%;" oncontextmenu="return false;"><iframe 
         src="${accessUrl}" 
         frameborder="0" 
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-        allowfullscreen
-        style="width:100%;height:100%;"
+        allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" 
+        referrerpolicy="no-referrer"
         sandbox="allow-scripts allow-same-origin allow-presentation"
-      ></iframe>`;
+        style="width:100%;height:100%;"
+      ></iframe></div>`;
     } else if (video.s3Key) {
       // For AWS S3, generate signed URL (expires in 2 hours)
       accessUrl = await getProtectedUrl(video.s3Key, 'community', 7200);

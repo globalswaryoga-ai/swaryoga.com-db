@@ -1215,21 +1215,25 @@ function CommunityPageContent() {
                         {/* Video Player */}
                         <div className="relative aspect-video bg-gray-900">
                           {video.videoSource === 'youtube' && video.youtubeVideoId ? (
-                            // YouTube embed (privacy-enhanced mode)
-                            <iframe
-                              src={`https://www.youtube-nocookie.com/embed/${video.youtubeVideoId}?modestbranding=1&rel=0&showinfo=0&iv_load_policy=3`}
-                              className="w-full h-full"
-                              frameBorder="0"
-                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                              allowFullScreen
-                              title={video.title}
-                            />
+                            // YouTube embed (privacy-enhanced, no-share, no-download)
+                            <div className="relative w-full h-full" onContextMenu={(e) => e.preventDefault()}>
+                              <iframe
+                                src={`https://www.youtube-nocookie.com/embed/${video.youtubeVideoId}?modestbranding=1&rel=0&showinfo=0&iv_load_policy=3&disablekb=1&playsinline=1`}
+                                className="w-full h-full"
+                                frameBorder="0"
+                                allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
+                                referrerPolicy="no-referrer"
+                                sandbox="allow-scripts allow-same-origin allow-presentation"
+                                title={video.title}
+                              />
+                            </div>
                           ) : video.url ? (
                             <video 
                               controls 
                               className="w-full h-full"
                               poster={video.thumbnailUrl}
-                              controlsList="nodownload"
+                              controlsList="nodownload nofullscreen noremoteplayback"
+                              disablePictureInPicture
                               onContextMenu={(e) => e.preventDefault()}
                             >
                               <source src={video.url} type="video/mp4" />
