@@ -83,14 +83,15 @@ export async function GET(
     const videosWithUrls = await Promise.all(
       videos.map(async (video: any) => {
         try {
-          // For YouTube videos, no signed URL needed
+          // For YouTube videos, return proxy embed URL (never expose youtubeVideoId)
           if (video.videoSource === 'youtube' && video.youtubeVideoId) {
             return {
               _id: video._id,
               title: video.title,
               description: video.description,
               videoSource: 'youtube',
-              youtubeVideoId: video.youtubeVideoId,
+              // DO NOT send youtubeVideoId — use proxy embed instead
+              embedUrl: `/api/community/videos/embed?v=${video._id}&token=${token}`,
               thumbnailUrl: video.thumbnailUrl || `https://img.youtube.com/vi/${video.youtubeVideoId}/maxresdefault.jpg`,
               duration: video.duration,
               views: video.views,
@@ -98,7 +99,7 @@ export async function GET(
               isCommon: video.isCommon,
               tags: video.tags,
               uploadedBy: video.uploadedBy,
-              url: null, // YouTube uses embed instead
+              url: null, // YouTube uses embed proxy instead
             };
           }
           

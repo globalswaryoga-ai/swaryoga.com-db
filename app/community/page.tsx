@@ -1214,11 +1214,11 @@ function CommunityPageContent() {
                       <div key={video._id} className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300">
                         {/* Video Player */}
                         <div className="relative aspect-video bg-gray-900">
-                          {video.videoSource === 'youtube' && video.youtubeVideoId ? (
-                            // YouTube embed (privacy-enhanced, no-share, no-download)
+                          {video.videoSource === 'youtube' && video.embedUrl ? (
+                            // YouTube embed via secure proxy (video ID never reaches client)
                             <div className="relative w-full h-full" onContextMenu={(e) => e.preventDefault()}>
                               <iframe
-                                src={`https://www.youtube-nocookie.com/embed/${video.youtubeVideoId}?modestbranding=1&rel=0&showinfo=0&iv_load_policy=3&disablekb=1&playsinline=1`}
+                                src={video.embedUrl}
                                 className="w-full h-full"
                                 frameBorder="0"
                                 allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"

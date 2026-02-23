@@ -144,20 +144,10 @@ export async function GET(request: NextRequest) {
     let embedHtml: string | null = null;
 
     if (video.videoSource === 'youtube' && video.youtubeVideoId) {
-      // For YouTube, generate protected embed URL
-      // Using nocookie domain and privacy-enhanced mode
-      // The token parameter prevents direct sharing
-      const embedParams = new URLSearchParams({
-        modestbranding: '1',
-        rel: '0',
-        showinfo: '0',
-        iv_load_policy: '3', // Hide annotations
-        disablekb: '1', // Disable keyboard controls
-        playsinline: '1',
-        origin: process.env.NEXT_PUBLIC_BASE_URL || 'https://swaryoga.com'
-      });
-      
-      accessUrl = `https://www.youtube-nocookie.com/embed/${video.youtubeVideoId}?${embedParams}`;
+      // Use proxy embed route — never expose YouTube video ID to client
+      const authHeader = request.headers.get('authorization');
+      const jwtToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : '';
+      accessUrl = `/api/community/videos/embed?v=${videoId}&token=${jwtToken}`;
       embedHtml = `<div style="position:relative;width:100%;height:100%;" oncontextmenu="return false;"><iframe 
         src="${accessUrl}" 
         frameborder="0" 
