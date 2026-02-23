@@ -434,6 +434,33 @@ export default function TallyPage() {
     printWindow.document.close();
   };
 
+  // ── Export Tally XML ──
+  const exportTallyXml = useCallback(async (type: 'all' | 'ledgers' | 'vouchers' = 'all') => {
+    if (!token) return;
+    try {
+      const res = await fetch(`/api/admin/crm/tally/export-xml?fy=${selectedFY}&type=${type}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.error || 'Export failed');
+        return;
+      }
+      const ledgerCount = res.headers.get('X-Ledger-Count') || '0';
+      const voucherCount = res.headers.get('X-Voucher-Count') || '0';
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `tally-import-${selectedFY}-${type}.xml`;
+      a.click();
+      URL.revokeObjectURL(url);
+      alert(`Tally XML exported!\n${ledgerCount} ledgers + ${voucherCount} vouchers\n\nTo import in Tally Prime 3.0.1:\n1. Open Tally Prime → your company\n2. Gateway of Tally → Import Data\n3. Select this XML file`);
+    } catch (err: any) {
+      alert('Export error: ' + err.message);
+    }
+  }, [token, selectedFY]);
+
   // Auto-scroll chat
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -1296,11 +1323,21 @@ export default function TallyPage() {
                   {/* Manual Voucher Stats */}
                   {(Object.keys(manualVoucherStats).length > 0 || manualEntries.length > 0) && (
                     <>
-                      <div className="mb-2">
-                        <h2 className="text-lg font-bold text-gray-200 flex items-center gap-2">
-                          <ClipboardList className="w-5 h-5 text-yellow-500" /> Manual Data Summary — {currentFY.label}
-                        </h2>
-                        <p className="text-xs text-gray-500">Your manually entered accounting data</p>
+                      <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
+                        <div>
+                          <h2 className="text-lg font-bold text-gray-200 flex items-center gap-2">
+                            <ClipboardList className="w-5 h-5 text-yellow-500" /> Manual Data Summary — {currentFY.label}
+                          </h2>
+                          <p className="text-xs text-gray-500">Your manually entered accounting data</p>
+                        </div>
+                        <button
+                          onClick={() => exportTallyXml('all')}
+                          disabled={manualEntries.length === 0}
+                          className="px-4 py-2 bg-green-700 hover:bg-green-600 disabled:bg-gray-700 disabled:text-gray-500 text-white text-sm font-medium rounded-lg flex items-center gap-2"
+                          title="Export all data as Tally Prime XML"
+                        >
+                          <Download className="w-4 h-4" /> Export for Tally Prime
+                        </button>
                       </div>
                       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                         <StatCard label="Receipts" value={fmt(manualVoucherStats.Receipt?.total || 0)} sub={`${manualVoucherStats.Receipt?.count || 0} vouchers`} icon={ArrowDownLeft} color="text-blue-400" bg="bg-blue-500/10" />
@@ -1914,6 +1951,14 @@ export default function TallyPage() {
                     title="Import ledger names from Tally backup"
                   >
                     <Database className="w-3.5 h-3.5" /> Tally Import
+                  </button>
+                  <button
+                    onClick={() => exportTallyXml('all')}
+                    disabled={manualEntries.length === 0}
+                    className="px-3 py-2 bg-green-700 hover:bg-green-600 text-white text-xs font-medium rounded-lg flex items-center gap-1.5 disabled:opacity-50"
+                    title="Export all data as Tally Prime XML for import"
+                  >
+                    <Download className="w-3.5 h-3.5" /> Export for Tally
                   </button>
                   <button
                     onClick={() => csvFileInputRef.current?.click()}
