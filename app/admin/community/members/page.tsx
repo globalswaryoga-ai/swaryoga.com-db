@@ -35,6 +35,7 @@ export default function AdminCommunityMembersPage() {
   const [successMsg, setSuccessMsg] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [pendingCounts, setPendingCounts] = useState<Record<string, number>>({});
+  const [showAllLinks, setShowAllLinks] = useState(false);
 
   // All non-global communities for the dropdown (global is auto-approved, no need)
   const communities = COMMUNITY_DESIGNS.filter(c => c.id !== 'global');
@@ -312,7 +313,40 @@ export default function AdminCommunityMembersPage() {
 
         {/* Community Selector */}
         <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6">
-          <label className="block text-sm font-bold text-gray-700 mb-3">Select Community</label>
+          <div className="flex items-center justify-between mb-3">
+            <label className="block text-sm font-bold text-gray-700">Select Community</label>
+            <button
+              onClick={() => setShowAllLinks(!showAllLinks)}
+              className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors bg-blue-50 text-blue-600 hover:bg-blue-100"
+            >
+              {showAllLinks ? '✕ Close Links' : '🔗 All Join Links'}
+            </button>
+          </div>
+
+          {/* All Join Links Panel */}
+          {showAllLinks && (
+            <div className="mb-4 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4">
+              <h3 className="text-sm font-bold text-blue-800 mb-3">📋 Community Join Links (copy & share)</h3>
+              <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                {communities.map(c => {
+                  const link = typeof window !== 'undefined' ? `${window.location.origin}/join/${c.id}` : `/join/${c.id}`;
+                  return (
+                    <div key={c.id} className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 border border-blue-100">
+                      <span className="text-sm font-medium text-gray-800 whitespace-nowrap min-w-[160px]">{c.name}</span>
+                      <code className="text-xs bg-gray-50 px-2 py-1 rounded font-mono text-gray-500 flex-1 truncate">{link}</code>
+                      <button
+                        onClick={() => copyJoinLink(c.id)}
+                        className="text-xs bg-blue-500 text-white px-3 py-1.5 rounded-lg hover:bg-blue-600 font-medium transition-colors whitespace-nowrap"
+                      >
+                        📋 Copy
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
             {communities.map(c => {
               const pending = pendingCounts[c.id] || 0;
