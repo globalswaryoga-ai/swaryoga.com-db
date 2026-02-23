@@ -31,6 +31,12 @@ import {
   Bot,
   ToggleLeft,
   ToggleRight,
+  ClipboardList,
+  Plus,
+  Trash2,
+  Edit3,
+  Save,
+  Upload,
 } from 'lucide-react';
 
 // ── Types ──
@@ -125,7 +131,7 @@ interface BalanceSheetData {
   difference: number;
 }
 
-type ActiveTab = 'dashboard' | 'sales' | 'receipts' | 'purchases' | 'ledgers' | 'stock' | 'daybook' | 'profitloss' | 'balancesheet' | 'settings';
+type ActiveTab = 'dashboard' | 'sales' | 'receipts' | 'purchases' | 'ledgers' | 'stock' | 'daybook' | 'profitloss' | 'balancesheet' | 'opening' | 'settings';
 
 // ── Helpers ──
 function fmt(n: number) {
@@ -192,6 +198,15 @@ export default function TallyPage() {
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // Manual Opening Balances
+  interface ManualEntry { _id: string; ledgerName: string; parentGroup: string; category: string; amount: number; drCr: string; asOnDate: string; notes: string; }
+  const [manualEntries, setManualEntries] = useState<ManualEntry[]>([]);
+  const [manualTotals, setManualTotals] = useState<{ totalAssets: number; totalLiabilities: number; totalIncome: number; totalExpenses: number }>({ totalAssets: 0, totalLiabilities: 0, totalIncome: 0, totalExpenses: 0 });
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [formData, setFormData] = useState({ ledgerName: '', parentGroup: '', category: 'asset' as string, amount: '', drCr: 'Dr' as string, asOnDate: '', notes: '' });
+  const [manualLoading, setManualLoading] = useState(false);
 
   // Auto-scroll chat
   useEffect(() => {
@@ -305,7 +320,7 @@ export default function TallyPage() {
     }
   }, [token, headers]);
 
-  // ── Fetch Profit & Loss ──
+  // ── Fetch Profit & Loss (Tally first → manual fallback) ──
   const fetchPL = useCallback(async (fy?: { from: string; to: string }) => {
     if (!token) return;
     const f = fy || currentFY;
@@ -313,23 +328,154 @@ export default function TallyPage() {
     try {
       const res = await fetch(`/api/admin/crm/tally?action=profitloss&from=${f.from}&to=${f.to}`, { headers: headers() });
       const data = await res.json();
-      if (data.success) setPlData(data);
+      if (data.success && (data.income?.length > 0 || data.expenses?.length > 0)) {
+        setPlData(data);
+        return;
+      }
+    } catch { /* Tally not available */ }
+
+    // Fallback: build from manual entries
+    try {
+      const manRes = await fetch(`/api/admin/crm/tally/manual-balances?fy=${selectedFY}`, { headers: headers() });
+      const manData = await manRes.json();
+      if (manData.success && manData.entries?.length > 0) {
+        const incEntries = manData.entries.filter((e: any) => e.category === 'income');
+        const expEntries = manData.entries.filter((e: any) => e.category === 'expense');
+        const groupIt = (items: any[]) => {
+          const map = new Map<string, { name: string; amount: number }[]>();
+          for (const i of items) { const k = i.parentGroup || 'Other'; if (!map.has(k)) map.set(k, []); map.get(k)!.push({ name: i.ledgerName, amount: i.amount }); }
+          return Array.from(map.entries()).map(([name, children]) => ({ name, amount: children.reduce((s: number, c: any) => s + c.amount, 0), children: children.sort((a: any, b: any) => b.amount - a.amount) })).sort((a, b) => b.amount - a.amount);
+        };
+        const income = groupIt(incEntries);
+        const expenses = groupIt(expEntries);
+        const totalIncome = income.reduce((s, g) => s + g.amount, 0);
+        const totalExpenses = expenses.reduce((s, g) => s + g.amount, 0);
+        setPlData({ income, expenses, totalIncome, totalExpenses, netProfit: totalIncome - totalExpenses });
+      } else {
+        setPlData(null);
+      }
     } catch { setPlData(null); }
     finally { setLoading(false); }
-  }, [token, headers]);
+  }, [token, headers, selectedFY]);
 
-  // ── Fetch Balance Sheet ──
+  // ── Build BS from manual entries ──
+  const buildBSFromManual = (entries: ManualEntry[]): BalanceSheetData | null => {
+    const assetEntries = entries.filter(e => e.category === 'asset');
+    const liabEntries = entries.filter(e => e.category === 'liability');
+    if (assetEntries.length === 0 && liabEntries.length === 0) return null;
+
+    const groupEntries = (items: ManualEntry[]) => {
+      const map = new Map<string, { name: string; amount: number }[]>();
+      for (const item of items) {
+        const key = item.parentGroup || 'Other';
+        if (!map.has(key)) map.set(key, []);
+        map.get(key)!.push({ name: item.ledgerName, amount: item.amount });
+      }
+      return Array.from(map.entries()).map(([name, children]) => ({
+        name,
+        amount: children.reduce((s, c) => s + c.amount, 0),
+        children: children.sort((a, b) => b.amount - a.amount),
+      })).sort((a, b) => b.amount - a.amount);
+    };
+
+    const assets = groupEntries(assetEntries);
+    const liabilities = groupEntries(liabEntries);
+    const totalAssets = assets.reduce((s, g) => s + g.amount, 0);
+    const totalLiabilities = liabilities.reduce((s, g) => s + g.amount, 0);
+    return { assets, liabilities, totalAssets, totalLiabilities, difference: totalAssets - totalLiabilities };
+  };
+
+  // ── Fetch Balance Sheet (Tally first → manual fallback) ──
   const fetchBS = useCallback(async (fy?: { from: string; to: string }) => {
     if (!token) return;
     const f = fy || currentFY;
     setLoading(true);
     try {
+      // Try Tally first
       const res = await fetch(`/api/admin/crm/tally?action=balancesheet&from=${f.from}&to=${f.to}`, { headers: headers() });
       const data = await res.json();
-      if (data.success) setBsData(data);
+      if (data.success && (data.assets?.length > 0 || data.liabilities?.length > 0)) {
+        setBsData(data);
+        return;
+      }
+    } catch { /* Tally not available */ }
+
+    // Fallback: load manual balances
+    try {
+      const manRes = await fetch(`/api/admin/crm/tally/manual-balances?fy=${selectedFY}`, { headers: headers() });
+      const manData = await manRes.json();
+      if (manData.success && manData.entries?.length > 0) {
+        const bsFromManual = buildBSFromManual(manData.entries);
+        setBsData(bsFromManual);
+      } else {
+        setBsData(null);
+      }
     } catch { setBsData(null); }
     finally { setLoading(false); }
-  }, [token, headers]);
+  }, [token, headers, selectedFY]);
+
+  // ── Fetch Manual Balances ──
+  const fetchManualBalances = useCallback(async () => {
+    if (!token) return;
+    setManualLoading(true);
+    try {
+      const res = await fetch(`/api/admin/crm/tally/manual-balances?fy=${selectedFY}`, { headers: headers() });
+      const data = await res.json();
+      if (data.success) {
+        setManualEntries(data.entries || []);
+        setManualTotals(data.totals || { totalAssets: 0, totalLiabilities: 0, totalIncome: 0, totalExpenses: 0 });
+      }
+    } catch { setManualEntries([]); }
+    finally { setManualLoading(false); }
+  }, [token, headers, selectedFY]);
+
+  // ── Add / Update Manual Entry ──
+  const saveManualEntry = useCallback(async () => {
+    if (!token || !formData.ledgerName || !formData.parentGroup || !formData.amount) return;
+    setManualLoading(true);
+    try {
+      const payload = editingId
+        ? { action: 'update', id: editingId, ...formData, amount: Number(formData.amount) }
+        : { action: 'add', ...formData, amount: Number(formData.amount), financialYear: selectedFY };
+      const res = await fetch('/api/admin/crm/tally/manual-balances', {
+        method: 'POST', headers: headers(), body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setShowAddForm(false);
+        setEditingId(null);
+        setFormData({ ledgerName: '', parentGroup: '', category: 'asset', amount: '', drCr: 'Dr', asOnDate: '', notes: '' });
+        fetchManualBalances();
+      }
+    } catch { /* ignore */ }
+    finally { setManualLoading(false); }
+  }, [token, formData, editingId, selectedFY, headers, fetchManualBalances]);
+
+  // ── Delete Manual Entry ──
+  const deleteManualEntry = useCallback(async (id: string) => {
+    if (!token || !confirm('Delete this entry?')) return;
+    try {
+      await fetch('/api/admin/crm/tally/manual-balances', {
+        method: 'POST', headers: headers(), body: JSON.stringify({ action: 'delete', id }),
+      });
+      fetchManualBalances();
+    } catch { /* ignore */ }
+  }, [token, headers, fetchManualBalances]);
+
+  // ── Edit Manual Entry ──
+  const startEdit = (entry: ManualEntry) => {
+    setEditingId(entry._id);
+    setFormData({
+      ledgerName: entry.ledgerName,
+      parentGroup: entry.parentGroup,
+      category: entry.category,
+      amount: String(entry.amount),
+      drCr: entry.drCr,
+      asOnDate: entry.asOnDate || '',
+      notes: entry.notes || '',
+    });
+    setShowAddForm(true);
+  };
 
   // ── Sync to MongoDB ──
   const runSync = useCallback(async () => {
@@ -371,8 +517,9 @@ export default function TallyPage() {
     if (token) {
       fetchDashboard();
       fetchSyncStatus();
+      fetchManualBalances();
     }
-  }, [token, fetchDashboard, fetchSyncStatus]);
+  }, [token, fetchDashboard, fetchSyncStatus, fetchManualBalances]);
 
   // ── Tab / FY change handler ──
   useEffect(() => {
@@ -388,6 +535,7 @@ export default function TallyPage() {
       case 'daybook': fetchDaybook(fy); break;
       case 'profitloss': fetchPL(fy); break;
       case 'balancesheet': fetchBS(fy); break;
+      case 'opening': fetchManualBalances(); break;
       case 'settings': testConnection(); break;
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -447,6 +595,7 @@ export default function TallyPage() {
     { key: 'daybook', label: 'Day Book', icon: Calendar },
     { key: 'profitloss', label: 'P&L', icon: TrendingUp },
     { key: 'balancesheet', label: 'Balance Sheet', icon: Scale },
+    { key: 'opening', label: 'Opening Bal.', icon: ClipboardList },
     { key: 'settings', label: 'Settings', icon: Settings },
   ];
 
@@ -668,7 +817,52 @@ export default function TallyPage() {
                   </div>
                 </>
               ) : (
-                <NotConfiguredCard onTest={() => { setActiveTab('settings'); testConnection(); }} />
+                <div className="space-y-6">
+                  {/* Tally not connected notice */}
+                  <div className="p-4 bg-yellow-500/5 border border-yellow-800/40 rounded-xl flex items-start gap-3">
+                    <WifiOff className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium text-yellow-400">Tally Prime Not Connected</p>
+                      <p className="text-xs text-gray-500 mt-1">TSS subscription may be expired. Use the <strong className="text-gray-400">Opening Bal.</strong> tab to add data manually from your CA reports.</p>
+                    </div>
+                  </div>
+                  {/* Manual Balance Summary */}
+                  {manualEntries.length > 0 ? (
+                    <>
+                      <div className="mb-2">
+                        <h2 className="text-lg font-bold text-gray-200 flex items-center gap-2">
+                          <ClipboardList className="w-5 h-5 text-yellow-500" /> Manual Balance Summary — {currentFY.label}
+                        </h2>
+                        <p className="text-xs text-gray-500">From your CA balance sheet entries</p>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <StatCard label="Assets" value={fmt(manualTotals.totalAssets)} sub={`${manualEntries.filter(e => e.category === 'asset').length} entries`} icon={TrendingUp} color="text-blue-400" bg="bg-blue-500/10" />
+                        <StatCard label="Liabilities" value={fmt(manualTotals.totalLiabilities)} sub={`${manualEntries.filter(e => e.category === 'liability').length} entries`} icon={Scale} color="text-purple-400" bg="bg-purple-500/10" />
+                        <StatCard label="Income" value={fmt(manualTotals.totalIncome)} sub={`${manualEntries.filter(e => e.category === 'income').length} entries`} icon={ArrowDownLeft} color="text-green-400" bg="bg-green-500/10" />
+                        <StatCard label="Expenses" value={fmt(manualTotals.totalExpenses)} sub={`${manualEntries.filter(e => e.category === 'expense').length} entries`} icon={ArrowUpRight} color="text-red-400" bg="bg-red-500/10" />
+                      </div>
+                      <div className={`p-4 rounded-xl border ${Math.abs(manualTotals.totalAssets - manualTotals.totalLiabilities) < 1 ? 'bg-green-500/5 border-green-800' : 'bg-yellow-500/5 border-yellow-800'}`}>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-400">Balance (Assets − Liabilities)</span>
+                          <span className={`text-lg font-bold ${Math.abs(manualTotals.totalAssets - manualTotals.totalLiabilities) < 1 ? 'text-green-400' : 'text-yellow-400'}`}>
+                            {fmt(Math.abs(manualTotals.totalAssets - manualTotals.totalLiabilities))}
+                          </span>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-center py-12">
+                      <ClipboardList className="w-16 h-16 text-gray-700 mx-auto mb-4" />
+                      <h3 className="text-xl font-bold text-gray-400 mb-2">No Data Yet</h3>
+                      <p className="text-sm text-gray-600 max-w-md mx-auto mb-6">
+                        Add your CA balance sheet entries to see the dashboard summary.
+                      </p>
+                      <button onClick={() => setActiveTab('opening')} className="px-6 py-3 bg-yellow-600 hover:bg-yellow-500 text-black rounded-lg font-medium inline-flex items-center gap-2">
+                        <Plus className="w-5 h-5" /> Add Opening Balances
+                      </button>
+                    </div>
+                  )}
+                </div>
               )}
             </>
           )}
@@ -930,7 +1124,13 @@ export default function TallyPage() {
                   </div>
                 </div>
               ) : (
-                <EmptyState message="No Profit & Loss data. Make sure Tally Prime is running." />
+                <div className="text-center py-12">
+                  <FileText className="w-12 h-12 text-gray-700 mx-auto mb-3" />
+                  <p className="text-gray-500 mb-4">No P&L data. Add income/expense entries manually.</p>
+                  <button onClick={() => setActiveTab('opening')} className="px-5 py-2.5 bg-yellow-600 hover:bg-yellow-500 text-black font-medium rounded-lg inline-flex items-center gap-2">
+                    <ClipboardList className="w-4 h-4" /> Add Opening Balances
+                  </button>
+                </div>
               )}
             </>
           )}
@@ -993,9 +1193,233 @@ export default function TallyPage() {
                   </div>
                 </div>
               ) : (
-                <EmptyState message="No Balance Sheet data. Make sure Tally Prime is running." />
+                <div className="text-center py-12">
+                  <FileText className="w-12 h-12 text-gray-700 mx-auto mb-3" />
+                  <p className="text-gray-500 mb-4">No Balance Sheet data from Tally.</p>
+                  <button onClick={() => setActiveTab('opening')} className="px-5 py-2.5 bg-yellow-600 hover:bg-yellow-500 text-black font-medium rounded-lg inline-flex items-center gap-2">
+                    <ClipboardList className="w-4 h-4" /> Add Opening Balances Manually
+                  </button>
+                </div>
               )}
             </>
+          )}
+
+          {/* ════════ OPENING BALANCES TAB ════════ */}
+          {activeTab === 'opening' && (
+            <div className="space-y-6">
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-100 flex items-center gap-2">
+                    <ClipboardList className="w-5 h-5 text-yellow-500" /> Opening Balances
+                  </h2>
+                  <p className="text-xs text-gray-500 mt-1">Manually enter balances from your CA Balance Sheet report for {currentFY.label}</p>
+                </div>
+                <button
+                  onClick={() => { setShowAddForm(true); setEditingId(null); setFormData({ ledgerName: '', parentGroup: '', category: 'asset', amount: '', drCr: 'Dr', asOnDate: '', notes: '' }); }}
+                  className="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 text-black font-medium rounded-lg flex items-center gap-2 text-sm"
+                >
+                  <Plus className="w-4 h-4" /> Add Entry
+                </button>
+              </div>
+
+              {/* Summary cards */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="p-4 rounded-xl border border-gray-800 bg-blue-500/10">
+                  <p className="text-[10px] uppercase tracking-wider text-gray-500">Assets</p>
+                  <p className="text-lg font-bold text-blue-400">{fmt(manualTotals.totalAssets)}</p>
+                  <p className="text-[10px] text-gray-600">{manualEntries.filter(e => e.category === 'asset').length} entries</p>
+                </div>
+                <div className="p-4 rounded-xl border border-gray-800 bg-purple-500/10">
+                  <p className="text-[10px] uppercase tracking-wider text-gray-500">Liabilities</p>
+                  <p className="text-lg font-bold text-purple-400">{fmt(manualTotals.totalLiabilities)}</p>
+                  <p className="text-[10px] text-gray-600">{manualEntries.filter(e => e.category === 'liability').length} entries</p>
+                </div>
+                <div className="p-4 rounded-xl border border-gray-800 bg-green-500/10">
+                  <p className="text-[10px] uppercase tracking-wider text-gray-500">Income</p>
+                  <p className="text-lg font-bold text-green-400">{fmt(manualTotals.totalIncome)}</p>
+                  <p className="text-[10px] text-gray-600">{manualEntries.filter(e => e.category === 'income').length} entries</p>
+                </div>
+                <div className="p-4 rounded-xl border border-gray-800 bg-red-500/10">
+                  <p className="text-[10px] uppercase tracking-wider text-gray-500">Expenses</p>
+                  <p className="text-lg font-bold text-red-400">{fmt(manualTotals.totalExpenses)}</p>
+                  <p className="text-[10px] text-gray-600">{manualEntries.filter(e => e.category === 'expense').length} entries</p>
+                </div>
+              </div>
+
+              {/* Add / Edit Form */}
+              {showAddForm && (
+                <div className="p-5 bg-gray-900 border border-yellow-800/50 rounded-xl space-y-4">
+                  <h3 className="text-sm font-bold text-yellow-400 flex items-center gap-2">
+                    {editingId ? <Edit3 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                    {editingId ? 'Edit Entry' : 'Add New Entry'}
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {/* Ledger Name */}
+                    <div>
+                      <label className="text-[10px] uppercase text-gray-500 block mb-1">Ledger / Account Name *</label>
+                      <input type="text" value={formData.ledgerName} onChange={e => setFormData(f => ({ ...f, ledgerName: e.target.value }))}
+                        placeholder="e.g. SBI Current A/c" className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200 focus:ring-2 focus:ring-yellow-500/50 focus:outline-none" />
+                    </div>
+                    {/* Parent Group */}
+                    <div>
+                      <label className="text-[10px] uppercase text-gray-500 block mb-1">Group / Head *</label>
+                      <input type="text" list="group-suggestions" value={formData.parentGroup} onChange={e => setFormData(f => ({ ...f, parentGroup: e.target.value }))}
+                        placeholder="e.g. Bank Accounts" className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200 focus:ring-2 focus:ring-yellow-500/50 focus:outline-none" />
+                      <datalist id="group-suggestions">
+                        <option value="Bank Accounts" /><option value="Cash-in-Hand" /><option value="Sundry Debtors" />
+                        <option value="Fixed Assets" /><option value="Investments" /><option value="Deposits (Asset)" />
+                        <option value="Loans & Advances (Asset)" /><option value="Stock-in-Hand" />
+                        <option value="Sundry Creditors" /><option value="Capital Account" /><option value="Reserves & Surplus" />
+                        <option value="Secured Loans" /><option value="Unsecured Loans" /><option value="Current Liabilities" />
+                        <option value="Duties & Taxes" /><option value="Provisions" />
+                        <option value="Direct Incomes" /><option value="Indirect Incomes" /><option value="Sales Accounts" />
+                        <option value="Direct Expenses" /><option value="Indirect Expenses" /><option value="Purchase Accounts" />
+                      </datalist>
+                    </div>
+                    {/* Category */}
+                    <div>
+                      <label className="text-[10px] uppercase text-gray-500 block mb-1">Category *</label>
+                      <select value={formData.category} onChange={e => {
+                        const cat = e.target.value;
+                        setFormData(f => ({ ...f, category: cat, drCr: cat === 'asset' || cat === 'expense' ? 'Dr' : 'Cr' }));
+                      }} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200 focus:ring-2 focus:ring-yellow-500/50 focus:outline-none">
+                        <option value="asset">Asset</option>
+                        <option value="liability">Liability</option>
+                        <option value="income">Income</option>
+                        <option value="expense">Expense</option>
+                      </select>
+                    </div>
+                    {/* Amount */}
+                    <div>
+                      <label className="text-[10px] uppercase text-gray-500 block mb-1">Amount (₹) *</label>
+                      <input type="number" value={formData.amount} onChange={e => setFormData(f => ({ ...f, amount: e.target.value }))}
+                        placeholder="0.00" className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200 focus:ring-2 focus:ring-yellow-500/50 focus:outline-none" />
+                    </div>
+                    {/* Dr/Cr */}
+                    <div>
+                      <label className="text-[10px] uppercase text-gray-500 block mb-1">Dr / Cr</label>
+                      <select value={formData.drCr} onChange={e => setFormData(f => ({ ...f, drCr: e.target.value }))}
+                        className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200 focus:ring-2 focus:ring-yellow-500/50 focus:outline-none">
+                        <option value="Dr">Debit (Dr)</option>
+                        <option value="Cr">Credit (Cr)</option>
+                      </select>
+                    </div>
+                    {/* As On Date */}
+                    <div>
+                      <label className="text-[10px] uppercase text-gray-500 block mb-1">As On Date</label>
+                      <input type="text" value={formData.asOnDate} onChange={e => setFormData(f => ({ ...f, asOnDate: e.target.value }))}
+                        placeholder="31-03-2024" className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200 focus:ring-2 focus:ring-yellow-500/50 focus:outline-none" />
+                    </div>
+                  </div>
+                  {/* Notes */}
+                  <div>
+                    <label className="text-[10px] uppercase text-gray-500 block mb-1">Notes (optional)</label>
+                    <input type="text" value={formData.notes} onChange={e => setFormData(f => ({ ...f, notes: e.target.value }))}
+                      placeholder="Any remarks..." className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200 focus:ring-2 focus:ring-yellow-500/50 focus:outline-none" />
+                  </div>
+                  {/* Buttons */}
+                  <div className="flex items-center gap-3">
+                    <button onClick={saveManualEntry} disabled={manualLoading || !formData.ledgerName || !formData.parentGroup || !formData.amount}
+                      className="px-5 py-2 bg-yellow-600 hover:bg-yellow-500 disabled:bg-gray-700 disabled:text-gray-500 text-black font-medium rounded-lg flex items-center gap-2 text-sm">
+                      <Save className="w-4 h-4" /> {editingId ? 'Update' : 'Save'}
+                    </button>
+                    <button onClick={() => { setShowAddForm(false); setEditingId(null); }} className="px-5 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm text-gray-300">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Entries Table */}
+              {manualLoading && manualEntries.length === 0 ? (
+                <LoadingSkeleton />
+              ) : manualEntries.length === 0 ? (
+                <div className="text-center py-16">
+                  <ClipboardList className="w-14 h-14 text-gray-700 mx-auto mb-4" />
+                  <h3 className="text-lg font-bold text-gray-400 mb-2">No Opening Balances Yet</h3>
+                  <p className="text-sm text-gray-600 max-w-md mx-auto mb-6">
+                    Add your CA balance sheet entries here. Enter each account head with its closing balance as on 31st March.
+                  </p>
+                  <button onClick={() => setShowAddForm(true)} className="px-5 py-2.5 bg-yellow-600 hover:bg-yellow-500 text-black font-medium rounded-lg inline-flex items-center gap-2">
+                    <Plus className="w-4 h-4" /> Add First Entry
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Group: Assets */}
+                  {['asset', 'liability', 'income', 'expense'].map(cat => {
+                    const catEntries = manualEntries.filter(e => e.category === cat);
+                    if (catEntries.length === 0) return null;
+                    const catColors: Record<string, string> = { asset: 'text-blue-400', liability: 'text-purple-400', income: 'text-green-400', expense: 'text-red-400' };
+                    const catBgs: Record<string, string> = { asset: 'border-blue-800/30', liability: 'border-purple-800/30', income: 'border-green-800/30', expense: 'border-red-800/30' };
+                    const catLabel: Record<string, string> = { asset: 'Assets', liability: 'Liabilities', income: 'Income', expense: 'Expenses' };
+                    const catTotal = catEntries.reduce((s, e) => s + e.amount, 0);
+                    return (
+                      <div key={cat} className={`bg-gray-900 border ${catBgs[cat]} rounded-xl overflow-hidden`}>
+                        <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+                          <h3 className={`font-bold ${catColors[cat]} text-sm`}>{catLabel[cat]}</h3>
+                          <span className={`text-sm font-bold ${catColors[cat]}`}>{fmt(catTotal)}</span>
+                        </div>
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b border-gray-800/50">
+                              <th className="text-left px-4 py-2 text-gray-500 text-xs font-medium">Ledger</th>
+                              <th className="text-left px-4 py-2 text-gray-500 text-xs font-medium">Group</th>
+                              <th className="text-right px-4 py-2 text-gray-500 text-xs font-medium">Amount</th>
+                              <th className="text-center px-4 py-2 text-gray-500 text-xs font-medium">Dr/Cr</th>
+                              <th className="text-center px-2 py-2 text-gray-500 text-xs font-medium w-20">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-800/30">
+                            {catEntries.map((entry) => (
+                              <tr key={entry._id} className="hover:bg-gray-800/20">
+                                <td className="px-4 py-2.5 text-gray-200">{entry.ledgerName}</td>
+                                <td className="px-4 py-2.5 text-gray-400 text-xs">{entry.parentGroup}</td>
+                                <td className="px-4 py-2.5 text-right font-medium text-gray-200">{fmt(entry.amount)}</td>
+                                <td className="px-4 py-2.5 text-center">
+                                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${entry.drCr === 'Dr' ? 'bg-blue-500/20 text-blue-400' : 'bg-purple-500/20 text-purple-400'}`}>{entry.drCr}</span>
+                                </td>
+                                <td className="px-2 py-2.5 text-center">
+                                  <div className="flex items-center justify-center gap-1">
+                                    <button onClick={() => startEdit(entry)} className="p-1 hover:bg-gray-700 rounded transition" title="Edit">
+                                      <Edit3 className="w-3.5 h-3.5 text-gray-500 hover:text-yellow-400" />
+                                    </button>
+                                    <button onClick={() => deleteManualEntry(entry._id)} className="p-1 hover:bg-gray-700 rounded transition" title="Delete">
+                                      <Trash2 className="w-3.5 h-3.5 text-gray-500 hover:text-red-400" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })}
+
+                  {/* Difference check */}
+                  {(() => {
+                    const diff = manualTotals.totalAssets - manualTotals.totalLiabilities;
+                    return (
+                      <div className={`p-4 rounded-xl border ${Math.abs(diff) < 1 ? 'bg-green-500/5 border-green-800/30' : 'bg-yellow-500/5 border-yellow-800/30'} flex items-center justify-between`}>
+                        <div>
+                          <p className="text-xs text-gray-500">Assets − Liabilities</p>
+                          <p className={`text-lg font-bold ${Math.abs(diff) < 1 ? 'text-green-400' : 'text-yellow-400'}`}>
+                            {fmt(Math.abs(diff))} {diff > 0 ? '(Dr)' : diff < 0 ? '(Cr)' : ''}
+                          </p>
+                        </div>
+                        {Math.abs(diff) < 1 ? (
+                          <span className="text-xs text-green-500 bg-green-500/10 px-3 py-1 rounded-full">✓ Balanced</span>
+                        ) : (
+                          <span className="text-xs text-yellow-500 bg-yellow-500/10 px-3 py-1 rounded-full">⚠ Not Balanced</span>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
           )}
 
           {/* ════════ SETTINGS TAB ════════ */}

@@ -1846,6 +1846,31 @@ TallySyncLogSchema.index({ createdAt: -1 });
 TallySyncLogSchema.index({ status: 1 });
 
 // ============================================================================
+// TALLY MANUAL BALANCE (Opening Balances from CA Reports)
+// ============================================================================
+const TallyManualBalanceSchema = new mongoose.Schema(
+  {
+    ledgerName: { type: String, required: true, trim: true },
+    parentGroup: { type: String, required: true, trim: true },
+    category: {
+      type: String,
+      enum: ['asset', 'liability', 'income', 'expense'],
+      required: true,
+    },
+    amount: { type: Number, required: true, default: 0 },
+    drCr: { type: String, enum: ['Dr', 'Cr'], default: 'Dr' },
+    financialYear: { type: String, required: true, trim: true }, // e.g. '2023-24'
+    asOnDate: { type: String, trim: true }, // e.g. '31-03-2024'
+    notes: { type: String, trim: true },
+    createdBy: { type: String, trim: true },
+  },
+  { timestamps: true, collection: 'tally_manual_balances' }
+);
+
+TallyManualBalanceSchema.index({ financialYear: 1, category: 1 });
+TallyManualBalanceSchema.index({ ledgerName: 1, financialYear: 1 });
+
+// ============================================================================
 // EMAIL AUTOMATION SCHEMAS
 // ============================================================================
 
@@ -2197,9 +2222,11 @@ export const TallyCustomer = createModelProxy('TallyCustomer', TallyCustomerSche
 export const TallyInvoice = createModelProxy('TallyInvoice', TallyInvoiceSchema);
 export const TallyPayment = createModelProxy('TallyPayment', TallyPaymentSchema);
 export const TallySyncLog = createModelProxy('TallySyncLog', TallySyncLogSchema);
+export const TallyManualBalance = createModelProxy('TallyManualBalance', TallyManualBalanceSchema);
 
 // Tally getter functions
 export function getTallyCustomer() { return getModel('TallyCustomer', TallyCustomerSchema); }
 export function getTallyInvoice() { return getModel('TallyInvoice', TallyInvoiceSchema); }
 export function getTallyPayment() { return getModel('TallyPayment', TallyPaymentSchema); }
 export function getTallySyncLog() { return getModel('TallySyncLog', TallySyncLogSchema); }
+export function getTallyManualBalance() { return getModel('TallyManualBalance', TallyManualBalanceSchema); }
