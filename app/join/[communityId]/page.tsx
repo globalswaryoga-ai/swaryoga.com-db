@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { COMMUNITY_DESIGNS } from '@/lib/communityColorSystem';
 
@@ -27,11 +27,12 @@ export default function JoinCommunityPage() {
 
   const [formData, setFormData] = useState({
     name: '',
+    email: '',
     mobile: '',
     country: 'India',
   });
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [showThankYou, setShowThankYou] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
@@ -66,6 +67,7 @@ export default function JoinCommunityPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: formData.name.trim(),
+          email: formData.email.trim() || undefined,
           mobile: formData.mobile,
           country: formData.country,
           countryCode: selectedCountry?.code || '+91',
@@ -93,8 +95,8 @@ export default function JoinCommunityPage() {
         _id: result?.data?.userId,
       }));
 
-      setSuccessMessage(result.message || 'Successfully joined!');
-      setSuccess(true);
+      setSuccessMessage(result.message || 'Successfully registered!');
+      setShowThankYou(true);
     } catch (err) {
       setError('Something went wrong. Please try again.');
       console.error(err);
@@ -114,41 +116,65 @@ export default function JoinCommunityPage() {
     );
   }
 
-  // Success screen
-  if (success) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-green-900 via-emerald-900 to-teal-900 flex items-center justify-center p-4">
-        <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full text-center animate-in fade-in zoom-in-95">
-          <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <svg className="w-10 h-10 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">You&apos;re In!</h2>
-          <p className="text-gray-600 mb-4">{successMessage}</p>
-          <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-6">
-            <p className="text-sm text-green-800 font-medium">
-              🕉️ Welcome to <strong>{communityName}</strong>
-            </p>
-            {communityId !== 'global' && (
-              <p className="text-xs text-green-600 mt-2">
-                Admin will review and approve your membership shortly.
-              </p>
-            )}
-          </div>
-          <a
-            href="/community"
-            className="inline-block w-full py-3 px-6 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all shadow-lg"
-          >
-            Go to Community →
-          </a>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-900 via-emerald-900 to-teal-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-green-900 via-emerald-900 to-teal-900 flex items-center justify-center p-4 relative">
+
+      {/* ====== THANK YOU POPUP OVERLAY ====== */}
+      {showThankYou && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-[fadeIn_0.3s_ease-out]">
+          <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full text-center animate-[scaleIn_0.35s_ease-out]">
+            {/* Animated check icon */}
+            <div className="relative w-24 h-24 mx-auto mb-6">
+              <div className="absolute inset-0 bg-green-100 rounded-full animate-ping opacity-30" />
+              <div className="relative w-24 h-24 bg-gradient-to-br from-green-400 to-emerald-600 rounded-full flex items-center justify-center shadow-lg">
+                <svg className="w-12 h-12 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+            </div>
+
+            <h2 className="text-3xl font-extrabold text-gray-900 mb-3">🙏 Thank You!</h2>
+            <p className="text-lg text-gray-700 mb-2">
+              You have successfully registered for
+            </p>
+            <p className="text-xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent mb-4">
+              {communityName}
+            </p>
+
+            <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-5 mb-6 space-y-3">
+              <div className="flex items-center gap-3 text-left">
+                <span className="flex-shrink-0 w-10 h-10 bg-green-100 rounded-full flex items-center justify-center text-lg">📧</span>
+                <p className="text-sm text-green-800">
+                  Soon you will get all updates on your <strong>email & WhatsApp</strong>.
+                </p>
+              </div>
+              {communityId !== 'global' && (
+                <div className="flex items-center gap-3 text-left">
+                  <span className="flex-shrink-0 w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center text-lg">✅</span>
+                  <p className="text-sm text-amber-800">
+                    Admin will <strong>review and approve</strong> your membership shortly.
+                  </p>
+                </div>
+              )}
+              <div className="flex items-center gap-3 text-left">
+                <span className="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-lg">🕉️</span>
+                <p className="text-sm text-blue-800">
+                  Welcome to the <strong>Swar Yoga</strong> family!
+                </p>
+              </div>
+            </div>
+
+            <a
+              href="/community"
+              className="inline-block w-full py-3.5 px-6 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all shadow-lg hover:shadow-xl text-lg"
+            >
+              Explore Community →
+            </a>
+          </div>
+        </div>
+      )}
+
+      {/* ====== JOIN FORM ====== */}
       <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden">
         {/* Header */}
         <div className={`bg-gradient-to-r ${communityDesign?.color?.gradient || 'from-green-600 to-emerald-600'} p-6 text-white`}>
@@ -185,6 +211,20 @@ export default function JoinCommunityPage() {
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               className="w-full px-4 py-3 bg-gray-50 text-gray-900 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent placeholder-gray-400 transition-all"
               required
+            />
+          </div>
+
+          {/* Email */}
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">
+              📧 Email Address
+            </label>
+            <input
+              type="email"
+              placeholder="your@email.com"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              className="w-full px-4 py-3 bg-gray-50 text-gray-900 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent placeholder-gray-400 transition-all"
             />
           </div>
 
@@ -252,6 +292,18 @@ export default function JoinCommunityPage() {
           </p>
         </form>
       </div>
+
+      {/* Keyframe animations */}
+      <style jsx>{`
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes scaleIn {
+          from { opacity: 0; transform: scale(0.9) translateY(20px); }
+          to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+      `}</style>
     </div>
   );
 }
