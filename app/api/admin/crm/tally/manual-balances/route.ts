@@ -148,8 +148,90 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: true, deleted: result.deletedCount });
       }
 
+      case 'carry-forward': {
+        // Carry forward ALL ledger balances from source FY → opening balances in target FY
+        // BS items (assets + liabilities) keep their closing balance
+        // P&L items (income + expenses) get zero opening balance (ledger exists but resets)
+        const sourceFY = body.sourceFY || '2023-24';
+        const targetFY = body.targetFY || '2024-25';
+
+        if (sourceFY === targetFY) return apiError('Source and target FY must be different');
+
+        // Get ALL source FY entries (prefer CA-audited, fallback to any)
+        let sourceEntries = await ManualBalance.find({
+          financialYear: sourceFY,
+          createdBy: 'ca-report-import',
+        }).lean();
+
+        // If no CA entries, use any entries from that FY (deduplicate by ledgerName)
+        if (sourceEntries.length === 0) {
+          const allEntries = await ManualBalance.find({ financialYear: sourceFY }).lean();
+          const seen = new Set<string>();
+          sourceEntries = allEntries.filter((e: any) => {
+            if (seen.has(e.ledgerName)) return false;
+            seen.add(e.ledgerName);
+            return true;
+          });
+        }
+
+        if (sourceEntries.length === 0) {
+          return apiError(`No balance entries found for FY ${sourceFY}`);
+        }
+
+        // Delete old carry-forward entries in target FY
+        const deleted = await ManualBalance.deleteMany({
+          financialYear: targetFY,
+          createdBy: 'carry-forward',
+        });
+
+        // Create opening balances for target FY
+        // BS items: carry closing balance, P&L items: zero opening balance
+        let bsCount = 0, plCount = 0;
+        const openingEntries = sourceEntries.map((e: any) => {
+          const isBS = e.category === 'asset' || e.category === 'liability';
+          if (isBS) bsCount++; else plCount++;
+          return {
+            ledgerName: e.ledgerName,
+            parentGroup: e.parentGroup,
+            category: e.category,
+            amount: isBS ? e.amount : 0,
+            drCr: e.drCr,
+            financialYear: targetFY,
+            asOnDate: targetFY.split('-')[0] + '-04-01',
+            notes: isBS
+              ? `Opening balance carried forward from FY ${sourceFY}`
+              : `Ledger carried from FY ${sourceFY} (P&L reset to zero)`,
+            createdBy: 'carry-forward',
+          };
+        });
+
+        const inserted = await ManualBalance.insertMany(openingEntries);
+
+        // Calculate totals for verification (only BS items have non-zero amounts)
+        let totalDr = 0, totalCr = 0;
+        openingEntries.forEach((e: any) => {
+          if (e.amount > 0) {
+            if (e.drCr === 'Dr') totalDr += e.amount;
+            else totalCr += e.amount;
+          }
+        });
+
+        return NextResponse.json({
+          success: true,
+          sourceFY,
+          targetFY,
+          carried: inserted.length,
+          bsItems: bsCount,
+          plItems: plCount,
+          deletedOld: deleted.deletedCount,
+          totalDr,
+          totalCr,
+          balanced: Math.abs(totalDr - totalCr) < 1,
+        });
+      }
+
       default:
-        return apiError('Invalid action. Use: add, update, delete, bulk-add, delete-all');
+        return apiError('Invalid action. Use: add, update, delete, bulk-add, delete-all, carry-forward');
     }
   } catch (error: any) {
     console.error('[Manual Balances POST Error]', error);
