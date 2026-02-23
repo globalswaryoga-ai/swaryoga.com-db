@@ -435,37 +435,6 @@ export default function TallyPage() {
   };
 
   // ── Carry Forward Balances ──
-  const carryForwardBalances = useCallback(async () => {
-    if (!token) return;
-    // Determine source and target FY
-    const fyIndex = FY_OPTIONS.findIndex(f => f.value === selectedFY);
-    if (fyIndex <= 0) {
-      alert('No previous FY to carry forward from. Select FY 2024-25 or later.');
-      return;
-    }
-    const sourceFY = FY_OPTIONS[fyIndex - 1].value;
-    const targetFY = selectedFY;
-
-    if (!confirm(`Carry forward ALL ledger balances from FY ${sourceFY} → FY ${targetFY}?\n\nBalance Sheet items: closing balance carried forward\nP&L items: ledger created with zero opening balance\n\nEvery ledger will have its own entry in the new year.`)) return;
-
-    try {
-      const res = await fetch('/api/admin/crm/tally/manual-balances', {
-        method: 'POST',
-        headers: { ...headers(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'carry-forward', sourceFY, targetFY }),
-      });
-      const data = await res.json();
-      if (!data.success) {
-        alert(data.error || 'Carry forward failed');
-        return;
-      }
-      alert(`✅ Carried forward ${data.carried} ledgers from FY ${sourceFY} → FY ${targetFY}\n\nBS items (with balance): ${data.bsItems || '?'}\nP&L items (zero balance): ${data.plItems || '?'}\n\nTotal Dr: ₹${data.totalDr?.toLocaleString('en-IN')}\nTotal Cr: ₹${data.totalCr?.toLocaleString('en-IN')}\n${data.balanced ? '✅ Balanced!' : '⚠️ Not balanced'}`);
-      fetchManualBalances();
-    } catch (err: any) {
-      alert('Error: ' + err.message);
-    }
-  }, [token, selectedFY, headers, fetchManualBalances]);
-
   // ── Export Tally XML ──
   const exportTallyXml = useCallback(async (type: 'all' | 'ledgers' | 'vouchers' = 'all') => {
     if (!token) return;
@@ -713,6 +682,38 @@ export default function TallyPage() {
     } catch { setManualEntries([]); }
     finally { setManualLoading(false); }
   }, [token, headers, selectedFY]);
+
+  // ── Carry Forward Balances to New FY ──
+  const carryForwardBalances = useCallback(async () => {
+    if (!token) return;
+    // Determine source and target FY
+    const fyIndex = FY_OPTIONS.findIndex(f => f.value === selectedFY);
+    if (fyIndex <= 0) {
+      alert('No previous FY to carry forward from. Select FY 2024-25 or later.');
+      return;
+    }
+    const sourceFY = FY_OPTIONS[fyIndex - 1].value;
+    const targetFY = selectedFY;
+
+    if (!confirm(`Carry forward ALL ledger balances from FY ${sourceFY} → FY ${targetFY}?\n\nBalance Sheet items: closing balance carried forward\nP&L items: ledger created with zero opening balance\n\nEvery ledger will have its own entry in the new year.`)) return;
+
+    try {
+      const res = await fetch('/api/admin/crm/tally/manual-balances', {
+        method: 'POST',
+        headers: { ...headers(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'carry-forward', sourceFY, targetFY }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        alert(data.error || 'Carry forward failed');
+        return;
+      }
+      alert(`✅ Carried forward ${data.carried} ledgers from FY ${sourceFY} → FY ${targetFY}\n\nBS items (with balance): ${data.bsItems || '?'}\nP&L items (zero balance): ${data.plItems || '?'}\n\nTotal Dr: ₹${data.totalDr?.toLocaleString('en-IN')}\nTotal Cr: ₹${data.totalCr?.toLocaleString('en-IN')}\n${data.balanced ? '✅ Balanced!' : '⚠️ Not balanced'}`);
+      fetchManualBalances();
+    } catch (err: any) {
+      alert('Error: ' + err.message);
+    }
+  }, [token, selectedFY, headers, fetchManualBalances]);
 
   // ── Add / Update Manual Entry ──
   const saveManualEntry = useCallback(async () => {
