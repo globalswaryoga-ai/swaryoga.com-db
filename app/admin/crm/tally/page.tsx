@@ -121,6 +121,14 @@ export default function TallyPage() {
   const [ledgers, setLedgers] = useState<TallyLedger[]>([]);
   const [stockItems, setStockItems] = useState<TallyStockItem[]>([]);
 
+  // Financial Year
+  const FY_OPTIONS = [
+    { label: 'FY 2024-25', value: '2024-25', from: '20240401', to: '20250331' },
+    { label: 'FY 2025-26', value: '2025-26', from: '20250401', to: '20260331' },
+  ];
+  const [selectedFY, setSelectedFY] = useState('2024-25');
+  const currentFY = FY_OPTIONS.find(f => f.value === selectedFY) || FY_OPTIONS[0];
+
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [ledgerGroup, setLedgerGroup] = useState('');
@@ -132,12 +140,13 @@ export default function TallyPage() {
   }), [token]);
 
   // ── Fetch dashboard ──
-  const fetchDashboard = useCallback(async () => {
+  const fetchDashboard = useCallback(async (fy?: { from: string; to: string }) => {
     if (!token) return;
+    const f = fy || currentFY;
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/admin/crm/tally?action=dashboard', { headers: headers() });
+      const res = await fetch(`/api/admin/crm/tally?action=dashboard&from=${f.from}&to=${f.to}`, { headers: headers() });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
       setConfig(data.config);
@@ -170,11 +179,12 @@ export default function TallyPage() {
   }, [token, headers]);
 
   // ── Fetch vouchers ──
-  const fetchVoucherData = useCallback(async (type: string) => {
+  const fetchVoucherData = useCallback(async (type: string, fy?: { from: string; to: string }) => {
     if (!token) return;
+    const f = fy || currentFY;
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/crm/tally?action=vouchers&type=${encodeURIComponent(type)}`, { headers: headers() });
+      const res = await fetch(`/api/admin/crm/tally?action=vouchers&type=${encodeURIComponent(type)}&from=${f.from}&to=${f.to}`, { headers: headers() });
       const data = await res.json();
       setVouchers(data.vouchers || []);
     } catch {
@@ -216,11 +226,12 @@ export default function TallyPage() {
   }, [token, headers]);
 
   // ── Fetch daybook ──
-  const fetchDaybook = useCallback(async () => {
+  const fetchDaybook = useCallback(async (fy?: { from: string; to: string }) => {
     if (!token) return;
+    const f = fy || currentFY;
     setLoading(true);
     try {
-      const res = await fetch('/api/admin/crm/tally?action=daybook', { headers: headers() });
+      const res = await fetch(`/api/admin/crm/tally?action=daybook&from=${f.from}&to=${f.to}`, { headers: headers() });
       const data = await res.json();
       setVouchers(data.vouchers || []);
     } catch {
@@ -235,21 +246,22 @@ export default function TallyPage() {
     if (token) fetchDashboard();
   }, [token, fetchDashboard]);
 
-  // ── Tab change handler ──
+  // ── Tab / FY change handler ──
   useEffect(() => {
     if (!token) return;
+    const fy = FY_OPTIONS.find(f => f.value === selectedFY) || FY_OPTIONS[0];
     switch (activeTab) {
-      case 'dashboard': fetchDashboard(); break;
-      case 'sales': fetchVoucherData('Sales'); break;
-      case 'receipts': fetchVoucherData('Receipt'); break;
-      case 'purchases': fetchVoucherData('Purchase'); break;
+      case 'dashboard': fetchDashboard(fy); break;
+      case 'sales': fetchVoucherData('Sales', fy); break;
+      case 'receipts': fetchVoucherData('Receipt', fy); break;
+      case 'purchases': fetchVoucherData('Purchase', fy); break;
       case 'ledgers': fetchLedgerData(ledgerGroup || undefined); break;
       case 'stock': fetchStock(); break;
-      case 'daybook': fetchDaybook(); break;
+      case 'daybook': fetchDaybook(fy); break;
       case 'settings': testConnection(); break;
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, token]);
+  }, [activeTab, selectedFY, token]);
 
   // ── Filtered data ──
   const filteredVouchers = vouchers.filter(v =>
@@ -319,6 +331,18 @@ export default function TallyPage() {
             </span>
           </div>
           <div className="flex-1" />
+          {/* FY Selector */}
+          <select
+            value={selectedFY}
+            onChange={e => setSelectedFY(e.target.value)}
+            className="px-3 py-2 bg-yellow-600/20 border border-yellow-600/50 text-yellow-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-yellow-500/50 cursor-pointer"
+          >
+            {FY_OPTIONS.map(fy => (
+              <option key={fy.value} value={fy.value} className="bg-gray-900 text-white">
+                {fy.label}
+              </option>
+            ))}
+          </select>
           <button
             onClick={() => { setActiveTab('dashboard'); fetchDashboard(); }}
             disabled={loading}

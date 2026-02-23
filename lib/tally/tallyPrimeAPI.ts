@@ -305,8 +305,8 @@ export async function fetchVouchers(
 ): Promise<TallyVoucher[]> {
   const { companyName } = getTallyConfig();
 
-  // Date format for Tally: YYYYMMDD
-  const from = fromDate || '20240401'; // Default: current FY start
+  // Date format for Tally: YYYYMMDD — go back to FY 2023-24 to cover older data
+  const from = fromDate || '20230401';
   const to = toDate || new Date().toISOString().slice(0, 10).replace(/-/g, '');
 
   const xml = `
@@ -483,13 +483,13 @@ export async function fetchDayBook(
 // ---------------------------------------------------------------------------
 // Quick dashboard summary
 // ---------------------------------------------------------------------------
-export async function fetchDashboardSummary() {
+export async function fetchDashboardSummary(fromDate?: string, toDate?: string) {
   const [company, salesVouchers, receiptVouchers, purchaseVouchers, ledgers] =
     await Promise.all([
       fetchCompanyInfo(),
-      fetchVouchers('Sales'),
-      fetchVouchers('Receipt'),
-      fetchVouchers('Purchase'),
+      fetchVouchers('Sales', fromDate, toDate),
+      fetchVouchers('Receipt', fromDate, toDate),
+      fetchVouchers('Purchase', fromDate, toDate),
       fetchLedgers(),
     ]);
 

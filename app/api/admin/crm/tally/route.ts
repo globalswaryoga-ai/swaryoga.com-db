@@ -83,7 +83,9 @@ export async function GET(request: NextRequest) {
 
       case 'dashboard':
       default: {
-        const summary = await fetchDashboardSummary();
+        const from = searchParams.get('from') || undefined;
+        const to = searchParams.get('to') || undefined;
+        const summary = await fetchDashboardSummary(from, to);
         return NextResponse.json({ success: true, config: configStatus, summary });
       }
     }
