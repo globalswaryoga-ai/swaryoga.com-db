@@ -105,7 +105,7 @@ export async function GET(request: NextRequest) {
       }
       const sale = await SalesReport.findById(toObjectId(saleId))
         .populate('userId', 'name email')
-        .populate('leadId', 'phoneNumber name')
+        .populate('leadId', 'phoneNumber name leadNumber')
         .lean();
       if (!sale) {
         return NextResponse.json({ success: false, error: 'Sale not found' }, { status: 404 });
@@ -216,7 +216,7 @@ export async function GET(request: NextRequest) {
         .skip(skip)
         .limit(limit)
         .populate('userId', 'name email')
-        .populate('leadId', 'phoneNumber name')
+        .populate('leadId', 'phoneNumber name leadNumber')
         .lean();
       const total = await SalesReport.countDocuments(filter);
       const meta = buildMetadata(total, limit, skip);

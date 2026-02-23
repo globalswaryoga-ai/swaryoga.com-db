@@ -616,19 +616,24 @@ export default function SalesPage() {
     {
       key: 'customerId',
       label: 'Customer ID',
-      render: (_: any, sale: SaleRecord) => (
-        <div className="font-mono text-xs text-white/70 break-words">{sale.customerId || '-'}</div>
-      ),
+      render: (_: any, sale: SaleRecord) => {
+        const displayId = sale.customerId || sale.leadId?.leadNumber || (typeof sale.leadId === 'object' && sale.leadId?._id ? String(sale.leadId._id).slice(-8) : '') || '-';
+        return <div className="font-mono text-xs text-white/70 break-words">{displayId}</div>;
+      },
     },
     {
       key: 'customerName',
       label: 'Customer & Contact',
-      render: (name: string, sale: SaleRecord) => (
-        <div className="space-y-1">
-          <div className="font-semibold text-white break-words">{name || 'N/A'}</div>
-          <div className="text-xs text-gray-400 break-words">{sale.customerPhone || 'N/A'}</div>
-        </div>
-      )
+      render: (name: string, sale: SaleRecord) => {
+        const displayName = name || sale.leadId?.name || 'N/A';
+        const displayPhone = sale.customerPhone || sale.leadId?.phoneNumber || 'N/A';
+        return (
+          <div className="space-y-1">
+            <div className="font-semibold text-white break-words">{displayName}</div>
+            <div className="text-xs text-gray-400 break-words">{displayPhone}</div>
+          </div>
+        );
+      }
     },
     {
       key: 'workshopName',

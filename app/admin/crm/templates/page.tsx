@@ -393,8 +393,8 @@ export default function TemplatesPage() {
         ) : error ? (
           <AlertBox type="error" message={error} onClose={() => setError(null)} />
         ) : (
-          <div className="space-y-6">
-            {/* Bulk actions panel (auto open when 2+ selected) */}
+          <div className="space-y-4">
+            {/* Bulk actions panel */}
             {bulkActionsOpen && selectedTemplateIds.size > 0 && (
               <div className="bg-white border-2 border-green-600 rounded-xl p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between shadow-lg">
                 <div className="text-gray-900 font-bold">Selected: {selectedTemplateIds.size}</div>
@@ -432,298 +432,270 @@ export default function TemplatesPage() {
               </div>
             )}
 
-            {/* Templates Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {templates.length === 0 ? (
-                <div className="md:col-span-2 lg:col-span-4 text-center py-12 text-gray-500 bg-white border border-dashed border-gray-300 rounded-xl">
-                  No templates found. <button onClick={() => router.push('/admin/crm/templates/builder')} className="text-green-600 font-semibold hover:underline">Create your first template</button> to get started!
-                </div>
-              ) : (
-                templates.map((template) => {
-                  const parsedPreview = safeParseTemplatePreview(template.templateContent);
-                  const previewBody = parsedPreview?.body ?? template.templateContent;
-                  const previewFooter = parsedPreview?.footer ?? template.footerText ?? '';
-                  const previewButtons = (parsedPreview?.buttons && parsedPreview.buttons.length ? parsedPreview.buttons : template.buttons) || [];
-                  const previewHeaderMedia = parsedPreview?.headerMedia ?? template.headerMedia;
+            {/* Table + Sidebar Layout */}
+            <div className="flex gap-6 items-start">
+              {/* LEFT: Templates Table */}
+              <div className={`transition-all duration-300 ${selectedTemplate ? 'w-3/5' : 'w-full'}`}>
+                {templates.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500 bg-white border border-dashed border-gray-300 rounded-xl">
+                    No templates found. <button onClick={() => router.push('/admin/crm/templates/builder')} className="text-green-600 font-semibold hover:underline">Create your first template</button> to get started!
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-gray-50 border-b border-gray-200">
+                            <th className="px-3 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-8">
+                              <input
+                                type="checkbox"
+                                checked={allSelectedOnPage}
+                                ref={(el) => { if (el) el.indeterminate = someSelectedOnPage && !allSelectedOnPage; }}
+                                onChange={toggleSelectAllOnPage}
+                                className="h-4 w-4 accent-green-600"
+                                aria-label="Select all"
+                              />
+                            </th>
+                            <th className="px-3 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-10">Sr.</th>
+                            <th className="px-3 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Template Name</th>
+                            <th className="px-3 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Month</th>
+                            <th className="px-3 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Language</th>
+                            <th className="px-3 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Category</th>
+                            <th className="px-3 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Created</th>
+                            <th className="px-3 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {templates.map((template, idx) => {
+                            const checked = selectedTemplateIds.has(template._id);
+                            const isActive = selectedTemplate?._id === template._id;
+                            const createdDate = new Date(template.createdAt);
+                            const monthLabel = createdDate.toLocaleString('en-US', { month: 'short' }).toLowerCase() + '-' + String(createdDate.getFullYear()).slice(-2);
+                            return (
+                              <tr
+                                key={template._id}
+                                onClick={() => setSelectedTemplate(template)}
+                                className={`cursor-pointer transition-colors ${
+                                  isActive
+                                    ? 'bg-green-50 border-l-4 border-l-green-600'
+                                    : 'hover:bg-gray-50'
+                                }`}
+                              >
+                                <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={(e) => toggleTemplateSelection(template._id, { force: e.target.checked })}
+                                    className="h-4 w-4 accent-green-600"
+                                    aria-label={checked ? 'Deselect' : 'Select'}
+                                  />
+                                </td>
+                                <td className="px-3 py-3 text-gray-500 font-mono text-xs">{(page - 1) * pageSize + idx + 1}</td>
+                                <td className="px-3 py-3">
+                                  <div className="font-semibold text-gray-900 truncate max-w-[220px]" title={template.templateName}>{template.templateName}</div>
+                                </td>
+                                <td className="px-3 py-3 text-gray-600 capitalize text-xs font-medium">{monthLabel}</td>
+                                <td className="px-3 py-3 text-gray-600 text-xs">{template.language || '—'}</td>
+                                <td className="px-3 py-3 text-gray-500 capitalize text-xs">{template.category?.toLowerCase()}</td>
+                                <td className="px-3 py-3 text-gray-500 text-xs whitespace-nowrap">{createdDate.toLocaleDateString('en-IN')}</td>
+                                <td className="px-3 py-3">
+                                  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border ${getStatusColor(template.status)}`}>
+                                    <span className="text-[10px]">{getStatusIcon(template.status)}</span>
+                                    {template.status}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
 
-                  const variables = extractVariables(previewBody);
-                  const checked = selectedTemplateIds.has(template._id);
-                  return (
-                    <div
-                      key={template._id}
-                      className="bg-white border-2 border-green-600 rounded-xl p-6 shadow-md transition-all hover:shadow-xl"
-                    >
-                      <div className="flex items-start justify-between mb-4">
-                        <div>
-                          <h3 className="text-gray-900 font-bold text-lg">{template.templateName}</h3>
-                          <p className="text-gray-500 text-sm capitalize">{template.category}</p>
+                    {/* Pagination */}
+                    {totalTemplates > 0 && (
+                      <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50">
+                        <button
+                          onClick={() => setPage(p => Math.max(1, p - 1))}
+                          disabled={page === 1}
+                          className="px-3 py-1.5 bg-white border border-gray-300 text-gray-700 rounded-lg disabled:opacity-50 hover:bg-gray-50 transition-colors font-medium text-sm"
+                        >
+                          Previous
+                        </button>
+                        <div className="text-gray-500 text-xs font-medium">
+                          {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, totalTemplates)} of {totalTemplates}
                         </div>
-                        <div className="flex items-start gap-3">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={(e) => toggleTemplateSelection(template._id, { force: e.target.checked })}
-                            className="h-5 w-5 mt-1 accent-green-600"
-                            aria-label={checked ? 'Deselect template' : 'Select template'}
-                          />
-                        <span className={`px-3 py-1 rounded-lg text-sm font-medium border inline-flex items-center gap-2 shadow-sm ${getStatusColor(template.status)}`}>
-                          <span>{getStatusIcon(template.status)}</span>
-                          {template.status}
-                        </span>
-                        </div>
+                        <button
+                          onClick={() => setPage(p => p + 1)}
+                          disabled={page * pageSize >= totalTemplates}
+                          className="px-3 py-1.5 bg-white border border-gray-300 text-gray-700 rounded-lg disabled:opacity-50 hover:bg-gray-50 transition-colors font-medium text-sm"
+                        >
+                          Next
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* RIGHT: Preview Sidebar */}
+              {selectedTemplate && (() => {
+                const parsedPreview = safeParseTemplatePreview(selectedTemplate.templateContent);
+                const previewBody = parsedPreview?.body ?? selectedTemplate.templateContent;
+                const previewFooter = parsedPreview?.footer ?? selectedTemplate.footerText ?? '';
+                const previewButtons = (parsedPreview?.buttons && parsedPreview.buttons.length ? parsedPreview.buttons : selectedTemplate.buttons) || [];
+                const previewHeaderMedia = parsedPreview?.headerMedia ?? selectedTemplate.headerMedia;
+                const variables = extractVariables(previewBody);
+
+                return (
+                  <div className="w-2/5 sticky top-4">
+                    <div className="bg-white rounded-xl border-2 border-green-600 shadow-lg overflow-hidden">
+                      {/* Sidebar Header */}
+                      <div className="bg-green-600 px-5 py-3 flex items-center justify-between">
+                        <h3 className="text-white font-bold text-sm truncate flex-1 mr-2">Template Preview</h3>
+                        <button
+                          onClick={() => setSelectedTemplate(null)}
+                          className="text-white/80 hover:text-white text-xl leading-none font-bold"
+                          title="Close preview"
+                        >
+                          &times;
+                        </button>
                       </div>
 
-                      {/* Content Preview */}
-                      <div className="bg-gray-50 rounded-lg p-4 mb-4 space-y-3 border border-gray-200">
-                        {/* Header media */}
-                        {previewHeaderMedia?.url ? (
-                          <div className="rounded-lg overflow-hidden border border-gray-200 bg-gray-100">
-                            {previewHeaderMedia.kind === 'video' ? (
-                              <video
-                                src={previewHeaderMedia.url}
-                                controls
-                                className="w-full max-h-40 object-cover"
-                              />
-                            ) : (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={previewHeaderMedia.url}
-                                alt="Header"
-                                className="w-full max-h-40 object-cover"
-                              />
+                      <div className="p-5 max-h-[calc(100vh-200px)] overflow-y-auto space-y-4">
+                        {/* Template Name & Meta */}
+                        <div>
+                          <h4 className="text-gray-900 font-bold text-lg break-words">{selectedTemplate.templateName}</h4>
+                          <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border ${getStatusColor(selectedTemplate.status)}`}>
+                              {getStatusIcon(selectedTemplate.status)} {selectedTemplate.status}
+                            </span>
+                            <span className="text-xs text-gray-500 capitalize">{selectedTemplate.category?.toLowerCase()}</span>
+                            {selectedTemplate.language && (
+                              <span className="text-xs text-gray-500">| {selectedTemplate.language}</span>
                             )}
                           </div>
-                        ) : null}
-
-                        {/* Body */}
-                        <div className="max-h-20 overflow-hidden">
-                          <p className="text-gray-800 text-sm line-clamp-4 whitespace-pre-wrap break-words font-medium">{previewBody}</p>
                         </div>
 
-                        {/* Footer */}
-                        {previewFooter ? (
-                          <div className="text-gray-500 text-xs border-t border-gray-200 pt-2 whitespace-pre-wrap break-words">
-                            {previewFooter}
-                          </div>
-                        ) : null}
-
-                        {/* Buttons */}
-                        {previewButtons.length ? (
-                          <div className="space-y-2">
-                            {previewButtons.slice(0, 3).map((b, idx) => (
-                              <div
-                                key={`${template._id}-btn-${idx}`}
-                                className="w-full text-center text-xs font-semibold text-blue-700 bg-white border border-blue-200 rounded-lg py-2"
-                              >
-                                {b?.title || `Button ${idx + 1}`}
+                        {/* WhatsApp-style Message Preview */}
+                        <div className="bg-[#e5ddd5] rounded-xl p-4">
+                          <div className="bg-white rounded-lg shadow-sm p-3 space-y-2 max-w-full">
+                            {/* Header media */}
+                            {previewHeaderMedia?.url && (
+                              <div className="rounded-lg overflow-hidden border border-gray-200 bg-gray-100">
+                                {previewHeaderMedia.kind === 'video' ? (
+                                  <video src={previewHeaderMedia.url} controls className="w-full max-h-48 object-cover" />
+                                ) : (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img src={previewHeaderMedia.url} alt="Header" className="w-full max-h-48 object-cover" />
+                                )}
                               </div>
-                            ))}
-                          </div>
-                        ) : null}
-                      </div>
+                            )}
 
-                      {/* Variables */}
-                      {variables.length > 0 && (
-                        <div className="mb-4">
-                          <label className="block text-gray-500 text-xs mb-2 font-semibold uppercase tracking-wider">Variables</label>
-                          <div className="flex gap-2 flex-wrap">
-                            {variables.map((v) => (
-                              <span
-                                key={v}
-                                className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded border border-yellow-200 font-mono"
-                              >
-                                {v}
-                              </span>
-                            ))}
+                            {/* Body */}
+                            <p className="text-gray-800 text-sm whitespace-pre-wrap break-words leading-relaxed">{previewBody}</p>
+
+                            {/* Footer */}
+                            {previewFooter && (
+                              <p className="text-gray-400 text-xs whitespace-pre-wrap break-words border-t border-gray-100 pt-1.5">{previewFooter}</p>
+                            )}
+
+                            {/* Buttons */}
+                            {previewButtons.length > 0 && (
+                              <div className="border-t border-gray-100 pt-2 space-y-1.5">
+                                {previewButtons.map((b, idx) => (
+                                  <div
+                                    key={`preview-btn-${idx}`}
+                                    className="w-full text-center text-sm font-medium text-blue-600 bg-gray-50 border border-gray-200 rounded-lg py-2"
+                                  >
+                                    {b?.title || `Button ${idx + 1}`}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         </div>
-                      )}
 
-                      {/* Metadata */}
-                      <div className="text-xs text-gray-400 mb-4 space-y-1">
-                        <div>Created: {new Date(template.createdAt).toLocaleDateString()}</div>
-                        <div>Updated: {new Date(template.updatedAt).toLocaleDateString()}</div>
-                        {template.status === 'pending_approval' && (
-                          <div className="text-amber-600 font-semibold">⏳ Awaiting approval...</div>
+                        {/* Variables */}
+                        {variables.length > 0 && (
+                          <div>
+                            <label className="block text-gray-500 text-xs font-semibold uppercase tracking-wider mb-1.5">Variables</label>
+                            <div className="flex gap-1.5 flex-wrap">
+                              {variables.map((v) => (
+                                <span key={v} className="px-2 py-0.5 bg-yellow-100 text-yellow-800 text-xs rounded border border-yellow-200 font-mono">{v}</span>
+                              ))}
+                            </div>
+                          </div>
                         )}
-                        {template.status === 'approved' && (
-                          <div className="text-green-600 font-semibold">✅ Approved & Ready to use</div>
-                        )}
-                        {template.status === 'rejected' && (
-                          <div className="text-red-600 font-semibold">❌ Rejected</div>
-                        )}
-                      </div>
 
-                      {/* Actions */}
-                      <div className="flex gap-2 flex-wrap pt-2 border-t border-gray-100">
-                        <button
-                          onClick={() => setSelectedTemplate(template)}
-                          className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors shadow-sm"
-                        >
-                          View
-                        </button>
-                        {/* Edit button - always show for updating image URL */}
-                        <button
-                          onClick={() => router.push(`/admin/crm/meta/templates?edit=${template._id}`)}
-                          className="flex-1 px-3 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors shadow-sm"
-                        >
-                          Edit
-                        </button>
-                        {(template.status === 'draft' || template.status === 'pending_approval') && (
+                        {/* Details */}
+                        <div className="text-xs text-gray-400 space-y-0.5 pt-1 border-t border-gray-100">
+                          <div><span className="font-semibold text-gray-500">Created:</span> {new Date(selectedTemplate.createdAt).toLocaleDateString('en-IN')}</div>
+                          <div><span className="font-semibold text-gray-500">Updated:</span> {new Date(selectedTemplate.updatedAt).toLocaleDateString('en-IN')}</div>
+                          {selectedTemplate.headerFormat && selectedTemplate.headerFormat !== 'NONE' && (
+                            <div><span className="font-semibold text-gray-500">Header:</span> {selectedTemplate.headerFormat}</div>
+                          )}
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="space-y-2 pt-2 border-t border-gray-100">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => router.push(`/admin/crm/meta/templates?edit=${selectedTemplate._id}`)}
+                              className="flex-1 px-3 py-2.5 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors shadow-sm"
+                            >
+                              ✏️ Edit
+                            </button>
+                            {(selectedTemplate.status === 'draft' || selectedTemplate.status === 'pending_approval') && (
+                              <button
+                                onClick={() => router.push(`/admin/crm/templates/builder?templateId=${selectedTemplate._id}`)}
+                                className="flex-1 px-3 py-2.5 bg-blue-500 text-white rounded-lg text-sm font-semibold hover:bg-blue-600 transition-colors shadow-sm"
+                              >
+                                📝 Builder
+                              </button>
+                            )}
+                          </div>
+
+                          {(selectedTemplate.status === 'draft' || selectedTemplate.status === 'pending_approval') && (
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => {
+                                  handleApproveTemplate(selectedTemplate._id);
+                                  setSelectedTemplate(null);
+                                }}
+                                className="flex-1 px-3 py-2.5 bg-green-700 text-white rounded-lg text-sm font-semibold hover:bg-green-800 transition-colors shadow-sm"
+                              >
+                                ✅ Approve
+                              </button>
+                              <button
+                                onClick={() => {
+                                  handleRejectTemplate(selectedTemplate._id);
+                                  setSelectedTemplate(null);
+                                }}
+                                className="flex-1 px-3 py-2.5 bg-orange-600 text-white rounded-lg text-sm font-semibold hover:bg-orange-700 transition-colors shadow-sm"
+                              >
+                                ❌ Reject
+                              </button>
+                            </div>
+                          )}
+
                           <button
-                            onClick={() => router.push(`/admin/crm/templates/builder?templateId=${template._id}`)}
-                            className="flex-1 px-3 py-2 bg-blue-500 text-white rounded-lg text-sm font-semibold hover:bg-blue-600 transition-colors shadow-sm"
+                            onClick={() => {
+                              handleDeleteTemplate(selectedTemplate._id);
+                              setSelectedTemplate(null);
+                            }}
+                            className="w-full px-3 py-2.5 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 transition-colors shadow-sm"
                           >
-                            Edit
+                            🗑️ Delete
                           </button>
-                        )}
-                        {(template.status === 'draft' || template.status === 'pending_approval') && (
-                          <>
-                            <button
-                              onClick={() => handleApproveTemplate(template._id)}
-                              className="flex-1 px-3 py-2 bg-green-700 text-white rounded-lg text-sm font-semibold hover:bg-green-800 transition-colors shadow-sm"
-                            >
-                              Approve
-                            </button>
-                            <button
-                              onClick={() => handleRejectTemplate(template._id)}
-                              className="flex-1 px-3 py-2 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 transition-colors shadow-sm"
-                            >
-                              Reject
-                            </button>
-                          </>
-                        )}
-                        <button
-                          onClick={() => handleDeleteTemplate(template._id)}
-                          className="px-3 py-2 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 transition-colors shadow-sm"
-                        >
-                          Delete
-                        </button>
+                        </div>
                       </div>
                     </div>
-                  );
-                })
-              )}
-            </div>
-
-            {/* Pagination */}
-            {totalTemplates > 0 && (
-              <div className="flex items-center justify-between pt-6">
-                <button
-                  onClick={() => setPage(p => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                  className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg disabled:opacity-50 hover:bg-gray-50 transition-colors font-medium"
-                >
-                  Previous
-                </button>
-                <div className="text-gray-600 text-sm font-medium">
-                  Showing {(page - 1) * pageSize + 1} - {Math.min(page * pageSize, totalTemplates)} of {totalTemplates}
-                </div>
-                <button
-                  onClick={() => setPage(p => p + 1)}
-                  disabled={page * pageSize >= totalTemplates}
-                  className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg disabled:opacity-50 hover:bg-gray-50 transition-colors font-medium"
-                >
-                  Next
-                </button>
-              </div>
-            )}
-
-
-          </div>
-        )}
-
-        {/* Template Detail Modal */}
-        {selectedTemplate && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl border-2 border-green-600 p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">{selectedTemplate.templateName}</h2>
-
-              <div className="space-y-4 mb-8">
-                <div>
-                  <label className="block text-gray-500 font-semibold text-xs uppercase mb-1">Category</label>
-                  <div className="text-gray-900 capitalize font-medium">{selectedTemplate.category}</div>
-                </div>
-                <div>
-                  <label className="block text-gray-500 font-semibold text-xs uppercase mb-1">Status</label>
-                  <span className={`inline-block px-3 py-1 rounded-lg text-sm font-medium border ${getStatusColor(selectedTemplate.status)}`}>
-                    {selectedTemplate.status}
-                  </span>
-                </div>
-                <div>
-                  <label className="block text-gray-500 font-semibold text-xs uppercase mb-1">Content</label>
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-gray-800 whitespace-pre-wrap font-sans text-sm shadow-inner">
-                    {selectedTemplate.templateContent}
                   </div>
-                </div>
-                {(selectedTemplate.headerFormat && selectedTemplate.headerFormat !== 'NONE') ? (
-                  <div>
-                    <label className="block text-gray-500 font-semibold text-xs uppercase mb-1">Header</label>
-                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-gray-800 text-sm">
-                      <div className="text-xs text-gray-400 font-semibold mb-2">{selectedTemplate.headerFormat}</div>
-                      <div className="break-all">{selectedTemplate.headerContent || '-'}</div>
-                    </div>
-                  </div>
-                ) : null}
-                {selectedTemplate.footerText ? (
-                  <div>
-                    <label className="block text-gray-500 font-semibold text-xs uppercase mb-1">Footer</label>
-                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-gray-800 text-sm whitespace-pre-wrap">
-                      {selectedTemplate.footerText}
-                    </div>
-                  </div>
-                ) : null}
-                {extractVariables(selectedTemplate.templateContent).length > 0 && (
-                  <div>
-                    <label className="block text-gray-500 font-semibold text-xs uppercase mb-1">Variables</label>
-                    <div className="flex gap-2 flex-wrap">
-                      {extractVariables(selectedTemplate.templateContent).map((v) => (
-                        <span
-                          key={v}
-                          className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-lg border border-yellow-200 text-sm font-mono"
-                        >
-                          {v}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex gap-3 pt-4 border-t border-gray-100">
-                {(selectedTemplate.status === 'draft' || selectedTemplate.status === 'pending_approval') && (
-                  <>
-                    <button
-                      onClick={() => {
-                        handleApproveTemplate(selectedTemplate._id);
-                        setSelectedTemplate(null);
-                      }}
-                      className="flex-1 px-4 py-3 bg-green-700 hover:bg-green-800 text-white rounded-xl font-semibold transition-colors shadow-sm"
-                    >
-                      Approve
-                    </button>
-                    <button
-                      onClick={() => {
-                        handleRejectTemplate(selectedTemplate._id);
-                        setSelectedTemplate(null);
-                      }}
-                      className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold transition-colors shadow-sm"
-                    >
-                      Reject
-                    </button>
-                  </>
-                )}
-                <button
-                  onClick={() => setSelectedTemplate(null)}
-                  className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl font-semibold transition-colors"
-                >
-                  Close
-                </button>
-              </div>
+                );
+              })()}
             </div>
           </div>
         )}
-
       </div>
     </div>
   );
