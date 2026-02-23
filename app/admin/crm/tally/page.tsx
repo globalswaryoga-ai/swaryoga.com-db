@@ -221,6 +221,219 @@ export default function TallyPage() {
   const [voucherLoading, setVoucherLoading] = useState(false);
   const [manualVoucherStats, setManualVoucherStats] = useState<Record<string, { count: number; total: number }>>({});
 
+  // ── Print Report (Tally A4 format) ──
+  const printReport = (type: 'pl' | 'bs' | 'receipts') => {
+    const companyName = 'UPAMNYU INTERNATIONAL EDUCATION PRIVATE LIMITED';
+    const fy = FY_OPTIONS.find(f => f.value === selectedFY) || FY_OPTIONS[0];
+    const fromDate = `1-Apr-${fy.value.split('-')[0]}`;
+    const toDate = `31-Mar-20${fy.value.split('-')[1]}`;
+
+    const fmtPrint = (n: number) => new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Math.abs(n));
+
+    let title = '';
+    let bodyHtml = '';
+
+    if (type === 'pl' && plData) {
+      title = 'Profit & Loss A/c';
+      // Side by side: Income (Credit) | Expenses (Debit)
+      const maxRows = Math.max(
+        plData.income.reduce((s, g) => s + 1 + g.children.length, 0),
+        plData.expenses.reduce((s, g) => s + 1 + g.children.length, 0)
+      );
+      let incomeRows = '';
+      for (const g of plData.income) {
+        incomeRows += `<tr class="group-row"><td colspan="2" style="font-weight:600;padding-left:8px;">${g.name}</td></tr>`;
+        for (const c of g.children) {
+          incomeRows += `<tr><td style="padding-left:24px;">${c.name}</td><td class="amt">${fmtPrint(c.amount)}</td></tr>`;
+        }
+      }
+      let expenseRows = '';
+      for (const g of plData.expenses) {
+        expenseRows += `<tr class="group-row"><td colspan="2" style="font-weight:600;padding-left:8px;">${g.name}</td></tr>`;
+        for (const c of g.children) {
+          expenseRows += `<tr><td style="padding-left:24px;">${c.name}</td><td class="amt">${fmtPrint(c.amount)}</td></tr>`;
+        }
+      }
+      // Net profit/loss row
+      if (plData.netProfit >= 0) {
+        expenseRows += `<tr class="total-row"><td style="padding-left:8px;font-weight:700;">Net Profit</td><td class="amt" style="font-weight:700;">${fmtPrint(plData.netProfit)}</td></tr>`;
+      } else {
+        incomeRows += `<tr class="total-row"><td style="padding-left:8px;font-weight:700;">Net Loss</td><td class="amt" style="font-weight:700;">${fmtPrint(plData.netProfit)}</td></tr>`;
+      }
+      const grandTotal = plData.netProfit >= 0 ? plData.totalIncome : plData.totalExpenses;
+
+      bodyHtml = `
+        <table class="tally-table" style="width:100%;">
+          <thead>
+            <tr>
+              <th colspan="2" style="width:50%;text-align:left;">Particulars (Income)</th>
+              <th colspan="2" style="width:50%;text-align:left;">Particulars (Expenditure)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td colspan="2" style="vertical-align:top;padding:0;">
+                <table class="inner-table">${incomeRows}
+                  <tr class="grand-total"><td>Total</td><td class="amt">${fmtPrint(grandTotal)}</td></tr>
+                </table>
+              </td>
+              <td colspan="2" style="vertical-align:top;padding:0;">
+                <table class="inner-table">${expenseRows}
+                  <tr class="grand-total"><td>Total</td><td class="amt">${fmtPrint(grandTotal)}</td></tr>
+                </table>
+              </td>
+            </tr>
+          </tbody>
+        </table>`;
+    } else if (type === 'bs' && bsData) {
+      title = 'Balance Sheet';
+      let assetRows = '';
+      for (const g of bsData.assets) {
+        assetRows += `<tr class="group-row"><td colspan="2" style="font-weight:600;padding-left:8px;">${g.name}</td></tr>`;
+        for (const c of g.children) {
+          assetRows += `<tr><td style="padding-left:24px;">${c.name}</td><td class="amt">${fmtPrint(c.amount)}</td></tr>`;
+        }
+      }
+      let liabRows = '';
+      for (const g of bsData.liabilities) {
+        liabRows += `<tr class="group-row"><td colspan="2" style="font-weight:600;padding-left:8px;">${g.name}</td></tr>`;
+        for (const c of g.children) {
+          liabRows += `<tr><td style="padding-left:24px;">${c.name}</td><td class="amt">${fmtPrint(c.amount)}</td></tr>`;
+        }
+      }
+      if (bsData.difference !== 0) {
+        const diffLabel = bsData.difference > 0 ? 'Difference (Excess Assets)' : 'Difference (Excess Liabilities)';
+        if (bsData.difference > 0) {
+          liabRows += `<tr class="total-row"><td style="padding-left:8px;font-style:italic;">${diffLabel}</td><td class="amt">${fmtPrint(bsData.difference)}</td></tr>`;
+        } else {
+          assetRows += `<tr class="total-row"><td style="padding-left:8px;font-style:italic;">${diffLabel}</td><td class="amt">${fmtPrint(bsData.difference)}</td></tr>`;
+        }
+      }
+      const maxSide = Math.max(bsData.totalAssets, bsData.totalLiabilities + Math.max(0, bsData.difference));
+
+      bodyHtml = `
+        <table class="tally-table" style="width:100%;">
+          <thead>
+            <tr>
+              <th colspan="2" style="width:50%;text-align:left;">Liabilities</th>
+              <th colspan="2" style="width:50%;text-align:left;">Assets</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td colspan="2" style="vertical-align:top;padding:0;">
+                <table class="inner-table">${liabRows}
+                  <tr class="grand-total"><td>Total</td><td class="amt">${fmtPrint(bsData.totalLiabilities + Math.max(0, bsData.difference))}</td></tr>
+                </table>
+              </td>
+              <td colspan="2" style="vertical-align:top;padding:0;">
+                <table class="inner-table">${assetRows}
+                  <tr class="grand-total"><td>Total</td><td class="amt">${fmtPrint(bsData.totalAssets + Math.max(0, -bsData.difference))}</td></tr>
+                </table>
+              </td>
+            </tr>
+          </tbody>
+        </table>`;
+    } else if (type === 'receipts') {
+      title = 'Receipt Register';
+      // Combine Tally + manual vouchers for receipts
+      const allReceipts = [
+        ...filteredVouchers.map(v => ({ ...v, source: 'Tally', displayDate: tallyDateToDisplay(v.date) })),
+        ...filteredManualVouchers.map(v => ({ ...v, voucherType: v.voucherType, source: 'Manual', displayDate: v.date })),
+      ];
+      const totalAmt = allReceipts.reduce((s, v) => s + v.amount, 0);
+
+      let rows = '';
+      allReceipts.forEach((v, i) => {
+        rows += `<tr>
+          <td style="text-align:center;">${i + 1}</td>
+          <td>${v.displayDate || '-'}</td>
+          <td>${v.voucherNumber || '-'}</td>
+          <td>${v.partyName || '-'}</td>
+          <td class="amt">${fmtPrint(v.amount)}</td>
+          <td>${v.narration || '-'}</td>
+        </tr>`;
+      });
+
+      bodyHtml = `
+        <table class="tally-table" style="width:100%;">
+          <thead>
+            <tr>
+              <th style="width:5%;text-align:center;">S.No</th>
+              <th style="width:12%;">Date</th>
+              <th style="width:13%;">Voucher No</th>
+              <th style="width:30%;">Party Name</th>
+              <th style="width:15%;text-align:right;">Amount (₹)</th>
+              <th style="width:25%;">Narration</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+          <tfoot>
+            <tr class="grand-total">
+              <td colspan="4" style="text-align:right;font-weight:700;">Total Receipts</td>
+              <td class="amt" style="font-weight:700;">${fmtPrint(totalAmt)}</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>`;
+    }
+
+    if (!bodyHtml) { alert('No data to print. Please add entries first.'); return; }
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) { alert('Please allow popups to print.'); return; }
+
+    printWindow.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <title>${title} - ${companyName}</title>
+  <style>
+    @page { size: A4; margin: 15mm 12mm; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Courier New', Courier, monospace; font-size: 11px; color: #000; background: #fff; }
+    .header { text-align: center; margin-bottom: 12px; border-bottom: 2px solid #000; padding-bottom: 8px; }
+    .header h1 { font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px; }
+    .header h2 { font-size: 12px; font-weight: 600; margin-bottom: 2px; }
+    .header .period { font-size: 10px; color: #333; }
+    .tally-table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+    .tally-table th { background: #f0f0f0; border: 1px solid #000; padding: 4px 6px; font-size: 10px; text-transform: uppercase; font-weight: 700; }
+    .tally-table td { border: 1px solid #ccc; padding: 3px 6px; font-size: 10px; vertical-align: top; }
+    .inner-table { width: 100%; border-collapse: collapse; }
+    .inner-table td { border: none; border-bottom: 1px solid #eee; padding: 3px 6px; font-size: 10px; }
+    .inner-table .group-row td { background: #f8f8f8; font-weight: 600; border-bottom: 1px solid #ccc; }
+    .inner-table .total-row td { border-top: 1px solid #999; }
+    .inner-table .grand-total td { border-top: 2px solid #000; font-weight: 700; font-size: 11px; background: #f0f0f0; }
+    .amt { text-align: right; font-family: 'Courier New', monospace; }
+    .group-row td { background: #f8f8f8; }
+    .total-row td { border-top: 1px solid #999; }
+    .grand-total td { border-top: 2px solid #000; font-weight: 700; font-size: 11px; background: #f0f0f0; }
+    .footer { margin-top: 20px; text-align: center; font-size: 9px; color: #666; border-top: 1px solid #ccc; padding-top: 6px; }
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .no-print { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>${companyName}</h1>
+    <h2>${title}</h2>
+    <div class="period">${fromDate} to ${toDate}</div>
+  </div>
+  ${bodyHtml}
+  <div class="footer">
+    Generated from Swar Yoga CRM &mdash; ${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} at ${new Date().toLocaleTimeString('en-IN')}
+  </div>
+  <script>
+    window.onload = function() { setTimeout(function() { window.print(); }, 500); };
+  </script>
+</body>
+</html>`);
+    printWindow.document.close();
+  };
+
   // Auto-scroll chat
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -1170,6 +1383,14 @@ export default function TallyPage() {
                 >
                   <Plus className="w-4 h-4" /> Add {activeTab === 'daybook' ? 'Entry' : activeTab === 'receipts' ? 'Receipt' : activeTab === 'sales' ? 'Sale' : 'Purchase'}
                 </button>
+                {activeTab === 'receipts' && (filteredVouchers.length > 0 || filteredManualVouchers.length > 0) && (
+                  <button
+                    onClick={() => printReport('receipts')}
+                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white font-medium rounded-lg flex items-center gap-2 text-sm"
+                  >
+                    <FileText className="w-4 h-4" /> Print
+                  </button>
+                )}
               </div>
 
               {/* Add / Edit Voucher Form */}
@@ -1523,6 +1744,15 @@ export default function TallyPage() {
                 <LoadingSkeleton />
               ) : plData ? (
                 <div className="space-y-6">
+                  {/* Print button */}
+                  <div className="flex justify-end">
+                    <button
+                      onClick={() => printReport('pl')}
+                      className="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 text-black font-medium rounded-lg flex items-center gap-2 text-sm"
+                    >
+                      <FileText className="w-4 h-4" /> Print / Download PDF
+                    </button>
+                  </div>
                   {/* Summary cards */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="p-5 rounded-xl border border-gray-800 bg-green-500/10">
@@ -1591,6 +1821,15 @@ export default function TallyPage() {
                 <LoadingSkeleton />
               ) : bsData ? (
                 <div className="space-y-6">
+                  {/* Print button */}
+                  <div className="flex justify-end">
+                    <button
+                      onClick={() => printReport('bs')}
+                      className="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 text-black font-medium rounded-lg flex items-center gap-2 text-sm"
+                    >
+                      <FileText className="w-4 h-4" /> Print / Download PDF
+                    </button>
+                  </div>
                   {/* Summary cards */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="p-5 rounded-xl border border-gray-800 bg-blue-500/10">
