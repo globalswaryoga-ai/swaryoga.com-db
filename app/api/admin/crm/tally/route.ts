@@ -7,6 +7,8 @@
  * GET  /api/admin/crm/tally?action=vouchers&type=Sales&from=20250401&to=20260331
  * GET  /api/admin/crm/tally?action=stock       — stock items
  * GET  /api/admin/crm/tally?action=daybook&from=20260223&to=20260223
+ * POST /api/admin/crm/tally  { action: 'sync', from?, to? } — auto-sync to MongoDB
+ * GET  /api/admin/crm/tally?action=syncStatus  — last sync info
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -21,6 +23,7 @@ import {
   fetchStockItems,
   fetchDayBook,
 } from '@/lib/tally/tallyPrimeAPI';
+import { runTallyAutoSync, getLastSyncInfo } from '@/lib/tally/tallyAutoSync';
 
 function unauthorized() {
   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -81,6 +84,11 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ success: true, count: vouchers.length, vouchers });
       }
 
+      case 'syncStatus': {
+        const syncInfo = await getLastSyncInfo();
+        return NextResponse.json({ success: true, ...syncInfo });
+      }
+
       case 'dashboard':
       default: {
         const from = searchParams.get('from') || undefined;
@@ -93,6 +101,32 @@ export async function GET(request: NextRequest) {
     console.error('[Tally API Error]', error);
     return NextResponse.json(
       { error: error.message || 'Internal server error' },
+      { status: 500 },
+    );
+  }
+}
+
+// ─── POST: Trigger auto-sync ───────────────────────────────────
+export async function POST(request: NextRequest) {
+  try {
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) return unauthorized();
+    const decoded = verifyToken(authHeader.split(' ')[1]);
+    if (!decoded || !decoded.isAdmin) return unauthorized();
+
+    const body = await request.json().catch(() => ({}));
+    const { action, from, to } = body as { action?: string; from?: string; to?: string };
+
+    if (action !== 'sync') {
+      return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+    }
+
+    const result = await runTallyAutoSync(from, to);
+    return NextResponse.json(result);
+  } catch (error: any) {
+    console.error('[Tally Sync Error]', error);
+    return NextResponse.json(
+      { error: error.message || 'Sync failed' },
       { status: 500 },
     );
   }

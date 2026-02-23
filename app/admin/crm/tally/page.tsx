@@ -134,6 +134,12 @@ export default function TallyPage() {
   const [ledgerGroup, setLedgerGroup] = useState('');
   const [voucherType, setVoucherType] = useState('Sales');
 
+  // Sync state
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<any>(null);
+  const [lastSync, setLastSync] = useState<any>(null);
+  const [syncCounts, setSyncCounts] = useState<{ customers: number; invoices: number; payments: number } | null>(null);
+
   const headers = useCallback(() => ({
     Authorization: `Bearer ${token}`,
     'Content-Type': 'application/json',
@@ -241,10 +247,48 @@ export default function TallyPage() {
     }
   }, [token, headers]);
 
+  // ── Sync to MongoDB ──
+  const runSync = useCallback(async () => {
+    if (!token) return;
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const res = await fetch('/api/admin/crm/tally', {
+        method: 'POST',
+        headers: headers(),
+        body: JSON.stringify({ action: 'sync', from: currentFY.from, to: currentFY.to }),
+      });
+      const data = await res.json();
+      setSyncResult(data);
+      // Refresh sync status too
+      fetchSyncStatus();
+    } catch (err: any) {
+      setSyncResult({ success: false, error: err.message });
+    } finally {
+      setSyncing(false);
+    }
+  }, [token, headers, currentFY]);
+
+  // ── Fetch sync status ──
+  const fetchSyncStatus = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch('/api/admin/crm/tally?action=syncStatus', { headers: headers() });
+      const data = await res.json();
+      if (data.success) {
+        setLastSync(data.lastSync);
+        setSyncCounts(data.counts);
+      }
+    } catch { /* ignore */ }
+  }, [token, headers]);
+
   // ── Initial load ──
   useEffect(() => {
-    if (token) fetchDashboard();
-  }, [token, fetchDashboard]);
+    if (token) {
+      fetchDashboard();
+      fetchSyncStatus();
+    }
+  }, [token, fetchDashboard, fetchSyncStatus]);
 
   // ── Tab / FY change handler ──
   useEffect(() => {
@@ -427,6 +471,80 @@ export default function TallyPage() {
                   <div className="grid md:grid-cols-2 gap-6">
                     <RecentTable title="Recent Sales" vouchers={summary.recentSales} color="text-green-400" />
                     <RecentTable title="Recent Receipts" vouchers={summary.recentReceipts} color="text-blue-400" />
+                  </div>
+
+                  {/* ── Auto-Sync Panel ── */}
+                  <div className="mt-6 p-5 bg-gray-900 border border-gray-800 rounded-xl">
+                    <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+                      <div>
+                        <h3 className="text-base font-semibold text-gray-200 flex items-center gap-2">
+                          <RefreshCw className="w-4 h-4 text-yellow-500" />
+                          Auto-Sync to Database
+                        </h3>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Pull customers, invoices & payments from Tally and save to MongoDB for offline access.
+                        </p>
+                      </div>
+                      <button
+                        onClick={runSync}
+                        disabled={syncing}
+                        className="flex items-center gap-2 px-5 py-2.5 bg-yellow-600 hover:bg-yellow-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-black disabled:text-gray-400 font-medium rounded-lg text-sm transition"
+                      >
+                        <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+                        {syncing ? 'Syncing...' : `Sync ${currentFY.label}`}
+                      </button>
+                    </div>
+
+                    {/* Sync counts */}
+                    {syncCounts && (
+                      <div className="grid grid-cols-3 gap-3 mb-4">
+                        <div className="p-3 bg-gray-800/50 rounded-lg text-center">
+                          <p className="text-lg font-bold text-blue-400">{syncCounts.customers}</p>
+                          <p className="text-xs text-gray-500">Customers</p>
+                        </div>
+                        <div className="p-3 bg-gray-800/50 rounded-lg text-center">
+                          <p className="text-lg font-bold text-green-400">{syncCounts.invoices}</p>
+                          <p className="text-xs text-gray-500">Invoices</p>
+                        </div>
+                        <div className="p-3 bg-gray-800/50 rounded-lg text-center">
+                          <p className="text-lg font-bold text-purple-400">{syncCounts.payments}</p>
+                          <p className="text-xs text-gray-500">Payments</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Last sync info */}
+                    {lastSync && (
+                      <div className="text-xs text-gray-500 flex flex-wrap items-center gap-3">
+                        <span>Last sync: <span className="text-gray-300">{new Date(lastSync.syncedAt).toLocaleString('en-IN')}</span></span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${lastSync.status === 'success' ? 'bg-green-500/20 text-green-400' : lastSync.status === 'partial' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'}`}>
+                          {lastSync.status}
+                        </span>
+                        <span>{lastSync.totalSucceeded}/{lastSync.totalProcessed} records</span>
+                        {lastSync.duration > 0 && <span>{(lastSync.duration / 1000).toFixed(1)}s</span>}
+                      </div>
+                    )}
+
+                    {/* Sync result (just completed) */}
+                    {syncResult && (
+                      <div className={`mt-3 p-3 rounded-lg border text-sm ${syncResult.success ? (syncResult.status === 'success' ? 'bg-green-900/30 border-green-700 text-green-300' : 'bg-yellow-900/30 border-yellow-700 text-yellow-300') : 'bg-red-900/30 border-red-700 text-red-300'}`}>
+                        {syncResult.success ? (
+                          <div>
+                            <p className="font-medium">
+                              Sync {syncResult.status === 'success' ? 'completed' : 'completed with errors'} — {syncResult.totalSucceeded} of {syncResult.totalProcessed} records
+                            </p>
+                            <div className="mt-1 text-xs opacity-75">
+                              Customers: {syncResult.customers?.succeeded || 0} • 
+                              Invoices: {syncResult.invoices?.succeeded || 0} • 
+                              Payments: {syncResult.payments?.succeeded || 0}
+                              {syncResult.duration > 0 && ` • ${(syncResult.duration / 1000).toFixed(1)}s`}
+                            </div>
+                          </div>
+                        ) : (
+                          <p>{syncResult.error || 'Sync failed'}</p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </>
               ) : (
