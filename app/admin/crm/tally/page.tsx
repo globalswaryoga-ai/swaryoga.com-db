@@ -211,6 +211,16 @@ export default function TallyPage() {
   const [formData, setFormData] = useState({ ledgerName: '', parentGroup: '', category: 'asset' as string, amount: '', drCr: 'Dr' as string, asOnDate: '', notes: '' });
   const [manualLoading, setManualLoading] = useState(false);
 
+  // Manual Vouchers (Receipts, Payments, etc.)
+  interface ManualVoucher { _id: string; voucherType: string; voucherNumber: string; date: string; partyName: string; ledgerName: string; amount: number; narration: string; paymentMode: string; }
+  const [manualVouchers, setManualVouchers] = useState<ManualVoucher[]>([]);
+  const [manualVoucherTotal, setManualVoucherTotal] = useState(0);
+  const [showVoucherForm, setShowVoucherForm] = useState(false);
+  const [editingVoucherId, setEditingVoucherId] = useState<string | null>(null);
+  const [voucherFormData, setVoucherFormData] = useState({ voucherType: 'Receipt', voucherNumber: '', date: '', partyName: '', ledgerName: '', amount: '', narration: '', paymentMode: 'Bank' });
+  const [voucherLoading, setVoucherLoading] = useState(false);
+  const [manualVoucherStats, setManualVoucherStats] = useState<Record<string, { count: number; total: number }>>({});
+
   // Auto-scroll chat
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -465,6 +475,87 @@ export default function TallyPage() {
     } catch { /* ignore */ }
   }, [token, headers, fetchManualBalances]);
 
+  // ── Fetch Manual Vouchers ──
+  const fetchManualVouchers = useCallback(async (type?: string) => {
+    if (!token) return;
+    setVoucherLoading(true);
+    try {
+      const t = type || 'all';
+      const res = await fetch(`/api/admin/crm/tally/manual-vouchers?fy=${selectedFY}&type=${t}`, { headers: headers() });
+      const data = await res.json();
+      if (data.success) {
+        setManualVouchers(data.entries || []);
+        setManualVoucherTotal(data.total || 0);
+      }
+    } catch { setManualVouchers([]); }
+    finally { setVoucherLoading(false); }
+  }, [token, headers, selectedFY]);
+
+  // ── Fetch Manual Voucher Stats (for dashboard) ──
+  const fetchVoucherStats = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch('/api/admin/crm/tally/manual-vouchers', {
+        method: 'POST', headers: headers(),
+        body: JSON.stringify({ action: 'stats', financialYear: selectedFY }),
+      });
+      const data = await res.json();
+      if (data.success) setManualVoucherStats(data.stats || {});
+    } catch { /* ignore */ }
+  }, [token, headers, selectedFY]);
+
+  // ── Save Manual Voucher ──
+  const saveManualVoucher = useCallback(async () => {
+    if (!token || !voucherFormData.date || !voucherFormData.partyName || !voucherFormData.amount) return;
+    setVoucherLoading(true);
+    try {
+      const payload = editingVoucherId
+        ? { action: 'update', id: editingVoucherId, ...voucherFormData, amount: Number(voucherFormData.amount) }
+        : { action: 'add', ...voucherFormData, amount: Number(voucherFormData.amount), financialYear: selectedFY };
+      const res = await fetch('/api/admin/crm/tally/manual-vouchers', {
+        method: 'POST', headers: headers(), body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setShowVoucherForm(false);
+        setEditingVoucherId(null);
+        setVoucherFormData({ voucherType: 'Receipt', voucherNumber: '', date: '', partyName: '', ledgerName: '', amount: '', narration: '', paymentMode: 'Bank' });
+        // Refresh the right tab
+        const vType = activeTab === 'receipts' ? 'Receipt' : activeTab === 'sales' ? 'Sales' : activeTab === 'purchases' ? 'Purchase' : 'all';
+        fetchManualVouchers(vType);
+      }
+    } catch { /* ignore */ }
+    finally { setVoucherLoading(false); }
+  }, [token, voucherFormData, editingVoucherId, selectedFY, headers, activeTab, fetchManualVouchers]);
+
+  // ── Delete Manual Voucher ──
+  const deleteManualVoucher = useCallback(async (id: string) => {
+    if (!token || !confirm('Delete this voucher?')) return;
+    try {
+      await fetch('/api/admin/crm/tally/manual-vouchers', {
+        method: 'POST', headers: headers(), body: JSON.stringify({ action: 'delete', id }),
+      });
+      const vType = activeTab === 'receipts' ? 'Receipt' : activeTab === 'sales' ? 'Sales' : activeTab === 'purchases' ? 'Purchase' : 'all';
+      fetchManualVouchers(vType);
+    } catch { /* ignore */ }
+  }, [token, headers, activeTab, fetchManualVouchers]);
+
+  // ── Edit Manual Voucher ──
+  const startEditVoucher = (v: ManualVoucher) => {
+    setEditingVoucherId(v._id);
+    setVoucherFormData({
+      voucherType: v.voucherType,
+      voucherNumber: v.voucherNumber,
+      date: v.date,
+      partyName: v.partyName,
+      ledgerName: v.ledgerName || '',
+      amount: String(v.amount),
+      narration: v.narration || '',
+      paymentMode: v.paymentMode || 'Bank',
+    });
+    setShowVoucherForm(true);
+  };
+
   // ── Edit Manual Entry ──
   const startEdit = (entry: ManualEntry) => {
     setEditingId(entry._id);
@@ -672,21 +763,22 @@ export default function TallyPage() {
       fetchDashboard();
       fetchSyncStatus();
       fetchManualBalances();
+      fetchVoucherStats();
     }
-  }, [token, fetchDashboard, fetchSyncStatus, fetchManualBalances]);
+  }, [token, fetchDashboard, fetchSyncStatus, fetchManualBalances, fetchVoucherStats]);
 
   // ── Tab / FY change handler ──
   useEffect(() => {
     if (!token) return;
     const fy = FY_OPTIONS.find(f => f.value === selectedFY) || FY_OPTIONS[0];
     switch (activeTab) {
-      case 'dashboard': fetchDashboard(fy); break;
-      case 'sales': fetchVoucherData('Sales', fy); break;
-      case 'receipts': fetchVoucherData('Receipt', fy); break;
-      case 'purchases': fetchVoucherData('Purchase', fy); break;
+      case 'dashboard': fetchDashboard(fy); fetchVoucherStats(); break;
+      case 'sales': fetchVoucherData('Sales', fy); fetchManualVouchers('Sales'); break;
+      case 'receipts': fetchVoucherData('Receipt', fy); fetchManualVouchers('Receipt'); break;
+      case 'purchases': fetchVoucherData('Purchase', fy); fetchManualVouchers('Purchase'); break;
       case 'ledgers': fetchLedgerData(ledgerGroup || undefined); break;
       case 'stock': fetchStock(); break;
-      case 'daybook': fetchDaybook(fy); break;
+      case 'daybook': fetchDaybook(fy); fetchManualVouchers('all'); break;
       case 'profitloss': fetchPL(fy); break;
       case 'balancesheet': fetchBS(fy); break;
       case 'opening': fetchManualBalances(); break;
@@ -710,6 +802,13 @@ export default function TallyPage() {
 
   const filteredStock = stockItems.filter(s =>
     !searchQuery || s.name?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const filteredManualVouchers = manualVouchers.filter(v =>
+    !searchQuery ||
+    v.partyName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    v.voucherNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    v.narration?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   // ── Send AI chat message ──
@@ -977,31 +1076,44 @@ export default function TallyPage() {
                     <WifiOff className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
                     <div>
                       <p className="text-sm font-medium text-yellow-400">Tally Prime Not Connected</p>
-                      <p className="text-xs text-gray-500 mt-1">TSS subscription may be expired. Use the <strong className="text-gray-400">Opening Bal.</strong> tab to add data manually from your CA reports.</p>
+                      <p className="text-xs text-gray-500 mt-1">TSS subscription may be expired. Use the tabs to add data manually — Receipts, Ledgers, Opening Balances, etc.</p>
                     </div>
                   </div>
-                  {/* Manual Balance Summary */}
-                  {manualEntries.length > 0 ? (
+
+                  {/* Manual Voucher Stats */}
+                  {(Object.keys(manualVoucherStats).length > 0 || manualEntries.length > 0) && (
                     <>
                       <div className="mb-2">
                         <h2 className="text-lg font-bold text-gray-200 flex items-center gap-2">
-                          <ClipboardList className="w-5 h-5 text-yellow-500" /> Manual Balance Summary — {currentFY.label}
+                          <ClipboardList className="w-5 h-5 text-yellow-500" /> Manual Data Summary — {currentFY.label}
                         </h2>
-                        <p className="text-xs text-gray-500">From your CA balance sheet entries</p>
+                        <p className="text-xs text-gray-500">Your manually entered accounting data</p>
                       </div>
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                        <StatCard label="Receipts" value={fmt(manualVoucherStats.Receipt?.total || 0)} sub={`${manualVoucherStats.Receipt?.count || 0} vouchers`} icon={ArrowDownLeft} color="text-blue-400" bg="bg-blue-500/10" />
+                        <StatCard label="Payments" value={fmt(manualVoucherStats.Payment?.total || 0)} sub={`${manualVoucherStats.Payment?.count || 0} vouchers`} icon={ArrowUpRight} color="text-orange-400" bg="bg-orange-500/10" />
+                        <StatCard label="Sales" value={fmt(manualVoucherStats.Sales?.total || 0)} sub={`${manualVoucherStats.Sales?.count || 0} vouchers`} icon={TrendingUp} color="text-green-400" bg="bg-green-500/10" />
+                        <StatCard label="Ledgers" value={String(manualEntries.length)} sub={`${currentFY.label}`} icon={FileText} color="text-purple-400" bg="bg-purple-500/10" />
+                        <div className={`flex items-start gap-3 p-4 rounded-xl border border-gray-800 bg-yellow-500/10`}>
+                          <Scale className="w-5 h-5 text-yellow-400 mt-0.5" />
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wider text-gray-500">Balance Check</p>
+                            <p className="text-lg font-bold text-yellow-400">{fmt(manualTotals.totalAssets)}</p>
+                            <p className="text-[10px] text-gray-500">Assets total</p>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Manual Balance Summary */}
+                  {manualEntries.length > 0 ? (
+                    <>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <StatCard label="Assets" value={fmt(manualTotals.totalAssets)} sub={`${manualEntries.filter(e => e.category === 'asset').length} entries`} icon={TrendingUp} color="text-blue-400" bg="bg-blue-500/10" />
                         <StatCard label="Liabilities" value={fmt(manualTotals.totalLiabilities)} sub={`${manualEntries.filter(e => e.category === 'liability').length} entries`} icon={Scale} color="text-purple-400" bg="bg-purple-500/10" />
                         <StatCard label="Income" value={fmt(manualTotals.totalIncome)} sub={`${manualEntries.filter(e => e.category === 'income').length} entries`} icon={ArrowDownLeft} color="text-green-400" bg="bg-green-500/10" />
                         <StatCard label="Expenses" value={fmt(manualTotals.totalExpenses)} sub={`${manualEntries.filter(e => e.category === 'expense').length} entries`} icon={ArrowUpRight} color="text-red-400" bg="bg-red-500/10" />
-                      </div>
-                      <div className={`p-4 rounded-xl border ${Math.abs(manualTotals.totalAssets - manualTotals.totalLiabilities) < 1 ? 'bg-green-500/5 border-green-800' : 'bg-yellow-500/5 border-yellow-800'}`}>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-400">Balance (Assets − Liabilities)</span>
-                          <span className={`text-lg font-bold ${Math.abs(manualTotals.totalAssets - manualTotals.totalLiabilities) < 1 ? 'text-green-400' : 'text-yellow-400'}`}>
-                            {fmt(Math.abs(manualTotals.totalAssets - manualTotals.totalLiabilities))}
-                          </span>
-                        </div>
                       </div>
                     </>
                   ) : (
@@ -1009,11 +1121,16 @@ export default function TallyPage() {
                       <ClipboardList className="w-16 h-16 text-gray-700 mx-auto mb-4" />
                       <h3 className="text-xl font-bold text-gray-400 mb-2">No Data Yet</h3>
                       <p className="text-sm text-gray-600 max-w-md mx-auto mb-6">
-                        Add your CA balance sheet entries to see the dashboard summary.
+                        Start by adding receipts, ledgers, or opening balances.
                       </p>
-                      <button onClick={() => setActiveTab('opening')} className="px-6 py-3 bg-yellow-600 hover:bg-yellow-500 text-black rounded-lg font-medium inline-flex items-center gap-2">
-                        <Plus className="w-5 h-5" /> Add Opening Balances
-                      </button>
+                      <div className="flex flex-wrap justify-center gap-3">
+                        <button onClick={() => setActiveTab('receipts')} className="px-5 py-2.5 bg-blue-700 hover:bg-blue-600 text-white rounded-lg font-medium inline-flex items-center gap-2 text-sm">
+                          <Plus className="w-4 h-4" /> Add Receipt
+                        </button>
+                        <button onClick={() => setActiveTab('opening')} className="px-5 py-2.5 bg-yellow-600 hover:bg-yellow-500 text-black rounded-lg font-medium inline-flex items-center gap-2 text-sm">
+                          <Plus className="w-4 h-4" /> Add Opening Balances
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1021,9 +1138,10 @@ export default function TallyPage() {
             </>
           )}
 
-          {/* ════════ VOUCHER TABS (Sales/Receipts/Purchases) ════════ */}
+          {/* ════════ VOUCHER TABS (Sales/Receipts/Purchases/Daybook) ════════ */}
           {(activeTab === 'sales' || activeTab === 'receipts' || activeTab === 'purchases' || activeTab === 'daybook') && (
             <>
+              {/* Header with search + Add button */}
               <div className="flex flex-wrap items-center gap-3 mb-4">
                 <div className="relative flex-1 min-w-[200px] max-w-md">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
@@ -1035,13 +1153,115 @@ export default function TallyPage() {
                     className="w-full pl-10 pr-4 py-2.5 bg-gray-900 border border-gray-700 rounded-lg text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-yellow-500/50"
                   />
                 </div>
-                <span className="text-sm text-gray-500">{filteredVouchers.length} records</span>
+                <span className="text-sm text-gray-500">
+                  {filteredVouchers.length > 0 ? `${filteredVouchers.length} from Tally` : ''}
+                  {filteredVouchers.length > 0 && filteredManualVouchers.length > 0 ? ' + ' : ''}
+                  {filteredManualVouchers.length > 0 ? `${filteredManualVouchers.length} manual` : ''}
+                  {filteredVouchers.length === 0 && filteredManualVouchers.length === 0 ? '0 records' : ''}
+                </span>
+                <button
+                  onClick={() => {
+                    const vType = activeTab === 'receipts' ? 'Receipt' : activeTab === 'sales' ? 'Sales' : activeTab === 'purchases' ? 'Purchase' : 'Receipt';
+                    setShowVoucherForm(true);
+                    setEditingVoucherId(null);
+                    setVoucherFormData({ voucherType: vType, voucherNumber: '', date: new Date().toISOString().slice(0, 10), partyName: '', ledgerName: '', amount: '', narration: '', paymentMode: 'Bank' });
+                  }}
+                  className="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 text-black font-medium rounded-lg flex items-center gap-2 text-sm"
+                >
+                  <Plus className="w-4 h-4" /> Add {activeTab === 'daybook' ? 'Entry' : activeTab === 'receipts' ? 'Receipt' : activeTab === 'sales' ? 'Sale' : 'Purchase'}
+                </button>
               </div>
 
-              {loading ? (
+              {/* Add / Edit Voucher Form */}
+              {showVoucherForm && (
+                <div className="mb-6 p-5 bg-gray-900 border border-gray-800 rounded-xl space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-gray-200">{editingVoucherId ? 'Edit Voucher' : 'Add New Voucher'}</h3>
+                    <button onClick={() => { setShowVoucherForm(false); setEditingVoucherId(null); }} className="text-gray-500 hover:text-gray-300"><X className="w-4 h-4" /></button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                    {activeTab === 'daybook' && (
+                      <div>
+                        <label className="text-xs text-gray-500 mb-1 block">Type</label>
+                        <select value={voucherFormData.voucherType} onChange={e => setVoucherFormData(p => ({ ...p, voucherType: e.target.value }))} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200">
+                          <option value="Receipt">Receipt</option>
+                          <option value="Payment">Payment</option>
+                          <option value="Journal">Journal</option>
+                          <option value="Sales">Sales</option>
+                          <option value="Purchase">Purchase</option>
+                          <option value="Contra">Contra</option>
+                        </select>
+                      </div>
+                    )}
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">Date *</label>
+                      <input type="date" value={voucherFormData.date} onChange={e => setVoucherFormData(p => ({ ...p, date: e.target.value }))} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">Party Name *</label>
+                      <input type="text" value={voucherFormData.partyName} onChange={e => setVoucherFormData(p => ({ ...p, partyName: e.target.value }))} placeholder="e.g. Mohan Kalburgi" className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200 placeholder-gray-600" list="partyNames" />
+                      <datalist id="partyNames">
+                        {manualEntries.map((e, i) => <option key={i} value={e.ledgerName} />)}
+                      </datalist>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">Amount (₹) *</label>
+                      <input type="number" value={voucherFormData.amount} onChange={e => setVoucherFormData(p => ({ ...p, amount: e.target.value }))} placeholder="0" className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200 placeholder-gray-600" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">Account Head</label>
+                      <input type="text" value={voucherFormData.ledgerName} onChange={e => setVoucherFormData(p => ({ ...p, ledgerName: e.target.value }))} placeholder="e.g. Fees Received" className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200 placeholder-gray-600" list="ledgerNames" />
+                      <datalist id="ledgerNames">
+                        {manualEntries.map((e, i) => <option key={i} value={e.ledgerName} />)}
+                      </datalist>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">Payment Mode</label>
+                      <select value={voucherFormData.paymentMode} onChange={e => setVoucherFormData(p => ({ ...p, paymentMode: e.target.value }))} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200">
+                        <option value="Bank">Bank Transfer</option>
+                        <option value="Cash">Cash</option>
+                        <option value="UPI">UPI</option>
+                        <option value="Cheque">Cheque</option>
+                        <option value="Card">Card</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">Voucher No</label>
+                      <input type="text" value={voucherFormData.voucherNumber} onChange={e => setVoucherFormData(p => ({ ...p, voucherNumber: e.target.value }))} placeholder="Auto-generated" className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200 placeholder-gray-600" />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="text-xs text-gray-500 mb-1 block">Narration</label>
+                      <input type="text" value={voucherFormData.narration} onChange={e => setVoucherFormData(p => ({ ...p, narration: e.target.value }))} placeholder="Description / notes" className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200 placeholder-gray-600" />
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <button onClick={() => { setShowVoucherForm(false); setEditingVoucherId(null); }} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg text-sm">Cancel</button>
+                    <button onClick={saveManualVoucher} disabled={voucherLoading || !voucherFormData.date || !voucherFormData.partyName || !voucherFormData.amount} className="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 disabled:bg-gray-700 disabled:text-gray-500 text-black font-medium rounded-lg text-sm flex items-center gap-2">
+                      <Save className="w-4 h-4" /> {editingVoucherId ? 'Update' : 'Save'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {loading && !voucherLoading ? (
                 <LoadingSkeleton />
-              ) : filteredVouchers.length === 0 ? (
-                <EmptyState message={`No ${activeTab} vouchers found. Make sure Tally Prime is running.`} />
+              ) : (filteredVouchers.length === 0 && filteredManualVouchers.length === 0) ? (
+                <div className="text-center py-12">
+                  <FileText className="w-12 h-12 text-gray-700 mx-auto mb-3" />
+                  <p className="text-gray-500 mb-4">No {activeTab} entries yet.</p>
+                  <button
+                    onClick={() => {
+                      const vType = activeTab === 'receipts' ? 'Receipt' : activeTab === 'sales' ? 'Sales' : activeTab === 'purchases' ? 'Purchase' : 'Receipt';
+                      setShowVoucherForm(true);
+                      setEditingVoucherId(null);
+                      setVoucherFormData({ voucherType: vType, voucherNumber: '', date: new Date().toISOString().slice(0, 10), partyName: '', ledgerName: '', amount: '', narration: '', paymentMode: 'Bank' });
+                    }}
+                    className="px-5 py-2.5 bg-yellow-600 hover:bg-yellow-500 text-black font-medium rounded-lg inline-flex items-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" /> Add First {activeTab === 'receipts' ? 'Receipt' : activeTab === 'sales' ? 'Sale' : activeTab === 'purchases' ? 'Purchase' : 'Entry'}
+                  </button>
+                </div>
               ) : (
                 <div className="overflow-x-auto border border-gray-800 rounded-xl">
                   <table className="w-full text-sm">
@@ -1054,11 +1274,13 @@ export default function TallyPage() {
                         {activeTab === 'daybook' && <th className="text-left px-4 py-3 text-gray-400 font-medium">Type</th>}
                         <th className="text-right px-4 py-3 text-gray-400 font-medium">Amount</th>
                         <th className="text-left px-4 py-3 text-gray-400 font-medium">Narration</th>
+                        <th className="text-center px-4 py-3 text-gray-400 font-medium">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-800/50">
+                      {/* Tally vouchers (read-only) */}
                       {filteredVouchers.map((v, i) => (
-                        <tr key={`${v.voucherNumber}-${i}`} className="hover:bg-gray-900/40 transition">
+                        <tr key={`tally-${v.voucherNumber}-${i}`} className="hover:bg-gray-900/40 transition">
                           <td className="px-4 py-3 text-gray-500">{i + 1}</td>
                           <td className="px-4 py-3 font-mono text-gray-200">{v.voucherNumber || '-'}</td>
                           <td className="px-4 py-3 text-gray-400">{tallyDateToDisplay(v.date)}</td>
@@ -1070,14 +1292,37 @@ export default function TallyPage() {
                           )}
                           <td className="px-4 py-3 text-right font-medium text-gray-200">{fmt(v.amount)}</td>
                           <td className="px-4 py-3 text-gray-500 max-w-[200px] truncate">{v.narration || '-'}</td>
+                          <td className="px-4 py-3 text-center text-[10px] text-gray-600">Tally</td>
+                        </tr>
+                      ))}
+                      {/* Manual vouchers (editable) */}
+                      {filteredManualVouchers.map((v, i) => (
+                        <tr key={`manual-${v._id}`} className="hover:bg-gray-900/40 transition bg-yellow-500/[0.03]">
+                          <td className="px-4 py-3 text-gray-500">{filteredVouchers.length + i + 1}</td>
+                          <td className="px-4 py-3 font-mono text-yellow-400/80">{v.voucherNumber || '-'}</td>
+                          <td className="px-4 py-3 text-gray-400">{v.date || '-'}</td>
+                          <td className="px-4 py-3 text-gray-200 max-w-[200px] truncate">{v.partyName || '-'}</td>
+                          {activeTab === 'daybook' && (
+                            <td className="px-4 py-3">
+                              <span className="px-2 py-0.5 rounded-full text-xs bg-yellow-900/40 text-yellow-400">{v.voucherType}</span>
+                            </td>
+                          )}
+                          <td className="px-4 py-3 text-right font-medium text-gray-200">{fmt(v.amount)}</td>
+                          <td className="px-4 py-3 text-gray-500 max-w-[200px] truncate">{v.narration || '-'}</td>
+                          <td className="px-4 py-3 text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              <button onClick={() => startEditVoucher(v)} className="p-1 text-gray-500 hover:text-yellow-400" title="Edit"><Edit3 className="w-3.5 h-3.5" /></button>
+                              <button onClick={() => deleteManualVoucher(v._id)} className="p-1 text-gray-500 hover:text-red-400" title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
+                            </div>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
                     <tfoot className="bg-gray-900/60">
                       <tr>
                         <td colSpan={activeTab === 'daybook' ? 5 : 4} className="px-4 py-3 text-right font-bold text-gray-300">Total:</td>
-                        <td className="px-4 py-3 text-right font-bold text-yellow-400">{fmt(filteredVouchers.reduce((s, v) => s + v.amount, 0))}</td>
-                        <td></td>
+                        <td className="px-4 py-3 text-right font-bold text-yellow-400">{fmt(filteredVouchers.reduce((s, v) => s + v.amount, 0) + filteredManualVouchers.reduce((s, v) => s + v.amount, 0))}</td>
+                        <td colSpan={2}></td>
                       </tr>
                     </tfoot>
                   </table>
@@ -1110,19 +1355,26 @@ export default function TallyPage() {
                   <option value="Sundry Creditors">Sundry Creditors</option>
                   <option value="Bank Accounts">Bank Accounts</option>
                   <option value="Cash-in-Hand">Cash-in-Hand</option>
+                  <option value="Capital Account">Capital Account</option>
+                  <option value="Fixed Assets">Fixed Assets</option>
+                  <option value="Direct Incomes">Direct Incomes</option>
+                  <option value="Indirect Expenses">Indirect Expenses</option>
                   <option value="Sales Accounts">Sales Accounts</option>
                   <option value="Purchase Accounts">Purchase Accounts</option>
                   <option value="Direct Expenses">Direct Expenses</option>
-                  <option value="Indirect Expenses">Indirect Expenses</option>
                 </select>
-                <span className="text-sm text-gray-500">{filteredLedgers.length} ledgers</span>
+                <span className="text-sm text-gray-500">{filteredLedgers.length > 0 ? `${filteredLedgers.length} from Tally` : `${manualEntries.filter(e => !ledgerGroup || e.parentGroup === ledgerGroup).filter(e => !searchQuery || e.ledgerName.toLowerCase().includes(searchQuery.toLowerCase())).length} ledgers`}</span>
+                <button
+                  onClick={() => setActiveTab('opening')}
+                  className="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 text-black font-medium rounded-lg flex items-center gap-2 text-sm"
+                >
+                  <Plus className="w-4 h-4" /> Add Ledger
+                </button>
               </div>
 
               {loading ? (
                 <LoadingSkeleton />
-              ) : filteredLedgers.length === 0 ? (
-                <EmptyState message="No ledgers found." />
-              ) : (
+              ) : filteredLedgers.length > 0 ? (
                 <div className="overflow-x-auto border border-gray-800 rounded-xl">
                   <table className="w-full text-sm">
                     <thead className="bg-gray-900/60">
@@ -1156,6 +1408,49 @@ export default function TallyPage() {
                       ))}
                     </tbody>
                   </table>
+                </div>
+              ) : manualEntries.length > 0 ? (
+                /* Show manual balance entries as ledger list */
+                <div className="overflow-x-auto border border-gray-800 rounded-xl">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-900/60">
+                      <tr>
+                        <th className="text-left px-4 py-3 text-gray-400 font-medium">#</th>
+                        <th className="text-left px-4 py-3 text-gray-400 font-medium">Ledger Name</th>
+                        <th className="text-left px-4 py-3 text-gray-400 font-medium">Group</th>
+                        <th className="text-left px-4 py-3 text-gray-400 font-medium">Category</th>
+                        <th className="text-right px-4 py-3 text-gray-400 font-medium">Balance</th>
+                        <th className="text-left px-4 py-3 text-gray-400 font-medium">Dr/Cr</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-800/50">
+                      {manualEntries
+                        .filter(e => !ledgerGroup || e.parentGroup === ledgerGroup)
+                        .filter(e => !searchQuery || e.ledgerName.toLowerCase().includes(searchQuery.toLowerCase()) || e.parentGroup.toLowerCase().includes(searchQuery.toLowerCase()))
+                        .map((e, i) => (
+                        <tr key={e._id} className="hover:bg-gray-900/40 transition">
+                          <td className="px-4 py-3 text-gray-500">{i + 1}</td>
+                          <td className="px-4 py-3 text-gray-200 font-medium">{e.ledgerName}</td>
+                          <td className="px-4 py-3">
+                            <span className="px-2 py-0.5 rounded-full text-xs bg-gray-800 text-gray-300">{e.parentGroup}</span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-0.5 rounded-full text-xs ${e.category === 'asset' ? 'bg-blue-900/40 text-blue-400' : e.category === 'liability' ? 'bg-purple-900/40 text-purple-400' : e.category === 'income' ? 'bg-green-900/40 text-green-400' : 'bg-red-900/40 text-red-400'}`}>{e.category}</span>
+                          </td>
+                          <td className="px-4 py-3 text-right font-medium text-gray-200">{fmt(e.amount)}</td>
+                          <td className="px-4 py-3 text-gray-400">{e.drCr}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <FileText className="w-12 h-12 text-gray-700 mx-auto mb-3" />
+                  <p className="text-gray-500 mb-4">No ledgers found.</p>
+                  <button onClick={() => setActiveTab('opening')} className="px-5 py-2.5 bg-yellow-600 hover:bg-yellow-500 text-black font-medium rounded-lg inline-flex items-center gap-2">
+                    <Plus className="w-4 h-4" /> Add Ledgers via Opening Balances
+                  </button>
                 </div>
               )}
             </>

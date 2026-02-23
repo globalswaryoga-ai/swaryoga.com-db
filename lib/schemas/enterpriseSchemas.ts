@@ -1871,6 +1871,33 @@ TallyManualBalanceSchema.index({ financialYear: 1, category: 1 });
 TallyManualBalanceSchema.index({ ledgerName: 1, financialYear: 1 });
 
 // ============================================================================
+// TALLY MANUAL VOUCHER (Receipts, Payments, Journal entries - manual mode)
+// ============================================================================
+const TallyManualVoucherSchema = new mongoose.Schema(
+  {
+    voucherType: {
+      type: String,
+      enum: ['Receipt', 'Payment', 'Journal', 'Sales', 'Purchase', 'Contra'],
+      required: true,
+    },
+    voucherNumber: { type: String, trim: true },
+    date: { type: String, required: true, trim: true }, // YYYY-MM-DD
+    partyName: { type: String, required: true, trim: true },
+    ledgerName: { type: String, trim: true }, // the account head
+    amount: { type: Number, required: true, default: 0 },
+    narration: { type: String, trim: true },
+    paymentMode: { type: String, trim: true }, // Cash, Bank, UPI, etc.
+    financialYear: { type: String, required: true, trim: true },
+    createdBy: { type: String, trim: true },
+  },
+  { timestamps: true, collection: 'tally_manual_vouchers' }
+);
+
+TallyManualVoucherSchema.index({ financialYear: 1, voucherType: 1 });
+TallyManualVoucherSchema.index({ date: -1 });
+TallyManualVoucherSchema.index({ partyName: 1, financialYear: 1 });
+
+// ============================================================================
 // EMAIL AUTOMATION SCHEMAS
 // ============================================================================
 
@@ -2223,6 +2250,7 @@ export const TallyInvoice = createModelProxy('TallyInvoice', TallyInvoiceSchema)
 export const TallyPayment = createModelProxy('TallyPayment', TallyPaymentSchema);
 export const TallySyncLog = createModelProxy('TallySyncLog', TallySyncLogSchema);
 export const TallyManualBalance = createModelProxy('TallyManualBalance', TallyManualBalanceSchema);
+export const TallyManualVoucher = createModelProxy('TallyManualVoucher', TallyManualVoucherSchema);
 
 // Tally getter functions
 export function getTallyCustomer() { return getModel('TallyCustomer', TallyCustomerSchema); }
@@ -2230,3 +2258,4 @@ export function getTallyInvoice() { return getModel('TallyInvoice', TallyInvoice
 export function getTallyPayment() { return getModel('TallyPayment', TallyPaymentSchema); }
 export function getTallySyncLog() { return getModel('TallySyncLog', TallySyncLogSchema); }
 export function getTallyManualBalance() { return getModel('TallyManualBalance', TallyManualBalanceSchema); }
+export function getTallyManualVoucher() { return getModel('TallyManualVoucher', TallyManualVoucherSchema); }
