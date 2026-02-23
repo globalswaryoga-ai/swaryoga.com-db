@@ -49,16 +49,25 @@ export async function GET(request: NextRequest) {
 
       if (lead?.leadNumber) {
         leadNumber = String(lead.leadNumber);
+        
+        // Sync leadNumber → profileId on the User so it's always consistent
+        if (user.profileId !== leadNumber) {
+          await User.findByIdAndUpdate(decoded.userId, { profileId: leadNumber });
+          user.profileId = leadNumber;
+        }
       }
     } catch (e) {
       // Non-fatal: profile should still load even if CRM is unavailable.
       console.warn('Profile leadNumber lookup failed:', e);
     }
 
+    // Use leadNumber as the display ID; fall back to profileId
+    const displayId = leadNumber || user.profileId || null;
+
     return NextResponse.json({
       id: user._id,
-      profileId: user.profileId,
-      leadNumber,
+      profileId: displayId,
+      leadNumber: displayId,
       name: user.name,
       email: user.email,
       phone: user.phone,

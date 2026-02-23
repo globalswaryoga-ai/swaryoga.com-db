@@ -1034,7 +1034,7 @@ export default function UserProfile() {
                     {/* Swar ID (serial leadNumber) */}
                     <div className="bg-swar-bg p-4 rounded-lg">
                       <label className="text-sm font-medium text-swar-text-secondary">Swar ID</label>
-                      <p className="text-lg font-mono font-bold text-swar-primary mt-2">{user.leadNumber || user.profileId || user.id?.slice(-6) || 'N/A'}</p>
+                      <p className="text-lg font-mono font-bold text-swar-primary mt-2">{user.leadNumber || user.profileId || 'Not assigned'}</p>
                       <p className="text-xs text-swar-text-secondary mt-1">6-digit serial ID (same as CRM Lead ID)</p>
                     </div>
 
