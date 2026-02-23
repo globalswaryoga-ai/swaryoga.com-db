@@ -224,6 +224,15 @@ export default function AdminCommunityPage() {
   const [youtubeDescription, setYoutubeDescription] = useState('');
   const [addingYouTube, setAddingYouTube] = useState(false);
   
+  // YouTube Video Edit Modal State
+  const [showEditVideoModal, setShowEditVideoModal] = useState(false);
+  const [editingVideoId, setEditingVideoId] = useState('');
+  const [editVideoUrl, setEditVideoUrl] = useState('');
+  const [editVideoTitle, setEditVideoTitle] = useState('');
+  const [editVideoDescription, setEditVideoDescription] = useState('');
+  const [editVideoTags, setEditVideoTags] = useState<string[]>([]);
+  const [savingVideoEdit, setSavingVideoEdit] = useState(false);
+  
   // YouTube Recording Add Modal State
   const [showAddYouTubeRecordingModal, setShowAddYouTubeRecordingModal] = useState(false);
   const [youtubeRecordingUrl, setYoutubeRecordingUrl] = useState('');
@@ -1414,6 +1423,51 @@ export default function AdminCommunityPage() {
     }
   };
 
+  // Open edit video modal
+  const openEditVideoModal = (video: any) => {
+    setEditingVideoId(video._id);
+    setEditVideoUrl(video.youtubeVideoId ? `https://youtu.be/${video.youtubeVideoId}` : '');
+    setEditVideoTitle(video.title || '');
+    setEditVideoDescription(video.description || '');
+    setEditVideoTags(video.tags || []);
+    setShowEditVideoModal(true);
+  };
+
+  // Save video edit
+  const saveVideoEdit = async () => {
+    if (!editVideoTitle.trim()) {
+      alert('Title is required');
+      return;
+    }
+    setSavingVideoEdit(true);
+    try {
+      const res = await fetch('/api/admin/communities/youtube-videos', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          videoId: editingVideoId,
+          youtubeUrl: editVideoUrl.trim() || undefined,
+          title: editVideoTitle.trim(),
+          description: editVideoDescription.trim(),
+          tags: editVideoTags,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Failed to update video');
+      alert('✅ Video updated successfully!');
+      setShowEditVideoModal(false);
+      fetchRecordings();
+      fetchVideos();
+    } catch (err: any) {
+      alert('❌ Error: ' + err.message);
+    } finally {
+      setSavingVideoEdit(false);
+    }
+  };
+
   // Fetch communities on mount
   useEffect(() => {
     if (token) {
@@ -2389,12 +2443,22 @@ export default function AdminCommunityPage() {
                                   <span className="text-slate-500 text-xs">
                                     {new Date(recording.createdAt).toLocaleDateString()}
                                   </span>
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); deleteVideo(recording._id); }}
-                                    className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
-                                  >
-                                    <Trash2 size={16} />
-                                  </button>
+                                  <div className="flex gap-1">
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); openEditVideoModal(recording); }}
+                                      className="p-2 text-slate-500 hover:text-blue-500 hover:bg-blue-500/10 rounded-lg transition-all"
+                                      title="Edit"
+                                    >
+                                      <Edit size={16} />
+                                    </button>
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); deleteVideo(recording._id); }}
+                                      className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
+                                      title="Delete"
+                                    >
+                                      <Trash2 size={16} />
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
                             </div>
@@ -2526,8 +2590,16 @@ export default function AdminCommunityPage() {
                             </a>
                           )}
                           <button
+                            onClick={() => openEditVideoModal(video)}
+                            className="p-2 hover:bg-blue-600 hover:text-white rounded-lg transition-all text-blue-500 border border-blue-100"
+                            title="Edit"
+                          >
+                            <Edit size={16} />
+                          </button>
+                          <button
                             onClick={() => deleteVideo(video._id)}
                             className="p-2 hover:bg-red-600 hover:text-white rounded-lg transition-all text-red-500 border border-red-100"
+                            title="Delete"
                           >
                             <Trash2 size={16} />
                           </button>
@@ -2886,6 +2958,80 @@ export default function AdminCommunityPage() {
                   </>
                 ) : (
                   <>▶ Add YouTube Video</>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Video Modal */}
+      {showEditVideoModal && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[100] flex items-center justify-center animate-in fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-8 m-4">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-slate-900">✏️ Edit Video</h3>
+              <button onClick={() => setShowEditVideoModal(false)} className="p-2 hover:bg-slate-100 rounded-xl transition-all">
+                <Plus className="rotate-45" size={20} />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-bold text-slate-700 mb-2 block">YouTube URL or Video ID *</label>
+                <input 
+                  type="text" 
+                  value={editVideoUrl} 
+                  onChange={e => setEditVideoUrl(e.target.value)}
+                  placeholder="https://www.youtube.com/watch?v=... or video ID"
+                  className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 transition-all"
+                />
+              </div>
+              
+              <div>
+                <label className="text-sm font-bold text-slate-700 mb-2 block">Video Title *</label>
+                <input 
+                  type="text" 
+                  value={editVideoTitle} 
+                  onChange={e => setEditVideoTitle(e.target.value)}
+                  placeholder="Enter video title..."
+                  className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 transition-all"
+                />
+              </div>
+              
+              <div>
+                <label className="text-sm font-bold text-slate-700 mb-2 block">Description (Optional)</label>
+                <textarea 
+                  value={editVideoDescription} 
+                  onChange={e => setEditVideoDescription(e.target.value)}
+                  placeholder="Enter video description..."
+                  className="w-full h-24 p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 transition-all resize-none"
+                />
+              </div>
+              
+              <div>
+                <label className="text-sm font-bold text-slate-700 mb-2 block">Tags (Optional)</label>
+                <input 
+                  type="text" 
+                  value={editVideoTags} 
+                  onChange={e => setEditVideoTags(e.target.value)}
+                  placeholder="tag1, tag2, tag3..."
+                  className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 transition-all"
+                />
+              </div>
+              
+              <button
+                onClick={saveVideoEdit}
+                disabled={savingVideoEdit || !editVideoUrl.trim() || !editVideoTitle.trim()}
+                className="w-full h-12 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {savingVideoEdit ? (
+                  <>
+                    <Loader className="animate-spin" size={18} />
+                    Saving...
+                  </>
+                ) : (
+                  <>✏️ Save Changes</>
                 )}
               </button>
             </div>

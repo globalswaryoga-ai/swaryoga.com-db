@@ -158,14 +158,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Community not found' }, { status: 404 });
     }
 
-    // Check if video already exists
+    // Check if exact same video + title already exists (allow same video ID with different titles)
     const existing = await CommunityVideo.findOne({
       communityId,
       youtubeVideoId,
+      title,
     });
     if (existing) {
       return NextResponse.json({ 
-        error: 'This YouTube video is already added to this community' 
+        error: 'This exact video with same title is already added' 
       }, { status: 409 });
     }
 
@@ -209,6 +210,78 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('❌ Add YouTube video error:', error);
     return NextResponse.json({ error: 'Failed to add video' }, { status: 500 });
+  }
+}
+
+/**
+ * PUT /api/admin/communities/youtube-videos
+ * Edit an existing YouTube video (title, description, URL, tags)
+ */
+export async function PUT(request: NextRequest) {
+  try {
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+
+    const token = authHeader.slice(7);
+    const decoded = await verifyToken(token);
+    if (!decoded || !decoded.isAdmin) {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const { videoId, youtubeUrl, title, description, tags } = body;
+
+    if (!videoId) {
+      return NextResponse.json({ error: 'videoId is required' }, { status: 400 });
+    }
+
+    await connectDB();
+
+    const { getCommunityVideo } = await import('@/lib/db');
+    const CommunityVideo = getCommunityVideo();
+
+    const video = await CommunityVideo.findById(videoId);
+    if (!video) {
+      return NextResponse.json({ error: 'Video not found' }, { status: 404 });
+    }
+
+    // Build update object
+    const updates: any = {};
+    if (title !== undefined) updates.title = title;
+    if (description !== undefined) updates.description = description;
+    if (tags !== undefined) updates.tags = tags;
+
+    // If YouTube URL changed, update the video ID and thumbnail
+    if (youtubeUrl) {
+      const newYoutubeVideoId = extractYouTubeId(youtubeUrl);
+      if (!newYoutubeVideoId) {
+        return NextResponse.json({ error: 'Invalid YouTube URL or video ID' }, { status: 400 });
+      }
+      updates.youtubeVideoId = newYoutubeVideoId;
+      updates.thumbnailUrl = `https://img.youtube.com/vi/${newYoutubeVideoId}/maxresdefault.jpg`;
+    }
+
+    const updated = await CommunityVideo.findByIdAndUpdate(videoId, { $set: updates }, { new: true });
+
+    console.log(`[YouTube Video] Updated: ${updated.title} (${updated.youtubeVideoId})`);
+
+    return NextResponse.json({
+      success: true,
+      message: 'Video updated successfully',
+      video: {
+        _id: updated._id.toString(),
+        title: updated.title,
+        description: updated.description,
+        youtubeVideoId: updated.youtubeVideoId,
+        thumbnailUrl: updated.thumbnailUrl,
+        tags: updated.tags,
+      },
+    });
+  } catch (error: any) {
+    console.error('❌ Edit YouTube video error:', error);
+    return NextResponse.json({ error: 'Failed to update video' }, { status: 500 });
   }
 }
 
