@@ -3,19 +3,7 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { COMMUNITY_DESIGNS } from '@/lib/communityColorSystem';
-
-const COUNTRY_OPTIONS = [
-  { value: 'India', label: '🇮🇳 India', code: '+91' },
-  { value: 'Nepal', label: '🇳🇵 Nepal', code: '+977' },
-  { value: 'USA', label: '🇺🇸 USA', code: '+1' },
-  { value: 'UK', label: '🇬🇧 UK', code: '+44' },
-  { value: 'Canada', label: '🇨🇦 Canada', code: '+1' },
-  { value: 'Australia', label: '🇦🇺 Australia', code: '+61' },
-  { value: 'UAE', label: '🇦🇪 UAE', code: '+971' },
-  { value: 'Singapore', label: '🇸🇬 Singapore', code: '+65' },
-  { value: 'Germany', label: '🇩🇪 Germany', code: '+49' },
-  { value: 'Other', label: '🌍 Other', code: '+' },
-];
+import { SORTED_COUNTRY_NAMES, getPhoneCode, getCountryFlag } from '@/lib/countryPhoneCodes';
 
 export default function JoinCommunityPage() {
   const params = useParams();
@@ -35,8 +23,6 @@ export default function JoinCommunityPage() {
   const [showThankYou, setShowThankYou] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
-
-  const selectedCountry = COUNTRY_OPTIONS.find(c => c.value === formData.country);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,7 +56,7 @@ export default function JoinCommunityPage() {
           email: formData.email.trim() || undefined,
           mobile: formData.mobile,
           country: formData.country,
-          countryCode: selectedCountry?.code || '+91',
+          countryCode: getPhoneCode(formData.country),
           communityId,
           communityName,
           viaInviteLink: true,
@@ -234,8 +220,8 @@ export default function JoinCommunityPage() {
               📱 Phone / WhatsApp Number <span className="text-red-500">*</span>
             </label>
             <div className="flex gap-2">
-              <span className="inline-flex items-center px-3 py-3 bg-gray-100 border border-gray-300 rounded-xl text-gray-600 text-sm font-medium min-w-[60px] justify-center">
-                {selectedCountry?.code || '+91'}
+              <span className="inline-flex items-center px-3 py-3 bg-gray-100 border border-gray-300 rounded-xl text-gray-600 text-sm font-medium min-w-[80px] justify-center">
+                {getCountryFlag(formData.country)} {getPhoneCode(formData.country)}
               </span>
               <input
                 type="tel"
@@ -253,18 +239,20 @@ export default function JoinCommunityPage() {
             <label className="block text-sm font-bold text-gray-700 mb-2">
               🌍 Country <span className="text-red-500">*</span>
             </label>
-            <select
+            <input
+              type="text"
+              list="country-options"
+              placeholder="Type or select your country"
               value={formData.country}
               onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-              className="w-full px-4 py-3 bg-gray-50 text-gray-900 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
+              className="w-full px-4 py-3 bg-gray-50 text-gray-900 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent placeholder-gray-400 transition-all"
               required
-            >
-              {COUNTRY_OPTIONS.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
-                </option>
+            />
+            <datalist id="country-options">
+              {SORTED_COUNTRY_NAMES.map((name) => (
+                <option key={name} value={name} />
               ))}
-            </select>
+            </datalist>
           </div>
 
           {/* Submit */}

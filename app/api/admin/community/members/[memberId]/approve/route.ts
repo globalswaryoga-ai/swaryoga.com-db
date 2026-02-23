@@ -3,6 +3,7 @@ import { CommunityMember } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
+import { notifyCommunityApproval } from '@/lib/notifications';
 
 export async function PUT(
   request: NextRequest,
@@ -78,6 +79,14 @@ export async function PUT(
     } catch (waErr) {
       console.error('[Approval] Failed to add to WA group:', waErr);
       // Don't fail the whole request if WA add fails
+    }
+
+    // Fire-and-forget: Send approval notification email
+    if (member.email) {
+      notifyCommunityApproval(
+        { name: member.name, email: member.email, phone: member.mobile },
+        { communityName: member.communityName },
+      ).catch(err => console.error('[Approval] Notification error:', err));
     }
 
     return NextResponse.json(

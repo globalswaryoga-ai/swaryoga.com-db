@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, Order, WorkshopSeatInventory } from '@/lib/db';
 import { PAYU_MERCHANT_SALT, verifyPayUHash } from '@/lib/payments/payu';
+import { notifyPaymentConfirmation } from '@/lib/notifications';
 
 export async function POST(request: NextRequest) {
   try {
@@ -66,6 +67,32 @@ export async function POST(request: NextRequest) {
       }
 
       console.log('✅ Payment successful:', txnid);
+
+      // Fire-and-forget: Send payment confirmation email
+      try {
+        const shippingAddress = (order as any).shippingAddress || {};
+        const customerEmail = shippingAddress.email || (order as any).email;
+        const customerName = shippingAddress.firstName
+          ? `${shippingAddress.firstName} ${shippingAddress.lastName || ''}`.trim()
+          : 'Customer';
+        const items = (order as any).items || [];
+        const workshopName = items[0]?.name || 'Workshop';
+
+        if (customerEmail) {
+          notifyPaymentConfirmation(
+            { name: customerName, email: customerEmail, phone: shippingAddress.phone || (order as any).phone },
+            {
+              orderId: order._id.toString(),
+              amount: Number(amount),
+              workshopName,
+              paymentMethod: 'PayU',
+              transactionId: txnid,
+            },
+          ).catch(err => console.error('[PayUCallback] Notification error:', err));
+        }
+      } catch (notifyErr) {
+        console.error('[PayUCallback] Notification prep error:', notifyErr);
+      }
     } else if (status === 'failure') {
       order.paymentStatus = 'failed';
       order.status = 'cancelled';

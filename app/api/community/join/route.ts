@@ -3,6 +3,7 @@ import { connectDB, CommunityMember } from '@/lib/db';
 import { getOrCreateLeadIdForPhone } from '@/lib/crm/leadNumber';
 import { getLead } from '@/lib/schemas/enterpriseSchemas';
 import { generateToken } from '@/lib/auth';
+import { notifyCommunityJoin } from '@/lib/notifications';
 
 function escapeRegexLiteral(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -82,12 +83,40 @@ export async function POST(request: NextRequest) {
     });
 
     if (existingByUserId) {
+      // Already in THIS community — update info silently & return success
+      existingByUserId.name = name.trim();
+      existingByUserId.email = email ? email.trim().toLowerCase() : existingByUserId.email;
+      existingByUserId.countryCode = countryCode || '+91';
+      existingByUserId.country = country || existingByUserId.country || '';
+      existingByUserId.status = 'active';
+      await existingByUserId.save();
+
+      const token = generateToken({
+        userId: existingByUserId.userId,
+        email: existingByUserId.email || undefined,
+      });
+
       return NextResponse.json(
         {
-          success: false,
-          error: 'This User ID is already registered in the community',
+          success: true,
+          message: existingByUserId.approved
+            ? `✅ Welcome back to ${communityName}!`
+            : '👋 Welcome back! Your membership is pending admin approval.',
+          ...(warning ? { warning } : {}),
+          data: {
+            memberId: existingByUserId._id,
+            userId: existingByUserId.userId,
+            name: existingByUserId.name,
+            communityId: existingByUserId.communityId,
+            communityName: existingByUserId.communityName,
+            joinedAt: existingByUserId.joinedAt,
+            approved: existingByUserId.approved,
+            status: existingByUserId.status,
+            token,
+          },
+          isUpdate: true,
         },
-        { status: 409 }
+        { status: 200 }
       );
     }
 
@@ -190,6 +219,14 @@ export async function POST(request: NextRequest) {
       ? `✅ Welcome! You have successfully joined ${communityName || 'the community'}.`
       : '👋 Registration successful! Your request is pending admin approval. You will be notified once approved.';
 
+    // Fire-and-forget: Send community join confirmation email
+    if (email) {
+      notifyCommunityJoin(
+        { name: name.trim(), email: email.trim().toLowerCase(), phone: cleanMobile },
+        { communityName, approved: communityId === 'global', leadNumber: leadUserId },
+      ).catch(err => console.error('[CommunityJoin] Notification error:', err));
+    }
+
     // Generate JWT token for the community user
     const token = generateToken({ 
       userId: newMember.userId,
@@ -217,14 +254,15 @@ export async function POST(request: NextRequest) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     console.error('❌ Community join error:', errorMsg);
 
-    // Handle duplicate key error
+    // Handle duplicate key error — treat as "already joined", not an error
     if (errorMsg.includes('E11000')) {
       return NextResponse.json(
         {
-          success: false,
-          error: 'This mobile number is already registered in this community',
+          success: true,
+          message: '👋 You are already registered in this community!',
+          isUpdate: true,
         },
-        { status: 409 }
+        { status: 200 }
       );
     }
 

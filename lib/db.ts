@@ -485,7 +485,7 @@ const communityVideoSchema = new mongoose.Schema({
   isCommon: { type: Boolean, default: false, index: true },
   
   // Recording source (manual upload or Zoom auto-sync)
-  source: { type: String, enum: ['manual', 'zoom', 'youtube_import'], default: 'manual' },
+  source: { type: String, enum: ['manual', 'zoom', 'youtube_import', 'youtube_recording'], default: 'manual' },
   zoomMeetingId: { type: String }, // If from Zoom
   zoomRecordingId: { type: String }, // Zoom recording file ID
   

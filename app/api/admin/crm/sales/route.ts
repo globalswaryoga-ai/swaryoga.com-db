@@ -13,6 +13,7 @@ import {
 import { getSalesReport, getLead } from '@/lib/schemas/enterpriseSchemas';
 import mongoose from 'mongoose';
 import { verifyToken } from '@/lib/auth';
+import { notifyRefundSuccessful, notifyAmountReceived } from '@/lib/notifications';
 
 // Mark as dynamic since this route uses request.headers or request.url
 export const dynamic = 'force-dynamic';
@@ -304,6 +305,7 @@ export async function POST(request: NextRequest) {
       customerId,
       customerName,
       customerPhone,
+      customerEmail,
       workshopName,
       batchDate,
     } = body;
@@ -328,6 +330,7 @@ export async function POST(request: NextRequest) {
     const safeCustomerId = customerId !== undefined && customerId !== null ? String(customerId).trim() : '';
     const safeCustomerName = customerName !== undefined && customerName !== null ? String(customerName).trim() : '';
     const safeCustomerPhone = customerPhone !== undefined && customerPhone !== null ? String(customerPhone).trim() : '';
+    const safeCustomerEmail = customerEmail !== undefined && customerEmail !== null ? String(customerEmail).trim().toLowerCase() : '';
     const safeWorkshopName = workshopName !== undefined && workshopName !== null ? String(workshopName).trim() : '';
     const parsedBatchDate = batchDate ? new Date(String(batchDate)) : null;
 
@@ -349,6 +352,7 @@ export async function POST(request: NextRequest) {
       ...(safeCustomerId ? { customerId: safeCustomerId } : {}),
       ...(safeCustomerName ? { customerName: safeCustomerName } : {}),
       ...(safeCustomerPhone ? { customerPhone: safeCustomerPhone } : {}),
+      ...(safeCustomerEmail ? { customerEmail: safeCustomerEmail } : {}),
       ...(safeWorkshopName ? { workshopName: safeWorkshopName } : {}),
       ...(parsedBatchDate && !Number.isNaN(parsedBatchDate.getTime()) ? { batchDate: parsedBatchDate } : {}),
       reportedByUserId: adminUserId,
@@ -420,6 +424,7 @@ export async function PUT(request: NextRequest) {
     if (updates.customerId !== undefined) safeUpdates.customerId = String(updates.customerId || '').trim() || undefined;
     if (updates.customerName !== undefined) safeUpdates.customerName = String(updates.customerName || '').trim() || undefined;
     if (updates.customerPhone !== undefined) safeUpdates.customerPhone = String(updates.customerPhone || '').trim() || undefined;
+    if (updates.customerEmail !== undefined) safeUpdates.customerEmail = String(updates.customerEmail || '').trim().toLowerCase() || undefined;
     if (updates.workshopName !== undefined) safeUpdates.workshopName = String(updates.workshopName || '').trim() || undefined;
 
     if (updates.batchDate !== undefined) {
@@ -450,6 +455,52 @@ export async function PUT(request: NextRequest) {
 
     const sale = await SalesReport.findByIdAndUpdate(saleId, { $set: safeUpdates }, { new: true });
     if (!sale) throw new Error('Sale record not found');
+
+    // Fire-and-forget: Send notifications for status changes
+    const saleData = sale.toObject ? sale.toObject() : sale;
+    let customerEmail = (saleData as any).customerEmail || '';
+    let customerName = (saleData as any).customerName || '';
+    let customerPhone = (saleData as any).customerPhone || '';
+
+    // Fallback: Look up email from linked lead if not on sale record
+    if (!customerEmail && (saleData as any).leadId) {
+      try {
+        const Lead = getLead();
+        const lead = await Lead.findById((saleData as any).leadId).lean();
+        if (lead) {
+          customerEmail = (lead as any).email || '';
+          customerName = customerName || (lead as any).name || '';
+          customerPhone = customerPhone || (lead as any).phoneNumber || '';
+        }
+      } catch { /* non-fatal */ }
+    }
+
+    // Refund notification
+    if (updates.status === 'refunded' && customerEmail) {
+      notifyRefundSuccessful(
+        { name: customerName, email: customerEmail, phone: customerPhone },
+        {
+          amount: (saleData as any).saleAmount,
+          workshopName: (saleData as any).workshopName,
+          saleId: saleId,
+        },
+      ).catch(err => console.error('[Sales] Refund notification error:', err));
+    }
+
+    // Amount received / super admin approved notification
+    if (updates.superAdminApproved === true && customerEmail) {
+      notifyAmountReceived(
+        { name: customerName, email: customerEmail, phone: customerPhone },
+        {
+          amount: (saleData as any).saleAmount,
+          workshopName: (saleData as any).workshopName,
+          paymentMode: (saleData as any).paymentMode,
+          confirmedBy: viewerUserId,
+          saleId: saleId,
+        },
+      ).catch(err => console.error('[Sales] Amount received notification error:', err));
+    }
+
     return formatCrmSuccess({ sale }, {});
   } catch (error) {
     return handleCrmError(error, 'PUT sales');

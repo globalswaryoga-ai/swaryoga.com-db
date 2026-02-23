@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, Order } from '@/lib/db';
 import { cashfreeGetOrder } from '@/lib/payments/cashfree';
+import { notifyPaymentConfirmation } from '@/lib/notifications';
 
 // Cashfree webhook handler.
 // We keep verification simple and robust:
@@ -80,6 +81,32 @@ export async function POST(request: NextRequest) {
 
     // ✅ If payment succeeded, create customer lead automatically
     if (paymentStatus === 'completed') {
+      // Fire-and-forget: Send payment confirmation email
+      try {
+        const shippingAddress = (order as any).shippingAddress || {};
+        const customerEmail = shippingAddress.email || order.email;
+        const customerName = shippingAddress.firstName
+          ? `${shippingAddress.firstName} ${shippingAddress.lastName || ''}`.trim()
+          : 'Customer';
+        const items = (order as any).items || [];
+        const workshopName = items[0]?.name || 'Workshop';
+
+        if (customerEmail) {
+          notifyPaymentConfirmation(
+            { name: customerName, email: customerEmail, phone: shippingAddress.phone || order.phone },
+            {
+              orderId: order._id.toString(),
+              amount: order.total,
+              workshopName,
+              paymentMethod: 'Cashfree',
+              transactionId: cashfreeOrderId,
+            },
+          ).catch(err => console.error('[CashfreeWebhook] Notification error:', err));
+        }
+      } catch (notifyErr) {
+        console.error('[CashfreeWebhook] Notification prep error:', notifyErr);
+      }
+
       try {
         const shippingAddress = (order as any).shippingAddress || {};
         const items = (order as any).items || [];

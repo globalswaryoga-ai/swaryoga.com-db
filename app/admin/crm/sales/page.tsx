@@ -648,7 +648,7 @@ export default function SalesPage() {
           <StatusBadge status={String(sale.status || '—')} size="sm" />
           {sale.superAdminApproved && (
             <span className="text-xs bg-emerald-600/30 text-emerald-400 px-1.5 py-0.5 rounded font-medium border border-emerald-500/30">
-              ✓ Approved
+              ✓ Amount Received
             </span>
           )}
         </div>
@@ -1542,7 +1542,7 @@ export default function SalesPage() {
                   className="h-4 w-4"
                 />
                 <label htmlFor="superAdminApprovedEdit" className="text-emerald-400 text-sm font-medium">
-                  Super Admin Approved ✓
+                  Amount Received ✓ <span className="text-xs text-gray-400">(sends confirmation email to customer)</span>
                 </label>
               </div>
             )}

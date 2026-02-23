@@ -14,6 +14,7 @@ import { apiError, apiSuccess, logError } from '@/lib/api-error';
 import { checkRateLimit, getClientId } from '@/lib/rate-limit';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 import bcrypt from 'bcryptjs';
+import { notifyFormSubmission } from '@/lib/notifications';
 
 // Rate limiting: 10 submissions per 15 minutes per IP
 const FORM_RATE_LIMIT = {
@@ -499,6 +500,12 @@ export async function POST(request: NextRequest) {
         ),
       ]).catch(err => console.error('Notification error:', err));
     }
+
+    // Fire-and-forget: Send form submission confirmation email (for all form types)
+    notifyFormSubmission(
+      { name: cleanedName, email: cleanedEmail, phone: cleanedPhone },
+      { formType: formType || 'enquiry', workshopName: workshopName || '', leadNumber: leadNumber || '' },
+    ).catch(err => console.error('[FormSubmit] Notification error:', err));
 
     // Generate token if user exists
     let token;

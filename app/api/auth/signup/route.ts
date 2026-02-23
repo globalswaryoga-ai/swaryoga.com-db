@@ -15,6 +15,7 @@ import { apiError, apiSuccess, logError, validateRequired } from '@/lib/api-erro
 import { checkRateLimit, getClientId } from '@/lib/rate-limit';
 import bcrypt from 'bcryptjs';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
+import { notifySignupConfirmation } from '@/lib/notifications';
 
 // Rate limiting: 5 signup attempts per 10 minutes per IP
 const SIGNUP_RATE_LIMIT = {
@@ -270,6 +271,12 @@ export async function POST(request: NextRequest) {
         logError('signup/generateToken', tokenError);
         return apiError('SERVER_ERROR', 'Token generation failed');
       }
+
+      // Fire-and-forget: Send signup confirmation email
+      notifySignupConfirmation(
+        { name: user.name, email: user.email, phone: user.phone },
+        { leadNumber: leadNumber || undefined, profileId: (user as any).profileId },
+      ).catch(err => console.error('[Signup] Notification error:', err));
 
       return apiSuccess({
         message: 'User registered successfully',

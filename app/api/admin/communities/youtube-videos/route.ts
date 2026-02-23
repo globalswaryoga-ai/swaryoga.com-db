@@ -152,8 +152,8 @@ export async function POST(request: NextRequest) {
     const Community = getCommunity();
     const CommunityVideo = getCommunityVideo();
 
-    // Verify community exists
-    const community = await Community.findById(communityId);
+    // Verify community exists (communityId is a string slug like 'global', not an ObjectId)
+    const community = await Community.findOne({ id: communityId });
     if (!community) {
       return NextResponse.json({ error: 'Community not found' }, { status: 404 });
     }

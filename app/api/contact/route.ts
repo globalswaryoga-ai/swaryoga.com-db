@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, Contact, Message } from '@/lib/db';
 import { getOrCreateLeadIdForPhone } from '@/lib/crm/leadNumber';
+import { notifyContactFormSubmission } from '@/lib/notifications';
 
 export async function POST(request: NextRequest) {
   try {
@@ -60,8 +61,11 @@ export async function POST(request: NextRequest) {
 
     await inboxMessage.save();
 
-    // TODO: Send email notification to admin
-    // TODO: Send confirmation email to user
+    // Fire-and-forget: Send confirmation email to user + admin notification
+    notifyContactFormSubmission(
+      { name, email, phone },
+      { subject, message },
+    ).catch(err => console.error('[Contact] Notification error:', err));
 
     return NextResponse.json(
       { message: 'Message received successfully' },
