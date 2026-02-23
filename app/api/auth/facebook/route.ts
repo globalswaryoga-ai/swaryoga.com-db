@@ -3,6 +3,7 @@ import axios from 'axios';
 import { connectDB, User } from '@/lib/db';
 import { generateToken } from '@/lib/auth';
 import { generateAppSecretProof } from '@/lib/whatsapp';
+import { autoCreateOrLinkLead } from '@/lib/crm/autoLead';
 import bcrypt from 'bcryptjs';
 
 export async function POST(request: NextRequest) {
@@ -86,6 +87,15 @@ export async function POST(request: NextRequest) {
       userId: user._id.toString(),
       email: user.email,
     });
+
+    // Auto-create CRM lead (fire-and-forget)
+    autoCreateOrLinkLead({
+      userId: user._id.toString(),
+      profileId: (user as any).profileId,
+      name: name || `${user.firstName} ${user.lastName}`.trim(),
+      email: user.email,
+      source: 'facebook',
+    }).catch(err => console.error('[Facebook] Lead auto-create error:', err));
 
     return NextResponse.json({
       success: true,

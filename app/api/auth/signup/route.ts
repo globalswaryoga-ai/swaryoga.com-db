@@ -156,7 +156,7 @@ export async function POST(request: NextRequest) {
                   workshopName: 'Website Signup',
                   labels: ['website', 'signup'],
                   createdByUserId: 'system',
-                  assignedToUserId: 'system',
+                  assignedToUserId: 'admincrm',
                 },
                 $addToSet: {
                   labels: { $each: ['website', 'signup'] },
@@ -190,7 +190,7 @@ export async function POST(request: NextRequest) {
               workshopName: 'Website Signup',
               labels: ['website', 'signup'],
               createdByUserId: 'system',
-              assignedToUserId: 'system',
+              assignedToUserId: 'admincrm',
               metadata: meta,
               // UNIFIED ID: Link Lead to User account
               linkedUserId: user._id,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, User } from '@/lib/db';
 import { generateToken } from '@/lib/auth';
+import { autoCreateOrLinkLead } from '@/lib/crm/autoLead';
 import bcrypt from 'bcryptjs';
 
 export async function POST(request: NextRequest) {
@@ -59,6 +60,15 @@ export async function POST(request: NextRequest) {
       userId: existingUser._id.toString(),
       email: existingUser.email,
     });
+
+    // Auto-create CRM lead (fire-and-forget)
+    autoCreateOrLinkLead({
+      userId: existingUser._id.toString(),
+      profileId: (existingUser as any).profileId,
+      name: name || `${existingUser.firstName} ${existingUser.lastName}`.trim(),
+      email: existingUser.email,
+      source: 'apple',
+    }).catch(err => console.error('[Apple] Lead auto-create error:', err));
 
     return NextResponse.json({
       success: true,

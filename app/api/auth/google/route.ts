@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { OAuth2Client } from 'google-auth-library';
 import { connectDB, User } from '@/lib/db';
 import { generateToken } from '@/lib/auth';
+import { autoCreateOrLinkLead } from '@/lib/crm/autoLead';
 import bcrypt from 'bcryptjs';
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -64,6 +65,15 @@ export async function POST(request: NextRequest) {
       userId: user._id.toString(),
       email: user.email,
     });
+
+    // Auto-create CRM lead (fire-and-forget)
+    autoCreateOrLinkLead({
+      userId: user._id.toString(),
+      profileId: (user as any).profileId,
+      name: name || `${user.firstName} ${user.lastName}`.trim(),
+      email: user.email,
+      source: 'google',
+    }).catch(err => console.error('[Google] Lead auto-create error:', err));
 
     return NextResponse.json({
       success: true,
