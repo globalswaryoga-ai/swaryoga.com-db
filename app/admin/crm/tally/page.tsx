@@ -160,10 +160,11 @@ export default function TallyPage() {
 
   // Financial Year
   const FY_OPTIONS = [
+    { label: 'FY 2023-24', value: '2023-24', from: '20230401', to: '20240331' },
     { label: 'FY 2024-25', value: '2024-25', from: '20240401', to: '20250331' },
     { label: 'FY 2025-26', value: '2025-26', from: '20250401', to: '20260331' },
   ];
-  const [selectedFY, setSelectedFY] = useState('2024-25');
+  const [selectedFY, setSelectedFY] = useState('2023-24');
   const currentFY = FY_OPTIONS.find(f => f.value === selectedFY) || FY_OPTIONS[0];
 
   // Filters
