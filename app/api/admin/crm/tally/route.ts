@@ -7,6 +7,8 @@
  * GET  /api/admin/crm/tally?action=vouchers&type=Sales&from=20250401&to=20260331
  * GET  /api/admin/crm/tally?action=stock       — stock items
  * GET  /api/admin/crm/tally?action=daybook&from=20260223&to=20260223
+ * GET  /api/admin/crm/tally?action=profitloss&from=20240401&to=20250331
+ * GET  /api/admin/crm/tally?action=balancesheet&from=20240401&to=20250331
  * POST /api/admin/crm/tally  { action: 'sync', from?, to? } — auto-sync to MongoDB
  * GET  /api/admin/crm/tally?action=syncStatus  — last sync info
  */
@@ -22,6 +24,8 @@ import {
   fetchVouchers,
   fetchStockItems,
   fetchDayBook,
+  fetchProfitAndLoss,
+  fetchBalanceSheet,
 } from '@/lib/tally/tallyPrimeAPI';
 import { runTallyAutoSync, getLastSyncInfo } from '@/lib/tally/tallyAutoSync';
 
@@ -82,6 +86,20 @@ export async function GET(request: NextRequest) {
         const to = searchParams.get('to') || undefined;
         const vouchers = await fetchDayBook(from, to);
         return NextResponse.json({ success: true, count: vouchers.length, vouchers });
+      }
+
+      case 'profitloss': {
+        const from = searchParams.get('from') || undefined;
+        const to = searchParams.get('to') || undefined;
+        const pl = await fetchProfitAndLoss(from, to);
+        return NextResponse.json({ success: true, ...pl });
+      }
+
+      case 'balancesheet': {
+        const from = searchParams.get('from') || undefined;
+        const to = searchParams.get('to') || undefined;
+        const bs = await fetchBalanceSheet(from, to);
+        return NextResponse.json({ success: true, ...bs });
       }
 
       case 'syncStatus': {

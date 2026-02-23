@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import AdminSidebar from '@/components/AdminSidebar';
@@ -22,6 +22,15 @@ import {
   Search,
   Menu,
   ArrowLeft,
+  TrendingUp,
+  Scale,
+  ChevronRight,
+  MessageCircle,
+  Send,
+  X,
+  Bot,
+  ToggleLeft,
+  ToggleRight,
 } from 'lucide-react';
 
 // ── Types ──
@@ -88,7 +97,35 @@ interface DashboardSummary {
   recentReceipts: TallyVoucher[];
 }
 
-type ActiveTab = 'dashboard' | 'sales' | 'receipts' | 'purchases' | 'ledgers' | 'stock' | 'daybook' | 'settings';
+interface PLGroup {
+  name: string;
+  amount: number;
+  children: { name: string; amount: number }[];
+}
+
+interface ProfitAndLoss {
+  income: PLGroup[];
+  expenses: PLGroup[];
+  totalIncome: number;
+  totalExpenses: number;
+  netProfit: number;
+}
+
+interface BSGroup {
+  name: string;
+  amount: number;
+  children: { name: string; amount: number }[];
+}
+
+interface BalanceSheetData {
+  assets: BSGroup[];
+  liabilities: BSGroup[];
+  totalAssets: number;
+  totalLiabilities: number;
+  difference: number;
+}
+
+type ActiveTab = 'dashboard' | 'sales' | 'receipts' | 'purchases' | 'ledgers' | 'stock' | 'daybook' | 'profitloss' | 'balancesheet' | 'settings';
 
 // ── Helpers ──
 function fmt(n: number) {
@@ -134,11 +171,31 @@ export default function TallyPage() {
   const [ledgerGroup, setLedgerGroup] = useState('');
   const [voucherType, setVoucherType] = useState('Sales');
 
+  // P&L and Balance Sheet
+  const [plData, setPlData] = useState<ProfitAndLoss | null>(null);
+  const [bsData, setBsData] = useState<BalanceSheetData | null>(null);
+
   // Sync state
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<any>(null);
   const [lastSync, setLastSync] = useState<any>(null);
   const [syncCounts, setSyncCounts] = useState<{ customers: number; invoices: number; payments: number } | null>(null);
+
+  // Feature toggles
+  const [showSales, setShowSales] = useState(false);
+  const [showPurchases, setShowPurchases] = useState(false);
+
+  // AI Chatbox
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll chat
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages, chatLoading]);
 
   const headers = useCallback(() => ({
     Authorization: `Bearer ${token}`,
@@ -247,6 +304,32 @@ export default function TallyPage() {
     }
   }, [token, headers]);
 
+  // ── Fetch Profit & Loss ──
+  const fetchPL = useCallback(async (fy?: { from: string; to: string }) => {
+    if (!token) return;
+    const f = fy || currentFY;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/crm/tally?action=profitloss&from=${f.from}&to=${f.to}`, { headers: headers() });
+      const data = await res.json();
+      if (data.success) setPlData(data);
+    } catch { setPlData(null); }
+    finally { setLoading(false); }
+  }, [token, headers]);
+
+  // ── Fetch Balance Sheet ──
+  const fetchBS = useCallback(async (fy?: { from: string; to: string }) => {
+    if (!token) return;
+    const f = fy || currentFY;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/crm/tally?action=balancesheet&from=${f.from}&to=${f.to}`, { headers: headers() });
+      const data = await res.json();
+      if (data.success) setBsData(data);
+    } catch { setBsData(null); }
+    finally { setLoading(false); }
+  }, [token, headers]);
+
   // ── Sync to MongoDB ──
   const runSync = useCallback(async () => {
     if (!token) return;
@@ -302,6 +385,8 @@ export default function TallyPage() {
       case 'ledgers': fetchLedgerData(ledgerGroup || undefined); break;
       case 'stock': fetchStock(); break;
       case 'daybook': fetchDaybook(fy); break;
+      case 'profitloss': fetchPL(fy); break;
+      case 'balancesheet': fetchBS(fy); break;
       case 'settings': testConnection(); break;
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -324,17 +409,51 @@ export default function TallyPage() {
     !searchQuery || s.name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // ── Send AI chat message ──
+  const sendChatMessage = useCallback(async () => {
+    if (!chatInput.trim() || !token || chatLoading) return;
+    const userMsg = chatInput.trim();
+    setChatInput('');
+    setChatMessages(prev => [...prev, { role: 'user', content: userMsg }]);
+    setChatLoading(true);
+    try {
+      const res = await fetch('/api/admin/crm/tally/chat', {
+        method: 'POST',
+        headers: headers(),
+        body: JSON.stringify({
+          message: userMsg,
+          history: chatMessages.slice(-10),
+          fy: { from: currentFY.from, to: currentFY.to },
+        }),
+      });
+      const data = await res.json();
+      setChatMessages(prev => [...prev, { role: 'assistant', content: data.reply || data.error || 'No response' }]);
+    } catch (err: any) {
+      setChatMessages(prev => [...prev, { role: 'assistant', content: 'Error: ' + err.message }]);
+    } finally {
+      setChatLoading(false);
+    }
+  }, [chatInput, token, chatLoading, chatMessages, headers, currentFY]);
+
   // ── Tab config ──
-  const tabs: { key: ActiveTab; label: string; icon: any }[] = [
+  const allTabs: { key: ActiveTab; label: string; icon: any; toggle?: boolean }[] = [
     { key: 'dashboard', label: 'Dashboard', icon: BarChart3 },
-    { key: 'sales', label: 'Sales', icon: ArrowUpRight },
+    { key: 'sales', label: 'Sales', icon: ArrowUpRight, toggle: true },
     { key: 'receipts', label: 'Receipts', icon: ArrowDownLeft },
-    { key: 'purchases', label: 'Purchases', icon: Package },
+    { key: 'purchases', label: 'Purchases', icon: Package, toggle: true },
     { key: 'ledgers', label: 'Ledgers', icon: Users },
     { key: 'stock', label: 'Stock', icon: Package },
     { key: 'daybook', label: 'Day Book', icon: Calendar },
+    { key: 'profitloss', label: 'P&L', icon: TrendingUp },
+    { key: 'balancesheet', label: 'Balance Sheet', icon: Scale },
     { key: 'settings', label: 'Settings', icon: Settings },
   ];
+
+  const tabs = allTabs.filter(t => {
+    if (t.key === 'sales') return showSales;
+    if (t.key === 'purchases') return showPurchases;
+    return true;
+  });
 
   if (!token) {
     return (
@@ -753,6 +872,131 @@ export default function TallyPage() {
             </>
           )}
 
+          {/* ════════ PROFIT & LOSS TAB ════════ */}
+          {activeTab === 'profitloss' && (
+            <>
+              {loading && !plData ? (
+                <LoadingSkeleton />
+              ) : plData ? (
+                <div className="space-y-6">
+                  {/* Summary cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="p-5 rounded-xl border border-gray-800 bg-green-500/10">
+                      <p className="text-xs text-gray-400 mb-1">Total Income</p>
+                      <p className="text-2xl font-bold text-green-400">{fmt(plData.totalIncome)}</p>
+                    </div>
+                    <div className="p-5 rounded-xl border border-gray-800 bg-red-500/10">
+                      <p className="text-xs text-gray-400 mb-1">Total Expenses</p>
+                      <p className="text-2xl font-bold text-red-400">{fmt(plData.totalExpenses)}</p>
+                    </div>
+                    <div className={`p-5 rounded-xl border border-gray-800 ${plData.netProfit >= 0 ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
+                      <p className="text-xs text-gray-400 mb-1">{plData.netProfit >= 0 ? 'Net Profit' : 'Net Loss'}</p>
+                      <p className={`text-2xl font-bold ${plData.netProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fmt(Math.abs(plData.netProfit))}</p>
+                    </div>
+                  </div>
+
+                  {/* Income and Expenses side by side */}
+                  <div className="grid md:grid-cols-2 gap-6">
+                    {/* Income */}
+                    <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+                      <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+                        <h3 className="font-bold text-green-400 flex items-center gap-2"><ArrowDownLeft className="w-4 h-4" /> Income</h3>
+                        <span className="text-sm font-bold text-green-400">{fmt(plData.totalIncome)}</span>
+                      </div>
+                      <div className="divide-y divide-gray-800/40">
+                        {plData.income.length === 0 ? (
+                          <p className="p-4 text-sm text-gray-500">No income data</p>
+                        ) : plData.income.map((g, i) => (
+                          <PLGroupRow key={i} group={g} color="text-green-400" />
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Expenses */}
+                    <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+                      <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+                        <h3 className="font-bold text-red-400 flex items-center gap-2"><ArrowUpRight className="w-4 h-4" /> Expenses</h3>
+                        <span className="text-sm font-bold text-red-400">{fmt(plData.totalExpenses)}</span>
+                      </div>
+                      <div className="divide-y divide-gray-800/40">
+                        {plData.expenses.length === 0 ? (
+                          <p className="p-4 text-sm text-gray-500">No expense data</p>
+                        ) : plData.expenses.map((g, i) => (
+                          <PLGroupRow key={i} group={g} color="text-red-400" />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <EmptyState message="No Profit & Loss data. Make sure Tally Prime is running." />
+              )}
+            </>
+          )}
+
+          {/* ════════ BALANCE SHEET TAB ════════ */}
+          {activeTab === 'balancesheet' && (
+            <>
+              {loading && !bsData ? (
+                <LoadingSkeleton />
+              ) : bsData ? (
+                <div className="space-y-6">
+                  {/* Summary cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="p-5 rounded-xl border border-gray-800 bg-blue-500/10">
+                      <p className="text-xs text-gray-400 mb-1">Total Assets</p>
+                      <p className="text-2xl font-bold text-blue-400">{fmt(bsData.totalAssets)}</p>
+                    </div>
+                    <div className="p-5 rounded-xl border border-gray-800 bg-purple-500/10">
+                      <p className="text-xs text-gray-400 mb-1">Total Liabilities</p>
+                      <p className="text-2xl font-bold text-purple-400">{fmt(bsData.totalLiabilities)}</p>
+                    </div>
+                    <div className={`p-5 rounded-xl border border-gray-800 ${Math.abs(bsData.difference) < 1 ? 'bg-green-500/10' : 'bg-yellow-500/10'}`}>
+                      <p className="text-xs text-gray-400 mb-1">Difference</p>
+                      <p className={`text-2xl font-bold ${Math.abs(bsData.difference) < 1 ? 'text-green-400' : 'text-yellow-400'}`}>{fmt(Math.abs(bsData.difference))}</p>
+                      {Math.abs(bsData.difference) < 1 && <p className="text-xs text-green-500 mt-1">Balanced</p>}
+                    </div>
+                  </div>
+
+                  {/* Assets and Liabilities side by side */}
+                  <div className="grid md:grid-cols-2 gap-6">
+                    {/* Assets */}
+                    <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+                      <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+                        <h3 className="font-bold text-blue-400 flex items-center gap-2"><TrendingUp className="w-4 h-4" /> Assets</h3>
+                        <span className="text-sm font-bold text-blue-400">{fmt(bsData.totalAssets)}</span>
+                      </div>
+                      <div className="divide-y divide-gray-800/40">
+                        {bsData.assets.length === 0 ? (
+                          <p className="p-4 text-sm text-gray-500">No asset data</p>
+                        ) : bsData.assets.map((g, i) => (
+                          <PLGroupRow key={i} group={g} color="text-blue-400" />
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Liabilities */}
+                    <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+                      <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+                        <h3 className="font-bold text-purple-400 flex items-center gap-2"><Scale className="w-4 h-4" /> Liabilities & Capital</h3>
+                        <span className="text-sm font-bold text-purple-400">{fmt(bsData.totalLiabilities)}</span>
+                      </div>
+                      <div className="divide-y divide-gray-800/40">
+                        {bsData.liabilities.length === 0 ? (
+                          <p className="p-4 text-sm text-gray-500">No liability data</p>
+                        ) : bsData.liabilities.map((g, i) => (
+                          <PLGroupRow key={i} group={g} color="text-purple-400" />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <EmptyState message="No Balance Sheet data. Make sure Tally Prime is running." />
+              )}
+            </>
+          )}
+
           {/* ════════ SETTINGS TAB ════════ */}
           {activeTab === 'settings' && (
             <div className="max-w-2xl space-y-6">
@@ -823,10 +1067,127 @@ export default function TallyPage() {
                   </li>
                 </ol>
               </div>
+
+              {/* Feature Toggles */}
+              <div className="p-5 bg-gray-900 border border-gray-800 rounded-xl space-y-4">
+                <h3 className="text-lg font-bold flex items-center gap-2">
+                  <ToggleRight className="w-5 h-5 text-yellow-500" />
+                  Feature Toggles
+                </h3>
+                <p className="text-xs text-gray-500">Enable or disable tabs as needed for your workflow.</p>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+                    <div>
+                      <p className="text-sm font-medium text-gray-200">Sales Tab</p>
+                      <p className="text-xs text-gray-500">Show Sales voucher tracking</p>
+                    </div>
+                    <button onClick={() => setShowSales(v => !v)} className="flex items-center gap-2">
+                      {showSales
+                        ? <ToggleRight className="w-8 h-8 text-green-400" />
+                        : <ToggleLeft className="w-8 h-8 text-gray-600" />
+                      }
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+                    <div>
+                      <p className="text-sm font-medium text-gray-200">Purchases Tab</p>
+                      <p className="text-xs text-gray-500">Show Purchase voucher tracking</p>
+                    </div>
+                    <button onClick={() => setShowPurchases(v => !v)} className="flex items-center gap-2">
+                      {showPurchases
+                        ? <ToggleRight className="w-8 h-8 text-green-400" />
+                        : <ToggleLeft className="w-8 h-8 text-gray-600" />
+                      }
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>
       </main>
+
+      {/* ═══ AI Chat Floating Button ═══ */}
+      {!chatOpen && (
+        <button
+          onClick={() => setChatOpen(true)}
+          className="fixed bottom-6 right-6 z-50 w-14 h-14 bg-yellow-600 hover:bg-yellow-500 rounded-full shadow-lg shadow-yellow-600/30 flex items-center justify-center transition-all hover:scale-110"
+          title="Ask Tally AI"
+        >
+          <Bot className="w-7 h-7 text-black" />
+        </button>
+      )}
+
+      {/* ═══ AI Chat Panel ═══ */}
+      {chatOpen && (
+        <div className="fixed bottom-6 right-6 z-50 w-[380px] max-w-[calc(100vw-2rem)] h-[520px] bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl shadow-black/60 flex flex-col overflow-hidden">
+          {/* Chat header */}
+          <div className="flex items-center justify-between px-4 py-3 bg-gray-800 border-b border-gray-700">
+            <div className="flex items-center gap-2">
+              <Bot className="w-5 h-5 text-yellow-500" />
+              <span className="font-bold text-sm">Tally AI Assistant</span>
+            </div>
+            <button onClick={() => setChatOpen(false)} className="p-1 hover:bg-gray-700 rounded-lg transition">
+              <X className="w-4 h-4 text-gray-400" />
+            </button>
+          </div>
+
+          {/* Chat messages */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3" id="tally-chat-scroll">
+            {chatMessages.length === 0 && (
+              <div className="text-center py-8">
+                <Bot className="w-10 h-10 text-gray-700 mx-auto mb-3" />
+                <p className="text-sm text-gray-500 mb-1">Ask me anything about Tally</p>
+                <p className="text-xs text-gray-600">Ledger balances, receipts, P&L, outstanding, voucher details...</p>
+              </div>
+            )}
+            {chatMessages.map((msg, i) => (
+              <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[85%] px-3 py-2 rounded-xl text-sm whitespace-pre-wrap ${
+                  msg.role === 'user'
+                    ? 'bg-yellow-600 text-black rounded-br-sm'
+                    : 'bg-gray-800 text-gray-200 rounded-bl-sm border border-gray-700'
+                }`}>
+                  {msg.content}
+                </div>
+              </div>
+            ))}
+            {chatLoading && (
+              <div className="flex justify-start">
+                <div className="bg-gray-800 border border-gray-700 px-4 py-2 rounded-xl rounded-bl-sm">
+                  <div className="flex gap-1">
+                    <div className="w-2 h-2 bg-yellow-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <div className="w-2 h-2 bg-yellow-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <div className="w-2 h-2 bg-yellow-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </div>
+                </div>
+              </div>
+            )}
+            <div ref={chatEndRef} />
+          </div>
+
+          {/* Chat input */}
+          <div className="p-3 border-t border-gray-700 bg-gray-800/50">
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={chatInput}
+                onChange={e => setChatInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendChatMessage()}
+                placeholder="Ask about Tally data..."
+                className="flex-1 px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-yellow-500/50"
+              />
+              <button
+                onClick={sendChatMessage}
+                disabled={chatLoading || !chatInput.trim()}
+                className="p-2 bg-yellow-600 hover:bg-yellow-500 disabled:bg-gray-700 rounded-lg transition"
+              >
+                <Send className="w-4 h-4 text-black" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -916,6 +1277,37 @@ function EmptyState({ message }: { message: string }) {
     <div className="flex flex-col items-center justify-center py-16 text-center">
       <FileText className="w-12 h-12 text-gray-700 mb-3" />
       <p className="text-gray-500">{message}</p>
+    </div>
+  );
+}
+
+function PLGroupRow({ group, color }: { group: PLGroup | BSGroup; color: string }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-800/30 transition text-left"
+      >
+        <div className="flex items-center gap-2">
+          <ChevronRight className={`w-3.5 h-3.5 text-gray-500 transition-transform ${expanded ? 'rotate-90' : ''}`} />
+          <span className="text-sm text-gray-200 font-medium">{group.name}</span>
+          {group.children.length > 0 && (
+            <span className="text-[10px] text-gray-600 bg-gray-800 px-1.5 py-0.5 rounded">{group.children.length}</span>
+          )}
+        </div>
+        <span className={`text-sm font-bold ${color}`}>{fmt(group.amount)}</span>
+      </button>
+      {expanded && group.children.length > 0 && (
+        <div className="bg-gray-950/40 border-t border-gray-800/30">
+          {group.children.map((c, i) => (
+            <div key={i} className="flex items-center justify-between px-4 pl-10 py-2 text-xs hover:bg-gray-800/20">
+              <span className="text-gray-400">{c.name}</span>
+              <span className="text-gray-300">{fmt(c.amount)}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
