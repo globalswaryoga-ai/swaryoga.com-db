@@ -37,6 +37,8 @@ import {
   Edit3,
   Save,
   Upload,
+  Download,
+  Database,
 } from 'lucide-react';
 
 // ── Types ──
@@ -198,6 +200,7 @@ export default function TallyPage() {
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const csvFileInputRef = useRef<HTMLInputElement>(null);
 
   // Manual Opening Balances
   interface ManualEntry { _id: string; ledgerName: string; parentGroup: string; category: string; amount: number; drCr: string; asOnDate: string; notes: string; }
@@ -475,6 +478,157 @@ export default function TallyPage() {
       notes: entry.notes || '',
     });
     setShowAddForm(true);
+  };
+
+  // ── CSV Download ──
+  const handleCSVDownload = () => {
+    if (manualEntries.length === 0) { alert('No entries to download'); return; }
+    const header = 'Ledger Name,Parent Group,Category,Amount,Dr/Cr,As On Date,Notes';
+    const rows = manualEntries.map(e =>
+      [e.ledgerName, e.parentGroup, e.category, e.amount, e.drCr, e.asOnDate || '', (e.notes || '').replace(/,/g, ';')]
+        .map(v => `"${v}"`)
+        .join(',')
+    );
+    const csv = [header, ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `opening-balances-${selectedFY}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // ── CSV Upload ──
+  const handleCSVUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !token) return;
+    try {
+      const text = await file.text();
+      const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+      if (lines.length < 2) { alert('CSV file is empty or has only headers'); return; }
+      // skip header row
+      const entries = lines.slice(1).map(line => {
+        // parse CSV respecting quoted values
+        const cols: string[] = [];
+        let current = '';
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+          const ch = line[i];
+          if (ch === '"') { inQuotes = !inQuotes; }
+          else if (ch === ',' && !inQuotes) { cols.push(current.trim()); current = ''; }
+          else { current += ch; }
+        }
+        cols.push(current.trim());
+        return {
+          ledgerName: cols[0] || '',
+          parentGroup: cols[1] || '',
+          category: (['asset', 'liability', 'income', 'expense'].includes(cols[2]?.toLowerCase()) ? cols[2].toLowerCase() : 'asset'),
+          amount: parseFloat(cols[3]) || 0,
+          drCr: cols[4] === 'Cr' ? 'Cr' : 'Dr',
+          asOnDate: cols[5] || '',
+          notes: cols[6] || '',
+        };
+      }).filter(e => e.ledgerName);
+
+      if (entries.length === 0) { alert('No valid entries found in CSV'); return; }
+      if (!confirm(`Found ${entries.length} entries. Import them for ${currentFY.label}?`)) return;
+
+      setManualLoading(true);
+      const res = await fetch('/api/admin/crm/tally/manual-balances', {
+        method: 'POST',
+        headers: headers(),
+        body: JSON.stringify({ action: 'bulk-add', entries, financialYear: selectedFY }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(`Imported ${data.insertedCount || entries.length} entries!`);
+        fetchManualBalances();
+      } else {
+        alert('Import failed: ' + (data.error || 'Unknown error'));
+      }
+    } catch (err: any) {
+      alert('CSV parse error: ' + err.message);
+    } finally {
+      setManualLoading(false);
+      if (csvFileInputRef.current) csvFileInputRef.current.value = '';
+    }
+  };
+
+  // ── Import from Tally Backup (pre-extracted ledgers) ──
+  const handleTallyBackupImport = async () => {
+    if (!token) return;
+    const tallyLedgers: { ledgerName: string; parentGroup: string; category: string }[] = [
+      // Assets
+      { ledgerName: 'KOTAK MAHINDRA BANK A/C 0247296457', parentGroup: 'Bank Accounts', category: 'asset' },
+      { ledgerName: 'Cash', parentGroup: 'Cash-in-Hand', category: 'asset' },
+      { ledgerName: 'Computers & Accessories', parentGroup: 'Fixed Assets', category: 'asset' },
+      { ledgerName: 'Machinery & Equipments', parentGroup: 'Fixed Assets', category: 'asset' },
+      { ledgerName: 'Furniture & Fixtures', parentGroup: 'Fixed Assets', category: 'asset' },
+      { ledgerName: 'Tally Software', parentGroup: 'Fixed Assets', category: 'asset' },
+      // Liabilities / Capital
+      { ledgerName: 'Mohan Kalburgi', parentGroup: 'Capital Account', category: 'liability' },
+      { ledgerName: 'Vishal Agrawal', parentGroup: 'Capital Account', category: 'liability' },
+      { ledgerName: 'Vaishali Pathak', parentGroup: 'Capital Account', category: 'liability' },
+      { ledgerName: 'Janvi Purohit', parentGroup: 'Capital Account', category: 'liability' },
+      { ledgerName: 'Janavi Suryawanshi', parentGroup: 'Capital Account', category: 'liability' },
+      { ledgerName: 'Suvarna Sanjay', parentGroup: 'Capital Account', category: 'liability' },
+      { ledgerName: 'Swati Sawant', parentGroup: 'Capital Account', category: 'liability' },
+      { ledgerName: 'Arati Akula', parentGroup: 'Capital Account', category: 'liability' },
+      { ledgerName: 'Mahesh Agrawal', parentGroup: 'Capital Account', category: 'liability' },
+      { ledgerName: 'Santosh Agrawal', parentGroup: 'Capital Account', category: 'liability' },
+      { ledgerName: 'Sonu Gupta', parentGroup: 'Capital Account', category: 'liability' },
+      { ledgerName: 'Nagesh Dantkale', parentGroup: 'Capital Account', category: 'liability' },
+      { ledgerName: 'Google India', parentGroup: 'Sundry Creditors', category: 'liability' },
+      { ledgerName: 'Bibo Group Corporation', parentGroup: 'Sundry Creditors', category: 'liability' },
+      { ledgerName: 'MSEDCL', parentGroup: 'Sundry Creditors', category: 'liability' },
+      { ledgerName: 'Facebook India Online Services', parentGroup: 'Sundry Creditors', category: 'liability' },
+      { ledgerName: 'JIO - Reliance Jio Infocomm Ltd', parentGroup: 'Sundry Creditors', category: 'liability' },
+      // Income
+      { ledgerName: 'Fees Received', parentGroup: 'Direct Incomes', category: 'income' },
+      { ledgerName: 'Swar Yoga Level-1', parentGroup: 'Direct Incomes', category: 'income' },
+      { ledgerName: 'Swar Yoga Level-3', parentGroup: 'Direct Incomes', category: 'income' },
+      { ledgerName: 'Swar Yoga Level-1 Online Raipur', parentGroup: 'Direct Incomes', category: 'income' },
+      { ledgerName: 'Bandhan Mukti Program', parentGroup: 'Direct Incomes', category: 'income' },
+      // Expenses
+      { ledgerName: 'Bank Charges', parentGroup: 'Indirect Expenses', category: 'expense' },
+      { ledgerName: 'Audit Fees & Charges', parentGroup: 'Indirect Expenses', category: 'expense' },
+      { ledgerName: 'Rent, Rates & Taxes', parentGroup: 'Indirect Expenses', category: 'expense' },
+      { ledgerName: 'Professional Fees', parentGroup: 'Indirect Expenses', category: 'expense' },
+      { ledgerName: 'Electricity Expenses', parentGroup: 'Indirect Expenses', category: 'expense' },
+      { ledgerName: 'Advertisement Expenses', parentGroup: 'Indirect Expenses', category: 'expense' },
+      { ledgerName: 'Mobile & Telephone Expenses', parentGroup: 'Indirect Expenses', category: 'expense' },
+      { ledgerName: 'Travelling Expenses', parentGroup: 'Indirect Expenses', category: 'expense' },
+      { ledgerName: 'ROC Fees & Charges', parentGroup: 'Indirect Expenses', category: 'expense' },
+      { ledgerName: 'Incorporation Expenses', parentGroup: 'Indirect Expenses', category: 'expense' },
+    ];
+
+    // Filter out any ledgers already in the list
+    const existing = new Set(manualEntries.map(e => e.ledgerName.toLowerCase()));
+    const newLedgers = tallyLedgers.filter(l => !existing.has(l.ledgerName.toLowerCase()));
+    if (newLedgers.length === 0) { alert('All Tally ledgers are already imported.'); return; }
+    if (!confirm(`Import ${newLedgers.length} ledger accounts from Tally backup?\n(Amounts will be ₹0 — fill them in manually or via CSV)`)) return;
+
+    const entries = newLedgers.map(l => ({ ...l, amount: 0, drCr: 'Dr', asOnDate: '', notes: 'From Tally backup' }));
+    setManualLoading(true);
+    try {
+      const res = await fetch('/api/admin/crm/tally/manual-balances', {
+        method: 'POST',
+        headers: headers(),
+        body: JSON.stringify({ action: 'bulk-add', entries, financialYear: selectedFY }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(`Imported ${data.insertedCount || entries.length} Tally ledgers!`);
+        fetchManualBalances();
+      } else {
+        alert('Import failed: ' + (data.error || 'Unknown error'));
+      }
+    } catch (err: any) {
+      alert('Import error: ' + err.message);
+    } finally {
+      setManualLoading(false);
+    }
   };
 
   // ── Sync to MongoDB ──
@@ -1207,6 +1361,9 @@ export default function TallyPage() {
           {/* ════════ OPENING BALANCES TAB ════════ */}
           {activeTab === 'opening' && (
             <div className="space-y-6">
+              {/* Hidden CSV file input */}
+              <input ref={csvFileInputRef} type="file" accept=".csv" className="hidden" onChange={handleCSVUpload} />
+
               {/* Header */}
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div>
@@ -1215,12 +1372,38 @@ export default function TallyPage() {
                   </h2>
                   <p className="text-xs text-gray-500 mt-1">Manually enter balances from your CA Balance Sheet report for {currentFY.label}</p>
                 </div>
-                <button
-                  onClick={() => { setShowAddForm(true); setEditingId(null); setFormData({ ledgerName: '', parentGroup: '', category: 'asset', amount: '', drCr: 'Dr', asOnDate: '', notes: '' }); }}
-                  className="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 text-black font-medium rounded-lg flex items-center gap-2 text-sm"
-                >
-                  <Plus className="w-4 h-4" /> Add Entry
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={handleTallyBackupImport}
+                    disabled={manualLoading}
+                    className="px-3 py-2 bg-indigo-700 hover:bg-indigo-600 text-white text-xs font-medium rounded-lg flex items-center gap-1.5 disabled:opacity-50"
+                    title="Import ledger names from Tally backup"
+                  >
+                    <Database className="w-3.5 h-3.5" /> Tally Import
+                  </button>
+                  <button
+                    onClick={() => csvFileInputRef.current?.click()}
+                    disabled={manualLoading}
+                    className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white text-xs font-medium rounded-lg flex items-center gap-1.5 disabled:opacity-50"
+                    title="Upload entries from CSV file"
+                  >
+                    <Upload className="w-3.5 h-3.5" /> Upload CSV
+                  </button>
+                  <button
+                    onClick={handleCSVDownload}
+                    disabled={manualEntries.length === 0}
+                    className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white text-xs font-medium rounded-lg flex items-center gap-1.5 disabled:opacity-50"
+                    title="Download entries as CSV"
+                  >
+                    <Download className="w-3.5 h-3.5" /> Download CSV
+                  </button>
+                  <button
+                    onClick={() => { setShowAddForm(true); setEditingId(null); setFormData({ ledgerName: '', parentGroup: '', category: 'asset', amount: '', drCr: 'Dr', asOnDate: '', notes: '' }); }}
+                    className="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 text-black font-medium rounded-lg flex items-center gap-2 text-sm"
+                  >
+                    <Plus className="w-4 h-4" /> Add Entry
+                  </button>
+                </div>
               </div>
 
               {/* Summary cards */}
