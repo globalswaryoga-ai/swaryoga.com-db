@@ -43,9 +43,9 @@ export async function GET(request: NextRequest) {
       query.communityId = communityId;
     }
     if (type === 'recording') {
-      query.source = 'zoom';
+      query.source = { $in: ['zoom', 'youtube_recording'] };
     } else if (type === 'video') {
-      query.source = { $ne: 'zoom' };
+      query.source = { $nin: ['zoom', 'youtube_recording'] };
     }
 
     // Get all videos/recordings

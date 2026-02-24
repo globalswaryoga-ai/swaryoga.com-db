@@ -358,7 +358,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center space-x-3 min-w-0 flex-1">
               <img src="/logo.png" alt="Swar Yoga" className="w-9 h-9 rounded-lg flex-shrink-0" />
-              <h2 className="font-bold text-lg truncate">Swar Yoga</h2>
+              <h2 className="font-bold text-lg truncate text-white">Swar Yoga</h2>
             </div>
             <button
               onClick={onClose}
