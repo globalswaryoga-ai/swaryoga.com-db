@@ -39,6 +39,7 @@ import {
   Upload,
   Download,
   Database,
+  Wallet,
 } from 'lucide-react';
 
 // ── Types ──
@@ -199,6 +200,7 @@ export default function TallyPage() {
   const [dashParticipants, setDashParticipants] = useState(0);
   const [dashTotalPayments, setDashTotalPayments] = useState(0);
   const [dashRecentPayments, setDashRecentPayments] = useState<TallyVoucher[]>([]);
+  const [bankSummary, setBankSummary] = useState<any>(null);
 
   // AI Chatbox
   const [chatOpen, setChatOpen] = useState(false);
@@ -496,6 +498,7 @@ export default function TallyPage() {
       setDashParticipants(data.participantCount ?? 0);
       setDashTotalPayments(data.totalPayments ?? 0);
       setDashRecentPayments(data.recentPayments ?? []);
+      if (data.bankSummary) setBankSummary(data.bankSummary);
       if (data.manualStats) setManualVoucherStats(data.manualStats);
     } catch (err: any) {
       setError(err.message);
@@ -1274,27 +1277,27 @@ export default function TallyPage() {
                     </div>
                   )}
 
-                  {/* Stats cards */}
+                  {/* Bank Statement Summary */}
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-                    <StatCard label="Total Receipts" value={fmt(summary.totalReceipts)} sub={`${summary.receiptCount} entries`} icon={ArrowDownLeft} color="text-blue-400" bg="bg-blue-500/10" />
-                    <StatCard label="Total Payments" value={fmt(dashTotalPayments || summary.totalPurchases)} sub={`${(manualVoucherStats.Payment?.count || summary.purchaseCount)} entries`} icon={ArrowUpRight} color="text-orange-400" bg="bg-orange-500/10" />
-                    <StatCard label="Contra" value={fmt(manualVoucherStats.Contra?.total || 0)} sub={`${manualVoucherStats.Contra?.count || 0} entries`} icon={RefreshCw} color="text-cyan-400" bg="bg-cyan-500/10" />
+                    <StatCard label="Opening Balance" value={fmt(bankSummary?.openingBalance || 0)} sub="Cr" icon={Building2} color="text-purple-400" bg="bg-purple-500/10" />
+                    <StatCard label="Total Deposit Amt" value={fmt(bankSummary?.totalDeposits || 0)} sub={`${bankSummary?.depositCount || 0} Cr entries`} icon={ArrowDownLeft} color="text-green-400" bg="bg-green-500/10" />
+                    <StatCard label="Total Withdrawal Amt" value={fmt(bankSummary?.totalWithdrawals || 0)} sub={`${bankSummary?.withdrawalCount || 0} Dr entries`} icon={ArrowUpRight} color="text-red-400" bg="bg-red-500/10" />
+                    <StatCard label="Closing Balance" value={fmt(bankSummary?.closingBalance || 0)} sub="Cr" icon={Wallet} color="text-blue-400" bg="bg-blue-500/10" />
                     <div className={`p-4 rounded-xl border border-gray-800 ${dashProfitLoss >= 0 ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
                       <div className="flex items-center gap-2 mb-2">
                         <TrendingUp className={`w-5 h-5 ${dashProfitLoss >= 0 ? 'text-green-400' : 'text-red-400'}`} />
                         <span className="text-xs text-gray-400 font-medium">{dashProfitLoss >= 0 ? 'Profit' : 'Loss'}</span>
                       </div>
                       <p className={`text-xl font-bold ${dashProfitLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fmt(Math.abs(dashProfitLoss))}</p>
-                      <p className="text-xs text-gray-500 mt-1">Receipts - Payments</p>
+                      <p className="text-xs text-gray-500 mt-1">Deposits - Withdrawals</p>
                     </div>
                     <StatCard label="Participants" value={String(dashParticipants)} sub="registered users" icon={Users} color="text-yellow-400" bg="bg-yellow-500/10" />
-                    <StatCard label="Total Sales" value={fmt(summary.totalSales)} sub={`${summary.salesCount} vouchers`} icon={BarChart3} color="text-green-400" bg="bg-green-500/10" />
                   </div>
 
                   {/* Recent tables */}
                   <div className="grid md:grid-cols-2 gap-6">
-                    <RecentTable title="Recent Receipts" vouchers={summary.recentReceipts} color="text-blue-400" />
-                    <RecentTable title="Recent Payments" vouchers={dashRecentPayments} color="text-orange-400" />
+                    <RecentTable title="Recent Deposits" vouchers={summary.recentReceipts} color="text-green-400" />
+                    <RecentTable title="Recent Withdrawals" vouchers={dashRecentPayments} color="text-red-400" />
                   </div>
 
                   {/* ── Auto-Sync Panel ── */}
@@ -1382,22 +1385,22 @@ export default function TallyPage() {
                     </div>
                   </div>
 
-                  {/* Quick stats from manualVoucherStats if available */}
-                  {Object.keys(manualVoucherStats).length > 0 && (
+                  {/* Quick stats from bankSummary or manualVoucherStats if available */}
+                  {(bankSummary || Object.keys(manualVoucherStats).length > 0) && (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                      <StatCard label="Total Receipts" value={fmt(manualVoucherStats.Receipt?.total || 0)} sub={`${manualVoucherStats.Receipt?.count || 0} entries`} icon={ArrowDownLeft} color="text-blue-400" bg="bg-blue-500/10" />
-                      <StatCard label="Total Payments" value={fmt(manualVoucherStats.Payment?.total || 0)} sub={`${manualVoucherStats.Payment?.count || 0} entries`} icon={ArrowUpRight} color="text-orange-400" bg="bg-orange-500/10" />
-                      <StatCard label="Contra" value={fmt(manualVoucherStats.Contra?.total || 0)} sub={`${manualVoucherStats.Contra?.count || 0} entries`} icon={RefreshCw} color="text-cyan-400" bg="bg-cyan-500/10" />
+                      <StatCard label="Opening Balance" value={fmt(bankSummary?.openingBalance || 0)} sub="Cr" icon={Building2} color="text-purple-400" bg="bg-purple-500/10" />
+                      <StatCard label="Total Deposit Amt" value={fmt(bankSummary?.totalDeposits || 0)} sub={`${bankSummary?.depositCount || 0} Cr entries`} icon={ArrowDownLeft} color="text-green-400" bg="bg-green-500/10" />
+                      <StatCard label="Total Withdrawal Amt" value={fmt(bankSummary?.totalWithdrawals || 0)} sub={`${bankSummary?.withdrawalCount || 0} Dr entries`} icon={ArrowUpRight} color="text-red-400" bg="bg-red-500/10" />
+                      <StatCard label="Closing Balance" value={fmt(bankSummary?.closingBalance || 0)} sub="Cr" icon={Wallet} color="text-blue-400" bg="bg-blue-500/10" />
                       <div className={`p-4 rounded-xl border border-gray-800 ${dashProfitLoss >= 0 ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
                         <div className="flex items-center gap-2 mb-2">
                           <TrendingUp className={`w-5 h-5 ${dashProfitLoss >= 0 ? 'text-green-400' : 'text-red-400'}`} />
                           <span className="text-xs text-gray-400 font-medium">{dashProfitLoss >= 0 ? 'Profit' : 'Loss'}</span>
                         </div>
                         <p className={`text-xl font-bold ${dashProfitLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fmt(Math.abs(dashProfitLoss))}</p>
-                        <p className="text-xs text-gray-500 mt-1">Receipts - Payments</p>
+                        <p className="text-xs text-gray-500 mt-1">Deposits - Withdrawals</p>
                       </div>
                       <StatCard label="Participants" value={String(dashParticipants)} sub="registered users" icon={Users} color="text-yellow-400" bg="bg-yellow-500/10" />
-                      <StatCard label="Sales" value={fmt(manualVoucherStats.Sales?.total || 0)} sub={`${manualVoucherStats.Sales?.count || 0} vouchers`} icon={BarChart3} color="text-green-400" bg="bg-green-500/10" />
                     </div>
                   )}
                 </div>

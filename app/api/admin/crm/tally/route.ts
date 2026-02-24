@@ -184,11 +184,38 @@ export async function GET(request: NextRequest) {
           });
         }
 
-        // Calculate P&L from manual data
+        // Calculate totals from manual data
         const totalReceipts = manualStats.Receipt?.total || 0;
         const totalPayments = manualStats.Payment?.total || 0;
         const totalContra = manualStats.Contra?.total || 0;
         const profitLoss = totalReceipts - totalPayments;
+
+        // Bank statement summary — compute deposits/withdrawals from voucher data
+        // Deposits = Receipts (Cr) + Contra that are deposits
+        // Withdrawals = Payments (Dr) + Contra that are withdrawals
+        // For FY 2024-25 we have exact bank statement figures from Kotak bank
+        const bankSummaryByFY: Record<string, any> = {
+          '2024-25': {
+            openingBalance: 37440.78,
+            totalDeposits: 1291896.72,
+            totalWithdrawals: 1285586.53,
+            closingBalance: 43750.97,
+            depositCount: 165,
+            withdrawalCount: 415,
+            bankName: 'Kotak Mahindra Bank',
+            accountNumber: '0247296457',
+          },
+        };
+        const bankSummary = bankSummaryByFY[fy] || {
+          openingBalance: 0,
+          totalDeposits: totalReceipts + totalContra,
+          totalWithdrawals: totalPayments + totalContra,
+          closingBalance: 0,
+          depositCount: (manualStats.Receipt?.count || 0) + (manualStats.Contra?.count || 0),
+          withdrawalCount: (manualStats.Payment?.count || 0) + (manualStats.Contra?.count || 0),
+          bankName: 'Kotak Mahindra Bank',
+          accountNumber: '0247296457',
+        };
 
         // Build summary — use Tally data if connected, else manual data
         const summary = tallyConnected ? tallySummary : {
@@ -226,6 +253,7 @@ export async function GET(request: NextRequest) {
           summary,
           tallyConnected,
           manualStats,
+          bankSummary,
           totalPayments,
           totalContra,
           profitLoss,
