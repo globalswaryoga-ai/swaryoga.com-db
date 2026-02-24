@@ -95,23 +95,95 @@ export async function GET(request: NextRequest) {
         const to = searchParams.get('to') || undefined;
         const fy = searchParams.get('fy') || '2024-25';
 
-        // Build P&L from manual vouchers in MongoDB
+        // Build DETAILED P&L from manual vouchers in MongoDB
         const MV = getTallyManualVoucher();
-        const plStats = await MV.aggregate([
-          { $match: { financialYear: fy } },
-          { $group: { _id: '$voucherType', total: { $sum: '$amount' } } },
-        ]);
-        const plMap: Record<string, number> = {};
-        for (const s of plStats) plMap[s._id] = s.total;
-        const totalIncome = plMap['Receipt'] || 0;
-        const totalExpenses = plMap['Payment'] || 0;
 
-        // If we have manual data, use it directly (no need to try Tally Prime on serverless)
+        // Aggregate by ledgerName + voucherType for detailed breakdown
+        const detailStats = await MV.aggregate([
+          { $match: { financialYear: fy } },
+          { $group: {
+            _id: { ledgerName: '$ledgerName', voucherType: '$voucherType' },
+            total: { $sum: '$amount' },
+            count: { $sum: 1 },
+          }},
+          { $sort: { total: -1 } },
+        ]);
+
+        // Mapping: Payment voucher ledgerNames → accounting expense categories
+        const EXPENSE_MAP: Record<string, string> = {
+          'FACEBOOK ADS': 'Advertisement Expenses',
+          'FACEBOOK ADV': 'Advertisement Expenses',
+          'GOOGLE ADS': 'Advertisement Expenses',
+          'CANVA SUBSCRIPTION': 'Advertisement Expenses',
+          'RENT': 'Office Rent',
+          'OFFICE RENT': 'Office Rent',
+          'TEACHER REMUNERATION': 'Teachers Fees',
+          'PANDURANG': 'Teachers Fees',
+          'SHUBHAM': 'Teachers Fees',
+          'OFFICE EXP': 'Office Expenses',
+          'MISCELLANEOUS': 'Office Expenses',
+          'UPI PAYMENT': 'Office Expenses',
+          'ELECTRICITY': 'Electricity Expenses',
+          'LIGHT BILL': 'Electricity Expenses',
+          'INTERNET / TELECOM': 'Internet & Mobile Expenses',
+          'ZOOM SUBSCRIPTION': 'Internet & Mobile Expenses',
+          'MOBILE RECHARGE': 'Internet & Mobile Expenses',
+          'DOMAIN / GODADDY': 'Internet & Mobile Expenses',
+          'CLASS EXP': 'Class Expenses',
+          'TRAVELLING EXP': 'Travelling Expenses',
+          'PRINTING & STATIONERY': 'Printing & Stationery',
+          'RAZORPAY': 'Bank Charges',
+          'TAX / GST': 'SA Tax Paid',
+          'MOHAN KALBURGI': 'Director Remuneration',
+          'UPAMNYU KALBURGI': 'Director Remuneration',
+          'TURYA MOHAN': 'Director Remuneration',
+          'DIVIDEND': 'Dividend Paid',
+          'MOBILE-ONE PLUS': 'Capital Expenditure (Mobile)',
+          'MACBOOK EMI': 'Capital Expenditure (Computer)',
+        };
+
+        // Build income items (Receipts by month)
+        const incomeItems: { name: string; amount: number }[] = [];
+        let totalIncome = 0;
+
+        // Build expense items (Payments mapped to categories)
+        const expenseBuckets: Record<string, number> = {};
+        let totalExpenses = 0;
+
+        for (const row of detailStats) {
+          const { ledgerName, voucherType } = row._id;
+          if (voucherType === 'Receipt') {
+            incomeItems.push({ name: ledgerName, amount: row.total });
+            totalIncome += row.total;
+          } else if (voucherType === 'Payment') {
+            const cat = EXPENSE_MAP[ledgerName] || ledgerName;
+            expenseBuckets[cat] = (expenseBuckets[cat] || 0) + row.total;
+            totalExpenses += row.total;
+          }
+          // Contra entries excluded from P&L
+        }
+
+        // Sort income by amount desc
+        incomeItems.sort((a, b) => b.amount - a.amount);
+
+        // Convert expense buckets to sorted array
+        const expenseItems = Object.entries(expenseBuckets)
+          .map(([name, amount]) => ({ name, amount: Math.round(amount * 100) / 100 }))
+          .sort((a, b) => b.amount - a.amount);
+
         if (totalIncome > 0 || totalExpenses > 0) {
           return NextResponse.json({
             success: true,
-            income: [{ name: 'Receipts (Bank Deposits)', amount: totalIncome, children: [{ name: 'Swar Yoga Income', amount: totalIncome }] }],
-            expenses: [{ name: 'Payments (Bank Withdrawals)', amount: totalExpenses, children: [{ name: 'Business Expenses', amount: totalExpenses }] }],
+            income: [{
+              name: 'Course Fees (Bank Deposits)',
+              amount: totalIncome,
+              children: incomeItems,
+            }],
+            expenses: [{
+              name: 'Business Expenses (Bank Withdrawals)',
+              amount: totalExpenses,
+              children: expenseItems,
+            }],
             totalIncome,
             totalExpenses,
             netProfit: totalIncome - totalExpenses,

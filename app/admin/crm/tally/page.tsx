@@ -1258,10 +1258,10 @@ export default function TallyPage() {
 
                   {/* Bank Statement Summary */}
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-                    <StatCard label="Opening Balance" value={fmt(bankSummary?.openingBalance || 0)} sub="Cr" icon={Building2} color="text-purple-400" bg="bg-purple-500/10" />
+                    <StatCard label="Opening Balance" value={fmt(bankSummary?.openingBalance || 0)} sub="Dr" icon={Building2} color="text-purple-400" bg="bg-purple-500/10" />
                     <StatCard label="Total Deposit Amt" value={fmt(bankSummary?.totalDeposits || 0)} sub={`${bankSummary?.depositCount || 0} Cr entries`} icon={ArrowDownLeft} color="text-green-400" bg="bg-green-500/10" />
                     <StatCard label="Total Withdrawal Amt" value={fmt(bankSummary?.totalWithdrawals || 0)} sub={`${bankSummary?.withdrawalCount || 0} Dr entries`} icon={ArrowUpRight} color="text-red-400" bg="bg-red-500/10" />
-                    <StatCard label="Closing Balance" value={fmt(bankSummary?.closingBalance || 0)} sub="Cr" icon={Wallet} color="text-blue-400" bg="bg-blue-500/10" />
+                    <StatCard label="Closing Balance" value={fmt(bankSummary?.closingBalance || 0)} sub="Dr" icon={Wallet} color="text-blue-400" bg="bg-blue-500/10" />
                     <div className={`p-4 rounded-xl border border-gray-800 ${dashProfitLoss >= 0 ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
                       <div className="flex items-center gap-2 mb-2">
                         <TrendingUp className={`w-5 h-5 ${dashProfitLoss >= 0 ? 'text-green-400' : 'text-red-400'}`} />
@@ -1367,17 +1367,17 @@ export default function TallyPage() {
                   {/* Quick stats from bankSummary or manualVoucherStats if available */}
                   {(bankSummary || Object.keys(manualVoucherStats).length > 0) && (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                      <StatCard label="Opening Balance" value={fmt(bankSummary?.openingBalance || 0)} sub="Cr" icon={Building2} color="text-purple-400" bg="bg-purple-500/10" />
+                      <StatCard label="Opening Balance" value={fmt(bankSummary?.openingBalance || 0)} sub="Dr" icon={Building2} color="text-purple-400" bg="bg-purple-500/10" />
                       <StatCard label="Total Deposit Amt" value={fmt(bankSummary?.totalDeposits || 0)} sub={`${bankSummary?.depositCount || 0} Cr entries`} icon={ArrowDownLeft} color="text-green-400" bg="bg-green-500/10" />
                       <StatCard label="Total Withdrawal Amt" value={fmt(bankSummary?.totalWithdrawals || 0)} sub={`${bankSummary?.withdrawalCount || 0} Dr entries`} icon={ArrowUpRight} color="text-red-400" bg="bg-red-500/10" />
-                      <StatCard label="Closing Balance" value={fmt(bankSummary?.closingBalance || 0)} sub="Cr" icon={Wallet} color="text-blue-400" bg="bg-blue-500/10" />
+                      <StatCard label="Closing Balance" value={fmt(bankSummary?.closingBalance || 0)} sub="Dr" icon={Wallet} color="text-blue-400" bg="bg-blue-500/10" />
                       <div className={`p-4 rounded-xl border border-gray-800 ${dashProfitLoss >= 0 ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
                         <div className="flex items-center gap-2 mb-2">
                           <TrendingUp className={`w-5 h-5 ${dashProfitLoss >= 0 ? 'text-green-400' : 'text-red-400'}`} />
                           <span className="text-xs text-gray-400 font-medium">{dashProfitLoss >= 0 ? 'Profit' : 'Loss'}</span>
                         </div>
                         <p className={`text-xl font-bold ${dashProfitLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fmt(Math.abs(dashProfitLoss))}</p>
-                        <p className="text-xs text-gray-500 mt-1">Deposits - Withdrawals</p>
+                        <p className="text-xs text-gray-500 mt-1">Income - Expenses</p>
                       </div>
                       <StatCard label="Participants" value={String(dashParticipants)} sub="registered users" icon={Users} color="text-yellow-400" bg="bg-yellow-500/10" />
                     </div>
