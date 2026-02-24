@@ -1611,7 +1611,7 @@ const userPlaylistAccessSchema = new mongoose.Schema({
   communityId: { type: String, required: true, index: true }, // e.g. 'swar-yoga-l1'
   userName: { type: String, trim: true }, // Cached display name
   allAccess: { type: Boolean, default: false }, // If true, user gets all playlists in this community
-  playlistIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'VideoPlaylist' }], // Specific playlists granted
+  playlistIds: [{ type: String }], // Composite keys: "folder|||playlist" derived from communityvideos tags
   updatedBy: { type: String, trim: true },
   updatedAt: { type: Date, default: Date.now },
   createdAt: { type: Date, default: Date.now },

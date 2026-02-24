@@ -43,15 +43,10 @@ interface Member {
 }
 
 interface Playlist {
-  _id: string;
-  name: string;
-  description?: string;
-  type: 'batch' | 'post';
-  workshopSlug?: string;
-  workshopName?: string;
-  batchNumber?: number;
-  year?: number;
-  month?: number;
+  _id: string;       // "folder|||playlist" composite key
+  name: string;      // "FOLDER > PLAYLIST" display name
+  folder: string;
+  playlist: string;
   videoCount: number;
 }
 
@@ -487,8 +482,6 @@ export default function RecordingManagementPage() {
                   <div className="space-y-2">
                     {modalPlaylists.map(playlist => {
                       const granted = isModalPlaylistGranted(playlist._id);
-                      const monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                      const monthLabel = playlist.month && playlist.year ? monthNames[playlist.month] + ' ' + playlist.year : '';
 
                       return (
                         <label
@@ -510,15 +503,9 @@ export default function RecordingManagementPage() {
                             className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 cursor-pointer disabled:opacity-50"
                           />
                           <div className="flex-1 min-w-0">
-                            <p className={'text-sm font-bold ' + (granted ? 'text-indigo-900' : 'text-gray-800')}>{playlist.name}</p>
+                            <p className={'text-sm font-bold ' + (granted ? 'text-indigo-900' : 'text-gray-800')}>{playlist.playlist}</p>
                             <div className="flex items-center gap-2 mt-0.5">
-                              {playlist.type === 'batch' && playlist.workshopName && (
-                                <span className="text-[10px] text-gray-400">{playlist.workshopName}</span>
-                              )}
-                              {playlist.batchNumber != null && (
-                                <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">Batch {playlist.batchNumber}</span>
-                              )}
-                              {monthLabel && <span className="text-[10px] text-gray-400">{monthLabel}</span>}
+                              <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">{playlist.folder}</span>
                               <span className="text-[10px] text-gray-400">{playlist.videoCount} video{playlist.videoCount !== 1 ? 's' : ''}</span>
                             </div>
                           </div>

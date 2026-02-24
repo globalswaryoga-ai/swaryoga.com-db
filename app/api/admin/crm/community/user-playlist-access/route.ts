@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, VideoPlaylist, UserPlaylistAccess, CommunityPlaylistAccess } from '@/lib/db';
+import { connectDB, getCommunityVideo, UserPlaylistAccess } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/admin/crm/community/user-playlist-access
- * Fetch playlists + user's current access for a given community
+ * Derives playlists from communityvideos tags (folder: / playlist:).
  * Query: ?communityId=swar-yoga-l1&userId=123456
  */
 export async function GET(request: NextRequest) {
@@ -29,47 +29,68 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'communityId and userId are required' }, { status: 400 });
     }
 
-    // Fetch community-level access (which playlists are available for this community)
-    const communityAccess = await CommunityPlaylistAccess.findOne({ communityId }).lean() as any;
-
-    // Fetch all active playlists
-    const allPlaylists = await VideoPlaylist.find({ status: { $ne: 'archived' } })
-      .sort({ type: 1, sortOrder: 1, name: 1 })
-      .select('_id name description type workshopSlug workshopName batchNumber year month videoCount status')
+    // Fetch all community videos for this community
+    const CommunityVideo = getCommunityVideo();
+    const videos = await CommunityVideo.find({ communityId })
+      .select('title tags createdAt')
+      .sort({ createdAt: -1 })
       .lean();
 
-    // Filter to only playlists this community has access to
-    let availablePlaylists;
-    if (communityAccess?.allAccess) {
-      availablePlaylists = allPlaylists;
-    } else if (communityAccess?.playlistIds?.length > 0) {
-      const accessIds = communityAccess.playlistIds.map((id: any) => id.toString());
-      availablePlaylists = allPlaylists.filter((p: any) => accessIds.includes(p._id.toString()));
-    } else {
-      // Community has no playlist access configured — show all playlists
-      availablePlaylists = allPlaylists;
+    // Derive playlists from tags & title structure
+    // Tags: ["folder:SWAR YOGA-FEB 2026-HINDI", "playlist:FEB-26 EVENING-(MONDAY) HINDI BATCH", "recording"]
+    // Title: "FOLDER > PLAYLIST > Video N"
+    const playlistMap: Record<string, { folder: string; playlist: string; videoCount: number }> = {};
+
+    for (const video of videos as any[]) {
+      let folder = '';
+      let playlist = '';
+
+      // Extract from tags first
+      if (Array.isArray(video.tags)) {
+        for (const tag of video.tags) {
+          if (typeof tag === 'string') {
+            if (tag.startsWith('folder:')) folder = tag.slice(7);
+            if (tag.startsWith('playlist:')) playlist = tag.slice(9);
+          }
+        }
+      }
+
+      // Fallback: extract from title (FOLDER > PLAYLIST > Video N)
+      if (!folder || !playlist) {
+        const parts = (video.title || '').split(' > ');
+        if (parts.length >= 2) {
+          folder = folder || parts[0].trim();
+          playlist = playlist || parts[1].trim();
+        }
+      }
+
+      if (!folder || !playlist) continue;
+
+      const key = `${folder}|||${playlist}`;
+      if (!playlistMap[key]) {
+        playlistMap[key] = { folder, playlist, videoCount: 0 };
+      }
+      playlistMap[key].videoCount++;
     }
+
+    // Build playlists array — use "folder|||playlist" as ID for checkbox tracking
+    const playlists = Object.entries(playlistMap).map(([key, data]) => ({
+      _id: key,
+      name: `${data.folder} > ${data.playlist}`,
+      folder: data.folder,
+      playlist: data.playlist,
+      videoCount: data.videoCount,
+    }));
 
     // Fetch user-level access
     const userAccess = await UserPlaylistAccess.findOne({ userId, communityId }).lean() as any;
 
     return NextResponse.json({
       success: true,
-      playlists: availablePlaylists.map((p: any) => ({
-        _id: p._id.toString(),
-        name: p.name,
-        description: p.description,
-        type: p.type,
-        workshopSlug: p.workshopSlug,
-        workshopName: p.workshopName,
-        batchNumber: p.batchNumber,
-        year: p.year,
-        month: p.month,
-        videoCount: p.videoCount || 0,
-      })),
+      playlists,
       userAccess: userAccess ? {
         allAccess: userAccess.allAccess || false,
-        playlistIds: (userAccess.playlistIds || []).map((id: any) => id.toString()),
+        playlistIds: userAccess.playlistIds || [],
       } : null,
     });
   } catch (error: any) {
