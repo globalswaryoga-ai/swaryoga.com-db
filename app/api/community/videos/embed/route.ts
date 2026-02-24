@@ -78,9 +78,9 @@ export async function GET(request: NextRequest) {
     await CommunityVideo.findByIdAndUpdate(videoDbId, { $inc: { views: 1 } });
 
     // Build the embed URL — this only exists in the server-rendered HTML
-    const embedUrl = `https://www.youtube-nocookie.com/embed/${video.youtubeVideoId}?modestbranding=1&rel=0&showinfo=0&iv_load_policy=3&disablekb=1&playsinline=1`;
+    const embedUrl = `https://www.youtube-nocookie.com/embed/${video.youtubeVideoId}?autoplay=1&modestbranding=1&rel=0&showinfo=0&iv_load_policy=3&cc_load_policy=0&fs=0&disablekb=0&playsinline=1&controls=1`;
 
-    // Return HTML page with the YouTube embed
+    // Return HTML page with the YouTube embed + branding overlays
     const html = `<!DOCTYPE html>
 <html>
 <head>
@@ -91,9 +91,14 @@ export async function GET(request: NextRequest) {
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+    .player-wrap { position: relative; width: 100%; height: 100%; }
     iframe { width: 100%; height: 100%; border: none; }
     /* Block text selection and drag */
     body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+    /* Black bars to hide YouTube branding */
+    .cover-top-right { position:absolute; top:0; right:0; width:120px; height:50px; background:#000; z-index:10; pointer-events:none; }
+    .cover-top-left { position:absolute; top:0; left:0; right:120px; height:30px; background:#000; z-index:10; pointer-events:none; }
+    .cover-bottom-right { position:absolute; bottom:0; right:0; width:220px; height:40px; background:#000; z-index:10; pointer-events:none; }
   </style>
   <script>
     // Disable right-click
@@ -108,12 +113,17 @@ export async function GET(request: NextRequest) {
   </script>
 </head>
 <body>
-  <iframe
-    src="${embedUrl}"
-    allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
-    referrerpolicy="no-referrer"
-    sandbox="allow-scripts allow-same-origin allow-presentation"
-  ></iframe>
+  <div class="player-wrap">
+    <iframe
+      src="${embedUrl}"
+      allow="accelerometer; autoplay; encrypted-media; gyroscope"
+      referrerpolicy="no-referrer"
+      sandbox="allow-scripts allow-same-origin allow-presentation"
+    ></iframe>
+    <div class="cover-top-right"></div>
+    <div class="cover-top-left"></div>
+    <div class="cover-bottom-right"></div>
+  </div>
 </body>
 </html>`;
 

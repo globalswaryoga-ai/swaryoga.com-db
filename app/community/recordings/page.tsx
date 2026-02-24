@@ -344,28 +344,25 @@ export default function RecordingsPage() {
                 ✕ Close
               </button>
               <div className="bg-black rounded-xl overflow-hidden" onContextMenu={(e) => e.preventDefault()}>
-                {playingVideo.videoSource === 'youtube' && playingVideo.youtubeVideoId ? (
+                {playingVideo.videoSource === 'youtube' && playingVideo._id ? (
                   <div
                     ref={videoContainerRef}
                     className={'relative w-full overflow-hidden bg-black' + (isFullscreen ? ' flex items-center justify-center' : '')}
                     style={isFullscreen ? { width: '100vw', height: '100vh' } : { paddingBottom: '56.25%' }}
                   >
+                    {/* Secure proxy embed — YouTube ID never reaches client */}
                     <iframe
-                      src={`https://www.youtube-nocookie.com/embed/${playingVideo.youtubeVideoId}?autoplay=1&rel=0&modestbranding=1&showinfo=0&iv_load_policy=3&cc_load_policy=0&fs=0&controls=1&disablekb=0&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
+                      src={`/api/community/videos/embed?v=${playingVideo._id}&token=${typeof window !== 'undefined' ? localStorage.getItem('token') || '' : ''}`}
                       className={isFullscreen ? 'w-full h-full' : 'absolute inset-0 w-full h-full'}
                       style={{ border: 'none' }}
                       allow="accelerometer; autoplay; encrypted-media; gyroscope"
+                      referrerPolicy="no-referrer"
+                      sandbox="allow-scripts allow-same-origin allow-presentation"
                     />
-                    {/* Cover top-right (share/watch later buttons when paused) */}
-                    <div className="absolute top-0 right-0 w-[120px] h-[50px] bg-black z-10 pointer-events-none" />
-                    {/* Cover top-left (video title when paused) */}
-                    <div className="absolute top-0 left-0 right-[120px] h-[30px] bg-black z-10 pointer-events-none" />
-                    {/* Cover CC, Settings gear, YouTube logo, and YT fullscreen — bottom right */}
-                    <div className="absolute bottom-0 right-0 w-[220px] h-[36px] bg-black z-10 pointer-events-none" />
                     {/* Our own fullscreen button — bottom right corner */}
                     <button
                       onClick={toggleFullscreen}
-                      className="absolute bottom-[2px] right-[2px] z-20 w-[40px] h-[32px] flex items-center justify-center bg-black/80 hover:bg-black text-white rounded transition-colors"
+                      className="absolute bottom-[6px] right-[6px] z-20 w-[42px] h-[34px] flex items-center justify-center bg-black/90 hover:bg-white/20 text-white rounded-md transition-colors border border-white/10"
                       title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
                     >
                       {isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
