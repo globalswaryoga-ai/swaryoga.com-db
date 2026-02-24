@@ -83,6 +83,8 @@ export async function GET(request: NextRequest) {
         recordingType: v.recordingType,
         tags: v.tags || [],
         views: v.views || 0,
+        likes: Array.isArray(v.likes) ? v.likes : [],
+        comments: Array.isArray(v.comments) ? v.comments : [],
         createdAt: v.createdAt,
         recordedAt: v.recordedAt,
         uploadedBy: v.uploadedBy,

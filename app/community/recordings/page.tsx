@@ -2,14 +2,23 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, ArrowRight, Play, Calendar, Lock, Users, Video } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Play, Calendar, Lock, Users, Video, Heart, MessageCircle, Send, X } from 'lucide-react';
+
+interface RecordingComment {
+  userId: string;
+  userName?: string;
+  text: string;
+  createdAt?: string;
+}
 
 interface Recording {
   _id: string;
   title: string;
   description?: string;
   thumbnailUrl?: string;
-  s3Url?: string;
+  videoUrl?: string;
+  videoSource?: string;
+  youtubeVideoId?: string;
   duration?: number;
   recordingType?: string;
   zoomMeetingId?: string;
@@ -18,7 +27,9 @@ interface Recording {
   communityId?: string;
   communityName?: string;
   isPublic?: boolean;
-  viewCount?: number;
+  views?: number;
+  likes?: string[];
+  comments?: RecordingComment[];
 }
 
 interface Community {
@@ -47,6 +58,11 @@ export default function RecordingsPage() {
   const [playingVideo, setPlayingVideo] = useState<Recording | null>(null);
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [selectedPlaylist, setSelectedPlaylist] = useState<string | null>(null);
+  const [showCommentModal, setShowCommentModal] = useState(false);
+  const [commentVideo, setCommentVideo] = useState<Recording | null>(null);
+  const [commentText, setCommentText] = useState('');
+  const [submittingComment, setSubmittingComment] = useState(false);
+  const [likingVideoId, setLikingVideoId] = useState<string | null>(null);
 
   useEffect(() => {
     checkAuth();
@@ -101,6 +117,87 @@ export default function RecordingsPage() {
       if (data.success) {
         setCommunities(data.communities || []);
       }
+    } catch {}
+  };
+
+  const getUserId = (): string => {
+    if (user?._id) return user._id;
+    if (user?.id) return user.id;
+    if (user?.mobile) return user.mobile;
+    if (user?.email) return user.email;
+    return 'anonymous';
+  };
+
+  const getUserName = (): string => {
+    if (user?.name) return user.name;
+    if (user?.firstName) return `${user.firstName} ${user.lastName || ''}`.trim();
+    return 'Member';
+  };
+
+  const handleLike = async (videoId: string) => {
+    if (!user) return;
+    setLikingVideoId(videoId);
+    try {
+      const res = await fetch('/api/community/recordings/interact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ videoId, action: 'like', userId: getUserId() }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setRecordings(prev => prev.map(r =>
+          r._id === videoId ? { ...r, likes: data.likes } : r
+        ));
+      }
+    } catch (err) {
+      console.error('Like error:', err);
+    } finally {
+      setLikingVideoId(null);
+    }
+  };
+
+  const handleComment = async () => {
+    if (!user || !commentVideo || !commentText.trim()) return;
+    setSubmittingComment(true);
+    try {
+      const res = await fetch('/api/community/recordings/interact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          videoId: commentVideo._id,
+          action: 'comment',
+          userId: getUserId(),
+          userName: getUserName(),
+          text: commentText.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setRecordings(prev => prev.map(r =>
+          r._id === commentVideo._id ? { ...r, comments: data.comments } : r
+        ));
+        setCommentVideo(prev => prev ? { ...prev, comments: data.comments } : null);
+        setCommentText('');
+      }
+    } catch (err) {
+      console.error('Comment error:', err);
+    } finally {
+      setSubmittingComment(false);
+    }
+  };
+
+  const handlePlayVideo = async (recording: Recording) => {
+    setPlayingVideo(recording);
+    // Increment view count
+    try {
+      await fetch('/api/community/recordings/interact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ videoId: recording._id, action: 'view' }),
+      });
+      setRecordings(prev => prev.map(r =>
+        r._id === recording._id ? { ...r, views: (r.views || 0) + 1 } : r
+      ));
     } catch {}
   };
 
@@ -228,15 +325,28 @@ export default function RecordingsPage() {
                 ✕ Close
               </button>
               <div className="bg-black rounded-xl overflow-hidden" onContextMenu={(e) => e.preventDefault()}>
-                <video
-                  src={playingVideo.s3Url}
-                  controls
-                  autoPlay
-                  className="w-full aspect-video"
-                  controlsList="nodownload nofullscreen noremoteplayback"
-                  disablePictureInPicture
-                  onContextMenu={(e) => e.preventDefault()}
-                />
+                {playingVideo.videoSource === 'youtube' && playingVideo.youtubeVideoId ? (
+                  <iframe
+                    src={`https://www.youtube.com/embed/${playingVideo.youtubeVideoId}?autoplay=1&rel=0`}
+                    className="w-full aspect-video"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                ) : playingVideo.videoUrl ? (
+                  <video
+                    src={playingVideo.videoUrl}
+                    controls
+                    autoPlay
+                    className="w-full aspect-video"
+                    controlsList="nodownload noremoteplayback"
+                    disablePictureInPicture
+                    onContextMenu={(e) => e.preventDefault()}
+                  />
+                ) : (
+                  <div className="w-full aspect-video flex items-center justify-center text-white">
+                    <p>Video unavailable</p>
+                  </div>
+                )}
                 <div className="p-4 bg-gray-900">
                   <h3 className="text-white font-semibold">
                     {playingVideo.title?.split(' > ').pop() || playingVideo.title}
@@ -386,7 +496,7 @@ export default function RecordingsPage() {
                           {/* Video thumbnail */}
                           <div
                             className="aspect-video relative overflow-hidden cursor-pointer"
-                            onClick={() => canPlay ? setPlayingVideo(recording) : null}
+                            onClick={() => canPlay ? handlePlayVideo(recording) : null}
                           >
                             {recording.thumbnailUrl ? (
                               <img
@@ -437,16 +547,39 @@ export default function RecordingsPage() {
                             {recording.description && (
                               <p className="text-slate-500 text-sm mb-3 line-clamp-2">{recording.description}</p>
                             )}
-                            <div className="flex items-center gap-4 text-sm text-slate-400">
-                              {recording.recordedAt && (
-                                <span className="flex items-center gap-1">
-                                  <Calendar className="w-3.5 h-3.5" />
-                                  {formatDate(recording.recordedAt)}
-                                </span>
-                              )}
-                              {recording.viewCount !== undefined && recording.viewCount > 0 && (
-                                <span>{recording.viewCount} views</span>
-                              )}
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3 text-sm text-slate-400">
+                                {recording.recordedAt && (
+                                  <span className="flex items-center gap-1">
+                                    <Calendar className="w-3.5 h-3.5" />
+                                    {formatDate(recording.recordedAt)}
+                                  </span>
+                                )}
+                                <span>{recording.views || 0} views</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleLike(recording._id); }}
+                                  disabled={!user || likingVideoId === recording._id}
+                                  className={`p-2 rounded-lg transition-all flex items-center gap-1 text-sm ${
+                                    user && Array.isArray(recording.likes) && recording.likes.includes(getUserId())
+                                      ? 'text-red-500'
+                                      : 'text-slate-400 hover:text-red-500'
+                                  } ${!user ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                  title={user ? 'Like' : 'Login to like'}
+                                >
+                                  <Heart size={16} className={Array.isArray(recording.likes) && recording.likes.includes(getUserId()) ? 'fill-red-500' : ''} />
+                                  <span className="text-xs">{Array.isArray(recording.likes) ? recording.likes.length : 0}</span>
+                                </button>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setCommentVideo(recording); setShowCommentModal(true); }}
+                                  className="p-2 text-slate-400 hover:text-emerald-500 rounded-lg transition-all flex items-center gap-1 text-sm"
+                                  title="Comments"
+                                >
+                                  <MessageCircle size={16} />
+                                  <span className="text-xs">{Array.isArray(recording.comments) ? recording.comments.length : 0}</span>
+                                </button>
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -472,6 +605,83 @@ export default function RecordingsPage() {
           </div>
         )}
       </main>
+
+      {/* Comment Modal */}
+      {showCommentModal && commentVideo && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full sm:max-w-lg max-h-[85vh] flex flex-col overflow-hidden shadow-2xl">
+            {/* Header */}
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between shrink-0">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Comments</h3>
+                <p className="text-xs text-slate-500">{commentVideo.title?.split(' > ').pop()}</p>
+              </div>
+              <button
+                onClick={() => { setShowCommentModal(false); setCommentVideo(null); setCommentText(''); }}
+                className="p-2 hover:bg-slate-100 rounded-xl transition-all"
+              >
+                <X size={20} className="text-slate-500" />
+              </button>
+            </div>
+
+            {/* Comments list */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              {Array.isArray(commentVideo.comments) && commentVideo.comments.length > 0 ? (
+                commentVideo.comments.map((comment, index) => (
+                  <div key={index} className="flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                      {(comment.userName || comment.userId || 'M').charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-sm font-semibold text-slate-800">{comment.userName || 'Member'}</span>
+                        <span className="text-[10px] text-slate-400">
+                          {comment.createdAt ? new Date(comment.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : ''}
+                        </span>
+                      </div>
+                      <p className="text-sm text-slate-600">{comment.text}</p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-10">
+                  <MessageCircle className="w-10 h-10 text-slate-200 mx-auto mb-3" />
+                  <p className="text-sm text-slate-400">No comments yet. Be the first!</p>
+                </div>
+              )}
+            </div>
+
+            {/* Comment input */}
+            {user ? (
+              <div className="p-4 border-t border-slate-100 shrink-0">
+                <div className="flex items-center gap-3">
+                  <input
+                    type="text"
+                    value={commentText}
+                    onChange={(e) => setCommentText(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && commentText.trim()) handleComment(); }}
+                    placeholder="Write a comment..."
+                    className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  />
+                  <button
+                    onClick={handleComment}
+                    disabled={!commentText.trim() || submittingComment}
+                    className="p-2.5 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Send size={18} />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 border-t border-slate-100 text-center shrink-0">
+                <p className="text-sm text-slate-500">
+                  <Link href="/community" className="text-emerald-600 font-semibold hover:underline">Join the community</Link> to comment
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
+import { getProtectedUrl } from '@/lib/aws-s3';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,22 +33,47 @@ export async function GET(request: NextRequest) {
       communities.map((c: any) => [c._id.toString(), c.name])
     );
 
-    const recordings = videos.map((v: any) => ({
-      _id: v._id.toString(),
-      title: v.title || 'Untitled Recording',
-      description: v.description,
-      thumbnailUrl: v.thumbnailUrl,
-      s3Url: v.s3Url,
-      duration: v.duration,
-      recordingType: v.recordingType,
-      zoomMeetingId: v.zoomMeetingId,
-      recordedAt: v.recordedAt,
-      createdAt: v.createdAt,
-      communityId: v.communityId?.toString(),
-      communityName: v.communityId ? communityMap.get(v.communityId.toString()) : 'General',
-      isPublic: v.isCommon || false, // Common videos are public
-      viewCount: v.viewCount || 0,
-    }));
+    // Generate signed URLs for S3 videos
+    const recordings = await Promise.all(
+      videos.map(async (v: any) => {
+        let videoUrl = null;
+
+        // Generate signed URL for S3 videos
+        if (v.s3Key) {
+          try {
+            videoUrl = await getProtectedUrl(v.s3Key, 'community', 3600);
+          } catch (err) {
+            console.error(`[Recordings] Failed to sign URL for ${v._id}:`, err);
+          }
+        }
+
+        // For YouTube recordings, use embed proxy
+        if (v.videoSource === 'youtube' && v.youtubeVideoId) {
+          videoUrl = `/api/community/videos/embed?v=${v._id}`;
+        }
+
+        return {
+          _id: v._id.toString(),
+          title: v.title || 'Untitled Recording',
+          description: v.description,
+          thumbnailUrl: v.thumbnailUrl,
+          videoUrl,
+          videoSource: v.videoSource || 'aws',
+          youtubeVideoId: v.youtubeVideoId,
+          duration: v.duration,
+          recordingType: v.recordingType,
+          zoomMeetingId: v.zoomMeetingId,
+          recordedAt: v.recordedAt,
+          createdAt: v.createdAt,
+          communityId: v.communityId?.toString(),
+          communityName: v.communityId ? communityMap.get(v.communityId.toString()) : 'General',
+          isPublic: v.isCommon || false,
+          views: v.views || 0,
+          likes: Array.isArray(v.likes) ? v.likes : [],
+          comments: Array.isArray(v.comments) ? v.comments : [],
+        };
+      })
+    );
 
     // Get recording counts per community
     const communitiesWithCounts = communities.map((c: any) => ({
