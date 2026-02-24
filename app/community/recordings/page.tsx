@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, ArrowRight, Play, Calendar, Lock, Users, Video, Heart, MessageCircle, Send, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Play, Calendar, Lock, Users, Video, Heart, MessageCircle, Send, X, Maximize, Minimize } from 'lucide-react';
 
 interface RecordingComment {
   userId: string;
@@ -63,6 +63,25 @@ export default function RecordingsPage() {
   const [commentText, setCommentText] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
   const [likingVideoId, setLikingVideoId] = useState<string | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const videoContainerRef = useRef<HTMLDivElement>(null);
+
+  // Toggle fullscreen on the container div so overlays stay visible
+  const toggleFullscreen = useCallback(() => {
+    if (!videoContainerRef.current) return;
+    if (!document.fullscreenElement) {
+      videoContainerRef.current.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  }, []);
+
+  // Listen for fullscreen changes
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', handler);
+    return () => document.removeEventListener('fullscreenchange', handler);
+  }, []);
 
   useEffect(() => {
     checkAuth();
@@ -326,20 +345,31 @@ export default function RecordingsPage() {
               </button>
               <div className="bg-black rounded-xl overflow-hidden" onContextMenu={(e) => e.preventDefault()}>
                 {playingVideo.videoSource === 'youtube' && playingVideo.youtubeVideoId ? (
-                  <div className="relative w-full overflow-hidden" style={{ paddingBottom: '56.25%' }}>
+                  <div
+                    ref={videoContainerRef}
+                    className={'relative w-full overflow-hidden bg-black' + (isFullscreen ? ' flex items-center justify-center' : '')}
+                    style={isFullscreen ? { width: '100vw', height: '100vh' } : { paddingBottom: '56.25%' }}
+                  >
                     <iframe
-                      src={`https://www.youtube-nocookie.com/embed/${playingVideo.youtubeVideoId}?autoplay=1&rel=0&modestbranding=1&showinfo=0&iv_load_policy=3&cc_load_policy=0&fs=1&controls=1&disablekb=0&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
-                      className="absolute inset-0 w-full h-full"
+                      src={`https://www.youtube-nocookie.com/embed/${playingVideo.youtubeVideoId}?autoplay=1&rel=0&modestbranding=1&showinfo=0&iv_load_policy=3&cc_load_policy=0&fs=0&controls=1&disablekb=0&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
+                      className={isFullscreen ? 'w-full h-full' : 'absolute inset-0 w-full h-full'}
                       style={{ border: 'none' }}
-                      allow="accelerometer; autoplay; encrypted-media; gyroscope; fullscreen"
-                      allowFullScreen
+                      allow="accelerometer; autoplay; encrypted-media; gyroscope"
                     />
                     {/* Cover top-right (share/watch later buttons when paused) */}
                     <div className="absolute top-0 right-0 w-[120px] h-[50px] bg-black z-10 pointer-events-none" />
                     {/* Cover top-left (video title when paused) */}
                     <div className="absolute top-0 left-0 right-[120px] h-[30px] bg-black z-10 pointer-events-none" />
-                    {/* Cover CC, Settings gear, YouTube logo — between scrub bar and fullscreen button */}
-                    <div className="absolute bottom-0 right-[46px] w-[180px] h-[36px] bg-black z-10 pointer-events-none" />
+                    {/* Cover CC, Settings gear, YouTube logo, and YT fullscreen — bottom right */}
+                    <div className="absolute bottom-0 right-0 w-[220px] h-[36px] bg-black z-10 pointer-events-none" />
+                    {/* Our own fullscreen button — bottom right corner */}
+                    <button
+                      onClick={toggleFullscreen}
+                      className="absolute bottom-[2px] right-[2px] z-20 w-[40px] h-[32px] flex items-center justify-center bg-black/80 hover:bg-black text-white rounded transition-colors"
+                      title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+                    >
+                      {isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
+                    </button>
                   </div>
                 ) : playingVideo.videoUrl ? (
                   <video
