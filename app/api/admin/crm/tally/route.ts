@@ -96,11 +96,12 @@ export async function GET(request: NextRequest) {
         const fy = searchParams.get('fy') || '2024-25';
 
         // CA-audited P&L figures (final filed numbers)
+        // Depreciation NOT included — CA hasn't finalized FY 2024-25 yet
         const CA_PL: Record<string, any> = {
           '2024-25': {
             totalIncome: 515717,
-            totalExpenses: 627048,
-            netProfit: -111331,
+            totalExpenses: 579395,
+            netProfit: -63678,
             income: [{
               name: 'Income',
               amount: 515717,
@@ -112,28 +113,15 @@ export async function GET(request: NextRequest) {
                 { name: 'Light Bill + Interest', amount: 4475 },
               ],
             }],
-            expenses: [
-              {
-                name: 'Operating Expenses',
-                amount: 530886,
-                children: [
-                  { name: 'All Other Overheads', amount: 419886 },
-                  { name: 'Director Remuneration (Mohan)', amount: 75000 },
-                  { name: 'Staff Salary (Upamnyu 3K×12)', amount: 36000 },
-                ],
-              },
-              {
-                name: 'Depreciation',
-                amount: 96162,
-                children: [
-                  { name: 'Computer', amount: 70836 },
-                  { name: 'Apple 15 (Mobile)', amount: 14688 },
-                  { name: 'Machinery & Equipment', amount: 5902 },
-                  { name: 'Software', amount: 2645 },
-                  { name: 'Furniture', amount: 2091 },
-                ],
-              },
-            ],
+            expenses: [{
+              name: 'Expenses',
+              amount: 579395,
+              children: [
+                { name: 'All Other Overheads', amount: 468395 },
+                { name: 'Mohan Salary (Oct, one-time)', amount: 75000 },
+                { name: 'Upamnyu Salary (3K × 12)', amount: 36000 },
+              ],
+            }],
           },
         };
 
@@ -279,7 +267,7 @@ export async function GET(request: NextRequest) {
 
         // Use CA-audited profit/loss for known FYs
         const CA_PROFIT_LOSS: Record<string, number> = {
-          '2024-25': -111331,  // Net Loss Rs 1,11,331
+          '2024-25': -63678,  // Net Loss Rs 63,678 (without depreciation)
         };
         const profitLoss = CA_PROFIT_LOSS[fy] ?? (totalReceipts - totalPayments);
 
