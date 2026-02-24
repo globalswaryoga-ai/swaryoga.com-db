@@ -350,16 +350,17 @@ export default function RecordingsPage() {
                     className={'relative w-full overflow-hidden bg-black' + (isFullscreen ? ' flex items-center justify-center' : '')}
                     style={isFullscreen ? { width: '100vw', height: '100vh' } : { paddingBottom: '56.25%' }}
                   >
-                    {/* Secure proxy embed — YouTube ID never reaches client */}
+                    {/* Secure video proxy — no YouTube reference reaches the client */}
                     <iframe
                       src={`/api/community/videos/embed?v=${playingVideo._id}&token=${typeof window !== 'undefined' ? localStorage.getItem('token') || '' : ''}`}
                       className={isFullscreen ? 'w-full h-full' : 'absolute inset-0 w-full h-full'}
                       style={{ border: 'none' }}
-                      allow="accelerometer; autoplay; encrypted-media; gyroscope"
+                      allow="accelerometer; autoplay; encrypted-media; gyroscope; fullscreen"
+                      allowFullScreen
                       referrerPolicy="no-referrer"
                       sandbox="allow-scripts allow-same-origin allow-presentation"
                     />
-                    {/* Our own fullscreen button — bottom right corner */}
+                    {/* Outer fullscreen button (backup) */}
                     <button
                       onClick={toggleFullscreen}
                       className="absolute bottom-[6px] right-[6px] z-20 w-[42px] h-[34px] flex items-center justify-center bg-black/90 hover:bg-white/20 text-white rounded-md transition-colors border border-white/10"

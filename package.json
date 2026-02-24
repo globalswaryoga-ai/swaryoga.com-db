@@ -51,6 +51,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.975.0",
     "@aws-sdk/s3-request-presigner": "^3.958.0",
+    "@distube/ytdl-core": "^4.16.12",
     "@react-pdf/renderer": "^4.3.1",
     "@supabase/supabase-js": "^2.88.0",
     "@types/pdfkit": "^0.17.4",

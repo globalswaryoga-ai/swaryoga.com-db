@@ -63,6 +63,10 @@ const nextConfig = {
   compress: true,
   poweredByHeader: false,
   productionBrowserSourceMaps: false,
+  experimental: {
+    // Keep @distube/ytdl-core out of webpack bundle (modern syntax Terser can't parse)
+    serverComponentsExternalPackages: ['@distube/ytdl-core'],
+  },
   async headers() {
     return [
       {
