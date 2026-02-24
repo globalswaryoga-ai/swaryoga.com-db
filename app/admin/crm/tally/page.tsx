@@ -598,7 +598,9 @@ export default function TallyPage() {
       // Try profitloss API (Tally Prime first, then voucher fallback)
       const res = await fetch(`/api/admin/crm/tally?action=profitloss&from=${f.from}&to=${f.to}&fy=${selectedFY}`, { headers: headers() });
       const data = await res.json();
-      if (data.success && (data.income?.length > 0 || data.expenses?.length > 0)) {
+      // Only accept data if it has real non-zero amounts (not just empty Tally structure)
+      if (data.success && (data.totalIncome > 0 || data.totalExpenses > 0 ||
+          data.income?.some((g: any) => g.amount > 0) || data.expenses?.some((g: any) => g.amount > 0))) {
         setPlData(data);
         setLoading(false);
         return;

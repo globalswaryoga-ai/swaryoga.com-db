@@ -96,7 +96,10 @@ export async function GET(request: NextRequest) {
         const fy = searchParams.get('fy') || '2024-25';
         try {
           const pl = await fetchProfitAndLoss(from, to);
-          if (pl && ((pl as any).income?.length > 0 || (pl as any).expenses?.length > 0)) {
+          const plAny = pl as any;
+          // Only use Tally data if it has real non-zero amounts (not just empty structure)
+          if (pl && ((plAny.totalIncome > 0 || plAny.totalExpenses > 0) ||
+              (plAny.income?.some((g: any) => g.amount > 0) || plAny.expenses?.some((g: any) => g.amount > 0)))) {
             return NextResponse.json({ success: true, ...pl });
           }
         } catch { /* Tally not connected, fall back to voucher data */ }
