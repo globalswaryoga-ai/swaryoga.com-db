@@ -1581,5 +1581,26 @@ playlistVideoSchema.index({ tags: 1 });
 
 export const PlaylistVideo = mongoose.models.PlaylistVideo || mongoose.model('PlaylistVideo', playlistVideoSchema);
 
+// ==================== COMMUNITY PLAYLIST ACCESS SCHEMA ====================
+// Maps which playlists each community can access (for recording management)
+
+const communityPlaylistAccessSchema = new mongoose.Schema({
+  communityId: { type: String, required: true, unique: true, index: true }, // e.g. 'swar-yoga-l1', 'youth'
+  communityName: { type: String, trim: true }, // Cached display name
+  allAccess: { type: Boolean, default: false }, // If true, community gets all playlists
+  playlistIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'VideoPlaylist' }], // Specific playlists granted
+  updatedBy: { type: String, trim: true },
+  updatedAt: { type: Date, default: Date.now },
+  createdAt: { type: Date, default: Date.now },
+});
+
+communityPlaylistAccessSchema.index({ communityId: 1 });
+
+export const CommunityPlaylistAccess = mongoose.models.CommunityPlaylistAccess || mongoose.model('CommunityPlaylistAccess', communityPlaylistAccessSchema);
+
+export function getCommunityPlaylistAccess() {
+  return mongoose.models.CommunityPlaylistAccess || mongoose.model('CommunityPlaylistAccess', communityPlaylistAccessSchema);
+}
+
 // Default export for backward compatibility
 export default connectDB;

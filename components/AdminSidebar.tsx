@@ -284,6 +284,12 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
       color: 'text-teal-500',
     },
     {
+      icon: Video,
+      label: 'Recordings Mgmt',
+      href: '/admin/crm/recording-management',
+      color: 'text-indigo-500',
+    },
+    {
       icon: Building2,
       label: 'Tally Prime',
       href: '/admin/crm/tally',
