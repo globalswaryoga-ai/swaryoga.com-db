@@ -2380,9 +2380,14 @@ export default function AdminCommunityPage() {
                                   {playlistName}
                                 </h3>
                                 <div className="flex items-center justify-between">
-                                  <span className="text-slate-400 text-sm">
-                                    {playlistVideos.length} recordings
-                                  </span>
+                                  <div className="flex items-center gap-3">
+                                    <span className="text-slate-400 text-sm">
+                                      {playlistVideos.length} recordings
+                                    </span>
+                                    <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                                      👁 {playlistVideos.reduce((sum: number, v: any) => sum + (v.views || 0), 0)} views
+                                    </span>
+                                  </div>
                                   <button className="px-4 py-2 bg-emerald-500/20 text-emerald-400 rounded-xl text-sm font-bold group-hover:bg-emerald-500 group-hover:text-white transition-all flex items-center gap-2">
                                     Play Now <ArrowRight size={16} />
                                   </button>
@@ -2467,9 +2472,14 @@ export default function AdminCommunityPage() {
                                   <p className="text-slate-400 text-sm mb-3 line-clamp-2">{recording.description}</p>
                                 )}
                                 <div className="flex items-center justify-between">
-                                  <span className="text-slate-500 text-xs">
-                                    {new Date(recording.createdAt).toLocaleDateString()}
-                                  </span>
+                                  <div className="flex items-center gap-3">
+                                    <span className="text-slate-500 text-xs">
+                                      {new Date(recording.createdAt).toLocaleDateString()}
+                                    </span>
+                                    <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                      👁 {recording.views || 0} views
+                                    </span>
+                                  </div>
                                   <div className="flex gap-1">
                                     <button
                                       onClick={(e) => { e.stopPropagation(); openEditVideoModal(recording); }}
