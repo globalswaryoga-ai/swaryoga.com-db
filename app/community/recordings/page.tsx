@@ -338,6 +338,8 @@ export default function RecordingsPage() {
                     <div className="absolute top-0 right-0 w-[120px] h-[50px] bg-black z-10 pointer-events-none" />
                     {/* Cover top-left (video title when paused) */}
                     <div className="absolute top-0 left-0 right-[120px] h-[30px] bg-black z-10 pointer-events-none" />
+                    {/* Cover CC, Settings gear, YouTube logo — between scrub bar and fullscreen button */}
+                    <div className="absolute bottom-0 right-[46px] w-[180px] h-[36px] bg-black z-10 pointer-events-none" />
                   </div>
                 ) : playingVideo.videoUrl ? (
                   <video
