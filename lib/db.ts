@@ -1602,5 +1602,29 @@ export function getCommunityPlaylistAccess() {
   return mongoose.models.CommunityPlaylistAccess || mongoose.model('CommunityPlaylistAccess', communityPlaylistAccessSchema);
 }
 
+// ==================== USER PLAYLIST ACCESS SCHEMA ====================
+// Per-user override: which playlists a specific user can access in a community
+
+const userPlaylistAccessSchema = new mongoose.Schema({
+  userId: { type: String, required: true, index: true }, // CommunityMember userId (6-digit)
+  mobile: { type: String, trim: true, index: true }, // Phone number for lookup
+  communityId: { type: String, required: true, index: true }, // e.g. 'swar-yoga-l1'
+  userName: { type: String, trim: true }, // Cached display name
+  allAccess: { type: Boolean, default: false }, // If true, user gets all playlists in this community
+  playlistIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'VideoPlaylist' }], // Specific playlists granted
+  updatedBy: { type: String, trim: true },
+  updatedAt: { type: Date, default: Date.now },
+  createdAt: { type: Date, default: Date.now },
+});
+
+userPlaylistAccessSchema.index({ userId: 1, communityId: 1 }, { unique: true });
+userPlaylistAccessSchema.index({ mobile: 1, communityId: 1 });
+
+export const UserPlaylistAccess = mongoose.models.UserPlaylistAccess || mongoose.model('UserPlaylistAccess', userPlaylistAccessSchema);
+
+export function getUserPlaylistAccess() {
+  return mongoose.models.UserPlaylistAccess || mongoose.model('UserPlaylistAccess', userPlaylistAccessSchema);
+}
+
 // Default export for backward compatibility
 export default connectDB;
