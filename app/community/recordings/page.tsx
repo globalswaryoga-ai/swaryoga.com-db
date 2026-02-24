@@ -463,6 +463,11 @@ export default function RecordingsPage() {
                         <h4 className="font-bold text-slate-900 text-lg mb-2 group-hover:text-emerald-600 transition-colors line-clamp-2">
                           {playlistName}
                         </h4>
+                        <div className="flex items-center gap-3 text-sm text-slate-400 mb-3">
+                          <span>{playlistVideos.reduce((s: number, v: Recording) => s + (v.views || 0), 0)} views</span>
+                          <span className="flex items-center gap-1"><Heart className="w-3.5 h-3.5" /> {playlistVideos.reduce((s: number, v: Recording) => s + (Array.isArray(v.likes) ? v.likes.length : 0), 0)}</span>
+                          <span className="flex items-center gap-1"><MessageCircle className="w-3.5 h-3.5" /> {playlistVideos.reduce((s: number, v: Recording) => s + (Array.isArray(v.comments) ? v.comments.length : 0), 0)}</span>
+                        </div>
                         <div className="flex items-center justify-between">
                           <span className="text-slate-500 text-sm">
                             {playlistVideos.length} {playlistVideos.length === 1 ? 'recording' : 'recordings'}
