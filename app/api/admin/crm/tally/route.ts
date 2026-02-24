@@ -28,6 +28,8 @@ import {
   fetchBalanceSheet,
 } from '@/lib/tally/tallyPrimeAPI';
 import { runTallyAutoSync, getLastSyncInfo } from '@/lib/tally/tallyAutoSync';
+import { getTallyManualVoucher } from '@/lib/schemas/enterpriseSchemas';
+import mongoose from 'mongoose';
 
 function unauthorized() {
   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -91,8 +93,32 @@ export async function GET(request: NextRequest) {
       case 'profitloss': {
         const from = searchParams.get('from') || undefined;
         const to = searchParams.get('to') || undefined;
-        const pl = await fetchProfitAndLoss(from, to);
-        return NextResponse.json({ success: true, ...pl });
+        const fy = searchParams.get('fy') || '2024-25';
+        try {
+          const pl = await fetchProfitAndLoss(from, to);
+          if (pl && ((pl as any).income?.length > 0 || (pl as any).expenses?.length > 0)) {
+            return NextResponse.json({ success: true, ...pl });
+          }
+        } catch { /* Tally not connected, fall back to voucher data */ }
+
+        // Fallback: build P&L from manual vouchers
+        const MV = getTallyManualVoucher();
+        const plStats = await MV.aggregate([
+          { $match: { financialYear: fy } },
+          { $group: { _id: '$voucherType', total: { $sum: '$amount' } } },
+        ]);
+        const plMap: Record<string, number> = {};
+        for (const s of plStats) plMap[s._id] = s.total;
+        const totalIncome = plMap['Receipt'] || 0;
+        const totalExpenses = plMap['Payment'] || 0;
+        return NextResponse.json({
+          success: true,
+          income: [{ name: 'Receipts', amount: totalIncome, children: [{ name: 'Swar Yoga Receipts', amount: totalIncome }] }],
+          expenses: [{ name: 'Payments', amount: totalExpenses, children: [{ name: 'Bank Payments', amount: totalExpenses }] }],
+          totalIncome,
+          totalExpenses,
+          netProfit: totalIncome - totalExpenses,
+        });
       }
 
       case 'balancesheet': {
@@ -111,8 +137,102 @@ export async function GET(request: NextRequest) {
       default: {
         const from = searchParams.get('from') || undefined;
         const to = searchParams.get('to') || undefined;
-        const summary = await fetchDashboardSummary(from, to);
-        return NextResponse.json({ success: true, config: configStatus, summary });
+        const fy = searchParams.get('fy') || '2024-25';
+
+        // Try Tally Prime first, fallback to manual voucher data
+        let tallySummary: any = null;
+        let tallyConnected = false;
+        try {
+          tallySummary = await fetchDashboardSummary(from, to);
+          if (tallySummary && (tallySummary.totalReceipts > 0 || tallySummary.salesCount > 0)) {
+            tallyConnected = true;
+          }
+        } catch { /* Tally not connected */ }
+
+        // Always fetch manual voucher data from MongoDB
+        const ManualVoucher = getTallyManualVoucher();
+        const pipeline = [
+          { $match: { financialYear: fy } },
+          { $group: { _id: '$voucherType', count: { $sum: 1 }, total: { $sum: '$amount' } } },
+        ];
+        const stats = await ManualVoucher.aggregate(pipeline);
+        const manualStats: Record<string, { count: number; total: number }> = {};
+        for (const s of stats) {
+          manualStats[s._id] = { count: s.count, total: s.total };
+        }
+
+        // Recent receipts from manual vouchers
+        const recentManualReceipts = await ManualVoucher.find(
+          { financialYear: fy, voucherType: 'Receipt' }
+        ).sort({ date: -1 }).limit(12).lean();
+
+        // Recent payments from manual vouchers
+        const recentManualPayments = await ManualVoucher.find(
+          { financialYear: fy, voucherType: 'Payment' }
+        ).sort({ date: -1 }).limit(10).lean();
+
+        // Participant count from users collection
+        const db = mongoose.connection.db;
+        let participantCount = 0;
+        if (db) {
+          participantCount = await db.collection('users').countDocuments({ isAdmin: { $ne: true } });
+        }
+
+        // Calculate P&L from manual data
+        const totalReceipts = manualStats.Receipt?.total || 0;
+        const totalPayments = manualStats.Payment?.total || 0;
+        const totalContra = manualStats.Contra?.total || 0;
+        const profitLoss = totalReceipts - totalPayments;
+
+        // Build summary — use Tally data if connected, else manual data
+        const summary = tallyConnected ? tallySummary : {
+          company: {
+            name: 'Upamnyu International Education Pvt Ltd',
+            formalName: 'Swar Yoga',
+            state: 'Maharashtra',
+            financialYearFrom: fy.split('-')[0],
+            financialYearTo: '20' + fy.split('-')[1],
+          },
+          totalSales: manualStats.Sales?.total || 0,
+          totalReceipts,
+          totalPurchases: manualStats.Purchase?.total || 0,
+          totalDebtors: 0,
+          totalCreditors: 0,
+          salesCount: manualStats.Sales?.count || 0,
+          receiptCount: manualStats.Receipt?.count || 0,
+          purchaseCount: manualStats.Purchase?.count || 0,
+          debtorCount: 0,
+          creditorCount: 0,
+          recentSales: [],
+          recentReceipts: recentManualReceipts.map((r: any) => ({
+            voucherNumber: r.voucherNumber,
+            voucherType: 'Receipt',
+            date: r.date?.replace(/-/g, '') || '',
+            partyName: r.partyName,
+            amount: r.amount,
+            narration: r.narration,
+          })),
+        };
+
+        return NextResponse.json({
+          success: true,
+          config: configStatus,
+          summary,
+          tallyConnected,
+          manualStats,
+          totalPayments,
+          totalContra,
+          profitLoss,
+          participantCount,
+          recentPayments: recentManualPayments.map((r: any) => ({
+            voucherNumber: r.voucherNumber,
+            voucherType: 'Payment',
+            date: r.date?.replace(/-/g, '') || '',
+            partyName: r.partyName,
+            amount: r.amount,
+            narration: r.narration,
+          })),
+        });
       }
     }
   } catch (error: any) {

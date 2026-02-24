@@ -172,8 +172,8 @@ export default function TallyPage() {
     { label: 'FY 2024-25', value: '2024-25', from: '20240401', to: '20250331' },
     { label: 'FY 2025-26', value: '2025-26', from: '20250401', to: '20260331' },
   ];
-  const [selectedFY, setSelectedFY] = useState('2023-24');
-  const currentFY = FY_OPTIONS.find(f => f.value === selectedFY) || FY_OPTIONS[0];
+  const [selectedFY, setSelectedFY] = useState('2024-25');
+  const currentFY = FY_OPTIONS.find(f => f.value === selectedFY) || FY_OPTIONS[1];
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -193,6 +193,12 @@ export default function TallyPage() {
   // Feature toggles
   const [showSales, setShowSales] = useState(false);
   const [showPurchases, setShowPurchases] = useState(false);
+
+  // Dashboard extras (from API)
+  const [dashProfitLoss, setDashProfitLoss] = useState(0);
+  const [dashParticipants, setDashParticipants] = useState(0);
+  const [dashTotalPayments, setDashTotalPayments] = useState(0);
+  const [dashRecentPayments, setDashRecentPayments] = useState<TallyVoucher[]>([]);
 
   // AI Chatbox
   const [chatOpen, setChatOpen] = useState(false);
@@ -476,22 +482,28 @@ export default function TallyPage() {
   const fetchDashboard = useCallback(async (fy?: { from: string; to: string }) => {
     if (!token) return;
     const f = fy || currentFY;
+    const fyValue = FY_OPTIONS.find(o => o.from === f.from)?.value || selectedFY;
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`/api/admin/crm/tally?action=dashboard&from=${f.from}&to=${f.to}`, { headers: headers() });
+      const res = await fetch(`/api/admin/crm/tally?action=dashboard&from=${f.from}&to=${f.to}&fy=${fyValue}`, { headers: headers() });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
       setConfig(data.config);
       setSummary(data.summary);
-      setConnected(true);
+      setConnected(data.tallyConnected ?? true);
+      setDashProfitLoss(data.profitLoss ?? 0);
+      setDashParticipants(data.participantCount ?? 0);
+      setDashTotalPayments(data.totalPayments ?? 0);
+      setDashRecentPayments(data.recentPayments ?? []);
+      if (data.manualStats) setManualVoucherStats(data.manualStats);
     } catch (err: any) {
       setError(err.message);
       setConnected(false);
     } finally {
       setLoading(false);
     }
-  }, [token, headers]);
+  }, [token, headers, selectedFY]);
 
   // ── Test connection ──
   const testConnection = useCallback(async () => {
@@ -580,7 +592,7 @@ export default function TallyPage() {
     const f = fy || currentFY;
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/crm/tally?action=profitloss&from=${f.from}&to=${f.to}`, { headers: headers() });
+      const res = await fetch(`/api/admin/crm/tally?action=profitloss&from=${f.from}&to=${f.to}&fy=${selectedFY}`, { headers: headers() });
       const data = await res.json();
       if (data.success && (data.income?.length > 0 || data.expenses?.length > 0)) {
         setPlData(data);
@@ -1159,7 +1171,7 @@ export default function TallyPage() {
           </button>
           <div className="flex items-center gap-2">
             <Building2 className="w-6 h-6 text-yellow-500" />
-            <h1 className="text-xl font-bold">Tally Prime</h1>
+            <h1 className="text-xl font-bold text-white">Tally Prime</h1>
           </div>
           <div className="flex items-center gap-1 ml-2">
             {connected === true && <Wifi className="w-4 h-4 text-green-400" />}
@@ -1248,9 +1260,9 @@ export default function TallyPage() {
                     <div className="mb-6 p-4 bg-gray-900 border border-gray-800 rounded-xl flex items-center gap-4">
                       <Building2 className="w-10 h-10 text-yellow-500 flex-shrink-0" />
                       <div>
-                        <h2 className="text-lg font-bold">{summary.company.name}</h2>
+                        <h2 className="text-lg font-bold text-green-400">{summary.company.name}</h2>
                         {summary.company.formalName && summary.company.formalName !== summary.company.name && (
-                          <p className="text-sm text-gray-400">{summary.company.formalName}</p>
+                          <p className="text-sm text-white">{summary.company.formalName}</p>
                         )}
                         {summary.company.state && <p className="text-xs text-gray-500">{summary.company.state}</p>}
                         {summary.company.financialYearFrom && (
@@ -1263,18 +1275,26 @@ export default function TallyPage() {
                   )}
 
                   {/* Stats cards */}
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
-                    <StatCard label="Total Sales" value={fmt(summary.totalSales)} sub={`${summary.salesCount} vouchers`} icon={ArrowUpRight} color="text-green-400" bg="bg-green-500/10" />
-                    <StatCard label="Total Receipts" value={fmt(summary.totalReceipts)} sub={`${summary.receiptCount} vouchers`} icon={ArrowDownLeft} color="text-blue-400" bg="bg-blue-500/10" />
-                    <StatCard label="Total Purchases" value={fmt(summary.totalPurchases)} sub={`${summary.purchaseCount} vouchers`} icon={Package} color="text-orange-400" bg="bg-orange-500/10" />
-                    <StatCard label="Debtors" value={fmt(summary.totalDebtors)} sub={`${summary.debtorCount} parties`} icon={Users} color="text-red-400" bg="bg-red-500/10" />
-                    <StatCard label="Creditors" value={fmt(summary.totalCreditors)} sub={`${summary.creditorCount} parties`} icon={Users} color="text-purple-400" bg="bg-purple-500/10" />
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+                    <StatCard label="Total Receipts" value={fmt(summary.totalReceipts)} sub={`${summary.receiptCount} entries`} icon={ArrowDownLeft} color="text-blue-400" bg="bg-blue-500/10" />
+                    <StatCard label="Total Payments" value={fmt(dashTotalPayments || summary.totalPurchases)} sub={`${(manualVoucherStats.Payment?.count || summary.purchaseCount)} entries`} icon={ArrowUpRight} color="text-orange-400" bg="bg-orange-500/10" />
+                    <StatCard label="Contra" value={fmt(manualVoucherStats.Contra?.total || 0)} sub={`${manualVoucherStats.Contra?.count || 0} entries`} icon={RefreshCw} color="text-cyan-400" bg="bg-cyan-500/10" />
+                    <div className={`p-4 rounded-xl border border-gray-800 ${dashProfitLoss >= 0 ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <TrendingUp className={`w-5 h-5 ${dashProfitLoss >= 0 ? 'text-green-400' : 'text-red-400'}`} />
+                        <span className="text-xs text-gray-400 font-medium">{dashProfitLoss >= 0 ? 'Profit' : 'Loss'}</span>
+                      </div>
+                      <p className={`text-xl font-bold ${dashProfitLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fmt(Math.abs(dashProfitLoss))}</p>
+                      <p className="text-xs text-gray-500 mt-1">Receipts - Payments</p>
+                    </div>
+                    <StatCard label="Participants" value={String(dashParticipants)} sub="registered users" icon={Users} color="text-yellow-400" bg="bg-yellow-500/10" />
+                    <StatCard label="Total Sales" value={fmt(summary.totalSales)} sub={`${summary.salesCount} vouchers`} icon={BarChart3} color="text-green-400" bg="bg-green-500/10" />
                   </div>
 
                   {/* Recent tables */}
                   <div className="grid md:grid-cols-2 gap-6">
-                    <RecentTable title="Recent Sales" vouchers={summary.recentSales} color="text-green-400" />
                     <RecentTable title="Recent Receipts" vouchers={summary.recentReceipts} color="text-blue-400" />
+                    <RecentTable title="Recent Payments" vouchers={dashRecentPayments} color="text-orange-400" />
                   </div>
 
                   {/* ── Auto-Sync Panel ── */}
@@ -1353,76 +1373,31 @@ export default function TallyPage() {
                 </>
               ) : (
                 <div className="space-y-6">
-                  {/* Tally not connected notice */}
+                  {/* Loading / No summary available */}
                   <div className="p-4 bg-yellow-500/5 border border-yellow-800/40 rounded-xl flex items-start gap-3">
                     <WifiOff className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
                     <div>
-                      <p className="text-sm font-medium text-yellow-400">Tally Prime Not Connected</p>
-                      <p className="text-xs text-gray-500 mt-1">TSS subscription may be expired. Use the tabs to add data manually — Receipts, Ledgers, Opening Balances, etc.</p>
+                      <p className="text-sm font-medium text-yellow-400">Loading Data...</p>
+                      <p className="text-xs text-gray-500 mt-1">Fetching {currentFY.label} accounting data from database.</p>
                     </div>
                   </div>
 
-                  {/* Manual Voucher Stats */}
-                  {(Object.keys(manualVoucherStats).length > 0 || manualEntries.length > 0) && (
-                    <>
-                      <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
-                        <div>
-                          <h2 className="text-lg font-bold text-gray-200 flex items-center gap-2">
-                            <ClipboardList className="w-5 h-5 text-yellow-500" /> Manual Data Summary — {currentFY.label}
-                          </h2>
-                          <p className="text-xs text-gray-500">Your manually entered accounting data</p>
+                  {/* Quick stats from manualVoucherStats if available */}
+                  {Object.keys(manualVoucherStats).length > 0 && (
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                      <StatCard label="Total Receipts" value={fmt(manualVoucherStats.Receipt?.total || 0)} sub={`${manualVoucherStats.Receipt?.count || 0} entries`} icon={ArrowDownLeft} color="text-blue-400" bg="bg-blue-500/10" />
+                      <StatCard label="Total Payments" value={fmt(manualVoucherStats.Payment?.total || 0)} sub={`${manualVoucherStats.Payment?.count || 0} entries`} icon={ArrowUpRight} color="text-orange-400" bg="bg-orange-500/10" />
+                      <StatCard label="Contra" value={fmt(manualVoucherStats.Contra?.total || 0)} sub={`${manualVoucherStats.Contra?.count || 0} entries`} icon={RefreshCw} color="text-cyan-400" bg="bg-cyan-500/10" />
+                      <div className={`p-4 rounded-xl border border-gray-800 ${dashProfitLoss >= 0 ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
+                        <div className="flex items-center gap-2 mb-2">
+                          <TrendingUp className={`w-5 h-5 ${dashProfitLoss >= 0 ? 'text-green-400' : 'text-red-400'}`} />
+                          <span className="text-xs text-gray-400 font-medium">{dashProfitLoss >= 0 ? 'Profit' : 'Loss'}</span>
                         </div>
-                        <button
-                          onClick={() => exportTallyXml('all')}
-                          disabled={manualEntries.length === 0}
-                          className="px-4 py-2 bg-green-700 hover:bg-green-600 disabled:bg-gray-700 disabled:text-gray-500 text-white text-sm font-medium rounded-lg flex items-center gap-2"
-                          title="Export all data as Tally Prime XML"
-                        >
-                          <Download className="w-4 h-4" /> Export for Tally Prime
-                        </button>
+                        <p className={`text-xl font-bold ${dashProfitLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fmt(Math.abs(dashProfitLoss))}</p>
+                        <p className="text-xs text-gray-500 mt-1">Receipts - Payments</p>
                       </div>
-                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                        <StatCard label="Receipts" value={fmt(manualVoucherStats.Receipt?.total || 0)} sub={`${manualVoucherStats.Receipt?.count || 0} vouchers`} icon={ArrowDownLeft} color="text-blue-400" bg="bg-blue-500/10" />
-                        <StatCard label="Payments" value={fmt(manualVoucherStats.Payment?.total || 0)} sub={`${manualVoucherStats.Payment?.count || 0} vouchers`} icon={ArrowUpRight} color="text-orange-400" bg="bg-orange-500/10" />
-                        <StatCard label="Sales" value={fmt(manualVoucherStats.Sales?.total || 0)} sub={`${manualVoucherStats.Sales?.count || 0} vouchers`} icon={TrendingUp} color="text-green-400" bg="bg-green-500/10" />
-                        <StatCard label="Ledgers" value={String(manualEntries.length)} sub={`${currentFY.label}`} icon={FileText} color="text-purple-400" bg="bg-purple-500/10" />
-                        <div className={`flex items-start gap-3 p-4 rounded-xl border border-gray-800 bg-yellow-500/10`}>
-                          <Scale className="w-5 h-5 text-yellow-400 mt-0.5" />
-                          <div>
-                            <p className="text-[10px] uppercase tracking-wider text-gray-500">Balance Check</p>
-                            <p className="text-lg font-bold text-yellow-400">{fmt(manualTotals.totalAssets)}</p>
-                            <p className="text-[10px] text-gray-500">Assets total</p>
-                          </div>
-                        </div>
-                      </div>
-                    </>
-                  )}
-
-                  {/* Manual Balance Summary */}
-                  {manualEntries.length > 0 ? (
-                    <>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <StatCard label="Assets" value={fmt(manualTotals.totalAssets)} sub={`${manualEntries.filter(e => e.category === 'asset').length} entries`} icon={TrendingUp} color="text-blue-400" bg="bg-blue-500/10" />
-                        <StatCard label="Liabilities" value={fmt(manualTotals.totalLiabilities)} sub={`${manualEntries.filter(e => e.category === 'liability').length} entries`} icon={Scale} color="text-purple-400" bg="bg-purple-500/10" />
-                        <StatCard label="Income" value={fmt(manualTotals.totalIncome)} sub={`${manualEntries.filter(e => e.category === 'income').length} entries`} icon={ArrowDownLeft} color="text-green-400" bg="bg-green-500/10" />
-                        <StatCard label="Expenses" value={fmt(manualTotals.totalExpenses)} sub={`${manualEntries.filter(e => e.category === 'expense').length} entries`} icon={ArrowUpRight} color="text-red-400" bg="bg-red-500/10" />
-                      </div>
-                    </>
-                  ) : (
-                    <div className="text-center py-12">
-                      <ClipboardList className="w-16 h-16 text-gray-700 mx-auto mb-4" />
-                      <h3 className="text-xl font-bold text-gray-400 mb-2">No Data Yet</h3>
-                      <p className="text-sm text-gray-600 max-w-md mx-auto mb-6">
-                        Start by adding receipts, ledgers, or opening balances.
-                      </p>
-                      <div className="flex flex-wrap justify-center gap-3">
-                        <button onClick={() => setActiveTab('receipts')} className="px-5 py-2.5 bg-blue-700 hover:bg-blue-600 text-white rounded-lg font-medium inline-flex items-center gap-2 text-sm">
-                          <Plus className="w-4 h-4" /> Add Receipt
-                        </button>
-                        <button onClick={() => setActiveTab('opening')} className="px-5 py-2.5 bg-yellow-600 hover:bg-yellow-500 text-black rounded-lg font-medium inline-flex items-center gap-2 text-sm">
-                          <Plus className="w-4 h-4" /> Add Opening Balances
-                        </button>
-                      </div>
+                      <StatCard label="Participants" value={String(dashParticipants)} sub="registered users" icon={Users} color="text-yellow-400" bg="bg-yellow-500/10" />
+                      <StatCard label="Sales" value={fmt(manualVoucherStats.Sales?.total || 0)} sub={`${manualVoucherStats.Sales?.count || 0} vouchers`} icon={BarChart3} color="text-green-400" bg="bg-green-500/10" />
                     </div>
                   )}
                 </div>
