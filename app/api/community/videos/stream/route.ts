@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
 
-    const { getCommunityVideo, CommunityMembership } = await import('@/lib/db');
+    const { getCommunityVideo, CommunityMember } = await import('@/lib/db');
     const CommunityVideo = getCommunityVideo();
 
     const video = await CommunityVideo.findById(videoDbId);
@@ -45,9 +45,9 @@ export async function GET(request: NextRequest) {
     // Membership check (skip for admins)
     const d = decoded as any;
     if (!d.isAdmin) {
-      const membership = await CommunityMembership.findOne({
+      const membership = await CommunityMember.findOne({
         communityId: video.communityId,
-        $or: [{ userId: decoded.userId }, { odId: decoded.userId }, { odId: d.odId }],
+        $or: [{ userId: decoded.userId }, { mobile: decoded.userId }],
         status: 'active',
       });
       if (!membership) {
