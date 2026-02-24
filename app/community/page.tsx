@@ -86,6 +86,9 @@ function CommunityPageContent() {
   const [videosLoading, setVideosLoading] = useState(false);
   const [videosError, setVideosError] = useState('');
 
+  // Public experiences for non-members (max 5)
+  const [publicExperiences, setPublicExperiences] = useState<Post[]>([]);
+
   // Comment Modal States
   const [showCommentModal, setShowCommentModal] = useState(false);
   const [activePostForComment, setActivePostForComment] = useState<Post | null>(null);
@@ -154,7 +157,21 @@ function CommunityPageContent() {
   useEffect(() => {
     checkUserAuth();
     fetchCommunityStats();
+    fetchPublicExperiences();
   }, []);
+
+  // Fetch public experiences (admin-marked, max 5) for non-members
+  const fetchPublicExperiences = async () => {
+    try {
+      const res = await fetch('/api/community/posts?public=true&limit=5', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        setPublicExperiences(Array.isArray(data.posts) ? data.posts : []);
+      }
+    } catch (err) {
+      console.error('Error fetching public experiences:', err);
+    }
+  };
 
   // Fetch user memberships when auth is checked
   useEffect(() => {
@@ -1280,30 +1297,81 @@ function CommunityPageContent() {
             ) : (
               /* Posts Section */
               <>
-            {/* Join Banner: Show for non-members of non-global communities */}
-            {currentCommunity && currentCommunity.id !== 'global' && !userMemberships.includes(currentCommunity.id) && (
-              <div className="bg-gradient-to-r from-green-50 via-emerald-50 to-teal-50 border-2 border-green-200 rounded-2xl p-6 sm:p-8 mb-6 text-center shadow-sm">
-                <h3 className="text-xl sm:text-2xl font-bold text-green-900 mb-2">👋 Welcome to {currentCommunity.name}</h3>
-                <p className="text-green-700 text-sm sm:text-base mb-4 max-w-lg mx-auto">
-                  Browse our community content below. Join to like, comment, and participate!
-                </p>
-                <button
-                  onClick={() => {
-                    if (currentCommunity.isPublic) {
-                      setJoiningCommunity(currentCommunity);
-                      setShowJoinModal(true);
-                    } else {
-                      setRequestingCommunity(currentCommunity);
-                      setShowRequestModal(true);
-                    }
-                  }}
-                  className="px-8 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-bold hover:from-green-700 hover:to-emerald-700 transition-all transform hover:scale-105 shadow-lg text-sm sm:text-base"
-                >
-                  {currentCommunity.isPublic ? '✨ Join Now' : '📋 Request to Join'}
-                </button>
+            {/* Members-only lock for non-global non-member communities */}
+            {selectedCommunity !== 'global' && !userMemberships.includes(selectedCommunity) ? (
+              <div className="space-y-6">
+                {/* Public Experiences - admin-curated, max 5 */}
+                {publicExperiences.length > 0 && (
+                  <div>
+                    <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+                      ⭐ Member Experiences
+                    </h3>
+                    <div className="space-y-4">
+                      {publicExperiences.map((post) => (
+                        <Link key={post._id} href={`/community/post/${post._id}`}>
+                          <div className="bg-white border-2 border-emerald-100 rounded-2xl hover:border-emerald-300 hover:shadow-lg transition-all duration-300 overflow-hidden cursor-pointer group shadow-sm p-5 sm:p-6 mb-4">
+                            {/* Header */}
+                            <div className="mb-3">
+                              {(post as any).metadata?.originalHeader ? (
+                                <h4 className="text-lg sm:text-xl font-bold text-gray-900 group-hover:text-emerald-600 transition-colors">
+                                  {(post as any).metadata.originalHeader}
+                                </h4>
+                              ) : post.title && (
+                                <h4 className="text-lg sm:text-xl font-bold text-gray-900 group-hover:text-emerald-600 transition-colors">
+                                  {post.title}
+                                </h4>
+                              )}
+                              <p className="text-xs text-gray-400 mt-1">{new Date(post.createdAt).toLocaleDateString()}</p>
+                            </div>
+                            {/* Body preview */}
+                            <p className="text-gray-600 text-sm line-clamp-3 mb-3">
+                              {post.content?.substring(0, 200)}{(post.content?.length || 0) > 200 ? '...' : ''}
+                            </p>
+                            {/* Read-only stats */}
+                            <div className="flex gap-4 text-xs text-gray-400 border-t border-gray-100 pt-3">
+                              <span>🤍 {Array.isArray(post.likes) ? post.likes.length : 0}</span>
+                              <span>💬 {Array.isArray(post.comments) ? post.comments.length : 0}</span>
+                              <span className="ml-auto text-emerald-600 font-medium group-hover:underline">Read more →</span>
+                            </div>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Join prompt */}
+                <div className="bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 border-2 border-green-200 rounded-2xl p-8 sm:p-10 text-center shadow-sm">
+                  <div className="text-4xl sm:text-5xl mb-3">🧘</div>
+                  <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-3">Join {currentCommunity?.name}</h3>
+                  <p className="text-gray-600 mb-6 max-w-md mx-auto text-sm sm:text-base">
+                    Access all posts, videos, and participate in community discussions.
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                    <button
+                      onClick={() => {
+                        if (currentCommunity?.isPublic) {
+                          setJoiningCommunity(currentCommunity);
+                          setShowJoinModal(true);
+                        } else {
+                          setRequestingCommunity(currentCommunity);
+                          setShowRequestModal(true);
+                        }
+                      }}
+                      className="px-8 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-bold hover:from-green-700 hover:to-emerald-700 transition-all transform hover:scale-105 shadow-lg text-sm sm:text-base"
+                    >
+                      {currentCommunity?.isPublic ? '✨ Join Now' : '📋 Request to Join'}
+                    </button>
+                    <button
+                      onClick={() => router.push('/community/experiences')}
+                      className="px-8 py-3 bg-white text-emerald-700 border-2 border-emerald-300 rounded-xl font-bold hover:bg-emerald-50 transition-all text-sm sm:text-base"
+                    >
+                      ⭐ View All Experiences
+                    </button>
+                  </div>
+                </div>
               </div>
-            )}
-            {loading ? (
+            ) : loading ? (
               <div className="flex justify-center items-center py-12">
                 <div className="text-center">
                   <Loader className="w-12 h-12 animate-spin text-green-600 mx-auto mb-4" />

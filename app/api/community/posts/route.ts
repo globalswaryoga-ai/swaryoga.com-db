@@ -14,10 +14,16 @@ export async function GET(request: NextRequest) {
     const communityId = searchParams.get('communityId')?.trim();
     const limit = parseInt(searchParams.get('limit') || '20');
     const skip = parseInt(searchParams.get('skip') || '0');
+    const publicOnly = searchParams.get('public') === 'true'; // Only fetch isPublic posts
 
     let query: any = {
       status: 'published' // Only show published posts to public
     };
+
+    // If requesting only public posts (for non-members)
+    if (publicOnly) {
+      query.isPublic = true;
+    }
 
     // Filter by category if provided and not 'all'
     if (category !== 'all') {

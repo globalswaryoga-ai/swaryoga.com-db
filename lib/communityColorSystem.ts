@@ -66,22 +66,6 @@ export const COMMUNITY_DESIGNS: CommunityDesign[] = [
     isPublic: true,
     category: 'common'
   },
-  {
-    id: 'old-sadhak-community',
-    name: 'Swar Yoga Sadhak Community',
-    icon: Sun,
-    description: 'For all Swar Yoga sadhaks — stay connected, grow together',
-    color: {
-      light: 'bg-amber-50 border-amber-200',
-      main: 'text-amber-600 bg-amber-100',
-      dark: 'from-amber-600 to-orange-700',
-      gradient: 'from-amber-500 to-orange-500'
-    },
-    philosophy: 'Amber/gold represents wisdom, spiritual warmth, and the light of practice.',
-    members: 0,
-    isPublic: true,
-    category: 'common'
-  },
   
   // ============ HEALTH COMMUNITIES ============
   {
@@ -194,6 +178,22 @@ export const COMMUNITY_DESIGNS: CommunityDesign[] = [
     philosophy: 'Vitality, energy, health, and active wellness.',
     members: 0,
     isPublic: false,
+    category: 'health'
+  },
+  {
+    id: 'old-sadhak-community',
+    name: 'Swar Yoga Sadhak Community',
+    icon: Sun,
+    description: 'For all Swar Yoga sadhaks — stay connected, grow together',
+    color: {
+      light: 'bg-amber-50 border-amber-200',
+      main: 'text-amber-600 bg-amber-100',
+      dark: 'from-amber-600 to-orange-700',
+      gradient: 'from-amber-500 to-orange-500'
+    },
+    philosophy: 'Amber/gold represents wisdom, spiritual warmth, and the light of practice.',
+    members: 0,
+    isPublic: true,
     category: 'health'
   },
 

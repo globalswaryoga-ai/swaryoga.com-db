@@ -439,6 +439,7 @@ const communityPostSchema = new mongoose.Schema({
   links: { type: [String], default: [] },
   type: { type: String, enum: ['text', 'image', 'video', 'document', 'link'], default: 'text' },
   status: { type: String, enum: ['published', 'draft', 'scheduled'], default: 'published', index: true },
+  isPublic: { type: Boolean, default: false, index: true }, // Admin can mark experiences as publicly visible
   metadata: { type: mongoose.Schema.Types.Mixed, default: {} },
   likes: { type: [String], default: [] },
   comments: { type: [communityCommentSchema], default: [] },
@@ -448,6 +449,7 @@ const communityPostSchema = new mongoose.Schema({
 });
 
 communityPostSchema.index({ communityId: 1, createdAt: -1 });
+communityPostSchema.index({ isPublic: 1, status: 1, createdAt: -1 });
 
 export const CommunityPost =
   mongoose.models.CommunityPost || mongoose.model('CommunityPost', communityPostSchema);

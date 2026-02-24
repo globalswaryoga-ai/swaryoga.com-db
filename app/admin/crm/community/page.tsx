@@ -967,6 +967,26 @@ export default function AdminCommunityPage() {
     }
   };
 
+  // Toggle public visibility of a post (admin marks experiences as publicly visible)
+  const togglePostPublic = async (postId: string) => {
+    try {
+      const res = await fetch('/api/admin/crm/community/posts/toggle-public', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ postId }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Failed to toggle');
+      // Update local state
+      setCommunityPosts(prev => prev.map(p => p._id === postId ? { ...p, isPublic: json.isPublic } : p));
+    } catch (error: any) {
+      alert('❌ ' + error.message);
+    }
+  };
+
   const deleteComment = async (postId: string, commentIndex: number) => {
     if (!confirm('Are you sure you want to delete this comment?')) return;
 
@@ -2110,12 +2130,19 @@ export default function AdminCommunityPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <div className={`px-3 py-1 rounded-full text-[9px] font-bold uppercase inline-block w-fit ${
-                            post.status === 'published' ? 'bg-emerald-50 text-emerald-700' :
-                            post.status === 'draft' ? 'bg-amber-50 text-amber-700' :
-                            'bg-blue-50 text-blue-700'
-                          }`}>
-                            {post.status || 'published'}
+                          <div className="flex flex-col gap-1">
+                            <div className={`px-3 py-1 rounded-full text-[9px] font-bold uppercase inline-block w-fit ${
+                              post.status === 'published' ? 'bg-emerald-50 text-emerald-700' :
+                              post.status === 'draft' ? 'bg-amber-50 text-amber-700' :
+                              'bg-blue-50 text-blue-700'
+                            }`}>
+                              {post.status || 'published'}
+                            </div>
+                            {post.isPublic && (
+                              <span className="px-2 py-0.5 rounded-full text-[8px] font-bold uppercase bg-green-100 text-green-700 inline-block w-fit">
+                                🌐 Public
+                              </span>
+                            )}
                           </div>
                         </td>
                         <td className="px-4 py-3">
@@ -2135,6 +2162,17 @@ export default function AdminCommunityPage() {
                         </td>
                         <td className="pr-10 px-4 py-3 text-right opacity-0 group-hover:opacity-100 transition-all">
                           <div className="flex justify-end gap-1.5">
+                            <button
+                              onClick={() => togglePostPublic(post._id)}
+                              className={`p-2 rounded-lg transition-all border ${
+                                post.isPublic
+                                  ? 'bg-green-500 text-white border-green-500 hover:bg-green-600'
+                                  : 'text-slate-400 border-slate-200 hover:bg-green-100 hover:text-green-600 hover:border-green-200'
+                              }`}
+                              title={post.isPublic ? 'Make Private' : 'Make Public'}
+                            >
+                              <Globe size={16} />
+                            </button>
                             <button
                               onClick={() => openCommentsModal(post)}
                               className="p-2 hover:bg-emerald-600 hover:text-white rounded-lg transition-all text-emerald-500 border border-emerald-100"
