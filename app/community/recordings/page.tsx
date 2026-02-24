@@ -327,27 +327,17 @@ export default function RecordingsPage() {
               <div className="bg-black rounded-xl overflow-hidden" onContextMenu={(e) => e.preventDefault()}>
                 {playingVideo.videoSource === 'youtube' && playingVideo.youtubeVideoId ? (
                   <div className="relative w-full overflow-hidden" style={{ paddingBottom: '56.25%' }}>
-                    {/* Scaled-up iframe so YouTube branding gets cropped off edges */}
                     <iframe
                       src={`https://www.youtube-nocookie.com/embed/${playingVideo.youtubeVideoId}?autoplay=1&rel=0&modestbranding=1&showinfo=0&iv_load_policy=3&cc_load_policy=0&fs=1&controls=1&disablekb=0&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
-                      className="absolute"
-                      style={{
-                        border: 'none',
-                        top: '-60px',
-                        left: '-2px',
-                        width: 'calc(100% + 4px)',
-                        height: 'calc(100% + 120px)',
-                      }}
-                      allow="accelerometer; autoplay; encrypted-media; gyroscope"
+                      className="absolute inset-0 w-full h-full"
+                      style={{ border: 'none' }}
+                      allow="accelerometer; autoplay; encrypted-media; gyroscope; fullscreen"
+                      allowFullScreen
                     />
-                    {/* Black bar covering YouTube logo bottom-right */}
-                    <div className="absolute bottom-0 right-0 w-[200px] h-[50px] z-10" style={{ background: 'linear-gradient(to left, #000 70%, transparent)' }} />
-                    {/* Black bar covering CC/Settings bottom area */}
-                    <div className="absolute bottom-0 left-0 right-[200px] h-[10px] bg-black z-10" />
                     {/* Cover top-right (share/watch later buttons when paused) */}
-                    <div className="absolute top-0 right-0 w-[120px] h-[50px] bg-black z-10" />
+                    <div className="absolute top-0 right-0 w-[120px] h-[50px] bg-black z-10 pointer-events-none" />
                     {/* Cover top-left (video title when paused) */}
-                    <div className="absolute top-0 left-0 right-[120px] h-[30px] bg-black z-10" />
+                    <div className="absolute top-0 left-0 right-[120px] h-[30px] bg-black z-10 pointer-events-none" />
                   </div>
                 ) : playingVideo.videoUrl ? (
                   <video
