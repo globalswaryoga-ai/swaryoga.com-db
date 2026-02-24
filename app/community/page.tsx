@@ -1280,45 +1280,30 @@ function CommunityPageContent() {
             ) : (
               /* Posts Section */
               <>
-            {/* Access Control: Show members-only message for non-global communities when not logged in */}
-            {selectedCommunity !== 'global' && !user ? (
-              <div className="bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-200 rounded-2xl p-10 text-center">
-                <div className="text-6xl mb-4">🔒</div>
-                <h3 className="text-2xl font-bold text-purple-900 mb-3">Members Only Community</h3>
-                <p className="text-purple-700 mb-6 max-w-md mx-auto">
-                  This community is exclusive to members. Join to access posts, videos, and connect with other members.
+            {/* Join Banner: Show for non-members of non-global communities */}
+            {currentCommunity && currentCommunity.id !== 'global' && !userMemberships.includes(currentCommunity.id) && (
+              <div className="bg-gradient-to-r from-green-50 via-emerald-50 to-teal-50 border-2 border-green-200 rounded-2xl p-6 sm:p-8 mb-6 text-center shadow-sm">
+                <h3 className="text-xl sm:text-2xl font-bold text-green-900 mb-2">👋 Welcome to {currentCommunity.name}</h3>
+                <p className="text-green-700 text-sm sm:text-base mb-4 max-w-lg mx-auto">
+                  Browse our community content below. Join to like, comment, and participate!
                 </p>
-                <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                  {currentCommunity?.isPublic ? (
-                    <button
-                      onClick={() => {
-                        setJoiningCommunity(currentCommunity);
-                        setShowJoinModal(true);
-                      }}
-                      className="px-8 py-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-bold hover:from-green-700 hover:to-emerald-700 transition-all transform hover:scale-105 shadow-lg"
-                    >
-                      ✨ Join Now - It&apos;s Free!
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => {
-                        setRequestingCommunity(currentCommunity);
-                        setShowRequestModal(true);
-                      }}
-                      className="px-8 py-4 bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-xl font-bold hover:from-purple-700 hover:to-purple-800 transition-all transform hover:scale-105 shadow-lg"
-                    >
-                      📋 Request Membership
-                    </button>
-                  )}
-                  <Link
-                    href="/join/global"
-                    className="px-8 py-4 bg-white text-purple-700 border-2 border-purple-300 rounded-xl font-bold hover:bg-purple-50 transition-all"
-                  >
-                    🌐 View Global Community
-                  </Link>
-                </div>
+                <button
+                  onClick={() => {
+                    if (currentCommunity.isPublic) {
+                      setJoiningCommunity(currentCommunity);
+                      setShowJoinModal(true);
+                    } else {
+                      setRequestingCommunity(currentCommunity);
+                      setShowRequestModal(true);
+                    }
+                  }}
+                  className="px-8 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-bold hover:from-green-700 hover:to-emerald-700 transition-all transform hover:scale-105 shadow-lg text-sm sm:text-base"
+                >
+                  {currentCommunity.isPublic ? '✨ Join Now' : '📋 Request to Join'}
+                </button>
               </div>
-            ) : loading ? (
+            )}
+            {loading ? (
               <div className="flex justify-center items-center py-12">
                 <div className="text-center">
                   <Loader className="w-12 h-12 animate-spin text-green-600 mx-auto mb-4" />
@@ -1414,50 +1399,94 @@ function CommunityPageContent() {
 
                       {/* Engagement Stats - Always at bottom */}
                       <div className="flex gap-6 text-sm font-semibold border-t border-gray-100 pt-5 mt-2">
-                        <button 
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            e.preventDefault();
-                            const token = localStorage.getItem('token');
-                            if (!token) return window.location.href = '/signin';
-                            try {
-                              const res = await fetch('/api/community/post/like', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                                body: JSON.stringify({ postId: post._id }),
-                              });
-                              if (res.ok) {
-                                const json = await res.json();
-                                setPosts(prev => prev.map(p => p._id === post._id ? { 
-                                  ...p, 
-                                  likes: Array.isArray(p.likes) 
-                                    ? (json.data.likedByMe 
-                                        ? (p.likes.includes(user._id) ? p.likes : [...p.likes, user._id])
-                                        : p.likes.filter((id: string) => id !== user._id))
-                                    : [user._id]
-                                } : p));
-                              }
-                            } catch (err) {}
-                          }}
-                          className="flex items-center gap-2 text-gray-400 hover:text-red-500 transition-all hover:scale-105">
-                          <span className={`text-lg ${Array.isArray(post.likes) && user && post.likes.includes(user._id) ? 'text-red-500' : ''}`}>
-                            {Array.isArray(post.likes) && user && post.likes.includes(user._id) ? '❤️' : '🤍'}
-                          </span>
-                          <span className={`${Array.isArray(post.likes) && user && post.likes.includes(user._id) ? 'text-red-600' : 'text-gray-500'}`}>
-                            {Array.isArray(post.likes) ? post.likes.length : 0}
-                          </span>
-                        </button>
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            e.preventDefault();
-                            setActivePostForComment(post);
-                            setShowCommentModal(true);
-                          }}
-                          className="flex items-center gap-2 text-gray-400 hover:text-emerald-500 transition-all hover:scale-105">
-                          <MessageCircle className="w-5 h-5" />
-                          <span className="text-gray-500">{Array.isArray(post.comments) ? post.comments.length : (typeof post.comments === 'number' ? post.comments : 0)}</span>
-                        </button>
+                        {/* Like Button - interactive for members, read-only for non-members */}
+                        {(() => {
+                          const isMember = currentCommunity && (userMemberships.includes(currentCommunity.id) || currentCommunity.id === 'global');
+                          const isLiked = Array.isArray(post.likes) && user && post.likes.includes(user._id);
+                          const likeCount = Array.isArray(post.likes) ? post.likes.length : 0;
+                          return (
+                            <button 
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                if (!isMember || !user) {
+                                  // Non-member: prompt to join
+                                  if (currentCommunity && currentCommunity.id !== 'global') {
+                                    if (currentCommunity.isPublic) {
+                                      setJoiningCommunity(currentCommunity);
+                                      setShowJoinModal(true);
+                                    } else {
+                                      setRequestingCommunity(currentCommunity);
+                                      setShowRequestModal(true);
+                                    }
+                                  }
+                                  return;
+                                }
+                                const token = localStorage.getItem('token');
+                                if (!token) return;
+                                try {
+                                  const res = await fetch('/api/community/post/like', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                                    body: JSON.stringify({ postId: post._id }),
+                                  });
+                                  if (res.ok) {
+                                    const json = await res.json();
+                                    setPosts(prev => prev.map(p => p._id === post._id ? { 
+                                      ...p, 
+                                      likes: Array.isArray(p.likes) 
+                                        ? (json.data.likedByMe 
+                                            ? (p.likes.includes(user._id) ? p.likes : [...p.likes, user._id])
+                                            : p.likes.filter((id: string) => id !== user._id))
+                                        : [user._id]
+                                    } : p));
+                                  }
+                                } catch (err) {}
+                              }}
+                              className={`flex items-center gap-2 transition-all hover:scale-105 ${isMember ? 'text-gray-400 hover:text-red-500' : 'text-gray-300 cursor-default'}`}
+                              title={isMember ? 'Like' : 'Join to like'}
+                            >
+                              <span className={`text-lg ${isLiked ? 'text-red-500' : ''}`}>
+                                {isLiked ? '❤️' : '🤍'}
+                              </span>
+                              <span className={isLiked ? 'text-red-600' : 'text-gray-500'}>
+                                {likeCount}
+                              </span>
+                            </button>
+                          );
+                        })()}
+                        {/* Comment Button - interactive for members, read-only count for non-members */}
+                        {(() => {
+                          const isMember = currentCommunity && (userMemberships.includes(currentCommunity.id) || currentCommunity.id === 'global');
+                          const commentCount = Array.isArray(post.comments) ? post.comments.length : (typeof post.comments === 'number' ? post.comments : 0);
+                          return (
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                if (!isMember || !user) {
+                                  if (currentCommunity && currentCommunity.id !== 'global') {
+                                    if (currentCommunity.isPublic) {
+                                      setJoiningCommunity(currentCommunity);
+                                      setShowJoinModal(true);
+                                    } else {
+                                      setRequestingCommunity(currentCommunity);
+                                      setShowRequestModal(true);
+                                    }
+                                  }
+                                  return;
+                                }
+                                setActivePostForComment(post);
+                                setShowCommentModal(true);
+                              }}
+                              className={`flex items-center gap-2 transition-all hover:scale-105 ${isMember ? 'text-gray-400 hover:text-emerald-500' : 'text-gray-300 cursor-default'}`}
+                              title={isMember ? 'Comment' : 'Join to comment'}
+                            >
+                              <MessageCircle className="w-5 h-5" />
+                              <span className="text-gray-500">{commentCount}</span>
+                            </button>
+                          );
+                        })()}
                         <button 
                           onClick={async (e) => {
                             e.stopPropagation();
@@ -1476,12 +1505,10 @@ function CommunityPageContent() {
                                 // User cancelled or share failed
                               }
                             } else {
-                              // Fallback: Copy to clipboard
                               try {
                                 await navigator.clipboard.writeText(`${shareText}...\n\n${shareUrl}`);
                                 alert('✅ Link copied to clipboard!');
                               } catch (err) {
-                                // Manual fallback
                                 prompt('Copy this link:', shareUrl);
                               }
                             }

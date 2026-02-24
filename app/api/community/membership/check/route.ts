@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, CommunityMembership } from '@/lib/db';
+import { connectDB, CommunityMember } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,28 +32,26 @@ export async function GET(request: NextRequest) {
     if (mobile) {
       // Normalize mobile - remove non-digits and handle common formats
       const normalizedMobile = mobile.replace(/\D/g, '');
-      query.$or = [
-        { mobile: normalizedMobile },
-        { mobile: mobile },
-        { 'metadata.mobile': normalizedMobile },
-        { 'metadata.mobile': mobile }
-      ];
+      // Also try with/without country prefix (91)
+      const mobileVariants = [normalizedMobile, mobile];
+      if (normalizedMobile.length === 12 && normalizedMobile.startsWith('91')) {
+        mobileVariants.push(normalizedMobile.slice(2)); // 10-digit without 91
+      } else if (normalizedMobile.length === 10) {
+        mobileVariants.push('91' + normalizedMobile); // 12-digit with 91
+      }
+      query.mobile = { $in: [...new Set(mobileVariants)] };
     } else if (email) {
-      query.$or = [
-        { email: email.toLowerCase() },
-        { 'metadata.email': email.toLowerCase() }
-      ];
+      query.email = email.toLowerCase();
     }
 
-    // Find all active memberships for this user
-    const memberships = await CommunityMembership.find(query)
+    // Find all active memberships for this user in CommunityMember collection
+    // (this is the same collection the join API writes to)
+    const memberships = await CommunityMember.find(query)
       .select('communityId status approved')
       .lean();
 
-    // Extract community IDs where user is approved/active
-    const memberCommunities = memberships
-      .filter((m: any) => m.approved !== false) // Include if approved or approval not required
-      .map((m: any) => m.communityId);
+    // Extract community IDs where user is active
+    const memberCommunities = memberships.map((m: any) => m.communityId);
 
     // Always include 'global' as everyone can access global community
     if (!memberCommunities.includes('global')) {

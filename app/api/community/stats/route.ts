@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, CommunityMember } from '@/lib/db';
+import { COMMUNITY_DESIGNS } from '@/lib/communityColorSystem';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -8,7 +9,8 @@ export async function GET(request: NextRequest) {
   try {
     await connectDB();
 
-    const communityIds = ['global', 'swar-yoga', 'aham-bramhasmi', 'astavakra', 'shivoham', 'i-am-fit'];
+    // Use canonical community IDs from the design system (single source of truth)
+    const communityIds = COMMUNITY_DESIGNS.map(d => d.id);
     
     const stats = await Promise.all(
       communityIds.map(async (id) => {
@@ -16,9 +18,8 @@ export async function GET(request: NextRequest) {
           // Count members from CommunityMember collection (actual members)
           const memberCount = await CommunityMember.countDocuments({ 
             communityId: id,
-            status: 'active' // Only count active members
+            status: 'active'
           });
-          console.log(`✅ Community ${id}: ${memberCount} active members`);
           return { id, count: memberCount };
         } catch (err) {
           console.error(`❌ Error counting members for ${id}:`, err);
@@ -31,8 +32,6 @@ export async function GET(request: NextRequest) {
     stats.forEach((stat) => {
       data[stat.id] = stat.count;
     });
-
-    console.log('📊 Final stats:', data);
 
     return NextResponse.json(
       { success: true, data },
