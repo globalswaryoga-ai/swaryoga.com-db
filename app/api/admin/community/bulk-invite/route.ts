@@ -5,25 +5,23 @@ import { getLead } from '@/lib/schemas/enterpriseSchemas';
 
 export const dynamic = 'force-dynamic';
 
-// Community Join Links
+// Community Join Links — canonical /join/<id> form
+// Any communityId not listed here will auto-generate: https://swaryoga.com/join/<id>
 const COMMUNITY_JOIN_LINKS: Record<string, string> = {
-  'global': 'https://swaryoga.com/community?join=global',
-  'swar-yoga': 'https://swaryoga.com/community?join=swar-yoga',
-  'aham-bramhasmi': 'https://swaryoga.com/community?join=aham-bramhasmi',
-  'astavakra': 'https://swaryoga.com/community?join=astavakra',
-  'shivoham': 'https://swaryoga.com/community?join=shivoham',
-  'i-am-fit': 'https://swaryoga.com/community?join=i-am-fit',
-  'youth': 'https://swaryoga.com/community?join=youth',
-  'children': 'https://swaryoga.com/community?join=children',
-  'married-couple': 'https://swaryoga.com/community?join=married-couple',
-  'investors': 'https://swaryoga.com/community?join=investors',
-  'children-yoga': 'https://swaryoga.com/community?join=children-yoga',
-  'youth-yoga': 'https://swaryoga.com/community?join=youth-yoga',
-  'english-yoga': 'https://swaryoga.com/community?join=english-yoga',
-  'shankara': 'https://swaryoga.com/community?join=shankara',
-  'amrut-bhoj': 'https://swaryoga.com/community?join=amrut-bhoj',
-  'yogasana': 'https://swaryoga.com/community?join=yogasana',
-  'businessman': 'https://swaryoga.com/community?join=businessman',
+  'global': 'https://swaryoga.com/join/global',
+  'old-sadhak-community': 'https://swaryoga.com/join/old-sadhak-community',
+  'swar-yoga-l1': 'https://swaryoga.com/join/swar-yoga-l1',
+  'swar-yoga-l2': 'https://swaryoga.com/join/swar-yoga-l2',
+  'swar-yoga-l3': 'https://swaryoga.com/join/swar-yoga-l3',
+  'swar-yoga-l4': 'https://swaryoga.com/join/swar-yoga-l4',
+  'swar-yoga-l5': 'https://swaryoga.com/join/swar-yoga-l5',
+  'aahar': 'https://swaryoga.com/join/aahar',
+  'i-am-fit': 'https://swaryoga.com/join/i-am-fit',
+  'pre-planning-garbh-sankar': 'https://swaryoga.com/join/pre-planning-garbh-sankar',
+  '9-month-garbha-sanskar': 'https://swaryoga.com/join/9-month-garbha-sanskar',
+  'youth': 'https://swaryoga.com/join/youth',
+  'children': 'https://swaryoga.com/join/children',
+  'yogasana': 'https://swaryoga.com/join/yogasana',
 };
 
 // POST - Send bulk community invites
@@ -60,8 +58,8 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    const joinLink = COMMUNITY_JOIN_LINKS[targetCommunityId];
-    if (!joinLink) {
+    const joinLink = COMMUNITY_JOIN_LINKS[targetCommunityId] || `https://swaryoga.com/join/${targetCommunityId}`;
+    if (!targetCommunityId) {
       return NextResponse.json({ 
         success: false, 
         error: 'Invalid target community ID' 

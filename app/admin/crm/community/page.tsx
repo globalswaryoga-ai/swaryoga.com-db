@@ -79,24 +79,28 @@ interface Community {
 }
 
 // Default communities as fallback - will be merged with DB communities
+// IDs MUST match communityColorSystem.ts & join-form slugs exactly
 const DEFAULT_COMMUNITIES: Community[] = [
-  { id: 'global', name: 'Global Community', icon: '🌍', memberCount: 0, joinLink: 'https://swaryoga.com/community?join=global', type: 'global' },
-  { id: 'swar-yoga', name: 'Swar Yoga', icon: '🎵', memberCount: 0, joinLink: 'https://swaryoga.com/community?join=swar-yoga' },
-  { id: 'aham-bramhasmi', name: 'Aham Bramhasmi', icon: '✨', memberCount: 0, joinLink: 'https://swaryoga.com/community?join=aham-bramhasmi' },
-  { id: 'astavakra', name: 'Astavakra', icon: '🧘', memberCount: 0, joinLink: 'https://swaryoga.com/community?join=astavakra' },
-  { id: 'shivoham', name: 'Shivoham', icon: '🔱', memberCount: 0, joinLink: 'https://swaryoga.com/community?join=shivoham' },
-  { id: 'i-am-fit', name: 'I am Fit', icon: '💪', memberCount: 0, joinLink: 'https://swaryoga.com/community?join=i-am-fit' },
-  { id: 'youth', name: 'Youth', icon: '🚀', memberCount: 0, joinLink: 'https://swaryoga.com/community?join=youth' },
-  { id: 'children', name: 'Children', icon: '👶', memberCount: 0, joinLink: 'https://swaryoga.com/community?join=children' },
-  { id: 'married-couple', name: 'Married Couple', icon: '💍', memberCount: 0, joinLink: 'https://swaryoga.com/community?join=married-couple' },
-  { id: 'investors', name: 'Investors', icon: '📈', memberCount: 0, joinLink: 'https://swaryoga.com/community?join=investors' },
-  { id: 'children-yoga', name: 'Children Swar Yoga', icon: '👶', memberCount: 0, joinLink: 'https://swaryoga.com/community?join=children-yoga' },
-  { id: 'youth-yoga', name: 'Youth Swar Yoga', icon: '🚀', memberCount: 0, joinLink: 'https://swaryoga.com/community?join=youth-yoga' },
-  { id: 'english-yoga', name: 'English Swar Yoga', icon: '🌐', memberCount: 0, joinLink: 'https://swaryoga.com/community?join=english-yoga' },
-  { id: 'shankara', name: 'Shankara', icon: '📚', memberCount: 0, joinLink: 'https://swaryoga.com/community?join=shankara' },
-  { id: 'amrut-bhoj', name: 'Amrut Bhoj', icon: '🍯', memberCount: 0, joinLink: 'https://swaryoga.com/community?join=amrut-bhoj' },
-  { id: 'yogasana', name: 'Yogasana', icon: '🕉️', memberCount: 0, joinLink: 'https://swaryoga.com/community?join=yogasana' },
-  { id: 'businessman', name: 'Businessman', icon: '💼', memberCount: 0, joinLink: 'https://swaryoga.com/community?join=businessman' },
+  // Common
+  { id: 'global', name: 'Global Community', icon: '🌍', memberCount: 0, joinLink: 'https://swaryoga.com/join/global', type: 'global' },
+  { id: 'old-sadhak-community', name: 'Swar Yoga Sadhak Community', icon: '☀️', memberCount: 0, joinLink: 'https://swaryoga.com/join/old-sadhak-community' },
+  // Health — Swar Yoga Levels
+  { id: 'swar-yoga-l1', name: 'Swar Yoga L-1', icon: '🎵', memberCount: 0, joinLink: 'https://swaryoga.com/join/swar-yoga-l1' },
+  { id: 'swar-yoga-l2', name: 'Swar Yoga L-2', icon: '🎵', memberCount: 0, joinLink: 'https://swaryoga.com/join/swar-yoga-l2' },
+  { id: 'swar-yoga-l3', name: 'Swar Yoga L-3', icon: '🎵', memberCount: 0, joinLink: 'https://swaryoga.com/join/swar-yoga-l3' },
+  { id: 'swar-yoga-l4', name: 'Swar Yoga L-4', icon: '🎵', memberCount: 0, joinLink: 'https://swaryoga.com/join/swar-yoga-l4' },
+  { id: 'swar-yoga-l5', name: 'Swar Yoga L-5', icon: '🎵', memberCount: 0, joinLink: 'https://swaryoga.com/join/swar-yoga-l5' },
+  // Health — Other
+  { id: 'aahar', name: 'Aahar (Diet & Nutrition)', icon: '🌿', memberCount: 0, joinLink: 'https://swaryoga.com/join/aahar' },
+  { id: 'i-am-fit', name: 'I am Fit', icon: '💪', memberCount: 0, joinLink: 'https://swaryoga.com/join/i-am-fit' },
+  // Married Life
+  { id: 'pre-planning-garbh-sankar', name: 'Pre Planning Garbh Sankar', icon: '💕', memberCount: 0, joinLink: 'https://swaryoga.com/join/pre-planning-garbh-sankar' },
+  { id: '9-month-garbha-sanskar', name: '9 Month Garbha Sanskar Sadhana', icon: '🤰', memberCount: 0, joinLink: 'https://swaryoga.com/join/9-month-garbha-sanskar' },
+  // Youth & Children
+  { id: 'youth', name: 'Youth Swar Yoga', icon: '🚀', memberCount: 0, joinLink: 'https://swaryoga.com/join/youth' },
+  { id: 'children', name: 'Children Yoga', icon: '👶', memberCount: 0, joinLink: 'https://swaryoga.com/join/children' },
+  // Yogasana
+  { id: 'yogasana', name: 'Yogasana Practice', icon: '🕉️', memberCount: 0, joinLink: 'https://swaryoga.com/join/yogasana' },
 ];
 
 // Icon map for assigning icons to new communities
@@ -812,15 +816,19 @@ export default function AdminCommunityPage() {
       const json = await res.json();
       if (json.success && json.communities) {
         // Merge DB communities with defaults, prioritizing DB data
-        const dbCommunities = json.communities.map((c: any) => ({
-          id: c.id || c._id,
-          _id: c._id,
-          name: c.name,
-          icon: COMMUNITY_ICONS[c.type] || COMMUNITY_ICONS.default,
-          memberCount: c.memberCount || 0,
-          joinLink: c.joinLink || `https://swaryoga.com/community?join=${c.id || c._id}`,
-          type: c.type
-        }));
+        const dbCommunities = json.communities.map((c: any) => {
+          const cid = c.id || c._id;
+          return {
+            id: cid,
+            _id: c._id,
+            name: c.name,
+            icon: COMMUNITY_ICONS[c.type] || COMMUNITY_ICONS.default,
+            memberCount: c.memberCount || 0,
+            // ALWAYS use the canonical /join/ form link (ignore stale DB joinLink values)
+            joinLink: `https://swaryoga.com/join/${cid}`,
+            type: c.type
+          };
+        });
         
         // Merge: Start with defaults, update with DB data, add any new DB communities
         const mergedMap = new Map<string, Community>();
@@ -1710,26 +1718,45 @@ export default function AdminCommunityPage() {
                       </div>
                     </div>
                   </div>
-                  {currentCommunity?.joinLink && (
-                    <div className="flex items-center gap-2 bg-indigo-50/50 px-3 py-1 rounded-lg border border-indigo-100 group">
-                      <LinkIcon size={12} className="text-indigo-400" />
-                      <span className="text-[9px] font-bold text-indigo-600 truncate max-w-[200px]">{currentCommunity.joinLink}</span>
-                      <button 
-                        onClick={() => {
-                          navigator.clipboard.writeText(currentCommunity.joinLink!);
-                          // Create a transient toast or alert
-                          const btn = document.getElementById('copy-link-btn');
-                          if (btn) btn.innerHTML = 'COPIED!';
-                          setTimeout(() => { if (btn) btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg>'; }, 2000);
-                        }}
-                        id="copy-link-btn"
-                        className="p-1.5 hover:bg-white rounded-md transition-all text-indigo-400 hover:text-indigo-600 shadow-sm border border-transparent hover:border-indigo-100"
-                        title="Copy Invite Link"
-                      >
-                        <Copy size={12} />
-                      </button>
-                    </div>
-                  )}
+                  {/* Join / Invite Link — prominent for admin to copy & share */}
+                  {(() => {
+                    const joinUrl = currentCommunity?.joinLink || `https://swaryoga.com/join/${selectedCommunity}`;
+                    return (
+                      <div className="flex items-center gap-2 bg-indigo-50 px-4 py-1.5 rounded-xl border border-indigo-200">
+                        <LinkIcon size={14} className="text-indigo-500 flex-shrink-0" />
+                        <a
+                          href={joinUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs font-semibold text-indigo-700 hover:underline truncate max-w-[320px]"
+                          title={joinUrl}
+                        >
+                          {joinUrl}
+                        </a>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(joinUrl);
+                            const btn = document.getElementById('copy-join-link-btn');
+                            if (btn) {
+                              btn.textContent = '✓ Copied';
+                              btn.classList.add('text-green-700', 'bg-green-100', 'border-green-300');
+                              btn.classList.remove('text-indigo-700', 'bg-white', 'border-indigo-200');
+                              setTimeout(() => {
+                                btn.textContent = 'Copy';
+                                btn.classList.remove('text-green-700', 'bg-green-100', 'border-green-300');
+                                btn.classList.add('text-indigo-700', 'bg-white', 'border-indigo-200');
+                              }, 2000);
+                            }
+                          }}
+                          id="copy-join-link-btn"
+                          className="ml-1 px-3 py-1 text-xs font-bold text-indigo-700 bg-white border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-all flex-shrink-0"
+                          title="Copy join link to share with paid members"
+                        >
+                          Copy
+                        </button>
+                      </div>
+                    );
+                  })()}
                   
                   {/* WhatsApp Group Mapping */}
                   <div className="flex items-center gap-2 bg-green-50/50 px-3 py-1 rounded-lg border border-green-100 group">

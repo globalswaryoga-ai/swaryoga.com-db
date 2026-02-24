@@ -1311,7 +1311,7 @@ function CommunityPageContent() {
                     </button>
                   )}
                   <Link
-                    href="/community?join=global"
+                    href="/join/global"
                     className="px-8 py-4 bg-white text-purple-700 border-2 border-purple-300 rounded-xl font-bold hover:bg-purple-50 transition-all"
                   >
                     🌐 View Global Community
