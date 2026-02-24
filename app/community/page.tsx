@@ -312,6 +312,14 @@ function CommunityPageContent() {
     }
   };
 
+  // Helper: show Workshop Check modal first, then Request Access form
+  // For non-global communities, always show the workshop completion check first.
+  const requestToJoin = (community: any) => {
+    if (!community || community.id === 'global') return;
+    setPendingCommunity(community);
+    setShowWorkshopCheckModal(true);
+  };
+
   // Helper to get proxied URL for S3 images
   const getSignedImageUrl = useCallback(async (imageUrl: string): Promise<string> => {
     // If it's already a proxied URL or data URL, return as-is
@@ -1003,10 +1011,7 @@ function CommunityPageContent() {
                               {selectedCommunity === community.id && !isMember && (
                                 <div className="space-y-2 pl-2">
                                   <button
-                                    onClick={() => {
-                                      setRequestingCommunity(community);
-                                      setShowRequestModal(true);
-                                    }}
+                                    onClick={() => requestToJoin(community)}
                                     className="w-full px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold transition-all duration-200 active:scale-[0.98] shadow-md"
                                   >
                                     📋 Request to Join
@@ -1091,10 +1096,7 @@ function CommunityPageContent() {
                 {currentCommunity && !userMemberships.includes(currentCommunity.id) && currentCommunity.id !== 'global' && (
                   <div className="flex gap-2 sm:gap-3 flex-row sm:flex-col">
                     <button
-                      onClick={() => {
-                        setRequestingCommunity(currentCommunity);
-                        setShowRequestModal(true);
-                      }}
+                      onClick={() => requestToJoin(currentCommunity)}
                       className="flex-1 sm:flex-none px-4 sm:px-8 py-3 sm:py-4 bg-white text-gray-900 rounded-xl font-bold hover:bg-gray-100 transition-all active:scale-95 shadow-lg text-sm sm:text-lg"
                     >
                       📋 Request to Join
@@ -1203,8 +1205,7 @@ function CommunityPageContent() {
                             setJoiningCommunity(community);
                             setShowJoinModal(true);
                           } else {
-                            setRequestingCommunity(community);
-                            setShowRequestModal(true);
+                            requestToJoin(community);
                           }
                         }
                       }}
@@ -1354,8 +1355,7 @@ function CommunityPageContent() {
                           setJoiningCommunity(currentCommunity);
                           setShowJoinModal(true);
                         } else {
-                          setRequestingCommunity(currentCommunity);
-                          setShowRequestModal(true);
+                          requestToJoin(currentCommunity);
                         }
                       }}
                       className="px-8 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-bold hover:from-green-700 hover:to-emerald-700 transition-all transform hover:scale-105 shadow-lg text-sm sm:text-base"
@@ -1484,8 +1484,7 @@ function CommunityPageContent() {
                                       setJoiningCommunity(currentCommunity);
                                       setShowJoinModal(true);
                                     } else {
-                                      setRequestingCommunity(currentCommunity);
-                                      setShowRequestModal(true);
+                                      requestToJoin(currentCommunity);
                                     }
                                   }
                                   return;
@@ -1538,8 +1537,7 @@ function CommunityPageContent() {
                                       setJoiningCommunity(currentCommunity);
                                       setShowJoinModal(true);
                                     } else {
-                                      setRequestingCommunity(currentCommunity);
-                                      setShowRequestModal(true);
+                                      requestToJoin(currentCommunity);
                                     }
                                   }
                                   return;
