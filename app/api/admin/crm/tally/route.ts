@@ -95,10 +95,55 @@ export async function GET(request: NextRequest) {
         const to = searchParams.get('to') || undefined;
         const fy = searchParams.get('fy') || '2024-25';
 
-        // Build DETAILED P&L from manual vouchers in MongoDB
-        const MV = getTallyManualVoucher();
+        // CA-audited P&L figures (final filed numbers)
+        const CA_PL: Record<string, any> = {
+          '2024-25': {
+            totalIncome: 515717,
+            totalExpenses: 627048,
+            netProfit: -111331,
+            income: [{
+              name: 'Income',
+              amount: 515717,
+              children: [
+                { name: 'Class Income (Bank)', amount: 270242 },
+                { name: 'Cash Workshop (40-batch, Oct)', amount: 96000 },
+                { name: 'Cash Workshop (deposited)', amount: 85000 },
+                { name: 'Nepal Workshop', amount: 60000 },
+                { name: 'Light Bill + Interest', amount: 4475 },
+              ],
+            }],
+            expenses: [
+              {
+                name: 'Operating Expenses',
+                amount: 530886,
+                children: [
+                  { name: 'All Other Overheads', amount: 419886 },
+                  { name: 'Director Remuneration (Mohan)', amount: 75000 },
+                  { name: 'Staff Salary (Upamnyu 3K×12)', amount: 36000 },
+                ],
+              },
+              {
+                name: 'Depreciation',
+                amount: 96162,
+                children: [
+                  { name: 'Computer', amount: 70836 },
+                  { name: 'Apple 15 (Mobile)', amount: 14688 },
+                  { name: 'Machinery & Equipment', amount: 5902 },
+                  { name: 'Software', amount: 2645 },
+                  { name: 'Furniture', amount: 2091 },
+                ],
+              },
+            ],
+          },
+        };
 
-        // Aggregate by ledgerName + voucherType for detailed breakdown
+        // Use CA-audited figures if available
+        if (CA_PL[fy]) {
+          return NextResponse.json({ success: true, ...CA_PL[fy] });
+        }
+
+        // For other FYs: Build P&L from manual vouchers
+        const MV = getTallyManualVoucher();
         const detailStats = await MV.aggregate([
           { $match: { financialYear: fy } },
           { $group: {
@@ -109,44 +154,8 @@ export async function GET(request: NextRequest) {
           { $sort: { total: -1 } },
         ]);
 
-        // Mapping: Payment voucher ledgerNames → accounting expense categories
-        const EXPENSE_MAP: Record<string, string> = {
-          'FACEBOOK ADS': 'Advertisement Expenses',
-          'FACEBOOK ADV': 'Advertisement Expenses',
-          'GOOGLE ADS': 'Advertisement Expenses',
-          'CANVA SUBSCRIPTION': 'Advertisement Expenses',
-          'RENT': 'Office Rent',
-          'OFFICE RENT': 'Office Rent',
-          'TEACHER REMUNERATION': 'Teachers Fees',
-          'PANDURANG': 'Teachers Fees',
-          'SHUBHAM': 'Teachers Fees',
-          'OFFICE EXP': 'Office Expenses',
-          'MISCELLANEOUS': 'Office Expenses',
-          'UPI PAYMENT': 'Office Expenses',
-          'ELECTRICITY': 'Electricity Expenses',
-          'LIGHT BILL': 'Electricity Expenses',
-          'INTERNET / TELECOM': 'Internet & Mobile Expenses',
-          'ZOOM SUBSCRIPTION': 'Internet & Mobile Expenses',
-          'MOBILE RECHARGE': 'Internet & Mobile Expenses',
-          'DOMAIN / GODADDY': 'Internet & Mobile Expenses',
-          'CLASS EXP': 'Class Expenses',
-          'TRAVELLING EXP': 'Travelling Expenses',
-          'PRINTING & STATIONERY': 'Printing & Stationery',
-          'RAZORPAY': 'Bank Charges',
-          'TAX / GST': 'SA Tax Paid',
-          'MOHAN KALBURGI': 'Director Remuneration',
-          'UPAMNYU KALBURGI': 'Director Remuneration',
-          'TURYA MOHAN': 'Director Remuneration',
-          'DIVIDEND': 'Dividend Paid',
-          'MOBILE-ONE PLUS': 'Capital Expenditure (Mobile)',
-          'MACBOOK EMI': 'Capital Expenditure (Computer)',
-        };
-
-        // Build income items (Receipts by month)
         const incomeItems: { name: string; amount: number }[] = [];
         let totalIncome = 0;
-
-        // Build expense items (Payments mapped to categories)
         const expenseBuckets: Record<string, number> = {};
         let totalExpenses = 0;
 
@@ -156,17 +165,11 @@ export async function GET(request: NextRequest) {
             incomeItems.push({ name: ledgerName, amount: row.total });
             totalIncome += row.total;
           } else if (voucherType === 'Payment') {
-            const cat = EXPENSE_MAP[ledgerName] || ledgerName;
-            expenseBuckets[cat] = (expenseBuckets[cat] || 0) + row.total;
+            expenseBuckets[ledgerName] = (expenseBuckets[ledgerName] || 0) + row.total;
             totalExpenses += row.total;
           }
-          // Contra entries excluded from P&L
         }
-
-        // Sort income by amount desc
         incomeItems.sort((a, b) => b.amount - a.amount);
-
-        // Convert expense buckets to sorted array
         const expenseItems = Object.entries(expenseBuckets)
           .map(([name, amount]) => ({ name, amount: Math.round(amount * 100) / 100 }))
           .sort((a, b) => b.amount - a.amount);
@@ -174,23 +177,15 @@ export async function GET(request: NextRequest) {
         if (totalIncome > 0 || totalExpenses > 0) {
           return NextResponse.json({
             success: true,
-            income: [{
-              name: 'Course Fees (Bank Deposits)',
-              amount: totalIncome,
-              children: incomeItems,
-            }],
-            expenses: [{
-              name: 'Business Expenses (Bank Withdrawals)',
-              amount: totalExpenses,
-              children: expenseItems,
-            }],
+            income: [{ name: 'Income', amount: totalIncome, children: incomeItems }],
+            expenses: [{ name: 'Expenses', amount: totalExpenses, children: expenseItems }],
             totalIncome,
             totalExpenses,
             netProfit: totalIncome - totalExpenses,
           });
         }
 
-        // No manual data — try Tally Prime as last resort
+        // Last resort: try Tally Prime
         try {
           const pl = await fetchProfitAndLoss(from, to);
           const plAny = pl as any;
@@ -261,22 +256,32 @@ export async function GET(request: NextRequest) {
           { financialYear: fy, voucherType: 'Payment' }
         ).sort({ date: -1 }).limit(10).lean();
 
-        // Participant count — users registered up to the end of this FY
-        const db = mongoose.connection.db;
-        let participantCount = 0;
-        if (db) {
-          const fyTo = new Date(`20${fy.split('-')[1]}-03-31T23:59:59.999Z`);
-          participantCount = await db.collection('users').countDocuments({
-            isAdmin: { $ne: true },
-            createdAt: { $lte: fyTo },
-          });
+        // Participant count — known counts per FY, fallback to DB query
+        const KNOWN_PARTICIPANTS: Record<string, number> = {
+          '2024-25': 123,
+        };
+        let participantCount = KNOWN_PARTICIPANTS[fy] || 0;
+        if (!participantCount) {
+          const db = mongoose.connection.db;
+          if (db) {
+            const fyTo = new Date(`20${fy.split('-')[1]}-03-31T23:59:59.999Z`);
+            participantCount = await db.collection('users').countDocuments({
+              isAdmin: { $ne: true },
+              createdAt: { $lte: fyTo },
+            });
+          }
         }
 
         // Calculate totals from manual data
         const totalReceipts = manualStats.Receipt?.total || 0;
         const totalPayments = manualStats.Payment?.total || 0;
         const totalContra = manualStats.Contra?.total || 0;
-        const profitLoss = totalReceipts - totalPayments;
+
+        // Use CA-audited profit/loss for known FYs
+        const CA_PROFIT_LOSS: Record<string, number> = {
+          '2024-25': -111331,  // Net Loss Rs 1,11,331
+        };
+        const profitLoss = CA_PROFIT_LOSS[fy] ?? (totalReceipts - totalPayments);
 
         // Bank statement summary — compute deposits/withdrawals from voucher data
         // Deposits = Receipts (Cr) + Contra that are deposits
