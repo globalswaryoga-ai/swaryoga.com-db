@@ -592,16 +592,16 @@ export default function TallyPage() {
     const f = fy || currentFY;
     setLoading(true);
     try {
+      // Try profitloss API (Tally Prime first, then voucher fallback)
       const res = await fetch(`/api/admin/crm/tally?action=profitloss&from=${f.from}&to=${f.to}&fy=${selectedFY}`, { headers: headers() });
       const data = await res.json();
       if (data.success && (data.income?.length > 0 || data.expenses?.length > 0)) {
         setPlData(data);
+        setLoading(false);
         return;
       }
-    } catch { /* Tally not available */ }
 
-    // Fallback: build from manual entries
-    try {
+      // Fallback: build from manual entries
       const manRes = await fetch(`/api/admin/crm/tally/manual-balances?fy=${selectedFY}`, { headers: headers() });
       const manData = await manRes.json();
       if (manData.success && manData.entries?.length > 0) {

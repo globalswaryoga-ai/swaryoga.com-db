@@ -171,11 +171,17 @@ export async function GET(request: NextRequest) {
           { financialYear: fy, voucherType: 'Payment' }
         ).sort({ date: -1 }).limit(10).lean();
 
-        // Participant count from users collection
+        // Participant count from users collection — filter by FY date range
         const db = mongoose.connection.db;
         let participantCount = 0;
         if (db) {
-          participantCount = await db.collection('users').countDocuments({ isAdmin: { $ne: true } });
+          const [fyStart] = fy.split('-');
+          const fyFrom = new Date(`${fyStart}-04-01T00:00:00.000Z`);
+          const fyTo = new Date(`20${fy.split('-')[1]}-03-31T23:59:59.999Z`);
+          participantCount = await db.collection('users').countDocuments({
+            isAdmin: { $ne: true },
+            createdAt: { $gte: fyFrom, $lte: fyTo },
+          });
         }
 
         // Calculate P&L from manual data
