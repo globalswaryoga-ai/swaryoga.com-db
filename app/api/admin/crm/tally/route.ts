@@ -94,17 +94,8 @@ export async function GET(request: NextRequest) {
         const from = searchParams.get('from') || undefined;
         const to = searchParams.get('to') || undefined;
         const fy = searchParams.get('fy') || '2024-25';
-        try {
-          const pl = await fetchProfitAndLoss(from, to);
-          const plAny = pl as any;
-          // Only use Tally data if it has real non-zero amounts (not just empty structure)
-          if (pl && ((plAny.totalIncome > 0 || plAny.totalExpenses > 0) ||
-              (plAny.income?.some((g: any) => g.amount > 0) || plAny.expenses?.some((g: any) => g.amount > 0)))) {
-            return NextResponse.json({ success: true, ...pl });
-          }
-        } catch { /* Tally not connected, fall back to voucher data */ }
 
-        // Fallback: build P&L from manual vouchers
+        // Build P&L from manual vouchers in MongoDB
         const MV = getTallyManualVoucher();
         const plStats = await MV.aggregate([
           { $match: { financialYear: fy } },
@@ -114,13 +105,32 @@ export async function GET(request: NextRequest) {
         for (const s of plStats) plMap[s._id] = s.total;
         const totalIncome = plMap['Receipt'] || 0;
         const totalExpenses = plMap['Payment'] || 0;
+
+        // If we have manual data, use it directly (no need to try Tally Prime on serverless)
+        if (totalIncome > 0 || totalExpenses > 0) {
+          return NextResponse.json({
+            success: true,
+            income: [{ name: 'Receipts (Bank Deposits)', amount: totalIncome, children: [{ name: 'Swar Yoga Income', amount: totalIncome }] }],
+            expenses: [{ name: 'Payments (Bank Withdrawals)', amount: totalExpenses, children: [{ name: 'Business Expenses', amount: totalExpenses }] }],
+            totalIncome,
+            totalExpenses,
+            netProfit: totalIncome - totalExpenses,
+          });
+        }
+
+        // No manual data — try Tally Prime as last resort
+        try {
+          const pl = await fetchProfitAndLoss(from, to);
+          const plAny = pl as any;
+          if (pl && (plAny.totalIncome > 0 || plAny.totalExpenses > 0)) {
+            return NextResponse.json({ success: true, ...pl });
+          }
+        } catch { /* Tally not connected */ }
+
         return NextResponse.json({
           success: true,
-          income: [{ name: 'Receipts', amount: totalIncome, children: [{ name: 'Swar Yoga Receipts', amount: totalIncome }] }],
-          expenses: [{ name: 'Payments', amount: totalExpenses, children: [{ name: 'Bank Payments', amount: totalExpenses }] }],
-          totalIncome,
-          totalExpenses,
-          netProfit: totalIncome - totalExpenses,
+          income: [], expenses: [],
+          totalIncome: 0, totalExpenses: 0, netProfit: 0,
         });
       }
 
@@ -142,17 +152,7 @@ export async function GET(request: NextRequest) {
         const to = searchParams.get('to') || undefined;
         const fy = searchParams.get('fy') || '2024-25';
 
-        // Try Tally Prime first, fallback to manual voucher data
-        let tallySummary: any = null;
-        let tallyConnected = false;
-        try {
-          tallySummary = await fetchDashboardSummary(from, to);
-          if (tallySummary && (tallySummary.totalReceipts > 0 || tallySummary.salesCount > 0)) {
-            tallyConnected = true;
-          }
-        } catch { /* Tally not connected */ }
-
-        // Always fetch manual voucher data from MongoDB
+        // Always fetch manual voucher data from MongoDB FIRST
         const ManualVoucher = getTallyManualVoucher();
         const pipeline = [
           { $match: { financialYear: fy } },
@@ -162,6 +162,21 @@ export async function GET(request: NextRequest) {
         const manualStats: Record<string, { count: number; total: number }> = {};
         for (const s of stats) {
           manualStats[s._id] = { count: s.count, total: s.total };
+        }
+
+        const hasManualData = Object.keys(manualStats).length > 0;
+
+        // Only try Tally Prime if NO manual data exists
+        // Tally Prime is desktop software (localhost:9000) — never works on Vercel serverless
+        let tallySummary: any = null;
+        let tallyConnected = false;
+        if (!hasManualData) {
+          try {
+            tallySummary = await fetchDashboardSummary(from, to);
+            if (tallySummary && (tallySummary.totalReceipts > 0 || tallySummary.salesCount > 0)) {
+              tallyConnected = true;
+            }
+          } catch { /* Tally not connected */ }
         }
 
         // Recent receipts from manual vouchers

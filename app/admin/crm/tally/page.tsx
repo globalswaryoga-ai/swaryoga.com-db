@@ -589,39 +589,16 @@ export default function TallyPage() {
     }
   }, [token, headers]);
 
-  // ── Fetch Profit & Loss (Tally first → manual fallback) ──
+  // ── Fetch Profit & Loss ──
   const fetchPL = useCallback(async (fy?: { from: string; to: string }) => {
     if (!token) return;
     const f = fy || currentFY;
     setLoading(true);
     try {
-      // Try profitloss API (Tally Prime first, then voucher fallback)
       const res = await fetch(`/api/admin/crm/tally?action=profitloss&from=${f.from}&to=${f.to}&fy=${selectedFY}`, { headers: headers() });
       const data = await res.json();
-      // Only accept data if it has real non-zero amounts (not just empty Tally structure)
-      if (data.success && (data.totalIncome > 0 || data.totalExpenses > 0 ||
-          data.income?.some((g: any) => g.amount > 0) || data.expenses?.some((g: any) => g.amount > 0))) {
+      if (data.success && (data.totalIncome > 0 || data.totalExpenses > 0)) {
         setPlData(data);
-        setLoading(false);
-        return;
-      }
-
-      // Fallback: build from manual entries
-      const manRes = await fetch(`/api/admin/crm/tally/manual-balances?fy=${selectedFY}`, { headers: headers() });
-      const manData = await manRes.json();
-      if (manData.success && manData.entries?.length > 0) {
-        const incEntries = manData.entries.filter((e: any) => e.category === 'income');
-        const expEntries = manData.entries.filter((e: any) => e.category === 'expense');
-        const groupIt = (items: any[]) => {
-          const map = new Map<string, { name: string; amount: number }[]>();
-          for (const i of items) { const k = i.parentGroup || 'Other'; if (!map.has(k)) map.set(k, []); map.get(k)!.push({ name: i.ledgerName, amount: i.amount }); }
-          return Array.from(map.entries()).map(([name, children]) => ({ name, amount: children.reduce((s: number, c: any) => s + c.amount, 0), children: children.sort((a: any, b: any) => b.amount - a.amount) })).sort((a, b) => b.amount - a.amount);
-        };
-        const income = groupIt(incEntries);
-        const expenses = groupIt(expEntries);
-        const totalIncome = income.reduce((s, g) => s + g.amount, 0);
-        const totalExpenses = expenses.reduce((s, g) => s + g.amount, 0);
-        setPlData({ income, expenses, totalIncome, totalExpenses, netProfit: totalIncome - totalExpenses });
       } else {
         setPlData(null);
       }
