@@ -475,6 +475,13 @@ const communityVideoSchema = new mongoose.Schema({
   uploadedBy: { type: String, required: true },
   isShareable: { type: Boolean, default: false }, // Always false for community videos
   views: { type: Number, default: 0 },
+  likes: { type: [String], default: [] },
+  comments: { type: [{
+    userId: { type: String, required: true },
+    userName: { type: String, default: '' },
+    text: { type: String, required: true },
+    createdAt: { type: Date, default: Date.now },
+  }], default: [] },
   
   // === Recording categorization ===
   // For batch-wise recordings linked to specific workshop batch

@@ -277,6 +277,11 @@ export default function AdminCommunityPage() {
   const [showCommentsModal, setShowCommentsModal] = useState(false);
   const [selectedPostForComments, setSelectedPostForComments] = useState<any>(null);
   const [deletingCommentIndex, setDeletingCommentIndex] = useState<number | null>(null);
+
+  // Video Comments/Likes State
+  const [showVideoCommentsModal, setShowVideoCommentsModal] = useState(false);
+  const [selectedVideoForComments, setSelectedVideoForComments] = useState<any>(null);
+  const [deletingVideoCommentIndex, setDeletingVideoCommentIndex] = useState<number | null>(null);
   
   // User Blocking State
   const [blockingMemberId, setBlockingMemberId] = useState<string | null>(null);
@@ -2384,8 +2389,14 @@ export default function AdminCommunityPage() {
                                     <span className="text-slate-400 text-sm">
                                       {playlistVideos.length} recordings
                                     </span>
-                                    <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
-                                      👁 {playlistVideos.reduce((sum: number, v: any) => sum + (v.views || 0), 0)} views
+                                    <span className="text-xs text-slate-400">
+                                      {playlistVideos.reduce((sum: number, v: any) => sum + (v.views || 0), 0)} views
+                                    </span>
+                                    <span className="text-xs text-slate-400 flex items-center gap-1">
+                                      <Heart size={12} /> {playlistVideos.reduce((sum: number, v: any) => sum + (Array.isArray(v.likes) ? v.likes.length : 0), 0)}
+                                    </span>
+                                    <span className="text-xs text-slate-400 flex items-center gap-1">
+                                      <MessageCircle size={12} /> {playlistVideos.reduce((sum: number, v: any) => sum + (Array.isArray(v.comments) ? v.comments.length : 0), 0)}
                                     </span>
                                   </div>
                                   <button className="px-4 py-2 bg-emerald-500/20 text-emerald-400 rounded-xl text-sm font-bold group-hover:bg-emerald-500 group-hover:text-white transition-all flex items-center gap-2">
@@ -2472,15 +2483,29 @@ export default function AdminCommunityPage() {
                                   <p className="text-slate-400 text-sm mb-3 line-clamp-2">{recording.description}</p>
                                 )}
                                 <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-3">
-                                    <span className="text-slate-500 text-xs">
-                                      {new Date(recording.createdAt).toLocaleDateString()}
+                                  <span className="text-slate-500 text-xs">
+                                    {new Date(recording.createdAt).toLocaleDateString()}
+                                  </span>
+                                  <div className="flex items-center gap-1">
+                                    <span className="px-2 py-1 text-xs font-bold text-slate-400 rounded-lg" title="Views">
+                                      {recording.views || 0}
                                     </span>
-                                    <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full flex items-center gap-1">
-                                      👁 {recording.views || 0} views
-                                    </span>
-                                  </div>
-                                  <div className="flex gap-1">
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); }}
+                                      className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all flex items-center gap-1"
+                                      title="Likes"
+                                    >
+                                      <Heart size={14} className={Array.isArray(recording.likes) && recording.likes.length > 0 ? 'fill-red-500 text-red-500' : ''} />
+                                      <span className="text-xs">{Array.isArray(recording.likes) ? recording.likes.length : 0}</span>
+                                    </button>
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); setSelectedVideoForComments(recording); setShowVideoCommentsModal(true); }}
+                                      className="p-2 text-slate-500 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-all flex items-center gap-1"
+                                      title="Comments"
+                                    >
+                                      <MessageCircle size={14} />
+                                      <span className="text-xs">{Array.isArray(recording.comments) ? recording.comments.length : 0}</span>
+                                    </button>
                                     <button
                                       onClick={(e) => { e.stopPropagation(); openEditVideoModal(recording); }}
                                       className="p-2 text-slate-500 hover:text-blue-500 hover:bg-blue-500/10 rounded-lg transition-all"
@@ -2601,9 +2626,27 @@ export default function AdminCommunityPage() {
                         Added {new Date(video.createdAt).toLocaleDateString()}
                       </p>
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-purple-600 bg-purple-50 px-3 py-1 rounded-full">
-                          📊 {video.views || 0} views
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-slate-500 px-2 py-1">
+                            {video.views || 0}
+                          </span>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); }}
+                            className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg transition-all flex items-center gap-1"
+                            title="Likes"
+                          >
+                            <Heart size={14} className={Array.isArray(video.likes) && video.likes.length > 0 ? 'fill-red-500 text-red-500' : ''} />
+                            <span className="text-xs">{Array.isArray(video.likes) ? video.likes.length : 0}</span>
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setSelectedVideoForComments(video); setShowVideoCommentsModal(true); }}
+                            className="p-1.5 text-slate-400 hover:text-emerald-500 rounded-lg transition-all flex items-center gap-1"
+                            title="Comments"
+                          >
+                            <MessageCircle size={14} />
+                            <span className="text-xs">{Array.isArray(video.comments) ? video.comments.length : 0}</span>
+                          </button>
+                        </div>
                         <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
                           {video.source === 'youtube_import' && video.youtubeVideoId && (
                             <a 
@@ -3696,6 +3739,123 @@ export default function AdminCommunityPage() {
                   <MessageCircle size={48} className="text-slate-200 mb-4" />
                   <h3 className="text-lg font-bold text-slate-400 mb-1">No Comments</h3>
                   <p className="text-sm text-slate-400">This post has no comments yet.</p>
+                </div>
+              )}
+            </div>
+            
+            {/* Footer */}
+            <div className="p-4 border-t border-slate-100 bg-slate-50 shrink-0">
+              <p className="text-xs text-slate-400 text-center">
+                Click the trash icon to delete inappropriate comments
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Video Comments Modal */}
+      {showVideoCommentsModal && selectedVideoForComments && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[100] flex items-center justify-center animate-in fade-in p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <MessageCircle className="text-emerald-600" size={24} />
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">Video Comments</h2>
+                  <p className="text-xs text-slate-500">{Array.isArray(selectedVideoForComments.comments) ? selectedVideoForComments.comments.length : 0} comments on this video</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => { setShowVideoCommentsModal(false); setSelectedVideoForComments(null); }} 
+                className="p-2 hover:bg-slate-100 rounded-xl transition-all"
+              >
+                <Plus className="rotate-45" size={20} />
+              </button>
+            </div>
+            
+            {/* Video Preview */}
+            <div className="p-4 bg-slate-50 border-b border-slate-100 shrink-0 flex items-center gap-4">
+              {selectedVideoForComments.thumbnailUrl && (
+                <img 
+                  src={selectedVideoForComments.source === 'youtube_import' ? selectedVideoForComments.thumbnailUrl : getProxiedMediaUrl(selectedVideoForComments.thumbnailUrl, token)} 
+                  alt="" 
+                  className="w-20 h-14 rounded-lg object-cover" 
+                />
+              )}
+              <div>
+                <p className="text-sm font-bold text-slate-800">{selectedVideoForComments.title?.split(' > ').pop() || selectedVideoForComments.title}</p>
+                <div className="flex items-center gap-3 mt-1">
+                  <span className="text-xs text-slate-500">{selectedVideoForComments.views || 0} views</span>
+                  <span className="text-xs text-slate-500 flex items-center gap-1"><Heart size={10} className={Array.isArray(selectedVideoForComments.likes) && selectedVideoForComments.likes.length > 0 ? 'fill-red-500 text-red-500' : ''} /> {Array.isArray(selectedVideoForComments.likes) ? selectedVideoForComments.likes.length : 0} likes</span>
+                </div>
+              </div>
+            </div>
+            
+            {/* Comments List */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-3">
+              {Array.isArray(selectedVideoForComments.comments) && selectedVideoForComments.comments.length > 0 ? (
+                selectedVideoForComments.comments.map((comment: any, index: number) => (
+                  <div key={index} className="bg-white border border-slate-200 rounded-xl p-4 hover:shadow-md transition-all group">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                          {(comment.userName || comment.userId || 'U').charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="text-sm font-bold text-slate-800 truncate">{comment.userName || comment.userId || 'Anonymous'}</p>
+                            <span className="text-[10px] text-slate-400">
+                              {comment.createdAt ? new Date(comment.createdAt).toLocaleDateString('en-IN', { 
+                                day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                              }) : 'Unknown date'}
+                            </span>
+                          </div>
+                          <p className="text-sm text-slate-600">{comment.text}</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          if (!confirm('Delete this comment?')) return;
+                          try {
+                            setDeletingVideoCommentIndex(index);
+                            const res = await fetch('/api/admin/communities/video-interactions', {
+                              method: 'DELETE',
+                              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                              body: JSON.stringify({ videoId: selectedVideoForComments._id, commentIndex: index }),
+                            });
+                            const json = await res.json();
+                            if (!res.ok) throw new Error(json.error || 'Failed to delete');
+                            const updatedComments = [...(selectedVideoForComments.comments || [])];
+                            updatedComments.splice(index, 1);
+                            setSelectedVideoForComments({ ...selectedVideoForComments, comments: updatedComments });
+                            // Update local recordings/videos arrays
+                            setRecordings(prev => prev.map((r: any) => r._id === selectedVideoForComments._id ? { ...r, comments: updatedComments } : r));
+                            setVideos(prev => prev.map((v: any) => v._id === selectedVideoForComments._id ? { ...v, comments: updatedComments } : v));
+                          } catch (err: any) {
+                            alert('❌ ' + err.message);
+                          } finally {
+                            setDeletingVideoCommentIndex(null);
+                          }
+                        }}
+                        disabled={deletingVideoCommentIndex === index}
+                        className="p-2 opacity-0 group-hover:opacity-100 hover:bg-red-50 hover:text-red-600 rounded-lg transition-all text-slate-400 shrink-0"
+                        title="Delete Comment"
+                      >
+                        {deletingVideoCommentIndex === index ? (
+                          <Loader size={16} className="animate-spin" />
+                        ) : (
+                          <Trash2 size={16} />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <MessageCircle size={48} className="text-slate-200 mb-4" />
+                  <h3 className="text-lg font-bold text-slate-400 mb-1">No Comments Yet</h3>
+                  <p className="text-sm text-slate-400">Members haven&apos;t commented on this video yet.</p>
                 </div>
               )}
             </div>

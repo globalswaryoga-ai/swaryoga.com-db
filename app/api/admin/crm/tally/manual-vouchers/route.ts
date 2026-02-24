@@ -111,7 +111,11 @@ export async function POST(request: NextRequest) {
             upd[key] = key === 'amount' ? Math.abs(Number(updates[key])) : typeof updates[key] === 'string' ? updates[key].trim() : updates[key];
           }
         }
-        const updated = await ManualVoucher.findByIdAndUpdate(id, upd, { new: true }).lean();
+        // Try ObjectId first, fall back to string _id (some docs inserted by scripts have string _id)
+        let updated = await ManualVoucher.findByIdAndUpdate(id, upd, { new: true }).lean();
+        if (!updated) {
+          updated = await ManualVoucher.findOneAndUpdate({ _id: id }, upd, { new: true }).lean();
+        }
         if (!updated) return apiError('Voucher not found', 404);
         return NextResponse.json({ success: true, entry: updated, message: 'Voucher updated' });
       }
@@ -119,7 +123,11 @@ export async function POST(request: NextRequest) {
       case 'delete': {
         const { id: delId } = body;
         if (!delId) return apiError('Missing id');
-        const deleted = await ManualVoucher.findByIdAndDelete(delId);
+        // Try ObjectId first, fall back to string _id
+        let deleted = await ManualVoucher.findByIdAndDelete(delId);
+        if (!deleted) {
+          deleted = await ManualVoucher.findOneAndDelete({ _id: delId });
+        }
         if (!deleted) return apiError('Voucher not found', 404);
         return NextResponse.json({ success: true, message: 'Voucher deleted' });
       }

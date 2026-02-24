@@ -790,8 +790,10 @@ export default function TallyPage() {
         // Refresh the right tab
         const vType = activeTab === 'receipts' ? 'Receipt' : activeTab === 'sales' ? 'Sales' : activeTab === 'purchases' ? 'Purchase' : 'all';
         fetchManualVouchers(vType);
+      } else {
+        alert(data.error || 'Failed to save voucher');
       }
-    } catch { /* ignore */ }
+    } catch (err: any) { alert('Network error: ' + (err?.message || 'Unknown')); }
     finally { setVoucherLoading(false); }
   }, [token, voucherFormData, editingVoucherId, selectedFY, headers, activeTab, fetchManualVouchers]);
 
