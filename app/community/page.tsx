@@ -303,12 +303,13 @@ function CommunityPageContent() {
   };
 
   // Proceed to request access after workshop confirmation
+  // Reuse the Join form (which has country selector) instead of the separate Request form
   const proceedToRequestAccess = () => {
     setShowWorkshopCheckModal(false);
     if (pendingCommunity) {
       setSelectedCommunity(pendingCommunity.id);
-      setRequestingCommunity(pendingCommunity);
-      setShowRequestModal(true);
+      setJoiningCommunity(pendingCommunity);
+      setShowJoinModal(true);
     }
   };
 
