@@ -8,7 +8,7 @@ import {
   Video, CheckCircle, Loader, Save, AlertCircle, ChevronRight,
   Globe, Music, Heart, Baby, Sparkles, Activity, Sun, Leaf,
   PersonStanding, Menu, X, CheckSquare, Square, ToggleLeft, ToggleRight,
-  Edit, Search, User, Phone, Eye,
+  Edit, Search, User, Phone, Eye, ChevronDown, Users,
 } from 'lucide-react';
 
 // Community list matching communityColorSystem.ts
@@ -70,6 +70,15 @@ export default function RecordingManagementPage() {
   const [modalError, setModalError] = useState<string | null>(null);
   const [modalSuccess, setModalSuccess] = useState<string | null>(null);
 
+  // Bulk action state
+  const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(new Set());
+  const [bulkPlaylists, setBulkPlaylists] = useState<Playlist[]>([]);
+  const [loadingBulkPlaylists, setLoadingBulkPlaylists] = useState(false);
+  const [bulkPlaylistId, setBulkPlaylistId] = useState('');
+  const [bulkProcessing, setBulkProcessing] = useState(false);
+  const [bulkResult, setBulkResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [bulkDropdownOpen, setBulkDropdownOpen] = useState(false);
+
   // Fetch members for the selected community
   const fetchMembers = useCallback(async () => {
     if (!token) return;
@@ -92,6 +101,95 @@ export default function RecordingManagementPage() {
       setLoadingMembers(false);
     }
   }, [token, selectedCommunity.id, router]);
+
+  // Clear bulk selection when community changes
+  useEffect(() => {
+    setSelectedMemberIds(new Set());
+    setBulkPlaylists([]);
+    setBulkPlaylistId('');
+    setBulkResult(null);
+  }, [selectedCommunity.id]);
+
+  // Fetch playlists for bulk actions (when members are first selected)
+  const fetchBulkPlaylists = useCallback(async () => {
+    if (!token || bulkPlaylists.length > 0) return;
+    setLoadingBulkPlaylists(true);
+    try {
+      // We need any userId just to fetch playlists — reuse the first selected member
+      const anyMember = members.find(m => selectedMemberIds.has(m.userId));
+      if (!anyMember) return;
+      const res = await fetch(
+        '/api/admin/crm/community/user-playlist-access?communityId=' + selectedCommunity.id + '&userId=' + anyMember.userId,
+        { headers: { Authorization: 'Bearer ' + token } }
+      );
+      const data = await res.json();
+      if (res.ok) {
+        setBulkPlaylists(data.playlists || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch bulk playlists:', err);
+    } finally {
+      setLoadingBulkPlaylists(false);
+    }
+  }, [token, selectedCommunity.id, members, selectedMemberIds, bulkPlaylists.length]);
+
+  // Toggle single member selection
+  const toggleMemberSelection = (userId: string) => {
+    setSelectedMemberIds(prev => {
+      const next = new Set(prev);
+      if (next.has(userId)) {
+        next.delete(userId);
+      } else {
+        next.add(userId);
+      }
+      return next;
+    });
+  };
+
+  // Toggle select all (filtered members)
+  const toggleSelectAll = () => {
+    if (selectedMemberIds.size === filteredMembers.length && filteredMembers.length > 0) {
+      setSelectedMemberIds(new Set());
+    } else {
+      setSelectedMemberIds(new Set(filteredMembers.map(m => m.userId)));
+    }
+  };
+
+  // Execute bulk action
+  const executeBulkAction = async (action: string, playlistId?: string) => {
+    if (selectedMemberIds.size === 0 || !token) return;
+    setBulkProcessing(true);
+    setBulkResult(null);
+
+    try {
+      const selectedMembers = members
+        .filter(m => selectedMemberIds.has(m.userId))
+        .map(m => ({ userId: m.userId, name: m.name, mobile: m.mobile }));
+
+      const res = await fetch('/api/admin/crm/community/user-playlist-access/bulk', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + token,
+        },
+        body: JSON.stringify({
+          userIds: Array.from(selectedMemberIds),
+          communityId: selectedCommunity.id,
+          action,
+          playlistId: playlistId || undefined,
+          members: selectedMembers,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Bulk action failed');
+      setBulkResult({ type: 'success', message: data.message });
+      setTimeout(() => setBulkResult(null), 5000);
+    } catch (err: any) {
+      setBulkResult({ type: 'error', message: err.message || 'Bulk action failed' });
+    } finally {
+      setBulkProcessing(false);
+    }
+  };
 
   useEffect(() => {
     if (!token) {
@@ -307,6 +405,133 @@ export default function RecordingManagementPage() {
               />
             </div>
 
+            {/* Bulk Action Bar */}
+            {selectedMemberIds.size > 0 && (
+              <div className="mb-4 p-3 bg-indigo-50 border border-indigo-200 rounded-xl">
+                <div className="flex flex-wrap items-center gap-3">
+                  {/* Selection Count */}
+                  <div className="flex items-center gap-2 text-sm font-bold text-indigo-700">
+                    <Users className="h-4 w-4" />
+                    <span>{selectedMemberIds.size} selected</span>
+                  </div>
+
+                  <div className="h-5 w-px bg-indigo-200 hidden sm:block" />
+
+                  {/* All Access ON/OFF */}
+                  <button
+                    onClick={() => executeBulkAction('allAccess-on')}
+                    disabled={bulkProcessing}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-500 text-white rounded-lg text-xs font-bold hover:bg-green-600 disabled:opacity-50 transition-colors"
+                  >
+                    <ToggleRight className="h-3.5 w-3.5" />
+                    All Access ON
+                  </button>
+                  <button
+                    onClick={() => executeBulkAction('allAccess-off')}
+                    disabled={bulkProcessing}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-500 text-white rounded-lg text-xs font-bold hover:bg-gray-600 disabled:opacity-50 transition-colors"
+                  >
+                    <ToggleLeft className="h-3.5 w-3.5" />
+                    All Access OFF
+                  </button>
+
+                  <div className="h-5 w-px bg-indigo-200 hidden sm:block" />
+
+                  {/* Playlist Dropdown + Grant/Revoke */}
+                  <div className="relative">
+                    <button
+                      onClick={() => {
+                        setBulkDropdownOpen(!bulkDropdownOpen);
+                        if (bulkPlaylists.length === 0) fetchBulkPlaylists();
+                      }}
+                      disabled={bulkProcessing}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-indigo-300 text-indigo-700 rounded-lg text-xs font-bold hover:bg-indigo-50 disabled:opacity-50 transition-colors min-w-[160px]"
+                    >
+                      <Video className="h-3.5 w-3.5 flex-shrink-0" />
+                      <span className="truncate max-w-[200px]">
+                        {bulkPlaylistId
+                          ? (bulkPlaylists.find(p => p._id === bulkPlaylistId)?.playlist || 'Selected')
+                          : 'Select Playlist'}
+                      </span>
+                      <ChevronDown className="h-3.5 w-3.5 flex-shrink-0 ml-auto" />
+                    </button>
+
+                    {bulkDropdownOpen && (
+                      <div className="absolute top-full left-0 mt-1 w-80 max-h-60 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-xl z-30">
+                        {loadingBulkPlaylists ? (
+                          <div className="flex items-center justify-center py-4">
+                            <Loader className="h-4 w-4 text-indigo-500 animate-spin mr-2" />
+                            <span className="text-xs text-gray-500">Loading playlists...</span>
+                          </div>
+                        ) : bulkPlaylists.length === 0 ? (
+                          <div className="p-3 text-xs text-gray-500 text-center">No playlists found</div>
+                        ) : (
+                          bulkPlaylists.map(pl => (
+                            <button
+                              key={pl._id}
+                              onClick={() => {
+                                setBulkPlaylistId(pl._id);
+                                setBulkDropdownOpen(false);
+                              }}
+                              className={
+                                'w-full text-left px-3 py-2.5 text-xs hover:bg-indigo-50 transition-colors border-b border-gray-50 last:border-b-0 ' +
+                                (bulkPlaylistId === pl._id ? 'bg-indigo-50 font-bold text-indigo-700' : 'text-gray-700')
+                              }
+                            >
+                              <p className="font-medium truncate">{pl.playlist}</p>
+                              <p className="text-[10px] text-gray-400 mt-0.5">{pl.folder} &bull; {pl.videoCount} videos</p>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {bulkPlaylistId && (
+                    <>
+                      <button
+                        onClick={() => executeBulkAction('grant-playlist', bulkPlaylistId)}
+                        disabled={bulkProcessing}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                      >
+                        <CheckCircle className="h-3.5 w-3.5" />
+                        Grant
+                      </button>
+                      <button
+                        onClick={() => executeBulkAction('revoke-playlist', bulkPlaylistId)}
+                        disabled={bulkProcessing}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-500 text-white rounded-lg text-xs font-bold hover:bg-red-600 disabled:opacity-50 transition-colors"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                        Revoke
+                      </button>
+                    </>
+                  )}
+
+                  {bulkProcessing && <Loader className="h-4 w-4 text-indigo-500 animate-spin" />}
+
+                  {/* Clear selection */}
+                  <button
+                    onClick={() => { setSelectedMemberIds(new Set()); setBulkResult(null); }}
+                    className="ml-auto text-xs text-gray-500 hover:text-gray-700 font-medium"
+                  >
+                    Clear selection
+                  </button>
+                </div>
+
+                {/* Bulk result message */}
+                {bulkResult && (
+                  <div className={'mt-2 text-xs font-medium flex items-center gap-1.5 ' +
+                    (bulkResult.type === 'success' ? 'text-green-700' : 'text-red-700')}>
+                    {bulkResult.type === 'success'
+                      ? <CheckCircle className="h-3.5 w-3.5" />
+                      : <AlertCircle className="h-3.5 w-3.5" />}
+                    {bulkResult.message}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Members Table */}
             {loadingMembers ? (
               <div className="flex flex-col items-center justify-center py-20">
@@ -324,6 +549,14 @@ export default function RecordingManagementPage() {
                 <table className="w-full">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
+                      <th className="text-left px-3 py-3 w-10">
+                        <input
+                          type="checkbox"
+                          checked={selectedMemberIds.size === filteredMembers.length && filteredMembers.length > 0}
+                          onChange={toggleSelectAll}
+                          className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 cursor-pointer"
+                        />
+                      </th>
                       <th className="text-left px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider">#</th>
                       <th className="text-left px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Name</th>
                       <th className="text-left px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider hidden sm:table-cell">Mobile</th>
@@ -335,7 +568,15 @@ export default function RecordingManagementPage() {
                   </thead>
                   <tbody>
                     {filteredMembers.map((member, idx) => (
-                      <tr key={member._id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                      <tr key={member._id} className={'border-b border-gray-100 hover:bg-gray-50 transition-colors' + (selectedMemberIds.has(member.userId) ? ' bg-indigo-50/40' : '')}>
+                        <td className="px-3 py-3">
+                          <input
+                            type="checkbox"
+                            checked={selectedMemberIds.has(member.userId)}
+                            onChange={() => toggleMemberSelection(member.userId)}
+                            className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 cursor-pointer"
+                          />
+                        </td>
                         <td className="px-4 py-3 text-xs text-gray-400">{idx + 1}</td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
