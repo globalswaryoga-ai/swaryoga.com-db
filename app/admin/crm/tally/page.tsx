@@ -607,17 +607,32 @@ export default function TallyPage() {
   }, [token, headers, selectedFY]);
 
   // ── Build BS from manual entries ──
+  // Accounting: Assets normally Dr (positive), Liabilities normally Cr (positive)
+  // A liability with Dr balance (e.g., P&L loss) REDUCES liabilities
+  // An asset with Cr balance REDUCES assets
   const buildBSFromManual = (entries: ManualEntry[]): BalanceSheetData | null => {
     const assetEntries = entries.filter(e => e.category === 'asset');
     const liabEntries = entries.filter(e => e.category === 'liability');
     if (assetEntries.length === 0 && liabEntries.length === 0) return null;
+
+    // Get effective signed amount based on Dr/Cr and category
+    const effectiveAmount = (entry: ManualEntry): number => {
+      const amt = Math.abs(entry.amount);
+      if (entry.category === 'asset') {
+        // Assets: Dr = positive (normal), Cr = negative
+        return entry.drCr === 'Cr' ? -amt : amt;
+      } else {
+        // Liabilities: Cr = positive (normal), Dr = negative
+        return entry.drCr === 'Dr' ? -amt : amt;
+      }
+    };
 
     const groupEntries = (items: ManualEntry[]) => {
       const map = new Map<string, { name: string; amount: number }[]>();
       for (const item of items) {
         const key = item.parentGroup || 'Other';
         if (!map.has(key)) map.set(key, []);
-        map.get(key)!.push({ name: item.ledgerName, amount: item.amount });
+        map.get(key)!.push({ name: item.ledgerName, amount: effectiveAmount(item) });
       }
       return Array.from(map.entries()).map(([name, children]) => ({
         name,

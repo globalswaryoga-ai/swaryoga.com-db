@@ -38,16 +38,29 @@ export async function GET(request: NextRequest) {
       .sort({ category: 1, parentGroup: 1, ledgerName: 1 })
       .lean();
 
-    // Calculate totals
+    // Calculate totals — respect Dr/Cr direction
+    // Assets: Dr = positive (normal), Cr = negative (reduces)
+    // Liabilities: Cr = positive (normal), Dr = negative (reduces)
+    // Income: Cr = positive (normal)
+    // Expenses: Dr = positive (normal)
     const assets = entries.filter((e: any) => e.category === 'asset');
     const liabilities = entries.filter((e: any) => e.category === 'liability');
     const income = entries.filter((e: any) => e.category === 'income');
     const expenses = entries.filter((e: any) => e.category === 'expense');
 
-    const totalAssets = assets.reduce((s: number, e: any) => s + (e.amount || 0), 0);
-    const totalLiabilities = liabilities.reduce((s: number, e: any) => s + (e.amount || 0), 0);
-    const totalIncome = income.reduce((s: number, e: any) => s + (e.amount || 0), 0);
-    const totalExpenses = expenses.reduce((s: number, e: any) => s + (e.amount || 0), 0);
+    const effectiveAmt = (e: any) => {
+      const amt = Math.abs(e.amount || 0);
+      if (e.category === 'asset') return e.drCr === 'Cr' ? -amt : amt;
+      if (e.category === 'liability') return e.drCr === 'Dr' ? -amt : amt;
+      if (e.category === 'income') return e.drCr === 'Dr' ? -amt : amt;
+      if (e.category === 'expense') return e.drCr === 'Cr' ? -amt : amt;
+      return amt;
+    };
+
+    const totalAssets = assets.reduce((s: number, e: any) => s + effectiveAmt(e), 0);
+    const totalLiabilities = liabilities.reduce((s: number, e: any) => s + effectiveAmt(e), 0);
+    const totalIncome = income.reduce((s: number, e: any) => s + effectiveAmt(e), 0);
+    const totalExpenses = expenses.reduce((s: number, e: any) => s + effectiveAmt(e), 0);
 
     return NextResponse.json({
       success: true,
