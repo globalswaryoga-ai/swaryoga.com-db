@@ -1094,6 +1094,15 @@ export default function TallyPage() {
       }
     };
 
+    // ── Auto-calculate current year Net P&L from Income & Expense entries ──
+    const incomeEntries = entries.filter(e => e.category === 'income' || e.category === 'Income');
+    const expenseEntries = entries.filter(e =>
+      e.category === 'expense' || e.category === 'Indirect Expenses' || e.category === 'Direct Expenses'
+    );
+    const totalIncome = incomeEntries.reduce((s, e) => s + Math.abs(e.amount), 0);
+    const totalExpenses = expenseEntries.reduce((s, e) => s + Math.abs(e.amount), 0);
+    const currentYearPL = totalIncome - totalExpenses; // positive = profit, negative = loss
+
     const groupEntries = (items: ManualEntry[]) => {
       const map = new Map<string, { name: string; amount: number; _id?: string }[]>();
       for (const item of items) {
@@ -1110,6 +1119,23 @@ export default function TallyPage() {
 
     const assets = groupEntries(assetEntries);
     const liabilities = groupEntries(liabEntries);
+
+    // ── Inject current year P&L into Reserves & Surplus (like Tally Prime) ──
+    if (currentYearPL !== 0) {
+      const rsGroup = liabilities.find(g => g.name === 'Reserves & Surplus');
+      const plLabel = currentYearPL >= 0 ? 'Current Year Profit' : 'Current Year Loss';
+      const plEntry = { name: plLabel, amount: currentYearPL };
+      if (rsGroup) {
+        rsGroup.children.push(plEntry);
+        rsGroup.amount += currentYearPL;
+      } else {
+        liabilities.push({
+          name: 'Reserves & Surplus',
+          amount: currentYearPL,
+          children: [plEntry],
+        });
+      }
+    }
 
     const totalAssets = assets.reduce((s, g) => s + g.amount, 0);
     const totalLiabilities = liabilities.reduce((s, g) => s + g.amount, 0);
