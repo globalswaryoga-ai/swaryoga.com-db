@@ -28,7 +28,7 @@ import {
   fetchBalanceSheet,
 } from '@/lib/tally/tallyPrimeAPI';
 import { runTallyAutoSync, getLastSyncInfo } from '@/lib/tally/tallyAutoSync';
-import { getTallyManualVoucher } from '@/lib/schemas/enterpriseSchemas';
+import { getTallyManualVoucher, getTallyManualBalance } from '@/lib/schemas/enterpriseSchemas';
 import mongoose from 'mongoose';
 
 function unauthorized() {
@@ -96,13 +96,53 @@ export async function GET(request: NextRequest) {
         const fy = searchParams.get('fy') || '2024-25';
         const mode = searchParams.get('mode') || 'yearly';
 
-        // Build P&L from manual vouchers (always, for both monthly and yearly)
-        const MV = getTallyManualVoucher();
+        // ── YEARLY: Use manual BALANCE entries (accurate, categorized amounts) ──
+        // Balance entries have correct expense splits (e.g. Mohan ₹75K salary vs advance)
+        // Vouchers mix salary + advances + capital in single ledger names, causing inflated expenses
+        if (mode === 'yearly') {
+          const MB = getTallyManualBalance();
+          const balEntries = await MB.find({ financialYear: fy }).lean();
 
-        // Date filter for monthly mode
+          const incomeItems: { name: string; amount: number }[] = [];
+          let totalIncome = 0;
+          const expenseItems: { name: string; amount: number }[] = [];
+          let totalExpenses = 0;
+
+          for (const entry of balEntries) {
+            const e = entry as any;
+            const cat = (e.category || '').toLowerCase();
+            const amt = e.amount || 0;
+            if (cat === 'income' || cat === 'revenue') {
+              if (amt > 0) {
+                incomeItems.push({ name: e.ledgerName, amount: amt });
+                totalIncome += amt;
+              }
+            } else if (cat === 'expense' || cat === 'expenses') {
+              if (amt > 0) {
+                expenseItems.push({ name: e.ledgerName, amount: amt });
+                totalExpenses += amt;
+              }
+            }
+          }
+          incomeItems.sort((a, b) => b.amount - a.amount);
+          expenseItems.sort((a, b) => b.amount - a.amount);
+
+          if (totalIncome > 0 || totalExpenses > 0) {
+            return NextResponse.json({
+              success: true,
+              income: [{ name: 'Income', amount: totalIncome, children: incomeItems }],
+              expenses: [{ name: 'Expenses', amount: totalExpenses, children: expenseItems }],
+              totalIncome,
+              totalExpenses,
+              netProfit: totalIncome - totalExpenses,
+            });
+          }
+        }
+
+        // ── MONTHLY: Use vouchers with capital exclusions ──
+        const MV = getTallyManualVoucher();
         const dateMatch: any = { financialYear: fy };
         if (mode === 'monthly' && from && to) {
-          // from/to are YYYYMMDD format, voucher dates are YYYY-MM-DD
           const isoFrom = `${from.slice(0,4)}-${from.slice(4,6)}-${from.slice(6,8)}`;
           const isoTo = `${to.slice(0,4)}-${to.slice(4,6)}-${to.slice(6,8)}`;
           dateMatch.date = { $gte: isoFrom, $lte: isoTo };
@@ -123,12 +163,18 @@ export async function GET(request: NextRequest) {
         const expenseBuckets: Record<string, number> = {};
         let totalExpenses = 0;
 
+        // Ledger names that should NOT appear in P&L (capital / BS items)
+        const CAPITAL_RECEIPTS = ['Investment Received', 'Share Capital', 'Loan Received'];
+        const CAPITAL_PAYMENTS = ['DIVIDEND', 'MOBILE-ONE PLUS']; // Asset purchases & appropriations
+
         for (const row of detailStats) {
           const { ledgerName, voucherType } = row._id;
           if (voucherType === 'Receipt') {
+            if (CAPITAL_RECEIPTS.includes(ledgerName)) continue;
             incomeItems.push({ name: ledgerName, amount: row.total });
             totalIncome += row.total;
           } else if (voucherType === 'Payment') {
+            if (CAPITAL_PAYMENTS.includes(ledgerName)) continue;
             expenseBuckets[ledgerName] = (expenseBuckets[ledgerName] || 0) + row.total;
             totalExpenses += row.total;
           }
@@ -241,8 +287,18 @@ export async function GET(request: NextRequest) {
         const totalPayments = manualStats.Payment?.total || 0;
         const totalContra = manualStats.Contra?.total || 0;
 
-        // Profit/Loss = Receipts - Payments (computed from vouchers)
-        const profitLoss = totalReceipts - totalPayments;
+        // Profit/Loss from balance entries (accurate, categorized amounts)
+        // Voucher totals mix salary+advances+capital, so use balance entries for P&L
+        const BalModel = getTallyManualBalance();
+        const balEntries = await BalModel.find({ financialYear: fy }).lean();
+        let plIncome = 0, plExpenses = 0;
+        for (const entry of balEntries) {
+          const e = entry as any;
+          const cat = (e.category || '').toLowerCase();
+          if ((cat === 'income' || cat === 'revenue') && e.amount > 0) plIncome += e.amount;
+          else if ((cat === 'expense' || cat === 'expenses') && e.amount > 0) plExpenses += e.amount;
+        }
+        const profitLoss = plIncome - plExpenses;
 
         // Bank statement summary — compute deposits/withdrawals from voucher data
         // Deposits = Receipts (Cr) + Contra that are deposits
