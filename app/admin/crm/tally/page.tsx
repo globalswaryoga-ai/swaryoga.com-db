@@ -40,6 +40,11 @@ import {
   Download,
   Database,
   Wallet,
+  Eye,
+  Paperclip,
+  CheckCircle,
+  AlertTriangle,
+  Image,
 } from 'lucide-react';
 
 // ── Types ──
@@ -134,7 +139,7 @@ interface BalanceSheetData {
   difference: number;
 }
 
-type ActiveTab = 'dashboard' | 'sales' | 'receipts' | 'purchases' | 'ledgers' | 'stock' | 'daybook' | 'profitloss' | 'balancesheet' | 'opening' | 'settings';
+type ActiveTab = 'dashboard' | 'sales' | 'receipts' | 'purchases' | 'ledgers' | 'stock' | 'daybook' | 'profitloss' | 'balancesheet' | 'opening' | 'caaudit' | 'settings';
 
 // ── Helpers ──
 function fmt(n: number) {
@@ -228,6 +233,210 @@ export default function TallyPage() {
   const [voucherFormData, setVoucherFormData] = useState({ voucherType: 'Receipt', voucherNumber: '', date: '', partyName: '', ledgerName: '', amount: '', narration: '', paymentMode: 'Bank' });
   const [voucherLoading, setVoucherLoading] = useState(false);
   const [manualVoucherStats, setManualVoucherStats] = useState<Record<string, { count: number; total: number }>>({});
+
+  // CA Audit — Receipt Files
+  interface ReceiptFile { _id: string; fileName: string; fileUrl: string; previewUrl: string; fileType: string; fileSize: number; category: string; voucherId?: string; voucherType: string; voucherNumber: string; partyName: string; amount?: number; date: string; notes: string; createdAt: string; }
+  const [receiptFiles, setReceiptFiles] = useState<ReceiptFile[]>([]);
+  const [receiptFilesLoading, setReceiptFilesLoading] = useState(false);
+  const [receiptFileStats, setReceiptFileStats] = useState<{ total: number; income: number; expense: number; other: number }>({ total: 0, income: 0, expense: 0, other: 0 });
+  const [showUploadForm, setShowUploadForm] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [receiptPreview, setReceiptPreview] = useState<ReceiptFile | null>(null);
+  const receiptFileInputRef = useRef<HTMLInputElement>(null);
+  const bulkReceiptInputRef = useRef<HTMLInputElement>(null);
+  const [caFilterCategory, setCaFilterCategory] = useState<'all' | 'income' | 'expense' | 'other'>('all');
+  const [uploadFormData, setUploadFormData] = useState({ category: 'income' as string, voucherType: '', voucherNumber: '', partyName: '', amount: '', date: '', notes: '' });
+
+  // ── CA Audit: Fetch Receipt Files ──
+  const fetchReceiptFiles = useCallback(async () => {
+    if (!token) return;
+    setReceiptFilesLoading(true);
+    try {
+      const res = await fetch(`/api/admin/crm/tally/receipt-files?fy=${selectedFY}`, {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setReceiptFiles(data.files || []);
+        setReceiptFileStats(data.stats || { total: 0, income: 0, expense: 0, other: 0 });
+      }
+    } catch (err: any) {
+      console.error('Fetch receipt files error:', err);
+    } finally {
+      setReceiptFilesLoading(false);
+    }
+  }, [token, selectedFY]);
+
+  // ── CA Audit: Upload Receipt File ──
+  const uploadReceiptFile = async (file: File) => {
+    if (!token || !file) return;
+    setUploadingFile(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('financialYear', selectedFY);
+      fd.append('category', uploadFormData.category);
+      fd.append('voucherType', uploadFormData.voucherType);
+      fd.append('voucherNumber', uploadFormData.voucherNumber);
+      fd.append('partyName', uploadFormData.partyName);
+      fd.append('amount', uploadFormData.amount);
+      fd.append('date', uploadFormData.date);
+      fd.append('notes', uploadFormData.notes);
+
+      const res = await fetch('/api/admin/crm/tally/receipt-files', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchReceiptFiles();
+        setShowUploadForm(false);
+        setUploadFormData({ category: 'income', voucherType: '', voucherNumber: '', partyName: '', amount: '', date: '', notes: '' });
+      } else {
+        alert(data.error || 'Upload failed');
+      }
+    } catch (err: any) {
+      alert('Upload error: ' + err.message);
+    } finally {
+      setUploadingFile(false);
+    }
+  };
+
+  // ── CA Audit: Bulk Upload ──
+  const handleBulkReceiptUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !token) return;
+    setUploadingFile(true);
+    let success = 0;
+    let failed = 0;
+    for (let i = 0; i < files.length; i++) {
+      try {
+        const fd = new FormData();
+        fd.append('file', files[i]);
+        fd.append('financialYear', selectedFY);
+        fd.append('category', 'other');
+        const res = await fetch('/api/admin/crm/tally/receipt-files', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: fd,
+        });
+        const data = await res.json();
+        if (data.success) success++;
+        else failed++;
+      } catch {
+        failed++;
+      }
+    }
+    await fetchReceiptFiles();
+    setUploadingFile(false);
+    alert(`Uploaded: ${success} files${failed > 0 ? `, Failed: ${failed}` : ''}`);
+    if (bulkReceiptInputRef.current) bulkReceiptInputRef.current.value = '';
+  };
+
+  // ── CA Audit: Delete Receipt File ──
+  const deleteReceiptFile = async (id: string) => {
+    if (!token || !confirm('Delete this receipt file?')) return;
+    try {
+      const res = await fetch(`/api/admin/crm/tally/receipt-files?id=${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchReceiptFiles();
+        setReceiptPreview(null);
+      }
+    } catch (err: any) {
+      alert('Delete error: ' + err.message);
+    }
+  };
+
+  // ── CA Audit: Download CSV ──
+  const downloadAuditCSV = () => {
+    // Combine manual voucher data + manual balance income/expense data
+    const allVouchers = [...manualVouchers];
+    const incomeEntries = manualEntries.filter(e => e.category === 'income');
+    const expenseEntries = manualEntries.filter(e => e.category === 'expense');
+
+    // Build CSV rows
+    const rows: string[][] = [];
+    rows.push(['RECEIPTS & PAYMENTS — FY ' + selectedFY]);
+    rows.push([]);
+    rows.push(['S.No', 'Date', 'Voucher Type', 'Voucher No', 'Party Name', 'Account Head', 'Amount (₹)', 'Payment Mode', 'Narration']);
+
+    const receiptVouchers = allVouchers.filter(v => v.voucherType === 'Receipt').sort((a, b) => a.date.localeCompare(b.date));
+    const paymentVouchers = allVouchers.filter(v => v.voucherType === 'Payment').sort((a, b) => a.date.localeCompare(b.date));
+    const journalVouchers = allVouchers.filter(v => v.voucherType === 'Journal').sort((a, b) => a.date.localeCompare(b.date));
+    const contraVouchers = allVouchers.filter(v => v.voucherType === 'Contra').sort((a, b) => a.date.localeCompare(b.date));
+
+    let idx = 1;
+    rows.push([]);
+    rows.push(['--- RECEIPT VOUCHERS ---']);
+    for (const v of receiptVouchers) {
+      rows.push([String(idx++), v.date, v.voucherType, v.voucherNumber, v.partyName, v.ledgerName, String(v.amount), v.paymentMode, v.narration]);
+    }
+    rows.push(['', '', '', '', 'Total Receipts', '', String(receiptVouchers.reduce((s, v) => s + v.amount, 0)), '', '']);
+
+    idx = 1;
+    rows.push([]);
+    rows.push(['--- PAYMENT VOUCHERS ---']);
+    for (const v of paymentVouchers) {
+      rows.push([String(idx++), v.date, v.voucherType, v.voucherNumber, v.partyName, v.ledgerName, String(v.amount), v.paymentMode, v.narration]);
+    }
+    rows.push(['', '', '', '', 'Total Payments', '', String(paymentVouchers.reduce((s, v) => s + v.amount, 0)), '', '']);
+
+    if (journalVouchers.length > 0) {
+      idx = 1;
+      rows.push([]);
+      rows.push(['--- JOURNAL VOUCHERS ---']);
+      for (const v of journalVouchers) {
+        rows.push([String(idx++), v.date, v.voucherType, v.voucherNumber, v.partyName, v.ledgerName, String(v.amount), v.paymentMode, v.narration]);
+      }
+      rows.push(['', '', '', '', 'Total Journals', '', String(journalVouchers.reduce((s, v) => s + v.amount, 0)), '', '']);
+    }
+
+    if (contraVouchers.length > 0) {
+      idx = 1;
+      rows.push([]);
+      rows.push(['--- CONTRA VOUCHERS ---']);
+      for (const v of contraVouchers) {
+        rows.push([String(idx++), v.date, v.voucherType, v.voucherNumber, v.partyName, v.ledgerName, String(v.amount), v.paymentMode, v.narration]);
+      }
+      rows.push(['', '', '', '', 'Total Contra', '', String(contraVouchers.reduce((s, v) => s + v.amount, 0)), '', '']);
+    }
+
+    // Income
+    rows.push([]);
+    rows.push(['--- INCOME ---']);
+    rows.push(['S.No', 'Ledger Name', 'Parent Group', 'Amount (₹)', 'Dr/Cr']);
+    incomeEntries.forEach((e, i) => {
+      rows.push([String(i + 1), e.ledgerName, e.parentGroup, String(e.amount), e.drCr]);
+    });
+    const totalIncome = incomeEntries.reduce((s, e) => s + e.amount, 0);
+    rows.push(['', 'Total Income', '', String(totalIncome), '']);
+
+    // Expenses
+    rows.push([]);
+    rows.push(['--- EXPENSES ---']);
+    rows.push(['S.No', 'Ledger Name', 'Parent Group', 'Amount (₹)', 'Dr/Cr']);
+    expenseEntries.forEach((e, i) => {
+      rows.push([String(i + 1), e.ledgerName, e.parentGroup, String(e.amount), e.drCr]);
+    });
+    const totalExpenses = expenseEntries.reduce((s, e) => s + e.amount, 0);
+    rows.push(['', 'Total Expenses', '', String(totalExpenses), '']);
+    rows.push(['', 'Net Profit/Loss', '', String(totalIncome - totalExpenses), '']);
+
+    // Convert to CSV string
+    const csv = rows.map(r => r.map(c => `"${(c || '').replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `CA-Audit-Report-FY-${selectedFY}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   // ── Print Report (Tally A4 format) ──
   const printReport = (type: 'pl' | 'bs' | 'receipts') => {
@@ -1066,6 +1275,7 @@ export default function TallyPage() {
       case 'profitloss': fetchPL(fy); break;
       case 'balancesheet': fetchBS(fy); break;
       case 'opening': fetchManualBalances(); break;
+      case 'caaudit': fetchReceiptFiles(); fetchManualVouchers('all'); fetchManualBalances(); break;
       case 'settings': testConnection(); break;
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1133,6 +1343,7 @@ export default function TallyPage() {
     { key: 'profitloss', label: 'P&L', icon: TrendingUp },
     { key: 'balancesheet', label: 'Balance Sheet', icon: Scale },
     { key: 'opening', label: 'Opening Bal.', icon: ClipboardList },
+    { key: 'caaudit', label: 'CA Audit', icon: Paperclip },
     { key: 'settings', label: 'Settings', icon: Settings },
   ];
 
@@ -2195,6 +2406,393 @@ export default function TallyPage() {
                       </div>
                     );
                   })()}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ════════ CA AUDIT TAB ════════ */}
+          {activeTab === 'caaudit' && (
+            <div className="space-y-6">
+              {/* Hidden file inputs */}
+              <input ref={receiptFileInputRef} type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) uploadReceiptFile(f);
+                if (receiptFileInputRef.current) receiptFileInputRef.current.value = '';
+              }} />
+              <input ref={bulkReceiptInputRef} type="file" accept="image/*,.pdf" multiple className="hidden" onChange={handleBulkReceiptUpload} />
+
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-100 flex items-center gap-2">
+                    <Paperclip className="w-5 h-5 text-yellow-500" /> CA Audit — Receipts & Reports
+                  </h2>
+                  <p className="text-xs text-gray-500 mt-1">Upload receipts, preview, and download data for {currentFY.label}. Share this page with your CA.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button onClick={() => setShowUploadForm(!showUploadForm)} className="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 text-black font-medium rounded-lg flex items-center gap-2 text-sm">
+                    <Upload className="w-4 h-4" /> Upload Receipt
+                  </button>
+                  <button onClick={() => bulkReceiptInputRef.current?.click()} className="px-4 py-2 bg-purple-700/40 hover:bg-purple-700/60 border border-purple-600/50 text-purple-300 rounded-lg flex items-center gap-2 text-sm" disabled={uploadingFile}>
+                    <Image className="w-4 h-4" /> Bulk Upload
+                  </button>
+                  <button onClick={downloadAuditCSV} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg flex items-center gap-2 text-sm">
+                    <Download className="w-4 h-4" /> Download CSV
+                  </button>
+                </div>
+              </div>
+
+              {/* Upload Form */}
+              {showUploadForm && (
+                <div className="p-5 bg-gray-900 border border-gray-800 rounded-xl space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-gray-200">Upload Receipt / Bill</h3>
+                    <button onClick={() => setShowUploadForm(false)} className="text-gray-500 hover:text-gray-300"><X className="w-4 h-4" /></button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">Category *</label>
+                      <select value={uploadFormData.category} onChange={e => setUploadFormData(p => ({ ...p, category: e.target.value }))} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200">
+                        <option value="income">Income Receipt</option>
+                        <option value="expense">Expense Receipt / Bill</option>
+                        <option value="other">Other Document</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">Date</label>
+                      <input type="date" value={uploadFormData.date} onChange={e => setUploadFormData(p => ({ ...p, date: e.target.value }))} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">Party Name</label>
+                      <input type="text" value={uploadFormData.partyName} onChange={e => setUploadFormData(p => ({ ...p, partyName: e.target.value }))} placeholder="e.g. Mohan Kalburgi" className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200 placeholder-gray-600" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">Amount (₹)</label>
+                      <input type="number" value={uploadFormData.amount} onChange={e => setUploadFormData(p => ({ ...p, amount: e.target.value }))} placeholder="0" className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200 placeholder-gray-600" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">Voucher Type</label>
+                      <select value={uploadFormData.voucherType} onChange={e => setUploadFormData(p => ({ ...p, voucherType: e.target.value }))} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200">
+                        <option value="">— Select —</option>
+                        <option value="Receipt">Receipt</option>
+                        <option value="Payment">Payment</option>
+                        <option value="Journal">Journal</option>
+                        <option value="Contra">Contra</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">Notes</label>
+                      <input type="text" value={uploadFormData.notes} onChange={e => setUploadFormData(p => ({ ...p, notes: e.target.value }))} placeholder="Description" className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200 placeholder-gray-600" />
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <button onClick={() => setShowUploadForm(false)} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg text-sm">Cancel</button>
+                    <button
+                      onClick={() => receiptFileInputRef.current?.click()}
+                      disabled={uploadingFile}
+                      className="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 disabled:bg-gray-700 disabled:text-gray-500 text-black font-medium rounded-lg text-sm flex items-center gap-2"
+                    >
+                      {uploadingFile ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                      {uploadingFile ? 'Uploading...' : 'Choose File & Upload'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Summary Cards ── */}
+              {(() => {
+                const receiptVouchers = manualVouchers.filter(v => v.voucherType === 'Receipt');
+                const paymentVouchers = manualVouchers.filter(v => v.voucherType === 'Payment');
+                const journalVouchers = manualVouchers.filter(v => v.voucherType === 'Journal');
+                const contraVouchers = manualVouchers.filter(v => v.voucherType === 'Contra');
+                const incomeEntries = manualEntries.filter(e => e.category === 'income');
+                const expenseEntries = manualEntries.filter(e => e.category === 'expense');
+                const totalIncome = incomeEntries.reduce((s, e) => s + e.amount, 0);
+                const totalExpenses = expenseEntries.reduce((s, e) => s + e.amount, 0);
+                const totalReceiptAmt = receiptVouchers.reduce((s, v) => s + v.amount, 0);
+                const totalPaymentAmt = paymentVouchers.reduce((s, v) => s + v.amount, 0);
+
+                return (
+                  <>
+                    {/* Voucher Summary */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="p-4 rounded-xl border border-gray-800 bg-green-500/10">
+                        <div className="flex items-center gap-2 mb-1">
+                          <ArrowDownLeft className="w-4 h-4 text-green-400" />
+                          <span className="text-xs text-gray-400">Receipt Vouchers</span>
+                        </div>
+                        <p className="text-lg font-bold text-green-400">{receiptVouchers.length}</p>
+                        <p className="text-xs text-green-400/70 mt-0.5">{fmt(totalReceiptAmt)}</p>
+                      </div>
+                      <div className="p-4 rounded-xl border border-gray-800 bg-red-500/10">
+                        <div className="flex items-center gap-2 mb-1">
+                          <ArrowUpRight className="w-4 h-4 text-red-400" />
+                          <span className="text-xs text-gray-400">Payment Vouchers</span>
+                        </div>
+                        <p className="text-lg font-bold text-red-400">{paymentVouchers.length}</p>
+                        <p className="text-xs text-red-400/70 mt-0.5">{fmt(totalPaymentAmt)}</p>
+                      </div>
+                      <div className="p-4 rounded-xl border border-gray-800 bg-blue-500/10">
+                        <div className="flex items-center gap-2 mb-1">
+                          <FileText className="w-4 h-4 text-blue-400" />
+                          <span className="text-xs text-gray-400">Journal / Contra</span>
+                        </div>
+                        <p className="text-lg font-bold text-blue-400">{journalVouchers.length + contraVouchers.length}</p>
+                      </div>
+                      <div className="p-4 rounded-xl border border-gray-800 bg-yellow-500/10">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Paperclip className="w-4 h-4 text-yellow-400" />
+                          <span className="text-xs text-gray-400">Uploaded Files</span>
+                        </div>
+                        <p className="text-lg font-bold text-yellow-400">{receiptFileStats.total}</p>
+                        <p className="text-xs text-yellow-400/70 mt-0.5">{receiptFileStats.income} income, {receiptFileStats.expense} expense</p>
+                      </div>
+                    </div>
+
+                    {/* Income & Expense Summary */}
+                    <div className="grid md:grid-cols-2 gap-6">
+                      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+                        <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+                          <h3 className="font-bold text-green-400 flex items-center gap-2"><TrendingUp className="w-4 h-4" /> Income ({incomeEntries.length})</h3>
+                          <span className="text-sm font-bold text-green-400">{fmt(totalIncome)}</span>
+                        </div>
+                        <div className="divide-y divide-gray-800/40">
+                          {incomeEntries.length === 0 ? (
+                            <p className="p-4 text-sm text-gray-500">No income entries. Add from Opening Bal. tab.</p>
+                          ) : incomeEntries.map((e, i) => (
+                            <div key={i} className="flex items-center justify-between px-4 py-2.5 text-sm hover:bg-gray-800/20">
+                              <div>
+                                <span className="text-gray-200">{e.ledgerName}</span>
+                                <span className="text-gray-600 text-xs ml-2">[{e.parentGroup}]</span>
+                              </div>
+                              <span className="text-green-400 font-mono">{fmt(e.amount)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+                        <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+                          <h3 className="font-bold text-red-400 flex items-center gap-2"><Wallet className="w-4 h-4" /> Expenses ({expenseEntries.length})</h3>
+                          <span className="text-sm font-bold text-red-400">{fmt(totalExpenses)}</span>
+                        </div>
+                        <div className="divide-y divide-gray-800/40">
+                          {expenseEntries.length === 0 ? (
+                            <p className="p-4 text-sm text-gray-500">No expense entries. Add from Opening Bal. tab.</p>
+                          ) : expenseEntries.map((e, i) => (
+                            <div key={i} className="flex items-center justify-between px-4 py-2.5 text-sm hover:bg-gray-800/20">
+                              <div>
+                                <span className="text-gray-200">{e.ledgerName}</span>
+                                <span className="text-gray-600 text-xs ml-2">[{e.parentGroup}]</span>
+                              </div>
+                              <span className="text-red-400 font-mono">{fmt(e.amount)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Net Profit/Loss */}
+                    <div className={`p-4 rounded-xl border ${totalIncome - totalExpenses >= 0 ? 'bg-green-500/10 border-green-800' : 'bg-red-500/10 border-red-800'}`}>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-400">Net {totalIncome - totalExpenses >= 0 ? 'Profit' : 'Loss'}</span>
+                        <span className={`text-xl font-bold ${totalIncome - totalExpenses >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fmt(Math.abs(totalIncome - totalExpenses))}</span>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
+
+              {/* ── Receipt Vouchers Table ── */}
+              <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+                  <h3 className="font-bold text-green-400 flex items-center gap-2">
+                    <ArrowDownLeft className="w-4 h-4" /> Receipt Vouchers (Income)
+                  </h3>
+                  <span className="text-xs text-gray-500">{manualVouchers.filter(v => v.voucherType === 'Receipt').length} entries</span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-950/60">
+                      <tr>
+                        <th className="text-left px-3 py-2 text-gray-500 text-xs">#</th>
+                        <th className="text-left px-3 py-2 text-gray-500 text-xs">Date</th>
+                        <th className="text-left px-3 py-2 text-gray-500 text-xs">Vch No</th>
+                        <th className="text-left px-3 py-2 text-gray-500 text-xs">Party</th>
+                        <th className="text-right px-3 py-2 text-gray-500 text-xs">Amount</th>
+                        <th className="text-left px-3 py-2 text-gray-500 text-xs">Mode</th>
+                        <th className="text-left px-3 py-2 text-gray-500 text-xs">Narration</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-800/30">
+                      {manualVouchers.filter(v => v.voucherType === 'Receipt').sort((a, b) => a.date.localeCompare(b.date)).map((v, i) => (
+                        <tr key={v._id} className="hover:bg-gray-800/20">
+                          <td className="px-3 py-2 text-gray-500">{i + 1}</td>
+                          <td className="px-3 py-2 text-gray-300">{v.date}</td>
+                          <td className="px-3 py-2 text-gray-400">{v.voucherNumber || '-'}</td>
+                          <td className="px-3 py-2 text-gray-200">{v.partyName}</td>
+                          <td className="px-3 py-2 text-green-400 text-right font-mono">{fmt(v.amount)}</td>
+                          <td className="px-3 py-2 text-gray-500 text-xs">{v.paymentMode || '-'}</td>
+                          <td className="px-3 py-2 text-gray-500 text-xs max-w-[200px] truncate">{v.narration || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-gray-950/40 border-t border-gray-700">
+                        <td colSpan={4} className="px-3 py-2 text-right text-sm font-bold text-gray-300">Total Receipts</td>
+                        <td className="px-3 py-2 text-right font-bold text-green-400">{fmt(manualVouchers.filter(v => v.voucherType === 'Receipt').reduce((s, v) => s + v.amount, 0))}</td>
+                        <td colSpan={2}></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+
+              {/* ── Payment Vouchers Table ── */}
+              <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+                  <h3 className="font-bold text-red-400 flex items-center gap-2">
+                    <ArrowUpRight className="w-4 h-4" /> Payment Vouchers (Expenses)
+                  </h3>
+                  <span className="text-xs text-gray-500">{manualVouchers.filter(v => v.voucherType === 'Payment').length} entries</span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-950/60">
+                      <tr>
+                        <th className="text-left px-3 py-2 text-gray-500 text-xs">#</th>
+                        <th className="text-left px-3 py-2 text-gray-500 text-xs">Date</th>
+                        <th className="text-left px-3 py-2 text-gray-500 text-xs">Vch No</th>
+                        <th className="text-left px-3 py-2 text-gray-500 text-xs">Party</th>
+                        <th className="text-right px-3 py-2 text-gray-500 text-xs">Amount</th>
+                        <th className="text-left px-3 py-2 text-gray-500 text-xs">Mode</th>
+                        <th className="text-left px-3 py-2 text-gray-500 text-xs">Narration</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-800/30">
+                      {manualVouchers.filter(v => v.voucherType === 'Payment').sort((a, b) => a.date.localeCompare(b.date)).map((v, i) => (
+                        <tr key={v._id} className="hover:bg-gray-800/20">
+                          <td className="px-3 py-2 text-gray-500">{i + 1}</td>
+                          <td className="px-3 py-2 text-gray-300">{v.date}</td>
+                          <td className="px-3 py-2 text-gray-400">{v.voucherNumber || '-'}</td>
+                          <td className="px-3 py-2 text-gray-200">{v.partyName}</td>
+                          <td className="px-3 py-2 text-red-400 text-right font-mono">{fmt(v.amount)}</td>
+                          <td className="px-3 py-2 text-gray-500 text-xs">{v.paymentMode || '-'}</td>
+                          <td className="px-3 py-2 text-gray-500 text-xs max-w-[200px] truncate">{v.narration || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-gray-950/40 border-t border-gray-700">
+                        <td colSpan={4} className="px-3 py-2 text-right text-sm font-bold text-gray-300">Total Payments</td>
+                        <td className="px-3 py-2 text-right font-bold text-red-400">{fmt(manualVouchers.filter(v => v.voucherType === 'Payment').reduce((s, v) => s + v.amount, 0))}</td>
+                        <td colSpan={2}></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+
+              {/* ── Uploaded Receipt Files ── */}
+              <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+                  <h3 className="font-bold text-yellow-400 flex items-center gap-2">
+                    <Paperclip className="w-4 h-4" /> Uploaded Receipt Files
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    <select value={caFilterCategory} onChange={e => setCaFilterCategory(e.target.value as any)} className="px-2 py-1 bg-gray-800 border border-gray-700 rounded text-xs text-gray-300">
+                      <option value="all">All ({receiptFileStats.total})</option>
+                      <option value="income">Income ({receiptFileStats.income})</option>
+                      <option value="expense">Expense ({receiptFileStats.expense})</option>
+                      <option value="other">Other ({receiptFileStats.other})</option>
+                    </select>
+                    <button onClick={fetchReceiptFiles} className="p-1 hover:bg-gray-700 rounded" title="Refresh">
+                      <RefreshCw className={`w-3.5 h-3.5 text-gray-400 ${receiptFilesLoading ? 'animate-spin' : ''}`} />
+                    </button>
+                  </div>
+                </div>
+
+                {receiptFilesLoading && receiptFiles.length === 0 ? (
+                  <div className="p-8 text-center"><RefreshCw className="w-6 h-6 text-gray-600 animate-spin mx-auto" /></div>
+                ) : receiptFiles.filter(f => caFilterCategory === 'all' || f.category === caFilterCategory).length === 0 ? (
+                  <div className="p-8 text-center">
+                    <Image className="w-10 h-10 text-gray-700 mx-auto mb-2" />
+                    <p className="text-gray-500 text-sm mb-3">No receipt files uploaded yet.</p>
+                    <button onClick={() => setShowUploadForm(true)} className="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 text-black font-medium rounded-lg text-sm inline-flex items-center gap-2">
+                      <Upload className="w-4 h-4" /> Upload First Receipt
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-4">
+                    {receiptFiles.filter(f => caFilterCategory === 'all' || f.category === caFilterCategory).map(f => (
+                      <div key={f._id} className="bg-gray-950 border border-gray-800 rounded-lg overflow-hidden hover:border-gray-600 transition group">
+                        {/* Preview */}
+                        {f.fileType?.startsWith('image/') ? (
+                          <div className="h-32 bg-gray-900 flex items-center justify-center overflow-hidden cursor-pointer" onClick={() => setReceiptPreview(f)}>
+                            <img src={f.previewUrl || f.fileUrl} alt={f.fileName} className="h-full w-full object-cover" />
+                          </div>
+                        ) : (
+                          <div className="h-32 bg-gray-900 flex items-center justify-center cursor-pointer" onClick={() => window.open(f.previewUrl || f.fileUrl, '_blank')}>
+                            <FileText className="w-10 h-10 text-gray-600" />
+                            <span className="text-xs text-gray-500 ml-2">PDF</span>
+                          </div>
+                        )}
+                        {/* Info */}
+                        <div className="p-3 space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded ${f.category === 'income' ? 'bg-green-500/20 text-green-400' : f.category === 'expense' ? 'bg-red-500/20 text-red-400' : 'bg-gray-700 text-gray-400'}`}>
+                              {f.category}
+                            </span>
+                            {f.amount && <span className="text-xs font-mono text-gray-300">{fmt(f.amount)}</span>}
+                          </div>
+                          <p className="text-xs text-gray-300 truncate">{f.partyName || f.fileName}</p>
+                          {f.date && <p className="text-[10px] text-gray-600">{f.date}</p>}
+                          {f.notes && <p className="text-[10px] text-gray-600 truncate">{f.notes}</p>}
+                          <div className="flex items-center gap-1 pt-1 opacity-0 group-hover:opacity-100 transition">
+                            <button onClick={() => setReceiptPreview(f)} className="p-1 hover:bg-gray-800 rounded" title="Preview">
+                              <Eye className="w-3.5 h-3.5 text-gray-400" />
+                            </button>
+                            <a href={f.previewUrl || f.fileUrl} download={f.fileName} target="_blank" rel="noopener noreferrer" className="p-1 hover:bg-gray-800 rounded" title="Download">
+                              <Download className="w-3.5 h-3.5 text-gray-400" />
+                            </a>
+                            <button onClick={() => deleteReceiptFile(f._id)} className="p-1 hover:bg-red-900/30 rounded" title="Delete">
+                              <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* ── Preview Modal ── */}
+              {receiptPreview && (
+                <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setReceiptPreview(null)}>
+                  <div className="bg-gray-900 rounded-xl max-w-4xl max-h-[90vh] overflow-auto border border-gray-700 w-full" onClick={e => e.stopPropagation()}>
+                    <div className="sticky top-0 bg-gray-900/95 px-4 py-3 border-b border-gray-800 flex items-center justify-between z-10">
+                      <div>
+                        <h3 className="text-sm font-bold text-gray-200">{receiptPreview.fileName}</h3>
+                        <p className="text-xs text-gray-500">{receiptPreview.partyName} {receiptPreview.date ? `— ${receiptPreview.date}` : ''} {receiptPreview.amount ? `— ${fmt(receiptPreview.amount)}` : ''}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <a href={receiptPreview.previewUrl || receiptPreview.fileUrl} download={receiptPreview.fileName} target="_blank" rel="noopener noreferrer" className="p-2 hover:bg-gray-800 rounded-lg" title="Download">
+                          <Download className="w-4 h-4 text-gray-300" />
+                        </a>
+                        <button onClick={() => setReceiptPreview(null)} className="p-2 hover:bg-gray-800 rounded-lg">
+                          <X className="w-4 h-4 text-gray-300" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="p-4 flex items-center justify-center min-h-[400px]">
+                      {receiptPreview.fileType?.startsWith('image/') ? (
+                        <img src={receiptPreview.previewUrl || receiptPreview.fileUrl} alt={receiptPreview.fileName} className="max-w-full max-h-[70vh] object-contain rounded" />
+                      ) : (
+                        <iframe src={receiptPreview.previewUrl || receiptPreview.fileUrl} className="w-full h-[70vh] rounded border border-gray-700" title={receiptPreview.fileName} />
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

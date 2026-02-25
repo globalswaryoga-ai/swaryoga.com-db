@@ -1898,6 +1898,32 @@ TallyManualVoucherSchema.index({ date: -1 });
 TallyManualVoucherSchema.index({ partyName: 1, financialYear: 1 });
 
 // ============================================================================
+// TALLY RECEIPT FILES — Uploaded receipt/bill images for CA audit
+// ============================================================================
+const TallyReceiptFileSchema = new mongoose.Schema(
+  {
+    financialYear: { type: String, required: true, trim: true, index: true },
+    voucherId: { type: mongoose.Schema.Types.ObjectId, sparse: true, index: true },
+    voucherType: { type: String, trim: true }, // Receipt, Payment, Journal, etc.
+    voucherNumber: { type: String, trim: true },
+    fileName: { type: String, required: true, trim: true },
+    fileUrl: { type: String, required: true, trim: true },
+    fileType: { type: String, trim: true }, // image/jpeg, application/pdf, etc.
+    fileSize: { type: Number, default: 0 },
+    category: { type: String, enum: ['income', 'expense', 'other'], default: 'other' },
+    partyName: { type: String, trim: true },
+    amount: { type: Number },
+    date: { type: String, trim: true },
+    notes: { type: String, trim: true },
+    uploadedBy: { type: String, trim: true },
+  },
+  { timestamps: true, collection: 'tally_receipt_files' }
+);
+
+TallyReceiptFileSchema.index({ financialYear: 1, category: 1 });
+TallyReceiptFileSchema.index({ financialYear: 1, voucherId: 1 });
+
+// ============================================================================
 // EMAIL AUTOMATION SCHEMAS
 // ============================================================================
 
@@ -2251,6 +2277,7 @@ export const TallyPayment = createModelProxy('TallyPayment', TallyPaymentSchema)
 export const TallySyncLog = createModelProxy('TallySyncLog', TallySyncLogSchema);
 export const TallyManualBalance = createModelProxy('TallyManualBalance', TallyManualBalanceSchema);
 export const TallyManualVoucher = createModelProxy('TallyManualVoucher', TallyManualVoucherSchema);
+export const TallyReceiptFile = createModelProxy('TallyReceiptFile', TallyReceiptFileSchema);
 
 // Tally getter functions
 export function getTallyCustomer() { return getModel('TallyCustomer', TallyCustomerSchema); }
@@ -2259,3 +2286,4 @@ export function getTallyPayment() { return getModel('TallyPayment', TallyPayment
 export function getTallySyncLog() { return getModel('TallySyncLog', TallySyncLogSchema); }
 export function getTallyManualBalance() { return getModel('TallyManualBalance', TallyManualBalanceSchema); }
 export function getTallyManualVoucher() { return getModel('TallyManualVoucher', TallyManualVoucherSchema); }
+export function getTallyReceiptFile() { return getModel('TallyReceiptFile', TallyReceiptFileSchema); }
