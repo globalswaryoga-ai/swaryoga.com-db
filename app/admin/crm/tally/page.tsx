@@ -114,7 +114,7 @@ interface DashboardSummary {
 interface PLGroup {
   name: string;
   amount: number;
-  children: { name: string; amount: number }[];
+  children: { name: string; amount: number; _id?: string }[];
 }
 
 interface ProfitAndLoss {
@@ -128,7 +128,7 @@ interface ProfitAndLoss {
 interface BSGroup {
   name: string;
   amount: number;
-  children: { name: string; amount: number }[];
+  children: { name: string; amount: number; _id?: string }[];
 }
 
 interface BalanceSheetData {
@@ -1094,23 +1094,12 @@ export default function TallyPage() {
       }
     };
 
-    // ── Auto-calculate current year Net P&L from Income & Expense entries ──
-    // This mirrors Tally Prime behavior: current year P&L is dynamically computed
-    // and added to Reserves & Surplus in the BS (not stored separately)
-    const incomeEntries = entries.filter(e => e.category === 'income' || e.category === 'Income');
-    const expenseEntries = entries.filter(e =>
-      e.category === 'expense' || e.category === 'Indirect Expenses' || e.category === 'Direct Expenses'
-    );
-    const totalIncome = incomeEntries.reduce((s, e) => s + Math.abs(e.amount), 0);
-    const totalExpenses = expenseEntries.reduce((s, e) => s + Math.abs(e.amount), 0);
-    const currentYearPL = totalIncome - totalExpenses; // positive = profit, negative = loss
-
     const groupEntries = (items: ManualEntry[]) => {
-      const map = new Map<string, { name: string; amount: number }[]>();
+      const map = new Map<string, { name: string; amount: number; _id?: string }[]>();
       for (const item of items) {
         const key = item.parentGroup || 'Other';
         if (!map.has(key)) map.set(key, []);
-        map.get(key)!.push({ name: item.ledgerName, amount: effectiveAmount(item) });
+        map.get(key)!.push({ name: item.ledgerName, amount: effectiveAmount(item), _id: item._id });
       }
       return Array.from(map.entries()).map(([name, children]) => ({
         name,
@@ -1121,24 +1110,6 @@ export default function TallyPage() {
 
     const assets = groupEntries(assetEntries);
     const liabilities = groupEntries(liabEntries);
-
-    // ── Inject current year P&L into Reserves & Surplus (like Tally Prime) ──
-    if (currentYearPL !== 0) {
-      const rsGroup = liabilities.find(g => g.name === 'Reserves & Surplus');
-      const plLabel = currentYearPL >= 0 ? 'Current Year Profit' : 'Current Year Loss';
-      // In BS liabilities: profit adds (positive), loss subtracts (negative)
-      const plEntry = { name: plLabel, amount: currentYearPL };
-      if (rsGroup) {
-        rsGroup.children.push(plEntry);
-        rsGroup.amount += currentYearPL;
-      } else {
-        liabilities.push({
-          name: 'Reserves & Surplus',
-          amount: currentYearPL,
-          children: [plEntry],
-        });
-      }
-    }
 
     const totalAssets = assets.reduce((s, g) => s + g.amount, 0);
     const totalLiabilities = liabilities.reduce((s, g) => s + g.amount, 0);
@@ -2389,7 +2360,7 @@ export default function TallyPage() {
                         {plData.income.length === 0 ? (
                           <p className="p-4 text-sm text-gray-500">No income data</p>
                         ) : plData.income.map((g, i) => (
-                          <PLGroupRow key={i} group={g} color="text-green-400" />
+                          <PLGroupRow key={i} group={g} color="text-green-400" onEdit={(id) => { const e = manualEntries.find(x => x._id === id); if (e) { startEdit(e); setActiveTab('opening'); } }} onDelete={(id) => deleteManualEntry(id)} />
                         ))}
                       </div>
                     </div>
@@ -2404,7 +2375,7 @@ export default function TallyPage() {
                         {plData.expenses.length === 0 ? (
                           <p className="p-4 text-sm text-gray-500">No expense data</p>
                         ) : plData.expenses.map((g, i) => (
-                          <PLGroupRow key={i} group={g} color="text-red-400" />
+                          <PLGroupRow key={i} group={g} color="text-red-400" onEdit={(id) => { const e = manualEntries.find(x => x._id === id); if (e) { startEdit(e); setActiveTab('opening'); } }} onDelete={(id) => deleteManualEntry(id)} />
                         ))}
                       </div>
                     </div>
@@ -2474,7 +2445,7 @@ export default function TallyPage() {
                         {bsData.assets.length === 0 ? (
                           <p className="p-4 text-sm text-gray-500">No asset data</p>
                         ) : bsData.assets.map((g, i) => (
-                          <PLGroupRow key={i} group={g} color="text-blue-400" />
+                          <PLGroupRow key={i} group={g} color="text-blue-400" onEdit={(id) => { const e = manualEntries.find(x => x._id === id); if (e) { startEdit(e); setActiveTab('opening'); } }} onDelete={(id) => deleteManualEntry(id)} />
                         ))}
                       </div>
                     </div>
@@ -2489,7 +2460,7 @@ export default function TallyPage() {
                         {bsData.liabilities.length === 0 ? (
                           <p className="p-4 text-sm text-gray-500">No liability data</p>
                         ) : bsData.liabilities.map((g, i) => (
-                          <PLGroupRow key={i} group={g} color="text-purple-400" />
+                          <PLGroupRow key={i} group={g} color="text-purple-400" onEdit={(id) => { const e = manualEntries.find(x => x._id === id); if (e) { startEdit(e); setActiveTab('opening'); } }} onDelete={(id) => deleteManualEntry(id)} />
                         ))}
                       </div>
                     </div>
@@ -3536,7 +3507,7 @@ function EmptyState({ message }: { message: string }) {
   );
 }
 
-function PLGroupRow({ group, color }: { group: PLGroup | BSGroup; color: string }) {
+function PLGroupRow({ group, color, onEdit, onDelete }: { group: PLGroup | BSGroup; color: string; onEdit?: (id: string) => void; onDelete?: (id: string) => void }) {
   const [expanded, setExpanded] = useState(false);
   return (
     <div>
@@ -3556,9 +3527,25 @@ function PLGroupRow({ group, color }: { group: PLGroup | BSGroup; color: string 
       {expanded && group.children.length > 0 && (
         <div className="bg-gray-950/40 border-t border-gray-800/30">
           {group.children.map((c, i) => (
-            <div key={i} className="flex items-center justify-between px-4 pl-10 py-2 text-xs hover:bg-gray-800/20">
+            <div key={i} className="flex items-center justify-between px-4 pl-10 py-2 text-xs hover:bg-gray-800/20 group/row">
               <span className="text-gray-400">{c.name}</span>
-              <span className="text-gray-300">{fmt(c.amount)}</span>
+              <div className="flex items-center gap-2">
+                {c._id && (onEdit || onDelete) && (
+                  <div className="flex items-center gap-0.5 opacity-0 group-hover/row:opacity-100 transition-opacity">
+                    {onEdit && (
+                      <button onClick={(e) => { e.stopPropagation(); onEdit(c._id!); }} className="p-0.5 hover:bg-gray-700 rounded" title="Edit">
+                        <Edit3 className="w-3 h-3 text-gray-500 hover:text-yellow-400" />
+                      </button>
+                    )}
+                    {onDelete && (
+                      <button onClick={(e) => { e.stopPropagation(); onDelete(c._id!); }} className="p-0.5 hover:bg-gray-700 rounded" title="Delete">
+                        <Trash2 className="w-3 h-3 text-gray-500 hover:text-red-400" />
+                      </button>
+                    )}
+                  </div>
+                )}
+                <span className="text-gray-300">{fmt(c.amount)}</span>
+              </div>
             </div>
           ))}
         </div>

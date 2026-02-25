@@ -114,12 +114,12 @@ export async function GET(request: NextRequest) {
             const amt = e.amount || 0;
             if (cat === 'income' || cat === 'revenue') {
               if (amt > 0) {
-                incomeItems.push({ name: e.ledgerName, amount: amt });
+                incomeItems.push({ name: e.ledgerName, amount: amt, _id: e._id?.toString() });
                 totalIncome += amt;
               }
             } else if (cat === 'expense' || cat === 'expenses') {
               if (amt > 0) {
-                expenseItems.push({ name: e.ledgerName, amount: amt });
+                expenseItems.push({ name: e.ledgerName, amount: amt, _id: e._id?.toString() });
                 totalExpenses += amt;
               }
             }
