@@ -438,6 +438,230 @@ export default function TallyPage() {
     URL.revokeObjectURL(url);
   };
 
+  // ── CA Audit: Download Full PDF Report ──
+  const downloadAuditPDF = async () => {
+    const { default: jsPDF } = await import('jspdf');
+    const { default: autoTable } = await import('jspdf-autotable');
+
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const companyName = 'UPAMNYU INTERNATIONAL EDUCATION PRIVATE LIMITED';
+    const fy = FY_OPTIONS.find(f => f.value === selectedFY) || FY_OPTIONS[0];
+    const fromDate = `1-Apr-${fy.value.split('-')[0]}`;
+    const toDate = `31-Mar-20${fy.value.split('-')[1]}`;
+    const fmtNum = (n: number) => new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(n);
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+    let y = 12;
+
+    // Header
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text(companyName, pageWidth / 2, y, { align: 'center' });
+    y += 7;
+    doc.setFontSize(11);
+    doc.text(`CA Audit Report — ${fy.label}`, pageWidth / 2, y, { align: 'center' });
+    y += 5;
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`${fromDate} to ${toDate}`, pageWidth / 2, y, { align: 'center' });
+    y += 8;
+
+    const allVouchers = [...manualVouchers];
+    const incomeEntries = manualEntries.filter(e => e.category === 'income');
+    const expenseEntries = manualEntries.filter(e => e.category === 'expense');
+    const totalIncome = incomeEntries.reduce((s, e) => s + e.amount, 0);
+    const totalExpenses = expenseEntries.reduce((s, e) => s + e.amount, 0);
+    const receiptVouchers = allVouchers.filter(v => v.voucherType === 'Receipt').sort((a, b) => a.date.localeCompare(b.date));
+    const paymentVouchers = allVouchers.filter(v => v.voucherType === 'Payment').sort((a, b) => a.date.localeCompare(b.date));
+    const journalVouchers = allVouchers.filter(v => v.voucherType === 'Journal' || v.voucherType === 'Contra').sort((a, b) => a.date.localeCompare(b.date));
+
+    // ── Summary Section ──
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('SUMMARY', 14, y);
+    y += 2;
+    autoTable(doc, {
+      startY: y,
+      head: [['Particulars', 'Count', 'Amount (₹)']],
+      body: [
+        ['Receipt Vouchers', String(receiptVouchers.length), fmtNum(receiptVouchers.reduce((s, v) => s + v.amount, 0))],
+        ['Payment Vouchers', String(paymentVouchers.length), fmtNum(paymentVouchers.reduce((s, v) => s + v.amount, 0))],
+        ['Journal / Contra', String(journalVouchers.length), fmtNum(journalVouchers.reduce((s, v) => s + v.amount, 0))],
+        ['Total Income', String(incomeEntries.length), fmtNum(totalIncome)],
+        ['Total Expenses', String(expenseEntries.length), fmtNum(totalExpenses)],
+        [totalIncome >= totalExpenses ? 'Net Profit' : 'Net Loss', '', fmtNum(Math.abs(totalIncome - totalExpenses))],
+      ],
+      theme: 'grid',
+      styles: { fontSize: 9, cellPadding: 2 },
+      headStyles: { fillColor: [60, 60, 60], textColor: 255, fontStyle: 'bold' },
+      columnStyles: { 1: { halign: 'center' }, 2: { halign: 'right' } },
+      margin: { left: 14, right: 14 },
+    });
+    y = (doc as any).lastAutoTable.finalY + 8;
+
+    // ── Income Details ──
+    if (incomeEntries.length > 0) {
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`INCOME — ${fmtNum(totalIncome)}`, 14, y);
+      y += 2;
+      autoTable(doc, {
+        startY: y,
+        head: [['#', 'Ledger Name', 'Parent Group', 'Amount (₹)']],
+        body: incomeEntries.map((e, i) => [String(i + 1), e.ledgerName, e.parentGroup, fmtNum(e.amount)]),
+        foot: [['', 'Total Income', '', fmtNum(totalIncome)]],
+        theme: 'grid',
+        styles: { fontSize: 9, cellPadding: 2 },
+        headStyles: { fillColor: [34, 120, 60], textColor: 255, fontStyle: 'bold' },
+        footStyles: { fillColor: [34, 120, 60], textColor: 255, fontStyle: 'bold' },
+        columnStyles: { 0: { halign: 'center', cellWidth: 10 }, 3: { halign: 'right' } },
+        margin: { left: 14, right: 14 },
+      });
+      y = (doc as any).lastAutoTable.finalY + 8;
+    }
+
+    // ── Expense Details ──
+    if (expenseEntries.length > 0) {
+      if (y > 250) { doc.addPage(); y = 14; }
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`EXPENSES — ${fmtNum(totalExpenses)}`, 14, y);
+      y += 2;
+      autoTable(doc, {
+        startY: y,
+        head: [['#', 'Ledger Name', 'Parent Group', 'Amount (₹)']],
+        body: expenseEntries.map((e, i) => [String(i + 1), e.ledgerName, e.parentGroup, fmtNum(e.amount)]),
+        foot: [['', 'Total Expenses', '', fmtNum(totalExpenses)]],
+        theme: 'grid',
+        styles: { fontSize: 9, cellPadding: 2 },
+        headStyles: { fillColor: [160, 40, 40], textColor: 255, fontStyle: 'bold' },
+        footStyles: { fillColor: [160, 40, 40], textColor: 255, fontStyle: 'bold' },
+        columnStyles: { 0: { halign: 'center', cellWidth: 10 }, 3: { halign: 'right' } },
+        margin: { left: 14, right: 14 },
+      });
+      y = (doc as any).lastAutoTable.finalY + 8;
+    }
+
+    // ── Receipt Vouchers ──
+    if (receiptVouchers.length > 0) {
+      if (y > 220) { doc.addPage(); y = 14; }
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`RECEIPT VOUCHERS (${receiptVouchers.length})`, 14, y);
+      y += 2;
+      autoTable(doc, {
+        startY: y,
+        head: [['#', 'Date', 'Vch No', 'Party Name', 'Amount (₹)', 'Mode', 'Narration']],
+        body: receiptVouchers.map((v, i) => [String(i + 1), v.date, v.voucherNumber || '-', v.partyName, fmtNum(v.amount), v.paymentMode || '-', v.narration || '-']),
+        foot: [['', '', '', 'Total Receipts', fmtNum(receiptVouchers.reduce((s, v) => s + v.amount, 0)), '', '']],
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 1.5 },
+        headStyles: { fillColor: [34, 120, 60], textColor: 255, fontStyle: 'bold' },
+        footStyles: { fillColor: [34, 120, 60], textColor: 255, fontStyle: 'bold' },
+        columnStyles: { 0: { halign: 'center', cellWidth: 8 }, 4: { halign: 'right' }, 6: { cellWidth: 40 } },
+        margin: { left: 14, right: 14 },
+      });
+      y = (doc as any).lastAutoTable.finalY + 8;
+    }
+
+    // ── Payment Vouchers ──
+    if (paymentVouchers.length > 0) {
+      if (y > 220) { doc.addPage(); y = 14; }
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`PAYMENT VOUCHERS (${paymentVouchers.length})`, 14, y);
+      y += 2;
+      autoTable(doc, {
+        startY: y,
+        head: [['#', 'Date', 'Vch No', 'Party Name', 'Amount (₹)', 'Mode', 'Narration']],
+        body: paymentVouchers.map((v, i) => [String(i + 1), v.date, v.voucherNumber || '-', v.partyName, fmtNum(v.amount), v.paymentMode || '-', v.narration || '-']),
+        foot: [['', '', '', 'Total Payments', fmtNum(paymentVouchers.reduce((s, v) => s + v.amount, 0)), '', '']],
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 1.5 },
+        headStyles: { fillColor: [160, 40, 40], textColor: 255, fontStyle: 'bold' },
+        footStyles: { fillColor: [160, 40, 40], textColor: 255, fontStyle: 'bold' },
+        columnStyles: { 0: { halign: 'center', cellWidth: 8 }, 4: { halign: 'right' }, 6: { cellWidth: 40 } },
+        margin: { left: 14, right: 14 },
+      });
+      y = (doc as any).lastAutoTable.finalY + 8;
+    }
+
+    // ── Journal / Contra Vouchers ──
+    if (journalVouchers.length > 0) {
+      if (y > 220) { doc.addPage(); y = 14; }
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`JOURNAL / CONTRA VOUCHERS (${journalVouchers.length})`, 14, y);
+      y += 2;
+      autoTable(doc, {
+        startY: y,
+        head: [['#', 'Date', 'Vch No', 'Party Name', 'Amount (₹)', 'Mode', 'Narration']],
+        body: journalVouchers.map((v, i) => [String(i + 1), v.date, v.voucherNumber || '-', v.partyName, fmtNum(v.amount), v.paymentMode || '-', v.narration || '-']),
+        foot: [['', '', '', 'Total', fmtNum(journalVouchers.reduce((s, v) => s + v.amount, 0)), '', '']],
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 1.5 },
+        headStyles: { fillColor: [80, 80, 80], textColor: 255, fontStyle: 'bold' },
+        footStyles: { fillColor: [80, 80, 80], textColor: 255, fontStyle: 'bold' },
+        columnStyles: { 0: { halign: 'center', cellWidth: 8 }, 4: { halign: 'right' }, 6: { cellWidth: 40 } },
+        margin: { left: 14, right: 14 },
+      });
+      y = (doc as any).lastAutoTable.finalY + 8;
+    }
+
+    // Footer on each page
+    const pageCount = doc.getNumberOfPages();
+    for (let p = 1; p <= pageCount; p++) {
+      doc.setPage(p);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(120);
+      doc.text(`Generated from Swar Yoga CRM — ${new Date().toLocaleDateString('en-IN')}`, pageWidth / 2, doc.internal.pageSize.getHeight() - 8, { align: 'center' });
+      doc.text(`Page ${p} of ${pageCount}`, pageWidth - 14, doc.internal.pageSize.getHeight() - 8, { align: 'right' });
+      doc.setTextColor(0);
+    }
+
+    doc.save(`CA-Audit-Report-FY-${selectedFY}.pdf`);
+  };
+
+  // ── CA Audit: Download All Receipt Files as ZIP ──
+  const downloadAllReceiptsZip = async () => {
+    if (receiptFiles.length === 0) { alert('No receipt files to download.'); return; }
+
+    const { default: JSZip } = await import('jszip');
+    const zip = new JSZip();
+    let downloaded = 0;
+    const total = receiptFiles.length;
+    const progressEl = document.getElementById('zip-progress');
+
+    for (const f of receiptFiles) {
+      try {
+        if (progressEl) progressEl.textContent = `Downloading ${++downloaded}/${total}...`;
+        const url = f.previewUrl || f.fileUrl;
+        const res = await fetch(url);
+        if (!res.ok) continue;
+        const blob = await res.blob();
+        // Organize by category
+        const folder = f.category || 'other';
+        const fileName = f.partyName
+          ? `${f.date || 'undated'}_${f.partyName.replace(/[^a-zA-Z0-9]/g, '_')}_${f.amount ? f.amount : ''}.${f.fileName.split('.').pop()}`
+          : f.fileName;
+        zip.file(`${folder}/${fileName}`, blob);
+      } catch {
+        // Skip failed downloads silently
+      }
+    }
+
+    if (progressEl) progressEl.textContent = 'Creating ZIP...';
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    const url = URL.createObjectURL(zipBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `CA-Receipts-FY-${selectedFY}.zip`;
+    a.click();
+    URL.revokeObjectURL(url);
+    if (progressEl) progressEl.textContent = '';
+  };
+
   // ── Print Report (Tally A4 format) ──
   const printReport = (type: 'pl' | 'bs' | 'receipts') => {
     const companyName = 'UPAMNYU INTERNATIONAL EDUCATION PRIVATE LIMITED';
@@ -2437,8 +2661,17 @@ export default function TallyPage() {
                   <button onClick={() => bulkReceiptInputRef.current?.click()} className="px-4 py-2 bg-purple-700/40 hover:bg-purple-700/60 border border-purple-600/50 text-purple-300 rounded-lg flex items-center gap-2 text-sm" disabled={uploadingFile}>
                     <Image className="w-4 h-4" /> Bulk Upload
                   </button>
+                  <button onClick={downloadAuditPDF} className="px-4 py-2 bg-blue-700 hover:bg-blue-600 text-white rounded-lg flex items-center gap-2 text-sm">
+                    <FileText className="w-4 h-4" /> Download PDF
+                  </button>
+                  {receiptFiles.length > 0 && (
+                    <button onClick={downloadAllReceiptsZip} className="px-4 py-2 bg-green-700 hover:bg-green-600 text-white rounded-lg flex items-center gap-2 text-sm">
+                      <Download className="w-4 h-4" /> All Receipts (ZIP)
+                      <span id="zip-progress" className="text-xs opacity-70"></span>
+                    </button>
+                  )}
                   <button onClick={downloadAuditCSV} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg flex items-center gap-2 text-sm">
-                    <Download className="w-4 h-4" /> Download CSV
+                    <Download className="w-4 h-4" /> CSV
                   </button>
                 </div>
               </div>
