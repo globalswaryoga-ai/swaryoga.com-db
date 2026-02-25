@@ -181,10 +181,43 @@ export default function TallyPage() {
   const [selectedFY, setSelectedFY] = useState('2024-25');
   const currentFY = FY_OPTIONS.find(f => f.value === selectedFY) || FY_OPTIONS[1];
 
+  // Monthly / Yearly toggle
+  const [viewMode, setViewMode] = useState<'yearly' | 'monthly'>('yearly');
+  const [selectedMonth, setSelectedMonth] = useState(0); // 0=Apr, 1=May, ..., 11=Mar
+
+  const MONTH_NAMES = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
+  const MONTH_FULL = ['April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December', 'January', 'February', 'March'];
+
+  // Get date range for selected month within the FY
+  const getMonthDateRange = (monthIdx: number): { from: string; to: string; isoFrom: string; isoTo: string } => {
+    const fyStart = parseInt(selectedFY.split('-')[0]);
+    // monthIdx: 0=Apr(fyStart), 1=May, ..., 8=Dec, 9=Jan(fyStart+1), 10=Feb, 11=Mar
+    const calMonth = monthIdx < 9 ? monthIdx + 4 : monthIdx - 8; // 4=Apr..12=Dec, 1=Jan..3=Mar
+    const year = monthIdx < 9 ? fyStart : fyStart + 1;
+    const daysInMonth = new Date(year, calMonth, 0).getDate();
+    const mm = String(calMonth).padStart(2, '0');
+    return {
+      from: `${year}${mm}01`,
+      to: `${year}${mm}${String(daysInMonth).padStart(2, '0')}`,
+      isoFrom: `${year}-${mm}-01`,
+      isoTo: `${year}-${mm}-${String(daysInMonth).padStart(2, '0')}`,
+    };
+  };
+
+  // Effective date range: monthly or yearly
+  const effectiveDateRange = viewMode === 'monthly'
+    ? getMonthDateRange(selectedMonth)
+    : { from: currentFY.from, to: currentFY.to, isoFrom: '', isoTo: '' };
+
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [ledgerGroup, setLedgerGroup] = useState('');
   const [voucherType, setVoucherType] = useState('Sales');
+
+  // Month label helper
+  const monthLabel = viewMode === 'monthly'
+    ? `${MONTH_FULL[selectedMonth]} ${selectedMonth < 9 ? selectedFY.split('-')[0] : '20' + selectedFY.split('-')[1]}`
+    : '';
 
   // P&L and Balance Sheet
   const [plData, setPlData] = useState<ProfitAndLoss | null>(null);
@@ -1028,7 +1061,8 @@ export default function TallyPage() {
     const f = fy || currentFY;
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/crm/tally?action=profitloss&from=${f.from}&to=${f.to}&fy=${selectedFY}`, { headers: headers() });
+      const modeParam = viewMode === 'monthly' ? '&mode=monthly' : '';
+      const res = await fetch(`/api/admin/crm/tally?action=profitloss&from=${f.from}&to=${f.to}&fy=${selectedFY}${modeParam}`, { headers: headers() });
       const data = await res.json();
       if (data.success && (data.totalIncome > 0 || data.totalExpenses > 0)) {
         setPlData(data);
@@ -1037,7 +1071,7 @@ export default function TallyPage() {
       }
     } catch { setPlData(null); }
     finally { setLoading(false); }
-  }, [token, headers, selectedFY]);
+  }, [token, headers, selectedFY, viewMode]);
 
   // ── Build BS from manual entries ──
   // Accounting: Assets normally Dr (positive), Liabilities normally Cr (positive)
@@ -1484,10 +1518,10 @@ export default function TallyPage() {
     }
   }, [token, fetchDashboard, fetchSyncStatus, fetchManualBalances, fetchVoucherStats]);
 
-  // ── Tab / FY change handler ──
+  // ── Tab / FY / Month change handler ──
   useEffect(() => {
     if (!token) return;
-    const fy = FY_OPTIONS.find(f => f.value === selectedFY) || FY_OPTIONS[0];
+    const fy = viewMode === 'monthly' ? effectiveDateRange : (FY_OPTIONS.find(f => f.value === selectedFY) || FY_OPTIONS[0]);
     switch (activeTab) {
       case 'dashboard': fetchDashboard(fy); fetchVoucherStats(); break;
       case 'sales': fetchVoucherData('Sales', fy); fetchManualVouchers('Sales'); break;
@@ -1503,13 +1537,23 @@ export default function TallyPage() {
       case 'settings': testConnection(); break;
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, selectedFY, token]);
+  }, [activeTab, selectedFY, viewMode, selectedMonth, token]);
+
+  // ── Filter vouchers by month (when monthly mode) ──
+  const monthFilterVoucher = (v: { date: string }) => {
+    if (viewMode !== 'monthly') return true;
+    const { isoFrom, isoTo } = getMonthDateRange(selectedMonth);
+    // Manual vouchers date: YYYY-MM-DD, Tally vouchers: YYYYMMDD
+    const d = v.date?.includes('-') ? v.date : `${v.date?.slice(0,4)}-${v.date?.slice(4,6)}-${v.date?.slice(6,8)}`;
+    return d >= isoFrom && d <= isoTo;
+  };
 
   // ── Filtered data ──
   const filteredVouchers = vouchers.filter(v =>
-    !searchQuery ||
-    v.partyName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    v.voucherNumber?.toLowerCase().includes(searchQuery.toLowerCase())
+    monthFilterVoucher(v) &&
+    (!searchQuery ||
+      v.partyName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      v.voucherNumber?.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   const filteredLedgers = ledgers.filter(l =>
@@ -1523,10 +1567,11 @@ export default function TallyPage() {
   );
 
   const filteredManualVouchers = manualVouchers.filter(v =>
-    !searchQuery ||
-    v.partyName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    v.voucherNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    v.narration?.toLowerCase().includes(searchQuery.toLowerCase())
+    monthFilterVoucher(v) &&
+    (!searchQuery ||
+      v.partyName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      v.voucherNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      v.narration?.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   // ── Send AI chat message ──
@@ -1616,6 +1661,36 @@ export default function TallyPage() {
             </span>
           </div>
           <div className="flex-1" />
+          {/* Monthly/Yearly Toggle */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setViewMode(viewMode === 'yearly' ? 'monthly' : 'yearly')}
+              className={`relative inline-flex h-7 w-[52px] items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-yellow-500/50 ${viewMode === 'monthly' ? 'bg-yellow-600' : 'bg-gray-700'}`}
+              title={viewMode === 'monthly' ? 'Switch to Yearly' : 'Switch to Monthly'}
+            >
+              <span className={`inline-block h-5 w-5 rounded-full bg-white shadow-md transform transition-transform duration-200 ${viewMode === 'monthly' ? 'translate-x-[26px]' : 'translate-x-[3px]'}`} />
+            </button>
+            <span className="text-xs font-medium text-gray-300 min-w-[50px]">
+              {viewMode === 'monthly' ? 'Monthly' : 'Yearly'}
+            </span>
+          </div>
+          {/* Month Selector (visible in monthly mode) */}
+          {viewMode === 'monthly' && (
+            <select
+              value={selectedMonth}
+              onChange={e => setSelectedMonth(Number(e.target.value))}
+              className="px-3 py-2 bg-cyan-600/20 border border-cyan-600/50 text-cyan-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-cyan-500/50 cursor-pointer"
+            >
+              {MONTH_NAMES.map((m, i) => {
+                const yr = i < 9 ? selectedFY.split('-')[0] : '20' + selectedFY.split('-')[1];
+                return (
+                  <option key={i} value={i} className="bg-gray-900 text-white">
+                    {m} {yr}
+                  </option>
+                );
+              })}
+            </select>
+          )}
           {/* FY Selector */}
           <select
             value={selectedFY}
@@ -1842,6 +1917,14 @@ export default function TallyPage() {
           {/* ════════ VOUCHER TABS (Sales/Receipts/Purchases/Daybook) ════════ */}
           {(activeTab === 'sales' || activeTab === 'receipts' || activeTab === 'purchases' || activeTab === 'daybook') && (
             <>
+              {/* Monthly indicator */}
+              {viewMode === 'monthly' && (
+                <div className="mb-3 px-4 py-2 bg-cyan-600/10 border border-cyan-700/30 rounded-lg flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-cyan-400" />
+                  <span className="text-sm font-medium text-cyan-300">Showing: {monthLabel}</span>
+                  <span className="text-xs text-gray-500">({filteredVouchers.length + filteredManualVouchers.length} entries)</span>
+                </div>
+              )}
               {/* Header with search + Add button */}
               <div className="flex flex-wrap items-center gap-3 mb-4">
                 <div className="relative flex-1 min-w-[200px] max-w-md">
@@ -2228,6 +2311,13 @@ export default function TallyPage() {
           {/* ════════ PROFIT & LOSS TAB ════════ */}
           {activeTab === 'profitloss' && (
             <>
+              {/* Monthly indicator */}
+              {viewMode === 'monthly' && (
+                <div className="mb-4 px-4 py-2 bg-cyan-600/10 border border-cyan-700/30 rounded-lg flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-cyan-400" />
+                  <span className="text-sm font-medium text-cyan-300">P&L for: {monthLabel}</span>
+                </div>
+              )}
               {loading && !plData ? (
                 <LoadingSkeleton />
               ) : plData ? (
@@ -2305,6 +2395,13 @@ export default function TallyPage() {
           {/* ════════ BALANCE SHEET TAB ════════ */}
           {activeTab === 'balancesheet' && (
             <>
+              {/* Monthly indicator */}
+              {viewMode === 'monthly' && (
+                <div className="mb-4 px-4 py-2 bg-cyan-600/10 border border-cyan-700/30 rounded-lg flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-cyan-400" />
+                  <span className="text-sm font-medium text-cyan-300">Balance Sheet as of: {monthLabel}</span>
+                </div>
+              )}
               {loading && !bsData ? (
                 <LoadingSkeleton />
               ) : bsData ? (

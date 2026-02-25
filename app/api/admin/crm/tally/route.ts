@@ -94,46 +94,22 @@ export async function GET(request: NextRequest) {
         const from = searchParams.get('from') || undefined;
         const to = searchParams.get('to') || undefined;
         const fy = searchParams.get('fy') || '2024-25';
+        const mode = searchParams.get('mode') || 'yearly';
 
-        // CA-audited P&L figures (final filed numbers)
-        // Depreciation NOT included — CA hasn't finalized FY 2024-25 yet
-        const CA_PL: Record<string, any> = {
-          '2024-25': {
-            totalIncome: 515717,
-            totalExpenses: 579395,
-            netProfit: -63678,
-            income: [{
-              name: 'Income',
-              amount: 515717,
-              children: [
-                { name: 'Class Income (Bank)', amount: 270242 },
-                { name: 'Cash Workshop (40-batch, Oct)', amount: 96000 },
-                { name: 'Cash Workshop (deposited)', amount: 85000 },
-                { name: 'Nepal Workshop', amount: 60000 },
-                { name: 'Light Bill + Interest', amount: 4475 },
-              ],
-            }],
-            expenses: [{
-              name: 'Expenses',
-              amount: 579395,
-              children: [
-                { name: 'All Other Overheads', amount: 468395 },
-                { name: 'Mohan Salary (Oct, one-time)', amount: 75000 },
-                { name: 'Upamnyu Salary (3K × 12)', amount: 36000 },
-              ],
-            }],
-          },
-        };
+        // Build P&L from manual vouchers (always, for both monthly and yearly)
+        const MV = getTallyManualVoucher();
 
-        // Use CA-audited figures if available
-        if (CA_PL[fy]) {
-          return NextResponse.json({ success: true, ...CA_PL[fy] });
+        // Date filter for monthly mode
+        const dateMatch: any = { financialYear: fy };
+        if (mode === 'monthly' && from && to) {
+          // from/to are YYYYMMDD format, voucher dates are YYYY-MM-DD
+          const isoFrom = `${from.slice(0,4)}-${from.slice(4,6)}-${from.slice(6,8)}`;
+          const isoTo = `${to.slice(0,4)}-${to.slice(4,6)}-${to.slice(6,8)}`;
+          dateMatch.date = { $gte: isoFrom, $lte: isoTo };
         }
 
-        // For other FYs: Build P&L from manual vouchers
-        const MV = getTallyManualVoucher();
         const detailStats = await MV.aggregate([
-          { $match: { financialYear: fy } },
+          { $match: dateMatch },
           { $group: {
             _id: { ledgerName: '$ledgerName', voucherType: '$voucherType' },
             total: { $sum: '$amount' },
@@ -265,11 +241,8 @@ export async function GET(request: NextRequest) {
         const totalPayments = manualStats.Payment?.total || 0;
         const totalContra = manualStats.Contra?.total || 0;
 
-        // Use CA-audited profit/loss for known FYs
-        const CA_PROFIT_LOSS: Record<string, number> = {
-          '2024-25': -63678,  // Net Loss Rs 63,678 (without depreciation)
-        };
-        const profitLoss = CA_PROFIT_LOSS[fy] ?? (totalReceipts - totalPayments);
+        // Profit/Loss = Receipts - Payments (computed from vouchers)
+        const profitLoss = totalReceipts - totalPayments;
 
         // Bank statement summary — compute deposits/withdrawals from voucher data
         // Deposits = Receipts (Cr) + Contra that are deposits
