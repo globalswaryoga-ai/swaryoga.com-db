@@ -2927,6 +2927,100 @@ export default function TallyPage() {
                 </div>
               </div>
 
+              {/* ── Contra (Cash) Vouchers Table ── */}
+              {manualVouchers.filter(v => v.voucherType === 'Contra').length > 0 && (
+              <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+                  <h3 className="font-bold text-blue-400 flex items-center gap-2">
+                    <Wallet className="w-4 h-4" /> Contra / Cash Vouchers
+                  </h3>
+                  <span className="text-xs text-gray-500">{manualVouchers.filter(v => v.voucherType === 'Contra').length} entries</span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-950/60">
+                      <tr>
+                        <th className="text-left px-3 py-2 text-gray-500 text-xs">#</th>
+                        <th className="text-left px-3 py-2 text-gray-500 text-xs">Date</th>
+                        <th className="text-left px-3 py-2 text-gray-500 text-xs">Vch No</th>
+                        <th className="text-left px-3 py-2 text-gray-500 text-xs">Party</th>
+                        <th className="text-right px-3 py-2 text-gray-500 text-xs">Amount</th>
+                        <th className="text-left px-3 py-2 text-gray-500 text-xs">Mode</th>
+                        <th className="text-left px-3 py-2 text-gray-500 text-xs">Narration</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-800/30">
+                      {manualVouchers.filter(v => v.voucherType === 'Contra').sort((a, b) => a.date.localeCompare(b.date)).map((v, i) => (
+                        <tr key={v._id} className="hover:bg-gray-800/20">
+                          <td className="px-3 py-2 text-gray-500">{i + 1}</td>
+                          <td className="px-3 py-2 text-gray-300">{v.date}</td>
+                          <td className="px-3 py-2 text-gray-400">{v.voucherNumber || '-'}</td>
+                          <td className="px-3 py-2 text-gray-200">{v.partyName}</td>
+                          <td className="px-3 py-2 text-blue-400 text-right font-mono">{fmt(v.amount)}</td>
+                          <td className="px-3 py-2 text-gray-500 text-xs">{v.paymentMode || '-'}</td>
+                          <td className="px-3 py-2 text-gray-500 text-xs max-w-[200px] truncate">{v.narration || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-gray-950/40 border-t border-gray-700">
+                        <td colSpan={4} className="px-3 py-2 text-right text-sm font-bold text-gray-300">Total Contra</td>
+                        <td className="px-3 py-2 text-right font-bold text-blue-400">{fmt(manualVouchers.filter(v => v.voucherType === 'Contra').reduce((s, v) => s + v.amount, 0))}</td>
+                        <td colSpan={2}></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+              )}
+
+              {/* ── Journal Vouchers Table ── */}
+              {manualVouchers.filter(v => v.voucherType === 'Journal').length > 0 && (
+              <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+                  <h3 className="font-bold text-purple-400 flex items-center gap-2">
+                    <ClipboardList className="w-4 h-4" /> Journal Vouchers
+                  </h3>
+                  <span className="text-xs text-gray-500">{manualVouchers.filter(v => v.voucherType === 'Journal').length} entries</span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-950/60">
+                      <tr>
+                        <th className="text-left px-3 py-2 text-gray-500 text-xs">#</th>
+                        <th className="text-left px-3 py-2 text-gray-500 text-xs">Date</th>
+                        <th className="text-left px-3 py-2 text-gray-500 text-xs">Vch No</th>
+                        <th className="text-left px-3 py-2 text-gray-500 text-xs">Party</th>
+                        <th className="text-right px-3 py-2 text-gray-500 text-xs">Amount</th>
+                        <th className="text-left px-3 py-2 text-gray-500 text-xs">Mode</th>
+                        <th className="text-left px-3 py-2 text-gray-500 text-xs">Narration</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-800/30">
+                      {manualVouchers.filter(v => v.voucherType === 'Journal').sort((a, b) => a.date.localeCompare(b.date)).map((v, i) => (
+                        <tr key={v._id} className="hover:bg-gray-800/20">
+                          <td className="px-3 py-2 text-gray-500">{i + 1}</td>
+                          <td className="px-3 py-2 text-gray-300">{v.date}</td>
+                          <td className="px-3 py-2 text-gray-400">{v.voucherNumber || '-'}</td>
+                          <td className="px-3 py-2 text-gray-200">{v.partyName}</td>
+                          <td className="px-3 py-2 text-purple-400 text-right font-mono">{fmt(v.amount)}</td>
+                          <td className="px-3 py-2 text-gray-500 text-xs">{v.paymentMode || '-'}</td>
+                          <td className="px-3 py-2 text-gray-500 text-xs max-w-[200px] truncate">{v.narration || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-gray-950/40 border-t border-gray-700">
+                        <td colSpan={4} className="px-3 py-2 text-right text-sm font-bold text-gray-300">Total Journal</td>
+                        <td className="px-3 py-2 text-right font-bold text-purple-400">{fmt(manualVouchers.filter(v => v.voucherType === 'Journal').reduce((s, v) => s + v.amount, 0))}</td>
+                        <td colSpan={2}></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+              )}
+
               {/* ── Uploaded Receipt Files ── */}
               <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
                 <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
