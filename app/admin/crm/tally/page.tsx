@@ -37,6 +37,8 @@ import {
   Lock,
   Unlock,
   ArrowRight,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────
@@ -197,6 +199,7 @@ export default function TallyPage() {
   const [profitLoss, setProfitLoss] = useState<{ income: PLRow[]; expenses: PLRow[]; incomeByGroup?: Record<string, PLRow[]>; expensesByGroup?: Record<string, PLRow[]>; totalIncome: number; totalExpense: number; netProfit: number; isProfit: boolean } | null>(null);
   const [balanceSheet, setBalanceSheet] = useState<{ assets: BSRow[]; liabilities: BSRow[]; capital: BSRow[]; assetsByGroup?: Record<string, BSRow[]>; liabilitiesByGroup?: Record<string, BSRow[]>; capitalBySubGroup?: Record<string, { ledgerName: string; amount: number }[]>; totalAssets: number; liabilitiesPlusCapital: number; difference: number; netProfit: number; isProfit: boolean; capitalAdjusted: number } | null>(null);
   const [daybook, setDaybook] = useState<any[]>([]);
+  const [daybookLedgerSummary, setDaybookLedgerSummary] = useState<any[] | null>(null);
   const [monthlyPL, setMonthlyPL] = useState<MonthlyPLRow[]>([]);
   const [caAudit, setCaAudit] = useState<any>(null);
   const [bills, setBills] = useState<any[]>([]);
@@ -242,6 +245,7 @@ export default function TallyPage() {
     setProfitLoss(null);
     setBalanceSheet(null);
     setDaybook([]);
+    setDaybookLedgerSummary(null);
     setMonthlyPL([]);
     setCaAudit(null);
   }, []);
@@ -293,6 +297,7 @@ export default function TallyPage() {
     try {
       const data = await apiFetch(`/api/tally/daybook?fy=${fy}`);
       setDaybook(data?.entries || []);
+      setDaybookLedgerSummary(data?.ledgerSummary || null);
     } catch (e: any) { setError(e.message); }
   }, [apiFetch, fy]);
 
@@ -1580,46 +1585,258 @@ export default function TallyPage() {
 
   // ── Day Book View ─────────────────────────────────────────────────
 
-  const DayBookView = () => (
-    <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
-      <div className="px-4 py-3 bg-gray-800/50 border-b border-gray-800 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-400 flex items-center gap-2"><Calendar className="w-4 h-4" /> Day Book — FY {fy}</h3>
-        <button onClick={printDayBook} className="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs rounded flex items-center gap-1">
-          <Printer className="w-3 h-3" /> PDF
-        </button>
+  const [expandedDaybookGroups, setExpandedDaybookGroups] = useState<Record<string, boolean>>({});
+
+  const toggleDaybookGroup = (key: string) => {
+    setExpandedDaybookGroups(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const expandAllDaybookGroups = () => {
+    if (daybookLedgerSummary) {
+      const all: Record<string, boolean> = {};
+      daybookLedgerSummary.forEach((g: any) => { all[g.group] = true; });
+      setExpandedDaybookGroups(all);
+    } else if (daybook.length > 0) {
+      // Group vouchers by type
+      const types = new Set(daybook.map((e: any) => e.type));
+      const all: Record<string, boolean> = {};
+      types.forEach(t => { all[t] = true; });
+      setExpandedDaybookGroups(all);
+    }
+  };
+
+  const collapseAllDaybookGroups = () => setExpandedDaybookGroups({});
+
+  const GROUP_ICON_COLORS: Record<string, string> = {
+    INCOME: 'text-green-400 bg-green-500/10 border-green-500/30',
+    EXPENSE: 'text-orange-400 bg-orange-500/10 border-orange-500/30',
+    ASSET: 'text-blue-400 bg-blue-500/10 border-blue-500/30',
+    LIABILITY: 'text-red-400 bg-red-500/10 border-red-500/30',
+    CAPITAL: 'text-purple-400 bg-purple-500/10 border-purple-500/30',
+  };
+
+  const DayBookView = () => {
+    // ── Voucher-based daybook (when vouchers exist) ──
+    if (daybook.length > 0) {
+      // Group vouchers by type
+      const grouped: Record<string, any[]> = {};
+      for (const entry of daybook) {
+        const t = entry.type || 'OTHER';
+        if (!grouped[t]) grouped[t] = [];
+        grouped[t].push(entry);
+      }
+      const typeOrder = ['RECEIPT', 'PAYMENT', 'JOURNAL', 'CONTRA', 'SALES', 'PURCHASE', 'DEBIT_NOTE', 'CREDIT_NOTE'];
+      const sortedTypes = typeOrder.filter(t => grouped[t]);
+      // Add any types not in the predefined order
+      Object.keys(grouped).forEach(t => { if (!sortedTypes.includes(t)) sortedTypes.push(t); });
+
+      const totalDebit = daybook.reduce((s: number, e: any) => s + (e.totalAmount || 0), 0);
+      const totalCredit = totalDebit; // balanced vouchers
+
+      return (
+        <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+          <div className="px-4 py-3 bg-gray-800/50 border-b border-gray-800 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-gray-400 flex items-center gap-2">
+              <Calendar className="w-4 h-4" /> Day Book — FY {fy}
+              <span className="text-xs text-gray-500 ml-2">({daybook.length} vouchers)</span>
+            </h3>
+            <div className="flex items-center gap-2">
+              <button onClick={expandAllDaybookGroups} className="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-400 text-xs rounded">Expand All</button>
+              <button onClick={collapseAllDaybookGroups} className="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-400 text-xs rounded">Collapse</button>
+              <button onClick={printDayBook} className="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs rounded flex items-center gap-1">
+                <Printer className="w-3 h-3" /> PDF
+              </button>
+            </div>
+          </div>
+          <div className="divide-y divide-gray-800">
+            {sortedTypes.map(vType => {
+              const entries = grouped[vType];
+              const groupTotal = entries.reduce((s: number, e: any) => s + (e.totalAmount || 0), 0);
+              const isExpanded = expandedDaybookGroups[vType];
+              return (
+                <div key={vType}>
+                  <button
+                    onClick={() => toggleDaybookGroup(vType)}
+                    className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-800/70 transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      {isExpanded ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+                      <span className={`text-xs font-bold px-2.5 py-1 rounded ${VOUCHER_COLORS[vType] || 'text-gray-400 bg-gray-800'}`}>{vType}</span>
+                      <span className="text-sm text-gray-300 font-medium">{entries.length} entries</span>
+                    </div>
+                    <span className="text-sm font-mono font-semibold text-white">{fmt(groupTotal)}</span>
+                  </button>
+                  {isExpanded && (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-800/30 text-gray-500">
+                          <tr>
+                            <th className="px-6 py-2 text-left font-medium text-xs">Date</th>
+                            <th className="px-4 py-2 text-left font-medium text-xs">Voucher #</th>
+                            <th className="px-4 py-2 text-left font-medium text-xs">Particulars</th>
+                            <th className="px-4 py-2 text-right font-medium text-xs">Debit (₹)</th>
+                            <th className="px-4 py-2 text-right font-medium text-xs">Credit (₹)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-800/50">
+                          {entries.map((entry: any, i: number) => (
+                            <tr key={i} className="hover:bg-gray-800/30">
+                              <td className="px-6 py-2 text-gray-400 text-xs">{new Date(entry.date).toLocaleDateString('en-IN')}</td>
+                              <td className="px-4 py-2 text-gray-300 text-xs font-mono">{entry.voucherNumber}</td>
+                              <td className="px-4 py-2">
+                                <div className="text-gray-200 text-xs">{entry.entries?.map((e: any) => e.ledgerName).join(' → ')}</div>
+                                {entry.narration && <div className="text-[11px] text-gray-500 mt-0.5">{entry.narration}</div>}
+                              </td>
+                              <td className="px-4 py-2 text-right font-mono text-xs text-blue-400">{fmt(entry.totalAmount)}</td>
+                              <td className="px-4 py-2 text-right font-mono text-xs text-red-400">{fmt(entry.totalAmount)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          {/* Grand Total */}
+          <div className="px-4 py-3 bg-gray-800/50 border-t border-gray-700 flex items-center justify-between">
+            <span className="text-sm font-semibold text-gray-300">Grand Total</span>
+            <div className="flex gap-8">
+              <span className="text-sm font-mono font-bold text-blue-400">Dr: {fmt(totalDebit)}</span>
+              <span className="text-sm font-mono font-bold text-red-400">Cr: {fmt(totalCredit)}</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ── CA Report Summary (when no vouchers but ledger OBs exist) ──
+    if (daybookLedgerSummary && daybookLedgerSummary.length > 0) {
+      const grandTotalDebit = daybookLedgerSummary.reduce((s: number, g: any) => s + g.totalDebit, 0);
+      const grandTotalCredit = daybookLedgerSummary.reduce((s: number, g: any) => s + g.totalCredit, 0);
+
+      return (
+        <div className="space-y-3">
+          {/* Header */}
+          <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+            <div className="px-4 py-3 bg-gray-800/50 border-b border-gray-800 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-300 flex items-center gap-2">
+                  <Calendar className="w-4 h-4" /> Day Book — FY {fy}
+                </h3>
+                <p className="text-xs text-yellow-500/80 mt-1 flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3" /> CA Report Summary — Annual totals from audited accounts (click group headers to expand)
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={expandAllDaybookGroups} className="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-400 text-xs rounded">Expand All</button>
+                <button onClick={collapseAllDaybookGroups} className="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-400 text-xs rounded">Collapse</button>
+                <button onClick={printDayBook} className="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs rounded flex items-center gap-1">
+                  <Printer className="w-3 h-3" /> PDF
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Group Cards */}
+          {daybookLedgerSummary.map((group: any) => {
+            const isExpanded = expandedDaybookGroups[group.group];
+            const colorClass = GROUP_ICON_COLORS[group.group] || 'text-gray-400 bg-gray-800 border-gray-700';
+            const totalAmount = group.group === 'INCOME' || group.group === 'LIABILITY' || group.group === 'CAPITAL'
+              ? group.totalCredit
+              : group.totalDebit;
+
+            // Sub-group grouping within each main group
+            const subGroups: Record<string, any[]> = {};
+            for (const l of group.ledgers) {
+              const sg = l.subGroup || 'General';
+              if (!subGroups[sg]) subGroups[sg] = [];
+              subGroups[sg].push(l);
+            }
+
+            return (
+              <div key={group.group} className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+                {/* Group Header — Clickable "Big Head" */}
+                <button
+                  onClick={() => toggleDaybookGroup(group.group)}
+                  className={`w-full px-4 py-3.5 flex items-center justify-between hover:bg-gray-800/50 transition-colors cursor-pointer border-l-4 ${colorClass.split(' ').find(c => c.startsWith('border-')) || 'border-gray-700'}`}
+                >
+                  <div className="flex items-center gap-3">
+                    {isExpanded
+                      ? <ChevronDown className={`w-5 h-5 ${colorClass.split(' ')[0]}`} />
+                      : <ChevronRight className={`w-5 h-5 ${colorClass.split(' ')[0]}`} />
+                    }
+                    <div className={`px-2.5 py-1 rounded-lg text-xs font-bold ${colorClass}`}>{group.group}</div>
+                    <span className="text-base font-semibold text-gray-200">{group.label}</span>
+                    <span className="text-xs text-gray-500">({group.ledgers.length} ledgers)</span>
+                  </div>
+                  <span className={`text-base font-mono font-bold ${colorClass.split(' ')[0]}`}>{fmt(totalAmount)}</span>
+                </button>
+
+                {/* Expanded Detail */}
+                {isExpanded && (
+                  <div className="border-t border-gray-800">
+                    {Object.entries(subGroups).map(([sgName, ledgers]: [string, any[]]) => (
+                      <div key={sgName}>
+                        {Object.keys(subGroups).length > 1 && (
+                          <div className="px-6 py-1.5 bg-gray-800/30 text-xs text-gray-500 font-medium uppercase tracking-wider">{sgName}</div>
+                        )}
+                        <table className="w-full text-sm">
+                          <tbody className="divide-y divide-gray-800/50">
+                            {ledgers.map((ledger: any, j: number) => (
+                              <tr key={j} className="hover:bg-gray-800/30">
+                                <td className="px-8 py-2.5 text-gray-300 text-sm">{ledger.name}</td>
+                                <td className="px-4 py-2.5 text-right font-mono text-sm">
+                                  <span className={ledger.type === 'DEBIT' ? 'text-blue-400' : 'text-red-400'}>
+                                    {fmt(ledger.amount)}
+                                    <span className="text-[10px] text-gray-500 ml-1">{ledger.type === 'DEBIT' ? 'Dr' : 'Cr'}</span>
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ))}
+                    {/* Sub-total */}
+                    <div className="px-6 py-2 bg-gray-800/40 flex items-center justify-between border-t border-gray-700">
+                      <span className="text-xs text-gray-400 font-medium">Sub-Total</span>
+                      <div className="flex gap-6">
+                        {group.totalDebit > 0 && <span className="text-xs font-mono font-semibold text-blue-400">Dr: {fmt(group.totalDebit)}</span>}
+                        {group.totalCredit > 0 && <span className="text-xs font-mono font-semibold text-red-400">Cr: {fmt(group.totalCredit)}</span>}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Grand Total Card */}
+          <div className="bg-gray-900 rounded-xl border border-gray-700 overflow-hidden">
+            <div className="px-4 py-3 flex items-center justify-between">
+              <span className="text-sm font-bold text-gray-200">Grand Total</span>
+              <div className="flex gap-8">
+                <span className="text-sm font-mono font-bold text-blue-400">Total Debit: {fmt(grandTotalDebit)}</span>
+                <span className="text-sm font-mono font-bold text-red-400">Total Credit: {fmt(grandTotalCredit)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ── Empty state ──
+    return (
+      <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+        <div className="px-4 py-3 bg-gray-800/50 border-b border-gray-800">
+          <h3 className="text-sm font-semibold text-gray-400 flex items-center gap-2"><Calendar className="w-4 h-4" /> Day Book — FY {fy}</h3>
+        </div>
+        <div className="text-center text-gray-500 py-12">No entries. Create vouchers or import bank statement first.</div>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-800/50 text-gray-400">
-            <tr>
-              <th className="px-4 py-2.5 text-left font-medium">Date</th>
-              <th className="px-4 py-2.5 text-left font-medium">Voucher</th>
-              <th className="px-4 py-2.5 text-left font-medium">Particulars</th>
-              <th className="px-4 py-2.5 text-right font-medium">Debit (₹)</th>
-              <th className="px-4 py-2.5 text-right font-medium">Credit (₹)</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-800">
-            {daybook.map((entry: any, i: number) => (
-              <tr key={i} className="hover:bg-gray-800/50">
-                <td className="px-4 py-2.5 text-gray-400">{new Date(entry.date).toLocaleDateString('en-IN')}</td>
-                <td className="px-4 py-2.5">
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded ${VOUCHER_COLORS[entry.type] || ''}`}>{entry.voucherNumber}</span>
-                </td>
-                <td className="px-4 py-2.5">
-                  <div className="text-gray-200">{entry.entries?.map((e: any) => e.ledgerName).join(' / ')}</div>
-                  {entry.narration && <div className="text-xs text-gray-500">{entry.narration}</div>}
-                </td>
-                <td className="px-4 py-2.5 text-right font-mono text-blue-400">{fmt(entry.totalAmount)}</td>
-                <td className="px-4 py-2.5 text-right font-mono text-red-400">{fmt(entry.totalAmount)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {daybook.length === 0 && <div className="text-center text-gray-500 py-12">No entries. Create vouchers first.</div>}
-    </div>
-  );
+    );
+  };
 
   // ── Monthly P&L View ───────────────────────────────────────────────
 
@@ -1852,11 +2069,32 @@ ${contentHtml}
   };
 
   const printDayBook = () => {
-    if (daybook.length === 0) return;
-    let rows = daybook.map((e: any) =>
-      `<tr><td>${new Date(e.date).toLocaleDateString('en-IN')}</td><td>${e.voucherNumber}</td><td>${e.type}</td><td>${e.entries?.map((en: any) => en.ledgerName).join(' / ') || ''}${e.narration ? '<br/><small>' + e.narration + '</small>' : ''}</td><td class="text-right">${fmt(e.totalAmount)}</td></tr>`
-    ).join('');
-    handlePrintReport('Day Book', `<table><tr><th>Date</th><th>Voucher</th><th>Type</th><th>Particulars</th><th class="text-right">Amount (₹)</th></tr>${rows}</table>`);
+    // If vouchers exist, print voucher-based daybook
+    if (daybook.length > 0) {
+      let rows = daybook.map((e: any) =>
+        `<tr><td>${new Date(e.date).toLocaleDateString('en-IN')}</td><td>${e.voucherNumber}</td><td>${e.type}</td><td>${e.entries?.map((en: any) => en.ledgerName).join(' / ') || ''}${e.narration ? '<br/><small>' + e.narration + '</small>' : ''}</td><td class="text-right">${fmt(e.totalAmount)}</td></tr>`
+      ).join('');
+      handlePrintReport('Day Book', `<table><tr><th>Date</th><th>Voucher</th><th>Type</th><th>Particulars</th><th class="text-right">Amount (₹)</th></tr>${rows}</table>`);
+      return;
+    }
+    // If CA Report summary, print grouped ledger data
+    if (daybookLedgerSummary && daybookLedgerSummary.length > 0) {
+      let html = '<h3 style="text-align:center;margin-bottom:12px">CA Report Summary — Annual Totals</h3>';
+      for (const group of daybookLedgerSummary) {
+        html += `<div class="section-title" style="background:#f5f5f5;padding:8px;margin-top:12px;font-weight:bold">${group.label} (${group.group})</div>`;
+        html += '<table style="width:100%;margin-bottom:8px"><tr><th style="text-align:left">Ledger</th><th style="text-align:left">Sub-Group</th><th style="text-align:right">Amount (₹)</th><th>Type</th></tr>';
+        for (const l of group.ledgers) {
+          html += `<tr><td>${l.name}</td><td>${l.subGroup}</td><td style="text-align:right">${fmt(l.amount)}</td><td>${l.type}</td></tr>`;
+        }
+        html += `<tr style="font-weight:bold;border-top:2px solid #333"><td colspan="2">Sub-Total</td><td style="text-align:right">${group.totalDebit > 0 ? 'Dr: ' + fmt(group.totalDebit) : ''}${group.totalDebit > 0 && group.totalCredit > 0 ? ' | ' : ''}${group.totalCredit > 0 ? 'Cr: ' + fmt(group.totalCredit) : ''}</td><td></td></tr>`;
+        html += '</table>';
+      }
+      const gd = daybookLedgerSummary.reduce((s: number, g: any) => s + g.totalDebit, 0);
+      const gc = daybookLedgerSummary.reduce((s: number, g: any) => s + g.totalCredit, 0);
+      html += `<div style="margin-top:16px;padding:8px;background:#e8e8e8;font-weight:bold">Grand Total — Debit: ${fmt(gd)} | Credit: ${fmt(gc)}</div>`;
+      handlePrintReport(`Day Book — FY ${fy} (CA Report)`, html);
+      return;
+    }
   };
 
   // ── CA Audit View ─────────────────────────────────────────────────

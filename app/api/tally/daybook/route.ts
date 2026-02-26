@@ -7,7 +7,7 @@
 import { NextRequest } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
-import { getDayBook, getReceiptsRegister, getPaymentsRegister } from '@/lib/tally/engine';
+import { getDayBook, getReceiptsRegister, getPaymentsRegister, getDayBookLedgerSummary } from '@/lib/tally/engine';
 
 function getAuth(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -77,6 +77,12 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // If no voucher entries, provide ledger OB summary (CA Report data)
+    let ledgerSummary: any = null;
+    if (entries.length === 0) {
+      ledgerSummary = await getDayBookLedgerSummary(fy);
+    }
+
     return apiSuccess({
       reportType: 'Day Book',
       financialYear: fy,
@@ -86,6 +92,7 @@ export async function GET(request: NextRequest) {
       count: entries.length,
       totalDebit: Math.round(totalDebit * 100) / 100,
       totalCredit: Math.round(totalCredit * 100) / 100,
+      ledgerSummary,
     });
   } catch (error: any) {
     console.error('[Tally DayBook GET]', error);

@@ -623,6 +623,59 @@ export async function getDayBook(
   }));
 }
 
+// ─── Day Book Ledger Summary (for CA Report years with no vouchers) ──
+
+export interface DayBookGroupSummary {
+  group: string;
+  label: string;
+  ledgers: { name: string; subGroup: string; amount: number; type: string }[];
+  totalDebit: number;
+  totalCredit: number;
+}
+
+const GROUP_LABELS_DAYBOOK: Record<string, string> = {
+  INCOME: 'Revenue & Income',
+  EXPENSE: 'Expenditure',
+  ASSET: 'Assets',
+  LIABILITY: 'Liabilities',
+  CAPITAL: 'Capital & Equity',
+};
+
+export async function getDayBookLedgerSummary(financialYear: string): Promise<DayBookGroupSummary[]> {
+  await connectDB();
+  const AccLedger = getAccLedger();
+  const ledgers = await AccLedger.find({ financialYear }).sort({ group: 1, subGroup: 1, name: 1 }).lean();
+
+  const GROUP_ORDER = ['INCOME', 'EXPENSE', 'ASSET', 'LIABILITY', 'CAPITAL'];
+  const groupMap: Record<string, DayBookGroupSummary> = {};
+
+  for (const l of ledgers as any[]) {
+    const g: string = l.group || 'OTHER';
+    if (!groupMap[g]) {
+      groupMap[g] = { group: g, label: GROUP_LABELS_DAYBOOK[g] || g, ledgers: [], totalDebit: 0, totalCredit: 0 };
+    }
+
+    const amount = l.openingBalance || 0;
+    if (amount === 0) continue;
+
+    groupMap[g].ledgers.push({
+      name: l.name,
+      subGroup: l.subGroup || '',
+      amount,
+      type: l.openingBalanceType || 'DEBIT',
+    });
+
+    if ((l.openingBalanceType || 'DEBIT') === 'DEBIT') groupMap[g].totalDebit += amount;
+    else groupMap[g].totalCredit += amount;
+  }
+
+  const result: DayBookGroupSummary[] = [];
+  for (const g of GROUP_ORDER) {
+    if (groupMap[g] && groupMap[g].ledgers.length > 0) result.push(groupMap[g]);
+  }
+  return result;
+}
+
 // ─── Receipts & Payments Registers ──────────────────────────────────
 
 export async function getReceiptsRegister(financialYear: string, dateFrom?: Date, dateTo?: Date) {
