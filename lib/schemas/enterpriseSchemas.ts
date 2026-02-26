@@ -1682,246 +1682,198 @@ CrmReceiptSchema.index({ customerPhone: 1, issuedAt: -1 });
 
 // ============================================================================
 // TALLY SYNC SCHEMAS
-// For integrating Tally Prime financial data with CRM
+// ACCOUNTING SYSTEM — Proper Double-Entry Bookkeeping (Tally Prime compatible)
+// ============================================================================
+// Rules:
+// - Every voucher MUST have balanced Debit = Credit totals
+// - 5 Account Groups: ASSET, LIABILITY, INCOME, EXPENSE, CAPITAL
+// - Normal balances: Assets & Expenses = Debit, Liabilities/Income/Capital = Credit
 // ============================================================================
 
-const TallyCustomerSchema = new mongoose.Schema(
+// ── ACCOUNT GROUP (SubGroup hierarchy like Tally Prime) ─────────────
+const AccGroupSchema = new mongoose.Schema(
   {
-    // Tally unique identifier
-    tallyId: { type: String, required: true, unique: true, trim: true, index: true },
-    tallyName: { type: String, required: true, trim: true, index: true },
+    name: { type: String, required: true, trim: true },
+    // Root category (one of 5)
+    nature: {
+      type: String,
+      enum: ['ASSET', 'LIABILITY', 'INCOME', 'EXPENSE', 'CAPITAL'],
+      required: true,
+      index: true,
+    },
+    // Parent group for hierarchy (null = root group)
+    parentGroupId: { type: mongoose.Schema.Types.ObjectId, ref: 'AccGroup', sparse: true, index: true },
+    // Where this group appears
+    affectsGrossProfit: { type: Boolean, default: false },
+    // e.g. "Balance Sheet" or "Profit & Loss"
+    report: {
+      type: String,
+      enum: ['balance_sheet', 'profit_loss'],
+      required: true,
+    },
+    financialYear: { type: String, required: true, trim: true, index: true },
+    isSystemDefault: { type: Boolean, default: false },
+    createdByUserId: { type: String, trim: true },
+    notes: { type: String, trim: true },
+  },
+  { timestamps: true, collection: 'acc_groups' }
+);
+AccGroupSchema.index({ name: 1, financialYear: 1 }, { unique: true });
+AccGroupSchema.index({ nature: 1, financialYear: 1 });
 
-    // Link to CRM Lead (optional)
-    linkedLeadId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lead', sparse: true, index: true },
+// ── LEDGER (Account) ────────────────────────────────────────────────
+const AccLedgerSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true, trim: true },
+    // Which of the 5 root groups
+    group: {
+      type: String,
+      enum: ['ASSET', 'LIABILITY', 'INCOME', 'EXPENSE', 'CAPITAL'],
+      required: true,
+      index: true,
+    },
+    // Sub-group reference (optional, for hierarchy)
+    groupId: { type: mongoose.Schema.Types.ObjectId, ref: 'AccGroup', sparse: true, index: true },
+    // Sub-group name (denormalized for quick display: "Bank Accounts", "Fixed Assets", etc.)
+    subGroup: { type: String, trim: true },
 
-    // Customer details from Tally
-    email: { type: String, trim: true, lowercase: true, sparse: true, index: true },
-    phone: { type: String, trim: true, sparse: true, index: true },
+    // Opening balance for the financial year
+    openingBalance: { type: Number, default: 0 },
+    openingBalanceType: { type: String, enum: ['DEBIT', 'CREDIT'], default: 'DEBIT' },
+
+    financialYear: { type: String, required: true, trim: true, index: true },
+
+    // Optional metadata
+    description: { type: String, trim: true },
+    gstin: { type: String, trim: true },
+    pan: { type: String, trim: true },
+    phone: { type: String, trim: true },
+    email: { type: String, trim: true, lowercase: true },
     address: { type: String, trim: true },
     state: { type: String, trim: true },
-    gstin: { type: String, trim: true, sparse: true }, // GST ID
 
-    // Financial summary
-    totalInvoices: { type: Number, default: 0 },
-    totalAmount: { type: Number, default: 0 },
-    totalPaid: { type: Number, default: 0 },
-    totalPending: { type: Number, default: 0 },
-
-    // Sync metadata
-    lastSyncedAt: { type: Date, default: Date.now },
-    syncStatus: { type: String, enum: ['success', 'pending', 'error'], default: 'pending' },
-    syncError: { type: String, sparse: true },
-
-    // Raw Tally data (for audit)
-    tallyRawData: mongoose.Schema.Types.Mixed,
-  },
-  { timestamps: true, collection: 'tally_customers' }
-);
-
-TallyCustomerSchema.index({ tallyId: 1 });
-TallyCustomerSchema.index({ linkedLeadId: 1 });
-TallyCustomerSchema.index({ lastSyncedAt: -1 });
-
-const TallyInvoiceSchema = new mongoose.Schema(
-  {
-    // Tally unique identifier
-    tallyId: { type: String, required: true, unique: true, trim: true, index: true },
-    tallyInvoiceNumber: { type: String, required: true, trim: true, index: true },
-
-    // Link to customer
-    tallyCustomerId: { type: String, required: true, trim: true, index: true },
-    linkedCustomerId: { type: mongoose.Schema.Types.ObjectId, ref: 'TallyCustomer', sparse: true, index: true },
-
-    // Link to CRM Lead (optional)
+    // Link to CRM lead (optional)
     linkedLeadId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lead', sparse: true, index: true },
 
-    // Invoice details
+    isActive: { type: Boolean, default: true, index: true },
+    createdByUserId: { type: String, trim: true },
+  },
+  { timestamps: true, collection: 'acc_ledgers' }
+);
+AccLedgerSchema.index({ name: 1, financialYear: 1 }, { unique: true });
+AccLedgerSchema.index({ group: 1, financialYear: 1 });
+AccLedgerSchema.index({ isActive: 1 });
+
+// ── VOUCHER (Double-Entry Transaction) ──────────────────────────────
+// RULE: Sum of all DEBIT entries === Sum of all CREDIT entries (always)
+const AccVoucherSchema = new mongoose.Schema(
+  {
+    // Auto-generated voucher number per type per FY (e.g., REC-001, PAY-002)
+    voucherNumber: { type: String, required: true, trim: true, index: true },
+
     date: { type: Date, required: true, index: true },
-    dueDate: { type: Date, sparse: true },
-    
-    // Items
-    lineItems: [
+
+    type: {
+      type: String,
+      enum: [
+        'RECEIPT',      // Cash/Bank receives money
+        'PAYMENT',      // Cash/Bank pays money
+        'JOURNAL',      // Adjustments (no cash movement)
+        'CONTRA',       // Cash ⇆ Bank transfer
+        'SALES',        // Customer Debit, Sales Credit
+        'PURCHASE',     // Purchase Debit, Supplier Credit
+        'DEBIT_NOTE',   // Purchase return
+        'CREDIT_NOTE',  // Sales return
+      ],
+      required: true,
+      index: true,
+    },
+
+    // Double-entry legs — MUST balance (sum of debits === sum of credits)
+    entries: [
       {
-        description: { type: String, trim: true },
-        quantity: { type: Number },
-        rate: { type: Number },
-        amount: { type: Number },
-      }
+        ledgerId: { type: mongoose.Schema.Types.ObjectId, ref: 'AccLedger', required: true },
+        ledgerName: { type: String, required: true, trim: true }, // Denormalized for perf
+        amount: { type: Number, required: true, min: 0.01 },
+        type: { type: String, enum: ['DEBIT', 'CREDIT'], required: true },
+      },
     ],
 
-    // Amounts
-    subtotal: { type: Number, default: 0 },
-    gst: { type: Number, default: 0 },
-    total: { type: Number, required: true, index: true },
+    // Totals (denormalized — must always match entries)
+    totalDebit: { type: Number, required: true, min: 0 },
+    totalCredit: { type: Number, required: true, min: 0 },
 
-    // Payment status
-    paymentStatus: { type: String, enum: ['unpaid', 'partial', 'paid'], default: 'unpaid', index: true },
-    paidAmount: { type: Number, default: 0 },
-    pendingAmount: { type: Number, default: 0 },
-
-    // Notes
-    notes: { type: String, trim: true },
-
-    // Sync metadata
-    lastSyncedAt: { type: Date, default: Date.now },
-    syncStatus: { type: String, enum: ['success', 'pending', 'error'], default: 'pending' },
-    syncError: { type: String, sparse: true },
-
-    // Raw Tally data
-    tallyRawData: mongoose.Schema.Types.Mixed,
-  },
-  { timestamps: true, collection: 'tally_invoices' }
-);
-
-TallyInvoiceSchema.index({ tallyId: 1 });
-TallyInvoiceSchema.index({ tallyInvoiceNumber: 1 });
-TallyInvoiceSchema.index({ tallyCustomerId: 1, date: -1 });
-TallyInvoiceSchema.index({ date: -1 });
-TallyInvoiceSchema.index({ paymentStatus: 1 });
-
-const TallyPaymentSchema = new mongoose.Schema(
-  {
-    // Tally unique identifier
-    tallyId: { type: String, required: true, unique: true, trim: true, index: true },
-    tallyPaymentVoucher: { type: String, required: true, trim: true, index: true },
-
-    // Link to customer and invoice
-    tallyCustomerId: { type: String, required: true, trim: true, index: true },
-    tallyInvoiceIds: [{ type: String, trim: true }], // Multiple invoices can be paid
-    linkedInvoiceIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'TallyInvoice' }],
-
-    // Payment details
-    paymentDate: { type: Date, required: true, index: true },
-    paymentMethod: { type: String, enum: ['cash', 'cheque', 'bank_transfer', 'online', 'other'], trim: true },
-    amount: { type: Number, required: true, index: true },
-    referenceNumber: { type: String, trim: true, sparse: true },
-
-    // Notes
-    notes: { type: String, trim: true },
-
-    // Sync metadata
-    lastSyncedAt: { type: Date, default: Date.now },
-    syncStatus: { type: String, enum: ['success', 'pending', 'error'], default: 'pending' },
-    syncError: { type: String, sparse: true },
-
-    // Raw Tally data
-    tallyRawData: mongoose.Schema.Types.Mixed,
-  },
-  { timestamps: true, collection: 'tally_payments' }
-);
-
-TallyPaymentSchema.index({ tallyId: 1 });
-TallyPaymentSchema.index({ paymentDate: -1 });
-TallyPaymentSchema.index({ tallyCustomerId: 1, paymentDate: -1 });
-
-const TallySyncLogSchema = new mongoose.Schema(
-  {
-    syncType: { type: String, enum: ['customers', 'invoices', 'payments', 'all'], required: true },
-    status: { type: String, enum: ['success', 'failed', 'partial'], default: 'success' },
-    
-    // Statistics
-    totalProcessed: { type: Number, default: 0 },
-    totalSucceeded: { type: Number, default: 0 },
-    totalFailed: { type: Number, default: 0 },
-
-    // Error tracking
-    errors: [
-      {
-        recordId: { type: String },
-        error: { type: String },
-      }
-    ],
-
-    // Duration
-    startTime: { type: Date, default: Date.now },
-    endTime: { type: Date },
-
-    // Details
-    details: mongoose.Schema.Types.Mixed,
-  },
-  { timestamps: true, collection: 'tally_sync_logs' }
-);
-
-TallySyncLogSchema.index({ createdAt: -1 });
-TallySyncLogSchema.index({ status: 1 });
-
-// ============================================================================
-// TALLY MANUAL BALANCE (Opening Balances from CA Reports)
-// ============================================================================
-const TallyManualBalanceSchema = new mongoose.Schema(
-  {
-    ledgerName: { type: String, required: true, trim: true },
-    parentGroup: { type: String, required: true, trim: true },
-    category: {
-      type: String,
-      enum: ['asset', 'liability', 'income', 'expense'],
-      required: true,
-    },
-    amount: { type: Number, required: true, default: 0 },
-    drCr: { type: String, enum: ['Dr', 'Cr'], default: 'Dr' },
-    financialYear: { type: String, required: true, trim: true }, // e.g. '2023-24'
-    asOnDate: { type: String, trim: true }, // e.g. '31-03-2024'
-    notes: { type: String, trim: true },
-    createdBy: { type: String, trim: true },
-  },
-  { timestamps: true, collection: 'tally_manual_balances' }
-);
-
-TallyManualBalanceSchema.index({ financialYear: 1, category: 1 });
-TallyManualBalanceSchema.index({ ledgerName: 1, financialYear: 1 });
-
-// ============================================================================
-// TALLY MANUAL VOUCHER (Receipts, Payments, Journal entries - manual mode)
-// ============================================================================
-const TallyManualVoucherSchema = new mongoose.Schema(
-  {
-    voucherType: {
-      type: String,
-      enum: ['Receipt', 'Payment', 'Journal', 'Sales', 'Purchase', 'Contra'],
-      required: true,
-    },
-    voucherNumber: { type: String, trim: true },
-    date: { type: String, required: true, trim: true }, // YYYY-MM-DD
-    partyName: { type: String, required: true, trim: true },
-    ledgerName: { type: String, trim: true }, // the account head
-    amount: { type: Number, required: true, default: 0 },
     narration: { type: String, trim: true },
-    paymentMode: { type: String, trim: true }, // Cash, Bank, UPI, etc.
-    financialYear: { type: String, required: true, trim: true },
-    createdBy: { type: String, trim: true },
-  },
-  { timestamps: true, collection: 'tally_manual_vouchers' }
-);
 
-TallyManualVoucherSchema.index({ financialYear: 1, voucherType: 1 });
-TallyManualVoucherSchema.index({ date: -1 });
-TallyManualVoucherSchema.index({ partyName: 1, financialYear: 1 });
-
-// ============================================================================
-// TALLY RECEIPT FILES — Uploaded receipt/bill images for CA audit
-// ============================================================================
-const TallyReceiptFileSchema = new mongoose.Schema(
-  {
     financialYear: { type: String, required: true, trim: true, index: true },
-    voucherId: { type: mongoose.Schema.Types.ObjectId, sparse: true, index: true },
-    voucherType: { type: String, trim: true }, // Receipt, Payment, Journal, etc.
-    voucherNumber: { type: String, trim: true },
-    fileName: { type: String, required: true, trim: true },
-    fileUrl: { type: String, required: true, trim: true },
-    fileType: { type: String, trim: true }, // image/jpeg, application/pdf, etc.
-    fileSize: { type: Number, default: 0 },
-    category: { type: String, enum: ['income', 'expense', 'other'], default: 'other' },
-    partyName: { type: String, trim: true },
-    amount: { type: Number },
-    date: { type: String, trim: true },
-    notes: { type: String, trim: true },
-    uploadedBy: { type: String, trim: true },
-  },
-  { timestamps: true, collection: 'tally_receipt_files' }
-);
 
-TallyReceiptFileSchema.index({ financialYear: 1, category: 1 });
-TallyReceiptFileSchema.index({ financialYear: 1, voucherId: 1 });
+    // Optional party reference (for Receipt/Payment/Sales/Purchase)
+    partyLedgerId: { type: mongoose.Schema.Types.ObjectId, ref: 'AccLedger', sparse: true },
+    partyName: { type: String, trim: true },
+
+    // Audit
+    createdByUserId: { type: String, trim: true },
+    isReversed: { type: Boolean, default: false },
+    reversedVoucherId: { type: mongoose.Schema.Types.ObjectId, ref: 'AccVoucher', sparse: true },
+
+    // Receipt file attachment
+    receiptFileUrl: { type: String, trim: true },
+    receiptFileName: { type: String, trim: true },
+
+    metadata: mongoose.Schema.Types.Mixed,
+  },
+  { timestamps: true, collection: 'acc_vouchers' }
+);
+AccVoucherSchema.index({ voucherNumber: 1, financialYear: 1 }, { unique: true });
+AccVoucherSchema.index({ type: 1, date: -1 });
+AccVoucherSchema.index({ financialYear: 1, date: -1 });
+AccVoucherSchema.index({ 'entries.ledgerId': 1, date: -1 });
+AccVoucherSchema.index({ partyLedgerId: 1 });
+
+// ── FINANCIAL YEAR ──────────────────────────────────────────────────
+const AccFinancialYearSchema = new mongoose.Schema(
+  {
+    // e.g. "2023-24"
+    code: { type: String, required: true, unique: true, trim: true, index: true },
+    label: { type: String, trim: true }, // "FY 2023-24"
+    startDate: { type: Date, required: true },
+    endDate: { type: Date, required: true },
+    isCurrent: { type: Boolean, default: false, index: true },
+    isClosed: { type: Boolean, default: false },
+    companyName: { type: String, trim: true },
+    createdByUserId: { type: String, trim: true },
+
+    // ── Company / Proprietor / Individual Profile ─────────────────
+    businessType: { type: String, enum: ['company', 'proprietor', 'individual', 'partnership', 'llp', 'trust', 'huf', ''], default: '' },
+    legalName: { type: String, trim: true },       // Registered legal name
+    tradeName: { type: String, trim: true },        // Trade / brand name
+    ownerName: { type: String, trim: true },        // Proprietor / director / individual name
+    fatherName: { type: String, trim: true },       // Father's name (for individual/proprietor)
+    designation: { type: String, trim: true },      // Owner's designation
+    gstin: { type: String, trim: true },            // GSTIN number
+    pan: { type: String, trim: true },              // PAN number
+    tan: { type: String, trim: true },              // TAN number
+    cin: { type: String, trim: true },              // Company CIN
+    udyam: { type: String, trim: true },            // Udyam / MSME registration
+    phone: { type: String, trim: true },
+    altPhone: { type: String, trim: true },
+    email: { type: String, trim: true, lowercase: true },
+    website: { type: String, trim: true },
+    address: { type: String, trim: true },          // Full registered address
+    city: { type: String, trim: true },
+    state: { type: String, trim: true },
+    pincode: { type: String, trim: true },
+    country: { type: String, trim: true, default: 'India' },
+    bankName: { type: String, trim: true },
+    bankAccountNo: { type: String, trim: true },
+    bankIfsc: { type: String, trim: true },
+    bankBranch: { type: String, trim: true },
+    logo: { type: String, trim: true },             // URL to company logo
+    notes: { type: String, trim: true },
+  },
+  { timestamps: true, collection: 'acc_financial_years' }
+);
+AccFinancialYearSchema.index({ code: 1 });
 
 // ============================================================================
 // EMAIL AUTOMATION SCHEMAS
@@ -2270,20 +2222,14 @@ export const FollowUpInstance = createModelProxy('FollowUpInstance', FollowUpIns
 export const EmailLog = createModelProxy('EmailLog', EmailLogSchema);
 export const ZoomRecordingSync = createModelProxy('ZoomRecordingSync', ZoomRecordingSyncSchema);
 export const LeadAssignmentSettings = createModelProxy('LeadAssignmentSettings', LeadAssignmentSettingsSchema);
-// Tally sync models
-export const TallyCustomer = createModelProxy('TallyCustomer', TallyCustomerSchema);
-export const TallyInvoice = createModelProxy('TallyInvoice', TallyInvoiceSchema);
-export const TallyPayment = createModelProxy('TallyPayment', TallyPaymentSchema);
-export const TallySyncLog = createModelProxy('TallySyncLog', TallySyncLogSchema);
-export const TallyManualBalance = createModelProxy('TallyManualBalance', TallyManualBalanceSchema);
-export const TallyManualVoucher = createModelProxy('TallyManualVoucher', TallyManualVoucherSchema);
-export const TallyReceiptFile = createModelProxy('TallyReceiptFile', TallyReceiptFileSchema);
+// Accounting system models (double-entry bookkeeping)
+export const AccGroup = createModelProxy('AccGroup', AccGroupSchema);
+export const AccLedger = createModelProxy('AccLedger', AccLedgerSchema);
+export const AccVoucher = createModelProxy('AccVoucher', AccVoucherSchema);
+export const AccFinancialYear = createModelProxy('AccFinancialYear', AccFinancialYearSchema);
 
-// Tally getter functions
-export function getTallyCustomer() { return getModel('TallyCustomer', TallyCustomerSchema); }
-export function getTallyInvoice() { return getModel('TallyInvoice', TallyInvoiceSchema); }
-export function getTallyPayment() { return getModel('TallyPayment', TallyPaymentSchema); }
-export function getTallySyncLog() { return getModel('TallySyncLog', TallySyncLogSchema); }
-export function getTallyManualBalance() { return getModel('TallyManualBalance', TallyManualBalanceSchema); }
-export function getTallyManualVoucher() { return getModel('TallyManualVoucher', TallyManualVoucherSchema); }
-export function getTallyReceiptFile() { return getModel('TallyReceiptFile', TallyReceiptFileSchema); }
+// Accounting getter functions
+export function getAccGroup() { return getModel('AccGroup', AccGroupSchema); }
+export function getAccLedger() { return getModel('AccLedger', AccLedgerSchema); }
+export function getAccVoucher() { return getModel('AccVoucher', AccVoucherSchema); }
+export function getAccFinancialYear() { return getModel('AccFinancialYear', AccFinancialYearSchema); }

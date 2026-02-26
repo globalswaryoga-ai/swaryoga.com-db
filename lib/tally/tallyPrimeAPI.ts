@@ -1,10 +1,9 @@
 /**
  * Tally Prime 3.0.1 — Direct HTTP/XML API Connector
  *
- * Tally Prime exposes an HTTP server (default port 9000) that accepts
- * XML request bodies and returns XML responses.  This module wraps
- * those low-level calls into typed async helpers the rest of the app
- * can consume.
+ * Rebuilt: Proper amount handling using Tally's sign convention:
+ *   - Debit  = POSITIVE  (Assets, Expenses)
+ *   - Credit = NEGATIVE  (Liabilities, Income, Equity)
  *
  * ENV vars required (see .env.local):
  *   TALLY_PRIME_URL             – e.g. http://localhost:9000
@@ -41,7 +40,9 @@ export interface TallyCompanyInfo {
 export interface TallyLedger {
   name: string;
   parent: string;
+  /** Tally sign: positive = Debit, negative = Credit */
   openingBalance: number;
+  /** Tally sign: positive = Debit, negative = Credit */
   closingBalance: number;
   address?: string;
   phone?: string;
@@ -49,14 +50,22 @@ export interface TallyLedger {
   gstin?: string;
 }
 
+export interface TallyLedgerEntry {
+  ledgerName: string;
+  /** Tally sign: positive = Debit amount, negative = Credit amount */
+  amount: number;
+  isDeemedPositive: boolean;
+}
+
 export interface TallyVoucher {
   voucherNumber: string;
   voucherType: string;
   date: string;
   partyName: string;
+  /** Always positive for display (absolute transaction value) */
   amount: number;
   narration?: string;
-  ledgerEntries: { ledgerName: string; amount: number }[];
+  ledgerEntries: TallyLedgerEntry[];
 }
 
 export interface TallyStockItem {
@@ -119,7 +128,7 @@ async function sendTallyRequest(xml: string, timeoutMs = 15000): Promise<string>
 }
 
 // ---------------------------------------------------------------------------
-// Simple XML parser helpers  (Tally XML is simple, no need for heavy lib)
+// Simple XML parser helpers
 // ---------------------------------------------------------------------------
 function extractTag(xml: string, tag: string): string {
   const re = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, 'i');
@@ -135,17 +144,32 @@ function extractAllTags(xml: string, tag: string): string[] {
   return out;
 }
 
-function extractTagAttr(xml: string, tag: string): string[] {
-  const re = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, 'gi');
+/** Get full tag blocks (including the tag itself) for nested parsing */
+function extractTagBlocks(xml: string, tag: string): string[] {
+  const re = new RegExp(`<${tag}[^>]*>[\\s\\S]*?</${tag}>`, 'gi');
   const out: string[] = [];
   let m: RegExpExecArray | null;
   while ((m = re.exec(xml)) !== null) out.push(m[0]);
   return out;
 }
 
-function num(v: string): number {
-  const n = parseFloat((v || '0').replace(/,/g, ''));
+/**
+ * Parse a number from Tally XML.
+ * Tally uses Indian format: "1,23,456.78" and sign for Dr/Cr.
+ * PRESERVES the sign — positive = Debit, negative = Credit.
+ */
+function parseAmount(v: string): number {
+  if (!v) return 0;
+  const cleaned = v.replace(/,/g, '').trim();
+  const n = parseFloat(cleaned);
   return isNaN(n) ? 0 : n;
+}
+
+/**
+ * Round to 2 decimal places to avoid floating point issues.
+ */
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
 }
 
 // ---------------------------------------------------------------------------
@@ -159,7 +183,7 @@ export async function testTallyConnection(): Promise<{
 }> {
   const config = getTallyConfig();
   if (!config.configured) {
-    return { connected: false, error: 'Tally Prime is not configured yet. Please update .env.local fields.' };
+    return { connected: false, error: 'Tally Prime is not configured. Set TALLY_PRIME_CONFIGURED=true in .env.local.' };
   }
 
   const xml = `
@@ -190,7 +214,7 @@ export async function testTallyConnection(): Promise<{
     };
   } catch (err: any) {
     const msg = err?.cause?.code === 'ECONNREFUSED'
-      ? 'Cannot connect to Tally. Make sure Tally Prime is running and ODBC/XML Server is enabled (F12 → Advanced → Enable).'
+      ? 'Cannot connect to Tally. Ensure Tally Prime is running with ODBC/XML Server enabled (F12 → Advanced → Enable).'
       : err.message || 'Unknown error';
     return { connected: false, error: msg };
   }
@@ -240,7 +264,7 @@ export async function fetchCompanyInfo(): Promise<TallyCompanyInfo | null> {
 }
 
 // ---------------------------------------------------------------------------
-// Fetch ledgers (customers / debtors / creditors / all)
+// Fetch ledgers (preserving Tally sign convention)
 // ---------------------------------------------------------------------------
 export async function fetchLedgers(group?: string): Promise<TallyLedger[]> {
   const { companyName } = getTallyConfig();
@@ -278,13 +302,14 @@ export async function fetchLedgers(group?: string): Promise<TallyLedger[]> {
 
   try {
     const res = await sendTallyRequest(xml, 20000);
-    const items = extractTagAttr(res, 'LEDGER');
+    const items = extractTagBlocks(res, 'LEDGER');
 
     return items.map(block => ({
       name: extractTag(block, 'NAME'),
       parent: extractTag(block, 'PARENT'),
-      openingBalance: num(extractTag(block, 'OPENINGBALANCE')),
-      closingBalance: num(extractTag(block, 'CLOSINGBALANCE')),
+      // PRESERVE sign: positive = Debit balance, negative = Credit balance
+      openingBalance: round2(parseAmount(extractTag(block, 'OPENINGBALANCE'))),
+      closingBalance: round2(parseAmount(extractTag(block, 'CLOSINGBALANCE'))),
       address: extractTag(block, 'ADDRESS'),
       phone: extractTag(block, 'LEDGERPHONE'),
       email: extractTag(block, 'LEDGEREMAIL'),
@@ -296,7 +321,7 @@ export async function fetchLedgers(group?: string): Promise<TallyLedger[]> {
 }
 
 // ---------------------------------------------------------------------------
-// Fetch vouchers (Sales / Purchase / Receipt / Payment / Journal)
+// Fetch vouchers with FULL ledger entries (double-entry preserved)
 // ---------------------------------------------------------------------------
 export async function fetchVouchers(
   voucherType: string,
@@ -305,7 +330,6 @@ export async function fetchVouchers(
 ): Promise<TallyVoucher[]> {
   const { companyName } = getTallyConfig();
 
-  // Date format for Tally: YYYYMMDD — go back to FY 2023-24 to cover older data
   const from = fromDate || '20230401';
   const to = toDate || new Date().toISOString().slice(0, 10).replace(/-/g, '');
 
@@ -346,22 +370,39 @@ export async function fetchVouchers(
 
   try {
     const res = await sendTallyRequest(xml, 30000);
-    const items = extractTagAttr(res, 'VOUCHER');
+    const items = extractTagBlocks(res, 'VOUCHER');
 
     return items.map(block => {
-      // Parse ledger entries
-      const entryBlocks = extractTagAttr(block, 'ALLLEDGERENTRIES.LIST');
-      const ledgerEntries = entryBlocks.map(eb => ({
-        ledgerName: extractTag(eb, 'LEDGERNAME'),
-        amount: num(extractTag(eb, 'AMOUNT')),
-      }));
+      // Parse each ledger entry in the voucher (double-entry bookkeeping)
+      const entryBlocks = extractTagBlocks(block, 'ALLLEDGERENTRIES.LIST');
+      const ledgerEntries: TallyLedgerEntry[] = entryBlocks.map(eb => {
+        const isDeemedPositive = extractTag(eb, 'ISDEEMEDPOSITIVE').toLowerCase() === 'yes';
+        const rawAmt = parseAmount(extractTag(eb, 'AMOUNT'));
+        return {
+          ledgerName: extractTag(eb, 'LEDGERNAME'),
+          // Tally stores: Debit entries as positive(+), Credit entries as negative(-)
+          amount: round2(rawAmt),
+          isDeemedPositive,
+        };
+      });
+
+      // Transaction amount: sum of all debit-side entries (the transaction value)
+      const debitTotal = ledgerEntries
+        .filter(e => e.amount > 0)
+        .reduce((s, e) => s + e.amount, 0);
+      const creditTotal = ledgerEntries
+        .filter(e => e.amount < 0)
+        .reduce((s, e) => s + Math.abs(e.amount), 0);
+
+      // For display: use the larger absolute value (debit and credit should match)
+      const transactionAmount = round2(Math.max(debitTotal, creditTotal) || Math.abs(parseAmount(extractTag(block, 'AMOUNT'))));
 
       return {
         voucherNumber: extractTag(block, 'VOUCHERNUMBER'),
         voucherType: extractTag(block, 'VOUCHERTYPENAME') || voucherType,
         date: extractTag(block, 'DATE'),
         partyName: extractTag(block, 'PARTYLEDGERNAME'),
-        amount: Math.abs(num(extractTag(block, 'AMOUNT'))),
+        amount: transactionAmount,
         narration: extractTag(block, 'NARRATION'),
         ledgerEntries,
       };
@@ -405,17 +446,17 @@ export async function fetchStockItems(): Promise<TallyStockItem[]> {
 
   try {
     const res = await sendTallyRequest(xml, 20000);
-    const items = extractTagAttr(res, 'STOCKITEM');
+    const items = extractTagBlocks(res, 'STOCKITEM');
 
     return items.map(block => ({
       name: extractTag(block, 'NAME'),
       parent: extractTag(block, 'PARENT'),
-      openingBalance: num(extractTag(block, 'OPENINGBALANCE')),
-      openingRate: num(extractTag(block, 'OPENINGRATE')),
-      openingValue: num(extractTag(block, 'OPENINGVALUE')),
-      closingBalance: num(extractTag(block, 'CLOSINGBALANCE')),
-      closingRate: num(extractTag(block, 'CLOSINGRATE')),
-      closingValue: num(extractTag(block, 'CLOSINGVALUE')),
+      openingBalance: round2(parseAmount(extractTag(block, 'OPENINGBALANCE'))),
+      openingRate: round2(parseAmount(extractTag(block, 'OPENINGRATE'))),
+      openingValue: round2(parseAmount(extractTag(block, 'OPENINGVALUE'))),
+      closingBalance: round2(parseAmount(extractTag(block, 'CLOSINGBALANCE'))),
+      closingRate: round2(parseAmount(extractTag(block, 'CLOSINGRATE'))),
+      closingValue: round2(parseAmount(extractTag(block, 'CLOSINGVALUE'))),
       unit: extractTag(block, 'BASEUNITS'),
     }));
   } catch {
@@ -464,17 +505,32 @@ export async function fetchDayBook(
 
   try {
     const res = await sendTallyRequest(xml, 30000);
-    const items = extractTagAttr(res, 'VOUCHER');
+    const items = extractTagBlocks(res, 'VOUCHER');
 
-    return items.map(block => ({
-      voucherNumber: extractTag(block, 'VOUCHERNUMBER'),
-      voucherType: extractTag(block, 'VOUCHERTYPENAME'),
-      date: extractTag(block, 'DATE'),
-      partyName: extractTag(block, 'PARTYLEDGERNAME'),
-      amount: Math.abs(num(extractTag(block, 'AMOUNT'))),
-      narration: extractTag(block, 'NARRATION'),
-      ledgerEntries: [],
-    }));
+    return items.map(block => {
+      // Parse ledger entries for each day book voucher too
+      const entryBlocks = extractTagBlocks(block, 'ALLLEDGERENTRIES.LIST');
+      const ledgerEntries: TallyLedgerEntry[] = entryBlocks.map(eb => ({
+        ledgerName: extractTag(eb, 'LEDGERNAME'),
+        amount: round2(parseAmount(extractTag(eb, 'AMOUNT'))),
+        isDeemedPositive: extractTag(eb, 'ISDEEMEDPOSITIVE').toLowerCase() === 'yes',
+      }));
+
+      // Compute transaction amount from double entry
+      const debitTotal = ledgerEntries.filter(e => e.amount > 0).reduce((s, e) => s + e.amount, 0);
+      const creditTotal = ledgerEntries.filter(e => e.amount < 0).reduce((s, e) => s + Math.abs(e.amount), 0);
+      const transactionAmount = round2(Math.max(debitTotal, creditTotal) || Math.abs(parseAmount(extractTag(block, 'AMOUNT'))));
+
+      return {
+        voucherNumber: extractTag(block, 'VOUCHERNUMBER'),
+        voucherType: extractTag(block, 'VOUCHERTYPENAME'),
+        date: extractTag(block, 'DATE'),
+        partyName: extractTag(block, 'PARTYLEDGERNAME'),
+        amount: transactionAmount,
+        narration: extractTag(block, 'NARRATION'),
+        ledgerEntries,
+      };
+    });
   } catch {
     return [];
   }
@@ -493,15 +549,18 @@ export async function fetchDashboardSummary(fromDate?: string, toDate?: string) 
       fetchLedgers(),
     ]);
 
-  const totalSales = salesVouchers.reduce((s, v) => s + v.amount, 0);
-  const totalReceipts = receiptVouchers.reduce((s, v) => s + v.amount, 0);
-  const totalPurchases = purchaseVouchers.reduce((s, v) => s + v.amount, 0);
+  // Sales/Receipts/Purchases: sum transaction amounts (already positive)
+  const totalSales = round2(salesVouchers.reduce((s, v) => s + v.amount, 0));
+  const totalReceipts = round2(receiptVouchers.reduce((s, v) => s + v.amount, 0));
+  const totalPurchases = round2(purchaseVouchers.reduce((s, v) => s + v.amount, 0));
 
-  // Separate debtors / creditors from ledgers
+  // Debtors (positive balance = they owe us) and Creditors (negative balance = we owe them)
   const debtors = ledgers.filter(l => l.parent === 'Sundry Debtors');
   const creditors = ledgers.filter(l => l.parent === 'Sundry Creditors');
-  const totalDebtors = debtors.reduce((s, l) => s + Math.abs(l.closingBalance), 0);
-  const totalCreditors = creditors.reduce((s, l) => s + Math.abs(l.closingBalance), 0);
+  // Debtors: sum only positive (debit) balances — money owed TO us
+  const totalDebtors = round2(debtors.reduce((s, l) => s + Math.max(0, l.closingBalance), 0));
+  // Creditors: sum absolute of negative (credit) balances — money we OWE
+  const totalCreditors = round2(creditors.reduce((s, l) => s + Math.abs(Math.min(0, l.closingBalance)), 0));
 
   return {
     company,
@@ -521,7 +580,7 @@ export async function fetchDashboardSummary(fromDate?: string, toDate?: string) 
 }
 
 // ---------------------------------------------------------------------------
-// Profit & Loss
+// Profit & Loss — computed from Tally ledger closing balances
 // ---------------------------------------------------------------------------
 export interface PLGroup {
   name: string;
@@ -540,78 +599,60 @@ export interface ProfitAndLoss {
 export async function fetchProfitAndLoss(fromDate?: string, toDate?: string): Promise<ProfitAndLoss> {
   const from = fromDate || '20230401';
   const to = toDate || '20260331';
+  const company = getTallyConfig().companyName;
 
-  // Fetch revenue / income groups
-  const incomeXml = `
+  // Fetch ALL P&L ledgers in a single request (income + expense)
+  const plXml = `
 <ENVELOPE>
-  <HEADER><VERSION>1</VERSION><TALLYREQUEST>Export</TALLYREQUEST><TYPE>Collection</TYPE><ID>PL Income Groups</ID></HEADER>
+  <HEADER><VERSION>1</VERSION><TALLYREQUEST>Export</TALLYREQUEST><TYPE>Collection</TYPE><ID>PLLedgers</ID></HEADER>
   <BODY><DESC>
     <STATICVARIABLES>
       <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
       <SVFROMDATE>${from}</SVFROMDATE>
       <SVTODATE>${to}</SVTODATE>
-      <SVCURRENTCOMPANY>${getTallyConfig().companyName}</SVCURRENTCOMPANY>
+      <SVCURRENTCOMPANY>${company}</SVCURRENTCOMPANY>
     </STATICVARIABLES>
     <TDL><TDLMESSAGE>
-      <COLLECTION NAME="PL Income Groups" ISMODIFY="No">
+      <COLLECTION NAME="PLLedgers" ISMODIFY="No">
         <TYPE>Ledger</TYPE>
-        <FILTER>IsPLIncome</FILTER>
+        <FILTER>IsPLLedger</FILTER>
         <NATIVEMETHOD>Name</NATIVEMETHOD>
         <NATIVEMETHOD>Parent</NATIVEMETHOD>
         <NATIVEMETHOD>ClosingBalance</NATIVEMETHOD>
       </COLLECTION>
-      <SYSTEM TYPE="Formulae" NAME="IsPLIncome">
-        $IsPLAccount AND $ClosingBalance &lt; 0
-      </SYSTEM>
-    </TDLMESSAGE></TDL>
-  </DESC></BODY>
-</ENVELOPE>`;
-
-  const expenseXml = `
-<ENVELOPE>
-  <HEADER><VERSION>1</VERSION><TALLYREQUEST>Export</TALLYREQUEST><TYPE>Collection</TYPE><ID>PL Expense Groups</ID></HEADER>
-  <BODY><DESC>
-    <STATICVARIABLES>
-      <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
-      <SVFROMDATE>${from}</SVFROMDATE>
-      <SVTODATE>${to}</SVTODATE>
-      <SVCURRENTCOMPANY>${getTallyConfig().companyName}</SVCURRENTCOMPANY>
-    </STATICVARIABLES>
-    <TDL><TDLMESSAGE>
-      <COLLECTION NAME="PL Expense Groups" ISMODIFY="No">
-        <TYPE>Ledger</TYPE>
-        <FILTER>IsPLExpense</FILTER>
-        <NATIVEMETHOD>Name</NATIVEMETHOD>
-        <NATIVEMETHOD>Parent</NATIVEMETHOD>
-        <NATIVEMETHOD>ClosingBalance</NATIVEMETHOD>
-      </COLLECTION>
-      <SYSTEM TYPE="Formulae" NAME="IsPLExpense">
-        $IsPLAccount AND $ClosingBalance &gt; 0
+      <SYSTEM TYPE="Formulae" NAME="IsPLLedger">
+        $IsPLAccount AND $ClosingBalance != 0
       </SYSTEM>
     </TDLMESSAGE></TDL>
   </DESC></BODY>
 </ENVELOPE>`;
 
   try {
-    const [incomeRes, expenseRes] = await Promise.all([
-      sendTallyRequest(incomeXml),
-      sendTallyRequest(expenseXml),
-    ]);
+    const res = await sendTallyRequest(plXml, 20000);
+    const blocks = extractTagBlocks(res, 'LEDGER');
 
-    const parseLedgers = (xml: string): { name: string; parent: string; amount: number }[] => {
-      const blocks = extractTagAttr(xml, 'LEDGER');
-      return blocks.map(b => ({
-        name: extractTag(b, 'NAME'),
-        parent: extractTag(b, 'PARENT'),
-        amount: Math.abs(num(extractTag(b, 'CLOSINGBALANCE'))),
-      })).filter(l => l.name && l.amount > 0);
-    };
+    const incomeLedgers: { name: string; parent: string; amount: number }[] = [];
+    const expenseLedgers: { name: string; parent: string; amount: number }[] = [];
 
-    const incomeLedgers = parseLedgers(incomeRes);
-    const expenseLedgers = parseLedgers(expenseRes);
+    for (const block of blocks) {
+      const name = extractTag(block, 'NAME');
+      const parent = extractTag(block, 'PARENT');
+      const closingBalance = parseAmount(extractTag(block, 'CLOSINGBALANCE'));
 
-    // Group by parent
-    const groupByParent = (items: { name: string; parent: string; amount: number }[]): PLGroup[] => {
+      if (!name || closingBalance === 0) continue;
+
+      // Tally convention for P&L:
+      // Income ledgers have NEGATIVE closing balance (Credit = income earned)
+      // Expense ledgers have POSITIVE closing balance (Debit = expense incurred)
+      if (closingBalance < 0) {
+        incomeLedgers.push({ name, parent, amount: round2(Math.abs(closingBalance)) });
+      } else {
+        expenseLedgers.push({ name, parent, amount: round2(closingBalance) });
+      }
+    }
+
+    // Group by parent account
+    const groupByParent = (items: typeof incomeLedgers): PLGroup[] => {
       const map = new Map<string, { name: string; amount: number }[]>();
       for (const item of items) {
         const key = item.parent || 'Other';
@@ -620,40 +661,47 @@ export async function fetchProfitAndLoss(fromDate?: string, toDate?: string): Pr
       }
       return Array.from(map.entries()).map(([name, children]) => ({
         name,
-        amount: children.reduce((s, c) => s + c.amount, 0),
+        amount: round2(children.reduce((s, c) => s + c.amount, 0)),
         children: children.sort((a, b) => b.amount - a.amount),
       })).sort((a, b) => b.amount - a.amount);
     };
 
     const income = groupByParent(incomeLedgers);
     const expenses = groupByParent(expenseLedgers);
-    const totalIncome = income.reduce((s, g) => s + g.amount, 0);
-    const totalExpenses = expenses.reduce((s, g) => s + g.amount, 0);
+    const totalIncome = round2(income.reduce((s, g) => s + g.amount, 0));
+    const totalExpenses = round2(expenses.reduce((s, g) => s + g.amount, 0));
 
-    return { income, expenses, totalIncome, totalExpenses, netProfit: totalIncome - totalExpenses };
-  } catch {
-    // Fallback: use voucher totals if TDL fails
-    const [sales, purchases, receipts] = await Promise.all([
+    return {
+      income,
+      expenses,
+      totalIncome,
+      totalExpenses,
+      netProfit: round2(totalIncome - totalExpenses),
+    };
+  } catch (err) {
+    console.error('[TallyPrimeAPI] P&L fetch failed:', err);
+
+    // Fallback: use voucher totals
+    const [sales, purchases] = await Promise.all([
       fetchVouchers('Sales', fromDate, toDate),
       fetchVouchers('Purchase', fromDate, toDate),
-      fetchVouchers('Receipt', fromDate, toDate),
     ]);
 
-    const totalSales = sales.reduce((s, v) => s + v.amount, 0);
-    const totalPurchases = purchases.reduce((s, v) => s + v.amount, 0);
+    const totalSales = round2(sales.reduce((s, v) => s + v.amount, 0));
+    const totalPurchases = round2(purchases.reduce((s, v) => s + v.amount, 0));
 
     return {
       income: [{ name: 'Sales', amount: totalSales, children: [] }],
       expenses: [{ name: 'Purchases', amount: totalPurchases, children: [] }],
       totalIncome: totalSales,
       totalExpenses: totalPurchases,
-      netProfit: totalSales - totalPurchases,
+      netProfit: round2(totalSales - totalPurchases),
     };
   }
 }
 
 // ---------------------------------------------------------------------------
-// Balance Sheet
+// Balance Sheet — computed from non-P&L ledger closing balances
 // ---------------------------------------------------------------------------
 export interface BSGroup {
   name: string;
@@ -672,27 +720,28 @@ export interface BalanceSheet {
 export async function fetchBalanceSheet(fromDate?: string, toDate?: string): Promise<BalanceSheet> {
   const from = fromDate || '20230401';
   const to = toDate || '20260331';
+  const company = getTallyConfig().companyName;
 
-  // Fetch all BS ledgers
+  // Fetch all non-P&L ledgers (Balance Sheet accounts)
   const bsXml = `
 <ENVELOPE>
-  <HEADER><VERSION>1</VERSION><TALLYREQUEST>Export</TALLYREQUEST><TYPE>Collection</TYPE><ID>BS Ledgers</ID></HEADER>
+  <HEADER><VERSION>1</VERSION><TALLYREQUEST>Export</TALLYREQUEST><TYPE>Collection</TYPE><ID>BSLedgers</ID></HEADER>
   <BODY><DESC>
     <STATICVARIABLES>
       <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
       <SVFROMDATE>${from}</SVFROMDATE>
       <SVTODATE>${to}</SVTODATE>
-      <SVCURRENTCOMPANY>${getTallyConfig().companyName}</SVCURRENTCOMPANY>
+      <SVCURRENTCOMPANY>${company}</SVCURRENTCOMPANY>
     </STATICVARIABLES>
     <TDL><TDLMESSAGE>
-      <COLLECTION NAME="BS Ledgers" ISMODIFY="No">
+      <COLLECTION NAME="BSLedgers" ISMODIFY="No">
         <TYPE>Ledger</TYPE>
-        <FILTER>IsBSAccount</FILTER>
+        <FILTER>IsBSLedger</FILTER>
         <NATIVEMETHOD>Name</NATIVEMETHOD>
         <NATIVEMETHOD>Parent</NATIVEMETHOD>
         <NATIVEMETHOD>ClosingBalance</NATIVEMETHOD>
       </COLLECTION>
-      <SYSTEM TYPE="Formulae" NAME="IsBSAccount">
+      <SYSTEM TYPE="Formulae" NAME="IsBSLedger">
         NOT $IsPLAccount AND $ClosingBalance != 0
       </SYSTEM>
     </TDLMESSAGE></TDL>
@@ -700,67 +749,103 @@ export async function fetchBalanceSheet(fromDate?: string, toDate?: string): Pro
 </ENVELOPE>`;
 
   try {
-    const res = await sendTallyRequest(bsXml);
-    const blocks = extractTagAttr(res, 'LEDGER');
-    const allLedgers = blocks.map(b => ({
-      name: extractTag(b, 'NAME'),
-      parent: extractTag(b, 'PARENT'),
-      closingBalance: num(extractTag(b, 'CLOSINGBALANCE')),
-    })).filter(l => l.name && l.closingBalance !== 0);
+    const res = await sendTallyRequest(bsXml, 20000);
+    const blocks = extractTagBlocks(res, 'LEDGER');
 
-    // In Tally convention: debit (positive) = asset, credit (negative) = liability/equity
-    const assetLedgers = allLedgers.filter(l => l.closingBalance > 0);
-    const liabilityLedgers = allLedgers.filter(l => l.closingBalance < 0);
+    const assetLedgers: { name: string; parent: string; amount: number }[] = [];
+    const liabilityLedgers: { name: string; parent: string; amount: number }[] = [];
 
-    const groupByParent = (items: { name: string; parent: string; closingBalance: number }[]): BSGroup[] => {
+    for (const block of blocks) {
+      const name = extractTag(block, 'NAME');
+      const parent = extractTag(block, 'PARENT');
+      const closingBalance = parseAmount(extractTag(block, 'CLOSINGBALANCE'));
+
+      if (!name || closingBalance === 0) continue;
+
+      // Tally convention for Balance Sheet:
+      // POSITIVE closing balance (Debit) = Asset
+      // NEGATIVE closing balance (Credit) = Liability / Equity
+      if (closingBalance > 0) {
+        assetLedgers.push({ name, parent, amount: round2(closingBalance) });
+      } else {
+        liabilityLedgers.push({ name, parent, amount: round2(Math.abs(closingBalance)) });
+      }
+    }
+
+    // Group by parent account
+    const groupByParent = (items: typeof assetLedgers): BSGroup[] => {
       const map = new Map<string, { name: string; amount: number }[]>();
       for (const item of items) {
         const key = item.parent || 'Other';
         if (!map.has(key)) map.set(key, []);
-        map.get(key)!.push({ name: item.name, amount: Math.abs(item.closingBalance) });
+        map.get(key)!.push({ name: item.name, amount: item.amount });
       }
       return Array.from(map.entries()).map(([name, children]) => ({
         name,
-        amount: children.reduce((s, c) => s + c.amount, 0),
+        amount: round2(children.reduce((s, c) => s + c.amount, 0)),
         children: children.sort((a, b) => b.amount - a.amount),
       })).sort((a, b) => b.amount - a.amount);
     };
 
     const assets = groupByParent(assetLedgers);
     const liabilities = groupByParent(liabilityLedgers);
-    const totalAssets = assets.reduce((s, g) => s + g.amount, 0);
-    const totalLiabilities = liabilities.reduce((s, g) => s + g.amount, 0);
+    const totalAssets = round2(assets.reduce((s, g) => s + g.amount, 0));
+    const totalLiabilities = round2(liabilities.reduce((s, g) => s + g.amount, 0));
 
-    return { assets, liabilities, totalAssets, totalLiabilities, difference: totalAssets - totalLiabilities };
-  } catch {
-    // Fallback: use ledger groups directly
+    return {
+      assets,
+      liabilities,
+      totalAssets,
+      totalLiabilities,
+      difference: round2(totalAssets - totalLiabilities),
+    };
+  } catch (err) {
+    console.error('[TallyPrimeAPI] BS fetch failed:', err);
+
+    // Fallback: use all ledgers
     const ledgers = await fetchLedgers();
 
-    const assetGroups = ['Bank Accounts', 'Cash-in-Hand', 'Sundry Debtors', 'Fixed Assets', 'Investments', 'Stock-in-Hand', 'Deposits (Asset)', 'Loans & Advances (Asset)'];
-    const liabGroups = ['Sundry Creditors', 'Capital Account', 'Reserves & Surplus', 'Secured Loans', 'Unsecured Loans', 'Current Liabilities', 'Duties & Taxes', 'Provisions'];
+    const ASSET_GROUPS = new Set([
+      'Bank Accounts', 'Cash-in-Hand', 'Sundry Debtors', 'Fixed Assets',
+      'Investments', 'Stock-in-Hand', 'Deposits (Asset)', 'Loans & Advances (Asset)',
+      'Current Assets',
+    ]);
+    const LIABILITY_GROUPS = new Set([
+      'Sundry Creditors', 'Capital Account', 'Reserves & Surplus',
+      'Secured Loans', 'Unsecured Loans', 'Current Liabilities',
+      'Duties & Taxes', 'Provisions',
+    ]);
+    const PL_GROUPS = new Set([
+      'Direct Expenses', 'Indirect Expenses', 'Sales Accounts',
+      'Purchase Accounts', 'Direct Incomes', 'Indirect Incomes',
+    ]);
 
-    const assetLedgers = ledgers.filter(l => assetGroups.includes(l.parent) || l.closingBalance > 0 && !['Direct Expenses', 'Indirect Expenses', 'Sales Accounts', 'Purchase Accounts', 'Direct Incomes', 'Indirect Incomes'].includes(l.parent));
-    const liabLedgers = ledgers.filter(l => liabGroups.includes(l.parent) || l.closingBalance < 0 && !['Direct Expenses', 'Indirect Expenses', 'Sales Accounts', 'Purchase Accounts', 'Direct Incomes', 'Indirect Incomes'].includes(l.parent));
+    const assetLedgers = ledgers.filter(l =>
+      !PL_GROUPS.has(l.parent) && (ASSET_GROUPS.has(l.parent) || l.closingBalance > 0)
+    );
+    const liabLedgers = ledgers.filter(l =>
+      !PL_GROUPS.has(l.parent) && (LIABILITY_GROUPS.has(l.parent) || l.closingBalance < 0)
+    );
 
     const groupByParent = (items: typeof ledgers): BSGroup[] => {
       const map = new Map<string, { name: string; amount: number }[]>();
       for (const item of items) {
         const key = item.parent || 'Other';
         if (!map.has(key)) map.set(key, []);
-        map.get(key)!.push({ name: item.name, amount: Math.abs(item.closingBalance) });
+        map.get(key)!.push({ name: item.name, amount: round2(Math.abs(item.closingBalance)) });
       }
       return Array.from(map.entries()).map(([name, children]) => ({
         name,
-        amount: children.reduce((s, c) => s + c.amount, 0),
+        amount: round2(children.reduce((s, c) => s + c.amount, 0)),
         children: children.sort((a, b) => b.amount - a.amount),
       })).sort((a, b) => b.amount - a.amount);
     };
 
     const assets = groupByParent(assetLedgers);
     const liabilities = groupByParent(liabLedgers);
-    const totalAssets = assets.reduce((s, g) => s + g.amount, 0);
-    const totalLiabilities = liabilities.reduce((s, g) => s + g.amount, 0);
+    const totalAssets = round2(assets.reduce((s, g) => s + g.amount, 0));
+    const totalLiabilities = round2(liabilities.reduce((s, g) => s + g.amount, 0));
 
-    return { assets, liabilities, totalAssets, totalLiabilities, difference: totalAssets - totalLiabilities };
+    return { assets, liabilities, totalAssets, totalLiabilities, difference: round2(totalAssets - totalLiabilities) };
   }
 }
