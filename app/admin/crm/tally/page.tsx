@@ -193,8 +193,8 @@ export default function TallyPage() {
   const [ledgers, setLedgers] = useState<Ledger[]>([]);
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
   const [trialBalance, setTrialBalance] = useState<{ rows: TrialBalanceRow[]; totalDebit: number; totalCredit: number; difference: number } | null>(null);
-  const [profitLoss, setProfitLoss] = useState<{ income: PLRow[]; expenses: PLRow[]; totalIncome: number; totalExpense: number; netProfit: number; isProfit: boolean } | null>(null);
-  const [balanceSheet, setBalanceSheet] = useState<{ assets: BSRow[]; liabilities: BSRow[]; capital: BSRow[]; capitalBySubGroup?: Record<string, { ledgerName: string; amount: number }[]>; totalAssets: number; liabilitiesPlusCapital: number; difference: number; netProfit: number; isProfit: boolean; capitalAdjusted: number } | null>(null);
+  const [profitLoss, setProfitLoss] = useState<{ income: PLRow[]; expenses: PLRow[]; incomeByGroup?: Record<string, PLRow[]>; expensesByGroup?: Record<string, PLRow[]>; totalIncome: number; totalExpense: number; netProfit: number; isProfit: boolean } | null>(null);
+  const [balanceSheet, setBalanceSheet] = useState<{ assets: BSRow[]; liabilities: BSRow[]; capital: BSRow[]; assetsByGroup?: Record<string, BSRow[]>; liabilitiesByGroup?: Record<string, BSRow[]>; capitalBySubGroup?: Record<string, { ledgerName: string; amount: number }[]>; totalAssets: number; liabilitiesPlusCapital: number; difference: number; netProfit: number; isProfit: boolean; capitalAdjusted: number } | null>(null);
   const [daybook, setDaybook] = useState<any[]>([]);
   const [monthlyPL, setMonthlyPL] = useState<MonthlyPLRow[]>([]);
   const [caAudit, setCaAudit] = useState<any>(null);
@@ -1297,12 +1297,30 @@ export default function TallyPage() {
               <h3 className="text-sm font-semibold text-green-400 flex items-center gap-2"><ArrowDownLeft className="w-4 h-4" /> Income</h3>
             </div>
             <div className="divide-y divide-gray-800">
-              {profitLoss.income.map((item, i) => (
-                <div key={i} className="px-4 py-2.5 flex justify-between">
-                  <span className="text-sm text-gray-300">{item.ledgerName}</span>
-                  <span className="text-sm font-mono text-green-400">{fmt(item.amount)}</span>
-                </div>
-              ))}
+              {profitLoss.incomeByGroup && Object.keys(profitLoss.incomeByGroup).length > 0 ? (
+                Object.entries(profitLoss.incomeByGroup).map(([groupName, items]) => (
+                  <div key={groupName}>
+                    <div className="px-4 py-1.5 bg-green-500/5 text-xs font-semibold text-green-400/70 uppercase tracking-wide">{groupName}</div>
+                    {items.map((item, i) => (
+                      <div key={`${groupName}-${i}`} className="px-6 py-2 flex justify-between">
+                        <span className="text-sm text-gray-300">{item.ledgerName}</span>
+                        <span className="text-sm font-mono text-green-400">{fmt(item.amount)}</span>
+                      </div>
+                    ))}
+                    <div className="px-6 py-1.5 flex justify-between bg-green-500/5">
+                      <span className="text-xs text-green-400/60 font-medium">{groupName} Total</span>
+                      <span className="text-xs font-mono text-green-400/60">{fmt(items.reduce((s, i) => s + i.amount, 0))}</span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                profitLoss.income.map((item, i) => (
+                  <div key={i} className="px-4 py-2.5 flex justify-between">
+                    <span className="text-sm text-gray-300">{item.ledgerName}</span>
+                    <span className="text-sm font-mono text-green-400">{fmt(item.amount)}</span>
+                  </div>
+                ))
+              )}
               {profitLoss.income.length === 0 && <div className="px-4 py-4 text-xs text-gray-500 text-center">No income ledgers</div>}
             </div>
             <div className="px-4 py-2.5 bg-green-500/10 border-t border-gray-800 flex justify-between font-semibold">
@@ -1316,12 +1334,30 @@ export default function TallyPage() {
               <h3 className="text-sm font-semibold text-orange-400 flex items-center gap-2"><ArrowUpRight className="w-4 h-4" /> Expenses</h3>
             </div>
             <div className="divide-y divide-gray-800">
-              {profitLoss.expenses.map((item, i) => (
-                <div key={i} className="px-4 py-2.5 flex justify-between">
-                  <span className="text-sm text-gray-300">{item.ledgerName}</span>
-                  <span className="text-sm font-mono text-orange-400">{fmt(item.amount)}</span>
-                </div>
-              ))}
+              {profitLoss.expensesByGroup && Object.keys(profitLoss.expensesByGroup).length > 0 ? (
+                Object.entries(profitLoss.expensesByGroup).map(([groupName, items]) => (
+                  <div key={groupName}>
+                    <div className="px-4 py-1.5 bg-orange-500/5 text-xs font-semibold text-orange-400/70 uppercase tracking-wide">{groupName}</div>
+                    {items.map((item, i) => (
+                      <div key={`${groupName}-${i}`} className="px-6 py-2 flex justify-between">
+                        <span className="text-sm text-gray-300">{item.ledgerName}</span>
+                        <span className="text-sm font-mono text-orange-400">{fmt(item.amount)}</span>
+                      </div>
+                    ))}
+                    <div className="px-6 py-1.5 flex justify-between bg-orange-500/5">
+                      <span className="text-xs text-orange-400/60 font-medium">{groupName} Total</span>
+                      <span className="text-xs font-mono text-orange-400/60">{fmt(items.reduce((s, i) => s + i.amount, 0))}</span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                profitLoss.expenses.map((item, i) => (
+                  <div key={i} className="px-4 py-2.5 flex justify-between">
+                    <span className="text-sm text-gray-300">{item.ledgerName}</span>
+                    <span className="text-sm font-mono text-orange-400">{fmt(item.amount)}</span>
+                  </div>
+                ))
+              )}
               {profitLoss.expenses.length === 0 && <div className="px-4 py-4 text-xs text-gray-500 text-center">No expense ledgers</div>}
             </div>
             <div className="px-4 py-2.5 bg-orange-500/10 border-t border-gray-800 flex justify-between font-semibold">
@@ -1371,9 +1407,13 @@ export default function TallyPage() {
   const BalanceSheetView = () => {
     if (!balanceSheet) return <div className="text-gray-500 text-center py-12">No data</div>;
 
-    // Group capital items by sub-group for Tally-like display
+    // Group all sections by sub-group for Tally-like display
     const capitalBySubGroup = balanceSheet.capitalBySubGroup || {};
-    const subGroups = Object.keys(capitalBySubGroup);
+    const capitalGroups = Object.keys(capitalBySubGroup);
+    const assetsByGroup = balanceSheet.assetsByGroup || {};
+    const assetGroups = Object.keys(assetsByGroup);
+    const liabilitiesByGroup = balanceSheet.liabilitiesByGroup || {};
+    const liabilityGroups = Object.keys(liabilitiesByGroup);
 
     return (
       <div className="space-y-4">
@@ -1390,15 +1430,33 @@ export default function TallyPage() {
               <h3 className="text-sm font-semibold text-blue-400">Assets</h3>
             </div>
             <div className="divide-y divide-gray-800">
-              {balanceSheet.assets.map((item, i) => (
-                <div key={i} className="px-4 py-2.5 flex justify-between">
-                  <div>
-                    <span className="text-sm text-gray-300">{item.ledgerName}</span>
-                    {item.subGroup && <span className="ml-2 text-xs text-gray-500">({item.subGroup})</span>}
+              {assetGroups.length > 0 ? (
+                assetGroups.map(sg => (
+                  <div key={sg}>
+                    <div className="px-4 py-1.5 bg-blue-500/5 text-xs font-semibold text-blue-400/70 uppercase tracking-wide">{sg}</div>
+                    {assetsByGroup[sg].map((item, i) => (
+                      <div key={`${sg}-${i}`} className="px-6 py-2 flex justify-between">
+                        <span className="text-sm text-gray-300">{item.ledgerName}</span>
+                        <span className="text-sm font-mono text-blue-400">{fmt(item.amount)}</span>
+                      </div>
+                    ))}
+                    <div className="px-6 py-1.5 flex justify-between bg-blue-500/5">
+                      <span className="text-xs text-blue-400/60 font-medium">{sg} Total</span>
+                      <span className="text-xs font-mono text-blue-400/60">{fmt(assetsByGroup[sg].reduce((s, i) => s + i.amount, 0))}</span>
+                    </div>
                   </div>
-                  <span className="text-sm font-mono text-blue-400">{fmt(item.amount)}</span>
-                </div>
-              ))}
+                ))
+              ) : (
+                balanceSheet.assets.map((item, i) => (
+                  <div key={i} className="px-4 py-2.5 flex justify-between">
+                    <div>
+                      <span className="text-sm text-gray-300">{item.ledgerName}</span>
+                      {item.subGroup && <span className="ml-2 text-xs text-gray-500">({item.subGroup})</span>}
+                    </div>
+                    <span className="text-sm font-mono text-blue-400">{fmt(item.amount)}</span>
+                  </div>
+                ))
+              )}
               {balanceSheet.assets.length === 0 && <div className="px-4 py-4 text-xs text-gray-500 text-center">No asset ledgers</div>}
             </div>
             <div className="px-4 py-2.5 bg-blue-500/10 border-t border-gray-800 flex justify-between font-bold">
@@ -1414,10 +1472,10 @@ export default function TallyPage() {
             </div>
             <div className="divide-y divide-gray-800">
               {/* Capital section with sub-group headers */}
-              {subGroups.length > 0 && (
+              {capitalGroups.length > 0 && (
                 <>
                   <div className="px-4 py-2 bg-purple-500/10 text-xs font-semibold text-purple-400">Capital / Equity</div>
-                  {subGroups.map(sg => (
+                  {capitalGroups.map(sg => (
                     <div key={sg}>
                       <div className="px-6 py-1.5 bg-purple-500/5 text-xs font-medium text-purple-400/70">{sg}</div>
                       {capitalBySubGroup[sg].map((item, i) => (
@@ -1430,7 +1488,7 @@ export default function TallyPage() {
                   ))}
                 </>
               )}
-              {subGroups.length === 0 && balanceSheet.capital.length > 0 && (
+              {capitalGroups.length === 0 && balanceSheet.capital.length > 0 && (
                 <>
                   <div className="px-4 py-2 bg-purple-500/10 text-xs font-semibold text-purple-400">Capital</div>
                   {balanceSheet.capital.map((item, i) => (
@@ -1442,8 +1500,23 @@ export default function TallyPage() {
                 </>
               )}
 
-              {/* Liabilities */}
-              {balanceSheet.liabilities.length > 0 && (
+              {/* Liabilities with sub-group headers */}
+              {liabilityGroups.length > 0 ? (
+                <>
+                  <div className="px-4 py-2 bg-red-500/10 text-xs font-semibold text-red-400">Liabilities</div>
+                  {liabilityGroups.map(sg => (
+                    <div key={sg}>
+                      <div className="px-6 py-1.5 bg-red-500/5 text-xs font-medium text-red-400/70">{sg}</div>
+                      {liabilitiesByGroup[sg].map((item, i) => (
+                        <div key={`${sg}-${i}`} className="px-8 py-2 flex justify-between">
+                          <span className="text-sm text-gray-300">{item.ledgerName}</span>
+                          <span className="text-sm font-mono text-red-400">{fmt(item.amount)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </>
+              ) : balanceSheet.liabilities.length > 0 ? (
                 <>
                   <div className="px-4 py-2 bg-red-500/10 text-xs font-semibold text-red-400">Liabilities</div>
                   {balanceSheet.liabilities.map((item, i) => (
@@ -1456,7 +1529,7 @@ export default function TallyPage() {
                     </div>
                   ))}
                 </>
-              )}
+              ) : null}
               {balanceSheet.capital.length === 0 && balanceSheet.liabilities.length === 0 && (
                 <div className="px-4 py-4 text-xs text-gray-500 text-center">No liability/capital ledgers</div>
               )}

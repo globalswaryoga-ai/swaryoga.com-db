@@ -1056,11 +1056,18 @@ async function main() {
     { name: 'Other Current Liabilities', group: 'LIABILITY', subGroup: 'Current Liabilities', ob: OTHER_CURRENT_LIABILITIES, obType: 'CREDIT' },
   ];
 
+  // Build group name → ObjectId map for auto-linking
+  const allGroups = await db.collection('acc_groups').find({ financialYear: FY }).toArray();
+  const groupNameToId = {};
+  for (const g of allGroups) groupNameToId[g.name] = g._id;
+  console.log('  Group map loaded:', Object.keys(groupNameToId).length, 'groups');
+
   for (const ld of finalLedgers) {
     const doc = {
       name: ld.name,
       group: ld.group,
       subGroup: ld.subGroup,
+      groupId: groupNameToId[ld.subGroup] || null, // auto-link to group
       openingBalance: ld.ob,
       openingBalanceType: ld.obType,
       financialYear: FY,
@@ -1071,7 +1078,7 @@ async function main() {
     const result = await db.collection('acc_ledgers').insertOne(doc);
     ledgerMap[ld.name] = result.insertedId;
   }
-  console.log('  Created', finalLedgers.length, 'ledgers with exact closing/annual values');
+  console.log('  Created', finalLedgers.length, 'ledgers with exact closing/annual values (auto-linked to groups)');
 
   // ── VERIFY P&L ──
   console.log('\n=== P&L VERIFICATION ===');

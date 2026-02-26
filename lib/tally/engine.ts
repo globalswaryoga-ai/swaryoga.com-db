@@ -41,9 +41,17 @@ export interface LedgerBalance {
 
 export interface TrialBalanceRow extends LedgerBalance {}
 
+export interface ReportRow {
+  ledgerName: string;
+  amount: number;
+  subGroup?: string;
+}
+
 export interface ProfitLossResult {
-  income: { ledgerName: string; amount: number; subGroup?: string }[];
-  expenses: { ledgerName: string; amount: number; subGroup?: string }[];
+  income: ReportRow[];
+  expenses: ReportRow[];
+  incomeByGroup: Record<string, ReportRow[]>;
+  expensesByGroup: Record<string, ReportRow[]>;
   totalIncome: number;
   totalExpense: number;
   netProfit: number;
@@ -51,10 +59,12 @@ export interface ProfitLossResult {
 }
 
 export interface BalanceSheetResult {
-  assets: { ledgerName: string; amount: number; subGroup?: string }[];
-  liabilities: { ledgerName: string; amount: number; subGroup?: string }[];
-  capital: { ledgerName: string; amount: number; subGroup?: string }[];
-  capitalBySubGroup: Record<string, { ledgerName: string; amount: number }[]>;
+  assets: ReportRow[];
+  liabilities: ReportRow[];
+  capital: ReportRow[];
+  assetsByGroup: Record<string, ReportRow[]>;
+  liabilitiesByGroup: Record<string, ReportRow[]>;
+  capitalBySubGroup: Record<string, ReportRow[]>;
   totalAssets: number;
   totalLiabilities: number;
   totalCapital: number;
@@ -341,8 +351,8 @@ export async function generateProfitLoss(
   const incomeLedgers = await AccLedger.find({ financialYear, group: 'INCOME', isActive: true }).lean();
   const expenseLedgers = await AccLedger.find({ financialYear, group: 'EXPENSE', isActive: true }).lean();
 
-  const income: { ledgerName: string; amount: number; subGroup?: string }[] = [];
-  const expenses: { ledgerName: string; amount: number; subGroup?: string }[] = [];
+  const income: ReportRow[] = [];
+  const expenses: ReportRow[] = [];
 
   let totalIncome = 0;
   let totalExpense = 0;
@@ -373,9 +383,26 @@ export async function generateProfitLoss(
   totalExpense = Math.round(totalExpense * 100) / 100;
   const netProfit = Math.round((totalIncome - totalExpense) * 100) / 100;
 
+  // Group income and expenses by subGroup for structured display
+  const incomeByGroup: Record<string, ReportRow[]> = {};
+  for (const item of income) {
+    const sg = item.subGroup || 'Other Income';
+    if (!incomeByGroup[sg]) incomeByGroup[sg] = [];
+    incomeByGroup[sg].push(item);
+  }
+
+  const expensesByGroup: Record<string, ReportRow[]> = {};
+  for (const item of expenses) {
+    const sg = item.subGroup || 'Other Expenses';
+    if (!expensesByGroup[sg]) expensesByGroup[sg] = [];
+    expensesByGroup[sg].push(item);
+  }
+
   return {
     income,
     expenses,
+    incomeByGroup,
+    expensesByGroup,
     totalIncome,
     totalExpense,
     netProfit,
@@ -396,9 +423,9 @@ export async function generateBalanceSheet(
   const liabilityLedgers = await AccLedger.find({ financialYear, group: 'LIABILITY', isActive: true }).lean();
   const capitalLedgers = await AccLedger.find({ financialYear, group: 'CAPITAL', isActive: true }).lean();
 
-  const assets: { ledgerName: string; amount: number; subGroup?: string }[] = [];
-  const liabilities: { ledgerName: string; amount: number; subGroup?: string }[] = [];
-  const capital: { ledgerName: string; amount: number; subGroup?: string }[] = [];
+  const assets: ReportRow[] = [];
+  const liabilities: ReportRow[] = [];
+  const capital: ReportRow[] = [];
 
   let totalAssets = 0;
   let totalLiabilities = 0;
@@ -408,7 +435,6 @@ export async function generateBalanceSheet(
     const ledger = l as any;
     const bal = await calculateLedgerBalance(String(ledger._id), financialYear, undefined, dateTo);
     if (bal.closingBalance > 0.01) {
-      // Asset normal = DEBIT. Contra-asset (CREDIT balance) reduces total assets.
       const signedAmount = bal.closingBalanceType === 'DEBIT' ? bal.closingBalance : -bal.closingBalance;
       assets.push({ ledgerName: bal.ledgerName, amount: signedAmount, subGroup: bal.subGroup });
       totalAssets += signedAmount;
@@ -419,7 +445,6 @@ export async function generateBalanceSheet(
     const ledger = l as any;
     const bal = await calculateLedgerBalance(String(ledger._id), financialYear, undefined, dateTo);
     if (bal.closingBalance > 0.01) {
-      // Liability normal = CREDIT. Contra-liability (DEBIT balance) reduces total liabilities.
       const signedAmount = bal.closingBalanceType === 'CREDIT' ? bal.closingBalance : -bal.closingBalance;
       liabilities.push({ ledgerName: bal.ledgerName, amount: signedAmount, subGroup: bal.subGroup });
       totalLiabilities += signedAmount;
@@ -430,7 +455,6 @@ export async function generateBalanceSheet(
     const ledger = l as any;
     const bal = await calculateLedgerBalance(String(ledger._id), financialYear, undefined, dateTo);
     if (bal.closingBalance > 0.01) {
-      // Capital normal = CREDIT. Contra-capital (DEBIT balance) reduces total capital.
       const signedAmount = bal.closingBalanceType === 'CREDIT' ? bal.closingBalance : -bal.closingBalance;
       capital.push({ ledgerName: bal.ledgerName, amount: signedAmount, subGroup: bal.subGroup });
       totalCapital += signedAmount;
@@ -445,7 +469,6 @@ export async function generateBalanceSheet(
   totalCapital = Math.round(totalCapital * 100) / 100;
 
   // Auto-add "Current Year Profit/Loss" as a capital line if not zero
-  // This mirrors Tally's "Surplus from P&L A/c" that auto-appears in Balance Sheet
   if (Math.abs(pl.netProfit) > 0.01) {
     capital.push({
       ledgerName: pl.isProfit ? 'Current Year Profit (Auto from P&L)' : 'Current Year Loss (Auto from P&L)',
@@ -457,18 +480,34 @@ export async function generateBalanceSheet(
   const capitalAdjusted = Math.round((totalCapital + pl.netProfit) * 100) / 100;
   const liabilitiesPlusCapital = Math.round((totalLiabilities + capitalAdjusted) * 100) / 100;
 
-  // Group capital items by sub-group for structured display
-  const capitalBySubGroup: Record<string, { ledgerName: string; amount: number }[]> = {};
+  // Group items by sub-group for structured display
+  const assetsByGroup: Record<string, ReportRow[]> = {};
+  for (const item of assets) {
+    const sg = item.subGroup || 'Other Assets';
+    if (!assetsByGroup[sg]) assetsByGroup[sg] = [];
+    assetsByGroup[sg].push(item);
+  }
+
+  const liabilitiesByGroup: Record<string, ReportRow[]> = {};
+  for (const item of liabilities) {
+    const sg = item.subGroup || 'Other Liabilities';
+    if (!liabilitiesByGroup[sg]) liabilitiesByGroup[sg] = [];
+    liabilitiesByGroup[sg].push(item);
+  }
+
+  const capitalBySubGroup: Record<string, ReportRow[]> = {};
   for (const c of capital) {
     const sg = c.subGroup || 'Other Capital';
     if (!capitalBySubGroup[sg]) capitalBySubGroup[sg] = [];
-    capitalBySubGroup[sg].push({ ledgerName: c.ledgerName, amount: c.amount });
+    capitalBySubGroup[sg].push(c);
   }
 
   return {
     assets,
     liabilities,
     capital,
+    assetsByGroup,
+    liabilitiesByGroup,
     capitalBySubGroup,
     totalAssets,
     totalLiabilities,
@@ -1463,7 +1502,20 @@ export async function generateProfitLossForPeriod(
   totalExpense = Math.round(totalExpense * 100) / 100;
   const netProfit = Math.round((totalIncome - totalExpense) * 100) / 100;
 
-  return { income, expenses, totalIncome, totalExpense, netProfit, isProfit: netProfit >= 0 };
+  const incomeByGroup: Record<string, ReportRow[]> = {};
+  for (const item of income) {
+    const sg = item.subGroup || 'Other Income';
+    if (!incomeByGroup[sg]) incomeByGroup[sg] = [];
+    incomeByGroup[sg].push(item);
+  }
+  const expensesByGroup: Record<string, ReportRow[]> = {};
+  for (const item of expenses) {
+    const sg = item.subGroup || 'Other Expenses';
+    if (!expensesByGroup[sg]) expensesByGroup[sg] = [];
+    expensesByGroup[sg].push(item);
+  }
+
+  return { income, expenses, incomeByGroup, expensesByGroup, totalIncome, totalExpense, netProfit, isProfit: netProfit >= 0 };
 }
 
 // ─── Year-End Closing ───────────────────────────────────────────────
