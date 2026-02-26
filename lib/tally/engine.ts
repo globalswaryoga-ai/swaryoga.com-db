@@ -987,14 +987,24 @@ export async function exportTallyXML(financialYear: string): Promise<string> {
   }
 
   // ── Export Ledgers ──
+  // CRITICAL for Tally Prime: Income/Expense are NOMINAL accounts — they must
+  // NOT have opening balances. Only BS items (Asset, Liability, Capital) get OBs.
+  // Income/Expense amounts are recorded via Journal vouchers below.
+  const nominalLedgers: typeof ledgers = []; // income/expense to journal later
+
   for (const l of ledgers) {
     const tallyGroup = l.subGroup
       ? (TALLY_SUBGROUP_MAP[l.subGroup] || l.subGroup)
       : (TALLY_GROUP_MAP[l.group] || 'Sundry Debtors');
 
     const openBal = l.openingBalance || 0;
+    const isNominal = l.group === 'INCOME' || l.group === 'EXPENSE';
+
     // Tally convention: positive = debit, negative = credit for opening
-    const tallyOpenBal = l.openingBalanceType === 'DEBIT' ? openBal : -openBal;
+    // Nominal accounts get OB = 0 (their amounts go in as vouchers)
+    const tallyOpenBal = isNominal ? 0 : (l.openingBalanceType === 'DEBIT' ? openBal : -openBal);
+
+    if (isNominal && openBal > 0) nominalLedgers.push(l);
 
     xml += `    <TALLYMESSAGE xmlns:UDF="TallyUDF">\n`;
     xml += `     <LEDGER NAME="${escXml(l.name)}" ACTION="Create">\n`;
@@ -1013,23 +1023,80 @@ export async function exportTallyXML(financialYear: string): Promise<string> {
     xml += `    </TALLYMESSAGE>\n`;
   }
 
-  // ── Year-End Profit → Capital Transfer (Journal) ──
-  // Calculate net P&L from ledger OBs (Income - Expense)
-  let totalIncome = 0;
-  let totalExpense = 0;
-  for (const l of ledgers) {
-    const ob = l.openingBalance || 0;
-    if (l.group === 'INCOME') totalIncome += ob;
-    else if (l.group === 'EXPENSE') totalExpense += ob;
-  }
-  const netProfit = totalIncome - totalExpense;
+  // ── Income/Expense Journal Vouchers (CA Report annual amounts) ──
+  // When no vouchers exist, Income/Expense amounts from CA report must be
+  // entered as Journal vouchers so Tally shows them as period turnover, not OBs.
+  // We create ONE compound Journal: Dr all Expenses + Cr all Incomes + net to P&L A/c
+  if (vouchers.length === 0 && nominalLedgers.length > 0) {
+    const fyStartDate = fmtDate(fyStart);
 
-  // Also calculate from vouchers if they exist
+    const incomeEntries = nominalLedgers.filter(l => l.group === 'INCOME');
+    const expenseEntries = nominalLedgers.filter(l => l.group === 'EXPENSE');
+
+    let totalIncAmt = incomeEntries.reduce((s, l) => s + (l.openingBalance || 0), 0);
+    let totalExpAmt = expenseEntries.reduce((s, l) => s + (l.openingBalance || 0), 0);
+
+    // Single compound Journal — self-balancing:
+    //   Dr: All Expense ledgers (their annual amounts)
+    //   Cr: All Income ledgers (their annual amounts)
+    //   Net difference → Profit & Loss A/c (balancing entry)
+    //
+    // This makes Tally show correct P&L period turnover WITHOUT
+    // touching any BS ledger (no Cash-in-Hand inflation)
+    xml += `    <TALLYMESSAGE xmlns:UDF="TallyUDF">\n`;
+    xml += `     <VOUCHER VCHTYPE="Journal" ACTION="Create">\n`;
+    xml += `      <DATE>${fyStartDate}</DATE>\n`;
+    xml += `      <EFFECTIVEDATE>${fyStartDate}</EFFECTIVEDATE>\n`;
+    xml += `      <VOUCHERTYPENAME>Journal</VOUCHERTYPENAME>\n`;
+    xml += `      <NARRATION>FY ${financialYear} — CA Report: Annual Income &amp; Expense Summary</NARRATION>\n`;
+
+    // Debit all expense ledgers
+    for (const l of expenseEntries) {
+      const amt = l.openingBalance || 0;
+      xml += `      <ALLLEDGERENTRIES.LIST>\n`;
+      xml += `       <LEDGERNAME>${escXml(l.name)}</LEDGERNAME>\n`;
+      xml += `       <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>\n`;
+      xml += `       <AMOUNT>${amt.toFixed(2)}</AMOUNT>\n`;
+      xml += `      </ALLLEDGERENTRIES.LIST>\n`;
+    }
+
+    // Credit all income ledgers
+    for (const l of incomeEntries) {
+      const amt = l.openingBalance || 0;
+      xml += `      <ALLLEDGERENTRIES.LIST>\n`;
+      xml += `       <LEDGERNAME>${escXml(l.name)}</LEDGERNAME>\n`;
+      xml += `       <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>\n`;
+      xml += `       <AMOUNT>-${amt.toFixed(2)}</AMOUNT>\n`;
+      xml += `      </ALLLEDGERENTRIES.LIST>\n`;
+    }
+
+    // Balancing entry → Profit & Loss A/c
+    // Journal sum so far: +totalExpAmt (Dr) - totalIncAmt (Cr)
+    // P&L entry must be -plDiff to bring total to 0
+    const plDiff = totalExpAmt - totalIncAmt; // positive = loss, negative = profit
+    if (Math.abs(plDiff) > 0.01) {
+      // Loss (plDiff>0): P&L A/c is CREDITED (-plDiff is negative) to balance
+      // Profit (plDiff<0): P&L A/c is DEBITED (-plDiff is positive) to balance
+      xml += `      <ALLLEDGERENTRIES.LIST>\n`;
+      xml += `       <LEDGERNAME>Profit &amp; Loss A/c</LEDGERNAME>\n`;
+      xml += `       <ISDEEMEDPOSITIVE>${plDiff > 0 ? 'No' : 'Yes'}</ISDEEMEDPOSITIVE>\n`;
+      xml += `       <AMOUNT>${(-plDiff).toFixed(2)}</AMOUNT>\n`;
+      xml += `      </ALLLEDGERENTRIES.LIST>\n`;
+    }
+
+    xml += `     </VOUCHER>\n`;
+    xml += `    </TALLYMESSAGE>\n`;
+  }
+
+// ── Year-End Profit → Capital Transfer (Voucher-mode only) ──
+  // Only needed when actual vouchers exist. For CA Report mode, the compound
+  // journal above already pushes the net P&L into "Profit & Loss A/c", and
+  // the BS OBs (being closing figures) already include the P&L absorption —
+  // adding a transfer would double-count.
   if (vouchers.length > 0) {
     const balanceMap = await batchCalculateLedgerBalances(financialYear);
     const pl = await generateProfitLoss(financialYear, undefined, balanceMap);
     const profitFromVouchers = pl.netProfit;
-    // Use voucher-based P&L if vouchers exist (more accurate)
     if (Math.abs(profitFromVouchers) > 0) {
       const profitToCapital = Math.abs(profitFromVouchers);
       const fyEndDate = fmtDate(fyEnd);
@@ -1053,29 +1120,6 @@ export async function exportTallyXML(financialYear: string): Promise<string> {
       xml += `     </VOUCHER>\n`;
       xml += `    </TALLYMESSAGE>\n`;
     }
-  } else if (Math.abs(netProfit) > 0) {
-    // CA Report mode — use OB-based P&L
-    const profitToCapital = Math.abs(netProfit);
-    const fyStartDate = fmtDate(fyStart);
-
-    xml += `    <TALLYMESSAGE xmlns:UDF="TallyUDF">\n`;
-    xml += `     <VOUCHER VCHTYPE="Journal" ACTION="Create">\n`;
-    xml += `      <DATE>${fyStartDate}</DATE>\n`;
-    xml += `      <EFFECTIVEDATE>${fyStartDate}</EFFECTIVEDATE>\n`;
-    xml += `      <VOUCHERTYPENAME>Journal</VOUCHERTYPENAME>\n`;
-    xml += `      <NARRATION>Year End Profit Transfer — FY ${financialYear}</NARRATION>\n`;
-    xml += `      <ALLLEDGERENTRIES.LIST>\n`;
-    xml += `       <LEDGERNAME>Profit &amp; Loss A/c</LEDGERNAME>\n`;
-    xml += `       <ISDEEMEDPOSITIVE>${netProfit > 0 ? 'Yes' : 'No'}</ISDEEMEDPOSITIVE>\n`;
-    xml += `       <AMOUNT>${netProfit > 0 ? -profitToCapital : profitToCapital}</AMOUNT>\n`;
-    xml += `      </ALLLEDGERENTRIES.LIST>\n`;
-    xml += `      <ALLLEDGERENTRIES.LIST>\n`;
-    xml += `       <LEDGERNAME>Capital Account</LEDGERNAME>\n`;
-    xml += `       <ISDEEMEDPOSITIVE>${netProfit > 0 ? 'No' : 'Yes'}</ISDEEMEDPOSITIVE>\n`;
-    xml += `       <AMOUNT>${netProfit > 0 ? profitToCapital : -profitToCapital}</AMOUNT>\n`;
-    xml += `      </ALLLEDGERENTRIES.LIST>\n`;
-    xml += `     </VOUCHER>\n`;
-    xml += `    </TALLYMESSAGE>\n`;
   }
 
   // ── Export Vouchers ──
