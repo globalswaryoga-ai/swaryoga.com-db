@@ -19,7 +19,8 @@ const mongoose = require('mongoose');
 require('dotenv').config({ path: '/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/.env.local' });
 
 const FY = '2023-24';
-const DB_NAME = 'swaryogaDB';
+// IMPORTANT: Engine reads from CRM DB via getCrmDb(), so acc_* data must be seeded there
+const DB_NAME = process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm';
 
 // ────────────────── CA REPORT FIGURES ──────────────────
 // P&L - Revenue
