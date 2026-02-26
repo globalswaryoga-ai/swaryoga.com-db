@@ -2239,6 +2239,88 @@ ${contentHtml}
     const [closing, setClosing] = useState(false);
     const [closeMsg, setCloseMsg] = useState('');
 
+    // Tally Prime Desktop connection
+    const [desktopTesting, setDesktopTesting] = useState(false);
+    const [desktopConnected, setDesktopConnected] = useState<boolean | null>(null);
+    const [desktopInfo, setDesktopInfo] = useState<any>(null);
+    const [desktopError, setDesktopError] = useState('');
+    const [desktopSyncing, setDesktopSyncing] = useState(false);
+    const [desktopSyncMsg, setDesktopSyncMsg] = useState('');
+    const [desktopLedgers, setDesktopLedgers] = useState<any[]>([]);
+    const [desktopPL, setDesktopPL] = useState<any>(null);
+    const [desktopBS, setDesktopBS] = useState<any>(null);
+    const [showDesktopData, setShowDesktopData] = useState<'none' | 'ledgers' | 'pl' | 'bs'>('none');
+    const [desktopFetching, setDesktopFetching] = useState(false);
+
+    const testDesktopConnection = async () => {
+      setDesktopTesting(true);
+      setDesktopError('');
+      setDesktopConnected(null);
+      setDesktopInfo(null);
+      try {
+        const data = await apiFetch('/api/admin/crm/tally?action=test');
+        if (data?.connection?.connected) {
+          setDesktopConnected(true);
+          setDesktopInfo({ ...data.connection, config: data.config });
+        } else {
+          setDesktopConnected(false);
+          setDesktopError(data?.connection?.error || 'Cannot connect to Tally Prime Desktop');
+        }
+      } catch (e: any) {
+        setDesktopConnected(false);
+        setDesktopError(e.message || 'Connection failed');
+      }
+      setDesktopTesting(false);
+    };
+
+    const fetchDesktopLedgers = async () => {
+      setDesktopFetching(true);
+      setShowDesktopData('ledgers');
+      try {
+        const data = await apiFetch('/api/admin/crm/tally?action=ledgers');
+        setDesktopLedgers(data?.ledgers || []);
+      } catch (e: any) { setDesktopError(e.message); }
+      setDesktopFetching(false);
+    };
+
+    const fetchDesktopPL = async () => {
+      setDesktopFetching(true);
+      setShowDesktopData('pl');
+      try {
+        const data = await apiFetch(`/api/admin/crm/tally?action=profitloss&fy=${fy}`);
+        setDesktopPL(data);
+      } catch (e: any) { setDesktopError(e.message); }
+      setDesktopFetching(false);
+    };
+
+    const fetchDesktopBS = async () => {
+      setDesktopFetching(true);
+      setShowDesktopData('bs');
+      try {
+        const data = await apiFetch(`/api/admin/crm/tally?action=balancesheet&fy=${fy}`);
+        setDesktopBS(data);
+      } catch (e: any) { setDesktopError(e.message); }
+      setDesktopFetching(false);
+    };
+
+    const runDesktopSync = async () => {
+      if (!confirm('Sync all data from Tally Prime Desktop to MongoDB?\n\nThis will pull latest ledgers and vouchers from your desktop Tally Prime installation.')) return;
+      setDesktopSyncing(true);
+      setDesktopSyncMsg('');
+      try {
+        const data = await apiFetch('/api/admin/crm/tally', {
+          method: 'POST',
+          body: JSON.stringify({ action: 'sync' }),
+        });
+        if (data?.success) {
+          setDesktopSyncMsg(`✅ Synced ${data.ledgerCount || 0} ledgers and ${data.voucherCount || 0} vouchers (${data.durationMs || 0}ms)`);
+        } else {
+          setDesktopSyncMsg(`❌ ${data?.error || 'Sync failed'}`);
+        }
+      } catch (e: any) { setDesktopSyncMsg(`❌ ${e.message}`); }
+      setDesktopSyncing(false);
+    };
+
     const handleSetup = async () => {
       setSetting(true);
       setSetupMsg('');
@@ -2276,6 +2358,228 @@ ${contentHtml}
 
     return (
       <div className="max-w-lg mx-auto space-y-6">
+
+        {/* ── Tally Prime Desktop Connection ── */}
+        <div className="bg-gray-900 rounded-xl border border-gray-800 p-6 space-y-4">
+          <h3 className="text-lg font-bold text-white flex items-center gap-2">
+            <Building2 className="w-5 h-5 text-cyan-500" /> Tally Prime Desktop
+          </h3>
+          <p className="text-sm text-gray-500">
+            Connect directly to your Tally Prime Desktop (HTTP/XML API on port 9000) to pull live accounting data.
+          </p>
+
+          {/* Connection Status */}
+          <div className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+            <div className="flex items-center gap-3">
+              <div className={`w-3 h-3 rounded-full ${desktopConnected === true ? 'bg-green-500 animate-pulse' : desktopConnected === false ? 'bg-red-500' : 'bg-gray-600'}`} />
+              <div>
+                <div className="text-sm font-medium text-white">
+                  {desktopConnected === true ? 'Connected' : desktopConnected === false ? 'Disconnected' : 'Not Tested'}
+                </div>
+                <div className="text-xs text-gray-500">http://localhost:9000</div>
+              </div>
+            </div>
+            <button onClick={testDesktopConnection} disabled={desktopTesting}
+              className="px-3 py-1.5 bg-cyan-600 text-white text-xs rounded-lg hover:bg-cyan-500 disabled:opacity-50 flex items-center gap-1.5 font-medium">
+              <RefreshCw className={`w-3.5 h-3.5 ${desktopTesting ? 'animate-spin' : ''}`} />
+              {desktopTesting ? 'Testing...' : 'Test Connection'}
+            </button>
+          </div>
+
+          {/* Connection Info */}
+          {desktopConnected && desktopInfo && (
+            <div className="p-3 bg-green-900/30 border border-green-700/50 rounded-lg text-sm space-y-1">
+              <div className="flex items-center gap-1.5 text-green-300 font-semibold">
+                <CheckCircle className="w-4 h-4" /> Connected to Tally Prime
+              </div>
+              <div className="text-xs text-green-400/80 space-y-0.5">
+                <div>Company: <span className="text-green-300">{desktopInfo.companyName || desktopInfo.config?.companyName || '-'}</span></div>
+                <div>Version: <span className="text-green-300">{desktopInfo.tallyVersion || 'Tally Prime'}</span></div>
+                {desktopInfo.config?.serialNumber && <div>Serial: <span className="text-green-300">{desktopInfo.config.serialNumber}</span></div>}
+              </div>
+            </div>
+          )}
+
+          {/* Connection Error */}
+          {desktopConnected === false && desktopError && (
+            <div className="p-3 bg-red-900/30 border border-red-700/50 rounded-lg text-sm">
+              <div className="flex items-center gap-1.5 text-red-300 font-semibold mb-1">
+                <AlertTriangle className="w-4 h-4" /> Connection Failed
+              </div>
+              <div className="text-xs text-red-400/80">{desktopError}</div>
+              <div className="text-xs text-gray-500 mt-2 space-y-0.5">
+                <div>Make sure:</div>
+                <div>• Tally Prime is running on your computer</div>
+                <div>• Go to F12 → Advanced → Enable ODBC Server</div>
+                <div>• Port 9000 is accessible</div>
+              </div>
+            </div>
+          )}
+
+          {/* Action Buttons (shown when connected) */}
+          {desktopConnected && (
+            <>
+              <div className="border-t border-gray-800 pt-3">
+                <div className="text-sm font-medium text-gray-300 mb-2">📊 Fetch Live Data from Desktop</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={fetchDesktopLedgers} disabled={desktopFetching}
+                    className="px-3 py-2 bg-blue-600/20 border border-blue-600/40 text-blue-300 rounded-lg hover:bg-blue-600/30 flex items-center gap-1.5 text-xs font-medium disabled:opacity-50">
+                    <BookOpen className="w-3.5 h-3.5" /> Ledgers
+                  </button>
+                  <button onClick={fetchDesktopPL} disabled={desktopFetching}
+                    className="px-3 py-2 bg-green-600/20 border border-green-600/40 text-green-300 rounded-lg hover:bg-green-600/30 flex items-center gap-1.5 text-xs font-medium disabled:opacity-50">
+                    <TrendingUp className="w-3.5 h-3.5" /> Profit &amp; Loss
+                  </button>
+                  <button onClick={fetchDesktopBS} disabled={desktopFetching}
+                    className="px-3 py-2 bg-purple-600/20 border border-purple-600/40 text-purple-300 rounded-lg hover:bg-purple-600/30 flex items-center gap-1.5 text-xs font-medium disabled:opacity-50">
+                    <PieChart className="w-3.5 h-3.5" /> Balance Sheet
+                  </button>
+                  <button onClick={runDesktopSync} disabled={desktopSyncing}
+                    className="px-3 py-2 bg-yellow-600/20 border border-yellow-600/40 text-yellow-300 rounded-lg hover:bg-yellow-600/30 flex items-center gap-1.5 text-xs font-medium disabled:opacity-50">
+                    <Download className="w-3.5 h-3.5" /> {desktopSyncing ? 'Syncing...' : 'Full Sync'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Sync Message */}
+              {desktopSyncMsg && (
+                <div className={`p-2 rounded-lg text-xs ${desktopSyncMsg.startsWith('✅') ? 'bg-green-900/30 border border-green-700/50 text-green-300' : 'bg-red-900/30 border border-red-700/50 text-red-300'}`}>
+                  {desktopSyncMsg}
+                </div>
+              )}
+
+              {/* Loading indicator */}
+              {desktopFetching && (
+                <div className="text-center py-3">
+                  <RefreshCw className="w-5 h-5 animate-spin text-cyan-500 mx-auto mb-1" />
+                  <p className="text-xs text-gray-500">Fetching from Tally Prime Desktop...</p>
+                </div>
+              )}
+
+              {/* Desktop Ledgers List */}
+              {showDesktopData === 'ledgers' && !desktopFetching && desktopLedgers.length > 0 && (
+                <div className="border-t border-gray-800 pt-3">
+                  <div className="text-sm font-medium text-blue-300 mb-2 flex items-center justify-between">
+                    <span>📋 Desktop Ledgers ({desktopLedgers.length})</span>
+                    <button onClick={() => setShowDesktopData('none')} className="text-xs text-gray-500 hover:text-gray-300">✕ Close</button>
+                  </div>
+                  <div className="max-h-60 overflow-y-auto space-y-1 text-xs">
+                    {desktopLedgers.map((l: any, i: number) => (
+                      <div key={i} className="flex items-center justify-between p-2 bg-gray-800/50 rounded">
+                        <div>
+                          <span className="text-white">{l.name}</span>
+                          <span className="text-gray-500 ml-2">({l.parent})</span>
+                        </div>
+                        <span className={l.closingBalance >= 0 ? 'text-blue-400' : 'text-red-400'}>
+                          {fmt(l.closingBalance)} {l.closingBalance >= 0 ? 'Dr' : 'Cr'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Desktop P&L */}
+              {showDesktopData === 'pl' && !desktopFetching && desktopPL && (
+                <div className="border-t border-gray-800 pt-3">
+                  <div className="text-sm font-medium text-green-300 mb-2 flex items-center justify-between">
+                    <span>📊 Desktop P&amp;L</span>
+                    <button onClick={() => setShowDesktopData('none')} className="text-xs text-gray-500 hover:text-gray-300">✕ Close</button>
+                  </div>
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between p-2 bg-green-900/20 rounded">
+                      <span className="text-green-400">Total Income</span>
+                      <span className="text-green-300 font-semibold">{fmt(desktopPL.totalIncome || 0)}</span>
+                    </div>
+                    {desktopPL.income?.map((g: any, i: number) => (
+                      <div key={i} className="ml-3">
+                        <div className="text-gray-400 font-medium">{g.name}: {fmt(g.amount)}</div>
+                        {g.children?.map((c: any, j: number) => (
+                          <div key={j} className="ml-3 flex justify-between text-gray-500">
+                            <span>{c.name}</span><span>{fmt(c.amount)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                    <div className="flex justify-between p-2 bg-red-900/20 rounded">
+                      <span className="text-red-400">Total Expenses</span>
+                      <span className="text-red-300 font-semibold">{fmt(desktopPL.totalExpenses || 0)}</span>
+                    </div>
+                    {desktopPL.expenses?.map((g: any, i: number) => (
+                      <div key={i} className="ml-3">
+                        <div className="text-gray-400 font-medium">{g.name}: {fmt(g.amount)}</div>
+                        {g.children?.map((c: any, j: number) => (
+                          <div key={j} className="ml-3 flex justify-between text-gray-500">
+                            <span>{c.name}</span><span>{fmt(c.amount)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                    <div className={`flex justify-between p-2 rounded font-semibold ${(desktopPL.netProfit || 0) >= 0 ? 'bg-green-900/30 text-green-300' : 'bg-red-900/30 text-red-300'}`}>
+                      <span>Net {(desktopPL.netProfit || 0) >= 0 ? 'Profit' : 'Loss'}</span>
+                      <span>{fmt(desktopPL.netProfit || 0)}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Desktop Balance Sheet */}
+              {showDesktopData === 'bs' && !desktopFetching && desktopBS && (
+                <div className="border-t border-gray-800 pt-3">
+                  <div className="text-sm font-medium text-purple-300 mb-2 flex items-center justify-between">
+                    <span>📊 Desktop Balance Sheet</span>
+                    <button onClick={() => setShowDesktopData('none')} className="text-xs text-gray-500 hover:text-gray-300">✕ Close</button>
+                  </div>
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between p-2 bg-blue-900/20 rounded">
+                      <span className="text-blue-400">Total Assets</span>
+                      <span className="text-blue-300 font-semibold">{fmt(desktopBS.totalAssets || 0)}</span>
+                    </div>
+                    {desktopBS.assets?.map((g: any, i: number) => (
+                      <div key={i} className="ml-3">
+                        <div className="text-gray-400 font-medium">{g.name}: {fmt(g.amount)}</div>
+                        {g.children?.map((c: any, j: number) => (
+                          <div key={j} className="ml-3 flex justify-between text-gray-500">
+                            <span>{c.name}</span><span>{fmt(c.amount)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                    <div className="flex justify-between p-2 bg-red-900/20 rounded">
+                      <span className="text-red-400">Total Liabilities</span>
+                      <span className="text-red-300 font-semibold">{fmt(desktopBS.totalLiabilities || 0)}</span>
+                    </div>
+                    {desktopBS.liabilities?.map((g: any, i: number) => (
+                      <div key={i} className="ml-3">
+                        <div className="text-gray-400 font-medium">{g.name}: {fmt(g.amount)}</div>
+                        {g.children?.map((c: any, j: number) => (
+                          <div key={j} className="ml-3 flex justify-between text-gray-500">
+                            <span>{c.name}</span><span>{fmt(c.amount)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                    <div className={`flex justify-between p-2 rounded font-semibold ${Math.abs(desktopBS.difference || 0) < 1 ? 'bg-green-900/30 text-green-300' : 'bg-red-900/30 text-red-300'}`}>
+                      <span>Difference</span>
+                      <span>{fmt(desktopBS.difference || 0)}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Config Reference */}
+          <div className="border-t border-gray-800 pt-3">
+            <div className="text-xs text-gray-600 space-y-0.5">
+              <div className="font-medium text-gray-500 mb-1">Configured in .env.local:</div>
+              <div>TALLY_PRIME_URL = http://localhost:9000</div>
+              <div>TALLY_PRIME_COMPANY_NAME = Upamnyu International Education P.ltd</div>
+              <div>TALLY_PRIME_CONFIGURED = true</div>
+            </div>
+          </div>
+        </div>
+
         {/* Setup FY */}
         <div className="bg-gray-900 rounded-xl border border-gray-800 p-6 space-y-4">
           <h3 className="text-lg font-bold text-white flex items-center gap-2"><Settings className="w-5 h-5 text-yellow-500" /> Setup Financial Year</h3>
