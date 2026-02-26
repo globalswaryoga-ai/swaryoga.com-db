@@ -5,6 +5,7 @@
  */
 
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { uploadToBunnyStream, generateBunnyTitle, isBunnyConfigured } from './bunny-stream';
 
 // Configure AWS S3 (SDK v3)
 const s3Client = new S3Client({
@@ -168,6 +169,8 @@ export async function syncZoomRecordingsToS3(
     s3Key: string;
     s3Url: string;
     fileSize: number;
+    bunnyVideoId?: string;
+    bunnyEmbedUrl?: string;
   }>;
   skippedFiles: string[];
   errors: string[];
@@ -179,6 +182,8 @@ export async function syncZoomRecordingsToS3(
       s3Key: string;
       s3Url: string;
       fileSize: number;
+      bunnyVideoId?: string;
+      bunnyEmbedUrl?: string;
     }>,
     skippedFiles: [] as string[],
     errors: [] as string[],
@@ -225,17 +230,41 @@ export async function syncZoomRecordingsToS3(
 
         console.log(`[Zoom Sync] Uploading to S3: ${s3Key}`);
 
-        // Upload to S3
+        // Upload to S3 (backup)
         const s3Url = await uploadToS3(buffer, s3Key, 'video/mp4');
+
+        console.log(`[Zoom Sync] ✅ S3 backup done: ${s3Key}`);
+
+        // Upload to Bunny Stream (website playback)
+        let bunnyVideoId: string | undefined;
+        let bunnyEmbedUrl: string | undefined;
+
+        if (isBunnyConfigured()) {
+          const bunnyTitle = generateBunnyTitle(
+            meetingRecording.topic,
+            recording.recording_type,
+            recording.recording_start
+          );
+          const bunnyResult = await uploadToBunnyStream(buffer, bunnyTitle);
+          if (bunnyResult.success) {
+            bunnyVideoId = bunnyResult.videoId;
+            bunnyEmbedUrl = bunnyResult.embedUrl;
+            console.log(`[Zoom Sync] ✅ Bunny Stream done: ${bunnyEmbedUrl}`);
+          } else {
+            console.warn(`[Zoom Sync] ⚠️ Bunny upload failed (S3 backup OK): ${bunnyResult.error}`);
+          }
+        }
 
         result.syncedFiles.push({
           recordingType: recording.recording_type,
           s3Key,
           s3Url,
           fileSize: recording.file_size,
+          bunnyVideoId,
+          bunnyEmbedUrl,
         });
 
-        console.log(`[Zoom Sync] ✅ Synced ${recording.recording_type} to ${s3Key}`);
+        console.log(`[Zoom Sync] ✅ Synced ${recording.recording_type}`);
       } catch (err: any) {
         result.errors.push(`Failed to sync ${recording.recording_type}: ${err.message}`);
         console.error(`[Zoom Sync] ❌ Error syncing ${recording.recording_type}:`, err);

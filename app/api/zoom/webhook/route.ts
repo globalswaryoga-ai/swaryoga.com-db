@@ -198,6 +198,8 @@ export async function POST(request: NextRequest) {
           s3Key: f.s3Key,
           s3Url: f.s3Url,
           fileSize: f.fileSize,
+          bunnyVideoId: f.bunnyVideoId || null,
+          bunnyEmbedUrl: f.bunnyEmbedUrl || null,
         })),
         skippedFiles: syncResult.skippedFiles,
         errors: syncResult.errors,
@@ -243,6 +245,6 @@ export async function GET() {
   return NextResponse.json({
     status: 'ok',
     endpoint: 'Zoom Recording Webhook',
-    description: 'Syncs speaker_view and gallery_view recordings to AWS S3',
+    description: 'Syncs recordings to AWS S3 (backup) + Bunny Stream (website playback)',
   });
 }
