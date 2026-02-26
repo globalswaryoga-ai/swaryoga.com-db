@@ -220,51 +220,35 @@ export async function syncZoomRecordingsToS3(
         // Download from Zoom
         const buffer = await downloadZoomRecording(recording.download_url, accessToken);
 
-        // Generate S3 key
-        const s3Key = generateS3Key(
+        // Upload directly to Bunny Stream (primary storage + CDN)
+        if (!isBunnyConfigured()) {
+          throw new Error('Bunny Stream not configured (BUNNY_API_KEY / BUNNY_STREAM_LIBRARY_ID missing)');
+        }
+
+        const bunnyTitle = generateBunnyTitle(
           meetingRecording.topic,
           recording.recording_type,
-          recording.recording_start,
-          recording.file_extension.toLowerCase()
+          recording.recording_start
         );
 
-        console.log(`[Zoom Sync] Uploading to S3: ${s3Key}`);
+        console.log(`[Zoom Sync] Uploading to Bunny Stream: ${bunnyTitle} (${(buffer.length / 1024 / 1024).toFixed(1)} MB)`);
 
-        // Upload to S3 (backup)
-        const s3Url = await uploadToS3(buffer, s3Key, 'video/mp4');
+        const bunnyResult = await uploadToBunnyStream(buffer, bunnyTitle);
 
-        console.log(`[Zoom Sync] ✅ S3 backup done: ${s3Key}`);
-
-        // Upload to Bunny Stream (website playback)
-        let bunnyVideoId: string | undefined;
-        let bunnyEmbedUrl: string | undefined;
-
-        if (isBunnyConfigured()) {
-          const bunnyTitle = generateBunnyTitle(
-            meetingRecording.topic,
-            recording.recording_type,
-            recording.recording_start
-          );
-          const bunnyResult = await uploadToBunnyStream(buffer, bunnyTitle);
-          if (bunnyResult.success) {
-            bunnyVideoId = bunnyResult.videoId;
-            bunnyEmbedUrl = bunnyResult.embedUrl;
-            console.log(`[Zoom Sync] ✅ Bunny Stream done: ${bunnyEmbedUrl}`);
-          } else {
-            console.warn(`[Zoom Sync] ⚠️ Bunny upload failed (S3 backup OK): ${bunnyResult.error}`);
-          }
+        if (!bunnyResult.success) {
+          throw new Error(`Bunny upload failed: ${bunnyResult.error}`);
         }
 
         result.syncedFiles.push({
           recordingType: recording.recording_type,
-          s3Key,
-          s3Url,
+          s3Key: '',
+          s3Url: '',
           fileSize: recording.file_size,
-          bunnyVideoId,
-          bunnyEmbedUrl,
+          bunnyVideoId: bunnyResult.videoId,
+          bunnyEmbedUrl: bunnyResult.embedUrl,
         });
 
-        console.log(`[Zoom Sync] ✅ Synced ${recording.recording_type}`);
+        console.log(`[Zoom Sync] ✅ ${recording.recording_type} → Bunny Stream: ${bunnyResult.embedUrl}`);
       } catch (err: any) {
         result.errors.push(`Failed to sync ${recording.recording_type}: ${err.message}`);
         console.error(`[Zoom Sync] ❌ Error syncing ${recording.recording_type}:`, err);

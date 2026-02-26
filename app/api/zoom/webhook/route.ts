@@ -245,6 +245,6 @@ export async function GET() {
   return NextResponse.json({
     status: 'ok',
     endpoint: 'Zoom Recording Webhook',
-    description: 'Syncs recordings to AWS S3 (backup) + Bunny Stream (website playback)',
+    description: 'Syncs recordings directly to Bunny Stream for website playback',
   });
 }
