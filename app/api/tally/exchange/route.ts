@@ -7,7 +7,7 @@
 import { NextRequest } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
-import { exportTallyXML, importTallyXML, exportTallyJSON, importTallyJSON, importExcelTally, importBankStatement } from '@/lib/tally/engine';
+import { exportTallyXML, buildTallyXML, importTallyXML, exportTallyJSON, importTallyJSON, importExcelTally, importBankStatement } from '@/lib/tally/engine';
 
 function getAuth(request: NextRequest) {
   const authHeader = request.headers.get('authorization');

@@ -1013,16 +1013,80 @@ export async function exportTallyXML(financialYear: string): Promise<string> {
     xml += `    </TALLYMESSAGE>\n`;
   }
 
+  // ── Year-End Profit → Capital Transfer (Journal) ──
+  // Calculate net P&L from ledger OBs (Income - Expense)
+  let totalIncome = 0;
+  let totalExpense = 0;
+  for (const l of ledgers) {
+    const ob = l.openingBalance || 0;
+    if (l.group === 'INCOME') totalIncome += ob;
+    else if (l.group === 'EXPENSE') totalExpense += ob;
+  }
+  const netProfit = totalIncome - totalExpense;
+
+  // Also calculate from vouchers if they exist
+  if (vouchers.length > 0) {
+    const balanceMap = await batchCalculateLedgerBalances(financialYear);
+    const pl = await generateProfitLoss(financialYear, undefined, balanceMap);
+    const profitFromVouchers = pl.netProfit;
+    // Use voucher-based P&L if vouchers exist (more accurate)
+    if (Math.abs(profitFromVouchers) > 0) {
+      const profitToCapital = Math.abs(profitFromVouchers);
+      const fyEndDate = fmtDate(fyEnd);
+
+      xml += `    <TALLYMESSAGE xmlns:UDF="TallyUDF">\n`;
+      xml += `     <VOUCHER VCHTYPE="Journal" ACTION="Create">\n`;
+      xml += `      <DATE>${fyEndDate}</DATE>\n`;
+      xml += `      <EFFECTIVEDATE>${fyEndDate}</EFFECTIVEDATE>\n`;
+      xml += `      <VOUCHERTYPENAME>Journal</VOUCHERTYPENAME>\n`;
+      xml += `      <NARRATION>Year End Profit Transfer — FY ${financialYear}</NARRATION>\n`;
+      xml += `      <ALLLEDGERENTRIES.LIST>\n`;
+      xml += `       <LEDGERNAME>Profit &amp; Loss A/c</LEDGERNAME>\n`;
+      xml += `       <ISDEEMEDPOSITIVE>${pl.isProfit ? 'Yes' : 'No'}</ISDEEMEDPOSITIVE>\n`;
+      xml += `       <AMOUNT>${pl.isProfit ? -profitToCapital : profitToCapital}</AMOUNT>\n`;
+      xml += `      </ALLLEDGERENTRIES.LIST>\n`;
+      xml += `      <ALLLEDGERENTRIES.LIST>\n`;
+      xml += `       <LEDGERNAME>Capital Account</LEDGERNAME>\n`;
+      xml += `       <ISDEEMEDPOSITIVE>${pl.isProfit ? 'No' : 'Yes'}</ISDEEMEDPOSITIVE>\n`;
+      xml += `       <AMOUNT>${pl.isProfit ? profitToCapital : -profitToCapital}</AMOUNT>\n`;
+      xml += `      </ALLLEDGERENTRIES.LIST>\n`;
+      xml += `     </VOUCHER>\n`;
+      xml += `    </TALLYMESSAGE>\n`;
+    }
+  } else if (Math.abs(netProfit) > 0) {
+    // CA Report mode — use OB-based P&L
+    const profitToCapital = Math.abs(netProfit);
+    const fyStartDate = fmtDate(fyStart);
+
+    xml += `    <TALLYMESSAGE xmlns:UDF="TallyUDF">\n`;
+    xml += `     <VOUCHER VCHTYPE="Journal" ACTION="Create">\n`;
+    xml += `      <DATE>${fyStartDate}</DATE>\n`;
+    xml += `      <EFFECTIVEDATE>${fyStartDate}</EFFECTIVEDATE>\n`;
+    xml += `      <VOUCHERTYPENAME>Journal</VOUCHERTYPENAME>\n`;
+    xml += `      <NARRATION>Year End Profit Transfer — FY ${financialYear}</NARRATION>\n`;
+    xml += `      <ALLLEDGERENTRIES.LIST>\n`;
+    xml += `       <LEDGERNAME>Profit &amp; Loss A/c</LEDGERNAME>\n`;
+    xml += `       <ISDEEMEDPOSITIVE>${netProfit > 0 ? 'Yes' : 'No'}</ISDEEMEDPOSITIVE>\n`;
+    xml += `       <AMOUNT>${netProfit > 0 ? -profitToCapital : profitToCapital}</AMOUNT>\n`;
+    xml += `      </ALLLEDGERENTRIES.LIST>\n`;
+    xml += `      <ALLLEDGERENTRIES.LIST>\n`;
+    xml += `       <LEDGERNAME>Capital Account</LEDGERNAME>\n`;
+    xml += `       <ISDEEMEDPOSITIVE>${netProfit > 0 ? 'No' : 'Yes'}</ISDEEMEDPOSITIVE>\n`;
+    xml += `       <AMOUNT>${netProfit > 0 ? profitToCapital : -profitToCapital}</AMOUNT>\n`;
+    xml += `      </ALLLEDGERENTRIES.LIST>\n`;
+    xml += `     </VOUCHER>\n`;
+    xml += `    </TALLYMESSAGE>\n`;
+  }
+
   // ── Export Vouchers ──
   for (const v of vouchers) {
     const vType = TALLY_VOUCHER_TYPE[v.type] || 'Journal';
     const vDate = fmtDate(v.date);
-    const effectiveDate = fmtDate(v.date);
 
     xml += `    <TALLYMESSAGE xmlns:UDF="TallyUDF">\n`;
     xml += `     <VOUCHER VCHTYPE="${escXml(vType)}" ACTION="Create">\n`;
     xml += `      <DATE>${vDate}</DATE>\n`;
-    xml += `      <EFFECTIVEDATE>${effectiveDate}</EFFECTIVEDATE>\n`;
+    xml += `      <EFFECTIVEDATE>${vDate}</EFFECTIVEDATE>\n`;
     xml += `      <VOUCHERTYPENAME>${escXml(vType)}</VOUCHERTYPENAME>\n`;
     xml += `      <VOUCHERNUMBER>${escXml(v.voucherNumber)}</VOUCHERNUMBER>\n`;
     if (v.narration) xml += `      <NARRATION>${escXml(v.narration)}</NARRATION>\n`;
@@ -1046,6 +1110,94 @@ export async function exportTallyXML(financialYear: string): Promise<string> {
   xml += `   </REQUESTDATA>\n`;
   xml += `  </IMPORTDATA>\n`;
   xml += ` </BODY>\n`;
+  xml += `</ENVELOPE>`;
+
+  return xml;
+}
+
+/**
+ * Standalone Tally XML builder — simplified format matching Tally Prime import spec.
+ * Use this for quick exports without full DB lookups.
+ *
+ * @param ledgers Array of { name, group, openingBalance, openingBalanceType }
+ * @param vouchers Array of { date (YYYY-MM-DD), narration, entries: [{ ledgerName, amount, type }] }
+ * @param profitToCapital Net Profit/Loss amount to transfer to Capital Account
+ */
+export function buildTallyXML(
+  ledgers: { name: string; group: string; openingBalance: number; openingBalanceType: string }[],
+  vouchers: { date: string; narration?: string; entries: { ledgerName: string; amount: number; type: string }[] }[],
+  profitToCapital: number,
+): string {
+  const escXml = (s: string) => s?.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') || '';
+
+  let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+  xml += `<ENVELOPE>\n`;
+  xml += `  <HEADER>\n`;
+  xml += `    <TALLYREQUEST>Import Data</TALLYREQUEST>\n`;
+  xml += `  </HEADER>\n`;
+  xml += `  <BODY>\n`;
+  xml += `    <IMPORTDATA>\n`;
+  xml += `      <REQUESTDESC>\n`;
+  xml += `        <REPORTNAME>All Masters</REPORTNAME>\n`;
+  xml += `      </REQUESTDESC>\n`;
+  xml += `      <REQUESTDATA>\n`;
+
+  // 1. Export LEDGERS
+  for (const l of ledgers) {
+    const balance = l.openingBalanceType === 'DEBIT' ? l.openingBalance : -l.openingBalance;
+    xml += `        <TALLYMESSAGE>\n`;
+    xml += `          <LEDGER NAME="${escXml(l.name)}">\n`;
+    xml += `            <GROUP>${escXml(l.group)}</GROUP>\n`;
+    xml += `            <OPENINGBALANCE>${balance}</OPENINGBALANCE>\n`;
+    xml += `          </LEDGER>\n`;
+    xml += `        </TALLYMESSAGE>\n`;
+  }
+
+  // 2. Transfer PROFIT → CAPITAL / RESERVES
+  if (Math.abs(profitToCapital) > 0) {
+    xml += `        <TALLYMESSAGE>\n`;
+    xml += `          <VOUCHER VCHTYPE="Journal" ACTION="Create">\n`;
+    xml += `            <DATE>01042024</DATE>\n`;
+    xml += `            <NARRATION>Year End Profit Transfer</NARRATION>\n`;
+    xml += `            <ALLLEDGERENTRIES.LIST>\n`;
+    xml += `              <LEDGERNAME>Profit &amp; Loss A/c</LEDGERNAME>\n`;
+    xml += `              <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>\n`;
+    xml += `              <AMOUNT>-${Math.abs(profitToCapital)}</AMOUNT>\n`;
+    xml += `            </ALLLEDGERENTRIES.LIST>\n`;
+    xml += `            <ALLLEDGERENTRIES.LIST>\n`;
+    xml += `              <LEDGERNAME>Capital Account</LEDGERNAME>\n`;
+    xml += `              <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>\n`;
+    xml += `              <AMOUNT>${Math.abs(profitToCapital)}</AMOUNT>\n`;
+    xml += `            </ALLLEDGERENTRIES.LIST>\n`;
+    xml += `          </VOUCHER>\n`;
+    xml += `        </TALLYMESSAGE>\n`;
+  }
+
+  // 3. Export VOUCHERS
+  for (const v of vouchers) {
+    const [Y, M, D] = v.date.split('-');
+    const tallyDate = `${D}${M}${Y}`;
+
+    xml += `        <TALLYMESSAGE>\n`;
+    xml += `          <VOUCHER VCHTYPE="Journal" ACTION="Create">\n`;
+    xml += `            <DATE>${tallyDate}</DATE>\n`;
+    xml += `            <NARRATION>${escXml(v.narration || '')}</NARRATION>\n`;
+
+    for (const e of v.entries) {
+      const amt = e.type === 'DEBIT' ? e.amount : -e.amount;
+      xml += `            <ALLLEDGERENTRIES.LIST>\n`;
+      xml += `              <LEDGERNAME>${escXml(e.ledgerName)}</LEDGERNAME>\n`;
+      xml += `              <AMOUNT>${amt}</AMOUNT>\n`;
+      xml += `            </ALLLEDGERENTRIES.LIST>\n`;
+    }
+
+    xml += `          </VOUCHER>\n`;
+    xml += `        </TALLYMESSAGE>\n`;
+  }
+
+  xml += `      </REQUESTDATA>\n`;
+  xml += `    </IMPORTDATA>\n`;
+  xml += `  </BODY>\n`;
   xml += `</ENVELOPE>`;
 
   return xml;
