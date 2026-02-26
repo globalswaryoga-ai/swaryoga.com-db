@@ -15,6 +15,7 @@ import {
   getCashBankSummary,
   generateMonthlyPL,
   closeFinancialYear,
+  carryForwardBalances,
   generateCAAuditReport,
 } from '@/lib/tally/engine';
 
@@ -109,8 +110,8 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST /api/tally/reports — Year-End Closing
- * Body: { action: "close-year", currentFY: "2023-24", nextFY: "2024-25", nextStartDate, nextEndDate }
+ * POST /api/tally/reports — Year-End Closing / Carry Forward
+ * Body: { action: "close-year" | "carry-forward", currentFY: "2023-24", nextFY: "2024-25", nextStartDate, nextEndDate }
  */
 export async function POST(request: NextRequest) {
   try {
@@ -120,14 +121,26 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { action, currentFY, nextFY, nextStartDate, nextEndDate } = body;
 
-    if (action !== 'close-year') {
-      return apiError('VALIDATION_ERROR', 'action must be "close-year"');
+    if (!['close-year', 'carry-forward'].includes(action)) {
+      return apiError('VALIDATION_ERROR', 'action must be "close-year" or "carry-forward"');
     }
 
     if (!currentFY || !nextFY || !nextStartDate || !nextEndDate) {
       return apiError('VALIDATION_ERROR', 'currentFY, nextFY, nextStartDate, nextEndDate are required');
     }
 
+    if (action === 'carry-forward') {
+      const result = await carryForwardBalances(
+        currentFY,
+        nextFY,
+        new Date(nextStartDate),
+        new Date(nextEndDate),
+        (decoded as any)?.userId,
+      );
+      return apiSuccess(result);
+    }
+
+    // close-year: carry forward + lock
     const result = await closeFinancialYear(
       currentFY,
       nextFY,

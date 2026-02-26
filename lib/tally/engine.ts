@@ -1578,15 +1578,17 @@ export async function generateProfitLossForPeriod(
 // ─── Year-End Closing ───────────────────────────────────────────────
 
 /**
- * Close a Financial Year and carry forward to the next FY.
- * 
- * What Tally does at year-end:
- * 1. Calculate Net Profit/Loss from P&L
- * 2. Transfer it to "Retained Earnings" (or "Profit & Loss A/c") in Balance Sheet
- * 3. Carry forward all Asset/Liability/Capital closing balances as opening balances of next FY
- * 4. Income/Expense ledgers start fresh (zero) in new FY
+ * Carry forward Balance Sheet balances from one FY to the next.
+ * This is the Tally Prime official logic:
+ *
+ * 1. ASSET / LIABILITY / CAPITAL → closing balance becomes opening balance in next FY
+ * 2. INCOME / EXPENSE → reset to zero (fresh start in new FY)
+ * 3. Net Profit/Loss from P&L → added to "Reserves & Surplus" (retained earnings)
+ *
+ * This function only creates ledgers in the next FY — it does NOT lock or close the current FY.
+ * Use closeFinancialYear() to both carry forward AND lock.
  */
-export async function closeFinancialYear(
+export async function carryForwardBalances(
   currentFY: string,
   nextFY: string,
   nextStartDate: Date,
@@ -1597,8 +1599,9 @@ export async function closeFinancialYear(
   const AccLedger = getAccLedger();
   const AccFinancialYear = getAccFinancialYear();
 
-  // 1. Calculate current year P&L
-  const pl = await generateProfitLoss(currentFY);
+  // 1. Calculate all ledger balances in one batch (2 queries instead of N)
+  const balanceMap = await batchCalculateLedgerBalances(currentFY);
+  const pl = await generateProfitLoss(currentFY, undefined, balanceMap);
 
   // 2. Create next FY if not exists
   let nextFYDoc = await AccFinancialYear.findOne({ code: nextFY });
@@ -1613,50 +1616,73 @@ export async function closeFinancialYear(
       companyName: 'Upamnyu International Education Pvt. Ltd.',
       createdByUserId,
     });
+  } else {
+    // Mark this as the current FY
+    await AccFinancialYear.updateMany({}, { isCurrent: false });
+    await AccFinancialYear.updateOne({ code: nextFY }, { isCurrent: true });
   }
 
   // 3. Seed default groups for next FY
   await seedDefaultGroups(nextFY);
 
   // 4. Carry forward Balance Sheet items (ASSET, LIABILITY, CAPITAL)
-  const bsLedgers = await AccLedger.find({
-    financialYear: currentFY,
-    group: { $in: ['ASSET', 'LIABILITY', 'CAPITAL'] },
-    isActive: true,
-  }).lean();
-
   let carriedForward = 0;
-  for (const l of bsLedgers) {
-    const ledger = l as any;
-    const bal = await calculateLedgerBalance(String(ledger._id), currentFY);
+  let skippedExisting = 0;
+  const carriedLedgers: { name: string; group: string; openingBalance: number; openingBalanceType: string }[] = [];
 
+  for (const bal of balanceMap.values()) {
+    if (['INCOME', 'EXPENSE'].includes(bal.group)) {
+      // Income/Expense ledgers start fresh — zero opening balance in next FY
+      continue;
+    }
+
+    // Only carry forward if closing balance is meaningful
     if (bal.closingBalance > 0.01) {
       // Check if already exists in next FY
-      const existing = await AccLedger.findOne({ name: ledger.name, financialYear: nextFY });
-      if (!existing) {
+      const existing = await AccLedger.findOne({ name: bal.ledgerName, financialYear: nextFY });
+      if (existing) {
+        // Update existing ledger's opening balance to match current year's closing
+        await AccLedger.updateOne(
+          { _id: existing._id },
+          {
+            $set: {
+              openingBalance: Math.round(bal.closingBalance * 100) / 100,
+              openingBalanceType: bal.closingBalanceType,
+              group: bal.group,
+              subGroup: bal.subGroup,
+            },
+          },
+        );
+        skippedExisting++;
+      } else {
         await AccLedger.create({
-          name: ledger.name,
-          group: ledger.group,
-          subGroup: ledger.subGroup,
-          openingBalance: bal.closingBalance,
+          name: bal.ledgerName,
+          group: bal.group,
+          subGroup: bal.subGroup,
+          openingBalance: Math.round(bal.closingBalance * 100) / 100,
           openingBalanceType: bal.closingBalanceType,
           financialYear: nextFY,
           isActive: true,
         });
         carriedForward++;
       }
+      carriedLedgers.push({
+        name: bal.ledgerName,
+        group: bal.group,
+        openingBalance: Math.round(bal.closingBalance * 100) / 100,
+        openingBalanceType: bal.closingBalanceType,
+      });
     }
   }
 
-  // 5. Merge P&L into Reserves & Surplus for next FY
-  // Instead of creating a separate "Previous Year Profit/Loss" ledger,
-  // adjust the Reserves & Surplus OB to include the current year P&L.
+  // 5. Transfer Net P/L → Reserves & Surplus (Tally Prime official logic)
+  //    retainedEarnings += currentYearPL
   if (Math.abs(pl.netProfit) > 0.01) {
     const reservesLedger = await AccLedger.findOne({ name: 'Reserves & Surplus', financialYear: nextFY });
     if (reservesLedger) {
       const r = reservesLedger as any;
       // Current Reserves OB was carried forward from current FY's OB.
-      // Need to add P&L to get the true closing balance.
+      // Need to add P&L to get the true "retained earnings" balance.
       const currentReservesOB = r.openingBalanceType === 'CREDIT' ? r.openingBalance : -r.openingBalance;
       const newReserves = currentReservesOB + pl.netProfit;
       await AccLedger.updateOne(
@@ -1669,34 +1695,78 @@ export async function closeFinancialYear(
         },
       );
     } else {
-      // No Reserves & Surplus exists yet — create as Retained Earnings
-      const retainedName = `Previous Year ${pl.isProfit ? 'Profit' : 'Loss'} (${currentFY})`;
-      const existingRetained = await AccLedger.findOne({ name: retainedName, financialYear: nextFY });
-      if (!existingRetained) {
-        await AccLedger.create({
-          name: retainedName,
-          group: 'CAPITAL',
-          subGroup: 'Retained Earnings',
-          openingBalance: Math.abs(pl.netProfit),
-          openingBalanceType: pl.isProfit ? 'CREDIT' : 'DEBIT',
-          financialYear: nextFY,
-          isActive: true,
-        });
-        carriedForward++;
+      // No Reserves & Surplus exists — create it as Capital
+      await AccLedger.create({
+        name: 'Reserves & Surplus',
+        group: 'CAPITAL',
+        subGroup: 'Retained Earnings',
+        openingBalance: Math.abs(pl.netProfit),
+        openingBalanceType: pl.isProfit ? 'CREDIT' : 'DEBIT',
+        financialYear: nextFY,
+        isActive: true,
+      });
+      carriedForward++;
+    }
+  }
+
+  // 6. Link ledgers to groups in next FY
+  const AccGroup = getAccGroup();
+  const nextFYLedgers = await AccLedger.find({ financialYear: nextFY, isActive: true }).lean() as any[];
+  const groups = await AccGroup.find({ financialYear: nextFY }).lean() as any[];
+  const groupMap = new Map(groups.map((g: any) => [g.name, g._id]));
+
+  for (const ledger of nextFYLedgers) {
+    if (!ledger.groupId && ledger.subGroup) {
+      const groupId = groupMap.get(ledger.subGroup);
+      if (groupId) {
+        await AccLedger.updateOne({ _id: ledger._id }, { $set: { groupId } });
       }
     }
   }
 
-  // 6. Mark current FY as closed
-  await AccFinancialYear.updateOne({ code: currentFY }, { isClosed: true, isCurrent: false });
-
   return {
-    message: `FY ${currentFY} closed. ${carriedForward} ledgers carried forward to FY ${nextFY}.`,
+    message: `${carriedForward} new ledgers carried forward to FY ${nextFY}. ${skippedExisting} existing ledgers updated.`,
     currentFY,
     nextFY,
     netProfit: pl.netProfit,
     isProfit: pl.isProfit,
     ledgersCarriedForward: carriedForward,
+    ledgersUpdated: skippedExisting,
+    carriedLedgers,
+    totalIncome: pl.totalIncome,
+    totalExpense: pl.totalExpense,
+  };
+}
+
+/**
+ * Close a Financial Year and carry forward to the next FY.
+ * 
+ * What Tally does at year-end:
+ * 1. Calculate Net Profit/Loss from P&L
+ * 2. Transfer it to "Retained Earnings" (or "Profit & Loss A/c") in Balance Sheet
+ * 3. Carry forward all Asset/Liability/Capital closing balances as opening balances of next FY
+ * 4. Income/Expense ledgers start fresh (zero) in new FY
+ * 5. Mark the current FY as CLOSED (locked)
+ */
+export async function closeFinancialYear(
+  currentFY: string,
+  nextFY: string,
+  nextStartDate: Date,
+  nextEndDate: Date,
+  createdByUserId?: string,
+) {
+  await connectDB();
+  const AccFinancialYear = getAccFinancialYear();
+
+  // 1. Carry forward all balances
+  const result = await carryForwardBalances(currentFY, nextFY, nextStartDate, nextEndDate, createdByUserId);
+
+  // 2. Mark current FY as closed (locked)
+  await AccFinancialYear.updateOne({ code: currentFY }, { isClosed: true, isCurrent: false });
+
+  return {
+    ...result,
+    message: `FY ${currentFY} closed & locked. ${result.ledgersCarriedForward} new ledgers + ${result.ledgersUpdated} updated in FY ${nextFY}.`,
   };
 }
 

@@ -36,6 +36,7 @@ import {
   Shield,
   Lock,
   Unlock,
+  ArrowRight,
 } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────
@@ -2231,13 +2232,15 @@ ${contentHtml}
     const [setting, setSetting] = useState(false);
     const [setupMsg, setSetupMsg] = useState('');
 
-    // Year-end closing
-    const [closingFY, setClosingFY] = useState('2024-25');
+    // Year-end closing & carry forward
+    const [closingFY, setClosingFY] = useState('2023-24');
     const [nextFYCode, setNextFYCode] = useState('2024-25');
     const [nextStart, setNextStart] = useState('2024-04-01');
     const [nextEnd, setNextEnd] = useState('2025-03-31');
     const [closing, setClosing] = useState(false);
+    const [carrying, setCarrying] = useState(false);
     const [closeMsg, setCloseMsg] = useState('');
+    const [carryResult, setCarryResult] = useState<any>(null);
 
     // Tally Prime Desktop connection
     const [desktopTesting, setDesktopTesting] = useState(false);
@@ -2335,10 +2338,33 @@ ${contentHtml}
       setSetting(false);
     };
 
+    const handleCarryForward = async () => {
+      if (!confirm(`Carry forward balances from FY ${closingFY} → FY ${nextFYCode}?\n\nThis will:\n• Carry forward Asset/Liability/Capital closing balances as opening in FY ${nextFYCode}\n• Transfer Net P/L → Reserves & Surplus\n• Income/Expense ledgers start fresh (zero)\n\nFY ${closingFY} will remain OPEN (not locked).`)) return;
+      setCarrying(true);
+      setCloseMsg('');
+      setCarryResult(null);
+      try {
+        const data = await apiFetch('/api/tally/reports', {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'carry-forward',
+            currentFY: closingFY,
+            nextFY: nextFYCode,
+            nextStartDate: nextStart,
+            nextEndDate: nextEnd,
+          }),
+        });
+        setCloseMsg(data?.message || 'Balances carried forward!');
+        setCarryResult(data);
+      } catch (e: any) { setError(e.message); }
+      setCarrying(false);
+    };
+
     const handleCloseYear = async () => {
-      if (!confirm(`Are you sure you want to close FY ${closingFY}? This will:\n\n1. Transfer Net Profit/Loss to Retained Earnings\n2. Carry forward Balance Sheet ledgers to FY ${nextFYCode}\n3. Mark FY ${closingFY} as closed\n\nThis action cannot be undone.`)) return;
+      if (!confirm(`Are you sure you want to CLOSE & LOCK FY ${closingFY}?\n\nThis will:\n1. Carry forward ALL Balance Sheet ledgers to FY ${nextFYCode}\n2. Transfer Net Profit/Loss → Reserves & Surplus\n3. Income/Expense ledgers start fresh (zero) in FY ${nextFYCode}\n4. LOCK FY ${closingFY} (no more vouchers can be added)\n\nThis action cannot be easily undone.`)) return;
       setClosing(true);
       setCloseMsg('');
+      setCarryResult(null);
       try {
         const data = await apiFetch('/api/tally/reports', {
           method: 'POST',
@@ -2351,7 +2377,10 @@ ${contentHtml}
           }),
         });
         setCloseMsg(data?.message || 'Year closed successfully!');
+        setCarryResult(data);
+        setFyLocked(true);
         setFy(nextFYCode);
+        clearAllCachedData();
       } catch (e: any) { setError(e.message); }
       setClosing(false);
     };
@@ -2615,22 +2644,21 @@ ${contentHtml}
           )}
         </div>
 
-        {/* Year-End Closing */}
+        {/* Year-End Closing & Carry Forward */}
         <div className="bg-gray-900 rounded-xl border border-gray-800 p-6 space-y-4">
-          <h3 className="text-lg font-bold text-white flex items-center gap-2"><Scale className="w-5 h-5 text-yellow-500" /> Year-End Closing</h3>
+          <h3 className="text-lg font-bold text-white flex items-center gap-2"><Scale className="w-5 h-5 text-yellow-500" /> Year-End Closing &amp; Carry Forward</h3>
           <p className="text-sm text-gray-500">
-            Close current FY and carry forward to next. This will:
+            Tally Prime compatible year-end process:
           </p>
           <ul className="text-xs text-gray-500 list-disc list-inside space-y-1">
-            <li>Calculate current year Profit/Loss from P&L</li>
-            <li>Transfer Net P/L → &quot;Retained Earnings&quot; ledger in next FY</li>
-            <li>Carry forward Asset/Liability/Capital closing balances as opening in next FY</li>
-            <li>Income/Expense ledgers start fresh (zero) in the new FY</li>
+            <li><strong className="text-gray-300">Asset / Liability / Capital</strong> → Closing balance becomes opening balance in next FY</li>
+            <li><strong className="text-gray-300">Income / Expense</strong> → Reset to zero (fresh start in new FY)</li>
+            <li><strong className="text-gray-300">Net P/L</strong> → Transferred to &quot;Reserves &amp; Surplus&quot; (retained earnings)</li>
           </ul>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-400 mb-1">Current FY (to close)</label>
+              <label className="block text-sm font-medium text-gray-400 mb-1">Current FY</label>
               <input value={closingFY} onChange={e => setClosingFY(e.target.value)}
                 className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm placeholder-gray-500" placeholder="2023-24" />
             </div>
@@ -2653,14 +2681,85 @@ ${contentHtml}
             </div>
           </div>
 
-          <button onClick={handleCloseYear} disabled={closing}
-            className="w-full px-4 py-2.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center justify-center gap-2">
-            <Scale className="w-4 h-4" />{closing ? 'Closing...' : `Close FY ${closingFY} → Open FY ${nextFYCode}`}
-          </button>
+          {/* Two action buttons */}
+          <div className="grid grid-cols-2 gap-3">
+            <button onClick={handleCarryForward} disabled={carrying || closing}
+              className="px-4 py-2.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2 font-medium">
+              <ArrowRight className="w-4 h-4" />{carrying ? 'Carrying...' : 'Carry Forward'}
+            </button>
+            <button onClick={handleCloseYear} disabled={closing || carrying}
+              className="px-4 py-2.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center justify-center gap-2 font-medium">
+              <Lock className="w-4 h-4" />{closing ? 'Closing...' : 'Close & Lock FY'}
+            </button>
+          </div>
+
+          <div className="flex gap-2 text-xs">
+            <div className="flex-1 p-2 bg-blue-900/20 border border-blue-800/40 rounded-lg text-blue-400">
+              <strong>Carry Forward:</strong> Creates ledgers in next FY without locking current FY. Can re-run to update.
+            </div>
+            <div className="flex-1 p-2 bg-red-900/20 border border-red-800/40 rounded-lg text-red-400">
+              <strong>Close &amp; Lock:</strong> Carry forward + permanently locks FY {closingFY}. No more vouchers.
+            </div>
+          </div>
 
           {closeMsg && (
             <div className="p-3 bg-green-900/40 border border-green-700 rounded-lg text-sm text-green-300 flex items-center gap-2">
               <CheckCircle className="w-4 h-4" /> {closeMsg}
+            </div>
+          )}
+
+          {/* Carry Forward Result Details */}
+          {carryResult && (
+            <div className="bg-gray-800/50 rounded-lg border border-gray-700 p-4 space-y-3">
+              <div className="text-sm font-semibold text-white flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-green-500" /> Carry Forward Summary
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2 bg-gray-800 rounded">
+                  <div className="text-gray-500">FY Carried</div>
+                  <div className="text-white font-semibold">{carryResult.currentFY} → {carryResult.nextFY}</div>
+                </div>
+                <div className="p-2 bg-gray-800 rounded">
+                  <div className="text-gray-500">Ledgers</div>
+                  <div className="text-white font-semibold">{carryResult.ledgersCarriedForward} new, {carryResult.ledgersUpdated} updated</div>
+                </div>
+                <div className="p-2 bg-gray-800 rounded">
+                  <div className="text-gray-500">Total Income</div>
+                  <div className="text-green-400 font-semibold">{fmt(carryResult.totalIncome || 0)}</div>
+                </div>
+                <div className="p-2 bg-gray-800 rounded">
+                  <div className="text-gray-500">Total Expense</div>
+                  <div className="text-red-400 font-semibold">{fmt(carryResult.totalExpense || 0)}</div>
+                </div>
+                <div className={`p-2 rounded col-span-2 ${carryResult.isProfit ? 'bg-green-900/30' : 'bg-red-900/30'}`}>
+                  <div className="text-gray-400">Net {carryResult.isProfit ? 'Profit' : 'Loss'} → Reserves &amp; Surplus</div>
+                  <div className={`text-lg font-bold ${carryResult.isProfit ? 'text-green-400' : 'text-red-400'}`}>
+                    {fmt(Math.abs(carryResult.netProfit || 0))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Carried Ledger List */}
+              {carryResult.carriedLedgers?.length > 0 && (
+                <details className="text-xs">
+                  <summary className="text-gray-400 cursor-pointer hover:text-gray-300">
+                    View {carryResult.carriedLedgers.length} carried ledgers
+                  </summary>
+                  <div className="mt-2 max-h-48 overflow-y-auto space-y-1">
+                    {carryResult.carriedLedgers.map((l: any, i: number) => (
+                      <div key={i} className="flex items-center justify-between p-1.5 bg-gray-800 rounded">
+                        <div>
+                          <span className="text-white">{l.name}</span>
+                          <span className="text-gray-600 ml-1.5">({l.group})</span>
+                        </div>
+                        <span className={l.openingBalanceType === 'DEBIT' ? 'text-blue-400' : 'text-orange-400'}>
+                          {fmt(l.openingBalance)} {l.openingBalanceType === 'DEBIT' ? 'Dr' : 'Cr'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
             </div>
           )}
         </div>
@@ -2921,6 +3020,7 @@ ${contentHtml}
               <Calendar className="w-4 h-4 text-yellow-400" />
               <select value={fy} onChange={e => { setFy(e.target.value); clearAllCachedData(); }}
                 className="text-sm text-yellow-300 bg-transparent outline-none">
+                <option value="2025-26" className="bg-gray-900 text-white">FY 2025-26{fy === '2025-26' && fyLocked ? ' (Locked)' : ''}</option>
                 <option value="2024-25" className="bg-gray-900 text-white">FY 2024-25{fy === '2024-25' && fyLocked ? ' (Locked)' : ''}</option>
                 <option value="2023-24" className="bg-gray-900 text-white">FY 2023-24{fy === '2023-24' && fyLocked ? ' (Locked)' : ''}</option>
               </select>
