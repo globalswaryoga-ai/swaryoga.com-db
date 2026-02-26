@@ -131,6 +131,8 @@ export async function POST(request: NextRequest) {
           s3Key: f.s3Key,
           s3Url: f.s3Url,
           fileSize: f.fileSize,
+          bunnyVideoId: f.bunnyVideoId || null,
+          bunnyEmbedUrl: f.bunnyEmbedUrl || null,
         })),
         skippedFiles: syncResult.skippedFiles,
         errors: syncResult.errors,

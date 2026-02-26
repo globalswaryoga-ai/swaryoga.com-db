@@ -9,7 +9,7 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { getAccLedger, getAccGroup } from '@/lib/schemas/enterpriseSchemas';
-import { calculateLedgerBalance } from '@/lib/tally/engine';
+import { calculateLedgerBalance, invalidateReportCache } from '@/lib/tally/engine';
 
 function getAuth(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -117,6 +117,8 @@ export async function POST(request: NextRequest) {
       gstin, phone, email, address, state,
       createdByUserId: (decoded as any)?.userId,
     });
+
+    invalidateReportCache(financialYear);
 
     return apiSuccess({
       id: String(ledger._id),

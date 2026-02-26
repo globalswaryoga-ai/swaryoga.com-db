@@ -18,6 +18,36 @@ import mongoose from 'mongoose';
 import { connectDB } from '@/lib/db';
 import { getAccLedger, getAccVoucher, getAccGroup, getAccFinancialYear } from '@/lib/schemas/enterpriseSchemas';
 
+// ─── Server-Side Report Cache (30s TTL) ─────────────────────────────
+// Avoids re-computing identical reports when user switches tabs quickly.
+// Cache is keyed by "reportType:fy" and auto-expires after 30 seconds.
+
+interface CacheEntry { data: any; expiresAt: number; }
+const _reportCache = new Map<string, CacheEntry>();
+const CACHE_TTL_MS = 30_000; // 30 seconds
+
+function getCached<T>(key: string): T | null {
+  const entry = _reportCache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) { _reportCache.delete(key); return null; }
+  return entry.data as T;
+}
+
+function setCache(key: string, data: any): void {
+  _reportCache.set(key, { data, expiresAt: Date.now() + CACHE_TTL_MS });
+}
+
+/** Call after any ledger/voucher mutation to invalidate stale reports */
+export function invalidateReportCache(financialYear?: string): void {
+  if (financialYear) {
+    for (const k of _reportCache.keys()) {
+      if (k.includes(`:${financialYear}`)) _reportCache.delete(k);
+    }
+  } else {
+    _reportCache.clear();
+  }
+}
+
 // ─── Types ──────────────────────────────────────────────────────────
 
 export type AccountGroup = 'ASSET' | 'LIABILITY' | 'INCOME' | 'EXPENSE' | 'CAPITAL';
@@ -1746,35 +1776,95 @@ export interface MonthlyPLRow {
 
 export async function generateMonthlyPL(financialYear: string): Promise<MonthlyPLRow[]> {
   await connectDB();
+  const AccLedger = getAccLedger();
+  const AccVoucher = getAccVoucher();
 
   // Parse FY code: "2025-26" → start April 2025, end March 2026
   const [startYearStr] = financialYear.split('-');
   const startYear = parseInt(startYearStr, 10);
   if (isNaN(startYear)) throw new Error(`Invalid FY code: ${financialYear}`);
 
+  const fyStart = new Date(startYear, 3, 1); // April 1
+  const fyEnd = new Date(startYear + 1, 2, 31, 23, 59, 59, 999); // March 31
+
+  // 1. Get all INCOME and EXPENSE ledger IDs in one query
+  const plLedgers = await AccLedger.find({
+    financialYear,
+    group: { $in: ['INCOME', 'EXPENSE'] },
+    isActive: true,
+  }).lean() as any[];
+
+  const ledgerMap = new Map(plLedgers.map((l: any) => [String(l._id), l]));
+
+  // 2. Single aggregate: group by month + ledgerId + entry type
+  //    Replaces 12 months × N ledgers sequential queries with ONE query
+  const agg = await AccVoucher.aggregate([
+    {
+      $match: {
+        financialYear,
+        isReversed: { $ne: true },
+        date: { $gte: fyStart, $lte: fyEnd },
+      },
+    },
+    { $unwind: '$entries' },
+    {
+      $match: {
+        'entries.ledgerId': { $in: plLedgers.map((l: any) => l._id) },
+      },
+    },
+    {
+      $group: {
+        _id: {
+          year: { $year: '$date' },
+          month: { $month: '$date' },
+          ledgerId: '$entries.ledgerId',
+          type: '$entries.type',
+        },
+        total: { $sum: '$entries.amount' },
+      },
+    },
+  ]);
+
+  // 3. Build monthly totals from the single aggregate result
+  const monthlyData = new Map<string, { income: number; expense: number }>();
+  for (const row of agg) {
+    const { year, month, ledgerId, type } = row._id;
+    const key = `${year}-${String(month).padStart(2, '0')}`;
+    if (!monthlyData.has(key)) monthlyData.set(key, { income: 0, expense: 0 });
+    const entry = monthlyData.get(key)!;
+    const ledger = ledgerMap.get(String(ledgerId));
+    if (!ledger) continue;
+
+    if (ledger.group === 'INCOME') {
+      if (type === 'CREDIT') entry.income += row.total;
+      else entry.income -= row.total;
+    } else if (ledger.group === 'EXPENSE') {
+      if (type === 'DEBIT') entry.expense += row.total;
+      else entry.expense -= row.total;
+    }
+  }
+
+  // 4. Build the 12-month result array
   const months: MonthlyPLRow[] = [];
-
-  // April (month 3 in JS, 0-indexed) of startYear → March (month 2) of startYear+1
   for (let i = 0; i < 12; i++) {
-    const monthIndex = (3 + i) % 12; // Apr=3, May=4, ..., Mar=2
+    const monthIndex = (3 + i) % 12;
     const year = monthIndex >= 3 ? startYear : startYear + 1;
+    const dateObj = new Date(year, monthIndex, 1);
+    const key = `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
+    const data = monthlyData.get(key) || { income: 0, expense: 0 };
 
-    const dateFrom = new Date(year, monthIndex, 1);
-    const dateTo = new Date(year, monthIndex + 1, 0, 23, 59, 59, 999); // last day of month
-
-    // Only need the period-specific P&L, not cumulative
-    const plMonth = await generateProfitLossForPeriod(financialYear, dateFrom, dateTo);
-
-    const monthName = dateFrom.toLocaleString('en-IN', { month: 'short', year: 'numeric' });
+    const totalIncome = Math.round(Math.abs(data.income) * 100) / 100;
+    const totalExpense = Math.round(Math.abs(data.expense) * 100) / 100;
+    const netProfit = Math.round((totalIncome - totalExpense) * 100) / 100;
 
     months.push({
-      month: monthName,
+      month: dateObj.toLocaleString('en-IN', { month: 'short', year: 'numeric' }),
       monthNum: monthIndex + 1,
       year,
-      totalIncome: plMonth.totalIncome,
-      totalExpense: plMonth.totalExpense,
-      netProfit: plMonth.netProfit,
-      isProfit: plMonth.isProfit,
+      totalIncome,
+      totalExpense,
+      netProfit,
+      isProfit: netProfit >= 0,
     });
   }
 
@@ -2143,18 +2233,25 @@ export async function generateCAAuditReport(financialYear: string): Promise<CAAu
 
   // Generate all reports sharing a single balanceMap (2 DB queries replaces 70+)
   const balanceMap = await batchCalculateLedgerBalances(financialYear);
-  const tb = await generateTrialBalance(financialYear, undefined, balanceMap);
-  const pl = await generateProfitLoss(financialYear, undefined, balanceMap);
+  const [tb, pl, monthly] = await Promise.all([
+    generateTrialBalance(financialYear, undefined, balanceMap),
+    generateProfitLoss(financialYear, undefined, balanceMap),
+    generateMonthlyPL(financialYear),
+  ]);
   const bs = await generateBalanceSheet(financialYear, undefined, balanceMap, pl);
   const cashBank = await getCashBankSummary(financialYear, balanceMap);
 
-  const [monthly, summary] = await Promise.all([
-    generateMonthlyPL(financialYear),
-    getAccountingSummary(financialYear),
+  // Inline voucher breakdown instead of calling getAccountingSummary (avoids duplicate batchCalculateLedgerBalances)
+  const voucherBreakdown = await AccVoucher.aggregate([
+    { $match: { financialYear, isReversed: { $ne: true } } },
+    { $group: { _id: '$type', count: { $sum: 1 }, totalAmount: { $sum: '$totalDebit' } } },
+    { $sort: { _id: 1 } },
   ]);
-
-  // Get voucher summary from existing summary
-  const voucherSummary = (summary as any).voucherBreakdown || [];
+  const voucherSummary = voucherBreakdown.map((v: any) => ({
+    type: v._id,
+    count: v.count,
+    totalAmount: Math.round(v.totalAmount * 100) / 100,
+  }));
 
   // Generate ledger-wise details
   const ledgerWise = tb.rows.map((r: any) => ({

@@ -11,7 +11,7 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { getAccVoucher, getAccLedger } from '@/lib/schemas/enterpriseSchemas';
-import { createVoucher, validateVoucherEntries, type VoucherType } from '@/lib/tally/engine';
+import { createVoucher, validateVoucherEntries, invalidateReportCache, type VoucherType } from '@/lib/tally/engine';
 
 function getAuth(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -139,6 +139,8 @@ export async function POST(request: NextRequest) {
       receiptFileUrl,
       receiptFileName,
     });
+
+    invalidateReportCache(financialYear);
 
     return apiSuccess({
       id: String(voucher._id),
