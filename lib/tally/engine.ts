@@ -971,7 +971,26 @@ export async function exportTallyXML(financialYear: string): Promise<string> {
   xml += `   <REQUESTDATA>\n`;
 
   // ── Export Groups ──
+  // CRITICAL: Skip groups that match Tally's built-in predefined groups.
+  // Tally Prime has ~28 built-in groups that cannot be re-created via XML import.
+  // Trying to CREATE them causes errors / duplicates / corruption.
+  const TALLY_BUILTIN_GROUPS = new Set([
+    'Capital Account', 'Current Assets', 'Current Liabilities',
+    'Direct Expenses', 'Direct Incomes', 'Fixed Assets',
+    'Indirect Expenses', 'Indirect Incomes', 'Investments',
+    'Loans (Liability)', 'Secured Loans', 'Unsecured Loans',
+    'Suspense A/c', 'Misc. Expenses (ASSET)',
+    'Purchase Accounts', 'Sales Accounts',
+    'Cash-in-Hand', 'Bank Accounts', 'Bank OCC A/c', 'Bank OD A/c',
+    'Sundry Debtors', 'Sundry Creditors', 'Duties & Taxes', 'Provisions',
+    'Reserves & Surplus', 'Stock-in-Hand', 'Deposits (Asset)',
+    'Loans & Advances (Asset)', 'Branch / Divisions', 'Primary',
+  ]);
+
   for (const g of groups) {
+    // Skip built-in groups — they already exist in every Tally company
+    if (TALLY_BUILTIN_GROUPS.has(g.name)) continue;
+
     const parentGroup = TALLY_SUBGROUP_MAP[g.name] || TALLY_GROUP_MAP[g.nature] || 'Primary';
     xml += `    <TALLYMESSAGE xmlns:UDF="TallyUDF">\n`;
     xml += `     <GROUP NAME="${escXml(g.name)}" ACTION="Create">\n`;
@@ -985,6 +1004,19 @@ export async function exportTallyXML(financialYear: string): Promise<string> {
     xml += `     </GROUP>\n`;
     xml += `    </TALLYMESSAGE>\n`;
   }
+
+  // ── Create "Profit & Loss A/c" ledger (required for journal vouchers) ──
+  // This is a Tally reserved ledger under "Primary" group. We must create it
+  // explicitly so the compound journal can reference it.
+  xml += `    <TALLYMESSAGE xmlns:UDF="TallyUDF">\n`;
+  xml += `     <LEDGER NAME="Profit &amp; Loss A/c" ACTION="Create">\n`;
+  xml += `      <NAME.LIST>\n`;
+  xml += `       <NAME>Profit &amp; Loss A/c</NAME>\n`;
+  xml += `      </NAME.LIST>\n`;
+  xml += `      <PARENT>Primary</PARENT>\n`;
+  xml += `      <OPENINGBALANCE>0.00</OPENINGBALANCE>\n`;
+  xml += `     </LEDGER>\n`;
+  xml += `    </TALLYMESSAGE>\n`;
 
   // ── Export Ledgers ──
   // CRITICAL for Tally Prime: Income/Expense are NOMINAL accounts — they must
@@ -1088,7 +1120,7 @@ export async function exportTallyXML(financialYear: string): Promise<string> {
     xml += `    </TALLYMESSAGE>\n`;
   }
 
-// ── Year-End Profit → Capital Transfer (Voucher-mode only) ──
+  // ── Year-End Profit → Capital Transfer (Voucher-mode only) ──
   // Only needed when actual vouchers exist. For CA Report mode, the compound
   // journal above already pushes the net P&L into "Profit & Loss A/c", and
   // the BS OBs (being closing figures) already include the P&L absorption —
