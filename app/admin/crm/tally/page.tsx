@@ -92,6 +92,8 @@ interface Summary {
   openingBalance: number;
   closingBalance: number;
   cashInHand: number;
+  totalBankReceived?: number;
+  totalBankExpense?: number;
 }
 
 interface TrialBalanceRow {
@@ -1062,6 +1064,19 @@ export default function TallyPage() {
               <div className="text-lg font-bold font-mono text-yellow-400">{fmt(summary.cashInHand)}</div>
             </div>
           </div>
+          {/* Bank Received vs Bank Expense row */}
+          {(summary.totalBankReceived || summary.totalBankExpense) ? (
+            <div className="grid grid-cols-2 gap-4 mt-4">
+              <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-center">
+                <div className="text-xs text-gray-500 mb-1">Total Bank Received</div>
+                <div className="text-lg font-bold font-mono text-emerald-400">{fmt(summary.totalBankReceived || 0)}</div>
+              </div>
+              <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-center">
+                <div className="text-xs text-gray-500 mb-1">Total Bank Expense</div>
+                <div className="text-lg font-bold font-mono text-rose-400">{fmt(summary.totalBankExpense || 0)}</div>
+              </div>
+            </div>
+          ) : null}
         </div>
 
         {/* Balance Sheet Status + Quick Stats */}

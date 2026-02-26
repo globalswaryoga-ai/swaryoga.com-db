@@ -841,6 +841,28 @@ export async function getAccountingSummary(financialYear: string) {
     }
   }
 
+  // ── Bank totals: total received (debit to bank) & total spent (credit from bank) ──
+  // Use actual bank ledger IDs (subGroup = 'Bank Accounts') instead of regex on name
+  const bankLedgerIds = [...balanceMap.values()]
+    .filter(b => b.subGroup === 'Bank Accounts')
+    .map(b => {
+      try { return new mongoose.Types.ObjectId(b.ledgerId); } catch { return b.ledgerId; }
+    });
+  const bankAgg = bankLedgerIds.length > 0
+    ? await AccVoucher.aggregate([
+        { $match: { financialYear, isReversed: { $ne: true } } },
+        { $unwind: '$entries' },
+        { $match: { 'entries.ledgerId': { $in: bankLedgerIds } } },
+        { $group: { _id: '$entries.type', total: { $sum: '$entries.amount' } } },
+      ])
+    : [];
+  let totalBankReceived = 0;
+  let totalBankExpense = 0;
+  for (const row of bankAgg) {
+    if (row._id === 'DEBIT') totalBankReceived = Math.round(row.total * 100) / 100;
+    if (row._id === 'CREDIT') totalBankExpense = Math.round(row.total * 100) / 100;
+  }
+
   return {
     financialYear,
     ledgerCount,
@@ -867,6 +889,8 @@ export async function getAccountingSummary(financialYear: string) {
     openingBalance: Math.round(openingBalanceAssets * 100) / 100,
     closingBalance: Math.round(bs.totalAssets * 100) / 100,
     cashInHand: Math.round(cashInHand * 100) / 100,
+    totalBankReceived,
+    totalBankExpense,
   };
 }
 
