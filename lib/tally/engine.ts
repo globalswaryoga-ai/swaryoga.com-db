@@ -218,6 +218,79 @@ export async function createVoucher(data: {
 
 // ─── Ledger Balance Calculation ─────────────────────────────────────
 
+/**
+ * Batch-calculate balances for ALL ledgers in a financial year using a single
+ * aggregate query. Returns a Map keyed by ledgerId string.
+ * This replaces dozens of sequential calculateLedgerBalance() calls.
+ */
+export async function batchCalculateLedgerBalances(
+  financialYear: string,
+  dateTo?: Date,
+): Promise<Map<string, LedgerBalance>> {
+  await connectDB();
+  const AccLedger = getAccLedger();
+  const AccVoucher = getAccVoucher();
+
+  // 1. Fetch ALL active ledgers in one query
+  const ledgers = await AccLedger.find({ financialYear, isActive: true }).lean() as any[];
+
+  // 2. Single aggregate: sum debit/credit per ledger across all vouchers
+  const matchQuery: any = { financialYear, isReversed: { $ne: true } };
+  if (dateTo) matchQuery.date = { $lte: dateTo };
+
+  const agg = await AccVoucher.aggregate([
+    { $match: matchQuery },
+    { $unwind: '$entries' },
+    {
+      $group: {
+        _id: { ledgerId: '$entries.ledgerId', type: '$entries.type' },
+        total: { $sum: '$entries.amount' },
+      },
+    },
+  ]);
+
+  // Build a lookup: ledgerId -> { periodDebit, periodCredit }
+  const voucherTotals = new Map<string, { periodDebit: number; periodCredit: number }>();
+  for (const row of agg) {
+    const lid = String(row._id.ledgerId);
+    if (!voucherTotals.has(lid)) voucherTotals.set(lid, { periodDebit: 0, periodCredit: 0 });
+    const entry = voucherTotals.get(lid)!;
+    if (row._id.type === 'DEBIT') entry.periodDebit = row.total;
+    if (row._id.type === 'CREDIT') entry.periodCredit = row.total;
+  }
+
+  // 3. Build balance for each ledger
+  const result = new Map<string, LedgerBalance>();
+  for (const l of ledgers) {
+    const lid = String(l._id);
+    const openingDebit = l.openingBalanceType === 'DEBIT' ? (l.openingBalance || 0) : 0;
+    const openingCredit = l.openingBalanceType === 'CREDIT' ? (l.openingBalance || 0) : 0;
+
+    const vt = voucherTotals.get(lid) || { periodDebit: 0, periodCredit: 0 };
+    const totalDebit = openingDebit + vt.periodDebit;
+    const totalCredit = openingCredit + vt.periodCredit;
+    const net = totalDebit - totalCredit;
+
+    result.set(lid, {
+      ledgerId: lid,
+      ledgerName: l.name,
+      group: l.group,
+      subGroup: l.subGroup,
+      openingDebit,
+      openingCredit,
+      periodDebit: Math.round(vt.periodDebit * 100) / 100,
+      periodCredit: Math.round(vt.periodCredit * 100) / 100,
+      closingDebit: net >= 0 ? Math.round(Math.abs(net) * 100) / 100 : 0,
+      closingCredit: net < 0 ? Math.round(Math.abs(net) * 100) / 100 : 0,
+      closingBalance: Math.round(Math.abs(net) * 100) / 100,
+      closingBalanceType: net >= 0 ? 'DEBIT' : 'CREDIT',
+    });
+  }
+
+  return result;
+}
+
+
 export async function calculateLedgerBalance(
   ledgerId: string,
   financialYear: string,
@@ -302,6 +375,7 @@ export async function calculateLedgerBalance(
 export async function generateTrialBalance(
   financialYear: string,
   dateTo?: Date,
+  _balanceMap?: Map<string, LedgerBalance>,
 ): Promise<{
   rows: TrialBalanceRow[];
   totalDebit: number;
@@ -309,17 +383,15 @@ export async function generateTrialBalance(
   difference: number;
 }> {
   await connectDB();
-  const AccLedger = getAccLedger();
 
-  const ledgers = await AccLedger.find({ financialYear, isActive: true }).lean();
+  // Use provided balanceMap or compute once
+  const balanceMap = _balanceMap || await batchCalculateLedgerBalances(financialYear, dateTo);
 
   const rows: TrialBalanceRow[] = [];
   let totalDebit = 0;
   let totalCredit = 0;
 
-  for (const ledger of ledgers) {
-    const l = ledger as any;
-    const bal = await calculateLedgerBalance(String(l._id), financialYear, undefined, dateTo);
+  for (const bal of balanceMap.values()) {
     if (bal.closingBalance > 0) {
       rows.push(bal);
       totalDebit += bal.closingDebit;
@@ -344,12 +416,12 @@ export async function generateTrialBalance(
 export async function generateProfitLoss(
   financialYear: string,
   dateTo?: Date,
+  _balanceMap?: Map<string, LedgerBalance>,
 ): Promise<ProfitLossResult> {
   await connectDB();
-  const AccLedger = getAccLedger();
 
-  const incomeLedgers = await AccLedger.find({ financialYear, group: 'INCOME', isActive: true }).lean();
-  const expenseLedgers = await AccLedger.find({ financialYear, group: 'EXPENSE', isActive: true }).lean();
+  // Use provided balanceMap or compute once
+  const balanceMap = _balanceMap || await batchCalculateLedgerBalances(financialYear, dateTo);
 
   const income: ReportRow[] = [];
   const expenses: ReportRow[] = [];
@@ -357,25 +429,21 @@ export async function generateProfitLoss(
   let totalIncome = 0;
   let totalExpense = 0;
 
-  for (const l of incomeLedgers) {
-    const ledger = l as any;
-    const bal = await calculateLedgerBalance(String(ledger._id), financialYear, undefined, dateTo);
-    // Income normal balance is CREDIT. Income amount = credit - debit
-    const amount = (bal.openingCredit + bal.periodCredit) - (bal.openingDebit + bal.periodDebit);
-    if (Math.abs(amount) > 0.01) {
-      income.push({ ledgerName: bal.ledgerName, amount: Math.round(Math.abs(amount) * 100) / 100, subGroup: bal.subGroup });
-      totalIncome += Math.abs(amount);
-    }
-  }
-
-  for (const l of expenseLedgers) {
-    const ledger = l as any;
-    const bal = await calculateLedgerBalance(String(ledger._id), financialYear, undefined, dateTo);
-    // Expense normal balance is DEBIT. Expense amount = debit - credit
-    const amount = (bal.openingDebit + bal.periodDebit) - (bal.openingCredit + bal.periodCredit);
-    if (Math.abs(amount) > 0.01) {
-      expenses.push({ ledgerName: bal.ledgerName, amount: Math.round(Math.abs(amount) * 100) / 100, subGroup: bal.subGroup });
-      totalExpense += Math.abs(amount);
+  for (const bal of balanceMap.values()) {
+    if (bal.group === 'INCOME') {
+      // Income normal balance is CREDIT. Income amount = credit - debit
+      const amount = (bal.openingCredit + bal.periodCredit) - (bal.openingDebit + bal.periodDebit);
+      if (Math.abs(amount) > 0.01) {
+        income.push({ ledgerName: bal.ledgerName, amount: Math.round(Math.abs(amount) * 100) / 100, subGroup: bal.subGroup });
+        totalIncome += Math.abs(amount);
+      }
+    } else if (bal.group === 'EXPENSE') {
+      // Expense normal balance is DEBIT. Expense amount = debit - credit
+      const amount = (bal.openingDebit + bal.periodDebit) - (bal.openingCredit + bal.periodCredit);
+      if (Math.abs(amount) > 0.01) {
+        expenses.push({ ledgerName: bal.ledgerName, amount: Math.round(Math.abs(amount) * 100) / 100, subGroup: bal.subGroup });
+        totalExpense += Math.abs(amount);
+      }
     }
   }
 
@@ -415,13 +483,13 @@ export async function generateProfitLoss(
 export async function generateBalanceSheet(
   financialYear: string,
   dateTo?: Date,
+  _balanceMap?: Map<string, LedgerBalance>,
+  _plResult?: ProfitLossResult,
 ): Promise<BalanceSheetResult> {
   await connectDB();
-  const AccLedger = getAccLedger();
 
-  const assetLedgers = await AccLedger.find({ financialYear, group: 'ASSET', isActive: true }).lean();
-  const liabilityLedgers = await AccLedger.find({ financialYear, group: 'LIABILITY', isActive: true }).lean();
-  const capitalLedgers = await AccLedger.find({ financialYear, group: 'CAPITAL', isActive: true }).lean();
+  // Use provided balanceMap or compute once
+  const balanceMap = _balanceMap || await batchCalculateLedgerBalances(financialYear, dateTo);
 
   const assets: ReportRow[] = [];
   const liabilities: ReportRow[] = [];
@@ -431,38 +499,30 @@ export async function generateBalanceSheet(
   let totalLiabilities = 0;
   let totalCapital = 0;
 
-  for (const l of assetLedgers) {
-    const ledger = l as any;
-    const bal = await calculateLedgerBalance(String(ledger._id), financialYear, undefined, dateTo);
-    if (bal.closingBalance > 0.01) {
-      const signedAmount = bal.closingBalanceType === 'DEBIT' ? bal.closingBalance : -bal.closingBalance;
-      assets.push({ ledgerName: bal.ledgerName, amount: signedAmount, subGroup: bal.subGroup });
-      totalAssets += signedAmount;
+  for (const bal of balanceMap.values()) {
+    if (bal.group === 'ASSET') {
+      if (bal.closingBalance > 0.01) {
+        const signedAmount = bal.closingBalanceType === 'DEBIT' ? bal.closingBalance : -bal.closingBalance;
+        assets.push({ ledgerName: bal.ledgerName, amount: signedAmount, subGroup: bal.subGroup });
+        totalAssets += signedAmount;
+      }
+    } else if (bal.group === 'LIABILITY') {
+      if (bal.closingBalance > 0.01) {
+        const signedAmount = bal.closingBalanceType === 'CREDIT' ? bal.closingBalance : -bal.closingBalance;
+        liabilities.push({ ledgerName: bal.ledgerName, amount: signedAmount, subGroup: bal.subGroup });
+        totalLiabilities += signedAmount;
+      }
+    } else if (bal.group === 'CAPITAL') {
+      if (bal.closingBalance > 0.01) {
+        const signedAmount = bal.closingBalanceType === 'CREDIT' ? bal.closingBalance : -bal.closingBalance;
+        capital.push({ ledgerName: bal.ledgerName, amount: signedAmount, subGroup: bal.subGroup });
+        totalCapital += signedAmount;
+      }
     }
   }
 
-  for (const l of liabilityLedgers) {
-    const ledger = l as any;
-    const bal = await calculateLedgerBalance(String(ledger._id), financialYear, undefined, dateTo);
-    if (bal.closingBalance > 0.01) {
-      const signedAmount = bal.closingBalanceType === 'CREDIT' ? bal.closingBalance : -bal.closingBalance;
-      liabilities.push({ ledgerName: bal.ledgerName, amount: signedAmount, subGroup: bal.subGroup });
-      totalLiabilities += signedAmount;
-    }
-  }
-
-  for (const l of capitalLedgers) {
-    const ledger = l as any;
-    const bal = await calculateLedgerBalance(String(ledger._id), financialYear, undefined, dateTo);
-    if (bal.closingBalance > 0.01) {
-      const signedAmount = bal.closingBalanceType === 'CREDIT' ? bal.closingBalance : -bal.closingBalance;
-      capital.push({ ledgerName: bal.ledgerName, amount: signedAmount, subGroup: bal.subGroup });
-      totalCapital += signedAmount;
-    }
-  }
-
-  // Get P&L to include current year profit in Balance Sheet (auto Surplus from P&L A/c)
-  const pl = await generateProfitLoss(financialYear, dateTo);
+  // Reuse provided P&L or compute (sharing the same balanceMap avoids duplicate queries)
+  const pl = _plResult || await generateProfitLoss(financialYear, dateTo, balanceMap);
 
   totalAssets = Math.round(totalAssets * 100) / 100;
   totalLiabilities = Math.round(totalLiabilities * 100) / 100;
@@ -660,30 +720,26 @@ export async function getLedgerStatement(
 
 // ─── Cash/Bank Summary ──────────────────────────────────────────────
 
-export async function getCashBankSummary(financialYear: string) {
+export async function getCashBankSummary(financialYear: string, _balanceMap?: Map<string, LedgerBalance>) {
   await connectDB();
-  const AccLedger = getAccLedger();
 
-  // Cash and bank ledgers are ASSET sub-groups
-  const cashBankLedgers = await AccLedger.find({
-    financialYear,
-    group: 'ASSET',
-    isActive: true,
-    subGroup: { $in: ['Cash-in-Hand', 'Bank Accounts', 'Cash', 'Bank'] },
-  }).lean();
+  // Use provided balanceMap or compute
+  const balanceMap = _balanceMap || await batchCalculateLedgerBalances(financialYear);
 
+  const cashBankSubGroups = new Set(['Cash-in-Hand', 'Bank Accounts', 'Cash', 'Bank']);
   const result: { name: string; subGroup: string; balance: number; balanceType: BalanceType; totalReceipts: number; totalPayments: number }[] = [];
-  for (const l of cashBankLedgers) {
-    const ledger = l as any;
-    const bal = await calculateLedgerBalance(String(ledger._id), financialYear);
-    result.push({
-      name: ledger.name,
-      subGroup: ledger.subGroup,
-      balance: bal.closingBalance,
-      balanceType: bal.closingBalanceType,
-      totalReceipts: bal.periodDebit,
-      totalPayments: bal.periodCredit,
-    });
+
+  for (const bal of balanceMap.values()) {
+    if (bal.group === 'ASSET' && cashBankSubGroups.has(bal.subGroup || '')) {
+      result.push({
+        name: bal.ledgerName,
+        subGroup: bal.subGroup || '',
+        balance: bal.closingBalance,
+        balanceType: bal.closingBalanceType,
+        totalReceipts: bal.periodDebit,
+        totalPayments: bal.periodCredit,
+      });
+    }
   }
 
   return result;
@@ -697,12 +753,17 @@ export async function getAccountingSummary(financialYear: string) {
   const AccVoucher = getAccVoucher();
   const AccFinancialYear = getAccFinancialYear();
 
-  const [ledgerCount, voucherCount, pl, bs, cashBank, fyDoc] = await Promise.all([
+  // Compute ALL ledger balances once (2 queries instead of 70+)
+  const balanceMap = await batchCalculateLedgerBalances(financialYear);
+
+  // Generate P&L first, then pass it to BS to avoid double computation
+  const pl = await generateProfitLoss(financialYear, undefined, balanceMap);
+  const bs = await generateBalanceSheet(financialYear, undefined, balanceMap, pl);
+  const cashBank = await getCashBankSummary(financialYear, balanceMap);
+
+  const [ledgerCount, voucherCount, fyDoc] = await Promise.all([
     AccLedger.countDocuments({ financialYear, isActive: true }),
     AccVoucher.countDocuments({ financialYear, isReversed: { $ne: true } }),
-    generateProfitLoss(financialYear),
-    generateBalanceSheet(financialYear),
-    getCashBankSummary(financialYear),
     AccFinancialYear.findOne({ code: financialYear }).lean(),
   ]);
 
@@ -713,18 +774,16 @@ export async function getAccountingSummary(financialYear: string) {
     { $sort: { _id: 1 } },
   ]);
 
-  // Opening Balance = sum of BS ledger opening balances (ASSET, LIABILITY, CAPITAL only)
-  const allLedgers = await AccLedger.find({ financialYear, isActive: true }).lean();
+  // Calculate opening balance and cash-in-hand from the already-computed balanceMap
   let openingBalanceAssets = 0;
   let cashInHand = 0;
 
-  for (const l of allLedgers as any[]) {
-    if (l.group === 'ASSET') {
-      openingBalanceAssets += l.openingBalanceType === 'DEBIT' ? (l.openingBalance || 0) : -(l.openingBalance || 0);
+  for (const bal of balanceMap.values()) {
+    if (bal.group === 'ASSET') {
+      const openingAmount = bal.openingDebit - bal.openingCredit;
+      openingBalanceAssets += openingAmount;
     }
-    // Cash in Hand = only Cash-in-Hand sub-group ledgers
-    if (l.subGroup === 'Cash-in-Hand') {
-      const bal = await calculateLedgerBalance(String(l._id), financialYear);
+    if (bal.subGroup === 'Cash-in-Hand') {
       cashInHand += bal.closingBalanceType === 'DEBIT' ? bal.closingBalance : -bal.closingBalance;
     }
   }
@@ -1398,9 +1457,7 @@ export async function generateMonthlyPL(financialYear: string): Promise<MonthlyP
     const dateFrom = new Date(year, monthIndex, 1);
     const dateTo = new Date(year, monthIndex + 1, 0, 23, 59, 59, 999); // last day of month
 
-    const pl = await generateProfitLoss(financialYear, dateTo);
-    // For monthly, we need ONLY this month's transactions, not cumulative
-    // So we need to calculate with dateFrom too
+    // Only need the period-specific P&L, not cumulative
     const plMonth = await generateProfitLossForPeriod(financialYear, dateFrom, dateTo);
 
     const monthName = dateFrom.toLocaleString('en-IN', { month: 'short', year: 'numeric' });
@@ -1709,13 +1766,15 @@ export async function generateCAAuditReport(financialYear: string): Promise<CAAu
   const fyDoc = await AccFinancialYear.findOne({ code: financialYear }).lean() as any;
   const companyName = fyDoc?.companyName || 'Swar Yoga';
 
-  // Generate all reports in parallel
-  const [tb, pl, bs, monthly, cashBank, summary] = await Promise.all([
-    generateTrialBalance(financialYear),
-    generateProfitLoss(financialYear),
-    generateBalanceSheet(financialYear),
+  // Generate all reports sharing a single balanceMap (2 DB queries replaces 70+)
+  const balanceMap = await batchCalculateLedgerBalances(financialYear);
+  const tb = await generateTrialBalance(financialYear, undefined, balanceMap);
+  const pl = await generateProfitLoss(financialYear, undefined, balanceMap);
+  const bs = await generateBalanceSheet(financialYear, undefined, balanceMap, pl);
+  const cashBank = await getCashBankSummary(financialYear, balanceMap);
+
+  const [monthly, summary] = await Promise.all([
     generateMonthlyPL(financialYear),
-    getCashBankSummary(financialYear),
     getAccountingSummary(financialYear),
   ]);
 
