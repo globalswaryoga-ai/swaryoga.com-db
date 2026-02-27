@@ -91,9 +91,9 @@ function generateLedgerXml(entries: any[], companyName: string): string {
 
   for (const entry of entries) {
     const tallyGroup = GROUP_MAP[entry.parentGroup] || entry.parentGroup;
-    // In Tally: positive = Debit, negative = Credit
+    // Tally XML convention: NEGATIVE = Debit, POSITIVE = Credit
     const rawAmount = Number(entry.amount) || 0;  // NaN-safe
-    const amount = entry.drCr === 'Cr' ? -Math.abs(rawAmount) : Math.abs(rawAmount);
+    const amount = entry.drCr === 'Cr' ? Math.abs(rawAmount) : -Math.abs(rawAmount);
     const amountStr = amount !== 0 ? amount.toFixed(2) : '';
 
     messages += `

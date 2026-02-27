@@ -1460,11 +1460,32 @@ export async function exportTallyXML(financialYear: string): Promise<string> {
   // in every company by default. Do NOT create it via XML — it would cause
   // duplicate ledger errors on import.
 
+  // ── Pre-calculate nominal amounts for journal balancing ──
+  // When there are no vouchers, we create a compound Journal for income/expense.
+  // The journal uses Cash-in-Hand as counterparty, so we pre-calculate the
+  // net difference to adjust Cash-in-Hand OB before emitting ledger XML.
+  const nominalLedgers: typeof ledgers = [];
+  let preTotalInc = 0, preTotalExp = 0;
+  if (vouchers.length === 0) {
+    for (const l of ledgers) {
+      const ob = Number(l.openingBalance) || 0;
+      if ((l.group === 'INCOME' || l.group === 'EXPENSE') && ob > 0) {
+        nominalLedgers.push(l);
+        if (l.group === 'INCOME') preTotalInc += ob;
+        else preTotalExp += ob;
+      }
+    }
+  }
+  const prePlDiff = preTotalExp - preTotalInc; // positive = loss, negative = profit
+  const needsCashAdj = vouchers.length === 0 && nominalLedgers.length > 0 && Math.abs(prePlDiff) > 0.01;
+  // Find Cash-in-Hand ledger name for journal counterparty
+  const cashLedger = ledgers.find(l => l.subGroup === 'Cash-in-Hand');
+  const cashLedgerName = cashLedger?.name || 'Cash-in-Hand';
+
   // ── Export Ledgers ──
   // CRITICAL for Tally Prime: Income/Expense are NOMINAL accounts — they must
   // NOT have opening balances. Only BS items (Asset, Liability, Capital) get OBs.
   // Income/Expense amounts are recorded via Journal vouchers below.
-  const nominalLedgers: typeof ledgers = []; // income/expense to journal later
 
   for (const l of ledgers) {
     // Resolve Tally parent group: mapped subGroup > Tally built-in subGroup > nature fallback
@@ -1475,11 +1496,15 @@ export async function exportTallyXML(financialYear: string): Promise<string> {
     const openBal = Number(l.openingBalance) || 0;  // NaN-safe
     const isNominal = l.group === 'INCOME' || l.group === 'EXPENSE';
 
-    // Tally convention: positive = debit, negative = credit for opening
+    // Tally XML convention: NEGATIVE = Debit, POSITIVE = Credit for OPENINGBALANCE
     // Nominal accounts get OB = 0 (their amounts go in as vouchers)
-    const tallyOpenBal = isNominal ? 0 : (l.openingBalanceType === 'DEBIT' ? openBal : -openBal);
+    let tallyOpenBal = isNominal ? 0 : (l.openingBalanceType === 'DEBIT' ? -openBal : openBal);
 
-    if (isNominal && openBal > 0) nominalLedgers.push(l);
+    // Adjust Cash-in-Hand OB to compensate for journal counterparty amount
+    // so that closing Cash balance equals original OB after journal entries
+    if (needsCashAdj && l.name === cashLedgerName) {
+      tallyOpenBal -= prePlDiff;
+    }
 
     xml += `    <TALLYMESSAGE xmlns:UDF="TallyUDF">\n`;
     xml += `     <LEDGER NAME="${escXml(l.name)}" ACTION="Create">\n`;
@@ -1501,23 +1526,21 @@ export async function exportTallyXML(financialYear: string): Promise<string> {
   // ── Income/Expense Journal Vouchers (CA Report annual amounts) ──
   // When no vouchers exist, Income/Expense amounts from CA report must be
   // entered as Journal vouchers so Tally shows them as period turnover, not OBs.
-  // We create ONE compound Journal: Dr all Expenses + Cr all Incomes + net to P&L A/c
+  // We create ONE compound Journal: Dr Expenses + Cr Incomes + net to Cash-in-Hand.
+  //
+  // WHY Cash-in-Hand and NOT Profit & Loss A/c:
+  //   Tally Prime auto-computes P&L from income/expense entries and shows it
+  //   under "Profit & Loss A/c" in the Balance Sheet. Using P&L A/c as the
+  //   counterparty would DOUBLE-COUNT the profit/loss (our entry + auto-computed
+  //   cancel each other, showing zero).
+  //   Using Cash-in-Hand as counterparty avoids double-counting. The Cash-in-Hand
+  //   OB is pre-adjusted above so its closing balance equals the original DB value.
   if (vouchers.length === 0 && nominalLedgers.length > 0) {
     const fyStartDate = fmtDate(fyStart);
 
     const incomeEntries = nominalLedgers.filter(l => l.group === 'INCOME');
     const expenseEntries = nominalLedgers.filter(l => l.group === 'EXPENSE');
 
-    let totalIncAmt = incomeEntries.reduce((s, l) => s + (l.openingBalance || 0), 0);
-    let totalExpAmt = expenseEntries.reduce((s, l) => s + (l.openingBalance || 0), 0);
-
-    // Single compound Journal — self-balancing:
-    //   Dr: All Expense ledgers (their annual amounts)
-    //   Cr: All Income ledgers (their annual amounts)
-    //   Net difference → Profit & Loss A/c (balancing entry)
-    //
-    // This makes Tally show correct P&L period turnover WITHOUT
-    // touching any BS ledger (no Cash-in-Hand inflation)
     xml += `    <TALLYMESSAGE xmlns:UDF="TallyUDF">\n`;
     xml += `     <VOUCHER VCHTYPE="Journal" ACTION="Create">\n`;
     xml += `      <DATE>${fyStartDate}</DATE>\n`;
@@ -1528,7 +1551,7 @@ export async function exportTallyXML(financialYear: string): Promise<string> {
     // Debit all expense ledgers
     // Tally convention: Debit = NEGATIVE amount, ISDEEMEDPOSITIVE = Yes
     for (const l of expenseEntries) {
-      const amt = l.openingBalance || 0;
+      const amt = Number(l.openingBalance) || 0;
       xml += `      <ALLLEDGERENTRIES.LIST>\n`;
       xml += `       <LEDGERNAME>${escXml(l.name)}</LEDGERNAME>\n`;
       xml += `       <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>\n`;
@@ -1539,7 +1562,7 @@ export async function exportTallyXML(financialYear: string): Promise<string> {
     // Credit all income ledgers
     // Tally convention: Credit = POSITIVE amount, ISDEEMEDPOSITIVE = No
     for (const l of incomeEntries) {
-      const amt = l.openingBalance || 0;
+      const amt = Number(l.openingBalance) || 0;
       xml += `      <ALLLEDGERENTRIES.LIST>\n`;
       xml += `       <LEDGERNAME>${escXml(l.name)}</LEDGERNAME>\n`;
       xml += `       <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>\n`;
@@ -1547,17 +1570,16 @@ export async function exportTallyXML(financialYear: string): Promise<string> {
       xml += `      </ALLLEDGERENTRIES.LIST>\n`;
     }
 
-    // Balancing entry → Profit & Loss A/c
+    // Balancing entry → Cash-in-Hand (NOT P&L A/c to avoid double-counting)
     // Journal sum so far: -totalExpAmt (Dr) + totalIncAmt (Cr)
-    // P&L entry must make total = 0  →  P&L amount = totalExpAmt - totalIncAmt
-    const plDiff = totalExpAmt - totalIncAmt; // positive = loss, negative = profit
-    if (Math.abs(plDiff) > 0.01) {
-      // Loss (plDiff>0): P&L A/c is CREDITED (positive amount) to balance
-      // Profit (plDiff<0): P&L A/c is DEBITED (negative amount) to balance
+    // Cash entry must make total = 0  →  Cash amount = totalExpAmt - totalIncAmt
+    if (Math.abs(prePlDiff) > 0.01) {
+      // Loss (prePlDiff>0): Cash is CREDITED (positive amount) to balance
+      // Profit (prePlDiff<0): Cash is DEBITED (negative amount) to balance
       xml += `      <ALLLEDGERENTRIES.LIST>\n`;
-      xml += `       <LEDGERNAME>Profit &amp; Loss A/c</LEDGERNAME>\n`;
-      xml += `       <ISDEEMEDPOSITIVE>${plDiff > 0 ? 'No' : 'Yes'}</ISDEEMEDPOSITIVE>\n`;
-      xml += `       <AMOUNT>${plDiff.toFixed(2)}</AMOUNT>\n`;
+      xml += `       <LEDGERNAME>${escXml(cashLedgerName)}</LEDGERNAME>\n`;
+      xml += `       <ISDEEMEDPOSITIVE>${prePlDiff > 0 ? 'No' : 'Yes'}</ISDEEMEDPOSITIVE>\n`;
+      xml += `       <AMOUNT>${prePlDiff.toFixed(2)}</AMOUNT>\n`;
       xml += `      </ALLLEDGERENTRIES.LIST>\n`;
     }
 
@@ -1640,7 +1662,8 @@ export function buildTallyXML(
   // 1. Export LEDGERS
   for (const l of ledgers) {
     const ob = Number(l.openingBalance) || 0;  // NaN-safe
-    const balance = l.openingBalanceType === 'DEBIT' ? ob : -ob;
+    // Tally XML convention: NEGATIVE = Debit, POSITIVE = Credit
+    const balance = l.openingBalanceType === 'DEBIT' ? -ob : ob;
     xml += `        <TALLYMESSAGE>\n`;
     xml += `          <LEDGER NAME="${escXml(l.name)}" ACTION="Create">\n`;
     xml += `            <PARENT>${escXml(l.group)}</PARENT>\n`;
