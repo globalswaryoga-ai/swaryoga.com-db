@@ -52,7 +52,7 @@ import {
 type AccountGroup = 'ASSET' | 'LIABILITY' | 'INCOME' | 'EXPENSE' | 'CAPITAL';
 type BalanceType = 'DEBIT' | 'CREDIT';
 type VoucherType = 'RECEIPT' | 'PAYMENT' | 'JOURNAL' | 'CONTRA' | 'SALES' | 'PURCHASE' | 'DEBIT_NOTE' | 'CREDIT_NOTE';
-type ViewTab = 'dashboard' | 'account' | 'ledgers' | 'vouchers' | 'trial-balance' | 'profit-loss' | 'monthly-pl' | 'balance-sheet' | 'daybook' | 'cashbank' | 'group-summary' | 'outstanding' | 'ca-audit' | 'ca-bills' | 'settings';
+type ViewTab = 'dashboard' | 'account' | 'ledgers' | 'vouchers' | 'trial-balance' | 'profit-loss' | 'monthly-pl' | 'balance-sheet' | 'daybook' | 'cashbank' | 'group-summary' | 'outstanding' | 'bank-recon' | 'gst-reports' | 'comparative' | 'budget' | 'ca-audit' | 'ca-bills' | 'settings';
 
 interface Ledger {
   id: string;
@@ -156,6 +156,10 @@ const TABS: { key: ViewTab; label: string; icon: any }[] = [
   { key: 'cashbank', label: 'Cash/Bank', icon: Wallet },
   { key: 'group-summary', label: 'Group Summary', icon: Layers },
   { key: 'outstanding', label: 'Outstanding', icon: Clock },
+  { key: 'bank-recon', label: 'Bank Recon', icon: CheckCircle },
+  { key: 'gst-reports', label: 'GST Reports', icon: Shield },
+  { key: 'comparative', label: 'Comparative', icon: ArrowRight },
+  { key: 'budget', label: 'Budget', icon: ClipboardList },
   { key: 'trial-balance', label: 'Trial Balance', icon: Scale },
   { key: 'profit-loss', label: 'P&L (Yearly)', icon: TrendingUp },
   { key: 'monthly-pl', label: 'P&L (Monthly)', icon: IndianRupee },
@@ -3615,6 +3619,668 @@ ${contentHtml}
     handlePrintReport(`Outstanding ${typeLabel}`, html);
   };
 
+  // ═══════════════════════════════════════════════════════════════════
+  // ██ BANK RECONCILIATION VIEW
+  // ═══════════════════════════════════════════════════════════════════
+
+  const [bankReconData, setBankReconData] = useState<any>(null);
+  const [bankReconLoading, setBankReconLoading] = useState(false);
+  const [selectedBankId, setSelectedBankId] = useState('');
+  const [bankList, setBankList] = useState<any[]>([]);
+  const [reconSelectedIds, setReconSelectedIds] = useState<Set<string>>(new Set());
+  const [reconDate, setReconDate] = useState(new Date().toISOString().slice(0, 10));
+
+  const loadBankRecon = useCallback(async (bankId?: string) => {
+    if (!token) return;
+    setBankReconLoading(true);
+    try {
+      const url = bankId
+        ? `/api/tally/reports?type=bank-recon&fy=${fy}&bankLedgerId=${bankId}`
+        : `/api/tally/reports?type=bank-recon&fy=${fy}`;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      const json = await res.json();
+      if (json.success) {
+        if (bankId) {
+          setBankReconData(json.data);
+        } else {
+          setBankList(json.data.banks || []);
+          if (json.data.banks?.length > 0 && !bankId) {
+            setSelectedBankId(json.data.banks[0].id || json.data.banks[0]._id);
+          }
+        }
+      }
+    } catch {}
+    setBankReconLoading(false);
+  }, [token, fy]);
+
+  useEffect(() => {
+    if (tab === 'bank-recon') loadBankRecon();
+  }, [tab, fy]);
+
+  useEffect(() => {
+    if (selectedBankId && tab === 'bank-recon') {
+      setBankReconData(null);
+      loadBankRecon(selectedBankId);
+    }
+  }, [selectedBankId]);
+
+  const handleReconcile = async () => {
+    if (!token || reconSelectedIds.size === 0) return;
+    try {
+      await fetch('/api/tally/reconcile', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reconcile', voucherIds: [...reconSelectedIds], reconciledDate: reconDate }),
+      });
+      setReconSelectedIds(new Set());
+      loadBankRecon(selectedBankId);
+    } catch {}
+  };
+
+  const handleUnreconcile = async (ids: string[]) => {
+    if (!token) return;
+    try {
+      await fetch('/api/tally/reconcile', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'unreconcile', voucherIds: ids }),
+      });
+      loadBankRecon(selectedBankId);
+    } catch {}
+  };
+
+  const BankReconView = () => (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-bold text-white flex items-center gap-2"><CheckCircle className="w-5 h-5 text-blue-400" /> Bank Reconciliation Statement</h2>
+      </div>
+
+      {/* Bank Selector */}
+      <div className="flex items-center gap-3 bg-gray-900 rounded-lg border border-gray-800 p-3">
+        <label className="text-sm text-gray-400">Bank Account:</label>
+        <select value={selectedBankId} onChange={e => setSelectedBankId(e.target.value)}
+          className="bg-gray-800 text-white border border-gray-700 rounded px-3 py-1.5 text-sm flex-1">
+          <option value="">Select Bank...</option>
+          {bankList.map((b: any) => <option key={b.id || b._id} value={b.id || b._id}>{b.name}</option>)}
+        </select>
+      </div>
+
+      {bankReconLoading && <p className="text-gray-500 text-center py-8">Loading...</p>}
+
+      {bankReconData && (
+        <>
+          {/* Summary Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <StatCard icon={BookOpen} label="Balance as per Books" value={fmt(bankReconData.balanceAsPerBooks)} color="blue" />
+            <StatCard icon={Banknote} label="Balance as per Bank" value={fmt(bankReconData.balanceAsPerBank)} color="green" />
+            <StatCard icon={CheckCircle} label="Reconciled" value={String(bankReconData.reconciledCount)} color="emerald" />
+            <StatCard icon={AlertTriangle} label="Unreconciled" value={String(bankReconData.unreconciledCount)} color="orange" />
+          </div>
+
+          {/* BRS Details */}
+          {bankReconData.chequesIssuedNotPresented > 0 || bankReconData.chequesDepositedNotCleared > 0 ? (
+            <div className="bg-gray-900 rounded-lg border border-gray-800 p-3 text-sm">
+              <p className="text-yellow-400">Cheques Issued but Not Presented: <span className="text-white font-bold">{bankReconData.chequesIssuedNotPresented}</span></p>
+              <p className="text-cyan-400 mt-1">Cheques Deposited but Not Cleared: <span className="text-white font-bold">{bankReconData.chequesDepositedNotCleared}</span></p>
+            </div>
+          ) : null}
+
+          {/* Reconcile Controls */}
+          {reconSelectedIds.size > 0 && (
+            <div className="flex items-center gap-3 bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
+              <span className="text-blue-400 text-sm">{reconSelectedIds.size} selected</span>
+              <input type="date" value={reconDate} onChange={e => setReconDate(e.target.value)}
+                className="bg-gray-800 text-white border border-gray-700 rounded px-2 py-1 text-sm" />
+              <button onClick={handleReconcile}
+                className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700">
+                Reconcile
+              </button>
+            </div>
+          )}
+
+          {/* Entries Table */}
+          <div className="bg-gray-900 rounded-lg border border-gray-800 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-800">
+                <tr>
+                  <th className="p-2 text-left text-gray-400 w-8">
+                    <input type="checkbox"
+                      checked={bankReconData.entries?.filter((e: any) => !e.isReconciled).length > 0 && reconSelectedIds.size === bankReconData.entries.filter((e: any) => !e.isReconciled).length}
+                      onChange={e => {
+                        if (e.target.checked) {
+                          setReconSelectedIds(new Set(bankReconData.entries.filter((en: any) => !en.isReconciled).map((en: any) => en.voucherId)));
+                        } else setReconSelectedIds(new Set());
+                      }}
+                      className="rounded" />
+                  </th>
+                  <th className="p-2 text-left text-gray-400">Date</th>
+                  <th className="p-2 text-left text-gray-400">Voucher</th>
+                  <th className="p-2 text-left text-gray-400">Type</th>
+                  <th className="p-2 text-left text-gray-400">Narration</th>
+                  <th className="p-2 text-right text-gray-400">Debit</th>
+                  <th className="p-2 text-right text-gray-400">Credit</th>
+                  <th className="p-2 text-right text-gray-400">Balance</th>
+                  <th className="p-2 text-center text-gray-400">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(bankReconData.entries || []).map((e: any, i: number) => (
+                  <tr key={i} className={`border-t border-gray-800 ${e.isReconciled ? 'bg-green-500/5' : 'hover:bg-gray-800/50'}`}>
+                    <td className="p-2">
+                      {!e.isReconciled ? (
+                        <input type="checkbox" checked={reconSelectedIds.has(e.voucherId)}
+                          onChange={ev => {
+                            const next = new Set(reconSelectedIds);
+                            ev.target.checked ? next.add(e.voucherId) : next.delete(e.voucherId);
+                            setReconSelectedIds(next);
+                          }}
+                          className="rounded" />
+                      ) : (
+                        <button onClick={() => handleUnreconcile([e.voucherId])} title="Unreconcile"
+                          className="text-green-400 hover:text-red-400"><Unlock className="w-3.5 h-3.5" /></button>
+                      )}
+                    </td>
+                    <td className="p-2 text-gray-300">{e.date}</td>
+                    <td className="p-2 text-white font-mono text-xs">{e.voucherNumber}</td>
+                    <td className="p-2"><span className={`text-xs px-1.5 py-0.5 rounded ${VOUCHER_COLORS[e.type] || 'text-gray-400'}`}>{e.type}</span></td>
+                    <td className="p-2 text-gray-400 max-w-[200px] truncate">{e.narration}</td>
+                    <td className="p-2 text-right text-green-400">{e.debit > 0 ? fmt(e.debit) : ''}</td>
+                    <td className="p-2 text-right text-red-400">{e.credit > 0 ? fmt(e.credit) : ''}</td>
+                    <td className="p-2 text-right text-white font-mono">{fmt(e.bookBalance)}</td>
+                    <td className="p-2 text-center">
+                      {e.isReconciled
+                        ? <span className="text-xs text-green-400 flex items-center justify-center gap-1"><CheckCircle className="w-3 h-3" /> {e.reconciledDate}</span>
+                        : <span className="text-xs text-yellow-500">Pending</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      {!bankReconLoading && !bankReconData && !selectedBankId && (
+        <p className="text-gray-500 text-center py-8">Select a bank account to view reconciliation statement</p>
+      )}
+    </div>
+  );
+
+  // ═══════════════════════════════════════════════════════════════════
+  // ██ GST REPORTS VIEW
+  // ═══════════════════════════════════════════════════════════════════
+
+  const [gstReport, setGstReport] = useState<any>(null);
+  const [gstLoading, setGstLoading] = useState(false);
+  const [gstType, setGstType] = useState<'gstr1' | 'gstr3b'>('gstr1');
+  const [gstMonth, setGstMonth] = useState('');
+  const [gstYear, setGstYear] = useState('');
+
+  const loadGSTReport = useCallback(async () => {
+    if (!token) return;
+    setGstLoading(true);
+    try {
+      let url = `/api/tally/reports?type=${gstType}&fy=${fy}`;
+      if (gstMonth && gstYear) url += `&month=${gstMonth}&year=${gstYear}`;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      const json = await res.json();
+      if (json.success) setGstReport(json.data);
+    } catch {}
+    setGstLoading(false);
+  }, [token, fy, gstType, gstMonth, gstYear]);
+
+  useEffect(() => {
+    if (tab === 'gst-reports') loadGSTReport();
+  }, [tab, fy, gstType]);
+
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  const GSTReportsView = () => (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-bold text-white flex items-center gap-2"><Shield className="w-5 h-5 text-purple-400" /> GST Reports</h2>
+      </div>
+
+      {/* Controls */}
+      <div className="flex flex-wrap items-center gap-3 bg-gray-900 rounded-lg border border-gray-800 p-3">
+        <div className="flex gap-2">
+          <button onClick={() => setGstType('gstr1')}
+            className={`px-3 py-1.5 rounded text-sm ${gstType === 'gstr1' ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}>
+            GSTR-1
+          </button>
+          <button onClick={() => setGstType('gstr3b')}
+            className={`px-3 py-1.5 rounded text-sm ${gstType === 'gstr3b' ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}>
+            GSTR-3B
+          </button>
+        </div>
+        <select value={gstMonth} onChange={e => setGstMonth(e.target.value)}
+          className="bg-gray-800 text-white border border-gray-700 rounded px-2 py-1.5 text-sm">
+          <option value="">Full Year</option>
+          {MONTHS.map((m, i) => <option key={i} value={String(i + 1)}>{m}</option>)}
+        </select>
+        {gstMonth && (
+          <input type="number" placeholder="Year" value={gstYear} onChange={e => setGstYear(e.target.value)}
+            className="bg-gray-800 text-white border border-gray-700 rounded px-2 py-1.5 text-sm w-20" />
+        )}
+        <button onClick={loadGSTReport} className="px-3 py-1.5 bg-purple-600 text-white rounded text-sm hover:bg-purple-700">
+          <RefreshCw className="w-3.5 h-3.5 inline mr-1" />Generate
+        </button>
+      </div>
+
+      {gstLoading && <p className="text-gray-500 text-center py-8">Generating GST Report...</p>}
+
+      {gstReport && gstType === 'gstr1' && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-3 gap-3">
+            <StatCard icon={FileText} label="Total Invoices" value={String(gstReport.totalInvoices || 0)} color="purple" />
+            <StatCard icon={IndianRupee} label="Taxable Amount" value={fmt(gstReport.totalTaxableAmount || 0)} color="blue" />
+            <StatCard icon={IndianRupee} label="Total Tax" value={fmt(gstReport.totalTax || 0)} color="red" />
+          </div>
+
+          {/* B2B Section */}
+          <div className="bg-gray-900 rounded-lg border border-gray-800">
+            <div className="p-3 border-b border-gray-800 flex items-center justify-between">
+              <h3 className="text-white font-semibold">B2B Invoices (Registered Dealers)</h3>
+              <span className="text-xs text-gray-500">{gstReport.b2b?.length || 0} invoices</span>
+            </div>
+            {(gstReport.b2b?.length || 0) > 0 ? (
+              <table className="w-full text-sm">
+                <thead className="bg-gray-800"><tr>
+                  <th className="p-2 text-left text-gray-400">Date</th>
+                  <th className="p-2 text-left text-gray-400">Invoice</th>
+                  <th className="p-2 text-left text-gray-400">Party</th>
+                  <th className="p-2 text-left text-gray-400">GSTIN</th>
+                  <th className="p-2 text-right text-gray-400">Taxable</th>
+                  <th className="p-2 text-right text-gray-400">CGST</th>
+                  <th className="p-2 text-right text-gray-400">SGST</th>
+                  <th className="p-2 text-right text-gray-400">IGST</th>
+                  <th className="p-2 text-right text-gray-400">Total</th>
+                </tr></thead>
+                <tbody>
+                  {gstReport.b2b.map((e: any, i: number) => (
+                    <tr key={i} className="border-t border-gray-800">
+                      <td className="p-2 text-gray-300">{e.date}</td>
+                      <td className="p-2 text-white font-mono text-xs">{e.invoiceNumber}</td>
+                      <td className="p-2 text-gray-300">{e.partyName}</td>
+                      <td className="p-2 text-gray-500 font-mono text-xs">{e.partyGstin}</td>
+                      <td className="p-2 text-right text-white">{fmt(e.taxableAmount)}</td>
+                      <td className="p-2 text-right text-blue-400">{fmt(e.cgst)}</td>
+                      <td className="p-2 text-right text-green-400">{fmt(e.sgst)}</td>
+                      <td className="p-2 text-right text-orange-400">{fmt(e.igst)}</td>
+                      <td className="p-2 text-right text-white font-bold">{fmt(e.totalAmount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : <p className="p-4 text-gray-500 text-center">No B2B invoices found</p>}
+          </div>
+
+          {/* B2C Section */}
+          <div className="bg-gray-900 rounded-lg border border-gray-800">
+            <div className="p-3 border-b border-gray-800 flex items-center justify-between">
+              <h3 className="text-white font-semibold">B2C Small (Unregistered)</h3>
+              <span className="text-xs text-gray-500">{gstReport.b2cs?.length || 0} invoices</span>
+            </div>
+            {(gstReport.b2cs?.length || 0) > 0 ? (
+              <table className="w-full text-sm">
+                <thead className="bg-gray-800"><tr>
+                  <th className="p-2 text-left text-gray-400">Date</th>
+                  <th className="p-2 text-left text-gray-400">Invoice</th>
+                  <th className="p-2 text-left text-gray-400">Party</th>
+                  <th className="p-2 text-right text-gray-400">Taxable</th>
+                  <th className="p-2 text-right text-gray-400">Tax</th>
+                  <th className="p-2 text-right text-gray-400">Total</th>
+                </tr></thead>
+                <tbody>
+                  {gstReport.b2cs.map((e: any, i: number) => (
+                    <tr key={i} className="border-t border-gray-800">
+                      <td className="p-2 text-gray-300">{e.date}</td>
+                      <td className="p-2 text-white font-mono text-xs">{e.invoiceNumber}</td>
+                      <td className="p-2 text-gray-300">{e.partyName}</td>
+                      <td className="p-2 text-right text-white">{fmt(e.taxableAmount)}</td>
+                      <td className="p-2 text-right text-blue-400">{fmt(e.totalTax)}</td>
+                      <td className="p-2 text-right text-white font-bold">{fmt(e.totalAmount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : <p className="p-4 text-gray-500 text-center">No B2C invoices found</p>}
+          </div>
+
+          {/* Credit/Debit Notes */}
+          {(gstReport.cdnr?.length || 0) > 0 && (
+            <div className="bg-gray-900 rounded-lg border border-gray-800">
+              <div className="p-3 border-b border-gray-800">
+                <h3 className="text-white font-semibold">Credit/Debit Notes</h3>
+              </div>
+              <table className="w-full text-sm">
+                <thead className="bg-gray-800"><tr>
+                  <th className="p-2 text-left text-gray-400">Date</th>
+                  <th className="p-2 text-left text-gray-400">Note No.</th>
+                  <th className="p-2 text-left text-gray-400">Party</th>
+                  <th className="p-2 text-right text-gray-400">Amount</th>
+                  <th className="p-2 text-right text-gray-400">Tax</th>
+                </tr></thead>
+                <tbody>
+                  {gstReport.cdnr.map((e: any, i: number) => (
+                    <tr key={i} className="border-t border-gray-800">
+                      <td className="p-2 text-gray-300">{e.date}</td>
+                      <td className="p-2 text-white font-mono text-xs">{e.invoiceNumber}</td>
+                      <td className="p-2 text-gray-300">{e.partyName}</td>
+                      <td className="p-2 text-right text-white">{fmt(e.taxableAmount)}</td>
+                      <td className="p-2 text-right text-blue-400">{fmt(e.totalTax)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {gstReport && gstType === 'gstr3b' && (
+        <div className="space-y-4">
+          <p className="text-xs text-gray-500">Period: {gstReport.period}</p>
+
+          {/* 3.1 Outward Supplies */}
+          <div className="bg-gray-900 rounded-lg border border-gray-800 p-4">
+            <h3 className="text-white font-semibold mb-3">3.1 Outward Supplies</h3>
+            <div className="grid grid-cols-5 gap-4 text-sm">
+              <div><p className="text-gray-500">Taxable</p><p className="text-white font-bold">{fmt(gstReport.outwardSupplies?.taxable || 0)}</p></div>
+              <div><p className="text-gray-500">CGST</p><p className="text-blue-400 font-bold">{fmt(gstReport.outwardSupplies?.cgst || 0)}</p></div>
+              <div><p className="text-gray-500">SGST</p><p className="text-green-400 font-bold">{fmt(gstReport.outwardSupplies?.sgst || 0)}</p></div>
+              <div><p className="text-gray-500">IGST</p><p className="text-orange-400 font-bold">{fmt(gstReport.outwardSupplies?.igst || 0)}</p></div>
+              <div><p className="text-gray-500">Cess</p><p className="text-gray-400 font-bold">{fmt(gstReport.outwardSupplies?.cess || 0)}</p></div>
+            </div>
+          </div>
+
+          {/* 4. Input Tax Credit */}
+          <div className="bg-gray-900 rounded-lg border border-gray-800 p-4">
+            <h3 className="text-white font-semibold mb-3">4. Input Tax Credit</h3>
+            <div className="grid grid-cols-4 gap-4 text-sm">
+              <div><p className="text-gray-500">CGST</p><p className="text-blue-400 font-bold">{fmt(gstReport.inputTaxCredit?.cgst || 0)}</p></div>
+              <div><p className="text-gray-500">SGST</p><p className="text-green-400 font-bold">{fmt(gstReport.inputTaxCredit?.sgst || 0)}</p></div>
+              <div><p className="text-gray-500">IGST</p><p className="text-orange-400 font-bold">{fmt(gstReport.inputTaxCredit?.igst || 0)}</p></div>
+              <div><p className="text-gray-500">Cess</p><p className="text-gray-400 font-bold">{fmt(gstReport.inputTaxCredit?.cess || 0)}</p></div>
+            </div>
+          </div>
+
+          {/* 6.1 Net Tax Payable */}
+          <div className="bg-gray-900 rounded-lg border border-purple-500/30 p-4">
+            <h3 className="text-white font-semibold mb-3">6.1 Net Tax Payable</h3>
+            <div className="grid grid-cols-5 gap-4 text-sm">
+              <div><p className="text-gray-500">CGST</p><p className="text-blue-400 font-bold">{fmt(gstReport.netTaxPayable?.cgst || 0)}</p></div>
+              <div><p className="text-gray-500">SGST</p><p className="text-green-400 font-bold">{fmt(gstReport.netTaxPayable?.sgst || 0)}</p></div>
+              <div><p className="text-gray-500">IGST</p><p className="text-orange-400 font-bold">{fmt(gstReport.netTaxPayable?.igst || 0)}</p></div>
+              <div><p className="text-gray-500">Cess</p><p className="text-gray-400 font-bold">{fmt(gstReport.netTaxPayable?.cess || 0)}</p></div>
+              <div><p className="text-gray-500">Total</p><p className="text-white text-lg font-bold">{fmt(gstReport.totalTaxPayable || 0)}</p></div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  // ═══════════════════════════════════════════════════════════════════
+  // ██ COMPARATIVE STATEMENTS VIEW
+  // ═══════════════════════════════════════════════════════════════════
+
+  const [compReport, setCompReport] = useState<any>(null);
+  const [compLoading, setCompLoading] = useState(false);
+  const [compType, setCompType] = useState<'pl' | 'bs'>('pl');
+  const [compPrevFY, setCompPrevFY] = useState('2023-24');
+
+  const loadComparative = useCallback(async () => {
+    if (!token) return;
+    setCompLoading(true);
+    try {
+      const type = compType === 'pl' ? 'comparative-pl' : 'comparative-bs';
+      const res = await fetch(`/api/tally/reports?type=${type}&fy=${fy}&prevFY=${compPrevFY}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      if (json.success) setCompReport(json.data);
+    } catch {}
+    setCompLoading(false);
+  }, [token, fy, compType, compPrevFY]);
+
+  useEffect(() => {
+    if (tab === 'comparative') loadComparative();
+  }, [tab, fy, compType, compPrevFY]);
+
+  const ComparativeView = () => (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-bold text-white flex items-center gap-2"><ArrowRight className="w-5 h-5 text-cyan-400" /> Comparative Statements</h2>
+      </div>
+
+      {/* Controls */}
+      <div className="flex flex-wrap items-center gap-3 bg-gray-900 rounded-lg border border-gray-800 p-3">
+        <div className="flex gap-2">
+          <button onClick={() => setCompType('pl')}
+            className={`px-3 py-1.5 rounded text-sm ${compType === 'pl' ? 'bg-cyan-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}>
+            P&L Comparison
+          </button>
+          <button onClick={() => setCompType('bs')}
+            className={`px-3 py-1.5 rounded text-sm ${compType === 'bs' ? 'bg-cyan-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}>
+            Balance Sheet Comparison
+          </button>
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-400">Compare with:</label>
+          <select value={compPrevFY} onChange={e => setCompPrevFY(e.target.value)}
+            className="bg-gray-800 text-white border border-gray-700 rounded px-2 py-1.5 text-sm">
+            {fyList.map(f => <option key={f.year} value={f.year}>{f.year}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {compLoading && <p className="text-gray-500 text-center py-8">Loading comparative data...</p>}
+
+      {compReport && (
+        <>
+          {/* Summary */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <StatCard icon={IndianRupee} label={`FY ${compReport.currentFY}`} value={fmt(compReport.currentTotal)} color="blue" />
+            <StatCard icon={IndianRupee} label={`FY ${compReport.previousFY}`} value={fmt(compReport.previousTotal)} color="purple" />
+            <StatCard icon={TrendingUp} label="Change" value={fmt(compReport.totalChange)} color={compReport.totalChange >= 0 ? 'green' : 'red'} />
+            <StatCard icon={TrendingUp} label="Change %" value={`${compReport.totalChangePercent > 0 ? '+' : ''}${compReport.totalChangePercent}%`} color={compReport.totalChangePercent >= 0 ? 'green' : 'red'} />
+          </div>
+
+          {/* Table */}
+          <div className="bg-gray-900 rounded-lg border border-gray-800 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-800">
+                <tr>
+                  <th className="p-2 text-left text-gray-400">Particulars</th>
+                  <th className="p-2 text-left text-gray-400">Group</th>
+                  <th className="p-2 text-right text-gray-400">FY {compReport.currentFY}</th>
+                  <th className="p-2 text-right text-gray-400">FY {compReport.previousFY}</th>
+                  <th className="p-2 text-right text-gray-400">Change</th>
+                  <th className="p-2 text-right text-gray-400">%</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(compReport.rows || []).map((r: any, i: number) => (
+                  <tr key={i} className="border-t border-gray-800 hover:bg-gray-800/50">
+                    <td className="p-2 text-white">{r.ledgerName}</td>
+                    <td className="p-2"><span className={`text-xs px-1.5 py-0.5 rounded ${GROUP_COLORS[r.group as AccountGroup] || 'text-gray-400'}`}>{r.group}</span></td>
+                    <td className="p-2 text-right text-white font-mono">{fmt(r.currentYear)}</td>
+                    <td className="p-2 text-right text-gray-400 font-mono">{fmt(r.previousYear)}</td>
+                    <td className={`p-2 text-right font-mono ${r.change >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {r.change >= 0 ? '+' : ''}{fmt(r.change)}
+                    </td>
+                    <td className={`p-2 text-right font-mono text-xs ${r.changePercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {r.changePercent >= 0 ? '+' : ''}{r.changePercent}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot className="bg-gray-800 font-bold">
+                <tr>
+                  <td className="p-2 text-white" colSpan={2}>{compType === 'pl' ? 'Net Profit' : 'Total'}</td>
+                  <td className="p-2 text-right text-white">{fmt(compReport.currentTotal)}</td>
+                  <td className="p-2 text-right text-gray-300">{fmt(compReport.previousTotal)}</td>
+                  <td className={`p-2 text-right ${compReport.totalChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {compReport.totalChange >= 0 ? '+' : ''}{fmt(compReport.totalChange)}
+                  </td>
+                  <td className={`p-2 text-right text-xs ${compReport.totalChangePercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {compReport.totalChangePercent >= 0 ? '+' : ''}{compReport.totalChangePercent}%
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  // ═══════════════════════════════════════════════════════════════════
+  // ██ BUDGET VS ACTUAL VIEW
+  // ═══════════════════════════════════════════════════════════════════
+
+  const [budgetData, setBudgetData] = useState<any>(null);
+  const [budgetLoading, setBudgetLoading] = useState(false);
+  const [editingBudgetId, setEditingBudgetId] = useState('');
+  const [editBudgetAmt, setEditBudgetAmt] = useState('');
+
+  const loadBudget = useCallback(async () => {
+    if (!token) return;
+    setBudgetLoading(true);
+    try {
+      const res = await fetch(`/api/tally/reports?type=budget&fy=${fy}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      if (json.success) setBudgetData(json.data);
+    } catch {}
+    setBudgetLoading(false);
+  }, [token, fy]);
+
+  useEffect(() => {
+    if (tab === 'budget') loadBudget();
+  }, [tab, fy]);
+
+  const saveBudget = async (ledgerId: string, amount: number) => {
+    if (!token) return;
+    try {
+      await fetch('/api/tally/reconcile', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'set-budget', ledgerId, budgetAmount: amount }),
+      });
+      setEditingBudgetId('');
+      loadBudget();
+    } catch {}
+  };
+
+  const setBudgetOnLedger = async () => {
+    if (!editingBudgetId || !editBudgetAmt) return;
+    await saveBudget(editingBudgetId, Number(editBudgetAmt));
+  };
+
+  const BudgetView = () => (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-bold text-white flex items-center gap-2"><ClipboardList className="w-5 h-5 text-yellow-400" /> Budget vs Actual</h2>
+        <button onClick={() => setEditingBudgetId('new')} className="px-3 py-1.5 bg-yellow-600 text-white rounded text-sm hover:bg-yellow-700 flex items-center gap-1">
+          <Plus className="w-3.5 h-3.5" /> Set Budget
+        </button>
+      </div>
+
+      {/* Quick set budget form */}
+      {editingBudgetId === 'new' && (
+        <div className="bg-gray-900 rounded-lg border border-yellow-500/30 p-4 space-y-3">
+          <h3 className="text-white font-semibold">Set Budget for Ledger</h3>
+          <div className="flex gap-3">
+            <select value={editingBudgetId === 'new' ? '' : editingBudgetId}
+              onChange={e => { if (e.target.value) setEditingBudgetId(e.target.value); }}
+              className="bg-gray-800 text-white border border-gray-700 rounded px-3 py-1.5 text-sm flex-1">
+              <option value="">Select Expense Ledger...</option>
+              {ledgers.filter(l => l.group === 'EXPENSE').map(l => (
+                <option key={l.id} value={l.id}>{l.name}</option>
+              ))}
+            </select>
+            <input type="number" placeholder="Budget Amount" value={editBudgetAmt}
+              onChange={e => setEditBudgetAmt(e.target.value)}
+              className="bg-gray-800 text-white border border-gray-700 rounded px-3 py-1.5 text-sm w-40" />
+            <button onClick={setBudgetOnLedger}
+              className="px-3 py-1.5 bg-green-600 text-white rounded text-sm hover:bg-green-700">Save</button>
+            <button onClick={() => { setEditingBudgetId(''); setEditBudgetAmt(''); }}
+              className="px-3 py-1.5 bg-gray-700 text-gray-300 rounded text-sm hover:bg-gray-600">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {budgetLoading && <p className="text-gray-500 text-center py-8">Loading budget data...</p>}
+
+      {budgetData && (
+        <>
+          {/* Summary */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <StatCard icon={IndianRupee} label="Total Budget" value={fmt(budgetData.totalBudget)} color="yellow" />
+            <StatCard icon={IndianRupee} label="Total Actual" value={fmt(budgetData.totalActual)} color="blue" />
+            <StatCard icon={TrendingUp} label="Variance" value={fmt(budgetData.totalVariance)} color={budgetData.totalVariance >= 0 ? 'green' : 'red'} />
+            <StatCard icon={AlertTriangle} label="Over Budget" value={String(budgetData.overBudgetCount)} color="red" />
+          </div>
+
+          {budgetData.rows?.length > 0 ? (
+            <div className="bg-gray-900 rounded-lg border border-gray-800 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-800">
+                  <tr>
+                    <th className="p-2 text-left text-gray-400">Ledger</th>
+                    <th className="p-2 text-left text-gray-400">Group</th>
+                    <th className="p-2 text-right text-gray-400">Budget</th>
+                    <th className="p-2 text-right text-gray-400">Actual</th>
+                    <th className="p-2 text-right text-gray-400">Variance</th>
+                    <th className="p-2 text-right text-gray-400">%</th>
+                    <th className="p-2 text-center text-gray-400">Status</th>
+                    <th className="p-2 text-right text-gray-400">Progress</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {budgetData.rows.map((r: any, i: number) => {
+                    const usedPct = r.budgetAmount > 0 ? Math.min(100, (r.actualAmount / r.budgetAmount) * 100) : 0;
+                    return (
+                      <tr key={i} className={`border-t border-gray-800 ${r.isOverBudget ? 'bg-red-500/5' : ''}`}>
+                        <td className="p-2 text-white">{r.ledgerName}</td>
+                        <td className="p-2"><span className={`text-xs px-1.5 py-0.5 rounded ${GROUP_COLORS[r.group as AccountGroup] || 'text-gray-400'}`}>{r.subGroup || r.group}</span></td>
+                        <td className="p-2 text-right text-yellow-400 font-mono">{fmt(r.budgetAmount)}</td>
+                        <td className="p-2 text-right text-white font-mono">{fmt(r.actualAmount)}</td>
+                        <td className={`p-2 text-right font-mono ${r.variance >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fmt(r.variance)}</td>
+                        <td className={`p-2 text-right text-xs ${r.variancePercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>{r.variancePercent.toFixed(1)}%</td>
+                        <td className="p-2 text-center">
+                          {r.isOverBudget
+                            ? <span className="text-xs text-red-400 flex items-center justify-center gap-1"><AlertTriangle className="w-3 h-3" /> Over</span>
+                            : <span className="text-xs text-green-400 flex items-center justify-center gap-1"><CheckCircle className="w-3 h-3" /> OK</span>}
+                        </td>
+                        <td className="p-2 w-32">
+                          <div className="w-full bg-gray-700 rounded-full h-2">
+                            <div className={`h-2 rounded-full ${r.isOverBudget ? 'bg-red-500' : usedPct > 80 ? 'bg-yellow-500' : 'bg-green-500'}`}
+                              style={{ width: `${Math.min(usedPct, 100)}%` }} />
+                          </div>
+                          <span className="text-[10px] text-gray-500">{usedPct.toFixed(0)}%</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="bg-gray-900 rounded-lg border border-gray-800 p-8 text-center">
+              <ClipboardList className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+              <p className="text-gray-400">No budgets set for FY {fy}</p>
+              <p className="text-gray-600 text-sm mt-1">Click &quot;Set Budget&quot; to allocate budget amounts to expense ledgers</p>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+
   // ── CA Audit View (Tally Prime Style Drill-Down) ───────────────
 
   // Toggle helpers for drill-down
@@ -5723,6 +6389,10 @@ ${contentHtml}
             {tab === 'cashbank' && <CashBankBookView />}
             {tab === 'group-summary' && <GroupSummaryView />}
             {tab === 'outstanding' && <OutstandingView />}
+            {tab === 'bank-recon' && <BankReconView />}
+            {tab === 'gst-reports' && <GSTReportsView />}
+            {tab === 'comparative' && <ComparativeView />}
+            {tab === 'budget' && <BudgetView />}
             {tab === 'ca-audit' && <CAAuditView />}
             {tab === 'ca-bills' && <CABillsView />}
             {tab === 'settings' && <SettingsView />}

@@ -26,6 +26,13 @@ import {
   getGroupSummary,
   getOutstandingReceivables,
   getOutstandingPayables,
+  generateGSTR1,
+  generateGSTR3B,
+  generateComparativePL,
+  generateComparativeBS,
+  getBudgetReport,
+  getBankReconciliation,
+  getCashBankLedgers,
 } from '@/lib/tally/engine';
 
 function getAuth(request: NextRequest) {
@@ -134,8 +141,52 @@ export async function GET(request: NextRequest) {
         break;
       }
 
+      case 'gstr1': {
+        const gstMonth = searchParams.get('month') ? Number(searchParams.get('month')) : undefined;
+        const gstYear = searchParams.get('year') ? Number(searchParams.get('year')) : undefined;
+        result = await generateGSTR1(fy, gstMonth, gstYear);
+        break;
+      }
+
+      case 'gstr3b': {
+        const g3bMonth = searchParams.get('month') ? Number(searchParams.get('month')) : undefined;
+        const g3bYear = searchParams.get('year') ? Number(searchParams.get('year')) : undefined;
+        result = await generateGSTR3B(fy, g3bMonth, g3bYear);
+        break;
+      }
+
+      case 'comparative-pl': {
+        const prevFY = searchParams.get('prevFY') || '2023-24';
+        result = await generateComparativePL(fy, prevFY);
+        break;
+      }
+
+      case 'comparative-bs': {
+        const prevFY = searchParams.get('prevFY') || '2023-24';
+        result = await generateComparativeBS(fy, prevFY);
+        break;
+      }
+
+      case 'budget': {
+        result = await getBudgetReport(fy);
+        break;
+      }
+
+      case 'bank-recon': {
+        const bankId = searchParams.get('bankLedgerId');
+        if (!bankId) {
+          // Return list of bank ledgers
+          const banks = await getCashBankLedgers(fy);
+          result = { reportType: 'Bank Reconciliation', banks: banks.filter((b: any) => b.subGroup === 'Bank Accounts') };
+        } else {
+          const asOn = searchParams.get('asOnDate') ? new Date(searchParams.get('asOnDate')!) : undefined;
+          result = await getBankReconciliation(bankId, fy, asOn);
+        }
+        break;
+      }
+
       default:
-        return apiError('VALIDATION_ERROR', `Unknown report type: ${reportType}. Use: trial-balance, profit-loss, balance-sheet, monthly-pl, cash-bank, summary, ca-audit, group-summary, outstanding-receivable, outstanding-payable`);
+        return apiError('VALIDATION_ERROR', `Unknown report type: ${reportType}. Use: trial-balance, profit-loss, balance-sheet, monthly-pl, cash-bank, summary, ca-audit, group-summary, outstanding-receivable, outstanding-payable, gstr1, gstr3b, comparative-pl, comparative-bs, budget, bank-recon`);
     }
 
     setRouteCache(cacheKey, result);

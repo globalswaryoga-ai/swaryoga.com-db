@@ -3946,3 +3946,738 @@ export async function getOutstandingByParty(
 
   return report.parties.find(p => p.ledgerId === ledgerId) || null;
 }
+
+
+// ═══════════════════════════════════════════════════════════════════════
+// ██ BANK RECONCILIATION
+// ═══════════════════════════════════════════════════════════════════════
+
+interface BankReconEntry {
+  voucherId: string;
+  voucherNumber: string;
+  date: string;
+  type: string;
+  narration: string;
+  debit: number;
+  credit: number;
+  bookBalance: number;
+  isReconciled: boolean;
+  reconciledDate?: string;
+  bankDate?: string;
+  chequeNo?: string;
+  difference: number;
+}
+
+interface BankReconSummary {
+  bankLedgerId: string;
+  bankLedgerName: string;
+  financialYear: string;
+  asOnDate: string;
+  balanceAsPerBooks: number;
+  balanceAsPerBank: number;
+  reconciledCount: number;
+  unreconciledCount: number;
+  totalEntries: number;
+  chequesIssuedNotPresented: number;
+  chequesDepositedNotCleared: number;
+  entries: BankReconEntry[];
+}
+
+/**
+ * Get bank reconciliation data — shows all vouchers involving a bank ledger
+ * with reconciliation status like Tally Prime's BRS
+ */
+export async function getBankReconciliation(
+  bankLedgerId: string,
+  financialYear: string,
+  asOnDate?: Date,
+): Promise<BankReconSummary> {
+  await connectDB();
+  const AccLedger = getAccLedger();
+  const AccVoucher = getAccVoucher();
+
+  const bankLedger = await AccLedger.findById(bankLedgerId).lean() as any;
+  if (!bankLedger) throw new Error('Bank ledger not found');
+
+  const [fyStartYear] = financialYear.split('-');
+  const fyStart = new Date(`${fyStartYear}-04-01`);
+  const refDate = asOnDate || new Date(`20${financialYear.split('-')[1]}-03-31`);
+
+  // All vouchers involving this bank ledger
+  const vouchers = await AccVoucher.find({
+    financialYear,
+    'entries.ledgerName': { $regex: new RegExp(`^${bankLedger.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+    date: { $gte: fyStart, $lte: refDate },
+  }).sort({ date: 1 }).lean() as any[];
+
+  let runningBalance = Number(bankLedger.openingBalance) || 0;
+  if (bankLedger.openingBalanceType === 'CREDIT') runningBalance = -runningBalance;
+
+  const entries: BankReconEntry[] = [];
+  let reconciledCount = 0;
+  let unreconciledCount = 0;
+  let chequesNotPresented = 0;
+  let chequesNotCleared = 0;
+
+  for (const v of vouchers) {
+    const bankEntry = v.entries.find((e: any) =>
+      e.ledgerName.toLowerCase() === bankLedger.name.toLowerCase()
+    );
+    if (!bankEntry) continue;
+
+    const isDebit = bankEntry.type === 'DEBIT';
+    const amount = Number(bankEntry.amount) || 0;
+    const debit = isDebit ? amount : 0;
+    const credit = isDebit ? 0 : amount;
+
+    runningBalance += (isDebit ? amount : -amount);
+
+    // Check reconciliation fields (stored on voucher metadata)
+    const isReconciled = !!v.reconciledDate;
+    const reconciledDate = v.reconciledDate ? new Date(v.reconciledDate).toISOString().slice(0, 10) : undefined;
+    const bankDate = v.bankDate ? new Date(v.bankDate).toISOString().slice(0, 10) : undefined;
+
+    if (isReconciled) reconciledCount++;
+    else {
+      unreconciledCount++;
+      if (v.type === 'PAYMENT') chequesNotPresented++;
+      if (v.type === 'RECEIPT') chequesNotCleared++;
+    }
+
+    entries.push({
+      voucherId: String(v._id),
+      voucherNumber: v.voucherNumber,
+      date: new Date(v.date).toISOString().slice(0, 10),
+      type: v.type,
+      narration: v.narration || '',
+      debit,
+      credit,
+      bookBalance: Math.round(runningBalance * 100) / 100,
+      isReconciled,
+      reconciledDate,
+      bankDate,
+      chequeNo: v.chequeNo || '',
+      difference: 0,
+    });
+  }
+
+  // Balance as per bank = book balance + unreconciled adjustments
+  const unreconciledDeposits = entries.filter(e => !e.isReconciled && e.debit > 0).reduce((s, e) => s + e.debit, 0);
+  const unreconciledPayments = entries.filter(e => !e.isReconciled && e.credit > 0).reduce((s, e) => s + e.credit, 0);
+  const balanceAsPerBank = runningBalance - unreconciledDeposits + unreconciledPayments;
+
+  return {
+    bankLedgerId: String(bankLedger._id),
+    bankLedgerName: bankLedger.name,
+    financialYear,
+    asOnDate: refDate.toISOString().slice(0, 10),
+    balanceAsPerBooks: Math.round(runningBalance * 100) / 100,
+    balanceAsPerBank: Math.round(balanceAsPerBank * 100) / 100,
+    reconciledCount,
+    unreconciledCount,
+    totalEntries: entries.length,
+    chequesIssuedNotPresented: chequesNotPresented,
+    chequesDepositedNotCleared: chequesNotCleared,
+    entries,
+  };
+}
+
+/**
+ * Mark vouchers as reconciled (BRS update)
+ */
+export async function reconcileVouchers(
+  voucherIds: string[],
+  reconciledDate: Date,
+  bankDate?: Date,
+): Promise<{ updated: number }> {
+  await connectDB();
+  const AccVoucher = getAccVoucher();
+
+  const result = await AccVoucher.updateMany(
+    { _id: { $in: voucherIds.map(id => new mongoose.Types.ObjectId(id)) } },
+    {
+      $set: {
+        reconciledDate,
+        ...(bankDate ? { bankDate } : {}),
+      },
+    },
+  );
+
+  return { updated: result.modifiedCount };
+}
+
+/**
+ * Unreconcile vouchers
+ */
+export async function unreconcileVouchers(voucherIds: string[]): Promise<{ updated: number }> {
+  await connectDB();
+  const AccVoucher = getAccVoucher();
+
+  const result = await AccVoucher.updateMany(
+    { _id: { $in: voucherIds.map(id => new mongoose.Types.ObjectId(id)) } },
+    { $unset: { reconciledDate: 1, bankDate: 1 } },
+  );
+
+  return { updated: result.modifiedCount };
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════
+// ██ GST REPORTS (GSTR-1, GSTR-3B)
+// ═══════════════════════════════════════════════════════════════════════
+
+interface GSTEntry {
+  voucherId: string;
+  voucherNumber: string;
+  date: string;
+  partyName: string;
+  partyGstin: string;
+  invoiceNumber: string;
+  taxableAmount: number;
+  cgst: number;
+  sgst: number;
+  igst: number;
+  cess: number;
+  totalTax: number;
+  totalAmount: number;
+  placeOfSupply: string;
+  reverseCharge: boolean;
+  voucherType: string;
+}
+
+interface GSTR1Report {
+  reportType: 'GSTR-1';
+  financialYear: string;
+  period: string;
+  companyGstin: string;
+  b2b: GSTEntry[];       // B2B invoices (registered dealers)
+  b2cs: GSTEntry[];      // B2C Small (unregistered < threshold)
+  b2cl: GSTEntry[];      // B2C Large (> 2.5L inter-state)
+  cdnr: GSTEntry[];      // Credit/Debit notes (registered)
+  exp: GSTEntry[];       // Export invoices
+  totalTaxableAmount: number;
+  totalTax: number;
+  totalInvoices: number;
+}
+
+interface GSTR3BSummary {
+  reportType: 'GSTR-3B';
+  financialYear: string;
+  period: string;
+  outwardSupplies: { taxable: number; cgst: number; sgst: number; igst: number; cess: number };
+  inwardSuppliesRCM: { taxable: number; cgst: number; sgst: number; igst: number; cess: number };
+  inputTaxCredit: { cgst: number; sgst: number; igst: number; cess: number };
+  netTaxPayable: { cgst: number; sgst: number; igst: number; cess: number };
+  totalTaxPayable: number;
+}
+
+/**
+ * Extracts GST info from a voucher and its entries
+ * In our system, GST is stored in voucher entries with tax ledgers
+ */
+function extractGSTFromVoucher(voucher: any, ledgerMap: Map<string, any>): GSTEntry | null {
+  if (!voucher.entries || voucher.entries.length === 0) return null;
+
+  // Find the party/main ledger entry
+  const partyEntry = voucher.entries.find((e: any) => {
+    const ledger = ledgerMap.get(e.ledgerName?.toLowerCase());
+    return ledger && (
+      ledger.subGroup === 'Sundry Debtors' ||
+      ledger.subGroup === 'Sundry Creditors' ||
+      ledger.group === 'INCOME' ||
+      ledger.group === 'EXPENSE'
+    );
+  });
+
+  // Find tax entries
+  let cgst = 0, sgst = 0, igst = 0, cess = 0;
+  let taxableAmount = 0;
+
+  for (const entry of voucher.entries) {
+    const name = (entry.ledgerName || '').toLowerCase();
+    const amt = Number(entry.amount) || 0;
+
+    if (name.includes('cgst') || name.includes('central gst')) {
+      cgst += amt;
+    } else if (name.includes('sgst') || name.includes('state gst') || name.includes('utgst')) {
+      sgst += amt;
+    } else if (name.includes('igst') || name.includes('integrated gst')) {
+      igst += amt;
+    } else if (name.includes('cess')) {
+      cess += amt;
+    } else {
+      const ledger = ledgerMap.get(name);
+      if (ledger && (ledger.group === 'INCOME' || ledger.group === 'EXPENSE')) {
+        taxableAmount += amt;
+      }
+    }
+  }
+
+  const totalTax = cgst + sgst + igst + cess;
+  // If no tax amounts found, treat as non-GST voucher
+  if (totalTax === 0 && taxableAmount === 0 && voucher.type !== 'SALES' && voucher.type !== 'PURCHASE') {
+    // For Sales/Purchase always include (may be exempt)
+    if (voucher.type !== 'SALES' && voucher.type !== 'PURCHASE') return null;
+  }
+
+  if (taxableAmount === 0) {
+    // Calculate taxable from total minus tax
+    taxableAmount = voucher.entries
+      .filter((e: any) => {
+        const n = (e.ledgerName || '').toLowerCase();
+        return !n.includes('gst') && !n.includes('cess') && !n.includes('tax');
+      })
+      .reduce((s: number, e: any) => s + (Number(e.amount) || 0), 0);
+  }
+
+  const partyLedger = partyEntry ? ledgerMap.get(partyEntry.ledgerName?.toLowerCase()) : null;
+
+  return {
+    voucherId: String(voucher._id),
+    voucherNumber: voucher.voucherNumber || '',
+    date: new Date(voucher.date).toISOString().slice(0, 10),
+    partyName: voucher.partyName || partyEntry?.ledgerName || '',
+    partyGstin: partyLedger?.gstin || '',
+    invoiceNumber: voucher.voucherNumber || '',
+    taxableAmount: Math.abs(Math.round(taxableAmount * 100) / 100),
+    cgst: Math.abs(Math.round(cgst * 100) / 100),
+    sgst: Math.abs(Math.round(sgst * 100) / 100),
+    igst: Math.abs(Math.round(igst * 100) / 100),
+    cess: Math.abs(Math.round(cess * 100) / 100),
+    totalTax: Math.abs(Math.round(totalTax * 100) / 100),
+    totalAmount: Math.abs(Math.round((taxableAmount + totalTax) * 100) / 100),
+    placeOfSupply: partyLedger?.state || '',
+    reverseCharge: false,
+    voucherType: voucher.type,
+  };
+}
+
+/**
+ * Generate GSTR-1 report (outward supplies — sales/debit notes)
+ */
+export async function generateGSTR1(
+  financialYear: string,
+  month?: number,  // 1-12, if undefined = full year
+  year?: number,
+): Promise<GSTR1Report> {
+  await connectDB();
+  const AccVoucher = getAccVoucher();
+  const AccLedger = getAccLedger();
+
+  // Date range
+  const [fyStartYear] = financialYear.split('-');
+  let dateFrom: Date, dateTo: Date;
+
+  if (month && year) {
+    dateFrom = new Date(year, month - 1, 1);
+    dateTo = new Date(year, month, 0, 23, 59, 59);
+  } else {
+    dateFrom = new Date(`${fyStartYear}-04-01`);
+    dateTo = new Date(`20${financialYear.split('-')[1]}-03-31T23:59:59`);
+  }
+
+  // Fetch sales, debit notes, credit notes
+  const vouchers = await AccVoucher.find({
+    financialYear,
+    type: { $in: ['SALES', 'DEBIT_NOTE', 'CREDIT_NOTE'] },
+    date: { $gte: dateFrom, $lte: dateTo },
+  }).sort({ date: 1 }).lean() as any[];
+
+  // Build ledger map for GST info
+  const ledgers = await AccLedger.find({ financialYear }).lean() as any[];
+  const ledgerMap = new Map<string, any>();
+  for (const l of ledgers) {
+    ledgerMap.set(l.name.toLowerCase(), l);
+  }
+
+  const companyGstin = process.env.COMPANY_GSTIN || '';
+  const b2b: GSTEntry[] = [];
+  const b2cs: GSTEntry[] = [];
+  const b2cl: GSTEntry[] = [];
+  const cdnr: GSTEntry[] = [];
+  const exp: GSTEntry[] = [];
+
+  for (const v of vouchers) {
+    const entry = extractGSTFromVoucher(v, ledgerMap);
+    if (!entry) continue;
+
+    if (v.type === 'CREDIT_NOTE' || v.type === 'DEBIT_NOTE') {
+      cdnr.push(entry);
+    } else if (entry.partyGstin) {
+      b2b.push(entry);
+    } else if (entry.igst > 0 && entry.totalAmount > 250000) {
+      b2cl.push(entry);
+    } else {
+      b2cs.push(entry);
+    }
+  }
+
+  const allEntries = [...b2b, ...b2cs, ...b2cl, ...cdnr, ...exp];
+
+  return {
+    reportType: 'GSTR-1',
+    financialYear,
+    period: month && year ? `${String(month).padStart(2, '0')}/${year}` : `Full Year ${financialYear}`,
+    companyGstin,
+    b2b,
+    b2cs,
+    b2cl,
+    cdnr,
+    exp,
+    totalTaxableAmount: allEntries.reduce((s, e) => s + e.taxableAmount, 0),
+    totalTax: allEntries.reduce((s, e) => s + e.totalTax, 0),
+    totalInvoices: allEntries.length,
+  };
+}
+
+/**
+ * Generate GSTR-3B summary report (monthly/quarterly return)
+ */
+export async function generateGSTR3B(
+  financialYear: string,
+  month?: number,
+  year?: number,
+): Promise<GSTR3BSummary> {
+  await connectDB();
+  const AccVoucher = getAccVoucher();
+  const AccLedger = getAccLedger();
+
+  const [fyStartYear] = financialYear.split('-');
+  let dateFrom: Date, dateTo: Date;
+
+  if (month && year) {
+    dateFrom = new Date(year, month - 1, 1);
+    dateTo = new Date(year, month, 0, 23, 59, 59);
+  } else {
+    dateFrom = new Date(`${fyStartYear}-04-01`);
+    dateTo = new Date(`20${financialYear.split('-')[1]}-03-31T23:59:59`);
+  }
+
+  const ledgers = await AccLedger.find({ financialYear }).lean() as any[];
+  const ledgerMap = new Map<string, any>();
+  for (const l of ledgers) ledgerMap.set(l.name.toLowerCase(), l);
+
+  // Outward supplies (Sales + Debit Notes)
+  const salesVouchers = await AccVoucher.find({
+    financialYear,
+    type: { $in: ['SALES', 'DEBIT_NOTE'] },
+    date: { $gte: dateFrom, $lte: dateTo },
+  }).lean() as any[];
+
+  const outward = { taxable: 0, cgst: 0, sgst: 0, igst: 0, cess: 0 };
+  for (const v of salesVouchers) {
+    const entry = extractGSTFromVoucher(v, ledgerMap);
+    if (!entry) continue;
+    outward.taxable += entry.taxableAmount;
+    outward.cgst += entry.cgst;
+    outward.sgst += entry.sgst;
+    outward.igst += entry.igst;
+    outward.cess += entry.cess;
+  }
+
+  // Inward supplies under RCM (Purchases with reverse charge)
+  const purchaseVouchers = await AccVoucher.find({
+    financialYear,
+    type: { $in: ['PURCHASE', 'CREDIT_NOTE'] },
+    date: { $gte: dateFrom, $lte: dateTo },
+  }).lean() as any[];
+
+  const inwardRCM = { taxable: 0, cgst: 0, sgst: 0, igst: 0, cess: 0 };
+  const inputITC = { cgst: 0, sgst: 0, igst: 0, cess: 0 };
+
+  for (const v of purchaseVouchers) {
+    const entry = extractGSTFromVoucher(v, ledgerMap);
+    if (!entry) continue;
+    inputITC.cgst += entry.cgst;
+    inputITC.sgst += entry.sgst;
+    inputITC.igst += entry.igst;
+    inputITC.cess += entry.cess;
+  }
+
+  // Net tax payable = Output tax - Input credit
+  const netTax = {
+    cgst: Math.max(0, Math.round((outward.cgst - inputITC.cgst) * 100) / 100),
+    sgst: Math.max(0, Math.round((outward.sgst - inputITC.sgst) * 100) / 100),
+    igst: Math.max(0, Math.round((outward.igst - inputITC.igst) * 100) / 100),
+    cess: Math.max(0, Math.round((outward.cess - inputITC.cess) * 100) / 100),
+  };
+
+  return {
+    reportType: 'GSTR-3B',
+    financialYear,
+    period: month && year ? `${String(month).padStart(2, '0')}/${year}` : `Full Year ${financialYear}`,
+    outwardSupplies: outward,
+    inwardSuppliesRCM: inwardRCM,
+    inputTaxCredit: inputITC,
+    netTaxPayable: netTax,
+    totalTaxPayable: netTax.cgst + netTax.sgst + netTax.igst + netTax.cess,
+  };
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════
+// ██ COMPARATIVE STATEMENTS (Year-over-Year)
+// ═══════════════════════════════════════════════════════════════════════
+
+interface ComparativeRow {
+  ledgerName: string;
+  group: string;
+  subGroup: string;
+  currentYear: number;
+  previousYear: number;
+  change: number;
+  changePercent: number;
+}
+
+interface ComparativeReport {
+  reportType: string;
+  currentFY: string;
+  previousFY: string;
+  rows: ComparativeRow[];
+  currentTotal: number;
+  previousTotal: number;
+  totalChange: number;
+  totalChangePercent: number;
+}
+
+/**
+ * Generate Comparative P&L — side-by-side two-year P&L comparison
+ */
+export async function generateComparativePL(
+  currentFY: string,
+  previousFY: string,
+): Promise<ComparativeReport> {
+  await connectDB();
+
+  const currentPL = await generateProfitLoss(currentFY);
+  const previousPL = await generateProfitLoss(previousFY);
+
+  // Merge income rows
+  const allNames = new Set<string>();
+  const currentMap = new Map<string, { amount: number; group: string; subGroup: string }>();
+  const previousMap = new Map<string, { amount: number; group: string; subGroup: string }>();
+
+  for (const r of [...currentPL.incomeRows, ...currentPL.expenseRows]) {
+    allNames.add(r.ledgerName);
+    currentMap.set(r.ledgerName, { amount: r.amount, group: r.ledgerName.includes('Income') || r.ledgerName.includes('Fees') ? 'INCOME' : 'EXPENSE', subGroup: r.subGroup || '' });
+  }
+  for (const r of [...previousPL.incomeRows, ...previousPL.expenseRows]) {
+    allNames.add(r.ledgerName);
+    previousMap.set(r.ledgerName, { amount: r.amount, group: r.ledgerName.includes('Income') || r.ledgerName.includes('Fees') ? 'INCOME' : 'EXPENSE', subGroup: r.subGroup || '' });
+  }
+
+  const rows: ComparativeRow[] = [];
+  for (const name of allNames) {
+    const curr = currentMap.get(name);
+    const prev = previousMap.get(name);
+    const currentAmt = curr?.amount || 0;
+    const previousAmt = prev?.amount || 0;
+    const change = currentAmt - previousAmt;
+    const changePercent = previousAmt !== 0 ? (change / Math.abs(previousAmt)) * 100 : (currentAmt !== 0 ? 100 : 0);
+
+    rows.push({
+      ledgerName: name,
+      group: curr?.group || prev?.group || '',
+      subGroup: curr?.subGroup || prev?.subGroup || '',
+      currentYear: Math.round(currentAmt * 100) / 100,
+      previousYear: Math.round(previousAmt * 100) / 100,
+      change: Math.round(change * 100) / 100,
+      changePercent: Math.round(changePercent * 100) / 100,
+    });
+  }
+
+  // Sort: Income first then Expense, alphabetic within
+  rows.sort((a, b) => {
+    if (a.group !== b.group) return a.group === 'INCOME' ? -1 : 1;
+    return a.ledgerName.localeCompare(b.ledgerName);
+  });
+
+  const currentTotal = currentPL.netProfit;
+  const previousTotal = previousPL.netProfit;
+  const totalChange = currentTotal - previousTotal;
+
+  return {
+    reportType: 'Comparative P&L',
+    currentFY,
+    previousFY,
+    rows,
+    currentTotal: Math.round(currentTotal * 100) / 100,
+    previousTotal: Math.round(previousTotal * 100) / 100,
+    totalChange: Math.round(totalChange * 100) / 100,
+    totalChangePercent: previousTotal !== 0 ? Math.round((totalChange / Math.abs(previousTotal)) * 10000) / 100 : 0,
+  };
+}
+
+/**
+ * Generate Comparative Balance Sheet — side-by-side two-year BS comparison
+ */
+export async function generateComparativeBS(
+  currentFY: string,
+  previousFY: string,
+): Promise<ComparativeReport> {
+  await connectDB();
+
+  const currentBS = await generateBalanceSheet(currentFY);
+  const previousBS = await generateBalanceSheet(previousFY);
+
+  const allNames = new Set<string>();
+  const currentMap = new Map<string, { amount: number; group: string; subGroup: string }>();
+  const previousMap = new Map<string, { amount: number; group: string; subGroup: string }>();
+
+  for (const r of [...currentBS.assetRows, ...currentBS.liabilityRows, ...currentBS.capitalRows]) {
+    allNames.add(r.ledgerName);
+    const group = currentBS.assetRows.includes(r) ? 'ASSET' : currentBS.liabilityRows.includes(r) ? 'LIABILITY' : 'CAPITAL';
+    currentMap.set(r.ledgerName, { amount: r.amount, group, subGroup: r.subGroup || '' });
+  }
+  for (const r of [...previousBS.assetRows, ...previousBS.liabilityRows, ...previousBS.capitalRows]) {
+    allNames.add(r.ledgerName);
+    const group = previousBS.assetRows.includes(r) ? 'ASSET' : previousBS.liabilityRows.includes(r) ? 'LIABILITY' : 'CAPITAL';
+    previousMap.set(r.ledgerName, { amount: r.amount, group, subGroup: r.subGroup || '' });
+  }
+
+  const rows: ComparativeRow[] = [];
+  for (const name of allNames) {
+    const curr = currentMap.get(name);
+    const prev = previousMap.get(name);
+    const currentAmt = curr?.amount || 0;
+    const previousAmt = prev?.amount || 0;
+    const change = currentAmt - previousAmt;
+    const changePercent = previousAmt !== 0 ? (change / Math.abs(previousAmt)) * 100 : (currentAmt !== 0 ? 100 : 0);
+
+    rows.push({
+      ledgerName: name,
+      group: curr?.group || prev?.group || '',
+      subGroup: curr?.subGroup || prev?.subGroup || '',
+      currentYear: Math.round(currentAmt * 100) / 100,
+      previousYear: Math.round(previousAmt * 100) / 100,
+      change: Math.round(change * 100) / 100,
+      changePercent: Math.round(changePercent * 100) / 100,
+    });
+  }
+
+  // Sort by group order: ASSET, LIABILITY, CAPITAL, then alphabetic
+  const groupOrder: Record<string, number> = { ASSET: 1, LIABILITY: 2, CAPITAL: 3 };
+  rows.sort((a, b) => {
+    if (a.group !== b.group) return (groupOrder[a.group] || 99) - (groupOrder[b.group] || 99);
+    return a.ledgerName.localeCompare(b.ledgerName);
+  });
+
+  const currentTotal = currentBS.totalAssets;
+  const previousTotal = previousBS.totalAssets;
+
+  return {
+    reportType: 'Comparative Balance Sheet',
+    currentFY,
+    previousFY,
+    rows,
+    currentTotal: Math.round(currentTotal * 100) / 100,
+    previousTotal: Math.round(previousTotal * 100) / 100,
+    totalChange: Math.round((currentTotal - previousTotal) * 100) / 100,
+    totalChangePercent: previousTotal !== 0 ? Math.round(((currentTotal - previousTotal) / Math.abs(previousTotal)) * 10000) / 100 : 0,
+  };
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════
+// ██ BUDGET VS ACTUAL
+// ═══════════════════════════════════════════════════════════════════════
+
+interface BudgetRow {
+  ledgerName: string;
+  group: string;
+  subGroup: string;
+  budgetAmount: number;
+  actualAmount: number;
+  variance: number;
+  variancePercent: number;
+  isOverBudget: boolean;
+}
+
+interface BudgetReport {
+  reportType: 'Budget vs Actual';
+  financialYear: string;
+  rows: BudgetRow[];
+  totalBudget: number;
+  totalActual: number;
+  totalVariance: number;
+  overBudgetCount: number;
+  underBudgetCount: number;
+}
+
+/**
+ * Get budget allocations for the FY.
+ * Stored as simple key-value in a budgets collection or as metadata on ledgers.
+ * For now, we read from acc_budgets collection.
+ */
+export async function getBudgetReport(financialYear: string): Promise<BudgetReport> {
+  await connectDB();
+  const AccLedger = getAccLedger();
+
+  // Get all ledgers with budgets (budget stored as ledger metadata field)
+  const ledgers = await AccLedger.find({
+    financialYear,
+    budgetAmount: { $exists: true, $gt: 0 },
+  }).lean() as any[];
+
+  // Get actual amounts from P&L
+  const balanceMap = await batchCalculateLedgerBalances(financialYear);
+
+  const rows: BudgetRow[] = [];
+  let totalBudget = 0, totalActual = 0;
+  let overCount = 0, underCount = 0;
+
+  for (const l of ledgers) {
+    const budget = Number(l.budgetAmount) || 0;
+    if (budget <= 0) continue;
+
+    const balance = balanceMap.get(String(l._id));
+    const actual = balance ? Math.abs(balance.closingBalance) : 0;
+    const variance = budget - actual;
+    const variancePercent = budget > 0 ? (variance / budget) * 100 : 0;
+    const isOver = actual > budget;
+
+    if (isOver) overCount++;
+    else underCount++;
+
+    totalBudget += budget;
+    totalActual += actual;
+
+    rows.push({
+      ledgerName: l.name,
+      group: l.group,
+      subGroup: l.subGroup || '',
+      budgetAmount: Math.round(budget * 100) / 100,
+      actualAmount: Math.round(actual * 100) / 100,
+      variance: Math.round(variance * 100) / 100,
+      variancePercent: Math.round(variancePercent * 100) / 100,
+      isOverBudget: isOver,
+    });
+  }
+
+  rows.sort((a, b) => a.variance - b.variance); // Most over-budget first
+
+  return {
+    reportType: 'Budget vs Actual',
+    financialYear,
+    rows,
+    totalBudget: Math.round(totalBudget * 100) / 100,
+    totalActual: Math.round(totalActual * 100) / 100,
+    totalVariance: Math.round((totalBudget - totalActual) * 100) / 100,
+    overBudgetCount: overCount,
+    underBudgetCount: underCount,
+  };
+}
+
+/**
+ * Set budget for a ledger
+ */
+export async function setBudget(
+  ledgerId: string,
+  budgetAmount: number,
+): Promise<{ success: boolean }> {
+  await connectDB();
+  const AccLedger = getAccLedger();
+
+  await AccLedger.findByIdAndUpdate(ledgerId, { budgetAmount });
+  return { success: true };
+}
