@@ -883,6 +883,198 @@ export default function TallyPage() {
     } catch (e: any) { setError(e.message); }
   };
 
+  // ── Print Voucher as Invoice / Receipt PDF ─────────────────────────
+
+  const numberToWords = (n: number): string => {
+    if (n === 0) return 'Zero';
+    const ones = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+    const tens = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+    const convert = (num: number): string => {
+      if (num < 20) return ones[num];
+      if (num < 100) return tens[Math.floor(num / 10)] + (num % 10 ? ' ' + ones[num % 10] : '');
+      if (num < 1000) return ones[Math.floor(num / 100)] + ' Hundred' + (num % 100 ? ' and ' + convert(num % 100) : '');
+      if (num < 100000) return convert(Math.floor(num / 1000)) + ' Thousand' + (num % 1000 ? ' ' + convert(num % 1000) : '');
+      if (num < 10000000) return convert(Math.floor(num / 100000)) + ' Lakh' + (num % 100000 ? ' ' + convert(num % 100000) : '');
+      return convert(Math.floor(num / 10000000)) + ' Crore' + (num % 10000000 ? ' ' + convert(num % 10000000) : '');
+    };
+    const rupees = Math.floor(Math.abs(n));
+    const paise = Math.round((Math.abs(n) - rupees) * 100);
+    let words = 'Rupees ' + convert(rupees);
+    if (paise > 0) words += ' and ' + convert(paise) + ' Paise';
+    words += ' Only';
+    return words;
+  };
+
+  const printVoucher = (v: Voucher) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) { setError('Popup blocked. Please allow popups.'); return; }
+
+    const cp = companyProfile;
+    const companyName = cp.companyName || cp.legalName || 'Swar Yoga';
+
+    // Determine document type
+    const isReceipt = v.type === 'RECEIPT';
+    const isPayment = v.type === 'PAYMENT';
+    const isSales = v.type === 'SALES';
+    const isPurchase = v.type === 'PURCHASE';
+    const isDebitNote = v.type === 'DEBIT_NOTE';
+    const isCreditNote = v.type === 'CREDIT_NOTE';
+
+    let docTitle = 'Voucher';
+    if (isReceipt) docTitle = 'Receipt Voucher';
+    else if (isPayment) docTitle = 'Payment Voucher';
+    else if (isSales) docTitle = 'Sales Invoice';
+    else if (isPurchase) docTitle = 'Purchase Invoice';
+    else if (isDebitNote) docTitle = 'Debit Note';
+    else if (isCreditNote) docTitle = 'Credit Note';
+    else docTitle = 'Journal Voucher';
+
+    const vDate = new Date(v.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    const debitEntries = v.entries.filter(e => e.type === 'DEBIT');
+    const creditEntries = v.entries.filter(e => e.type === 'CREDIT');
+    const amount = Math.max(v.totalDebit, v.totalCredit);
+    const amountWords = numberToWords(amount);
+
+    // Find party name (counterparty — non-Cash/Bank entry)
+    const party = v.partyName || v.entries.find(e => 
+      !['Cash-in-Hand', 'Kotak Mahindra Bank', 'Cash', 'Bank'].some(k => e.ledgerName.includes(k))
+    )?.ledgerName || '';
+
+    // Address parts
+    const addressParts: string[] = [];
+    if (cp.address) addressParts.push(cp.address);
+    if (cp.city || cp.state || cp.pincode) addressParts.push([cp.city, cp.state, cp.pincode].filter(Boolean).join(', '));
+    const taxParts: string[] = [];
+    if (cp.gstin) taxParts.push(`GSTIN: ${cp.gstin}`);
+    if (cp.pan) taxParts.push(`PAN: ${cp.pan}`);
+    if (cp.cin) taxParts.push(`CIN: ${cp.cin}`);
+
+    // Build entry rows
+    let entryRowsHtml = '';
+    let sn = 1;
+    for (const e of v.entries) {
+      entryRowsHtml += `<tr>
+        <td style="text-align:center">${sn++}</td>
+        <td>${e.ledgerName}</td>
+        <td style="text-align:center">${e.type === 'DEBIT' ? 'Dr' : 'Cr'}</td>
+        <td style="text-align:right">${e.type === 'DEBIT' ? '₹' + Math.abs(e.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 }) : ''}</td>
+        <td style="text-align:right">${e.type === 'CREDIT' ? '₹' + Math.abs(e.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 }) : ''}</td>
+      </tr>`;
+    }
+
+    printWindow.document.write(`<!DOCTYPE html>
+<html><head><title>${docTitle} — ${v.voucherNumber}</title>
+<style>
+  @page { size: A4; margin: 15mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Tahoma, sans-serif; font-size: 11px; color: #222; line-height: 1.5; }
+  .voucher-border { border: 2px solid #333; padding: 20px; min-height: 700px; position: relative; }
+  .company-header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 15px; }
+  .company-header h1 { font-size: 20px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px; }
+  .company-header .addr { font-size: 10px; color: #555; }
+  .company-header .tax { font-size: 9px; color: #777; margin-top: 2px; }
+  .doc-title { text-align: center; font-size: 16px; font-weight: bold; text-transform: uppercase; margin: 10px 0; padding: 6px; background: #f0f0f0; border: 1px solid #ccc; letter-spacing: 1px; }
+  .meta-row { display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 11px; }
+  .meta-row .left { text-align: left; }
+  .meta-row .right { text-align: right; }
+  .meta-label { font-weight: bold; color: #555; }
+  .party-box { background: #f9f9f9; border: 1px solid #ddd; padding: 8px 12px; margin-bottom: 12px; border-radius: 3px; }
+  .party-box .label { font-size: 9px; color: #888; text-transform: uppercase; }
+  .party-box .value { font-size: 13px; font-weight: bold; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+  th { background: #f0f0f0; font-weight: 600; text-transform: uppercase; font-size: 9.5px; letter-spacing: 0.3px; }
+  th, td { border: 1px solid #ccc; padding: 6px 10px; }
+  .total-row { background: #f5f5f5; font-weight: bold; font-size: 12px; }
+  .amount-words { font-size: 10.5px; margin: 10px 0; padding: 8px; background: #f9f9f9; border: 1px solid #ddd; border-radius: 3px; }
+  .amount-words .label { font-weight: bold; color: #555; font-size: 9px; text-transform: uppercase; }
+  .narration-box { margin: 12px 0; padding: 8px; border: 1px solid #eee; background: #fafafa; font-size: 10.5px; }
+  .narration-box .label { font-weight: bold; color: #555; font-size: 9px; text-transform: uppercase; }
+  .signatures { display: flex; justify-content: space-between; margin-top: 50px; padding-top: 10px; }
+  .sig-block { text-align: center; width: 30%; }
+  .sig-line { border-top: 1px solid #333; margin-top: 40px; padding-top: 4px; font-size: 10px; font-weight: 600; }
+  .footer-note { text-align: center; margin-top: 20px; font-size: 8.5px; color: #999; border-top: 1px solid #ddd; padding-top: 6px; }
+  .original-copy { position: absolute; top: 20px; right: 20px; font-size: 9px; color: #999; font-style: italic; }
+  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+</style></head><body>
+<div class="voucher-border">
+  <div class="original-copy">Original Copy</div>
+
+  <div class="company-header">
+    <h1>${companyName}</h1>
+    ${addressParts.length ? `<div class="addr">${addressParts.join(' | ')}</div>` : ''}
+    ${cp.phone || cp.email ? `<div class="addr">${[cp.phone ? 'Phone: ' + cp.phone : '', cp.email ? 'Email: ' + cp.email : ''].filter(Boolean).join(' | ')}</div>` : ''}
+    ${taxParts.length ? `<div class="tax">${taxParts.join(' &nbsp;|&nbsp; ')}</div>` : ''}
+  </div>
+
+  <div class="doc-title">${docTitle}</div>
+
+  <div class="meta-row">
+    <div class="left">
+      <span class="meta-label">Voucher No:</span> ${v.voucherNumber}
+    </div>
+    <div class="right">
+      <span class="meta-label">Date:</span> ${vDate}
+    </div>
+  </div>
+
+  ${party ? `
+  <div class="party-box">
+    <div class="label">${isReceipt ? 'Received From' : isPayment ? 'Paid To' : isSales ? 'Billed To' : isPurchase ? 'Received From' : 'Party'}</div>
+    <div class="value">${party}</div>
+  </div>` : ''}
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:40px;text-align:center">S.No</th>
+        <th>Particulars</th>
+        <th style="width:50px;text-align:center">Type</th>
+        <th style="width:120px;text-align:right">Debit (₹)</th>
+        <th style="width:120px;text-align:right">Credit (₹)</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${entryRowsHtml}
+    </tbody>
+    <tfoot>
+      <tr class="total-row">
+        <td colspan="3" style="text-align:right">Total</td>
+        <td style="text-align:right">₹${v.totalDebit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+        <td style="text-align:right">₹${v.totalCredit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <div class="amount-words">
+    <span class="label">Amount in Words: </span>
+    ${amountWords}
+  </div>
+
+  ${v.narration ? `
+  <div class="narration-box">
+    <div class="label">Narration</div>
+    ${v.narration}
+  </div>` : ''}
+
+  <div class="signatures">
+    <div class="sig-block">
+      <div class="sig-line">${isReceipt ? "Receiver's Signature" : isPayment ? "Receiver's Signature" : 'Prepared By'}</div>
+    </div>
+    <div class="sig-block">
+      <div class="sig-line">Checked By</div>
+    </div>
+    <div class="sig-block">
+      <div class="sig-line">Authorised Signatory<br/><span style="font-size:8px;color:#888">For ${companyName}</span></div>
+    </div>
+  </div>
+
+  <div class="footer-note">This is a computer-generated document. No signature is required if digitally verified.</div>
+</div>
+</body></html>`);
+    printWindow.document.close();
+    setTimeout(() => printWindow.print(), 500);
+  };
+
   // ── Edit Voucher Handler ──────────────────────────────────────────
 
   const openEditVoucher = (v: Voucher) => {
@@ -1551,6 +1743,10 @@ export default function TallyPage() {
                 <td className="px-4 py-2.5 text-right font-mono text-red-400">{fmt(v.totalCredit)}</td>
                 <td className="px-4 py-2.5 text-center">
                   <div className="flex items-center justify-center gap-1">
+                    <button onClick={() => printVoucher(v)} title="Print Invoice/Receipt"
+                      className="p-1.5 rounded hover:bg-blue-500/20 text-gray-400 hover:text-blue-400 transition-colors">
+                      <Printer className="w-3.5 h-3.5" />
+                    </button>
                     <button onClick={() => openEditVoucher(v)} title="Edit Voucher"
                       className="p-1.5 rounded hover:bg-yellow-500/20 text-gray-400 hover:text-yellow-400 transition-colors">
                       <Pencil className="w-3.5 h-3.5" />
