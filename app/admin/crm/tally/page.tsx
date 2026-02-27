@@ -228,6 +228,8 @@ export default function TallyPage() {
   const [error, setError] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [showGateway, setShowGateway] = useState(true);
+  const [gatewayActive, setGatewayActive] = useState<string>('');
   const moreRef = useRef<HTMLDivElement>(null);
 
   // Close "More" dropdown on click outside
@@ -317,6 +319,84 @@ export default function TallyPage() {
 
   // Company profile for print headers
   const [companyProfile, setCompanyProfile] = useState<Record<string, string>>({});
+
+  // ── Gateway navigation helper ─────────────────────────────────
+  const gatewayNavigate = useCallback((tabKey: ViewTab, label?: string) => {
+    setTab(tabKey);
+    setGatewayActive(label || tabKey);
+  }, []);
+
+  // ── Keyboard Shortcuts (Tally Prime Function Keys) ────────────
+  useEffect(() => {
+    if (!isTally) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      // Don't intercept when typing in inputs
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+
+      switch (e.key) {
+        case 'F1':
+          e.preventDefault();
+          setTab('settings');
+          setGatewayActive('Setup');
+          break;
+        case 'F2':
+          e.preventDefault();
+          // F2: Date — focus FY selector
+          break;
+        case 'F4':
+          e.preventDefault();
+          setShowVoucherForm(true);
+          setGatewayActive('Create Voucher');
+          break;
+        case 'F5':
+          e.preventDefault();
+          setTab('vouchers');
+          setGatewayActive('Vouchers');
+          break;
+        case 'F6':
+          e.preventDefault();
+          setShowLedgerForm(true);
+          setGatewayActive('Create Ledger');
+          break;
+        case 'F7':
+          e.preventDefault();
+          setTab('ledgers');
+          setGatewayActive('Chart of Accounts');
+          break;
+        case 'F8':
+          e.preventDefault();
+          setTab('daybook');
+          setGatewayActive('Day Book');
+          break;
+        case 'F9':
+          e.preventDefault();
+          setTab('profit-loss');
+          setGatewayActive('Profit & Loss A/c');
+          break;
+        case 'F10':
+          e.preventDefault();
+          setTab('balance-sheet');
+          setGatewayActive('Balance Sheet');
+          break;
+        case 'F11':
+          e.preventDefault();
+          setTab('trial-balance');
+          setGatewayActive('Trial Balance');
+          break;
+        case 'F12':
+          e.preventDefault();
+          setTab('settings');
+          setGatewayActive('Setup');
+          break;
+        case 'Escape':
+          setShowGateway(g => !g);
+          break;
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isTally]);
 
   // CA Audit drill-down state (Tally Prime style)
   const [caExpandedGroups, setCaExpandedGroups] = useState<Record<string, boolean>>({});
@@ -7547,158 +7627,184 @@ ${contentHtml}
     {/* Tally Prime Theme CSS Overrides */}
     {isTally && (
       <style dangerouslySetInnerHTML={{ __html: `
-        /* ── Tally Prime Classic Theme ─────────────────────────── */
-        .tally-classic { background: #F4EFE1 !important; color: #1A1A2E !important; }
+        /* ══════════════════════════════════════════════════════════
+           Tally Prime Authentic Theme
+           Top Bar: #003366 (navy), Headers: #4472C4 (blue),
+           BG: #B8CCE4 (light blue), Cards: #FFFFFF, Text: #000000,
+           Selection: #FFB800 (gold), Amounts: Green #008000 Red #FF0000
+           ══════════════════════════════════════════════════════════ */
+
+        .tally-classic { background: #B8CCE4 !important; color: #000000 !important; font-family: 'Segoe UI', Tahoma, Verdana, sans-serif !important; }
 
         /* Cards & panels */
-        .tally-classic .bg-gray-900 { background: #FFFFFF !important; }
-        .tally-classic .bg-gray-800 { background: #EDE8D5 !important; }
-        .tally-classic [class*="bg-gray-800\/"] { background: #F0EBD8 !important; }
-        .tally-classic .bg-gray-950 { background: #F4EFE1 !important; }
+        .tally-classic .bg-gray-900 { background: #FFFFFF !important; border: 1px solid #8898AA !important; }
+        .tally-classic .bg-gray-800 { background: #EEF2F7 !important; }
+        .tally-classic [class*="bg-gray-800\/"] { background: #EEF2F7 !important; }
+        .tally-classic .bg-gray-950 { background: #B8CCE4 !important; }
 
         /* Borders */
-        .tally-classic .border-gray-800 { border-color: #D4C9A8 !important; }
-        .tally-classic .border-gray-700 { border-color: #C5B99B !important; }
-        .tally-classic [class*="border-gray-"] { border-color: #D4C9A8 !important; }
+        .tally-classic .border-gray-800,
+        .tally-classic .border-gray-700,
+        .tally-classic [class*="border-gray-"] { border-color: #8898AA !important; }
 
         /* Text */
-        .tally-classic .text-white { color: #1A1A2E !important; }
-        .tally-classic .text-gray-200 { color: #1A1A2E !important; }
-        .tally-classic .text-gray-300 { color: #2A2A3E !important; }
-        .tally-classic .text-gray-400 { color: #4A4A5A !important; }
-        .tally-classic .text-gray-500 { color: #6A6A7A !important; }
+        .tally-classic .text-white { color: #000000 !important; }
+        .tally-classic .text-gray-200 { color: #000000 !important; }
+        .tally-classic .text-gray-300 { color: #1A1A1A !important; }
+        .tally-classic .text-gray-400 { color: #333333 !important; }
+        .tally-classic .text-gray-500 { color: #555555 !important; }
 
-        /* Amount colors — keep meaningful but darken */
-        .tally-classic .text-blue-400,
-        .tally-classic .text-blue-300 { color: #003399 !important; }
-        .tally-classic .text-red-400,
-        .tally-classic .text-red-300 { color: #CC0000 !important; }
-        .tally-classic .text-green-400,
-        .tally-classic .text-green-300 { color: #006600 !important; }
-        .tally-classic .text-yellow-400,
-        .tally-classic .text-yellow-300 { color: #8B6914 !important; }
-        .tally-classic .text-orange-400 { color: #CC6600 !important; }
-        .tally-classic .text-purple-400 { color: #6600AA !important; }
+        /* ── Amount Colors ───────────────────────────────────────── */
+        .tally-classic .text-blue-400, .tally-classic .text-blue-300 { color: #0000FF !important; }
+        .tally-classic .text-red-400, .tally-classic .text-red-300 { color: #FF0000 !important; }
+        .tally-classic .text-green-400, .tally-classic .text-green-300 { color: #008000 !important; }
+        .tally-classic .text-yellow-400 { color: #003366 !important; font-weight: 600 !important; }
+        .tally-classic .text-yellow-300 { color: #FFFFFF !important; }
+        .tally-classic .text-orange-400 { color: #FF6600 !important; }
+        .tally-classic .text-purple-400, .tally-classic .text-pink-400 { color: #FF00FF !important; }
         .tally-classic .text-cyan-400 { color: #006680 !important; }
-        .tally-classic .text-emerald-400 { color: #005533 !important; }
-        .tally-classic .text-rose-400 { color: #CC3333 !important; }
-        .tally-classic .text-indigo-400 { color: #3333AA !important; }
-        .tally-classic .text-pink-400 { color: #AA3366 !important; }
+        .tally-classic .text-emerald-400 { color: #008000 !important; }
+        .tally-classic .text-rose-400 { color: #FF0000 !important; }
+        .tally-classic .text-indigo-400 { color: #0000FF !important; }
         .tally-classic .text-amber-400 { color: #996600 !important; }
 
-        /* Table header — signature Tally navy blue */
-        .tally-classic thead { background: #003366 !important; }
-        .tally-classic thead th,
-        .tally-classic thead td { color: #FFFFFF !important; }
-        .tally-classic tfoot { background: #003366 !important; }
-        .tally-classic tfoot td { color: #FFFFFF !important; }
-
-        /* Table rows */
+        /* ── Tables ──────────────────────────────────────────────── */
+        .tally-classic table { border-collapse: collapse !important; border: 1px solid #8898AA !important; }
+        .tally-classic thead { background: #4472C4 !important; }
+        .tally-classic thead th, .tally-classic thead td {
+          color: #FFFFFF !important; font-weight: 600 !important;
+          border-right: 1px solid #5B86CF !important; padding: 8px 12px !important;
+        }
+        .tally-classic tfoot { background: #4472C4 !important; }
+        .tally-classic tfoot td { color: #FFFFFF !important; font-weight: 700 !important; border-right: 1px solid #5B86CF !important; }
         .tally-classic tbody tr { background: #FFFFFF !important; }
-        .tally-classic tbody tr:nth-child(even) { background: #FAF7F0 !important; }
-        .tally-classic tbody tr:hover { background: #EDE8D5 !important; }
-        .tally-classic .divide-gray-800 > :not([hidden]) ~ :not([hidden]) { border-color: #E0D9C4 !important; }
+        .tally-classic tbody tr:nth-child(even) { background: #F2F6FA !important; }
+        .tally-classic tbody tr:hover { background: #D6E4F0 !important; }
+        .tally-classic tbody td { border-right: 1px solid #D0D8E4 !important; border-bottom: 1px solid #E8ECF0 !important; padding: 6px 12px !important; color: #000000 !important; }
+        .tally-classic .divide-gray-800 > :not([hidden]) ~ :not([hidden]) { border-color: #D0D8E4 !important; }
 
-        /* Color tints for stat cards */
-        .tally-classic [class*="bg-blue-500\/"] { background: #E3F0FE !important; }
-        .tally-classic [class*="bg-green-500\/"] { background: #E3F5E3 !important; }
-        .tally-classic [class*="bg-red-500\/"] { background: #FEE3E3 !important; }
-        .tally-classic [class*="bg-yellow-500\/"],
-        .tally-classic [class*="bg-yellow-600\/"] { background: #FFF8E1 !important; }
-        .tally-classic [class*="bg-purple-500\/"],
-        .tally-classic [class*="bg-purple-600\/"] { background: #F0E3FE !important; }
+        /* Selected row — golden highlight like Tally */
+        .tally-classic tr.bg-gray-800\/50, .tally-classic tr[class*="bg-gray-800"] { background: #FFB800 !important; color: #000000 !important; }
+        .tally-classic tr.bg-gray-800\/50 td, .tally-classic tr[class*="bg-gray-800"] td { color: #000000 !important; }
+
+        /* ── Stat Cards ──────────────────────────────────────────── */
+        .tally-classic [class*="bg-blue-500\/"] { background: #DEEAF6 !important; }
+        .tally-classic [class*="bg-green-500\/"] { background: #E2EFDA !important; }
+        .tally-classic [class*="bg-red-500\/"] { background: #FCE4EC !important; }
+        .tally-classic [class*="bg-yellow-500\/"], .tally-classic [class*="bg-yellow-600\/"] { background: #FFF2CC !important; }
+        .tally-classic [class*="bg-purple-500\/"], .tally-classic [class*="bg-purple-600\/"] { background: #E8DAEF !important; }
         .tally-classic [class*="bg-orange-500\/"] { background: #FFF3E0 !important; }
         .tally-classic [class*="bg-cyan-500\/"] { background: #E0F7FA !important; }
-        .tally-classic [class*="bg-emerald-500\/"] { background: #E0F2EF !important; }
-        .tally-classic [class*="bg-rose-500\/"] { background: #FEE3E8 !important; }
-        .tally-classic [class*="bg-indigo-500\/"],
-        .tally-classic [class*="bg-indigo-600\/"] { background: #E8E3FE !important; }
-
-        /* Borders for tinted cards */
-        .tally-classic [class*="border-blue-"] { border-color: #90CAF9 !important; }
-        .tally-classic [class*="border-green-"] { border-color: #A5D6A7 !important; }
+        .tally-classic [class*="bg-emerald-500\/"] { background: #E0F2F1 !important; }
+        .tally-classic [class*="bg-rose-500\/"] { background: #FCE4EC !important; }
+        .tally-classic [class*="bg-indigo-500\/"], .tally-classic [class*="bg-indigo-600\/"] { background: #DEEAF6 !important; }
+        .tally-classic [class*="border-blue-"] { border-color: #9BC2E6 !important; }
+        .tally-classic [class*="border-green-"] { border-color: #A9D18E !important; }
         .tally-classic [class*="border-red-"] { border-color: #EF9A9A !important; }
-        .tally-classic [class*="border-yellow-"] { border-color: #E6C85E !important; }
-        .tally-classic [class*="border-purple-"] { border-color: #CE93D8 !important; }
+        .tally-classic [class*="border-yellow-"] { border-color: #FFD966 !important; }
+        .tally-classic [class*="border-purple-"] { border-color: #B4A7D6 !important; }
         .tally-classic [class*="border-cyan-"] { border-color: #80DEEA !important; }
         .tally-classic [class*="border-orange-"] { border-color: #FFCC80 !important; }
         .tally-classic [class*="border-emerald-"] { border-color: #80CBC4 !important; }
 
-        /* Active tab highlight — Tally navy blue */
-        .tally-classic .border-yellow-500 { border-color: #003366 !important; }
-        .tally-classic .border-b-2.border-yellow-500 { border-bottom-color: #003366 !important; }
+        /* ── Tab Bar ─────────────────────────────────────────────── */
+        .tally-classic .border-yellow-500 { border-color: #FFB800 !important; }
+        .tally-classic .border-b-2.border-yellow-500 { border-bottom-color: #FFB800 !important; }
+        .tally-classic .border-b.border-gray-800 { border-bottom: 2px solid #003366 !important; }
 
-        /* Tab bar bottom border */
-        .tally-classic .border-b.border-gray-800 { border-bottom-color: #C5B99B !important; }
-
-        /* Inputs & selects */
-        .tally-classic input,
-        .tally-classic select,
-        .tally-classic textarea {
-          background: #FFFFFF !important;
-          border-color: #C5B99B !important;
-          color: #1A1A2E !important;
+        /* ── Inputs ──────────────────────────────────────────────── */
+        .tally-classic input, .tally-classic select, .tally-classic textarea {
+          background: #FFFFFF !important; border: 1px solid #8898AA !important;
+          color: #000000 !important; border-radius: 3px !important;
         }
-        .tally-classic input::placeholder,
-        .tally-classic textarea::placeholder { color: #999 !important; }
-        .tally-classic option { background: #FFFFFF !important; color: #1A1A2E !important; }
+        .tally-classic input:focus, .tally-classic select:focus, .tally-classic textarea:focus {
+          border-color: #4472C4 !important; outline: none !important;
+          box-shadow: 0 0 0 2px rgba(68,114,196,0.25) !important;
+        }
+        .tally-classic input::placeholder, .tally-classic textarea::placeholder { color: #888 !important; }
+        .tally-classic option { background: #FFFFFF !important; color: #000000 !important; }
 
-        /* Buttons */
-        .tally-classic .hover\\:bg-gray-800:hover,
-        .tally-classic .hover\\:bg-gray-600:hover { background: #EDE8D5 !important; }
+        /* ── Buttons ─────────────────────────────────────────────── */
+        .tally-classic .hover\\:bg-gray-800:hover, .tally-classic .hover\\:bg-gray-600:hover { background: #D6E4F0 !important; }
         .tally-classic .bg-gray-700 { background: #003366 !important; color: #FFFFFF !important; }
         .tally-classic .bg-gray-700:hover { background: #004488 !important; }
+        .tally-classic [class*="bg-yellow-600\/"] { background: #003366 !important; }
+        .tally-classic [class*="border-yellow-600\/"] { border-color: #004488 !important; }
 
-        /* Rounded cards */
-        .tally-classic .rounded-xl { border-radius: 8px !important; box-shadow: 0 1px 3px rgba(0,0,0,0.08) !important; }
+        /* ── Cards ───────────────────────────────────────────────── */
+        .tally-classic .rounded-xl { border-radius: 4px !important; box-shadow: 0 1px 3px rgba(0,0,0,0.12) !important; }
+        .tally-classic .rounded-lg { border-radius: 3px !important; }
 
-        /* Modals */
-        .tally-classic [class*="bg-black\/"] { background: rgba(0,0,0,0.4) !important; }
+        /* ── Modals & Overlays ────────────────────────────────────── */
+        .tally-classic [class*="bg-black\/"] { background: rgba(0,0,0,0.5) !important; }
+        .tally-classic [class*="bg-red-500\/"][class*="border-red-"] { background: #FCE4EC !important; }
+        .tally-classic [class*="bg-green-500\/"][class*="border-green-"] { background: #E2EFDA !important; }
 
-        /* Lock/unlock button overrides */
-        .tally-classic [class*="bg-red-500\/"][class*="border-red-"] { background: #FEE3E3 !important; }
-        .tally-classic [class*="bg-green-500\/"][class*="border-green-"] { background: #E3F5E3 !important; }
+        /* ── Dropdown ────────────────────────────────────────────── */
+        .tally-classic .z-50 { background: #FFFFFF !important; border: 1px solid #8898AA !important; box-shadow: 0 4px 12px rgba(0,0,0,0.2) !important; }
 
-        /* Scrollbar for Tally theme */
-        .tally-classic ::-webkit-scrollbar { width: 8px; height: 8px; }
-        .tally-classic ::-webkit-scrollbar-track { background: #F4EFE1; }
-        .tally-classic ::-webkit-scrollbar-thumb { background: #C5B99B; border-radius: 4px; }
-        .tally-classic ::-webkit-scrollbar-thumb:hover { background: #A89870; }
+        /* Error banners */
+        .tally-classic [class*="bg-red-900\/"] { background: #FCE4EC !important; }
+        .tally-classic [class*="border-red-700"] { border-color: #EF5350 !important; }
 
-        /* Print header */
+        /* ── Scrollbar ───────────────────────────────────────────── */
+        .tally-classic ::-webkit-scrollbar { width: 10px; height: 10px; }
+        .tally-classic ::-webkit-scrollbar-track { background: #D4DCE8; }
+        .tally-classic ::-webkit-scrollbar-thumb { background: #8898AA; border-radius: 5px; border: 2px solid #D4DCE8; }
+        .tally-classic ::-webkit-scrollbar-thumb:hover { background: #6878AA; }
+
         .tally-classic .font-mono { font-family: 'Courier New', Courier, monospace !important; }
+
+        /* ── Right Sidebar (Gateway Panel) ───────────────────────── */
+        .tally-gateway { background: #EEF2F7; border-left: 2px solid #8898AA; }
+        .tally-gateway-header { background: #4472C4; color: #FFFFFF; font-weight: 700; padding: 6px 12px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .tally-gateway-section { color: #4472C4; font-weight: 700; font-size: 11px; text-transform: uppercase; padding: 8px 12px 2px; letter-spacing: 0.5px; }
+        .tally-gateway-item {
+          display: flex; align-items: center; gap: 8px; padding: 5px 12px; cursor: pointer;
+          font-size: 13px; color: #000000; transition: background 0.1s;
+        }
+        .tally-gateway-item:hover { background: #D6E4F0; }
+        .tally-gateway-item.active { background: #FFB800; font-weight: 600; }
+        .tally-gateway-key {
+          display: inline-flex; align-items: center; justify-content: center;
+          min-width: 24px; height: 20px; padding: 0 4px;
+          background: #003366; color: #FFFFFF; font-size: 10px; font-weight: 700;
+          border-radius: 3px; font-family: 'Segoe UI', sans-serif;
+        }
       ` }} />
     )}
-    <div className={`flex min-h-screen ${isTally ? 'tally-classic bg-[#F4EFE1] text-[#1A1A2E]' : 'bg-gray-950 text-white'}`}>
+    <div className={`flex min-h-screen ${isTally ? 'tally-classic bg-[#B8CCE4] text-black' : 'bg-gray-950 text-white'}`}>
       <AdminSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <main className="flex-1 p-4 lg:p-6 overflow-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+      <main className={`flex-1 p-4 lg:p-6 overflow-auto ${isTally ? 'pb-16 lg:pb-14' : ''}`}>
+        {/* Header — Tally Prime Navy Bar */}
+        <div className={`flex items-center justify-between mb-4 ${isTally ? 'bg-[#003366] rounded-md px-4 py-3 -mx-4 lg:-mx-6 -mt-4 lg:-mt-6 mb-4' : ''}`}>
           <div className="flex items-center gap-3">
-            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden p-2 hover:bg-gray-800 rounded-lg">
+            <button onClick={() => setSidebarOpen(!sidebarOpen)} className={`lg:hidden p-2 rounded-lg ${isTally ? 'hover:bg-[#004488] text-white' : 'hover:bg-gray-800'}`}>
               <Menu className="w-5 h-5" />
             </button>
-            <button onClick={() => router.push('/admin/crm')} className="p-2 hover:bg-gray-800 rounded-lg">
+            <button onClick={() => router.push('/admin/crm')} className={`p-2 rounded-lg ${isTally ? 'hover:bg-[#004488] text-white' : 'hover:bg-gray-800'}`}>
               <ArrowLeft className="w-5 h-5" />
             </button>
             <div>
-              <h1 className="text-xl font-bold text-white flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-yellow-500" />
+              <h1 className={`text-xl font-bold flex items-center gap-2 ${isTally ? 'text-white' : 'text-white'}`}>
+                <Building2 className={`w-5 h-5 ${isTally ? 'text-[#FFD700]' : 'text-yellow-500'}`} />
                 Tally Prime
               </h1>
-              <p className="text-xs text-gray-500">Double-Entry Bookkeeping</p>
+              <p className={`text-xs ${isTally ? 'text-blue-200' : 'text-gray-500'}`}>Double-Entry Bookkeeping</p>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 bg-yellow-600/20 border border-yellow-600/50 rounded-lg px-3 py-1.5">
-              <Calendar className="w-4 h-4 text-yellow-400" />
+            <div className={`flex items-center gap-2 rounded-lg px-3 py-1.5 ${
+              isTally ? 'bg-[#004488] border border-[#005599]' : 'bg-yellow-600/20 border border-yellow-600/50'
+            }`}>
+              <Calendar className={`w-4 h-4 ${isTally ? 'text-[#FFD700]' : 'text-yellow-400'}`} />
               <select value={fy} onChange={e => { setFy(e.target.value); clearAllCachedData(); }}
-                className="text-sm text-yellow-300 bg-transparent outline-none">
-                <option value="2025-26" className="bg-gray-900 text-white">FY 2025-26{fy === '2025-26' && fyLocked ? ' (Locked)' : ''}</option>
-                <option value="2024-25" className="bg-gray-900 text-white">FY 2024-25{fy === '2024-25' && fyLocked ? ' (Locked)' : ''}</option>
-                <option value="2023-24" className="bg-gray-900 text-white">FY 2023-24{fy === '2023-24' && fyLocked ? ' (Locked)' : ''}</option>
+                className={`text-sm bg-transparent outline-none ${isTally ? '!text-white !bg-transparent !border-none' : 'text-yellow-300'}`}>
+                <option value="2025-26" className={isTally ? 'bg-[#003366] text-white' : 'bg-gray-900 text-white'}>FY 2025-26{fy === '2025-26' && fyLocked ? ' (Locked)' : ''}</option>
+                <option value="2024-25" className={isTally ? 'bg-[#003366] text-white' : 'bg-gray-900 text-white'}>FY 2024-25{fy === '2024-25' && fyLocked ? ' (Locked)' : ''}</option>
+                <option value="2023-24" className={isTally ? 'bg-[#003366] text-white' : 'bg-gray-900 text-white'}>FY 2023-24{fy === '2023-24' && fyLocked ? ' (Locked)' : ''}</option>
               </select>
             </div>
 
@@ -7707,9 +7813,13 @@ ${contentHtml}
               onClick={toggleFYLock}
               disabled={lockLoading}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
-                fyLocked
-                  ? 'bg-red-500/20 border-red-500/50 text-red-400 hover:bg-red-500/30'
-                  : 'bg-green-500/20 border-green-500/50 text-green-400 hover:bg-green-500/30'
+                isTally
+                  ? fyLocked
+                    ? 'bg-[#8B0000] border-[#A00000] text-white hover:bg-[#A00000]'
+                    : 'bg-[#006400] border-[#007700] text-white hover:bg-[#007700]'
+                  : fyLocked
+                    ? 'bg-red-500/20 border-red-500/50 text-red-400 hover:bg-red-500/30'
+                    : 'bg-green-500/20 border-green-500/50 text-green-400 hover:bg-green-500/30'
               } disabled:opacity-50`}
               title={fyLocked ? `Unlock FY ${fy} to allow edits` : `Lock FY ${fy} to prevent changes`}
             >
@@ -7724,8 +7834,8 @@ ${contentHtml}
             </button>
 
             <button onClick={() => { clearAllCachedData(); refreshCurrentTab(); }}
-              className="p-2 hover:bg-gray-800 rounded-lg" title="Refresh">
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-yellow-500' : 'text-gray-400'}`} />
+              className={`p-2 rounded-lg ${isTally ? 'hover:bg-[#004488] text-white' : 'hover:bg-gray-800'}`} title="Refresh">
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''} ${isTally ? 'text-white' : loading ? 'text-yellow-500' : 'text-gray-400'}`} />
             </button>
 
             {/* Theme Toggle */}
@@ -7733,7 +7843,7 @@ ${contentHtml}
               onClick={toggleTheme}
               className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium border transition-all ${
                 isTally
-                  ? 'bg-[#003366] border-[#003366] text-white hover:bg-[#004488]'
+                  ? 'bg-[#FFD700] border-[#FFD700] text-[#003366] hover:bg-[#FFE44D] font-bold'
                   : 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'
               }`}
               title={isTally ? 'Switch to Dark theme' : 'Switch to Tally Prime theme'}
@@ -7845,6 +7955,237 @@ ${contentHtml}
           </>
         )}
       </main>
+
+      {/* ════ Tally Prime Gateway Sidebar (Right Panel) ══════════════ */}
+      {isTally && showGateway && (
+        <aside className="tally-gateway w-[220px] flex-shrink-0 flex flex-col min-h-screen overflow-y-auto select-none hidden lg:flex">
+          {/* Gateway Header */}
+          <div className="tally-gateway-header flex items-center justify-between">
+            <span>Gateway of Tally</span>
+            <button onClick={() => setShowGateway(false)} className="text-white/70 hover:text-white text-xs">✕</button>
+          </div>
+
+          {/* ── MASTERS ──────────────────────────────────── */}
+          <div className="tally-gateway-section">Masters</div>
+          <div
+            className={`tally-gateway-item ${gatewayActive === 'Create Ledger' ? 'active' : ''}`}
+            onClick={() => { setShowLedgerForm(true); setGatewayActive('Create Ledger'); }}
+          >
+            <span className="tally-gateway-key">F6</span>
+            <span>Create Ledger</span>
+          </div>
+          <div
+            className={`tally-gateway-item ${gatewayActive === 'Chart of Accounts' ? 'active' : ''}`}
+            onClick={() => gatewayNavigate('ledgers', 'Chart of Accounts')}
+          >
+            <span className="tally-gateway-key">F7</span>
+            <span>Chart of Accounts</span>
+          </div>
+          <div
+            className={`tally-gateway-item ${gatewayActive === 'Account' ? 'active' : ''}`}
+            onClick={() => gatewayNavigate('account', 'Account')}
+          >
+            <span className="tally-gateway-key">A</span>
+            <span>Alter Master</span>
+          </div>
+
+          {/* ── TRANSACTIONS ─────────────────────────────── */}
+          <div className="tally-gateway-section" style={{ marginTop: 4 }}>Transactions</div>
+          <div
+            className={`tally-gateway-item ${gatewayActive === 'Create Voucher' ? 'active' : ''}`}
+            onClick={() => { setShowVoucherForm(true); setGatewayActive('Create Voucher'); }}
+          >
+            <span className="tally-gateway-key">F4</span>
+            <span>Create Voucher</span>
+          </div>
+          <div
+            className={`tally-gateway-item ${gatewayActive === 'Vouchers' ? 'active' : ''}`}
+            onClick={() => gatewayNavigate('vouchers', 'Vouchers')}
+          >
+            <span className="tally-gateway-key">F5</span>
+            <span>Vouchers</span>
+          </div>
+          <div
+            className={`tally-gateway-item ${gatewayActive === 'Day Book' ? 'active' : ''}`}
+            onClick={() => gatewayNavigate('daybook', 'Day Book')}
+          >
+            <span className="tally-gateway-key">F8</span>
+            <span>Day Book</span>
+          </div>
+          <div
+            className={`tally-gateway-item ${gatewayActive === 'Cash/Bank Book' ? 'active' : ''}`}
+            onClick={() => gatewayNavigate('cashbank', 'Cash/Bank Book')}
+          >
+            <span className="tally-gateway-key">B</span>
+            <span>Cash/Bank Book</span>
+          </div>
+
+          {/* ── REPORTS ──────────────────────────────────── */}
+          <div className="tally-gateway-section" style={{ marginTop: 4 }}>Reports</div>
+          <div
+            className={`tally-gateway-item ${gatewayActive === 'Balance Sheet' ? 'active' : ''}`}
+            onClick={() => gatewayNavigate('balance-sheet', 'Balance Sheet')}
+          >
+            <span className="tally-gateway-key">F10</span>
+            <span>Balance Sheet</span>
+          </div>
+          <div
+            className={`tally-gateway-item ${gatewayActive === 'Profit & Loss A/c' ? 'active' : ''}`}
+            onClick={() => gatewayNavigate('profit-loss', 'Profit & Loss A/c')}
+          >
+            <span className="tally-gateway-key">F9</span>
+            <span>Profit &amp; Loss A/c</span>
+          </div>
+          <div
+            className={`tally-gateway-item ${gatewayActive === 'Trial Balance' ? 'active' : ''}`}
+            onClick={() => gatewayNavigate('trial-balance', 'Trial Balance')}
+          >
+            <span className="tally-gateway-key">F11</span>
+            <span>Trial Balance</span>
+          </div>
+          <div
+            className={`tally-gateway-item ${gatewayActive === 'P&L Monthly' ? 'active' : ''}`}
+            onClick={() => gatewayNavigate('monthly-pl', 'P&L Monthly')}
+          >
+            <span className="tally-gateway-key">M</span>
+            <span>P&amp;L Monthly</span>
+          </div>
+          <div
+            className={`tally-gateway-item ${gatewayActive === 'Group Summary' ? 'active' : ''}`}
+            onClick={() => gatewayNavigate('group-summary', 'Group Summary')}
+          >
+            <span className="tally-gateway-key">G</span>
+            <span>Group Summary</span>
+          </div>
+          <div
+            className={`tally-gateway-item ${gatewayActive === 'Outstanding' ? 'active' : ''}`}
+            onClick={() => gatewayNavigate('outstanding', 'Outstanding')}
+          >
+            <span className="tally-gateway-key">O</span>
+            <span>Outstanding</span>
+          </div>
+
+          {/* ── MORE REPORTS ─────────────────────────────── */}
+          <div className="tally-gateway-section" style={{ marginTop: 4 }}>More Reports</div>
+          <div
+            className={`tally-gateway-item ${gatewayActive === 'GST Reports' ? 'active' : ''}`}
+            onClick={() => gatewayNavigate('gst-reports', 'GST Reports')}
+          >
+            <span className="tally-gateway-key">T</span>
+            <span>GST Reports</span>
+          </div>
+          <div
+            className={`tally-gateway-item ${gatewayActive === 'Bank Recon' ? 'active' : ''}`}
+            onClick={() => gatewayNavigate('bank-recon', 'Bank Recon')}
+          >
+            <span className="tally-gateway-key">R</span>
+            <span>Bank Reconciliation</span>
+          </div>
+          <div
+            className={`tally-gateway-item ${gatewayActive === 'Analytics' ? 'active' : ''}`}
+            onClick={() => gatewayNavigate('analytics', 'Analytics')}
+          >
+            <span className="tally-gateway-key">N</span>
+            <span>Analytics</span>
+          </div>
+          <div
+            className={`tally-gateway-item ${gatewayActive === 'Audit Trail' ? 'active' : ''}`}
+            onClick={() => gatewayNavigate('audit-trail', 'Audit Trail')}
+          >
+            <span className="tally-gateway-key">U</span>
+            <span>Audit Trail</span>
+          </div>
+          <div
+            className={`tally-gateway-item ${gatewayActive === 'TDS' ? 'active' : ''}`}
+            onClick={() => gatewayNavigate('tds', 'TDS')}
+          >
+            <span className="tally-gateway-key">D</span>
+            <span>TDS Reports</span>
+          </div>
+
+          {/* ── UTILITIES ────────────────────────────────── */}
+          <div className="tally-gateway-section" style={{ marginTop: 4 }}>Utilities</div>
+          <div
+            className={`tally-gateway-item ${gatewayActive === 'Setup' ? 'active' : ''}`}
+            onClick={() => gatewayNavigate('settings', 'Setup')}
+          >
+            <span className="tally-gateway-key">F12</span>
+            <span>Configuration</span>
+          </div>
+          <div
+            className={`tally-gateway-item ${gatewayActive === 'Dashboard' ? 'active' : ''}`}
+            onClick={() => gatewayNavigate('dashboard', 'Dashboard')}
+          >
+            <span className="tally-gateway-key">H</span>
+            <span>Dashboard</span>
+          </div>
+          <div
+            className="tally-gateway-item"
+            onClick={() => { clearAllCachedData(); refreshCurrentTab(); }}
+          >
+            <span className="tally-gateway-key">⟳</span>
+            <span>Refresh Data</span>
+          </div>
+
+          {/* Spacer */}
+          <div className="flex-1" />
+
+          {/* Bottom info */}
+          <div style={{ padding: '8px 12px', borderTop: '1px solid #8898AA', fontSize: 11, color: '#555' }}>
+            <div style={{ fontWeight: 600, marginBottom: 2 }}>Upamnyu International</div>
+            <div>FY: {fy}</div>
+            <div>{fyLocked ? '🔒 Locked' : '🔓 Open'}</div>
+          </div>
+        </aside>
+      )}
+
+      {/* ══════ Tally Prime Bottom Button Bar ══════════════════════ */}
+      {isTally && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 hidden lg:flex" style={{
+          background: 'linear-gradient(to bottom, #E8EDF2, #D4DCE8)',
+          borderTop: '2px solid #8898AA',
+          padding: '3px 8px',
+          gap: 2,
+        }}>
+          {[
+            { key: 'F1', label: 'Help', action: () => gatewayNavigate('settings', 'Setup') },
+            { key: 'F2', label: 'Date', action: () => {} },
+            { key: 'F3', label: 'Company', action: () => gatewayNavigate('account', 'Account') },
+            { key: 'F4', label: 'Voucher', action: () => { setShowVoucherForm(true); setGatewayActive('Create Voucher'); } },
+            { key: 'F5', label: 'List', action: () => gatewayNavigate('vouchers', 'Vouchers') },
+            { key: 'F6', label: 'Ledger', action: () => { setShowLedgerForm(true); setGatewayActive('Create Ledger'); } },
+            { key: 'F7', label: 'Accts', action: () => gatewayNavigate('ledgers', 'Chart of Accounts') },
+            { key: 'F8', label: 'DayBk', action: () => gatewayNavigate('daybook', 'Day Book') },
+            { key: 'F9', label: 'P&L', action: () => gatewayNavigate('profit-loss', 'Profit & Loss A/c') },
+            { key: 'F10', label: 'B/S', action: () => gatewayNavigate('balance-sheet', 'Balance Sheet') },
+            { key: 'F11', label: 'Trial', action: () => gatewayNavigate('trial-balance', 'Trial Balance') },
+            { key: 'F12', label: 'Config', action: () => gatewayNavigate('settings', 'Setup') },
+          ].map(btn => (
+            <button
+              key={btn.key}
+              onClick={btn.action}
+              className="flex-1 flex items-center justify-center gap-1 py-1.5 text-xs font-medium rounded transition-colors hover:bg-[#4472C4] hover:text-white"
+              style={{ color: '#003366', minWidth: 0 }}
+            >
+              <span style={{ fontWeight: 700, fontSize: 10, background: '#003366', color: '#FFD700', borderRadius: 2, padding: '1px 4px' }}>{btn.key}</span>
+              <span className="hidden xl:inline" style={{ fontSize: 11 }}>{btn.label}</span>
+            </button>
+          ))}
+          {/* Gateway toggle */}
+          <button
+            onClick={() => setShowGateway(g => !g)}
+            className="flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-bold rounded transition-colors"
+            style={{
+              background: showGateway ? '#003366' : '#4472C4',
+              color: '#FFD700',
+              marginLeft: 4,
+            }}
+            title="Toggle Gateway Panel (Esc)"
+          >
+            {showGateway ? '▶' : '◀'} GW
+          </button>
+        </div>
+      )}
 
       {/* Modals */}
       {showLedgerForm && <LedgerForm />}
