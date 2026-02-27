@@ -13,6 +13,7 @@ interface AdminSettings {
   companyWebsite?: string;
   logoUrl?: string;
   signatureUrl?: string;
+  sealUrl?: string;
   adminName: string;
   adminTitle: string;
   bankName?: string;
@@ -36,8 +37,10 @@ export default function AdminSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [signatureFile, setSignatureFile] = useState<File | null>(null);
+  const [sealFile, setSealFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [signaturePreview, setSignaturePreview] = useState<string | null>(null);
+  const [sealPreview, setSealPreview] = useState<string | null>(null);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
 
@@ -51,6 +54,7 @@ export default function AdminSettingsPage() {
           setSettings(data);
           if (data.logoUrl) setLogoPreview(data.logoUrl);
           if (data.signatureUrl) setSignaturePreview(data.signatureUrl);
+          if (data.sealUrl) setSealPreview(data.sealUrl);
         }
       } catch (err) {
         console.error('Failed to load settings:', err);
@@ -62,7 +66,7 @@ export default function AdminSettingsPage() {
     loadSettings();
   }, []);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'signature') => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'signature' | 'seal') => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
@@ -70,9 +74,12 @@ export default function AdminSettingsPage() {
         if (type === 'logo') {
           setLogoFile(file);
           setLogoPreview(e.target?.result as string);
-        } else {
+        } else if (type === 'signature') {
           setSignatureFile(file);
           setSignaturePreview(e.target?.result as string);
+        } else {
+          setSealFile(file);
+          setSealPreview(e.target?.result as string);
         }
       };
       reader.readAsDataURL(file);
@@ -91,10 +98,11 @@ export default function AdminSettingsPage() {
 
     try {
       // Upload images if selected
-      if (logoFile || signatureFile) {
+      if (logoFile || signatureFile || sealFile) {
         const formData = new FormData();
         if (logoFile) formData.append('logo', logoFile);
         if (signatureFile) formData.append('signature', signatureFile);
+        if (sealFile) formData.append('seal', sealFile);
 
         const uploadResponse = await fetch('/api/admin/settings/upload', {
           method: 'POST',
@@ -105,6 +113,7 @@ export default function AdminSettingsPage() {
           const uploadData = await uploadResponse.json();
           if (uploadData.logoUrl) settings.logoUrl = uploadData.logoUrl;
           if (uploadData.signatureUrl) settings.signatureUrl = uploadData.signatureUrl;
+          if (uploadData.sealUrl) settings.sealUrl = uploadData.sealUrl;
         } else {
           throw new Error('Failed to upload images');
         }
@@ -121,6 +130,7 @@ export default function AdminSettingsPage() {
         setSuccess('Settings saved successfully!');
         setLogoFile(null);
         setSignatureFile(null);
+        setSealFile(null);
         setTimeout(() => setSuccess(''), 3000);
       } else {
         throw new Error('Failed to save settings');
@@ -420,6 +430,44 @@ export default function AdminSettingsPage() {
                 </label>
 
                 <p className="text-xs text-gray-500 mt-2">Recommended: 150x60px, PNG with transparent background</p>
+              </div>
+            </section>
+
+            {/* Seal Upload */}
+            <section className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+              <h2 className="text-lg font-semibold mb-4" style={{ color: THEME_COLORS.RED }}>
+                🔴 Company Seal / Stamp
+              </h2>
+
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6">
+                {sealPreview ? (
+                  <div className="relative w-full h-40 mb-4">
+                    <Image
+                      src={sealPreview}
+                      alt="Seal preview"
+                      fill
+                      className="object-contain"
+                    />
+                  </div>
+                ) : (
+                  <div className="h-40 bg-gray-100 rounded flex items-center justify-center mb-4">
+                    <p className="text-gray-400">No seal uploaded</p>
+                  </div>
+                )}
+
+                <label className="block">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleFileChange(e, 'seal')}
+                    className="hidden"
+                  />
+                  <span className="block w-full px-4 py-2 bg-red-500 text-white rounded-lg text-center cursor-pointer hover:bg-red-600">
+                    📤 Upload Seal
+                  </span>
+                </label>
+
+                <p className="text-xs text-gray-500 mt-2">Recommended: 150x150px, PNG with transparent background</p>
               </div>
             </section>
 

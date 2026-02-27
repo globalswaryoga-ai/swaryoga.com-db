@@ -164,15 +164,15 @@ const PRIMARY_TABS: TabDef[] = [
   { key: 'daybook', label: 'Day Book', icon: Calendar },
   { key: 'trial-balance', label: 'Trial Balance', icon: Scale },
   { key: 'profit-loss', label: 'P&L (Yearly)', icon: TrendingUp },
-  { key: 'monthly-pl', label: 'P&L (Monthly)', icon: IndianRupee },
   { key: 'balance-sheet', label: 'Balance Sheet', icon: PieChart },
+  { key: 'cashbank', label: 'Cash/Bank', icon: Wallet },
   { key: 'settings', label: 'Setup', icon: Settings },
 ];
 
 // Secondary tabs — inside "More" dropdown
 const MORE_TABS: TabDef[] = [
   { key: 'account', label: 'Account', icon: User },
-  { key: 'cashbank', label: 'Cash/Bank', icon: Wallet },
+  { key: 'monthly-pl', label: 'P&L (Monthly)', icon: IndianRupee },
   { key: 'group-summary', label: 'Group Summary', icon: Layers },
   { key: 'outstanding', label: 'Outstanding', icon: Clock },
   { key: 'bank-recon', label: 'Bank Recon', icon: CheckCircle },
@@ -1847,15 +1847,15 @@ export default function TallyPage() {
 
       <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-gray-800/50 text-gray-400">
-            <tr>
-              <th className="px-4 py-2.5 text-left font-medium">No.</th>
-              <th className="px-4 py-2.5 text-left font-medium">Date</th>
-              <th className="px-4 py-2.5 text-left font-medium">Type</th>
-              <th className="px-4 py-2.5 text-left font-medium">Particulars</th>
-              <th className="px-4 py-2.5 text-right font-medium">Debit</th>
-              <th className="px-4 py-2.5 text-right font-medium">Credit</th>
-              <th className="px-4 py-2.5 text-center font-medium">Actions</th>
+          <thead>
+            <tr style={{backgroundColor: '#1a2332'}}>
+              <th className="px-4 py-2.5 text-left font-bold uppercase text-xs tracking-wider" style={{color: '#E0E0E0'}}>No.</th>
+              <th className="px-4 py-2.5 text-left font-bold uppercase text-xs tracking-wider" style={{color: '#E0E0E0'}}>Date</th>
+              <th className="px-4 py-2.5 text-left font-bold uppercase text-xs tracking-wider" style={{color: '#E0E0E0'}}>Type</th>
+              <th className="px-4 py-2.5 text-left font-bold uppercase text-xs tracking-wider" style={{color: '#E0E0E0'}}>Particulars</th>
+              <th className="px-4 py-2.5 text-right font-bold uppercase text-xs tracking-wider" style={{color: '#E0E0E0'}}>Debit</th>
+              <th className="px-4 py-2.5 text-right font-bold uppercase text-xs tracking-wider" style={{color: '#E0E0E0'}}>Credit</th>
+              <th className="px-4 py-2.5 text-center font-bold uppercase text-xs tracking-wider" style={{color: '#E0E0E0'}}>Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-800">
@@ -1870,8 +1870,8 @@ export default function TallyPage() {
                   <div className="text-gray-200">{v.entries.map(e => e.ledgerName).join(' / ')}</div>
                   {v.narration && <div className="text-xs text-gray-500 mt-0.5">{v.narration}</div>}
                 </td>
-                <td className="px-4 py-2.5 text-right font-mono text-blue-400">{fmt(v.totalDebit)}</td>
-                <td className="px-4 py-2.5 text-right font-mono text-red-400">{fmt(v.totalCredit)}</td>
+                <td className="px-4 py-2.5 text-right font-mono font-bold" style={{color: '#000000'}}>{fmt(v.totalDebit)}</td>
+                <td className="px-4 py-2.5 text-right font-mono font-bold" style={{color: '#CC0000'}}>{fmt(v.totalCredit)}</td>
                 <td className="px-4 py-2.5 text-center">
                   <div className="flex items-center justify-center gap-1">
                     <button onClick={() => printVoucher(v)} title="Print Invoice/Receipt"
@@ -4733,12 +4733,12 @@ ${contentHtml}
       EXPENSE: 'Expenses',
       CAPITAL: 'Capital & Equity',
     };
-    const GROUP_THEME: Record<string, { border: string; headerBg: string; text: string; subBg: string; accent: string }> = {
-      ASSET: { border: 'border-blue-500/30', headerBg: 'bg-blue-500/10', text: 'text-blue-400', subBg: 'bg-blue-500/5', accent: 'text-blue-300' },
-      LIABILITY: { border: 'border-red-500/30', headerBg: 'bg-red-500/10', text: 'text-red-400', subBg: 'bg-red-500/5', accent: 'text-red-300' },
-      INCOME: { border: 'border-green-500/30', headerBg: 'bg-green-500/10', text: 'text-green-400', subBg: 'bg-green-500/5', accent: 'text-green-300' },
-      EXPENSE: { border: 'border-orange-500/30', headerBg: 'bg-orange-500/10', text: 'text-orange-400', subBg: 'bg-orange-500/5', accent: 'text-orange-300' },
-      CAPITAL: { border: 'border-purple-500/30', headerBg: 'bg-purple-500/10', text: 'text-purple-400', subBg: 'bg-purple-500/5', accent: 'text-purple-300' },
+    const GROUP_THEME: Record<string, { border: string; headerBg: string; text: string; subBg: string; accent: string; rowBg: string }> = {
+      ASSET: { border: 'border-l-4 border-blue-700', headerBg: 'bg-yellow-100', text: 'text-blue-900', subBg: 'bg-blue-50', accent: 'text-gray-900', rowBg: 'bg-white' },
+      LIABILITY: { border: 'border-l-4 border-red-700', headerBg: 'bg-red-100', text: 'text-red-800', subBg: 'bg-red-50', accent: 'text-gray-900', rowBg: 'bg-white' },
+      INCOME: { border: 'border-l-4 border-green-700', headerBg: 'bg-green-100', text: 'text-green-900', subBg: 'bg-green-50', accent: 'text-gray-900', rowBg: 'bg-white' },
+      EXPENSE: { border: 'border-l-4 border-orange-700', headerBg: 'bg-orange-100', text: 'text-red-800', subBg: 'bg-orange-50', accent: 'text-gray-900', rowBg: 'bg-white' },
+      CAPITAL: { border: 'border-l-4 border-purple-700', headerBg: 'bg-purple-100', text: 'text-purple-900', subBg: 'bg-purple-50', accent: 'text-gray-900', rowBg: 'bg-white' },
     };
 
     // Build hierarchy: group → subGroup → ledgers
@@ -4842,16 +4842,16 @@ ${contentHtml}
             TALLY PRIME-STYLE DRILL-DOWN — Account Groups → Sub-Groups → Ledgers → Transactions
             ═══════════════════════════════════════════════════════════ */}
         <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
-          <div className="px-4 py-3 bg-yellow-500/10 border-b border-gray-800 flex items-center justify-between">
-            <h4 className="text-sm font-semibold text-yellow-400 flex items-center gap-2">
+          <div className="px-4 py-3 bg-gray-100 border-b border-gray-400 flex items-center justify-between" style={{background: '#003366'}}>
+            <h4 className="text-sm font-bold flex items-center gap-2" style={{color: '#FFD700'}}>
               <BookOpen className="w-4 h-4" /> Account Drill-Down
-              <span className="text-xs text-gray-500 font-normal ml-1">(Click to expand like Tally Prime)</span>
+              <span className="text-xs font-normal ml-1" style={{color: '#B8CCE4'}}>(Click to expand like Tally Prime)</span>
             </h4>
-            <div className="text-xs text-gray-500">{ledgerData.length} ledgers</div>
+            <div className="text-xs font-semibold" style={{color: '#FFD700'}}>{ledgerData.length} ledgers</div>
           </div>
 
           {/* Column headers */}
-          <div className="grid grid-cols-12 gap-0 px-4 py-2 bg-gray-800/50 text-xs font-medium text-gray-500 border-b border-gray-800">
+          <div className="grid grid-cols-12 gap-0 px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b border-gray-400" style={{background: '#1A4D80', color: '#FFD700', letterSpacing: '0.5px'}}>
             <div className="col-span-5">Particulars</div>
             <div className="col-span-2 text-right">Opening</div>
             <div className="col-span-2 text-right">Debit</div>
@@ -4872,24 +4872,24 @@ ${contentHtml}
                   {/* ── LEVEL 1: Account Group Header ── */}
                   <button
                     onClick={() => toggleCaGroup(group)}
-                    className={`w-full grid grid-cols-12 gap-0 px-4 py-3 items-center hover:bg-gray-800/70 transition-colors cursor-pointer ${theme.headerBg}`}
+                    className={`w-full grid grid-cols-12 gap-0 px-4 py-3 items-center hover:bg-yellow-100 transition-colors cursor-pointer ${theme.headerBg} ${theme.border}`}
                   >
                     <div className="col-span-5 flex items-center gap-2">
                       {isGroupExpanded ? <ChevronDown className={`w-4 h-4 ${theme.text}`} /> : <ChevronRight className={`w-4 h-4 ${theme.text}`} />}
                       <span className={`text-sm font-bold ${theme.text}`}>{GROUP_LABELS[group] || group}</span>
-                      <span className="text-xs text-gray-500">({subGroupKeys.length} sub-groups)</span>
+                      <span className="text-xs text-gray-600">({subGroupKeys.length} sub-groups)</span>
                     </div>
-                    <div className="col-span-2 text-right text-xs font-mono text-gray-400">
+                    <div className="col-span-2 text-right text-xs font-mono text-gray-600">
                       {/* Group opening = sum of all ledger openings under this group */}
                     </div>
-                    <div className="col-span-2 text-right text-sm font-mono font-semibold text-blue-400">
+                    <div className="col-span-2 text-right text-sm font-mono font-semibold" style={{color: '#000000'}}>
                       {totals.debit > 0 ? fmt(totals.debit) : '-'}
                     </div>
-                    <div className="col-span-2 text-right text-sm font-mono font-semibold text-red-400">
+                    <div className="col-span-2 text-right text-sm font-mono font-semibold" style={{color: '#CC0000'}}>
                       {totals.credit > 0 ? fmt(totals.credit) : '-'}
                     </div>
-                    <div className={`col-span-1 text-right text-sm font-mono font-bold ${theme.text}`}>
-                      {fmt(totals.closing)}
+                    <div className="col-span-1 text-right text-sm font-mono font-bold" style={{color: totals.closing >= 0 ? '#000000' : '#CC0000'}}>
+                      {fmt(Math.abs(totals.closing))}
                     </div>
                   </button>
 
@@ -4908,11 +4908,11 @@ ${contentHtml}
                     return (
                       <div key={sgKey}>
                         <div
-                          className={`w-full grid grid-cols-12 gap-0 px-4 py-2.5 items-center hover:bg-gray-800/50 transition-colors cursor-pointer ${theme.subBg}`}
+                          className={`w-full grid grid-cols-12 gap-0 px-4 py-2.5 items-center hover:bg-yellow-50 transition-colors cursor-pointer ${theme.subBg}`}
                         >
                           <div className="col-span-5 flex items-center gap-2 pl-6" onClick={() => toggleCaSubGroup(sgKey)}>
-                            {isSgExpanded ? <ChevronDown className="w-3.5 h-3.5 text-gray-400" /> : <ChevronRight className="w-3.5 h-3.5 text-gray-400" />}
-                            <span className={`text-sm font-semibold ${theme.accent}`}>{sg}</span>
+                            {isSgExpanded ? <ChevronDown className="w-3.5 h-3.5 text-gray-600" /> : <ChevronRight className="w-3.5 h-3.5 text-gray-600" />}
+                            <span className="text-sm font-semibold" style={{color: '#000000'}}>{sg}</span>
                             <span className="text-xs text-gray-600">({sgLedgers.length})</span>
                             {isSgExpanded && (
                               <button onClick={(e) => { e.stopPropagation(); toggleCaSubGroup(sgKey); }}
@@ -4921,17 +4921,17 @@ ${contentHtml}
                               </button>
                             )}
                           </div>
-                          <div className="col-span-2 text-right text-xs font-mono text-gray-500" onClick={() => toggleCaSubGroup(sgKey)}>
+                          <div className="col-span-2 text-right text-xs font-mono" style={{color: '#333333'}} onClick={() => toggleCaSubGroup(sgKey)}>
                             {Math.abs(sgOpeningNet) > 0.01 ? `${fmt(Math.abs(sgOpeningNet))} ${sgOpeningNet >= 0 ? 'Dr' : 'Cr'}` : '-'}
                           </div>
-                          <div className="col-span-2 text-right text-xs font-mono text-blue-400/80" onClick={() => toggleCaSubGroup(sgKey)}>
+                          <div className="col-span-2 text-right text-xs font-mono font-semibold" style={{color: '#000000'}} onClick={() => toggleCaSubGroup(sgKey)}>
                             {sgTotalDebit > 0 ? fmt(sgTotalDebit) : '-'}
                           </div>
-                          <div className="col-span-2 text-right text-xs font-mono text-red-400/80" onClick={() => toggleCaSubGroup(sgKey)}>
+                          <div className="col-span-2 text-right text-xs font-mono font-semibold" style={{color: '#CC0000'}} onClick={() => toggleCaSubGroup(sgKey)}>
                             {sgTotalCredit > 0 ? fmt(sgTotalCredit) : '-'}
                           </div>
-                          <div className={`col-span-1 text-right text-xs font-mono font-semibold ${theme.accent}`} onClick={() => toggleCaSubGroup(sgKey)}>
-                            {fmt(sgTotalClosing)}
+                          <div className="col-span-1 text-right text-xs font-mono font-bold" style={{color: sgTotalClosing >= 0 ? '#000000' : '#CC0000'}} onClick={() => toggleCaSubGroup(sgKey)}>
+                            {fmt(Math.abs(sgTotalClosing))}
                           </div>
                         </div>
 
@@ -4948,8 +4948,8 @@ ${contentHtml}
                                 className="w-full grid grid-cols-12 gap-0 px-4 py-2 items-center hover:bg-gray-800/40 transition-colors cursor-pointer"
                               >
                                 <div className="col-span-5 flex items-center gap-2 pl-12" onClick={() => ledger.ledgerId && toggleCaLedger(ledger.ledgerId)}>
-                                  {isLedgerExpanded ? <ChevronDown className="w-3 h-3 text-gray-500" /> : <ChevronRight className="w-3 h-3 text-gray-500" />}
-                                  <span className="text-sm text-gray-300">{ledger.name}</span>
+                                  {isLedgerExpanded ? <ChevronDown className="w-3 h-3 text-gray-600" /> : <ChevronRight className="w-3 h-3 text-gray-600" />}
+                                  <span className="text-sm" style={{color: '#000000'}}>{ledger.name}</span>
                                   {isLedgerLoading && <RefreshCw className="w-3 h-3 text-yellow-500 animate-spin" />}
                                   {isLedgerExpanded && (
                                     <button onClick={(e) => { e.stopPropagation(); toggleCaLedger(ledger.ledgerId); }}
@@ -4958,17 +4958,17 @@ ${contentHtml}
                                     </button>
                                   )}
                                 </div>
-                                <div className="col-span-2 text-right text-xs font-mono text-gray-500" onClick={() => ledger.ledgerId && toggleCaLedger(ledger.ledgerId)}>
+                                <div className="col-span-2 text-right text-xs font-mono" style={{color: '#333333'}} onClick={() => ledger.ledgerId && toggleCaLedger(ledger.ledgerId)}>
                                   {Math.abs(openingNet) > 0.01 ? `${fmt(Math.abs(openingNet))} ${openingNet >= 0 ? 'Dr' : 'Cr'}` : '-'}
                                 </div>
-                                <div className="col-span-2 text-right text-xs font-mono text-blue-400/70" onClick={() => ledger.ledgerId && toggleCaLedger(ledger.ledgerId)}>
+                                <div className="col-span-2 text-right text-xs font-mono font-semibold" style={{color: '#000000'}} onClick={() => ledger.ledgerId && toggleCaLedger(ledger.ledgerId)}>
                                   {ledger.debit > 0 ? fmt(ledger.debit) : '-'}
                                 </div>
-                                <div className="col-span-2 text-right text-xs font-mono text-red-400/70" onClick={() => ledger.ledgerId && toggleCaLedger(ledger.ledgerId)}>
+                                <div className="col-span-2 text-right text-xs font-mono font-semibold" style={{color: '#CC0000'}} onClick={() => ledger.ledgerId && toggleCaLedger(ledger.ledgerId)}>
                                   {ledger.credit > 0 ? fmt(ledger.credit) : '-'}
                                 </div>
-                                <div className="col-span-1 text-right text-xs font-mono text-yellow-400 font-semibold" onClick={() => ledger.ledgerId && toggleCaLedger(ledger.ledgerId)}>
-                                  {fmt(ledger.closing)} <span className="text-gray-500">{ledger.closingType}</span>
+                                <div className="col-span-1 text-right text-xs font-mono font-bold" style={{color: '#000000'}} onClick={() => ledger.ledgerId && toggleCaLedger(ledger.ledgerId)}>
+                                  {fmt(ledger.closing)} <span style={{color: '#666666'}}>{ledger.closingType}</span>
                                 </div>
                               </div>
 
@@ -5021,10 +5021,10 @@ ${contentHtml}
                                           <div className="col-span-2 text-xs text-gray-500">—</div>
                                           <div className="col-span-3 text-xs text-yellow-400">Opening Balance</div>
                                           <div className="col-span-3"></div>
-                                          <div className="col-span-2 text-right text-xs font-mono text-blue-400">
+                                          <div className="col-span-2 text-right text-xs font-mono font-bold" style={{color: '#000000'}}>
                                             {statement.openingBalanceType === 'Dr' ? fmt(statement.openingBalance || 0) : ''}
                                           </div>
-                                          <div className="col-span-2 text-right text-xs font-mono text-red-400">
+                                          <div className="col-span-2 text-right text-xs font-mono font-bold" style={{color: '#CC0000'}}>
                                             {statement.openingBalanceType === 'Cr' ? fmt(statement.openingBalance || 0) : ''}
                                           </div>
                                         </div>
@@ -5056,10 +5056,10 @@ ${contentHtml}
                                               </span>
                                             </div>
                                             <div className="col-span-1 text-xs font-mono text-gray-500">{txn.voucherNumber}</div>
-                                            <div className="col-span-2 text-right text-xs font-mono text-blue-400">
+                                            <div className="col-span-2 text-right text-xs font-mono font-bold" style={{color: '#000000'}}>
                                               {txn.debit > 0 ? fmt(txn.debit) : ''}
                                             </div>
-                                            <div className="col-span-2 text-right text-xs font-mono text-red-400">
+                                            <div className="col-span-2 text-right text-xs font-mono font-bold" style={{color: '#CC0000'}}>
                                               {txn.credit > 0 ? fmt(txn.credit) : ''}
                                             </div>
                                           </div>
@@ -5070,10 +5070,10 @@ ${contentHtml}
                                           <div className="col-span-2 text-xs text-gray-500"></div>
                                           <div className="col-span-3 text-xs text-gray-400">Current Total</div>
                                           <div className="col-span-3"></div>
-                                          <div className="col-span-2 text-right text-xs font-mono font-bold text-blue-400">
+                                          <div className="col-span-2 text-right text-xs font-mono font-bold" style={{color: '#000000'}}>
                                             {fmt(txns.reduce((s: number, t: any) => s + (t.debit || 0), 0))}
                                           </div>
-                                          <div className="col-span-2 text-right text-xs font-mono font-bold text-red-400">
+                                          <div className="col-span-2 text-right text-xs font-mono font-bold" style={{color: '#CC0000'}}>
                                             {fmt(txns.reduce((s: number, t: any) => s + (t.credit || 0), 0))}
                                           </div>
                                         </div>
@@ -5083,10 +5083,10 @@ ${contentHtml}
                                           <div className="col-span-2 text-xs text-gray-500">—</div>
                                           <div className="col-span-3 text-xs text-yellow-400">Closing Balance</div>
                                           <div className="col-span-3"></div>
-                                          <div className="col-span-2 text-right text-sm font-mono text-blue-400">
+                                          <div className="col-span-2 text-right text-sm font-mono font-bold" style={{color: '#000000'}}>
                                             {(statement.closingBalanceType || 'Dr') === 'Dr' ? fmt(statement.closingBalance || 0) : ''}
                                           </div>
-                                          <div className="col-span-2 text-right text-sm font-mono text-red-400">
+                                          <div className="col-span-2 text-right text-sm font-mono font-bold" style={{color: '#CC0000'}}>
                                             {(statement.closingBalanceType || 'Dr') === 'Cr' ? fmt(statement.closingBalance || 0) : ''}
                                           </div>
                                         </div>
@@ -5107,19 +5107,19 @@ ${contentHtml}
 
                         {/* Sub-group Total */}
                         {isSgExpanded && (
-                          <div className={`grid grid-cols-12 gap-0 px-4 py-1.5 ${theme.subBg} border-t border-gray-800/50`}>
-                            <div className="col-span-5 pl-12 text-xs font-semibold text-gray-400">
+                          <div className={`grid grid-cols-12 gap-0 px-4 py-1.5 ${theme.subBg} border-t border-gray-300`}>
+                            <div className="col-span-5 pl-12 text-xs font-semibold" style={{color: '#333333'}}>
                               Total: {sg}
                             </div>
                             <div className="col-span-2"></div>
-                            <div className="col-span-2 text-right text-xs font-mono font-semibold text-blue-400/80">
+                            <div className="col-span-2 text-right text-xs font-mono font-semibold" style={{color: '#000000'}}>
                               {sgTotalDebit > 0 ? fmt(sgTotalDebit) : ''}
                             </div>
-                            <div className="col-span-2 text-right text-xs font-mono font-semibold text-red-400/80">
+                            <div className="col-span-2 text-right text-xs font-mono font-semibold" style={{color: '#CC0000'}}>
                               {sgTotalCredit > 0 ? fmt(sgTotalCredit) : ''}
                             </div>
-                            <div className={`col-span-1 text-right text-xs font-mono font-bold ${theme.accent}`}>
-                              {fmt(sgTotalClosing)}
+                            <div className="col-span-1 text-right text-xs font-mono font-bold" style={{color: sgTotalClosing >= 0 ? '#000000' : '#CC0000'}}>
+                              {fmt(Math.abs(sgTotalClosing))}
                             </div>
                           </div>
                         )}
@@ -5129,19 +5129,19 @@ ${contentHtml}
 
                   {/* Group Total */}
                   {isGroupExpanded && (
-                    <div className={`grid grid-cols-12 gap-0 px-4 py-2 ${theme.headerBg} border-t border-gray-800`}>
+                    <div className={`grid grid-cols-12 gap-0 px-4 py-2 ${theme.headerBg} border-t-2 border-gray-400`}>
                       <div className={`col-span-5 text-xs font-bold ${theme.text} pl-4`}>
                         Total: {GROUP_LABELS[group] || group}
                       </div>
                       <div className="col-span-2"></div>
-                      <div className="col-span-2 text-right text-sm font-mono font-bold text-blue-400">
+                      <div className="col-span-2 text-right text-sm font-mono font-bold" style={{color: '#000000'}}>
                         {totals.debit > 0 ? fmt(totals.debit) : ''}
                       </div>
-                      <div className="col-span-2 text-right text-sm font-mono font-bold text-red-400">
+                      <div className="col-span-2 text-right text-sm font-mono font-bold" style={{color: '#CC0000'}}>
                         {totals.credit > 0 ? fmt(totals.credit) : ''}
                       </div>
-                      <div className={`col-span-1 text-right text-sm font-mono font-bold ${theme.text}`}>
-                        {fmt(totals.closing)}
+                      <div className="col-span-1 text-right text-sm font-mono font-bold" style={{color: totals.closing >= 0 ? '#000000' : '#CC0000'}}>
+                        {fmt(Math.abs(totals.closing))}
                       </div>
                     </div>
                   )}
@@ -5150,16 +5150,16 @@ ${contentHtml}
             })}
 
             {/* Grand Total */}
-            <div className="grid grid-cols-12 gap-0 px-4 py-3 bg-yellow-500/10 border-t-2 border-yellow-500/30">
-              <div className="col-span-5 text-sm font-bold text-yellow-400">Grand Total</div>
+            <div className="grid grid-cols-12 gap-0 px-4 py-3 border-t-2 border-gray-800" style={{background: '#003366'}}>
+              <div className="col-span-5 text-sm font-bold" style={{color: '#FFD700'}}>Grand Total</div>
               <div className="col-span-2"></div>
-              <div className="col-span-2 text-right text-sm font-mono font-bold text-blue-400">
+              <div className="col-span-2 text-right text-sm font-mono font-bold" style={{color: '#FFFFFF'}}>
                 {fmt(sortedGroups.reduce((s, g) => s + groupTotals[g].debit, 0))}
               </div>
-              <div className="col-span-2 text-right text-sm font-mono font-bold text-red-400">
+              <div className="col-span-2 text-right text-sm font-mono font-bold" style={{color: '#FF6666'}}>
                 {fmt(sortedGroups.reduce((s, g) => s + groupTotals[g].credit, 0))}
               </div>
-              <div className="col-span-1 text-right text-sm font-mono font-bold text-yellow-400">
+              <div className="col-span-1 text-right text-sm font-mono font-bold" style={{color: '#FFD700'}}>
                 {fmt(sortedGroups.reduce((s, g) => s + groupTotals[g].closing, 0))}
               </div>
             </div>
@@ -7642,9 +7642,9 @@ ${contentHtml}
         }
 
         /* ── Cards & Panels ─────────────────────────────────────── */
-        .tally-classic .bg-gray-900 { background: #FFFFFF !important; border: 1px solid #7A8CA0 !important; }
-        .tally-classic .bg-gray-800 { background: #F0F4F8 !important; }
-        .tally-classic [class*="bg-gray-800\/"] { background: #F0F4F8 !important; }
+        .tally-classic .bg-gray-900 { background: #FFFFFF !important; border: 1px solid #7A8CA0 !important; box-shadow: 0 2px 8px rgba(0,51,102,0.12) !important; }
+        .tally-classic .bg-gray-800 { background: #E8EEF5 !important; }
+        .tally-classic [class*="bg-gray-800\/"] { background: #E8EEF5 !important; }
         .tally-classic .bg-gray-950 { background: #B8CCE4 !important; }
 
         /* ── Borders ────────────────────────────────────────────── */
@@ -7654,6 +7654,15 @@ ${contentHtml}
 
         /* ── Text — ALL black on white (Tally Prime rule) ────── */
         .tally-classic .text-white { color: #000000 !important; }
+        /* Preserve white text inside the navy header bar */
+        .tally-header-bar,
+        .tally-header-bar * { color: #FFFFFF !important; }
+        .tally-header-bar .text-blue-200 { color: #B8CCE4 !important; font-weight: 400 !important; }
+        .tally-header-bar .text-\[\#FFD700\],
+        .tally-header-bar .text-yellow-500 { color: #FFD700 !important; }
+        .tally-header-bar select,
+        .tally-header-bar input { color: #FFFFFF !important; background: transparent !important; border: none !important; }
+        .tally-header-bar option { color: #FFFFFF !important; background: #003366 !important; }
         /* Preserve white text inside buttons/headers with dark backgrounds */
         .tally-classic .bg-yellow-600 .text-white,
         .tally-classic .bg-green-600 .text-white,
@@ -7666,27 +7675,27 @@ ${contentHtml}
         .tally-classic tfoot .text-white,
         .tally-classic [class*="bg-blue-600\/"] .text-white,
         .tally-classic [class*="bg-green-600\/"] .text-white { color: #FFFFFF !important; }
-        .tally-classic .text-gray-200 { color: #000000 !important; }
-        .tally-classic .text-gray-300 { color: #111111 !important; }
-        .tally-classic .text-gray-400 { color: #222222 !important; }
-        .tally-classic .text-gray-500 { color: #333333 !important; }
+        .tally-classic .text-gray-200 { color: #000000 !important; font-weight: 600 !important; }
+        .tally-classic .text-gray-300 { color: #000000 !important; font-weight: 500 !important; }
+        .tally-classic .text-gray-400 { color: #111111 !important; font-weight: 600 !important; }
+        .tally-classic .text-gray-500 { color: #222222 !important; font-weight: 500 !important; }
 
         /* ══ AMOUNT COLORS — Tally Prime: BLACK or RED only ═══ */
         .tally-classic .text-blue-400,
         .tally-classic .text-blue-300,
-        .tally-classic .text-blue-200 { color: #000000 !important; font-weight: 600 !important; }
+        .tally-classic .text-blue-200 { color: #000000 !important; font-weight: 700 !important; }
         .tally-classic .text-green-400,
         .tally-classic .text-green-300,
-        .tally-classic .text-green-600 { color: #000000 !important; font-weight: 600 !important; }
+        .tally-classic .text-green-600 { color: #000000 !important; font-weight: 700 !important; }
         .tally-classic .text-cyan-400,
-        .tally-classic .text-cyan-300 { color: #000000 !important; font-weight: 600 !important; }
+        .tally-classic .text-cyan-300 { color: #000000 !important; font-weight: 700 !important; }
         .tally-classic .text-emerald-400,
         .tally-classic .text-emerald-300,
-        .tally-classic .text-emerald-600 { color: #000000 !important; font-weight: 600 !important; }
-        .tally-classic .text-teal-400 { color: #000000 !important; font-weight: 600 !important; }
+        .tally-classic .text-emerald-600 { color: #000000 !important; font-weight: 700 !important; }
+        .tally-classic .text-teal-400 { color: #000000 !important; font-weight: 700 !important; }
         .tally-classic .text-indigo-400,
-        .tally-classic .text-indigo-300 { color: #000000 !important; font-weight: 600 !important; }
-        .tally-classic .text-amber-400 { color: #000000 !important; font-weight: 600 !important; }
+        .tally-classic .text-indigo-300 { color: #000000 !important; font-weight: 700 !important; }
+        .tally-classic .text-amber-400 { color: #000000 !important; font-weight: 700 !important; }
         .tally-classic .text-yellow-400 { color: #000000 !important; font-weight: 700 !important; }
         .tally-classic .text-yellow-300 { color: #FFFFFF !important; }
         .tally-classic .text-blue-600 { color: #003366 !important; }
@@ -7694,13 +7703,13 @@ ${contentHtml}
         /* RED amounts — negatives, expenses, credits */
         .tally-classic .text-red-400,
         .tally-classic .text-red-300,
-        .tally-classic .text-red-200 { color: #CC0000 !important; font-weight: 600 !important; }
-        .tally-classic .text-orange-400 { color: #CC0000 !important; font-weight: 600 !important; }
-        .tally-classic .text-rose-400 { color: #CC0000 !important; font-weight: 600 !important; }
+        .tally-classic .text-red-200 { color: #CC0000 !important; font-weight: 700 !important; }
+        .tally-classic .text-orange-400 { color: #CC0000 !important; font-weight: 700 !important; }
+        .tally-classic .text-rose-400 { color: #CC0000 !important; font-weight: 700 !important; }
 
         /* Purple/Pink — also RED in Tally for liabilities/capital */
-        .tally-classic .text-purple-400 { color: #CC0000 !important; font-weight: 600 !important; }
-        .tally-classic .text-pink-400 { color: #CC0000 !important; font-weight: 600 !important; }
+        .tally-classic .text-purple-400 { color: #CC0000 !important; font-weight: 700 !important; }
+        .tally-classic .text-pink-400 { color: #CC0000 !important; font-weight: 700 !important; }
 
         /* Opacity variants — must explicitly override */
         .tally-classic [class*="text-blue-300\\/"],
@@ -7719,14 +7728,16 @@ ${contentHtml}
         .tally-classic table { border-collapse: collapse !important; border: 1px solid #7A8CA0 !important; }
         .tally-classic thead { background: #003366 !important; }
         .tally-classic thead th, .tally-classic thead td {
-          color: #FFFFFF !important; font-weight: 700 !important;
-          border-right: 1px solid #1A4D80 !important; padding: 8px 12px !important;
-          font-size: 13px !important; text-transform: uppercase !important; letter-spacing: 0.3px !important;
+          color: #FFD700 !important; font-weight: 700 !important;
+          border-right: 1px solid #1A4D80 !important; padding: 10px 12px !important;
+          font-size: 13px !important; text-transform: uppercase !important; letter-spacing: 0.5px !important;
+          text-shadow: 0 1px 2px rgba(0,0,0,0.3) !important;
         }
         .tally-classic tfoot { background: #003366 !important; }
         .tally-classic tfoot td {
-          color: #FFFFFF !important; font-weight: 700 !important;
+          color: #FFD700 !important; font-weight: 700 !important;
           border-right: 1px solid #1A4D80 !important;
+          text-shadow: 0 1px 2px rgba(0,0,0,0.3) !important;
         }
         .tally-classic tbody tr { background: #FFFFFF !important; }
         .tally-classic tbody tr:nth-child(even) { background: #F5F8FC !important; }
@@ -7736,7 +7747,10 @@ ${contentHtml}
           border-bottom: 1px solid #E4E8EE !important;
           padding: 6px 12px !important;
           color: #000000 !important;
+          font-weight: 500 !important;
         }
+        .tally-classic tbody td .font-mono,
+        .tally-classic tbody td.font-mono { font-weight: 700 !important; color: #000000 !important; }
         .tally-classic .divide-gray-800 > :not([hidden]) ~ :not([hidden]) { border-color: #D0D8E4 !important; }
 
         /* Selected row — golden highlight */
@@ -7850,8 +7864,8 @@ ${contentHtml}
         .tally-classic [class*="bg-yellow-500\\/"] { background: #FFF8E0 !important; }
 
         /* ── Cards ───────────────────────────────────────────────── */
-        .tally-classic .rounded-xl { border-radius: 4px !important; box-shadow: 0 1px 4px rgba(0,0,0,0.15) !important; }
-        .tally-classic .rounded-lg { border-radius: 3px !important; }
+        .tally-classic .rounded-xl { border-radius: 4px !important; box-shadow: 0 2px 8px rgba(0,51,102,0.15) !important; }
+        .tally-classic .rounded-lg { border-radius: 3px !important; box-shadow: 0 1px 4px rgba(0,51,102,0.1) !important; }
 
         /* ── Modals & Overlays ────────────────────────────────────── */
         .tally-classic [class*="bg-black\/"] { background: rgba(0,0,0,0.55) !important; }
@@ -7880,7 +7894,36 @@ ${contentHtml}
         .tally-classic ::-webkit-scrollbar-thumb { background: #7A8CA0; border-radius: 5px; border: 2px solid #C8D4E4; }
         .tally-classic ::-webkit-scrollbar-thumb:hover { background: #5A6C80; }
 
-        .tally-classic .font-mono { font-family: 'Courier New', Courier, monospace !important; }
+        .tally-classic .font-mono { font-family: 'Courier New', Courier, monospace !important; font-weight: 700 !important; }
+
+        /* ── Amounts: ensure all font-mono amounts are bold & crisp ── */
+        .tally-classic .font-mono.font-semibold,
+        .tally-classic .font-mono.font-bold { font-weight: 700 !important; letter-spacing: 0.3px !important; }
+        .tally-classic .font-mono.text-xs { font-size: 12px !important; }
+        .tally-classic .font-mono.text-sm { font-size: 13px !important; }
+        .tally-classic .font-mono.text-lg { font-size: 18px !important; }
+
+        /* ── CA Audit Drill-Down Enhancements ─────────────────────── */
+        .tally-classic .grid.grid-cols-12 .font-mono { font-weight: 700 !important; }
+        .tally-classic .bg-yellow-100 { background: #FFF3CC !important; }
+        .tally-classic .bg-red-100 { background: #FFE0E0 !important; }
+        .tally-classic .bg-green-100 { background: #D4EDDA !important; }
+        .tally-classic .bg-orange-100 { background: #FFE8CC !important; }
+        .tally-classic .bg-purple-100 { background: #E8D5F5 !important; }
+        .tally-classic .bg-blue-50 { background: #E8F0FE !important; }
+        .tally-classic .bg-red-50 { background: #FFF0F0 !important; }
+        .tally-classic .bg-green-50 { background: #F0FFF0 !important; }
+        .tally-classic .bg-orange-50 { background: #FFF8F0 !important; }
+        .tally-classic .bg-purple-50 { background: #F5F0FF !important; }
+        .tally-classic .text-blue-900 { color: #003366 !important; font-weight: 700 !important; }
+        .tally-classic .text-red-800 { color: #CC0000 !important; font-weight: 700 !important; }
+        .tally-classic .text-green-900 { color: #006400 !important; font-weight: 700 !important; }
+        .tally-classic .text-purple-900 { color: #4B0082 !important; font-weight: 700 !important; }
+        .tally-classic .border-blue-700 { border-color: #003366 !important; }
+        .tally-classic .border-red-700 { border-color: #CC0000 !important; }
+        .tally-classic .border-green-700 { border-color: #006400 !important; }
+        .tally-classic .border-orange-700 { border-color: #CC6600 !important; }
+        .tally-classic .border-purple-700 { border-color: #4B0082 !important; }
 
         /* ── Right Sidebar (Gateway Panel) ───────────────────────── */
         .tally-gateway { background: #F0F4F8; border-left: 2px solid #7A8CA0; }
@@ -7917,7 +7960,7 @@ ${contentHtml}
 
       <main className={`flex-1 p-4 lg:p-6 overflow-auto ${isTally ? 'pb-16 lg:pb-14' : ''}`}>
         {/* Header — Tally Prime Navy Bar */}
-        <div className={`flex items-center justify-between mb-4 ${isTally ? 'bg-[#003366] rounded-md px-4 py-3 -mx-4 lg:-mx-6 -mt-4 lg:-mt-6 mb-4' : ''}`}>
+        <div className={`flex items-center justify-between mb-4 ${isTally ? 'tally-header-bar bg-[#003366] rounded-md px-4 py-3 -mx-4 lg:-mx-6 -mt-4 lg:-mt-6 mb-4' : ''}`}>
           <div className="flex items-center gap-3">
             <button onClick={() => setSidebarOpen(!sidebarOpen)} className={`lg:hidden p-2 rounded-lg ${isTally ? 'hover:bg-[#004488] text-white' : 'hover:bg-gray-800'}`}>
               <Menu className="w-5 h-5" />
@@ -7932,6 +7975,16 @@ ${contentHtml}
               </h1>
               <p className={`text-xs ${isTally ? 'text-blue-200' : 'text-gray-500'}`}>Double-Entry Bookkeeping</p>
             </div>
+            {/* Online Connected Indicator */}
+            {isTally && (
+              <div className="flex items-center gap-1.5 ml-2 px-2.5 py-1 rounded-full bg-[#004488]/60 border border-[#005599]/50">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+                </span>
+                <span className="text-[10px] font-medium" style={{color: '#90EE90'}}>Connected</span>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-3">

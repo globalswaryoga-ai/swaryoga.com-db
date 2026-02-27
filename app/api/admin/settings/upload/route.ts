@@ -45,6 +45,13 @@ export async function POST(request: NextRequest) {
       uploadedUrls.signatureUrl = signatureUrl;
     }
 
+    // Process seal
+    const sealFile = formData.get('seal') as File;
+    if (sealFile) {
+      const sealUrl = await uploadToS3(sealFile, 'admin-settings/seal');
+      uploadedUrls.sealUrl = sealUrl;
+    }
+
     return NextResponse.json(uploadedUrls);
   } catch (error: any) {
     console.error('Upload error:', error);

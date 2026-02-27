@@ -13,6 +13,7 @@ export interface IAdminSettings extends Document {
   companyWebsite?: string;
   logoUrl?: string; // S3 URL
   signatureUrl?: string; // S3 URL
+  sealUrl?: string; // S3 URL — company seal/stamp image
   adminName: string;
   adminTitle: string; // e.g., "Managing Director"
   bankName?: string;
@@ -33,6 +34,7 @@ const AdminSettingsSchema = new Schema<IAdminSettings>(
     companyWebsite: { type: String },
     logoUrl: { type: String }, // S3 URL to logo image
     signatureUrl: { type: String }, // S3 URL to admin signature image
+    sealUrl: { type: String }, // S3 URL to company seal/stamp image
     adminName: { type: String, required: true },
     adminTitle: { type: String, default: 'Administrator' },
     bankName: { type: String },
