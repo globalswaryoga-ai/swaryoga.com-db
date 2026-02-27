@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import AdminSidebar from '@/components/AdminSidebar';
@@ -154,12 +154,24 @@ const VOUCHER_COLORS: Record<string, string> = {
   CREDIT_NOTE: 'text-indigo-400 bg-indigo-500/10',
 };
 
-const TABS: { key: ViewTab; label: string; icon: any }[] = [
+type TabDef = { key: ViewTab; label: string; icon: any };
+
+// Primary tabs — always visible in the top bar
+const PRIMARY_TABS: TabDef[] = [
   { key: 'dashboard', label: 'Dashboard', icon: BarChart3 },
-  { key: 'account', label: 'Account', icon: User },
   { key: 'ledgers', label: 'Ledgers', icon: BookOpen },
   { key: 'vouchers', label: 'Vouchers', icon: FileText },
   { key: 'daybook', label: 'Day Book', icon: Calendar },
+  { key: 'trial-balance', label: 'Trial Balance', icon: Scale },
+  { key: 'profit-loss', label: 'P&L (Yearly)', icon: TrendingUp },
+  { key: 'monthly-pl', label: 'P&L (Monthly)', icon: IndianRupee },
+  { key: 'balance-sheet', label: 'Balance Sheet', icon: PieChart },
+  { key: 'settings', label: 'Setup', icon: Settings },
+];
+
+// Secondary tabs — inside "More" dropdown
+const MORE_TABS: TabDef[] = [
+  { key: 'account', label: 'Account', icon: User },
   { key: 'cashbank', label: 'Cash/Bank', icon: Wallet },
   { key: 'group-summary', label: 'Group Summary', icon: Layers },
   { key: 'outstanding', label: 'Outstanding', icon: Clock },
@@ -167,10 +179,6 @@ const TABS: { key: ViewTab; label: string; icon: any }[] = [
   { key: 'gst-reports', label: 'GST Reports', icon: Shield },
   { key: 'comparative', label: 'Comparative', icon: ArrowRight },
   { key: 'budget', label: 'Budget', icon: ClipboardList },
-  { key: 'trial-balance', label: 'Trial Balance', icon: Scale },
-  { key: 'profit-loss', label: 'P&L (Yearly)', icon: TrendingUp },
-  { key: 'monthly-pl', label: 'P&L (Monthly)', icon: IndianRupee },
-  { key: 'balance-sheet', label: 'Balance Sheet', icon: PieChart },
   { key: 'ca-audit', label: 'CA Audit', icon: Shield },
   { key: 'ca-bills', label: 'Bills', icon: Image },
   { key: 'cost-centers', label: 'Cost Centers', icon: Target },
@@ -179,8 +187,9 @@ const TABS: { key: ViewTab; label: string; icon: any }[] = [
   { key: 'audit-trail', label: 'Audit Trail', icon: History },
   { key: 'tds', label: 'TDS', icon: Percent },
   { key: 'inventory', label: 'Inventory', icon: Package },
-  { key: 'settings', label: 'Setup', icon: Settings },
 ];
+
+const ALL_TABS: TabDef[] = [...PRIMARY_TABS, ...MORE_TABS];
 
 // ── Stat Card ───────────────────────────────────────────────────────
 
@@ -218,6 +227,21 @@ export default function TallyPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
+
+  // Close "More" dropdown on click outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) {
+        setMoreOpen(false);
+      }
+    }
+    if (moreOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [moreOpen]);
 
   // Theme: 'dark' (default) or 'tally' (Tally Prime cream/blue)
   const [tallyTheme, setTallyTheme] = useState<'dark' | 'tally'>(() => {
@@ -7721,8 +7745,8 @@ ${contentHtml}
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex gap-1 mb-6 overflow-x-auto pb-1 border-b border-gray-800">
-          {TABS.map(t => {
+        <div className="flex items-center gap-1 mb-6 border-b border-gray-800">
+          {PRIMARY_TABS.map(t => {
             const Icon = t.icon;
             return (
               <button key={t.key} onClick={() => setTab(t.key)}
@@ -7734,6 +7758,44 @@ ${contentHtml}
               </button>
             );
           })}
+
+          {/* More dropdown */}
+          <div className="relative ml-auto" ref={moreRef}>
+            <button
+              onClick={() => setMoreOpen(v => !v)}
+              className={`flex items-center gap-1.5 px-3 py-2 text-sm whitespace-nowrap transition-colors border-b-2 ${
+                MORE_TABS.some(t => t.key === tab)
+                  ? 'border-yellow-500 text-yellow-400'
+                  : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-600'
+              }`}
+            >
+              {/* Show active secondary tab label if selected, otherwise "More" */}
+              {MORE_TABS.find(t => t.key === tab)?.label || 'More'}
+              <ChevronDown className={`w-4 h-4 transition-transform ${moreOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {moreOpen && (
+              <div className="absolute right-0 top-full mt-1 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-xl py-1 min-w-[200px] max-h-[70vh] overflow-y-auto">
+                {MORE_TABS.map(t => {
+                  const Icon = t.icon;
+                  return (
+                    <button
+                      key={t.key}
+                      onClick={() => { setTab(t.key); setMoreOpen(false); }}
+                      className={`flex items-center gap-2.5 w-full px-4 py-2.5 text-sm transition-colors ${
+                        tab === t.key
+                          ? 'bg-yellow-500/10 text-yellow-400'
+                          : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                      }`}
+                    >
+                      <Icon className="w-4 h-4 flex-shrink-0" />
+                      {t.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Error */}
