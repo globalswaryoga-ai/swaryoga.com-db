@@ -45,6 +45,12 @@ import {
   Banknote,
   Clock,
   Users,
+  Target,
+  History,
+  Package,
+  Percent,
+  GitBranch,
+  Activity,
 } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────
@@ -52,7 +58,7 @@ import {
 type AccountGroup = 'ASSET' | 'LIABILITY' | 'INCOME' | 'EXPENSE' | 'CAPITAL';
 type BalanceType = 'DEBIT' | 'CREDIT';
 type VoucherType = 'RECEIPT' | 'PAYMENT' | 'JOURNAL' | 'CONTRA' | 'SALES' | 'PURCHASE' | 'DEBIT_NOTE' | 'CREDIT_NOTE';
-type ViewTab = 'dashboard' | 'account' | 'ledgers' | 'vouchers' | 'trial-balance' | 'profit-loss' | 'monthly-pl' | 'balance-sheet' | 'daybook' | 'cashbank' | 'group-summary' | 'outstanding' | 'bank-recon' | 'gst-reports' | 'comparative' | 'budget' | 'ca-audit' | 'ca-bills' | 'settings';
+type ViewTab = 'dashboard' | 'account' | 'ledgers' | 'vouchers' | 'trial-balance' | 'profit-loss' | 'monthly-pl' | 'balance-sheet' | 'daybook' | 'cashbank' | 'group-summary' | 'outstanding' | 'bank-recon' | 'gst-reports' | 'comparative' | 'budget' | 'ca-audit' | 'ca-bills' | 'cost-centers' | 'year-end' | 'analytics' | 'audit-trail' | 'tds' | 'inventory' | 'settings';
 
 interface Ledger {
   id: string;
@@ -166,6 +172,12 @@ const TABS: { key: ViewTab; label: string; icon: any }[] = [
   { key: 'balance-sheet', label: 'Balance Sheet', icon: PieChart },
   { key: 'ca-audit', label: 'CA Audit', icon: Shield },
   { key: 'ca-bills', label: 'Bills', icon: Image },
+  { key: 'cost-centers', label: 'Cost Centers', icon: Target },
+  { key: 'year-end', label: 'Year-End', icon: GitBranch },
+  { key: 'analytics', label: 'Analytics', icon: Activity },
+  { key: 'audit-trail', label: 'Audit Trail', icon: History },
+  { key: 'tds', label: 'TDS', icon: Percent },
+  { key: 'inventory', label: 'Inventory', icon: Package },
   { key: 'settings', label: 'Setup', icon: Settings },
 ];
 
@@ -5706,6 +5718,1021 @@ ${contentHtml}
     );
   };
 
+  // ═══════════════════════════════════════════════════════════════════
+  // ██ PHASE 3 VIEWS — Cost Centers, Year-End, Analytics, Audit, TDS, Inventory
+  // ═══════════════════════════════════════════════════════════════════
+
+  // ─── Cost Centers ───────────────────────────────────────────────
+
+  const [costCenters, setCostCenters] = useState<any[]>([]);
+  const [costCenterReport, setCostCenterReport] = useState<any>(null);
+  const [ccLoading, setCcLoading] = useState(false);
+  const [ccForm, setCcForm] = useState<{ name: string; category: string; description: string; budgetAmount: string } | null>(null);
+
+  const loadCostCenters = useCallback(async () => {
+    if (!token) return;
+    setCcLoading(true);
+    try {
+      const data = await apiFetch(`/api/tally/cost-centers?fy=${fy}`);
+      if (data?.centers) setCostCenters(data.centers);
+      const rpt = await apiFetch('/api/tally/cost-centers', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'report', financialYear: fy }),
+      });
+      if (rpt) setCostCenterReport(rpt);
+    } catch {}
+    setCcLoading(false);
+  }, [token, fy, apiFetch]);
+
+  useEffect(() => { if (tab === 'cost-centers') loadCostCenters(); }, [tab, fy]);
+
+  const saveCostCenter = async () => {
+    if (!ccForm?.name) return;
+    try {
+      await apiFetch('/api/tally/cost-centers', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'create', ...ccForm, budgetAmount: Number(ccForm.budgetAmount) || 0, financialYear: fy }),
+      });
+      setCcForm(null);
+      loadCostCenters();
+    } catch {}
+  };
+
+  const deleteCostCenter = async (id: string) => {
+    if (!confirm('Delete this cost center?')) return;
+    try {
+      await apiFetch('/api/tally/cost-centers', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'delete', id }),
+      });
+      loadCostCenters();
+    } catch {}
+  };
+
+  const CostCentersView = () => (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-bold text-white flex items-center gap-2"><Target className="w-5 h-5 text-teal-400" /> Cost Centers</h2>
+        <button onClick={() => setCcForm({ name: '', category: 'department', description: '', budgetAmount: '' })}
+          className="px-3 py-1.5 bg-teal-600 text-white rounded text-sm hover:bg-teal-700 flex items-center gap-1"><Plus className="w-3.5 h-3.5" /> Add</button>
+      </div>
+
+      {ccForm && (
+        <div className="bg-gray-900 rounded-lg border border-teal-500/30 p-4 space-y-3">
+          <h3 className="text-white font-semibold">New Cost Center</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <input value={ccForm.name} onChange={e => setCcForm({ ...ccForm, name: e.target.value })} placeholder="Name"
+              className="bg-gray-800 text-white border border-gray-700 rounded px-3 py-1.5 text-sm" />
+            <select value={ccForm.category} onChange={e => setCcForm({ ...ccForm, category: e.target.value })}
+              className="bg-gray-800 text-white border border-gray-700 rounded px-3 py-1.5 text-sm">
+              <option value="department">Department</option>
+              <option value="project">Project</option>
+              <option value="branch">Branch</option>
+              <option value="other">Other</option>
+            </select>
+            <input value={ccForm.description} onChange={e => setCcForm({ ...ccForm, description: e.target.value })} placeholder="Description"
+              className="bg-gray-800 text-white border border-gray-700 rounded px-3 py-1.5 text-sm" />
+            <input type="number" value={ccForm.budgetAmount} onChange={e => setCcForm({ ...ccForm, budgetAmount: e.target.value })} placeholder="Budget Amount"
+              className="bg-gray-800 text-white border border-gray-700 rounded px-3 py-1.5 text-sm" />
+          </div>
+          <div className="flex gap-2">
+            <button onClick={saveCostCenter} className="px-3 py-1.5 bg-green-600 text-white rounded text-sm hover:bg-green-700">Save</button>
+            <button onClick={() => setCcForm(null)} className="px-3 py-1.5 bg-gray-700 text-gray-300 rounded text-sm hover:bg-gray-600">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {ccLoading && <p className="text-gray-500 text-center py-8">Loading...</p>}
+
+      {costCenterReport && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <StatCard icon={Target} label="Cost Centers" value={String(costCenters.length)} color="cyan" />
+          <StatCard icon={IndianRupee} label="Total Budget" value={fmt(costCenterReport.totalBudget || 0)} color="yellow" />
+          <StatCard icon={IndianRupee} label="Total Actual" value={fmt(costCenterReport.totalActual || 0)} color="blue" />
+          <StatCard icon={TrendingUp} label="Variance" value={fmt((costCenterReport.totalBudget || 0) - (costCenterReport.totalActual || 0))} color="green" />
+        </div>
+      )}
+
+      {costCenterReport?.centers?.length > 0 ? (
+        <div className="bg-gray-900 rounded-lg border border-gray-800 overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-800">
+              <tr>
+                <th className="p-2 text-left text-gray-400">Name</th>
+                <th className="p-2 text-left text-gray-400">Category</th>
+                <th className="p-2 text-right text-gray-400">Budget</th>
+                <th className="p-2 text-right text-gray-400">Debit</th>
+                <th className="p-2 text-right text-gray-400">Credit</th>
+                <th className="p-2 text-right text-gray-400">Net</th>
+                <th className="p-2 text-right text-gray-400">Variance</th>
+                <th className="p-2 text-center text-gray-400">Vouchers</th>
+                <th className="p-2 text-center text-gray-400">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {costCenterReport.centers.map((c: any) => (
+                <tr key={c.id} className="border-t border-gray-800 hover:bg-gray-800/50">
+                  <td className="p-2 text-white font-medium">{c.name}</td>
+                  <td className="p-2"><span className="text-xs px-1.5 py-0.5 rounded bg-teal-500/10 text-teal-400">{c.category}</span></td>
+                  <td className="p-2 text-right text-yellow-400 font-mono">{fmt(c.budgetAmount)}</td>
+                  <td className="p-2 text-right text-green-400 font-mono">{fmt(c.totalDebit)}</td>
+                  <td className="p-2 text-right text-red-400 font-mono">{fmt(c.totalCredit)}</td>
+                  <td className="p-2 text-right text-white font-mono">{fmt(c.netAmount)}</td>
+                  <td className={`p-2 text-right font-mono ${c.variance >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fmt(c.variance)}</td>
+                  <td className="p-2 text-center text-gray-400">{c.voucherCount}</td>
+                  <td className="p-2 text-center">
+                    <button onClick={() => deleteCostCenter(c.id)} className="text-red-400 hover:text-red-300"><Trash2 className="w-3.5 h-3.5" /></button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : !ccLoading ? (
+        <div className="bg-gray-900 rounded-lg border border-gray-800 p-8 text-center">
+          <Target className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+          <p className="text-gray-400">No cost centers for FY {fy}</p>
+          <p className="text-gray-600 text-sm mt-1">Add cost centers to track departmental or project-wise expenses</p>
+        </div>
+      ) : null}
+    </div>
+  );
+
+  // ─── Year-End Closing View ──────────────────────────────────────
+
+  const [yearEndResult, setYearEndResult] = useState<any>(null);
+  const [yearEndLoading, setYearEndLoading] = useState(false);
+  const [yearEndFrom, setYearEndFrom] = useState('');
+  const [yearEndTo, setYearEndTo] = useState('');
+  const [financialYears, setFinancialYears] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (tab === 'year-end' && token) {
+      (async () => {
+        try {
+          const data = await apiFetch('/api/tally/setup');
+          const fys = data?.financialYears || [];
+          setFinancialYears(fys);
+          if (fys.length > 0) {
+            const sorted = [...fys].sort((a: any, b: any) => a.code.localeCompare(b.code));
+            if (!yearEndFrom) setYearEndFrom(sorted[sorted.length - 1]?.code || '');
+            const latestCode = sorted[sorted.length - 1]?.code || '2024-25';
+            const [startYr] = latestCode.split('-').map(Number);
+            if (!yearEndTo) setYearEndTo(`${startYr + 1}-${String((startYr + 2) % 100).padStart(2, '0')}`);
+          }
+        } catch {}
+      })();
+    }
+  }, [tab, token]);
+
+  const runCarryForward = async () => {
+    if (!yearEndFrom || !yearEndTo) return;
+    setYearEndLoading(true);
+    setYearEndResult(null);
+    try {
+      const data = await apiFetch('/api/tally/year-end', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'carry-forward', fromFY: yearEndFrom, toFY: yearEndTo }),
+      });
+      setYearEndResult(data);
+    } catch (e: any) {
+      setYearEndResult({ error: e.message });
+    }
+    setYearEndLoading(false);
+  };
+
+  const YearEndView = () => (
+    <div className="space-y-4">
+      <h2 className="text-lg font-bold text-white flex items-center gap-2"><GitBranch className="w-5 h-5 text-indigo-400" /> Year-End Closing & Carry Forward</h2>
+
+      <div className="bg-gray-900 rounded-lg border border-indigo-500/30 p-6 space-y-4">
+        <div className="p-3 bg-indigo-500/10 rounded-lg text-sm text-indigo-300 border border-indigo-500/20">
+          <p><strong>How it works:</strong> Closing balances of Balance Sheet ledgers (Assets, Liabilities, Capital) are carried forward as opening balances to the next FY. Income/Expense ledgers start fresh at zero. Net Profit/Loss is transferred to Reserves &amp; Surplus.</p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="text-xs text-gray-400 mb-1 block">Source Financial Year</label>
+            <select value={yearEndFrom} onChange={e => setYearEndFrom(e.target.value)}
+              className="w-full bg-gray-800 text-white border border-gray-700 rounded px-3 py-2 text-sm">
+              {financialYears.map((f: any) => <option key={f.code} value={f.code}>{f.code}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-gray-400 mb-1 block">Target Financial Year (New)</label>
+            <input value={yearEndTo} onChange={e => setYearEndTo(e.target.value)}
+              className="w-full bg-gray-800 text-white border border-gray-700 rounded px-3 py-2 text-sm" placeholder="e.g. 2025-26" />
+          </div>
+        </div>
+
+        <button onClick={runCarryForward} disabled={yearEndLoading}
+          className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2">
+          <GitBranch className="w-4 h-4" /> {yearEndLoading ? 'Processing...' : 'Carry Forward Balances'}
+        </button>
+
+        {yearEndResult && (
+          <div className={`p-4 rounded-lg border ${yearEndResult.error ? 'bg-red-500/10 border-red-500/30' : 'bg-green-500/10 border-green-500/30'}`}>
+            {yearEndResult.error ? (
+              <p className="text-red-400"><AlertTriangle className="w-4 h-4 inline mr-1" />{yearEndResult.error}</p>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-green-400 font-semibold"><CheckCircle className="w-4 h-4 inline mr-1" />Carry Forward Complete!</p>
+                <div className="grid grid-cols-3 gap-3 mt-2">
+                  <div className="text-center"><div className="text-2xl font-bold text-green-400">{yearEndResult.created}</div><div className="text-xs text-gray-400">Ledgers Created</div></div>
+                  <div className="text-center"><div className="text-2xl font-bold text-yellow-400">{yearEndResult.skipped}</div><div className="text-xs text-gray-400">Already Existed</div></div>
+                  <div className="text-center"><div className="text-2xl font-bold text-red-400">{yearEndResult.errors?.length || 0}</div><div className="text-xs text-gray-400">Errors</div></div>
+                </div>
+                {yearEndResult.errors?.length > 0 && (
+                  <div className="mt-2 text-xs text-red-300">
+                    {yearEndResult.errors.map((e: string, i: number) => <p key={i}>• {e}</p>)}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  // ─── Dashboard Analytics View ───────────────────────────────────
+
+  const [analyticsData, setAnalyticsData] = useState<any>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+  const loadAnalytics = useCallback(async () => {
+    if (!token) return;
+    setAnalyticsLoading(true);
+    try {
+      const data = await apiFetch(`/api/tally/analytics?fy=${fy}`);
+      setAnalyticsData(data);
+    } catch {}
+    setAnalyticsLoading(false);
+  }, [token, fy, apiFetch]);
+
+  useEffect(() => { if (tab === 'analytics') loadAnalytics(); }, [tab, fy]);
+
+  const AnalyticsView = () => {
+    if (analyticsLoading) return <p className="text-gray-500 text-center py-12">Loading analytics...</p>;
+    if (!analyticsData) return <p className="text-gray-500 text-center py-12">No data</p>;
+    const d = analyticsData;
+
+    // Compute max for bar chart scale
+    const maxMonthly = Math.max(...(d.monthlyData || []).map((m: any) => Math.max(m.income, m.expense)), 1);
+
+    return (
+      <div className="space-y-4">
+        <h2 className="text-lg font-bold text-white flex items-center gap-2"><Activity className="w-5 h-5 text-cyan-400" /> Analytics Dashboard</h2>
+
+        {/* KPI Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <StatCard icon={TrendingUp} label="Total Income" value={fmt(d.totalIncome)} color="green" />
+          <StatCard icon={ArrowDownLeft} label="Total Expense" value={fmt(d.totalExpense)} color="red" />
+          <StatCard icon={IndianRupee} label="Net Profit" value={fmt(d.netProfit)} color={d.netProfit >= 0 ? 'emerald' : 'red'} />
+          <StatCard icon={FileText} label="Vouchers" value={String(d.totalVouchers)} color="blue" />
+          <StatCard icon={BookOpen} label="Ledgers" value={String(d.totalLedgers)} color="purple" />
+        </div>
+
+        {/* Monthly Income vs Expense Bar Chart (CSS) */}
+        {d.monthlyData?.length > 0 && (
+          <div className="bg-gray-900 rounded-lg border border-gray-800 p-4">
+            <h3 className="text-sm font-semibold text-gray-300 mb-3">Monthly Income vs Expense</h3>
+            <div className="space-y-2">
+              {d.monthlyData.map((m: any) => (
+                <div key={m.month} className="flex items-center gap-2 text-xs">
+                  <span className="w-16 text-gray-400 text-right shrink-0">{m.month}</span>
+                  <div className="flex-1 flex gap-1">
+                    <div className="bg-green-500/80 rounded h-4" style={{ width: `${(m.income / maxMonthly) * 100}%`, minWidth: m.income > 0 ? '2px' : '0' }} title={`Income: ${fmt(m.income)}`} />
+                  </div>
+                  <div className="flex-1 flex gap-1">
+                    <div className="bg-red-500/80 rounded h-4" style={{ width: `${(m.expense / maxMonthly) * 100}%`, minWidth: m.expense > 0 ? '2px' : '0' }} title={`Expense: ${fmt(m.expense)}`} />
+                  </div>
+                  <span className={`w-24 text-right font-mono ${m.net >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fmt(m.net)}</span>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-4 mt-2 text-xs text-gray-500">
+              <span className="flex items-center gap-1"><span className="w-3 h-3 bg-green-500/80 rounded" /> Income</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 bg-red-500/80 rounded" /> Expense</span>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Top 5 Expenses */}
+          <div className="bg-gray-900 rounded-lg border border-gray-800 p-4">
+            <h3 className="text-sm font-semibold text-gray-300 mb-3">Top 5 Expenses</h3>
+            {d.topExpenses?.map((e: any, i: number) => {
+              const pct = d.totalExpense > 0 ? (e.amount / d.totalExpense) * 100 : 0;
+              return (
+                <div key={i} className="mb-2">
+                  <div className="flex justify-between text-xs mb-0.5">
+                    <span className="text-white">{e.name}</span>
+                    <span className="text-red-400 font-mono">{fmt(e.amount)}</span>
+                  </div>
+                  <div className="w-full bg-gray-700 rounded-full h-1.5">
+                    <div className="bg-red-500 h-1.5 rounded-full" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Top 5 Income */}
+          <div className="bg-gray-900 rounded-lg border border-gray-800 p-4">
+            <h3 className="text-sm font-semibold text-gray-300 mb-3">Top 5 Income Sources</h3>
+            {d.topIncomes?.map((e: any, i: number) => {
+              const pct = d.totalIncome > 0 ? (e.amount / d.totalIncome) * 100 : 0;
+              return (
+                <div key={i} className="mb-2">
+                  <div className="flex justify-between text-xs mb-0.5">
+                    <span className="text-white">{e.name}</span>
+                    <span className="text-green-400 font-mono">{fmt(e.amount)}</span>
+                  </div>
+                  <div className="w-full bg-gray-700 rounded-full h-1.5">
+                    <div className="bg-green-500 h-1.5 rounded-full" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Expense Breakdown by Category */}
+          <div className="bg-gray-900 rounded-lg border border-gray-800 p-4">
+            <h3 className="text-sm font-semibold text-gray-300 mb-3">Expense by Category</h3>
+            {d.expenseBreakdown?.map((e: any, i: number) => {
+              const pct = d.totalExpense > 0 ? (e.amount / d.totalExpense) * 100 : 0;
+              const colors = ['bg-orange-500', 'bg-amber-500', 'bg-yellow-500', 'bg-pink-500', 'bg-purple-500', 'bg-cyan-500', 'bg-teal-500', 'bg-rose-500'];
+              return (
+                <div key={i} className="flex items-center gap-2 mb-1.5 text-xs">
+                  <span className={`w-2.5 h-2.5 rounded-full ${colors[i % colors.length]}`} />
+                  <span className="text-gray-300 flex-1">{e.category}</span>
+                  <span className="text-gray-400 font-mono">{fmt(e.amount)}</span>
+                  <span className="text-gray-500 w-12 text-right">{pct.toFixed(1)}%</span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Cash Flow Trend */}
+          {d.cashFlowTrend?.length > 0 && (
+            <div className="bg-gray-900 rounded-lg border border-gray-800 p-4">
+              <h3 className="text-sm font-semibold text-gray-300 mb-3">Cash Balance Trend</h3>
+              {(() => {
+                const maxBal = Math.max(...d.cashFlowTrend.map((c: any) => Math.abs(c.balance)), 1);
+                return d.cashFlowTrend.map((c: any) => (
+                  <div key={c.month} className="flex items-center gap-2 mb-1 text-xs">
+                    <span className="w-16 text-gray-400 text-right shrink-0">{c.month}</span>
+                    <div className="flex-1">
+                      <div className={`${c.balance >= 0 ? 'bg-blue-500/70' : 'bg-red-500/70'} h-3 rounded`}
+                        style={{ width: `${(Math.abs(c.balance) / maxBal) * 100}%`, minWidth: '2px' }} />
+                    </div>
+                    <span className={`w-24 text-right font-mono ${c.balance >= 0 ? 'text-blue-400' : 'text-red-400'}`}>{fmt(c.balance)}</span>
+                  </div>
+                ));
+              })()}
+            </div>
+          )}
+
+          {/* Voucher Type Breakdown */}
+          <div className="bg-gray-900 rounded-lg border border-gray-800 p-4 md:col-span-2">
+            <h3 className="text-sm font-semibold text-gray-300 mb-3">Vouchers by Type</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {Object.entries(d.voucherTypeBreakdown || {}).map(([type, v]: any) => (
+                <div key={type} className="bg-gray-800 rounded-lg p-3 text-center">
+                  <div className={`text-xs font-semibold ${VOUCHER_COLORS[type] || 'text-gray-400'} mb-1`}>{type}</div>
+                  <div className="text-lg font-bold text-white">{v.count}</div>
+                  <div className="text-xs text-gray-500">{fmt(v.amount)}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ─── Audit Trail View ──────────────────────────────────────────
+
+  const [auditEntries, setAuditEntries] = useState<any[]>([]);
+  const [auditTotal, setAuditTotal] = useState(0);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditPage, setAuditPage] = useState(0);
+  const [auditFilter, setAuditFilter] = useState('');
+
+  const loadAuditTrail = useCallback(async (page = 0) => {
+    if (!token) return;
+    setAuditLoading(true);
+    try {
+      const params = new URLSearchParams({ fy, limit: '30', skip: String(page * 30) });
+      if (auditFilter) params.set('entityType', auditFilter);
+      const data = await apiFetch(`/api/tally/audit-trail?${params}`);
+      if (data) {
+        setAuditEntries(data.entries || []);
+        setAuditTotal(data.total || 0);
+      }
+    } catch {}
+    setAuditLoading(false);
+  }, [token, fy, auditFilter, apiFetch]);
+
+  useEffect(() => { if (tab === 'audit-trail') loadAuditTrail(auditPage); }, [tab, fy, auditPage, auditFilter]);
+
+  const AuditTrailView = () => (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-bold text-white flex items-center gap-2"><History className="w-5 h-5 text-amber-400" /> Audit Trail</h2>
+        <div className="flex items-center gap-2">
+          <select value={auditFilter} onChange={e => { setAuditFilter(e.target.value); setAuditPage(0); }}
+            className="bg-gray-800 text-white border border-gray-700 rounded px-2 py-1 text-xs">
+            <option value="">All Types</option>
+            <option value="VOUCHER">Voucher</option>
+            <option value="LEDGER">Ledger</option>
+            <option value="GROUP">Group</option>
+            <option value="COST_CENTER">Cost Center</option>
+            <option value="FINANCIAL_YEAR">Financial Year</option>
+            <option value="STOCK_ITEM">Stock Item</option>
+            <option value="TDS_ENTRY">TDS Entry</option>
+          </select>
+          <span className="text-xs text-gray-500">{auditTotal} entries</span>
+        </div>
+      </div>
+
+      {auditLoading && <p className="text-gray-500 text-center py-8">Loading...</p>}
+
+      {auditEntries.length > 0 ? (
+        <>
+          <div className="bg-gray-900 rounded-lg border border-gray-800 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-800">
+                <tr>
+                  <th className="p-2 text-left text-gray-400">Time</th>
+                  <th className="p-2 text-left text-gray-400">Action</th>
+                  <th className="p-2 text-left text-gray-400">Type</th>
+                  <th className="p-2 text-left text-gray-400">Entity</th>
+                  <th className="p-2 text-left text-gray-400">User</th>
+                  <th className="p-2 text-left text-gray-400">Changes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {auditEntries.map((e: any, i: number) => {
+                  const actionColor: Record<string, string> = { CREATE: 'text-green-400', UPDATE: 'text-yellow-400', DELETE: 'text-red-400', REVERSE: 'text-orange-400', CARRY_FORWARD: 'text-indigo-400', RECONCILE: 'text-blue-400' };
+                  return (
+                    <tr key={i} className="border-t border-gray-800 hover:bg-gray-800/50">
+                      <td className="p-2 text-gray-400 text-xs whitespace-nowrap">{new Date(e.createdAt).toLocaleString('en-IN')}</td>
+                      <td className={`p-2 font-semibold text-xs ${actionColor[e.action] || 'text-gray-300'}`}>{e.action}</td>
+                      <td className="p-2"><span className="text-xs px-1.5 py-0.5 rounded bg-gray-700 text-gray-300">{e.entityType}</span></td>
+                      <td className="p-2 text-white text-xs">{e.entityName || e.entityId?.slice(-6)}</td>
+                      <td className="p-2 text-gray-400 text-xs">{e.userName || '—'}</td>
+                      <td className="p-2 text-gray-500 text-xs max-w-xs truncate">
+                        {e.changes ? Object.entries(e.changes).map(([k, v]: any) => `${k}: ${v.old}→${v.new}`).join(', ') : '—'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex items-center justify-between">
+            <button onClick={() => setAuditPage(Math.max(0, auditPage - 1))} disabled={auditPage === 0}
+              className="px-3 py-1 bg-gray-800 text-gray-300 rounded text-xs hover:bg-gray-700 disabled:opacity-30">← Prev</button>
+            <span className="text-xs text-gray-500">Page {auditPage + 1} of {Math.ceil(auditTotal / 30)}</span>
+            <button onClick={() => setAuditPage(auditPage + 1)} disabled={(auditPage + 1) * 30 >= auditTotal}
+              className="px-3 py-1 bg-gray-800 text-gray-300 rounded text-xs hover:bg-gray-700 disabled:opacity-30">Next →</button>
+          </div>
+        </>
+      ) : !auditLoading ? (
+        <div className="bg-gray-900 rounded-lg border border-gray-800 p-8 text-center">
+          <History className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+          <p className="text-gray-400">No audit trail entries for FY {fy}</p>
+          <p className="text-gray-600 text-sm mt-1">Actions like creating ledgers, vouchers, and cost centers are automatically logged</p>
+        </div>
+      ) : null}
+    </div>
+  );
+
+  // ─── TDS Management View ───────────────────────────────────────
+
+  const [tdsEntries, setTdsEntries] = useState<any[]>([]);
+  const [tdsSummary, setTdsSummary] = useState<any>(null);
+  const [tdsLoading, setTdsLoading] = useState(false);
+  const [tdsForm, setTdsForm] = useState<any>(null);
+  const [tdsQuarterFilter, setTdsQuarterFilter] = useState('');
+
+  const loadTds = useCallback(async () => {
+    if (!token) return;
+    setTdsLoading(true);
+    try {
+      const params = new URLSearchParams({ fy });
+      if (tdsQuarterFilter) params.set('quarter', tdsQuarterFilter);
+      const data = await apiFetch(`/api/tally/tds?${params}`);
+      if (data?.entries) setTdsEntries(data.entries);
+      const summary = await apiFetch('/api/tally/tds', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'summary', financialYear: fy }),
+      });
+      if (summary) setTdsSummary(summary);
+    } catch {}
+    setTdsLoading(false);
+  }, [token, fy, tdsQuarterFilter, apiFetch]);
+
+  useEffect(() => { if (tab === 'tds') loadTds(); }, [tab, fy, tdsQuarterFilter]);
+
+  const TDS_SECTIONS = ['194A', '194C', '194H', '194I', '194J', '194Q', '194R', '195', '192', '194B', '194D', '194DA', '194E', '194G', '194IA', '194IB', '194IC', '194K', '194LA', '194M', '194N', '194O', '194P', '194S'];
+
+  const saveTdsEntry = async () => {
+    if (!tdsForm?.deducteeName || !tdsForm?.section) return;
+    try {
+      // Find deductee ledger
+      const deductee = ledgers.find(l => l.name === tdsForm.deducteeName);
+      await apiFetch('/api/tally/tds', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'create',
+          deducteeId: deductee?.id || 'manual',
+          deducteeName: tdsForm.deducteeName,
+          deducteePan: tdsForm.pan || '',
+          section: tdsForm.section,
+          tdsRate: Number(tdsForm.rate) || 0,
+          grossAmount: Number(tdsForm.grossAmount) || 0,
+          tdsAmount: Number(tdsForm.tdsAmount) || 0,
+          netAmount: (Number(tdsForm.grossAmount) || 0) - (Number(tdsForm.tdsAmount) || 0),
+          date: tdsForm.date || new Date().toISOString().split('T')[0],
+          financialYear: fy,
+          quarter: tdsForm.quarter || 'Q1',
+        }),
+      });
+      setTdsForm(null);
+      loadTds();
+    } catch {}
+  };
+
+  const markTdsChallanPaid = async (id: string) => {
+    try {
+      await apiFetch('/api/tally/tds', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'update', id, isChallanPaid: true, challanDate: new Date().toISOString().split('T')[0] }),
+      });
+      loadTds();
+    } catch {}
+  };
+
+  const TdsView = () => (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-bold text-white flex items-center gap-2"><Percent className="w-5 h-5 text-pink-400" /> TDS Management</h2>
+        <div className="flex items-center gap-2">
+          <select value={tdsQuarterFilter} onChange={e => setTdsQuarterFilter(e.target.value)}
+            className="bg-gray-800 text-white border border-gray-700 rounded px-2 py-1 text-xs">
+            <option value="">All Quarters</option>
+            <option value="Q1">Q1 (Apr-Jun)</option>
+            <option value="Q2">Q2 (Jul-Sep)</option>
+            <option value="Q3">Q3 (Oct-Dec)</option>
+            <option value="Q4">Q4 (Jan-Mar)</option>
+          </select>
+          <button onClick={() => setTdsForm({ deducteeName: '', section: '194C', rate: '10', grossAmount: '', tdsAmount: '', pan: '', date: '', quarter: 'Q1' })}
+            className="px-3 py-1.5 bg-pink-600 text-white rounded text-sm hover:bg-pink-700 flex items-center gap-1"><Plus className="w-3.5 h-3.5" /> Add TDS</button>
+        </div>
+      </div>
+
+      {tdsForm && (
+        <div className="bg-gray-900 rounded-lg border border-pink-500/30 p-4 space-y-3">
+          <h3 className="text-white font-semibold">New TDS Entry</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <input value={tdsForm.deducteeName} onChange={e => setTdsForm({ ...tdsForm, deducteeName: e.target.value })} placeholder="Deductee Name"
+              className="bg-gray-800 text-white border border-gray-700 rounded px-3 py-1.5 text-sm" list="tds-ledgers" />
+            <datalist id="tds-ledgers">
+              {ledgers.filter(l => l.group === 'EXPENSE' || l.group === 'ASSET').map(l => <option key={l.id} value={l.name} />)}
+            </datalist>
+            <input value={tdsForm.pan} onChange={e => setTdsForm({ ...tdsForm, pan: e.target.value })} placeholder="PAN"
+              className="bg-gray-800 text-white border border-gray-700 rounded px-3 py-1.5 text-sm uppercase" />
+            <select value={tdsForm.section} onChange={e => setTdsForm({ ...tdsForm, section: e.target.value })}
+              className="bg-gray-800 text-white border border-gray-700 rounded px-3 py-1.5 text-sm">
+              {TDS_SECTIONS.map(s => <option key={s} value={s}>Sec {s}</option>)}
+            </select>
+            <input type="number" value={tdsForm.rate} onChange={e => setTdsForm({ ...tdsForm, rate: e.target.value })} placeholder="Rate %"
+              className="bg-gray-800 text-white border border-gray-700 rounded px-3 py-1.5 text-sm" />
+            <input type="number" value={tdsForm.grossAmount} onChange={e => {
+              const g = Number(e.target.value) || 0;
+              const tds = Math.round(g * (Number(tdsForm.rate) || 0) / 100 * 100) / 100;
+              setTdsForm({ ...tdsForm, grossAmount: e.target.value, tdsAmount: String(tds) });
+            }} placeholder="Gross Amount"
+              className="bg-gray-800 text-white border border-gray-700 rounded px-3 py-1.5 text-sm" />
+            <input type="number" value={tdsForm.tdsAmount} onChange={e => setTdsForm({ ...tdsForm, tdsAmount: e.target.value })} placeholder="TDS Amount"
+              className="bg-gray-800 text-white border border-gray-700 rounded px-3 py-1.5 text-sm" />
+            <input type="date" value={tdsForm.date} onChange={e => setTdsForm({ ...tdsForm, date: e.target.value })}
+              className="bg-gray-800 text-white border border-gray-700 rounded px-3 py-1.5 text-sm" />
+            <select value={tdsForm.quarter} onChange={e => setTdsForm({ ...tdsForm, quarter: e.target.value })}
+              className="bg-gray-800 text-white border border-gray-700 rounded px-3 py-1.5 text-sm">
+              <option value="Q1">Q1</option><option value="Q2">Q2</option><option value="Q3">Q3</option><option value="Q4">Q4</option>
+            </select>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={saveTdsEntry} className="px-3 py-1.5 bg-green-600 text-white rounded text-sm hover:bg-green-700">Save</button>
+            <button onClick={() => setTdsForm(null)} className="px-3 py-1.5 bg-gray-700 text-gray-300 rounded text-sm hover:bg-gray-600">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {tdsLoading && <p className="text-gray-500 text-center py-8">Loading...</p>}
+
+      {tdsSummary && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <StatCard icon={Percent} label="Total Entries" value={String(tdsSummary.totalEntries)} color="purple" />
+          <StatCard icon={IndianRupee} label="Gross Amount" value={fmt(tdsSummary.totalGross)} color="blue" />
+          <StatCard icon={IndianRupee} label="TDS Deducted" value={fmt(tdsSummary.totalTds)} color="pink" />
+          <StatCard icon={CheckCircle} label="Challan Paid" value={String(tdsSummary.paidCount)} color="green" />
+          <StatCard icon={AlertTriangle} label="Unpaid" value={String(tdsSummary.unpaidCount)} color="red" />
+        </div>
+      )}
+
+      {/* Quarter Summary */}
+      {tdsSummary?.byQuarter?.length > 0 && (
+        <div className="bg-gray-900 rounded-lg border border-gray-800 p-4">
+          <h3 className="text-sm font-semibold text-gray-300 mb-2">By Quarter</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {tdsSummary.byQuarter.map((q: any) => (
+              <div key={q.quarter} className="bg-gray-800 rounded-lg p-3 text-center">
+                <div className="text-xs font-semibold text-pink-400 mb-1">{q.quarter}</div>
+                <div className="text-sm font-bold text-white">{fmt(q.tdsAmount)}</div>
+                <div className="text-xs text-gray-500">{q.count} entries | {q.paidCount} paid</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {tdsEntries.length > 0 ? (
+        <div className="bg-gray-900 rounded-lg border border-gray-800 overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-800">
+              <tr>
+                <th className="p-2 text-left text-gray-400">Date</th>
+                <th className="p-2 text-left text-gray-400">Deductee</th>
+                <th className="p-2 text-left text-gray-400">PAN</th>
+                <th className="p-2 text-left text-gray-400">Section</th>
+                <th className="p-2 text-right text-gray-400">Rate</th>
+                <th className="p-2 text-right text-gray-400">Gross</th>
+                <th className="p-2 text-right text-gray-400">TDS</th>
+                <th className="p-2 text-right text-gray-400">Net</th>
+                <th className="p-2 text-center text-gray-400">Quarter</th>
+                <th className="p-2 text-center text-gray-400">Challan</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tdsEntries.map((e: any, i: number) => (
+                <tr key={i} className="border-t border-gray-800 hover:bg-gray-800/50">
+                  <td className="p-2 text-gray-300 text-xs">{new Date(e.date).toLocaleDateString('en-IN')}</td>
+                  <td className="p-2 text-white">{e.deducteeName}</td>
+                  <td className="p-2 text-gray-400 text-xs uppercase">{e.deducteePan || '—'}</td>
+                  <td className="p-2"><span className="text-xs px-1.5 py-0.5 rounded bg-pink-500/10 text-pink-400">{e.section}</span></td>
+                  <td className="p-2 text-right text-gray-300">{e.tdsRate}%</td>
+                  <td className="p-2 text-right text-white font-mono">{fmt(e.grossAmount)}</td>
+                  <td className="p-2 text-right text-pink-400 font-mono">{fmt(e.tdsAmount)}</td>
+                  <td className="p-2 text-right text-green-400 font-mono">{fmt(e.netAmount)}</td>
+                  <td className="p-2 text-center text-gray-400 text-xs">{e.quarter}</td>
+                  <td className="p-2 text-center">
+                    {e.isChallanPaid
+                      ? <span className="text-xs text-green-400 flex items-center justify-center gap-1"><CheckCircle className="w-3 h-3" /> Paid</span>
+                      : <button onClick={() => markTdsChallanPaid(e._id)} className="text-xs text-yellow-400 hover:text-yellow-300 flex items-center justify-center gap-1"><Clock className="w-3 h-3" /> Mark Paid</button>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : !tdsLoading ? (
+        <div className="bg-gray-900 rounded-lg border border-gray-800 p-8 text-center">
+          <Percent className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+          <p className="text-gray-400">No TDS entries for FY {fy}</p>
+          <p className="text-gray-600 text-sm mt-1">Add TDS deductions to track compliance and challan payments</p>
+        </div>
+      ) : null}
+    </div>
+  );
+
+  // ─── Inventory / Stock Management View ─────────────────────────
+
+  const [stockItems, setStockItems] = useState<any[]>([]);
+  const [stockGroups, setStockGroups] = useState<any[]>([]);
+  const [stockSummary, setStockSummary] = useState<any>(null);
+  const [stockLoading, setStockLoading] = useState(false);
+  const [stockForm, setStockForm] = useState<any>(null);
+  const [stockTxnForm, setStockTxnForm] = useState<any>(null);
+  const [stockGroupForm, setStockGroupForm] = useState<{ name: string } | null>(null);
+  const [stockTab, setStockTab] = useState<'items' | 'txns' | 'summary'>('items');
+  const [stockTxns, setStockTxns] = useState<any[]>([]);
+
+  const loadInventory = useCallback(async () => {
+    if (!token) return;
+    setStockLoading(true);
+    try {
+      const [itemsRes, groupsRes, summaryRes] = await Promise.all([
+        apiFetch(`/api/tally/inventory?fy=${fy}&type=items`),
+        apiFetch(`/api/tally/inventory?fy=${fy}&type=groups`),
+        apiFetch(`/api/tally/inventory?fy=${fy}&type=summary`),
+      ]);
+      if (itemsRes?.items) setStockItems(itemsRes.items);
+      if (groupsRes?.groups) setStockGroups(groupsRes.groups);
+      if (summaryRes) setStockSummary(summaryRes);
+    } catch {}
+    setStockLoading(false);
+  }, [token, fy, apiFetch]);
+
+  const loadStockTxns = useCallback(async () => {
+    if (!token) return;
+    try {
+      const data = await apiFetch(`/api/tally/inventory?fy=${fy}&type=txns`);
+      if (data?.transactions) setStockTxns(data.transactions);
+    } catch {}
+  }, [token, fy, apiFetch]);
+
+  useEffect(() => {
+    if (tab === 'inventory') {
+      loadInventory();
+      if (stockTab === 'txns') loadStockTxns();
+    }
+  }, [tab, fy, stockTab]);
+
+  const saveStockGroup = async () => {
+    if (!stockGroupForm?.name) return;
+    try {
+      await apiFetch('/api/tally/inventory', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'create-group', name: stockGroupForm.name, financialYear: fy }),
+      });
+      setStockGroupForm(null);
+      loadInventory();
+    } catch {}
+  };
+
+  const saveStockItem = async () => {
+    if (!stockForm?.name) return;
+    try {
+      await apiFetch('/api/tally/inventory', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'create-item', ...stockForm, financialYear: fy }),
+      });
+      setStockForm(null);
+      loadInventory();
+    } catch {}
+  };
+
+  const deleteStockItemUI = async (id: string) => {
+    if (!confirm('Delete this stock item?')) return;
+    try {
+      await apiFetch('/api/tally/inventory', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'delete-item', id }),
+      });
+      loadInventory();
+    } catch {}
+  };
+
+  const saveStockTxn = async () => {
+    if (!stockTxnForm?.stockItemId || !stockTxnForm?.qty) return;
+    try {
+      const item = stockItems.find(i => i._id === stockTxnForm.stockItemId);
+      await apiFetch('/api/tally/inventory', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'create-txn',
+          stockItemId: stockTxnForm.stockItemId,
+          stockItemName: item?.name || '',
+          txnType: stockTxnForm.txnType || 'IN',
+          qty: Number(stockTxnForm.qty),
+          rate: Number(stockTxnForm.rate) || 0,
+          value: Number(stockTxnForm.qty) * (Number(stockTxnForm.rate) || 0),
+          date: stockTxnForm.date || new Date().toISOString().split('T')[0],
+          narration: stockTxnForm.narration || '',
+          financialYear: fy,
+        }),
+      });
+      setStockTxnForm(null);
+      loadInventory();
+      if (stockTab === 'txns') loadStockTxns();
+    } catch {}
+  };
+
+  const InventoryView = () => (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-bold text-white flex items-center gap-2"><Package className="w-5 h-5 text-emerald-400" /> Inventory / Stock</h2>
+        <div className="flex items-center gap-2">
+          <div className="flex bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+            {(['items', 'txns', 'summary'] as const).map(t => (
+              <button key={t} onClick={() => setStockTab(t)}
+                className={`px-3 py-1 text-xs font-medium ${stockTab === t ? 'bg-emerald-600 text-white' : 'text-gray-400 hover:text-white'}`}>
+                {t === 'items' ? 'Items' : t === 'txns' ? 'Transactions' : 'Summary'}
+              </button>
+            ))}
+          </div>
+          <button onClick={() => setStockGroupForm({ name: '' })} className="px-2 py-1.5 bg-gray-700 text-gray-300 rounded text-xs hover:bg-gray-600">+ Group</button>
+          <button onClick={() => setStockForm({ name: '', stockGroupId: '', unit: 'Nos', hsnCode: '', gstRate: '', openingQty: '', openingRate: '', sellingPrice: '', purchasePrice: '', reorderLevel: '', godown: '' })}
+            className="px-3 py-1.5 bg-emerald-600 text-white rounded text-sm hover:bg-emerald-700 flex items-center gap-1"><Plus className="w-3.5 h-3.5" /> Item</button>
+          <button onClick={() => setStockTxnForm({ stockItemId: '', txnType: 'IN', qty: '', rate: '', date: '', narration: '' })}
+            className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 flex items-center gap-1"><Plus className="w-3.5 h-3.5" /> Txn</button>
+        </div>
+      </div>
+
+      {/* Stock Group Form */}
+      {stockGroupForm && (
+        <div className="bg-gray-900 rounded-lg border border-gray-700 p-4 flex gap-3 items-end">
+          <div className="flex-1">
+            <label className="text-xs text-gray-400 mb-1 block">Stock Group Name</label>
+            <input value={stockGroupForm.name} onChange={e => setStockGroupForm({ name: e.target.value })} placeholder="e.g. Raw Materials"
+              className="w-full bg-gray-800 text-white border border-gray-700 rounded px-3 py-1.5 text-sm" />
+          </div>
+          <button onClick={saveStockGroup} className="px-3 py-1.5 bg-green-600 text-white rounded text-sm">Save</button>
+          <button onClick={() => setStockGroupForm(null)} className="px-3 py-1.5 bg-gray-700 text-gray-300 rounded text-sm">Cancel</button>
+        </div>
+      )}
+
+      {/* Stock Item Form */}
+      {stockForm && (
+        <div className="bg-gray-900 rounded-lg border border-emerald-500/30 p-4 space-y-3">
+          <h3 className="text-white font-semibold">New Stock Item</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <input value={stockForm.name} onChange={e => setStockForm({ ...stockForm, name: e.target.value })} placeholder="Item Name"
+              className="bg-gray-800 text-white border border-gray-700 rounded px-3 py-1.5 text-sm" />
+            <select value={stockForm.stockGroupId} onChange={e => {
+              const g = stockGroups.find((sg: any) => sg._id === e.target.value);
+              setStockForm({ ...stockForm, stockGroupId: e.target.value, stockGroupName: g?.name || '' });
+            }} className="bg-gray-800 text-white border border-gray-700 rounded px-3 py-1.5 text-sm">
+              <option value="">— Group —</option>
+              {stockGroups.map((g: any) => <option key={g._id} value={g._id}>{g.name}</option>)}
+            </select>
+            <input value={stockForm.unit} onChange={e => setStockForm({ ...stockForm, unit: e.target.value })} placeholder="Unit (Nos, Kg, Ltr)"
+              className="bg-gray-800 text-white border border-gray-700 rounded px-3 py-1.5 text-sm" />
+            <input value={stockForm.hsnCode} onChange={e => setStockForm({ ...stockForm, hsnCode: e.target.value })} placeholder="HSN Code"
+              className="bg-gray-800 text-white border border-gray-700 rounded px-3 py-1.5 text-sm" />
+            <input type="number" value={stockForm.gstRate} onChange={e => setStockForm({ ...stockForm, gstRate: e.target.value })} placeholder="GST %"
+              className="bg-gray-800 text-white border border-gray-700 rounded px-3 py-1.5 text-sm" />
+            <input type="number" value={stockForm.openingQty} onChange={e => setStockForm({ ...stockForm, openingQty: e.target.value })} placeholder="Opening Qty"
+              className="bg-gray-800 text-white border border-gray-700 rounded px-3 py-1.5 text-sm" />
+            <input type="number" value={stockForm.openingRate} onChange={e => setStockForm({ ...stockForm, openingRate: e.target.value })} placeholder="Opening Rate"
+              className="bg-gray-800 text-white border border-gray-700 rounded px-3 py-1.5 text-sm" />
+            <input type="number" value={stockForm.sellingPrice} onChange={e => setStockForm({ ...stockForm, sellingPrice: e.target.value })} placeholder="Selling Price"
+              className="bg-gray-800 text-white border border-gray-700 rounded px-3 py-1.5 text-sm" />
+            <input type="number" value={stockForm.purchasePrice} onChange={e => setStockForm({ ...stockForm, purchasePrice: e.target.value })} placeholder="Purchase Price"
+              className="bg-gray-800 text-white border border-gray-700 rounded px-3 py-1.5 text-sm" />
+            <input type="number" value={stockForm.reorderLevel} onChange={e => setStockForm({ ...stockForm, reorderLevel: e.target.value })} placeholder="Reorder Level"
+              className="bg-gray-800 text-white border border-gray-700 rounded px-3 py-1.5 text-sm" />
+            <input value={stockForm.godown} onChange={e => setStockForm({ ...stockForm, godown: e.target.value })} placeholder="Godown / Location"
+              className="bg-gray-800 text-white border border-gray-700 rounded px-3 py-1.5 text-sm" />
+          </div>
+          <div className="flex gap-2">
+            <button onClick={saveStockItem} className="px-3 py-1.5 bg-green-600 text-white rounded text-sm hover:bg-green-700">Save</button>
+            <button onClick={() => setStockForm(null)} className="px-3 py-1.5 bg-gray-700 text-gray-300 rounded text-sm hover:bg-gray-600">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* Stock Transaction Form */}
+      {stockTxnForm && (
+        <div className="bg-gray-900 rounded-lg border border-blue-500/30 p-4 space-y-3">
+          <h3 className="text-white font-semibold">New Stock Transaction</h3>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <select value={stockTxnForm.stockItemId} onChange={e => setStockTxnForm({ ...stockTxnForm, stockItemId: e.target.value })}
+              className="bg-gray-800 text-white border border-gray-700 rounded px-3 py-1.5 text-sm">
+              <option value="">— Select Item —</option>
+              {stockItems.map((i: any) => <option key={i._id} value={i._id}>{i.name}</option>)}
+            </select>
+            <select value={stockTxnForm.txnType} onChange={e => setStockTxnForm({ ...stockTxnForm, txnType: e.target.value })}
+              className="bg-gray-800 text-white border border-gray-700 rounded px-3 py-1.5 text-sm">
+              <option value="IN">IN (Purchase/Receipt)</option>
+              <option value="OUT">OUT (Sale/Issue)</option>
+              <option value="TRANSFER">TRANSFER</option>
+            </select>
+            <input type="number" value={stockTxnForm.qty} onChange={e => setStockTxnForm({ ...stockTxnForm, qty: e.target.value })} placeholder="Qty"
+              className="bg-gray-800 text-white border border-gray-700 rounded px-3 py-1.5 text-sm" />
+            <input type="number" value={stockTxnForm.rate} onChange={e => setStockTxnForm({ ...stockTxnForm, rate: e.target.value })} placeholder="Rate"
+              className="bg-gray-800 text-white border border-gray-700 rounded px-3 py-1.5 text-sm" />
+            <input type="date" value={stockTxnForm.date} onChange={e => setStockTxnForm({ ...stockTxnForm, date: e.target.value })}
+              className="bg-gray-800 text-white border border-gray-700 rounded px-3 py-1.5 text-sm" />
+          </div>
+          <div className="flex gap-2">
+            <button onClick={saveStockTxn} className="px-3 py-1.5 bg-green-600 text-white rounded text-sm hover:bg-green-700">Save</button>
+            <button onClick={() => setStockTxnForm(null)} className="px-3 py-1.5 bg-gray-700 text-gray-300 rounded text-sm hover:bg-gray-600">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {stockLoading && <p className="text-gray-500 text-center py-8">Loading...</p>}
+
+      {/* Summary Cards */}
+      {stockSummary && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <StatCard icon={Package} label="Total Items" value={String(stockSummary.totalItems)} color="emerald" />
+          <StatCard icon={Layers} label="Groups" value={String(stockSummary.totalGroups)} color="cyan" />
+          <StatCard icon={IndianRupee} label="Stock Value" value={fmt(stockSummary.totalStockValue || 0)} color="blue" />
+          <StatCard icon={AlertTriangle} label="Below Reorder" value={String(stockSummary.belowReorderCount)} color="red" />
+        </div>
+      )}
+
+      {/* Items Tab */}
+      {stockTab === 'items' && stockSummary?.items?.length > 0 && (
+        <div className="bg-gray-900 rounded-lg border border-gray-800 overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-800">
+              <tr>
+                <th className="p-2 text-left text-gray-400">Name</th>
+                <th className="p-2 text-left text-gray-400">Group</th>
+                <th className="p-2 text-left text-gray-400">Unit</th>
+                <th className="p-2 text-right text-gray-400">Opening</th>
+                <th className="p-2 text-right text-gray-400">In</th>
+                <th className="p-2 text-right text-gray-400">Out</th>
+                <th className="p-2 text-right text-gray-400">Current</th>
+                <th className="p-2 text-right text-gray-400">Value</th>
+                <th className="p-2 text-right text-gray-400">Reorder</th>
+                <th className="p-2 text-center text-gray-400">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stockSummary.items.map((item: any) => (
+                <tr key={item.id} className={`border-t border-gray-800 hover:bg-gray-800/50 ${item.belowReorder ? 'bg-red-500/5' : ''}`}>
+                  <td className="p-2 text-white font-medium">{item.name}</td>
+                  <td className="p-2"><span className="text-xs px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400">{item.group}</span></td>
+                  <td className="p-2 text-gray-400">{item.unit}</td>
+                  <td className="p-2 text-right text-gray-300">{item.openingQty || 0}</td>
+                  <td className="p-2 text-right text-green-400">{item.totalIn}</td>
+                  <td className="p-2 text-right text-red-400">{item.totalOut}</td>
+                  <td className="p-2 text-right text-white font-bold">{item.currentQty}</td>
+                  <td className="p-2 text-right text-blue-400 font-mono">{fmt(item.closingValue)}</td>
+                  <td className="p-2 text-right">
+                    {item.belowReorder ? <span className="text-xs text-red-400"><AlertTriangle className="w-3 h-3 inline" /> {item.reorderLevel}</span> : <span className="text-gray-500">{item.reorderLevel || '—'}</span>}
+                  </td>
+                  <td className="p-2 text-center">
+                    <button onClick={() => deleteStockItemUI(item.id)} className="text-red-400 hover:text-red-300"><Trash2 className="w-3.5 h-3.5" /></button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Transactions Tab */}
+      {stockTab === 'txns' && stockTxns.length > 0 && (
+        <div className="bg-gray-900 rounded-lg border border-gray-800 overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-800">
+              <tr>
+                <th className="p-2 text-left text-gray-400">Date</th>
+                <th className="p-2 text-left text-gray-400">Item</th>
+                <th className="p-2 text-center text-gray-400">Type</th>
+                <th className="p-2 text-right text-gray-400">Qty</th>
+                <th className="p-2 text-right text-gray-400">Rate</th>
+                <th className="p-2 text-right text-gray-400">Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stockTxns.map((t: any, i: number) => (
+                <tr key={i} className="border-t border-gray-800 hover:bg-gray-800/50">
+                  <td className="p-2 text-gray-300 text-xs">{new Date(t.date).toLocaleDateString('en-IN')}</td>
+                  <td className="p-2 text-white">{t.stockItemName}</td>
+                  <td className="p-2 text-center">
+                    <span className={`text-xs px-1.5 py-0.5 rounded ${t.txnType === 'IN' ? 'bg-green-500/10 text-green-400' : t.txnType === 'OUT' ? 'bg-red-500/10 text-red-400' : 'bg-yellow-500/10 text-yellow-400'}`}>{t.txnType}</span>
+                  </td>
+                  <td className="p-2 text-right text-white">{t.qty}</td>
+                  <td className="p-2 text-right text-gray-300 font-mono">{fmt(t.rate)}</td>
+                  <td className="p-2 text-right text-blue-400 font-mono">{fmt(t.value)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Summary Tab */}
+      {stockTab === 'summary' && stockSummary && (
+        <div className="bg-gray-900 rounded-lg border border-gray-800 p-4">
+          <h3 className="text-sm font-semibold text-gray-300 mb-3">Stock Groups</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {stockGroups.map((g: any) => {
+              const groupItems = stockSummary.items?.filter((i: any) => i.group === g.name) || [];
+              const groupValue = groupItems.reduce((s: number, i: any) => s + (i.closingValue || 0), 0);
+              return (
+                <div key={g._id} className="bg-gray-800 rounded-lg p-3">
+                  <div className="text-xs font-semibold text-emerald-400 mb-1">{g.name}</div>
+                  <div className="text-lg font-bold text-white">{groupItems.length} items</div>
+                  <div className="text-xs text-gray-500">{fmt(groupValue)}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {!stockLoading && stockSummary?.items?.length === 0 && (
+        <div className="bg-gray-900 rounded-lg border border-gray-800 p-8 text-center">
+          <Package className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+          <p className="text-gray-400">No stock items for FY {fy}</p>
+          <p className="text-gray-600 text-sm mt-1">Create stock groups and items to track inventory</p>
+        </div>
+      )}
+    </div>
+  );
+
   const SettingsView = () => {
     const [setupCode, setSetupCode] = useState('2024-25');
     const [setupStart, setSetupStart] = useState('2023-04-01');
@@ -6591,6 +7618,12 @@ ${contentHtml}
             {tab === 'budget' && <BudgetView />}
             {tab === 'ca-audit' && <CAAuditView />}
             {tab === 'ca-bills' && <CABillsView />}
+            {tab === 'cost-centers' && <CostCentersView />}
+            {tab === 'year-end' && <YearEndView />}
+            {tab === 'analytics' && <AnalyticsView />}
+            {tab === 'audit-trail' && <AuditTrailView />}
+            {tab === 'tds' && <TdsView />}
+            {tab === 'inventory' && <InventoryView />}
             {tab === 'settings' && <SettingsView />}
           </>
         )}

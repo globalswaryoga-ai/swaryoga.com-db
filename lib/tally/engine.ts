@@ -16,7 +16,7 @@
 
 import mongoose from 'mongoose';
 import { connectDB } from '@/lib/db';
-import { getAccLedger, getAccVoucher, getAccGroup, getAccFinancialYear, getAccVoucherNumbering } from '@/lib/schemas/enterpriseSchemas';
+import { getAccLedger, getAccVoucher, getAccGroup, getAccFinancialYear, getAccVoucherNumbering, getAccCostCenter, getAccAuditTrail, getAccTdsEntry, getAccStockGroup, getAccStockItem, getAccStockTxn } from '@/lib/schemas/enterpriseSchemas';
 
 // ─── Server-Side Report Cache (30s TTL) ─────────────────────────────
 // Avoids re-computing identical reports when user switches tabs quickly.
@@ -4680,4 +4680,514 @@ export async function setBudget(
 
   await AccLedger.findByIdAndUpdate(ledgerId, { budgetAmount });
   return { success: true };
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ██████ PHASE 3 — COST CENTERS, YEAR-END, AUDIT, TDS, INVENTORY ██████
+// ═══════════════════════════════════════════════════════════════════════
+
+// ─── AUDIT TRAIL ──────────────────────────────────────────────────────
+
+export async function logAudit(params: {
+  action: string;
+  entityType: string;
+  entityId: string;
+  entityName?: string;
+  financialYear: string;
+  userId?: string;
+  userName?: string;
+  changes?: Record<string, { old: any; new: any }>;
+  metadata?: any;
+}): Promise<void> {
+  try {
+    await connectDB();
+    const AccAuditTrail = getAccAuditTrail();
+    await AccAuditTrail.create(params);
+  } catch {
+    // Audit logging should never break the main flow
+  }
+}
+
+export async function getAuditTrail(
+  financialYear: string,
+  opts?: { entityType?: string; entityId?: string; userId?: string; limit?: number; skip?: number }
+): Promise<{ entries: any[]; total: number }> {
+  await connectDB();
+  const AccAuditTrail = getAccAuditTrail();
+  const filter: any = { financialYear };
+  if (opts?.entityType) filter.entityType = opts.entityType;
+  if (opts?.entityId) filter.entityId = opts.entityId;
+  if (opts?.userId) filter.userId = opts.userId;
+
+  const total = await AccAuditTrail.countDocuments(filter);
+  const entries = await AccAuditTrail.find(filter)
+    .sort({ createdAt: -1 })
+    .skip(opts?.skip || 0)
+    .limit(opts?.limit || 50)
+    .lean();
+
+  return { entries, total };
+}
+
+// ─── COST CENTERS ─────────────────────────────────────────────────────
+
+export async function getCostCenters(financialYear: string): Promise<any[]> {
+  await connectDB();
+  const AccCostCenter = getAccCostCenter();
+  return AccCostCenter.find({ financialYear }).sort({ category: 1, name: 1 }).lean();
+}
+
+export async function createCostCenter(data: {
+  name: string;
+  category: string;
+  financialYear: string;
+  parentId?: string;
+  description?: string;
+  budgetAmount?: number;
+  createdByUserId?: string;
+}): Promise<any> {
+  await connectDB();
+  const AccCostCenter = getAccCostCenter();
+  const doc = await AccCostCenter.create(data);
+  await logAudit({
+    action: 'CREATE', entityType: 'COST_CENTER', entityId: doc._id.toString(),
+    entityName: data.name, financialYear: data.financialYear, userId: data.createdByUserId,
+  });
+  return doc;
+}
+
+export async function updateCostCenter(id: string, data: Partial<{ name: string; category: string; description: string; budgetAmount: number; isActive: boolean }>): Promise<any> {
+  await connectDB();
+  const AccCostCenter = getAccCostCenter();
+  const old = await AccCostCenter.findById(id).lean() as any;
+  const doc = await AccCostCenter.findByIdAndUpdate(id, data, { new: true }).lean();
+  if (old && doc) {
+    const changes: any = {};
+    for (const k of Object.keys(data)) {
+      if (old[k] !== (data as any)[k]) changes[k] = { old: old[k], new: (data as any)[k] };
+    }
+    await logAudit({ action: 'UPDATE', entityType: 'COST_CENTER', entityId: id, entityName: (doc as any).name, financialYear: (doc as any).financialYear, changes });
+  }
+  return doc;
+}
+
+export async function deleteCostCenter(id: string): Promise<void> {
+  await connectDB();
+  const AccCostCenter = getAccCostCenter();
+  const doc = await AccCostCenter.findById(id).lean() as any;
+  await AccCostCenter.findByIdAndDelete(id);
+  if (doc) await logAudit({ action: 'DELETE', entityType: 'COST_CENTER', entityId: id, entityName: doc.name, financialYear: doc.financialYear });
+}
+
+export async function getCostCenterReport(financialYear: string): Promise<any> {
+  await connectDB();
+  const AccCostCenter = getAccCostCenter();
+  const AccVoucher = getAccVoucher();
+
+  const centers = await AccCostCenter.find({ financialYear, isActive: true }).lean() as any[];
+  const vouchers = await AccVoucher.find({ financialYear, isReversed: { $ne: true } }).lean() as any[];
+
+  const result = centers.map(cc => {
+    let totalDebit = 0, totalCredit = 0;
+    for (const v of vouchers) {
+      for (const e of (v.entries || [])) {
+        if (e.costCenterId?.toString() === cc._id.toString()) {
+          if (e.type === 'DEBIT') totalDebit += e.amount;
+          else totalCredit += e.amount;
+        }
+      }
+    }
+    return {
+      id: cc._id.toString(),
+      name: cc.name,
+      category: cc.category,
+      budgetAmount: cc.budgetAmount || 0,
+      totalDebit,
+      totalCredit,
+      netAmount: totalDebit - totalCredit,
+      variance: (cc.budgetAmount || 0) - (totalDebit - totalCredit),
+      voucherCount: vouchers.filter(v => v.entries?.some((e: any) => e.costCenterId?.toString() === cc._id.toString())).length,
+    };
+  });
+
+  return {
+    centers: result,
+    totalBudget: result.reduce((s, c) => s + c.budgetAmount, 0),
+    totalActual: result.reduce((s, c) => s + c.netAmount, 0),
+  };
+}
+
+// ─── DASHBOARD ANALYTICS ──────────────────────────────────────────────
+
+export async function getDashboardAnalytics(financialYear: string): Promise<any> {
+  await connectDB();
+  const AccLedger = getAccLedger();
+  const AccVoucher = getAccVoucher();
+
+  const ledgers = await AccLedger.find({ financialYear, isActive: true }).lean() as any[];
+  const vouchers = await AccVoucher.find({ financialYear, isReversed: { $ne: true } }).sort({ date: 1 }).lean() as any[];
+
+  const nameToGroup: Record<string, { group: string; subGroup: string }> = {};
+  for (const l of ledgers) nameToGroup[l.name] = { group: l.group, subGroup: l.subGroup || '' };
+
+  // Monthly income/expense/net
+  const monthlyData: { month: string; income: number; expense: number; net: number }[] = [];
+  const monthMap: Record<string, { income: number; expense: number }> = {};
+
+  for (const v of vouchers) {
+    const d = new Date(v.date);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    if (!monthMap[key]) monthMap[key] = { income: 0, expense: 0 };
+    for (const e of (v.entries || [])) {
+      const info = nameToGroup[e.ledgerName];
+      if (!info) continue;
+      if (info.group === 'INCOME' && e.type === 'CREDIT') monthMap[key].income += e.amount;
+      if (info.group === 'EXPENSE' && e.type === 'DEBIT') monthMap[key].expense += e.amount;
+    }
+  }
+
+  const sortedMonths = Object.keys(monthMap).sort();
+  for (const m of sortedMonths) {
+    const [y, mo] = m.split('-');
+    const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    monthlyData.push({
+      month: `${monthNames[parseInt(mo) - 1]} ${y}`,
+      income: Math.round(monthMap[m].income * 100) / 100,
+      expense: Math.round(monthMap[m].expense * 100) / 100,
+      net: Math.round((monthMap[m].income - monthMap[m].expense) * 100) / 100,
+    });
+  }
+
+  // Expense breakdown by subGroup
+  const expenseByCategory: Record<string, number> = {};
+  for (const v of vouchers) {
+    for (const e of (v.entries || [])) {
+      const info = nameToGroup[e.ledgerName];
+      if (info?.group === 'EXPENSE' && e.type === 'DEBIT') {
+        const cat = info.subGroup || 'Other';
+        expenseByCategory[cat] = (expenseByCategory[cat] || 0) + e.amount;
+      }
+    }
+  }
+  const expenseBreakdown = Object.entries(expenseByCategory)
+    .map(([category, amount]) => ({ category, amount: Math.round(amount * 100) / 100 }))
+    .sort((a, b) => b.amount - a.amount);
+
+  // Cash flow trend (running balance)
+  let cashBalance = 0;
+  const cashLedger = ledgers.find(l => l.subGroup === 'Cash-in-Hand');
+  if (cashLedger) {
+    cashBalance = cashLedger.openingBalanceType === 'DEBIT' ? cashLedger.openingBalance : -cashLedger.openingBalance;
+  }
+  const cashFlowTrend: { month: string; balance: number }[] = [];
+  const cashMonthMap: Record<string, number> = {};
+  for (const v of vouchers) {
+    const d = new Date(v.date);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    if (!cashMonthMap[key]) cashMonthMap[key] = 0;
+    for (const e of (v.entries || [])) {
+      if (e.ledgerName === cashLedger?.name) {
+        cashMonthMap[key] += e.type === 'DEBIT' ? e.amount : -e.amount;
+      }
+    }
+  }
+  for (const m of sortedMonths) {
+    cashBalance += cashMonthMap[m] || 0;
+    const [y, mo] = m.split('-');
+    const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    cashFlowTrend.push({ month: `${monthNames[parseInt(mo) - 1]} ${y}`, balance: Math.round(cashBalance * 100) / 100 });
+  }
+
+  // Voucher type breakdown
+  const voucherTypeBreakdown: Record<string, { count: number; amount: number }> = {};
+  for (const v of vouchers) {
+    if (!voucherTypeBreakdown[v.type]) voucherTypeBreakdown[v.type] = { count: 0, amount: 0 };
+    voucherTypeBreakdown[v.type].count++;
+    voucherTypeBreakdown[v.type].amount += v.totalDebit;
+  }
+
+  // Top 5 expense ledgers
+  const expenseLedgerTotals: Record<string, number> = {};
+  for (const v of vouchers) {
+    for (const e of (v.entries || [])) {
+      const info = nameToGroup[e.ledgerName];
+      if (info?.group === 'EXPENSE' && e.type === 'DEBIT') {
+        expenseLedgerTotals[e.ledgerName] = (expenseLedgerTotals[e.ledgerName] || 0) + e.amount;
+      }
+    }
+  }
+  const topExpenses = Object.entries(expenseLedgerTotals)
+    .map(([name, amount]) => ({ name, amount: Math.round(amount * 100) / 100 }))
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 5);
+
+  // Top 5 income ledgers
+  const incomeLedgerTotals: Record<string, number> = {};
+  for (const v of vouchers) {
+    for (const e of (v.entries || [])) {
+      const info = nameToGroup[e.ledgerName];
+      if (info?.group === 'INCOME' && e.type === 'CREDIT') {
+        incomeLedgerTotals[e.ledgerName] = (incomeLedgerTotals[e.ledgerName] || 0) + e.amount;
+      }
+    }
+  }
+  const topIncomes = Object.entries(incomeLedgerTotals)
+    .map(([name, amount]) => ({ name, amount: Math.round(amount * 100) / 100 }))
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 5);
+
+  const totalIncome = Object.values(incomeLedgerTotals).reduce((s, v) => s + v, 0);
+  const totalExpense = Object.values(expenseLedgerTotals).reduce((s, v) => s + v, 0);
+
+  return {
+    monthlyData,
+    expenseBreakdown,
+    cashFlowTrend,
+    voucherTypeBreakdown,
+    topExpenses,
+    topIncomes,
+    totalIncome: Math.round(totalIncome * 100) / 100,
+    totalExpense: Math.round(totalExpense * 100) / 100,
+    netProfit: Math.round((totalIncome - totalExpense) * 100) / 100,
+    totalVouchers: vouchers.length,
+    totalLedgers: ledgers.length,
+  };
+}
+
+// ─── TDS MANAGEMENT ───────────────────────────────────────────────────
+
+export async function getTdsEntries(
+  financialYear: string,
+  opts?: { section?: string; quarter?: string; deducteeId?: string }
+): Promise<any[]> {
+  await connectDB();
+  const AccTdsEntry = getAccTdsEntry();
+  const filter: any = { financialYear, isActive: true };
+  if (opts?.section) filter.section = opts.section;
+  if (opts?.quarter) filter.quarter = opts.quarter;
+  if (opts?.deducteeId) filter.deducteeId = opts.deducteeId;
+  return AccTdsEntry.find(filter).sort({ date: -1 }).lean();
+}
+
+export async function createTdsEntry(data: {
+  deducteeId: string;
+  deducteeName: string;
+  deducteePan?: string;
+  section: string;
+  tdsRate: number;
+  grossAmount: number;
+  tdsAmount: number;
+  netAmount: number;
+  date: string;
+  voucherId?: string;
+  voucherNumber?: string;
+  financialYear: string;
+  quarter: string;
+  createdByUserId?: string;
+}): Promise<any> {
+  await connectDB();
+  const AccTdsEntry = getAccTdsEntry();
+  const doc = await AccTdsEntry.create({ ...data, date: new Date(data.date) });
+  await logAudit({
+    action: 'CREATE', entityType: 'TDS_ENTRY', entityId: doc._id.toString(),
+    entityName: `${data.section} - ${data.deducteeName}`, financialYear: data.financialYear,
+    userId: data.createdByUserId,
+  });
+  return doc;
+}
+
+export async function updateTdsEntry(id: string, data: Partial<{
+  isChallanPaid: boolean; challanDate: string; challanBsr: string; certificateNumber: string; isActive: boolean;
+}>): Promise<any> {
+  await connectDB();
+  const AccTdsEntry = getAccTdsEntry();
+  const update: any = { ...data };
+  if (data.challanDate) update.challanDate = new Date(data.challanDate);
+  return AccTdsEntry.findByIdAndUpdate(id, update, { new: true }).lean();
+}
+
+export async function getTdsSummary(financialYear: string): Promise<any> {
+  await connectDB();
+  const AccTdsEntry = getAccTdsEntry();
+  const entries = await AccTdsEntry.find({ financialYear, isActive: true }).lean() as any[];
+
+  const bySection: Record<string, { count: number; grossAmount: number; tdsAmount: number; netAmount: number; paidCount: number }> = {};
+  const byQuarter: Record<string, { count: number; tdsAmount: number; paidCount: number }> = {};
+
+  for (const e of entries) {
+    // By section
+    if (!bySection[e.section]) bySection[e.section] = { count: 0, grossAmount: 0, tdsAmount: 0, netAmount: 0, paidCount: 0 };
+    bySection[e.section].count++;
+    bySection[e.section].grossAmount += e.grossAmount;
+    bySection[e.section].tdsAmount += e.tdsAmount;
+    bySection[e.section].netAmount += e.netAmount;
+    if (e.isChallanPaid) bySection[e.section].paidCount++;
+
+    // By quarter
+    const q = e.quarter || 'Unknown';
+    if (!byQuarter[q]) byQuarter[q] = { count: 0, tdsAmount: 0, paidCount: 0 };
+    byQuarter[q].count++;
+    byQuarter[q].tdsAmount += e.tdsAmount;
+    if (e.isChallanPaid) byQuarter[q].paidCount++;
+  }
+
+  return {
+    totalEntries: entries.length,
+    totalGross: entries.reduce((s, e) => s + e.grossAmount, 0),
+    totalTds: entries.reduce((s, e) => s + e.tdsAmount, 0),
+    totalNet: entries.reduce((s, e) => s + e.netAmount, 0),
+    paidCount: entries.filter(e => e.isChallanPaid).length,
+    unpaidCount: entries.filter(e => !e.isChallanPaid).length,
+    bySection: Object.entries(bySection).map(([section, d]) => ({ section, ...d })),
+    byQuarter: Object.entries(byQuarter).map(([quarter, d]) => ({ quarter, ...d })),
+  };
+}
+
+// ─── INVENTORY / STOCK ────────────────────────────────────────────────
+
+export async function getStockGroups(financialYear: string): Promise<any[]> {
+  await connectDB();
+  const AccStockGroup = getAccStockGroup();
+  return AccStockGroup.find({ financialYear, isActive: true }).sort({ name: 1 }).lean();
+}
+
+export async function createStockGroup(data: { name: string; financialYear: string; parentId?: string; createdByUserId?: string }): Promise<any> {
+  await connectDB();
+  const AccStockGroup = getAccStockGroup();
+  return AccStockGroup.create(data);
+}
+
+export async function getStockItems(financialYear: string, opts?: { groupId?: string }): Promise<any[]> {
+  await connectDB();
+  const AccStockItem = getAccStockItem();
+  const filter: any = { financialYear, isActive: true };
+  if (opts?.groupId) filter.stockGroupId = opts.groupId;
+  return AccStockItem.find(filter).sort({ name: 1 }).lean();
+}
+
+export async function createStockItem(data: {
+  name: string;
+  financialYear: string;
+  stockGroupId?: string;
+  stockGroupName?: string;
+  unit?: string;
+  hsnCode?: string;
+  gstRate?: number;
+  openingQty?: number;
+  openingRate?: number;
+  openingValue?: number;
+  sellingPrice?: number;
+  purchasePrice?: number;
+  reorderLevel?: number;
+  godown?: string;
+  createdByUserId?: string;
+}): Promise<any> {
+  await connectDB();
+  const AccStockItem = getAccStockItem();
+  const doc = await AccStockItem.create({
+    ...data,
+    currentQty: data.openingQty || 0,
+  });
+  await logAudit({
+    action: 'CREATE', entityType: 'STOCK_ITEM', entityId: doc._id.toString(),
+    entityName: data.name, financialYear: data.financialYear, userId: data.createdByUserId,
+  });
+  return doc;
+}
+
+export async function updateStockItem(id: string, data: any): Promise<any> {
+  await connectDB();
+  const AccStockItem = getAccStockItem();
+  return AccStockItem.findByIdAndUpdate(id, data, { new: true }).lean();
+}
+
+export async function deleteStockItem(id: string): Promise<void> {
+  await connectDB();
+  const AccStockItem = getAccStockItem();
+  await AccStockItem.findByIdAndDelete(id);
+}
+
+export async function getStockTransactions(financialYear: string, opts?: { stockItemId?: string }): Promise<any[]> {
+  await connectDB();
+  const AccStockTxn = getAccStockTxn();
+  const filter: any = { financialYear };
+  if (opts?.stockItemId) filter.stockItemId = opts.stockItemId;
+  return AccStockTxn.find(filter).sort({ date: -1 }).lean();
+}
+
+export async function createStockTransaction(data: {
+  stockItemId: string;
+  stockItemName: string;
+  txnType: 'IN' | 'OUT' | 'TRANSFER';
+  qty: number;
+  rate: number;
+  value: number;
+  date: string;
+  voucherId?: string;
+  voucherNumber?: string;
+  godownFrom?: string;
+  godownTo?: string;
+  narration?: string;
+  financialYear: string;
+  createdByUserId?: string;
+}): Promise<any> {
+  await connectDB();
+  const AccStockTxn = getAccStockTxn();
+  const AccStockItem = getAccStockItem();
+
+  const doc = await AccStockTxn.create({ ...data, date: new Date(data.date) });
+
+  // Update current qty
+  const qtyChange = data.txnType === 'IN' ? data.qty : -data.qty;
+  await AccStockItem.findByIdAndUpdate(data.stockItemId, { $inc: { currentQty: qtyChange } });
+
+  return doc;
+}
+
+export async function getStockSummary(financialYear: string): Promise<any> {
+  await connectDB();
+  const AccStockItem = getAccStockItem();
+  const AccStockTxn = getAccStockTxn();
+
+  const items = await AccStockItem.find({ financialYear, isActive: true }).lean() as any[];
+  const txns = await AccStockTxn.find({ financialYear }).lean() as any[];
+
+  // Build per-item summary
+  const itemSummary = items.map(item => {
+    const itemTxns = txns.filter(t => t.stockItemId?.toString() === item._id.toString());
+    const totalIn = itemTxns.filter(t => t.txnType === 'IN').reduce((s, t) => s + t.qty, 0);
+    const totalOut = itemTxns.filter(t => t.txnType === 'OUT').reduce((s, t) => s + t.qty, 0);
+    const totalInValue = itemTxns.filter(t => t.txnType === 'IN').reduce((s, t) => s + t.value, 0);
+    const totalOutValue = itemTxns.filter(t => t.txnType === 'OUT').reduce((s, t) => s + t.value, 0);
+
+    return {
+      id: item._id.toString(),
+      name: item.name,
+      group: item.stockGroupName || 'Ungrouped',
+      unit: item.unit,
+      hsnCode: item.hsnCode,
+      gstRate: item.gstRate,
+      openingQty: item.openingQty,
+      openingValue: item.openingValue,
+      currentQty: item.currentQty,
+      totalIn,
+      totalOut,
+      totalInValue: Math.round(totalInValue * 100) / 100,
+      totalOutValue: Math.round(totalOutValue * 100) / 100,
+      closingValue: Math.round((item.openingValue + totalInValue - totalOutValue) * 100) / 100,
+      sellingPrice: item.sellingPrice,
+      purchasePrice: item.purchasePrice,
+      reorderLevel: item.reorderLevel,
+      belowReorder: item.currentQty <= item.reorderLevel && item.reorderLevel > 0,
+      godown: item.godown,
+    };
+  });
+
+  return {
+    items: itemSummary,
+    totalItems: items.length,
+    totalStockValue: itemSummary.reduce((s, i) => s + i.closingValue, 0),
+    belowReorderCount: itemSummary.filter(i => i.belowReorder).length,
+    totalGroups: new Set(itemSummary.map(i => i.group)).size,
+  };
 }

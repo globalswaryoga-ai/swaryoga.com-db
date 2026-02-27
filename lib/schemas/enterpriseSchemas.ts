@@ -1796,6 +1796,8 @@ const AccVoucherSchema = new mongoose.Schema(
         ledgerName: { type: String, required: true, trim: true }, // Denormalized for perf
         amount: { type: Number, required: true, min: 0.01 },
         type: { type: String, enum: ['DEBIT', 'CREDIT'], required: true },
+        costCenterId: { type: mongoose.Schema.Types.ObjectId, ref: 'AccCostCenter', sparse: true },
+        costCenterName: { type: String, trim: true },
       },
     ],
 
@@ -1915,6 +1917,131 @@ const AccVoucherNumberingSchema = new mongoose.Schema(
   { timestamps: true, collection: 'acc_voucher_numbering' }
 );
 AccVoucherNumberingSchema.index({ financialYear: 1, voucherType: 1 }, { unique: true });
+
+// ── COST CENTER ─────────────────────────────────────────────────────
+const AccCostCenterSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true, trim: true },
+    category: { type: String, enum: ['department', 'project', 'branch', 'other'], default: 'department' },
+    parentId: { type: mongoose.Schema.Types.ObjectId, ref: 'AccCostCenter', sparse: true },
+    financialYear: { type: String, required: true, trim: true, index: true },
+    isActive: { type: Boolean, default: true },
+    budgetAmount: { type: Number, default: 0 },
+    description: { type: String, trim: true },
+    createdByUserId: { type: String, trim: true },
+  },
+  { timestamps: true, collection: 'acc_cost_centers' }
+);
+AccCostCenterSchema.index({ name: 1, financialYear: 1 }, { unique: true });
+
+// ── AUDIT TRAIL ─────────────────────────────────────────────────────
+const AccAuditTrailSchema = new mongoose.Schema(
+  {
+    action: { type: String, enum: ['CREATE', 'UPDATE', 'DELETE', 'REVERSE', 'CLOSE_FY', 'CARRY_FORWARD', 'RECONCILE'], required: true, index: true },
+    entityType: { type: String, enum: ['LEDGER', 'VOUCHER', 'GROUP', 'COST_CENTER', 'FINANCIAL_YEAR', 'STOCK_ITEM', 'TDS_ENTRY'], required: true, index: true },
+    entityId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
+    entityName: { type: String, trim: true },
+    financialYear: { type: String, required: true, trim: true, index: true },
+    userId: { type: String, trim: true, index: true },
+    userName: { type: String, trim: true },
+    changes: { type: mongoose.Schema.Types.Mixed }, // { field: { old, new } }
+    metadata: { type: mongoose.Schema.Types.Mixed },
+    ipAddress: { type: String, trim: true },
+  },
+  { timestamps: true, collection: 'acc_audit_trail' }
+);
+AccAuditTrailSchema.index({ createdAt: -1 });
+AccAuditTrailSchema.index({ entityType: 1, entityId: 1 });
+
+// ── TDS ENTRY ───────────────────────────────────────────────────────
+const AccTdsEntrySchema = new mongoose.Schema(
+  {
+    deducteeId: { type: mongoose.Schema.Types.ObjectId, ref: 'AccLedger', required: true, index: true },
+    deducteeName: { type: String, required: true, trim: true },
+    deducteePan: { type: String, trim: true },
+    section: { type: String, required: true, trim: true }, // e.g. 194C, 194J, 194H
+    tdsRate: { type: Number, required: true, min: 0 },
+    grossAmount: { type: Number, required: true, min: 0 },
+    tdsAmount: { type: Number, required: true, min: 0 },
+    netAmount: { type: Number, required: true, min: 0 },
+    date: { type: Date, required: true, index: true },
+    voucherId: { type: mongoose.Schema.Types.ObjectId, ref: 'AccVoucher', sparse: true },
+    voucherNumber: { type: String, trim: true },
+    certificateNumber: { type: String, trim: true },
+    isChallanPaid: { type: Boolean, default: false },
+    challanDate: { type: Date },
+    challanBsr: { type: String, trim: true },
+    financialYear: { type: String, required: true, trim: true, index: true },
+    quarter: { type: String, enum: ['Q1', 'Q2', 'Q3', 'Q4'], index: true },
+    isActive: { type: Boolean, default: true },
+    createdByUserId: { type: String, trim: true },
+  },
+  { timestamps: true, collection: 'acc_tds_entries' }
+);
+AccTdsEntrySchema.index({ financialYear: 1, section: 1 });
+AccTdsEntrySchema.index({ deducteeId: 1, date: -1 });
+
+// ── STOCK GROUP ─────────────────────────────────────────────────────
+const AccStockGroupSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true, trim: true },
+    parentId: { type: mongoose.Schema.Types.ObjectId, ref: 'AccStockGroup', sparse: true },
+    financialYear: { type: String, required: true, trim: true, index: true },
+    isActive: { type: Boolean, default: true },
+    createdByUserId: { type: String, trim: true },
+  },
+  { timestamps: true, collection: 'acc_stock_groups' }
+);
+AccStockGroupSchema.index({ name: 1, financialYear: 1 }, { unique: true });
+
+// ── STOCK ITEM ──────────────────────────────────────────────────────
+const AccStockItemSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true, trim: true },
+    stockGroupId: { type: mongoose.Schema.Types.ObjectId, ref: 'AccStockGroup', sparse: true },
+    stockGroupName: { type: String, trim: true },
+    unit: { type: String, trim: true, default: 'Nos' }, // Nos, Kg, Ltrs, etc.
+    hsnCode: { type: String, trim: true },
+    gstRate: { type: Number, default: 0 },
+    openingQty: { type: Number, default: 0 },
+    openingRate: { type: Number, default: 0 },
+    openingValue: { type: Number, default: 0 },
+    currentQty: { type: Number, default: 0 },
+    reorderLevel: { type: Number, default: 0 },
+    sellingPrice: { type: Number, default: 0 },
+    purchasePrice: { type: Number, default: 0 },
+    godown: { type: String, trim: true, default: 'Main Location' },
+    financialYear: { type: String, required: true, trim: true, index: true },
+    isActive: { type: Boolean, default: true },
+    createdByUserId: { type: String, trim: true },
+  },
+  { timestamps: true, collection: 'acc_stock_items' }
+);
+AccStockItemSchema.index({ name: 1, financialYear: 1 }, { unique: true });
+AccStockItemSchema.index({ stockGroupId: 1 });
+
+// ── STOCK TRANSACTION ───────────────────────────────────────────────
+const AccStockTxnSchema = new mongoose.Schema(
+  {
+    stockItemId: { type: mongoose.Schema.Types.ObjectId, ref: 'AccStockItem', required: true, index: true },
+    stockItemName: { type: String, required: true, trim: true },
+    txnType: { type: String, enum: ['IN', 'OUT', 'TRANSFER'], required: true },
+    qty: { type: Number, required: true },
+    rate: { type: Number, required: true },
+    value: { type: Number, required: true },
+    voucherId: { type: mongoose.Schema.Types.ObjectId, ref: 'AccVoucher', sparse: true },
+    voucherNumber: { type: String, trim: true },
+    date: { type: Date, required: true, index: true },
+    godownFrom: { type: String, trim: true },
+    godownTo: { type: String, trim: true },
+    narration: { type: String, trim: true },
+    financialYear: { type: String, required: true, trim: true, index: true },
+    createdByUserId: { type: String, trim: true },
+  },
+  { timestamps: true, collection: 'acc_stock_txns' }
+);
+AccStockTxnSchema.index({ stockItemId: 1, date: -1 });
+AccStockTxnSchema.index({ financialYear: 1, date: -1 });
 
 // ============================================================================
 // EMAIL AUTOMATION SCHEMAS
@@ -2275,3 +2402,9 @@ export function getAccLedger() { return getModel('AccLedger', AccLedgerSchema); 
 export function getAccVoucher() { return getModel('AccVoucher', AccVoucherSchema); }
 export function getAccFinancialYear() { return getModel('AccFinancialYear', AccFinancialYearSchema); }
 export function getAccVoucherNumbering() { return getModel('AccVoucherNumbering', AccVoucherNumberingSchema); }
+export function getAccCostCenter() { return getModel('AccCostCenter', AccCostCenterSchema); }
+export function getAccAuditTrail() { return getModel('AccAuditTrail', AccAuditTrailSchema); }
+export function getAccTdsEntry() { return getModel('AccTdsEntry', AccTdsEntrySchema); }
+export function getAccStockGroup() { return getModel('AccStockGroup', AccStockGroupSchema); }
+export function getAccStockItem() { return getModel('AccStockItem', AccStockItemSchema); }
+export function getAccStockTxn() { return getModel('AccStockTxn', AccStockTxnSchema); }
