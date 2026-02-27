@@ -204,6 +204,11 @@ export default function TallyPage() {
   const [balanceSheet, setBalanceSheet] = useState<{ assets: BSRow[]; liabilities: BSRow[]; capital: BSRow[]; assetsByGroup?: Record<string, BSRow[]>; liabilitiesByGroup?: Record<string, BSRow[]>; capitalBySubGroup?: Record<string, { ledgerName: string; amount: number }[]>; totalAssets: number; liabilitiesPlusCapital: number; difference: number; netProfit: number; isProfit: boolean; capitalAdjusted: number } | null>(null);
   const [daybook, setDaybook] = useState<any[]>([]);
   const [daybookLedgerSummary, setDaybookLedgerSummary] = useState<any[] | null>(null);
+  const [daybookDateFrom, setDaybookDateFrom] = useState('');
+  const [daybookDateTo, setDaybookDateTo] = useState('');
+  const [daybookTypeFilter, setDaybookTypeFilter] = useState<string>('ALL');
+  const [daybookSearch, setDaybookSearch] = useState('');
+  const [daybookTotals, setDaybookTotals] = useState({ totalDebit: 0, totalCredit: 0 });
   const [monthlyPL, setMonthlyPL] = useState<MonthlyPLRow[]>([]);
   const [caAudit, setCaAudit] = useState<any>(null);
   const [bills, setBills] = useState<any[]>([]);
@@ -321,11 +326,15 @@ export default function TallyPage() {
     } catch (e: any) { setError(e.message); }
   }, [apiFetch, fy]);
 
-  const loadDayBook = useCallback(async () => {
+  const loadDayBook = useCallback(async (dateFrom?: string, dateTo?: string) => {
     try {
-      const data = await apiFetch(`/api/tally/daybook?fy=${fy}`);
+      let url = `/api/tally/daybook?fy=${fy}`;
+      if (dateFrom) url += `&dateFrom=${dateFrom}`;
+      if (dateTo) url += `&dateTo=${dateTo}`;
+      const data = await apiFetch(url);
       setDaybook(data?.entries || []);
       setDaybookLedgerSummary(data?.ledgerSummary || null);
+      setDaybookTotals({ totalDebit: data?.totalDebit || 0, totalCredit: data?.totalCredit || 0 });
     } catch (e: any) { setError(e.message); }
   }, [apiFetch, fy]);
 
@@ -1805,29 +1814,10 @@ export default function TallyPage() {
     );
   };
 
-  // ── Day Book View ─────────────────────────────────────────────────
+  // ── Day Book View (Tally Prime Style) ──────────────────────────────
 
   const [expandedDaybookGroups, setExpandedDaybookGroups] = useState<Record<string, boolean>>({});
-
-  const toggleDaybookGroup = (key: string) => {
-    setExpandedDaybookGroups(prev => ({ ...prev, [key]: !prev[key] }));
-  };
-
-  const expandAllDaybookGroups = () => {
-    if (daybookLedgerSummary) {
-      const all: Record<string, boolean> = {};
-      daybookLedgerSummary.forEach((g: any) => { all[g.group] = true; });
-      setExpandedDaybookGroups(all);
-    } else if (daybook.length > 0) {
-      // Group vouchers by type
-      const types = new Set(daybook.map((e: any) => e.type));
-      const all: Record<string, boolean> = {};
-      types.forEach(t => { all[t] = true; });
-      setExpandedDaybookGroups(all);
-    }
-  };
-
-  const collapseAllDaybookGroups = () => setExpandedDaybookGroups({});
+  const toggleDaybookGroup = (key: string) => setExpandedDaybookGroups(prev => ({ ...prev, [key]: !prev[key] }));
 
   const GROUP_ICON_COLORS: Record<string, string> = {
     INCOME: 'text-green-400 bg-green-500/10 border-green-500/30',
@@ -1838,95 +1828,214 @@ export default function TallyPage() {
   };
 
   const DayBookView = () => {
-    // ── Voucher-based daybook (when vouchers exist) ──
-    if (daybook.length > 0) {
-      // Group vouchers by type
-      const grouped: Record<string, any[]> = {};
-      for (const entry of daybook) {
-        const t = entry.type || 'OTHER';
-        if (!grouped[t]) grouped[t] = [];
-        grouped[t].push(entry);
+    // Voucher type options for filter
+    const VOUCHER_TYPES = ['ALL', 'RECEIPT', 'PAYMENT', 'JOURNAL', 'CONTRA', 'SALES', 'PURCHASE', 'DEBIT_NOTE', 'CREDIT_NOTE'];
+
+    // Filter entries
+    const filtered = daybook.filter((e: any) => {
+      if (daybookTypeFilter !== 'ALL' && e.type !== daybookTypeFilter) return false;
+      if (daybookSearch) {
+        const q = daybookSearch.toLowerCase();
+        const matched = e.entries?.some((en: any) => en.ledgerName?.toLowerCase().includes(q))
+          || e.narration?.toLowerCase().includes(q)
+          || e.voucherNumber?.toLowerCase().includes(q);
+        if (!matched) return false;
       }
-      const typeOrder = ['RECEIPT', 'PAYMENT', 'JOURNAL', 'CONTRA', 'SALES', 'PURCHASE', 'DEBIT_NOTE', 'CREDIT_NOTE'];
-      const sortedTypes = typeOrder.filter(t => grouped[t]);
-      // Add any types not in the predefined order
-      Object.keys(grouped).forEach(t => { if (!sortedTypes.includes(t)) sortedTypes.push(t); });
+      return true;
+    });
 
-      const totalDebit = daybook.reduce((s: number, e: any) => s + (e.totalAmount || 0), 0);
-      const totalCredit = totalDebit; // balanced vouchers
+    // Calculate filtered totals
+    let filteredDebit = 0, filteredCredit = 0;
+    for (const entry of filtered) {
+      for (const e of entry.entries || []) {
+        filteredDebit += e.debit || 0;
+        filteredCredit += e.credit || 0;
+      }
+    }
 
+    // Fetch voucher by ID to open edit form
+    const openVoucherEdit = async (voucherId: string) => {
+      try {
+        const data = await apiFetch(`/api/tally/vouchers?id=${voucherId}`);
+        if (data) setEditingVoucher(data);
+      } catch (e: any) { console.error('Failed to load voucher', e); }
+    };
+
+    // ── Voucher-based daybook (Tally Prime style) ──
+    if (daybook.length > 0 || daybookDateFrom || daybookDateTo) {
       return (
         <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
-          <div className="px-4 py-3 bg-gray-800/50 border-b border-gray-800 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-gray-400 flex items-center gap-2">
-              <Calendar className="w-4 h-4" /> Day Book — FY {fy}
-              <span className="text-xs text-gray-500 ml-2">({daybook.length} vouchers)</span>
-            </h3>
-            <div className="flex items-center gap-2">
-              <button onClick={expandAllDaybookGroups} className="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-400 text-xs rounded">Expand All</button>
-              <button onClick={collapseAllDaybookGroups} className="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-400 text-xs rounded">Collapse</button>
-              <button onClick={printDayBook} className="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs rounded flex items-center gap-1">
-                <Printer className="w-3 h-3" /> PDF
+          {/* ── Header Bar ── */}
+          <div className="px-4 py-3 bg-gray-800/50 border-b border-gray-800">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-yellow-500" /> Day Book
+                <span className="text-sm font-normal text-gray-400 ml-2">FY {fy}</span>
+              </h3>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">{filtered.length} voucher{filtered.length !== 1 ? 's' : ''}</span>
+                <button onClick={printDayBook} className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs rounded flex items-center gap-1">
+                  <Printer className="w-3 h-3" /> Print
+                </button>
+              </div>
+            </div>
+
+            {/* ── Filters Row ── */}
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Date Range */}
+              <div className="flex items-center gap-1.5">
+                <label className="text-xs text-gray-500">From:</label>
+                <input
+                  type="date"
+                  value={daybookDateFrom}
+                  onChange={e => setDaybookDateFrom(e.target.value)}
+                  className="bg-gray-800 border border-gray-700 text-gray-300 text-xs rounded px-2 py-1.5 focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <label className="text-xs text-gray-500">To:</label>
+                <input
+                  type="date"
+                  value={daybookDateTo}
+                  onChange={e => setDaybookDateTo(e.target.value)}
+                  className="bg-gray-800 border border-gray-700 text-gray-300 text-xs rounded px-2 py-1.5 focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+              <button
+                onClick={() => loadDayBook(daybookDateFrom || undefined, daybookDateTo || undefined)}
+                className="px-3 py-1.5 bg-blue-600/30 border border-blue-600/50 text-blue-300 text-xs rounded hover:bg-blue-600/40 font-medium"
+              >
+                Go
               </button>
+              {(daybookDateFrom || daybookDateTo) && (
+                <button
+                  onClick={() => { setDaybookDateFrom(''); setDaybookDateTo(''); loadDayBook(); }}
+                  className="px-2 py-1.5 text-gray-400 text-xs hover:text-white"
+                >
+                  Clear
+                </button>
+              )}
+
+              {/* Separator */}
+              <div className="w-px h-6 bg-gray-700" />
+
+              {/* Voucher Type Filter */}
+              <select
+                value={daybookTypeFilter}
+                onChange={e => setDaybookTypeFilter(e.target.value)}
+                className="bg-gray-800 border border-gray-700 text-gray-300 text-xs rounded px-2 py-1.5 focus:border-blue-500 focus:outline-none"
+              >
+                {VOUCHER_TYPES.map(t => (
+                  <option key={t} value={t}>{t === 'ALL' ? 'All Types' : t.replace('_', ' ')}</option>
+                ))}
+              </select>
+
+              {/* Search */}
+              <div className="flex-1 min-w-[150px] max-w-[250px]">
+                <input
+                  type="text"
+                  placeholder="Search ledger / narration..."
+                  value={daybookSearch}
+                  onChange={e => setDaybookSearch(e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 text-gray-300 text-xs rounded px-2.5 py-1.5 focus:border-blue-500 focus:outline-none placeholder-gray-600"
+                />
+              </div>
             </div>
           </div>
-          <div className="divide-y divide-gray-800">
-            {sortedTypes.map(vType => {
-              const entries = grouped[vType];
-              const groupTotal = entries.reduce((s: number, e: any) => s + (e.totalAmount || 0), 0);
-              const isExpanded = expandedDaybookGroups[vType];
-              return (
-                <div key={vType}>
-                  <button
-                    onClick={() => toggleDaybookGroup(vType)}
-                    className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-800/70 transition-colors cursor-pointer"
-                  >
-                    <div className="flex items-center gap-3">
-                      {isExpanded ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
-                      <span className={`text-xs font-bold px-2.5 py-1 rounded ${VOUCHER_COLORS[vType] || 'text-gray-400 bg-gray-800'}`}>{vType}</span>
-                      <span className="text-sm text-gray-300 font-medium">{entries.length} entries</span>
-                    </div>
-                    <span className="text-sm font-mono font-semibold text-white">{fmt(groupTotal)}</span>
-                  </button>
-                  {isExpanded && (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead className="bg-gray-800/30 text-gray-500">
-                          <tr>
-                            <th className="px-6 py-2 text-left font-medium text-xs">Date</th>
-                            <th className="px-4 py-2 text-left font-medium text-xs">Voucher #</th>
-                            <th className="px-4 py-2 text-left font-medium text-xs">Particulars</th>
-                            <th className="px-4 py-2 text-right font-medium text-xs">Debit (₹)</th>
-                            <th className="px-4 py-2 text-right font-medium text-xs">Credit (₹)</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-800/50">
-                          {entries.map((entry: any, i: number) => (
-                            <tr key={i} className="hover:bg-gray-800/30">
-                              <td className="px-6 py-2 text-gray-400 text-xs">{new Date(entry.date).toLocaleDateString('en-IN')}</td>
-                              <td className="px-4 py-2 text-gray-300 text-xs font-mono">{entry.voucherNumber}</td>
-                              <td className="px-4 py-2">
-                                <div className="text-gray-200 text-xs">{entry.entries?.map((e: any) => e.ledgerName).join(' → ')}</div>
-                                {entry.narration && <div className="text-[11px] text-gray-500 mt-0.5">{entry.narration}</div>}
-                              </td>
-                              <td className="px-4 py-2 text-right font-mono text-xs text-blue-400">{fmt(entry.totalAmount)}</td>
-                              <td className="px-4 py-2 text-right font-mono text-xs text-red-400">{fmt(entry.totalAmount)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+
+          {/* ── Column Headers (sticky) ── */}
+          <div className="sticky top-0 z-10 bg-gray-800 border-b border-gray-700">
+            <div className="grid grid-cols-[90px_1fr_100px_90px_120px_120px] px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+              <div>Date</div>
+              <div>Particulars</div>
+              <div>Vch Type</div>
+              <div>Vch No.</div>
+              <div className="text-right">Debit (₹)</div>
+              <div className="text-right">Credit (₹)</div>
+            </div>
           </div>
-          {/* Grand Total */}
-          <div className="px-4 py-3 bg-gray-800/50 border-t border-gray-700 flex items-center justify-between">
-            <span className="text-sm font-semibold text-gray-300">Grand Total</span>
-            <div className="flex gap-8">
-              <span className="text-sm font-mono font-bold text-blue-400">Dr: {fmt(totalDebit)}</span>
-              <span className="text-sm font-mono font-bold text-red-400">Cr: {fmt(totalCredit)}</span>
+
+          {/* ── Voucher Entries (scrollable) ── */}
+          <div className="max-h-[70vh] overflow-y-auto divide-y divide-gray-800/50">
+            {filtered.length === 0 ? (
+              <div className="text-center text-gray-500 py-12">No vouchers match the filter.</div>
+            ) : (
+              filtered.map((entry: any, idx: number) => {
+                const entryDate = new Date(entry.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+                const debitEntries = entry.entries?.filter((e: any) => e.debit > 0) || [];
+                const creditEntries = entry.entries?.filter((e: any) => e.credit > 0) || [];
+                const allEntries = [...debitEntries, ...creditEntries];
+
+                return (
+                  <div
+                    key={entry.voucherId || idx}
+                    className="group hover:bg-gray-800/40 cursor-pointer transition-colors"
+                    onClick={() => entry.voucherId && openVoucherEdit(entry.voucherId)}
+                  >
+                    {allEntries.map((e: any, j: number) => (
+                      <div
+                        key={j}
+                        className={`grid grid-cols-[90px_1fr_100px_90px_120px_120px] px-4 py-1.5 items-center ${j === 0 ? 'pt-2.5' : ''} ${j === allEntries.length - 1 ? 'pb-2.5' : ''}`}
+                      >
+                        {/* Date — only on first row */}
+                        <div className="text-xs text-gray-400">
+                          {j === 0 ? entryDate : ''}
+                        </div>
+
+                        {/* Ledger Name */}
+                        <div className="text-sm text-gray-200">
+                          <span className={j < debitEntries.length ? '' : 'pl-4 text-gray-400'}>
+                            {j < debitEntries.length ? '' : 'To '}{e.ledgerName}
+                          </span>
+                          {/* Narration on last line */}
+                          {j === allEntries.length - 1 && entry.narration && (
+                            <div className="text-[11px] text-gray-500 mt-0.5 italic pl-4">{entry.narration}</div>
+                          )}
+                        </div>
+
+                        {/* Vch Type — only on first row */}
+                        <div>
+                          {j === 0 && (
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${VOUCHER_COLORS[entry.type] || 'text-gray-400 bg-gray-800'}`}>
+                              {entry.type}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Vch No — only on first row */}
+                        <div className="text-xs text-gray-400 font-mono">
+                          {j === 0 ? entry.voucherNumber : ''}
+                        </div>
+
+                        {/* Debit */}
+                        <div className="text-right text-sm font-mono">
+                          {e.debit > 0 ? <span className="text-blue-400">{fmt(e.debit)}</span> : ''}
+                        </div>
+
+                        {/* Credit */}
+                        <div className="text-right text-sm font-mono">
+                          {e.credit > 0 ? <span className="text-red-400">{fmt(e.credit)}</span> : ''}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* ── Grand Total (sticky bottom) ── */}
+          <div className="sticky bottom-0 bg-gray-800 border-t border-gray-700">
+            <div className="grid grid-cols-[90px_1fr_100px_90px_120px_120px] px-4 py-3 items-center">
+              <div />
+              <div className="text-sm font-bold text-gray-200">
+                Grand Total
+                {daybookTypeFilter !== 'ALL' && <span className="text-xs text-gray-500 ml-2">({daybookTypeFilter})</span>}
+              </div>
+              <div />
+              <div />
+              <div className="text-right text-sm font-mono font-bold text-blue-300">{fmt(filteredDebit)}</div>
+              <div className="text-right text-sm font-mono font-bold text-red-300">{fmt(filteredCredit)}</div>
             </div>
           </div>
         </div>
@@ -1948,16 +2057,12 @@ export default function TallyPage() {
                   <Calendar className="w-4 h-4" /> Day Book — FY {fy}
                 </h3>
                 <p className="text-xs text-yellow-500/80 mt-1 flex items-center gap-1">
-                  <AlertTriangle className="w-3 h-3" /> CA Report Summary — Annual totals from audited accounts (click group headers to expand)
+                  <AlertTriangle className="w-3 h-3" /> CA Report Summary — Annual totals from audited accounts (no vouchers for this FY)
                 </p>
               </div>
-              <div className="flex items-center gap-2">
-                <button onClick={expandAllDaybookGroups} className="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-400 text-xs rounded">Expand All</button>
-                <button onClick={collapseAllDaybookGroups} className="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-400 text-xs rounded">Collapse</button>
-                <button onClick={printDayBook} className="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs rounded flex items-center gap-1">
-                  <Printer className="w-3 h-3" /> PDF
-                </button>
-              </div>
+              <button onClick={printDayBook} className="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs rounded flex items-center gap-1">
+                <Printer className="w-3 h-3" /> Print
+              </button>
             </div>
           </div>
 
@@ -1969,7 +2074,6 @@ export default function TallyPage() {
               ? group.totalCredit
               : group.totalDebit;
 
-            // Sub-group grouping within each main group
             const subGroups: Record<string, any[]> = {};
             for (const l of group.ledgers) {
               const sg = l.subGroup || 'General';
@@ -1979,10 +2083,9 @@ export default function TallyPage() {
 
             return (
               <div key={group.group} className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
-                {/* Group Header — Clickable "Big Head" */}
                 <button
                   onClick={() => toggleDaybookGroup(group.group)}
-                  className={`w-full px-4 py-3.5 flex items-center justify-between hover:bg-gray-800/50 transition-colors cursor-pointer border-l-4 ${colorClass.split(' ').find(c => c.startsWith('border-')) || 'border-gray-700'}`}
+                  className={`w-full px-4 py-3.5 flex items-center justify-between hover:bg-gray-800/50 transition-colors cursor-pointer border-l-4 ${colorClass.split(' ').find((c: string) => c.startsWith('border-')) || 'border-gray-700'}`}
                 >
                   <div className="flex items-center gap-3">
                     {isExpanded
@@ -1996,17 +2099,16 @@ export default function TallyPage() {
                   <span className={`text-base font-mono font-bold ${colorClass.split(' ')[0]}`}>{fmt(totalAmount)}</span>
                 </button>
 
-                {/* Expanded Detail */}
                 {isExpanded && (
                   <div className="border-t border-gray-800">
-                    {Object.entries(subGroups).map(([sgName, ledgers]: [string, any[]]) => (
+                    {Object.entries(subGroups).map(([sgName, sgLedgers]: [string, any[]]) => (
                       <div key={sgName}>
                         {Object.keys(subGroups).length > 1 && (
                           <div className="px-6 py-1.5 bg-gray-800/30 text-xs text-gray-500 font-medium uppercase tracking-wider">{sgName}</div>
                         )}
                         <table className="w-full text-sm">
                           <tbody className="divide-y divide-gray-800/50">
-                            {ledgers.map((ledger: any, j: number) => (
+                            {sgLedgers.map((ledger: any, j: number) => (
                               <tr key={j} className="hover:bg-gray-800/30">
                                 <td className="px-8 py-2.5 text-gray-300 text-sm">{ledger.name}</td>
                                 <td className="px-4 py-2.5 text-right font-mono text-sm">
@@ -2021,7 +2123,6 @@ export default function TallyPage() {
                         </table>
                       </div>
                     ))}
-                    {/* Sub-total */}
                     <div className="px-6 py-2 bg-gray-800/40 flex items-center justify-between border-t border-gray-700">
                       <span className="text-xs text-gray-400 font-medium">Sub-Total</span>
                       <div className="flex gap-6">
@@ -2291,12 +2392,32 @@ ${contentHtml}
   };
 
   const printDayBook = () => {
-    // If vouchers exist, print voucher-based daybook
+    // If vouchers exist, print Tally Prime-style flat daybook
     if (daybook.length > 0) {
-      let rows = daybook.map((e: any) =>
-        `<tr><td>${new Date(e.date).toLocaleDateString('en-IN')}</td><td>${e.voucherNumber}</td><td>${e.type}</td><td>${e.entries?.map((en: any) => en.ledgerName).join(' / ') || ''}${e.narration ? '<br/><small>' + e.narration + '</small>' : ''}</td><td class="text-right">${fmt(e.totalAmount)}</td></tr>`
-      ).join('');
-      handlePrintReport('Day Book', `<table><tr><th>Date</th><th>Voucher</th><th>Type</th><th>Particulars</th><th class="text-right">Amount (₹)</th></tr>${rows}</table>`);
+      let rows = '';
+      let totalDr = 0, totalCr = 0;
+      for (const e of daybook) {
+        const dt = new Date(e.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+        const debitEntries = e.entries?.filter((en: any) => en.debit > 0) || [];
+        const creditEntries = e.entries?.filter((en: any) => en.credit > 0) || [];
+        const allEntries = [...debitEntries, ...creditEntries];
+        for (let j = 0; j < allEntries.length; j++) {
+          const en = allEntries[j];
+          const isCredit = j >= debitEntries.length;
+          rows += `<tr${j === 0 ? ' style="border-top:1px solid #ddd"' : ''}>`;
+          rows += `<td>${j === 0 ? dt : ''}</td>`;
+          rows += `<td${isCredit ? ' style="padding-left:20px;color:#666"' : ''}>${isCredit ? 'To ' : ''}${en.ledgerName}${j === allEntries.length - 1 && e.narration ? '<br/><small style="color:#999;font-style:italic">' + e.narration + '</small>' : ''}</td>`;
+          rows += `<td>${j === 0 ? e.type : ''}</td>`;
+          rows += `<td>${j === 0 ? (e.voucherNumber || '') : ''}</td>`;
+          rows += `<td class="text-right">${en.debit > 0 ? fmt(en.debit) : ''}</td>`;
+          rows += `<td class="text-right">${en.credit > 0 ? fmt(en.credit) : ''}</td>`;
+          rows += '</tr>';
+          totalDr += en.debit || 0;
+          totalCr += en.credit || 0;
+        }
+      }
+      rows += `<tr class="total-row"><td colspan="4">Grand Total</td><td class="text-right">${fmt(totalDr)}</td><td class="text-right">${fmt(totalCr)}</td></tr>`;
+      handlePrintReport('Day Book', `<table><tr><th>Date</th><th>Particulars</th><th>Vch Type</th><th>Vch No.</th><th class="text-right">Debit (₹)</th><th class="text-right">Credit (₹)</th></tr>${rows}</table>`);
       return;
     }
     // If CA Report summary, print grouped ledger data
