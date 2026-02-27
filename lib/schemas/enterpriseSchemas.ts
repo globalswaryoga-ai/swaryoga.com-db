@@ -1875,6 +1875,47 @@ const AccFinancialYearSchema = new mongoose.Schema(
 );
 AccFinancialYearSchema.index({ code: 1 });
 
+// ── VOUCHER NUMBERING SERIES (Tally Prime compatible) ───────────────
+// Configurable per voucher type per FY — prefix, suffix, starting number,
+// zero-padding width, whether to include FY code, and numbering method.
+const AccVoucherNumberingSchema = new mongoose.Schema(
+  {
+    financialYear: { type: String, required: true, trim: true, index: true },
+    voucherType: {
+      type: String,
+      required: true,
+      enum: ['RECEIPT', 'PAYMENT', 'JOURNAL', 'CONTRA', 'SALES', 'PURCHASE', 'DEBIT_NOTE', 'CREDIT_NOTE'],
+    },
+
+    // Tally Prime numbering settings
+    method: {
+      type: String,
+      enum: ['Automatic', 'Manual', 'None'],
+      default: 'Automatic',
+    },
+    prefix: { type: String, trim: true, default: '' },        // e.g. "REC", "PAY"
+    suffix: { type: String, trim: true, default: '' },        // e.g. "/2425"
+    startingNumber: { type: Number, default: 1, min: 1 },     // First number in the series
+    width: { type: Number, default: 4, min: 1, max: 10 },     // Zero-padding width (e.g. 4 → 0001)
+    separator: { type: String, trim: true, default: '-' },    // Between prefix and number, e.g. "-"
+    includeFYCode: { type: Boolean, default: false },          // Whether to include FY code (e.g. "2425")
+    fyPosition: {
+      type: String,
+      enum: ['after-prefix', 'after-number'],
+      default: 'after-prefix',
+    },
+
+    // Current counter (atomically incremented)
+    currentNumber: { type: Number, default: 0 },
+
+    // Preview example
+    // e.g. prefix="REC", separator="-", includeFYCode=true, fyPosition="after-prefix",
+    //       width=4, suffix="" → REC-2425-0001
+  },
+  { timestamps: true, collection: 'acc_voucher_numbering' }
+);
+AccVoucherNumberingSchema.index({ financialYear: 1, voucherType: 1 }, { unique: true });
+
 // ============================================================================
 // EMAIL AUTOMATION SCHEMAS
 // ============================================================================
@@ -2233,3 +2274,4 @@ export function getAccGroup() { return getModel('AccGroup', AccGroupSchema); }
 export function getAccLedger() { return getModel('AccLedger', AccLedgerSchema); }
 export function getAccVoucher() { return getModel('AccVoucher', AccVoucherSchema); }
 export function getAccFinancialYear() { return getModel('AccFinancialYear', AccFinancialYearSchema); }
+export function getAccVoucherNumbering() { return getModel('AccVoucherNumbering', AccVoucherNumberingSchema); }

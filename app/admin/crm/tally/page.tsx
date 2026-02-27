@@ -4539,6 +4539,311 @@ ${contentHtml}
     );
   };
 
+  // ── Voucher Numbering Series Component ────────────────────────────
+  const VOUCHER_TYPE_LABELS: Record<string, string> = {
+    RECEIPT: 'Receipt',
+    PAYMENT: 'Payment',
+    JOURNAL: 'Journal',
+    CONTRA: 'Contra',
+    SALES: 'Sales',
+    PURCHASE: 'Purchase',
+    DEBIT_NOTE: 'Debit Note',
+    CREDIT_NOTE: 'Credit Note',
+  };
+
+  const VOUCHER_TYPE_COLORS: Record<string, string> = {
+    RECEIPT: 'text-green-400',
+    PAYMENT: 'text-red-400',
+    JOURNAL: 'text-purple-400',
+    CONTRA: 'text-cyan-400',
+    SALES: 'text-blue-400',
+    PURCHASE: 'text-orange-400',
+    DEBIT_NOTE: 'text-pink-400',
+    CREDIT_NOTE: 'text-yellow-400',
+  };
+
+  interface NumSeries {
+    voucherType: string;
+    financialYear: string;
+    method: string;
+    prefix: string;
+    suffix: string;
+    startingNumber: number;
+    width: number;
+    separator: string;
+    includeFYCode: boolean;
+    fyPosition: string;
+    currentNumber: number;
+    preview?: string;
+  }
+
+  const VoucherNumberingSection = () => {
+    const [numSeries, setNumSeries] = useState<NumSeries[]>([]);
+    const [numLoading, setNumLoading] = useState(false);
+    const [numSaving, setNumSaving] = useState<string | null>(null);
+    const [numMsg, setNumMsg] = useState('');
+    const [editingSeries, setEditingSeries] = useState<string | null>(null);
+    const [editForm, setEditForm] = useState<Partial<NumSeries>>({});
+
+    const loadNumbering = async () => {
+      setNumLoading(true);
+      try {
+        const data = await apiFetch(`/api/tally/numbering?fy=${fy}`);
+        setNumSeries(data?.series || []);
+      } catch (e: any) { setError(e.message); }
+      setNumLoading(false);
+    };
+
+    useEffect(() => { loadNumbering(); }, [fy]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const startEditing = (s: NumSeries) => {
+      setEditingSeries(s.voucherType);
+      setEditForm({
+        prefix: s.prefix,
+        suffix: s.suffix,
+        separator: s.separator,
+        startingNumber: s.startingNumber,
+        width: s.width,
+        includeFYCode: s.includeFYCode,
+        fyPosition: s.fyPosition,
+        method: s.method,
+      });
+      setNumMsg('');
+    };
+
+    const cancelEditing = () => {
+      setEditingSeries(null);
+      setEditForm({});
+    };
+
+    const saveNumbering = async (voucherType: string) => {
+      setNumSaving(voucherType);
+      try {
+        await apiFetch('/api/tally/numbering', {
+          method: 'PUT',
+          body: JSON.stringify({
+            voucherType,
+            financialYear: fy,
+            ...editForm,
+          }),
+        });
+        setNumMsg(`${VOUCHER_TYPE_LABELS[voucherType]} numbering updated`);
+        setEditingSeries(null);
+        setEditForm({});
+        await loadNumbering();
+      } catch (e: any) { setError(e.message); }
+      setNumSaving(null);
+    };
+
+    const resetCounter = async (voucherType: string) => {
+      if (!confirm(`Reset ${VOUCHER_TYPE_LABELS[voucherType]} counter to 0?\n\nNext voucher will start from the configured starting number.`)) return;
+      setNumSaving(voucherType);
+      try {
+        await apiFetch('/api/tally/numbering', {
+          method: 'POST',
+          body: JSON.stringify({ action: 'reset', voucherType, financialYear: fy }),
+        });
+        setNumMsg(`${VOUCHER_TYPE_LABELS[voucherType]} counter reset`);
+        await loadNumbering();
+      } catch (e: any) { setError(e.message); }
+      setNumSaving(null);
+    };
+
+    // Compute live preview from editForm
+    const getEditPreview = (): string => {
+      const f = editForm;
+      const sampleNum = f.startingNumber || 1;
+      const w = f.width || 4;
+      const sep = f.separator || '-';
+      const numStr = String(sampleNum).padStart(w, '0');
+      const fyParts = fy.split('-');
+      const fyCode = fyParts.length === 2 ? fyParts[0].slice(-2) + fyParts[1] : '';
+      let result = '';
+      if (f.prefix) {
+        result = f.prefix;
+        if (f.includeFYCode && f.fyPosition === 'after-prefix') result += sep + fyCode;
+        result += sep + numStr;
+        if (f.includeFYCode && f.fyPosition === 'after-number') result += sep + fyCode;
+      } else {
+        if (f.includeFYCode && f.fyPosition === 'after-prefix') result = fyCode + sep + numStr;
+        else if (f.includeFYCode && f.fyPosition === 'after-number') result = numStr + sep + fyCode;
+        else result = numStr;
+      }
+      if (f.suffix) result += f.suffix;
+      return result;
+    };
+
+    return (
+      <div className="bg-gray-900 rounded-xl border border-gray-800 p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-bold text-white flex items-center gap-2">
+            <Layers className="w-5 h-5 text-cyan-500" /> Voucher Numbering Series
+          </h3>
+          <button onClick={loadNumbering} disabled={numLoading}
+            className="text-xs text-gray-500 hover:text-gray-300 flex items-center gap-1">
+            <RefreshCw className={`w-3 h-3 ${numLoading ? 'animate-spin' : ''}`} /> Refresh
+          </button>
+        </div>
+        <p className="text-sm text-gray-500">
+          Configure voucher numbering like Tally Prime — set prefix, separator, starting number, zero-padding width, FY code inclusion, and suffix for each voucher type.
+        </p>
+
+        {numMsg && (
+          <div className="p-2 bg-green-900/30 border border-green-700/50 rounded-lg text-xs text-green-300 flex items-center gap-1.5">
+            <CheckCircle className="w-3 h-3" /> {numMsg}
+          </div>
+        )}
+
+        {numLoading ? (
+          <div className="text-center py-6">
+            <RefreshCw className="w-5 h-5 animate-spin text-cyan-500 mx-auto mb-2" />
+            <p className="text-xs text-gray-500">Loading numbering series...</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {numSeries.map((s) => (
+              <div key={s.voucherType} className="bg-gray-800/60 rounded-lg border border-gray-700/50 overflow-hidden">
+                {/* Header Row */}
+                <div className="flex items-center justify-between px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <span className={`font-semibold text-sm ${VOUCHER_TYPE_COLORS[s.voucherType] || 'text-white'}`}>
+                      {VOUCHER_TYPE_LABELS[s.voucherType] || s.voucherType}
+                    </span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                      s.method === 'Automatic' ? 'bg-green-900/40 text-green-400' :
+                      s.method === 'Manual' ? 'bg-yellow-900/40 text-yellow-400' :
+                      'bg-gray-700 text-gray-400'
+                    }`}>
+                      {s.method}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <div className="font-mono text-sm text-white">{s.preview}</div>
+                      <div className="text-[10px] text-gray-500">Next: #{s.currentNumber + 1} | Used: {s.currentNumber}</div>
+                    </div>
+                    <div className="flex gap-1">
+                      <button onClick={() => editingSeries === s.voucherType ? cancelEditing() : startEditing(s)}
+                        className="p-1.5 hover:bg-gray-700 rounded transition-colors" title="Edit">
+                        <Pencil className="w-3.5 h-3.5 text-gray-400 hover:text-yellow-400" />
+                      </button>
+                      <button onClick={() => resetCounter(s.voucherType)}
+                        disabled={numSaving === s.voucherType}
+                        className="p-1.5 hover:bg-gray-700 rounded transition-colors" title="Reset Counter">
+                        <RefreshCw className={`w-3.5 h-3.5 text-gray-400 hover:text-red-400 ${numSaving === s.voucherType ? 'animate-spin' : ''}`} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Edit Form (expanded) */}
+                {editingSeries === s.voucherType && (
+                  <div className="border-t border-gray-700/50 px-4 py-4 space-y-3 bg-gray-800/30">
+                    {/* Method */}
+                    <div>
+                      <label className="text-xs font-medium text-gray-400 mb-1 block">Numbering Method</label>
+                      <div className="flex gap-2">
+                        {['Automatic', 'Manual', 'None'].map(m => (
+                          <button key={m} onClick={() => setEditForm(f => ({ ...f, method: m }))}
+                            className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${
+                              editForm.method === m
+                                ? 'bg-cyan-600 text-white'
+                                : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                            }`}>{m}</button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Prefix, Separator, Width */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <label className="text-xs font-medium text-gray-400 mb-1 block">Prefix</label>
+                        <input value={editForm.prefix || ''} onChange={e => setEditForm(f => ({ ...f, prefix: e.target.value }))}
+                          className="w-full bg-gray-800 border border-gray-600 text-white rounded px-2 py-1.5 text-sm font-mono" placeholder="REC" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-400 mb-1 block">Separator</label>
+                        <input value={editForm.separator ?? '-'} onChange={e => setEditForm(f => ({ ...f, separator: e.target.value }))}
+                          className="w-full bg-gray-800 border border-gray-600 text-white rounded px-2 py-1.5 text-sm font-mono text-center" placeholder="-" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-400 mb-1 block">Width (padding)</label>
+                        <input type="number" min={1} max={10} value={editForm.width || 4}
+                          onChange={e => setEditForm(f => ({ ...f, width: parseInt(e.target.value) || 4 }))}
+                          className="w-full bg-gray-800 border border-gray-600 text-white rounded px-2 py-1.5 text-sm font-mono text-center" />
+                      </div>
+                    </div>
+
+                    {/* Starting Number, Suffix */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-medium text-gray-400 mb-1 block">Starting Number</label>
+                        <input type="number" min={1} value={editForm.startingNumber || 1}
+                          onChange={e => setEditForm(f => ({ ...f, startingNumber: parseInt(e.target.value) || 1 }))}
+                          className="w-full bg-gray-800 border border-gray-600 text-white rounded px-2 py-1.5 text-sm font-mono" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-400 mb-1 block">Suffix</label>
+                        <input value={editForm.suffix || ''} onChange={e => setEditForm(f => ({ ...f, suffix: e.target.value }))}
+                          className="w-full bg-gray-800 border border-gray-600 text-white rounded px-2 py-1.5 text-sm font-mono" placeholder="/2425" />
+                      </div>
+                    </div>
+
+                    {/* FY Code */}
+                    <div className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+                      <div>
+                        <div className="text-xs font-medium text-gray-300">Include FY Code</div>
+                        <div className="text-[10px] text-gray-500">e.g. &quot;2425&quot; from FY 2024-25</div>
+                      </div>
+                      <button onClick={() => setEditForm(f => ({ ...f, includeFYCode: !f.includeFYCode }))}
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${editForm.includeFYCode ? 'bg-cyan-600' : 'bg-gray-600'}`}>
+                        <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${editForm.includeFYCode ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                      </button>
+                    </div>
+
+                    {editForm.includeFYCode && (
+                      <div>
+                        <label className="text-xs font-medium text-gray-400 mb-1 block">FY Code Position</label>
+                        <div className="flex gap-2">
+                          {[{ value: 'after-prefix', label: 'After Prefix (REC-2425-0001)' }, { value: 'after-number', label: 'After Number (REC-0001-2425)' }].map(opt => (
+                            <button key={opt.value} onClick={() => setEditForm(f => ({ ...f, fyPosition: opt.value }))}
+                              className={`flex-1 px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${
+                                editForm.fyPosition === opt.value
+                                  ? 'bg-cyan-600 text-white'
+                                  : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                              }`}>{opt.label}</button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Live Preview */}
+                    <div className="p-3 bg-cyan-900/20 border border-cyan-700/30 rounded-lg">
+                      <div className="text-[10px] text-cyan-500 font-medium mb-1">PREVIEW</div>
+                      <div className="font-mono text-lg text-cyan-300">{getEditPreview()}</div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex gap-2 pt-1">
+                      <button onClick={() => saveNumbering(s.voucherType)} disabled={numSaving === s.voucherType}
+                        className="flex-1 px-3 py-2 bg-cyan-600 text-white text-xs rounded-lg hover:bg-cyan-500 disabled:opacity-50 flex items-center justify-center gap-1.5 font-semibold">
+                        <Save className="w-3.5 h-3.5" /> {numSaving === s.voucherType ? 'Saving...' : 'Save'}
+                      </button>
+                      <button onClick={cancelEditing}
+                        className="px-3 py-2 bg-gray-700 text-gray-300 text-xs rounded-lg hover:bg-gray-600 font-medium">
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const SettingsView = () => {
     const [setupCode, setSetupCode] = useState('2024-25');
     const [setupStart, setSetupStart] = useState('2023-04-01');
@@ -5111,6 +5416,9 @@ ${contentHtml}
             </div>
           )}
         </div>
+
+        {/* ── Voucher Numbering Series (Tally Prime Style) ── */}
+        <VoucherNumberingSection />
 
         {/* Tally Import / Export */}
         <div className="bg-gray-900 rounded-xl border border-gray-800 p-6 space-y-4">

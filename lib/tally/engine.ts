@@ -16,7 +16,7 @@
 
 import mongoose from 'mongoose';
 import { connectDB } from '@/lib/db';
-import { getAccLedger, getAccVoucher, getAccGroup, getAccFinancialYear } from '@/lib/schemas/enterpriseSchemas';
+import { getAccLedger, getAccVoucher, getAccGroup, getAccFinancialYear, getAccVoucherNumbering } from '@/lib/schemas/enterpriseSchemas';
 
 // ─── Server-Side Report Cache (30s TTL) ─────────────────────────────
 // Avoids re-computing identical reports when user switches tabs quickly.
@@ -119,9 +119,12 @@ export interface DayBookEntry {
   totalAmount: number;
 }
 
-// ─── Voucher Number Generation ──────────────────────────────────────
+// ─── Voucher Number Generation (Tally Prime Compatible) ─────────────
+// Configurable per voucher type per FY: prefix, suffix, separator,
+// starting number, width (zero-padding), FY code inclusion.
+// Falls back to sensible defaults if no config exists.
 
-const VOUCHER_PREFIX: Record<VoucherType, string> = {
+const DEFAULT_PREFIX: Record<VoucherType, string> = {
   RECEIPT: 'REC',
   PAYMENT: 'PAY',
   JOURNAL: 'JRN',
@@ -132,24 +135,220 @@ const VOUCHER_PREFIX: Record<VoucherType, string> = {
   CREDIT_NOTE: 'CN',
 };
 
-export async function generateVoucherNumber(type: VoucherType, financialYear: string): Promise<string> {
-  await connectDB();
-  const AccVoucher = getAccVoucher();
-  const prefix = VOUCHER_PREFIX[type];
+export interface NumberingSeriesConfig {
+  voucherType: VoucherType;
+  financialYear: string;
+  method: 'Automatic' | 'Manual' | 'None';
+  prefix: string;
+  suffix: string;
+  startingNumber: number;
+  width: number;
+  separator: string;
+  includeFYCode: boolean;
+  fyPosition: 'after-prefix' | 'after-number';
+  currentNumber: number;
+  preview?: string;
+}
 
-  const lastVoucher = await AccVoucher.findOne({
-    type,
-    financialYear,
-  }).sort({ createdAt: -1 }).select('voucherNumber').lean();
+/** Build FY short code from FY string, e.g. "2024-25" → "2425" */
+function fyShortCode(fy: string): string {
+  const parts = fy.split('-');
+  if (parts.length === 2) return parts[0].slice(-2) + parts[1];
+  return fy.replace(/[^0-9]/g, '').slice(-4);
+}
 
-  let nextNum = 1;
-  if (lastVoucher?.voucherNumber) {
-    const parts = (lastVoucher.voucherNumber as string).split('-');
-    const num = parseInt(parts[parts.length - 1], 10);
-    if (!isNaN(num)) nextNum = num + 1;
+/** Format a voucher number from numbering config + sequence number */
+export function formatVoucherNumber(config: {
+  prefix: string; suffix: string; separator: string;
+  width: number; includeFYCode: boolean; fyPosition: string;
+}, seqNum: number, financialYear: string): string {
+  const numStr = String(seqNum).padStart(config.width, '0');
+  const fyCode = fyShortCode(financialYear);
+  const sep = config.separator || '-';
+  let result = '';
+
+  if (config.prefix) {
+    result = config.prefix;
+    if (config.includeFYCode && config.fyPosition === 'after-prefix') {
+      result += sep + fyCode;
+    }
+    result += sep + numStr;
+    if (config.includeFYCode && config.fyPosition === 'after-number') {
+      result += sep + fyCode;
+    }
+  } else {
+    // No prefix — just number with optional FY
+    if (config.includeFYCode && config.fyPosition === 'after-prefix') {
+      result = fyCode + sep + numStr;
+    } else if (config.includeFYCode && config.fyPosition === 'after-number') {
+      result = numStr + sep + fyCode;
+    } else {
+      result = numStr;
+    }
   }
 
-  return `${prefix}-${String(nextNum).padStart(4, '0')}`;
+  if (config.suffix) {
+    result += config.suffix;
+  }
+
+  return result;
+}
+
+/**
+ * Get or create numbering config for a voucher type + FY.
+ * Returns the config document (lean).
+ */
+export async function getNumberingConfig(type: VoucherType, financialYear: string): Promise<any> {
+  await connectDB();
+  const AccVoucherNumbering = getAccVoucherNumbering();
+
+  let config = await AccVoucherNumbering.findOne({ voucherType: type, financialYear }).lean();
+  if (!config) {
+    // Auto-create default config on first access
+    config = await AccVoucherNumbering.create({
+      voucherType: type,
+      financialYear,
+      method: 'Automatic',
+      prefix: DEFAULT_PREFIX[type],
+      suffix: '',
+      startingNumber: 1,
+      width: 4,
+      separator: '-',
+      includeFYCode: false,
+      fyPosition: 'after-prefix',
+      currentNumber: 0,
+    });
+    config = (config as any).toObject();
+  }
+  return config;
+}
+
+/**
+ * Generate the next voucher number — atomic increment.
+ * Uses findOneAndUpdate with $inc for race-safety.
+ */
+export async function generateVoucherNumber(type: VoucherType, financialYear: string): Promise<string> {
+  await connectDB();
+  const AccVoucherNumbering = getAccVoucherNumbering();
+
+  // Ensure config exists
+  await getNumberingConfig(type, financialYear);
+
+  // Atomic increment
+  const updated = await AccVoucherNumbering.findOneAndUpdate(
+    { voucherType: type, financialYear },
+    { $inc: { currentNumber: 1 } },
+    { new: true }
+  ).lean() as any;
+
+  if (!updated) {
+    // Fallback — should not happen
+    return `${DEFAULT_PREFIX[type]}-${String(Date.now()).slice(-6)}`;
+  }
+
+  const seqNum = Math.max(updated.currentNumber, updated.startingNumber);
+  return formatVoucherNumber(updated, seqNum, financialYear);
+}
+
+/**
+ * Get all numbering series configs for a financial year.
+ * Auto-creates missing ones with defaults.
+ */
+export async function getAllNumberingSeries(financialYear: string): Promise<NumberingSeriesConfig[]> {
+  await connectDB();
+  const AccVoucherNumbering = getAccVoucherNumbering();
+  const allTypes: VoucherType[] = ['RECEIPT', 'PAYMENT', 'JOURNAL', 'CONTRA', 'SALES', 'PURCHASE', 'DEBIT_NOTE', 'CREDIT_NOTE'];
+
+  const existing = await AccVoucherNumbering.find({ financialYear }).lean() as any[];
+  const existingTypes = new Set(existing.map((c: any) => c.voucherType));
+
+  // Create missing configs
+  const missing = allTypes.filter(t => !existingTypes.has(t));
+  for (const t of missing) {
+    await getNumberingConfig(t, financialYear);
+  }
+
+  // Re-fetch all
+  const configs = await AccVoucherNumbering.find({ financialYear }).sort({ voucherType: 1 }).lean() as any[];
+
+  return configs.map((c: any) => {
+    const previewNum = Math.max(c.currentNumber + 1, c.startingNumber);
+    return {
+      voucherType: c.voucherType,
+      financialYear: c.financialYear,
+      method: c.method || 'Automatic',
+      prefix: c.prefix || '',
+      suffix: c.suffix || '',
+      startingNumber: c.startingNumber || 1,
+      width: c.width || 4,
+      separator: c.separator || '-',
+      includeFYCode: c.includeFYCode || false,
+      fyPosition: c.fyPosition || 'after-prefix',
+      currentNumber: c.currentNumber || 0,
+      preview: formatVoucherNumber(c, previewNum, financialYear),
+    };
+  });
+}
+
+/**
+ * Update a numbering series config.
+ */
+export async function updateNumberingSeries(
+  voucherType: VoucherType,
+  financialYear: string,
+  updates: Partial<{
+    method: string;
+    prefix: string;
+    suffix: string;
+    startingNumber: number;
+    width: number;
+    separator: string;
+    includeFYCode: boolean;
+    fyPosition: string;
+  }>
+): Promise<NumberingSeriesConfig> {
+  await connectDB();
+  const AccVoucherNumbering = getAccVoucherNumbering();
+
+  await getNumberingConfig(voucherType, financialYear); // ensure exists
+
+  const updated = await AccVoucherNumbering.findOneAndUpdate(
+    { voucherType, financialYear },
+    { $set: updates },
+    { new: true }
+  ).lean() as any;
+
+  const previewNum = Math.max(updated.currentNumber + 1, updated.startingNumber);
+  return {
+    voucherType: updated.voucherType,
+    financialYear: updated.financialYear,
+    method: updated.method,
+    prefix: updated.prefix || '',
+    suffix: updated.suffix || '',
+    startingNumber: updated.startingNumber,
+    width: updated.width,
+    separator: updated.separator || '-',
+    includeFYCode: updated.includeFYCode,
+    fyPosition: updated.fyPosition,
+    currentNumber: updated.currentNumber,
+    preview: formatVoucherNumber(updated, previewNum, financialYear),
+  };
+}
+
+/**
+ * Reset a numbering series counter (e.g. at start of new FY or manual reset).
+ */
+export async function resetNumberingCounter(
+  voucherType: VoucherType,
+  financialYear: string,
+  resetTo?: number
+): Promise<void> {
+  await connectDB();
+  const AccVoucherNumbering = getAccVoucherNumbering();
+  await AccVoucherNumbering.updateOne(
+    { voucherType, financialYear },
+    { $set: { currentNumber: resetTo ?? 0 } }
+  );
 }
 
 // ─── Voucher Validation ─────────────────────────────────────────────
