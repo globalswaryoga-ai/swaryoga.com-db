@@ -4457,11 +4457,11 @@ export async function generateComparativePL(
   const currentMap = new Map<string, { amount: number; group: string; subGroup: string }>();
   const previousMap = new Map<string, { amount: number; group: string; subGroup: string }>();
 
-  for (const r of [...currentPL.incomeRows, ...currentPL.expenseRows]) {
+  for (const r of [...currentPL.income, ...currentPL.expenses]) {
     allNames.add(r.ledgerName);
     currentMap.set(r.ledgerName, { amount: r.amount, group: r.ledgerName.includes('Income') || r.ledgerName.includes('Fees') ? 'INCOME' : 'EXPENSE', subGroup: r.subGroup || '' });
   }
-  for (const r of [...previousPL.incomeRows, ...previousPL.expenseRows]) {
+  for (const r of [...previousPL.income, ...previousPL.expenses]) {
     allNames.add(r.ledgerName);
     previousMap.set(r.ledgerName, { amount: r.amount, group: r.ledgerName.includes('Income') || r.ledgerName.includes('Fees') ? 'INCOME' : 'EXPENSE', subGroup: r.subGroup || '' });
   }
@@ -4524,14 +4524,14 @@ export async function generateComparativeBS(
   const currentMap = new Map<string, { amount: number; group: string; subGroup: string }>();
   const previousMap = new Map<string, { amount: number; group: string; subGroup: string }>();
 
-  for (const r of [...currentBS.assetRows, ...currentBS.liabilityRows, ...currentBS.capitalRows]) {
+  for (const r of [...currentBS.assets, ...currentBS.liabilities, ...currentBS.capital]) {
     allNames.add(r.ledgerName);
-    const group = currentBS.assetRows.includes(r) ? 'ASSET' : currentBS.liabilityRows.includes(r) ? 'LIABILITY' : 'CAPITAL';
+    const group = currentBS.assets.includes(r) ? 'ASSET' : currentBS.liabilities.includes(r) ? 'LIABILITY' : 'CAPITAL';
     currentMap.set(r.ledgerName, { amount: r.amount, group, subGroup: r.subGroup || '' });
   }
-  for (const r of [...previousBS.assetRows, ...previousBS.liabilityRows, ...previousBS.capitalRows]) {
+  for (const r of [...previousBS.assets, ...previousBS.liabilities, ...previousBS.capital]) {
     allNames.add(r.ledgerName);
-    const group = previousBS.assetRows.includes(r) ? 'ASSET' : previousBS.liabilityRows.includes(r) ? 'LIABILITY' : 'CAPITAL';
+    const group = previousBS.assets.includes(r) ? 'ASSET' : previousBS.liabilities.includes(r) ? 'LIABILITY' : 'CAPITAL';
     previousMap.set(r.ledgerName, { amount: r.amount, group, subGroup: r.subGroup || '' });
   }
 

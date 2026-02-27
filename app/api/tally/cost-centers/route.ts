@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     const centers = await getCostCenters(fy);
     return apiSuccess({ centers });
   } catch (e: any) {
-    return apiError('INTERNAL_ERROR', e.message);
+    return apiError('SERVER_ERROR', e.message);
   }
 }
 
@@ -75,6 +75,6 @@ export async function POST(request: NextRequest) {
 
     return apiError('VALIDATION_ERROR', 'Invalid action');
   } catch (e: any) {
-    return apiError('INTERNAL_ERROR', e.message);
+    return apiError('SERVER_ERROR', e.message);
   }
 }
