@@ -43,6 +43,8 @@ import {
   Pencil,
   Layers,
   Banknote,
+  Clock,
+  Users,
 } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────
@@ -50,7 +52,7 @@ import {
 type AccountGroup = 'ASSET' | 'LIABILITY' | 'INCOME' | 'EXPENSE' | 'CAPITAL';
 type BalanceType = 'DEBIT' | 'CREDIT';
 type VoucherType = 'RECEIPT' | 'PAYMENT' | 'JOURNAL' | 'CONTRA' | 'SALES' | 'PURCHASE' | 'DEBIT_NOTE' | 'CREDIT_NOTE';
-type ViewTab = 'dashboard' | 'account' | 'ledgers' | 'vouchers' | 'trial-balance' | 'profit-loss' | 'monthly-pl' | 'balance-sheet' | 'daybook' | 'cashbank' | 'group-summary' | 'ca-audit' | 'ca-bills' | 'settings';
+type ViewTab = 'dashboard' | 'account' | 'ledgers' | 'vouchers' | 'trial-balance' | 'profit-loss' | 'monthly-pl' | 'balance-sheet' | 'daybook' | 'cashbank' | 'group-summary' | 'outstanding' | 'ca-audit' | 'ca-bills' | 'settings';
 
 interface Ledger {
   id: string;
@@ -153,6 +155,7 @@ const TABS: { key: ViewTab; label: string; icon: any }[] = [
   { key: 'daybook', label: 'Day Book', icon: Calendar },
   { key: 'cashbank', label: 'Cash/Bank', icon: Wallet },
   { key: 'group-summary', label: 'Group Summary', icon: Layers },
+  { key: 'outstanding', label: 'Outstanding', icon: Clock },
   { key: 'trial-balance', label: 'Trial Balance', icon: Scale },
   { key: 'profit-loss', label: 'P&L (Yearly)', icon: TrendingUp },
   { key: 'monthly-pl', label: 'P&L (Monthly)', icon: IndianRupee },
@@ -230,6 +233,15 @@ export default function TallyPage() {
   const [gsExpandedLedgers, setGsExpandedLedgers] = useState<Record<string, boolean>>({});
   const [gsLedgerStatements, setGsLedgerStatements] = useState<Record<string, any>>({});
   const [gsLedgerLoading, setGsLedgerLoading] = useState<Record<string, boolean>>({});
+
+  // Outstanding Report state (Tally Prime: Statements of Accounts)
+  const [outstandingData, setOutstandingData] = useState<any>(null);
+  const [outstandingType, setOutstandingType] = useState<'receivable' | 'payable'>('receivable');
+  const [outstandingAsOnDate, setOutstandingAsOnDate] = useState('');
+  const [outstandingSearch, setOutstandingSearch] = useState('');
+  const [outstandingExpandedParties, setOutstandingExpandedParties] = useState<Record<string, boolean>>({});
+  const [outstandingLoading, setOutstandingLoading] = useState(false);
+  const [outstandingShowAging, setOutstandingShowAging] = useState(true);
 
   const [monthlyPL, setMonthlyPL] = useState<MonthlyPLRow[]>([]);
   const [caAudit, setCaAudit] = useState<any>(null);
@@ -313,6 +325,9 @@ export default function TallyPage() {
     setGsExpandedLedgers({});
     setGsLedgerStatements({});
     setGsLedgerLoading({});
+    // Reset outstanding state
+    setOutstandingData(null);
+    setOutstandingExpandedParties({});
   }, []);
 
   const loadSummary = useCallback(async () => {
@@ -427,6 +442,20 @@ export default function TallyPage() {
     } catch (e: any) { setError(e.message); }
   }, [apiFetch, fy]);
 
+  // Load Outstanding Report (Tally Prime: Statements of Accounts)
+  const loadOutstanding = useCallback(async (type?: 'receivable' | 'payable', asOnDate?: string) => {
+    const rType = type || outstandingType;
+    setOutstandingLoading(true);
+    try {
+      let url = `/api/tally/reports?type=outstanding-${rType}&fy=${fy}`;
+      if (asOnDate) url += `&asOnDate=${asOnDate}`;
+      const data = await apiFetch(url);
+      setOutstandingData(data);
+      setOutstandingExpandedParties({});
+    } catch (e: any) { setError(e.message); }
+    setOutstandingLoading(false);
+  }, [apiFetch, fy, outstandingType]);
+
   const refreshCurrentTab = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -443,12 +472,13 @@ export default function TallyPage() {
         case 'daybook': await loadDayBook(); break;
         case 'cashbank': await loadCashBankLedgers(); break;
         case 'group-summary': await loadGroupSummary(); break;
+        case 'outstanding': await loadOutstanding(); break;
         case 'ca-audit': await loadCAAudit(); break;
         case 'ca-bills': await loadBills(); break;
       }
     } catch (e: any) { setError(e.message); }
     setLoading(false);
-  }, [tab, loadSummary, loadLedgers, loadVouchers, loadTrialBalance, loadProfitLoss, loadMonthlyPL, loadBalanceSheet, loadDayBook, loadCashBankLedgers, loadGroupSummary, loadCAAudit, loadBills]);
+  }, [tab, loadSummary, loadLedgers, loadVouchers, loadTrialBalance, loadProfitLoss, loadMonthlyPL, loadBalanceSheet, loadDayBook, loadCashBankLedgers, loadGroupSummary, loadOutstanding, loadCAAudit, loadBills]);
 
   // Toggle FY lock/unlock
   const toggleFYLock = useCallback(async () => {
@@ -3150,6 +3180,441 @@ ${contentHtml}
     handlePrintReport('Group Summary', html);
   };
 
+  // ── Outstanding View (Tally Prime: Statements of Accounts → Outstanding) ───
+
+  const toggleOutstandingParty = (ledgerId: string) => {
+    setOutstandingExpandedParties(prev => ({ ...prev, [ledgerId]: !prev[ledgerId] }));
+  };
+
+  const handleOutstandingTypeChange = (type: 'receivable' | 'payable') => {
+    setOutstandingType(type);
+    loadOutstanding(type, outstandingAsOnDate || undefined);
+  };
+
+  const handleOutstandingDateFilter = () => {
+    loadOutstanding(outstandingType, outstandingAsOnDate || undefined);
+  };
+
+  const handleOutstandingReset = () => {
+    setOutstandingAsOnDate('');
+    setOutstandingSearch('');
+    setOutstandingExpandedParties({});
+    loadOutstanding(outstandingType);
+  };
+
+  // Aging bar color
+  const agingColors = ['bg-emerald-500', 'bg-yellow-500', 'bg-orange-500', 'bg-red-500', 'bg-red-700'];
+  const agingTextColors = ['text-emerald-400', 'text-yellow-400', 'text-orange-400', 'text-red-400', 'text-red-300'];
+
+  const OutstandingView = () => {
+    if (outstandingLoading) {
+      return (
+        <div className="text-center py-12">
+          <RefreshCw className="w-6 h-6 animate-spin text-cyan-500 mx-auto mb-2" />
+          <p className="text-sm text-gray-500">Loading Outstanding Report...</p>
+        </div>
+      );
+    }
+
+    const data = outstandingData;
+    if (!data) return <div className="text-gray-500 text-center py-12">Loading...</div>;
+
+    // Filter parties by search
+    const filteredParties = (data.parties || []).filter((p: any) =>
+      !outstandingSearch || p.ledgerName.toLowerCase().includes(outstandingSearch.toLowerCase())
+    );
+
+    return (
+      <div className="space-y-4">
+        {/* Header Controls */}
+        <div className="bg-gray-900 rounded-xl border border-gray-800 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Clock className="w-5 h-5 text-cyan-500" />
+              <h3 className="text-base font-bold text-white">
+                {data.reportTitle || 'Outstanding Report'}
+              </h3>
+              <span className="text-sm text-gray-400 ml-2">FY {fy}</span>
+              {data.asOnDate && (
+                <span className="text-xs text-gray-500 ml-2">As on {new Date(data.asOnDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              {/* Receivable / Payable Toggle (Tally Prime style) */}
+              <div className="flex bg-gray-800 rounded-lg p-0.5 border border-gray-700">
+                <button
+                  onClick={() => handleOutstandingTypeChange('receivable')}
+                  className={`px-3 py-1.5 text-xs rounded-md transition-colors ${outstandingType === 'receivable' ? 'bg-blue-600 text-white font-semibold' : 'text-gray-400 hover:text-white'}`}
+                >
+                  Receivables
+                </button>
+                <button
+                  onClick={() => handleOutstandingTypeChange('payable')}
+                  className={`px-3 py-1.5 text-xs rounded-md transition-colors ${outstandingType === 'payable' ? 'bg-red-600 text-white font-semibold' : 'text-gray-400 hover:text-white'}`}
+                >
+                  Payables
+                </button>
+              </div>
+
+              {/* As on Date */}
+              <input
+                type="date"
+                value={outstandingAsOnDate}
+                onChange={e => setOutstandingAsOnDate(e.target.value)}
+                className="bg-gray-800 border border-gray-700 text-gray-300 rounded-lg px-2 py-1.5 text-xs"
+              />
+              <button
+                onClick={handleOutstandingDateFilter}
+                className="px-3 py-1.5 bg-cyan-700 hover:bg-cyan-600 text-white text-xs rounded-lg"
+              >
+                Apply
+              </button>
+              <button
+                onClick={handleOutstandingReset}
+                className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs rounded-lg"
+              >
+                Reset
+              </button>
+              <button
+                onClick={() => setOutstandingShowAging(prev => !prev)}
+                className={`px-3 py-1.5 text-xs rounded-lg border ${outstandingShowAging ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-800 border-gray-700 text-gray-400'}`}
+              >
+                Aging
+              </button>
+              <button
+                onClick={printOutstanding}
+                className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs rounded-lg flex items-center gap-1"
+              >
+                <Printer className="w-3 h-3" /> Print
+              </button>
+            </div>
+          </div>
+
+          {/* Search */}
+          <div className="mt-3 flex items-center gap-2">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
+              <input
+                value={outstandingSearch}
+                onChange={e => setOutstandingSearch(e.target.value)}
+                placeholder="Search party name..."
+                className="w-full bg-gray-800 border border-gray-700 text-gray-300 rounded-lg pl-9 pr-3 py-1.5 text-sm focus:ring-2 focus:ring-cyan-600 outline-none placeholder-gray-600"
+              />
+            </div>
+            <span className="text-xs text-gray-500">
+              {filteredParties.length} of {data.partyCount} parties
+            </span>
+          </div>
+        </div>
+
+        {/* Summary Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="bg-gray-900 rounded-xl border border-gray-800 p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <div className={`p-1.5 rounded-lg ${outstandingType === 'receivable' ? 'bg-blue-500/10 text-blue-400' : 'bg-red-500/10 text-red-400'}`}>
+                <IndianRupee className="w-4 h-4" />
+              </div>
+              <span className="text-xs text-gray-500">Total Outstanding</span>
+            </div>
+            <div className={`text-xl font-bold ${outstandingType === 'receivable' ? 'text-blue-400' : 'text-red-400'}`}>
+              {fmt(data.totalOutstanding)}
+            </div>
+          </div>
+          <div className="bg-gray-900 rounded-xl border border-gray-800 p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400"><FileText className="w-4 h-4" /></div>
+              <span className="text-xs text-gray-500">Total Billed</span>
+            </div>
+            <div className="text-xl font-bold text-emerald-400">{fmt(data.totalBilled)}</div>
+          </div>
+          <div className="bg-gray-900 rounded-xl border border-gray-800 p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="p-1.5 rounded-lg bg-green-500/10 text-green-400"><CheckCircle className="w-4 h-4" /></div>
+              <span className="text-xs text-gray-500">Total Settled</span>
+            </div>
+            <div className="text-xl font-bold text-green-400">{fmt(data.totalSettled)}</div>
+          </div>
+          <div className="bg-gray-900 rounded-xl border border-gray-800 p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="p-1.5 rounded-lg bg-purple-500/10 text-purple-400"><Users className="w-4 h-4" /></div>
+              <span className="text-xs text-gray-500">Parties</span>
+            </div>
+            <div className="text-xl font-bold text-purple-400">{data.partyCount}</div>
+          </div>
+        </div>
+
+        {/* Aging Analysis (Tally Prime style horizontal bar) */}
+        {outstandingShowAging && data.aging && data.totalOutstanding > 0 && (
+          <div className="bg-gray-900 rounded-xl border border-gray-800 p-4">
+            <h4 className="text-sm font-semibold text-gray-300 mb-3 flex items-center gap-2">
+              <BarChart3 className="w-4 h-4 text-cyan-500" /> Aging Analysis
+            </h4>
+            {/* Stacked bar */}
+            <div className="flex h-6 rounded-lg overflow-hidden mb-3 border border-gray-700">
+              {data.aging.map((bucket: any, i: number) => (
+                bucket.percentage > 0 && (
+                  <div
+                    key={bucket.label}
+                    className={`${agingColors[i]} transition-all relative group`}
+                    style={{ width: `${bucket.percentage}%` }}
+                    title={`${bucket.label}: ${fmt(bucket.amount)} (${bucket.percentage}%)`}
+                  >
+                    {bucket.percentage > 10 && (
+                      <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white/90">
+                        {bucket.percentage.toFixed(0)}%
+                      </span>
+                    )}
+                  </div>
+                )
+              ))}
+            </div>
+            {/* Bucket details */}
+            <div className="grid grid-cols-5 gap-2">
+              {data.aging.map((bucket: any, i: number) => (
+                <div key={bucket.label} className="text-center">
+                  <div className={`text-xs font-semibold ${agingTextColors[i]}`}>{bucket.label}</div>
+                  <div className="text-sm font-mono text-gray-200 mt-0.5">{fmt(bucket.amount)}</div>
+                  <div className="text-[10px] text-gray-500">{bucket.count} bill{bucket.count !== 1 ? 's' : ''} · {bucket.percentage.toFixed(1)}%</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Party-wise Outstanding Table (Tally Prime drill-down) */}
+        <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+          {/* Column Headers */}
+          <div className="sticky top-0 z-10 bg-gray-800 border-b border-gray-700">
+            <div className="grid grid-cols-[1fr_120px_120px_130px_80px] px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+              <div>Party Name</div>
+              <div className="text-right">Billed (₹)</div>
+              <div className="text-right">Settled (₹)</div>
+              <div className="text-right">Outstanding (₹)</div>
+              <div className="text-right">Days</div>
+            </div>
+          </div>
+
+          {/* Party Rows */}
+          <div className="max-h-[60vh] overflow-y-auto">
+            {filteredParties.length === 0 ? (
+              <div className="text-center py-8">
+                <CheckCircle className="w-8 h-8 text-emerald-500/40 mx-auto mb-2" />
+                <p className="text-gray-400 text-sm">
+                  No outstanding {outstandingType === 'receivable' ? 'receivables' : 'payables'} found
+                </p>
+                <p className="text-gray-600 text-xs mt-1">
+                  All {outstandingType === 'receivable' ? 'Sundry Debtor' : 'Sundry Creditor'} accounts are settled
+                </p>
+              </div>
+            ) : (
+              filteredParties.map((party: any) => {
+                const isExpanded = outstandingExpandedParties[party.ledgerId];
+
+                return (
+                  <div key={party.ledgerId}>
+                    {/* Party Row */}
+                    <button
+                      onClick={() => toggleOutstandingParty(party.ledgerId)}
+                      className="w-full grid grid-cols-[1fr_120px_120px_130px_80px] px-4 py-3 items-center hover:bg-gray-800/50 transition-colors cursor-pointer border-b border-gray-800/50"
+                    >
+                      <div className="flex items-center gap-2">
+                        {isExpanded ? <ChevronDown className="w-4 h-4 text-cyan-400" /> : <ChevronRight className="w-4 h-4 text-gray-500" />}
+                        <div className="text-left">
+                          <span className="text-sm font-semibold text-gray-200">{party.ledgerName}</span>
+                          {party.subGroup && (
+                            <span className="text-[10px] text-gray-600 ml-2">{party.subGroup}</span>
+                          )}
+                          {party.phone && (
+                            <span className="text-[10px] text-gray-600 ml-2">{party.phone}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right text-sm font-mono text-gray-400">{fmt(party.totalBilled)}</div>
+                      <div className="text-right text-sm font-mono text-green-400/70">{fmt(party.totalSettled)}</div>
+                      <div className="text-right text-sm font-mono font-bold">
+                        <span className={outstandingType === 'receivable' ? 'text-blue-400' : 'text-red-400'}>
+                          {fmt(party.totalOutstanding)} {party.outstandingType}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className={`text-xs font-mono ${party.oldestBillDays > 90 ? 'text-red-400' : party.oldestBillDays > 30 ? 'text-yellow-400' : 'text-gray-400'}`}>
+                          {party.oldestBillDays}d
+                        </span>
+                      </div>
+                    </button>
+
+                    {/* Bill-wise Detail (Level 2 drill-down) */}
+                    {isExpanded && (
+                      <div className="ml-8 mr-4 mb-2 mt-1 bg-gray-800/40 rounded-lg border border-gray-700/50 overflow-hidden">
+                        {/* Bill headers */}
+                        <div className="grid grid-cols-[80px_70px_1fr_100px_100px_100px_70px] px-3 py-1.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider bg-gray-800/60 border-b border-gray-700/50">
+                          <div>Vch No.</div>
+                          <div>Date</div>
+                          <div>Particulars</div>
+                          <div className="text-right">Bill Amt</div>
+                          <div className="text-right">Settled</div>
+                          <div className="text-right">Pending</div>
+                          <div className="text-right">Days</div>
+                        </div>
+
+                        {/* Outstanding Bills */}
+                        {party.bills?.map((bill: any, idx: number) => (
+                          <div
+                            key={`${bill.voucherId}-${idx}`}
+                            className={`grid grid-cols-[80px_70px_1fr_100px_100px_100px_70px] px-3 py-1.5 text-xs items-center border-b border-gray-800/30 ${bill.overdueDays > 90 ? 'bg-red-500/5' : ''}`}
+                          >
+                            <div className="font-mono text-cyan-400/80 text-[11px]">{bill.voucherNumber}</div>
+                            <div className="text-gray-500">{bill.date ? new Date(bill.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : ''}</div>
+                            <div className="text-gray-400 truncate">
+                              <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold mr-1.5 ${VOUCHER_COLORS[bill.type as VoucherType] || 'text-gray-400 bg-gray-500/10'}`}>
+                                {bill.type}
+                              </span>
+                              {bill.narration || bill.contraLedger || ''}
+                            </div>
+                            <div className="text-right font-mono text-gray-300">{fmt(bill.billAmount)}</div>
+                            <div className="text-right font-mono text-green-400/60">{bill.settledAmount > 0 ? fmt(bill.settledAmount) : '—'}</div>
+                            <div className="text-right font-mono font-semibold">
+                              <span className={outstandingType === 'receivable' ? 'text-blue-400' : 'text-red-400'}>
+                                {fmt(bill.pendingAmount)}
+                              </span>
+                            </div>
+                            <div className="text-right">
+                              <span className={`font-mono ${bill.overdueDays > 90 ? 'text-red-400 font-bold' : bill.overdueDays > 30 ? 'text-yellow-400' : 'text-gray-500'}`}>
+                                {bill.overdueDays}d
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+
+                        {/* Settlements section */}
+                        {party.settlements?.length > 0 && (
+                          <>
+                            <div className="px-3 py-1.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider bg-gray-800/40 border-y border-gray-700/30">
+                              Settlements / Receipts
+                            </div>
+                            {party.settlements.map((s: any, idx: number) => (
+                              <div
+                                key={`s-${s.voucherId}-${idx}`}
+                                className="grid grid-cols-[80px_70px_1fr_100px_100px_100px_70px] px-3 py-1.5 text-xs items-center border-b border-gray-800/20 bg-green-500/3"
+                              >
+                                <div className="font-mono text-green-400/60 text-[11px]">{s.voucherNumber}</div>
+                                <div className="text-gray-500">{s.date ? new Date(s.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : ''}</div>
+                                <div className="text-gray-400 truncate">
+                                  <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold mr-1.5 ${VOUCHER_COLORS[s.type as VoucherType] || 'text-gray-400 bg-gray-500/10'}`}>
+                                    {s.type}
+                                  </span>
+                                  {s.narration || s.contraLedger || ''}
+                                </div>
+                                <div className="text-right font-mono text-gray-600">—</div>
+                                <div className="text-right font-mono text-green-400">{fmt(s.settledAmount)}</div>
+                                <div className="text-right font-mono text-gray-600">—</div>
+                                <div />
+                              </div>
+                            ))}
+                          </>
+                        )}
+
+                        {/* Party subtotal */}
+                        <div className="grid grid-cols-[80px_70px_1fr_100px_100px_100px_70px] px-3 py-2 text-xs items-center bg-gray-800/60 font-semibold">
+                          <div />
+                          <div />
+                          <div className="text-gray-300">Total — {party.ledgerName}</div>
+                          <div className="text-right font-mono text-gray-300">{fmt(party.totalBilled)}</div>
+                          <div className="text-right font-mono text-green-400/80">{fmt(party.totalSettled)}</div>
+                          <div className="text-right font-mono">
+                            <span className={outstandingType === 'receivable' ? 'text-blue-400' : 'text-red-400'}>
+                              {fmt(party.totalOutstanding)} {party.outstandingType}
+                            </span>
+                          </div>
+                          <div />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Grand Total Footer */}
+          {filteredParties.length > 0 && (
+            <div className="sticky bottom-0 bg-gray-800 border-t border-gray-700">
+              <div className="grid grid-cols-[1fr_120px_120px_130px_80px] px-4 py-3 items-center font-bold">
+                <div className="text-sm text-gray-200">
+                  Grand Total ({data.partyCount} {data.partyCount === 1 ? 'party' : 'parties'})
+                </div>
+                <div className="text-right text-sm font-mono text-gray-300">{fmt(data.totalBilled)}</div>
+                <div className="text-right text-sm font-mono text-green-400">{fmt(data.totalSettled)}</div>
+                <div className="text-right text-sm font-mono">
+                  <span className={outstandingType === 'receivable' ? 'text-blue-300' : 'text-red-300'}>
+                    {fmt(data.totalOutstanding)} {outstandingType === 'receivable' ? 'Dr' : 'Cr'}
+                  </span>
+                </div>
+                <div />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Sub-Group Wise Summary */}
+        {data.subGroupWise?.length > 0 && (
+          <div className="bg-gray-900 rounded-xl border border-gray-800 p-4">
+            <h4 className="text-sm font-semibold text-gray-300 mb-3">Sub-Group Wise Summary</h4>
+            <div className="space-y-2">
+              {data.subGroupWise.map((sg: any) => (
+                <div key={sg.subGroup} className="flex items-center justify-between px-3 py-2 bg-gray-800/40 rounded-lg">
+                  <div>
+                    <span className="text-sm text-gray-300">{sg.subGroup}</span>
+                    <span className="text-xs text-gray-600 ml-2">({sg.partyCount} parties)</span>
+                  </div>
+                  <span className={`text-sm font-mono font-semibold ${outstandingType === 'receivable' ? 'text-blue-400' : 'text-red-400'}`}>
+                    {fmt(sg.totalOutstanding)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Print Outstanding Report
+  const printOutstanding = () => {
+    if (!outstandingData) return;
+    const d = outstandingData;
+    const typeLabel = outstandingType === 'receivable' ? 'Receivables' : 'Payables';
+
+    let html = '';
+
+    // Aging table
+    if (d.aging?.some((b: any) => b.amount > 0)) {
+      html += '<div class="section-title">Aging Analysis</div>';
+      html += '<table><tr><th>Period</th><th class="text-right">Amount (₹)</th><th class="text-right">Bills</th><th class="text-right">%</th></tr>';
+      for (const b of d.aging) {
+        html += `<tr><td>${b.label}</td><td class="text-right">${fmt(b.amount)}</td><td class="text-right">${b.count}</td><td class="text-right">${b.percentage.toFixed(1)}%</td></tr>`;
+      }
+      html += `<tr class="total-row"><td>Total</td><td class="text-right">${fmt(d.totalOutstanding)}</td><td class="text-right">${d.aging.reduce((s: number, b: any) => s + b.count, 0)}</td><td class="text-right">100%</td></tr>`;
+      html += '</table>';
+    }
+
+    // Party-wise detail
+    html += '<div class="section-title">Party-wise Outstanding</div>';
+    html += '<table><tr><th>Party Name</th><th class="text-right">Billed (₹)</th><th class="text-right">Settled (₹)</th><th class="text-right">Outstanding (₹)</th><th class="text-right">Oldest Bill</th></tr>';
+    for (const p of d.parties) {
+      html += `<tr style="background:#f5f5f5;font-weight:600"><td>${p.ledgerName}</td><td class="text-right">${fmt(p.totalBilled)}</td><td class="text-right">${fmt(p.totalSettled)}</td><td class="text-right">${fmt(p.totalOutstanding)} ${p.outstandingType}</td><td class="text-right">${p.oldestBillDays} days</td></tr>`;
+      // Individual bills
+      for (const bill of p.bills || []) {
+        html += `<tr><td style="padding-left:20px">${bill.voucherNumber} — ${bill.type} ${bill.narration ? '(' + bill.narration + ')' : ''}</td><td class="text-right">${fmt(bill.billAmount)}</td><td class="text-right">${bill.settledAmount > 0 ? fmt(bill.settledAmount) : '—'}</td><td class="text-right">${fmt(bill.pendingAmount)}</td><td class="text-right">${bill.overdueDays}d</td></tr>`;
+      }
+    }
+    html += `<tr class="total-row"><td>Grand Total (${d.partyCount} parties)</td><td class="text-right">${fmt(d.totalBilled)}</td><td class="text-right">${fmt(d.totalSettled)}</td><td class="text-right">${fmt(d.totalOutstanding)}</td><td></td></tr>`;
+    html += '</table>';
+
+    handlePrintReport(`Outstanding ${typeLabel}`, html);
+  };
+
   // ── CA Audit View (Tally Prime Style Drill-Down) ───────────────
 
   // Toggle helpers for drill-down
@@ -4949,6 +5414,7 @@ ${contentHtml}
             {tab === 'daybook' && <DayBookView />}
             {tab === 'cashbank' && <CashBankBookView />}
             {tab === 'group-summary' && <GroupSummaryView />}
+            {tab === 'outstanding' && <OutstandingView />}
             {tab === 'ca-audit' && <CAAuditView />}
             {tab === 'ca-bills' && <CABillsView />}
             {tab === 'settings' && <SettingsView />}

@@ -3349,3 +3349,431 @@ export async function importExcelTally(buffer: Buffer, financialYear: string, cr
 
   return { groupsCreated, ledgersCreated, vouchersCreated, totalLedgerSections: sections.length, errors };
 }
+
+
+// ─── Outstanding Reports (Tally Prime: Statements of Accounts) ──────
+
+/**
+ * Tally Prime-compatible Outstanding Report
+ *
+ * Approach:
+ * 1. Receivables → ledgers under subGroup "Sundry Debtors" (or ASSET with debtor-like names)
+ * 2. Payables   → ledgers under subGroup "Sundry Creditors" (or LIABILITY with creditor-like names)
+ * 3. For each party ledger, collect all voucher entries → separate into "bills" and "settlements"
+ * 4. FIFO matching: settlements applied to oldest bills first
+ * 5. Aging from bill date (or due date if creditDays on ledger)
+ */
+
+export interface OutstandingBill {
+  voucherId: string;
+  voucherNumber: string;
+  date: string;
+  dueDate: string;
+  type: string;
+  billAmount: number;       // original bill amount
+  settledAmount: number;    // amount settled via receipts/payments
+  pendingAmount: number;    // outstanding = billAmount - settledAmount
+  overdueDays: number;      // days past due (0 if not overdue)
+  narration?: string;
+  contraLedger?: string;    // the other side ledger (Cash, Bank, etc.)
+}
+
+export interface PartyOutstanding {
+  ledgerId: string;
+  ledgerName: string;
+  group: AccountGroup;
+  subGroup: string;
+  phone?: string;
+  email?: string;
+  totalBilled: number;
+  totalSettled: number;
+  totalOutstanding: number;
+  outstandingType: 'Dr' | 'Cr';
+  oldestBillDays: number;   // days since oldest pending bill
+  bills: OutstandingBill[];  // individual outstanding bills (pending > 0)
+  settlements: OutstandingBill[]; // settlement history
+}
+
+export interface AgingBucket {
+  label: string;
+  min: number;
+  max: number | null;       // null = infinity (180+)
+  amount: number;
+  count: number;
+  percentage: number;
+}
+
+export interface OutstandingReport {
+  reportType: 'receivable' | 'payable';
+  reportTitle: string;
+  financialYear: string;
+  asOnDate: string;
+  parties: PartyOutstanding[];
+  totalOutstanding: number;
+  totalBilled: number;
+  totalSettled: number;
+  partyCount: number;
+  aging: AgingBucket[];
+  subGroupWise: { subGroup: string; totalOutstanding: number; partyCount: number }[];
+}
+
+// Tally Prime standard aging buckets
+const AGING_BUCKETS: { label: string; min: number; max: number | null }[] = [
+  { label: '0-30 Days',   min: 0,   max: 30  },
+  { label: '31-60 Days',  min: 31,  max: 60  },
+  { label: '61-90 Days',  min: 61,  max: 90  },
+  { label: '91-180 Days', min: 91,  max: 180 },
+  { label: '180+ Days',   min: 181, max: null },
+];
+
+// SubGroups that indicate receivable/payable parties
+const RECEIVABLE_SUBGROUPS = ['Sundry Debtors', 'Trade Receivables', 'Debtors'];
+const PAYABLE_SUBGROUPS = ['Sundry Creditors', 'Trade Payables', 'Creditors'];
+
+/**
+ * Get Outstanding Receivables — Tally Prime: Gateway → Display → Statements of Accounts → Outstanding → Receivables
+ */
+export async function getOutstandingReceivables(financialYear: string, asOnDate?: Date): Promise<OutstandingReport> {
+  return getOutstandingReport('receivable', financialYear, asOnDate);
+}
+
+/**
+ * Get Outstanding Payables — Tally Prime: Gateway → Display → Statements of Accounts → Outstanding → Payables
+ */
+export async function getOutstandingPayables(financialYear: string, asOnDate?: Date): Promise<OutstandingReport> {
+  return getOutstandingReport('payable', financialYear, asOnDate);
+}
+
+/**
+ * Core outstanding computation with FIFO bill matching
+ */
+async function getOutstandingReport(
+  reportType: 'receivable' | 'payable',
+  financialYear: string,
+  asOnDate?: Date
+): Promise<OutstandingReport> {
+  await connectDB();
+  const AccLedger = getAccLedger();
+  const AccVoucher = getAccVoucher();
+
+  const referenceDate = asOnDate || new Date();
+  const referenceDateStr = referenceDate.toISOString().split('T')[0];
+
+  // 1. Find party ledgers based on subGroup
+  const subGroupPatterns = reportType === 'receivable' ? RECEIVABLE_SUBGROUPS : PAYABLE_SUBGROUPS;
+  const natureFilter = reportType === 'receivable' ? 'ASSET' : 'LIABILITY';
+
+  const partyLedgers = await AccLedger.find({
+    financialYear,
+    $or: [
+      { subGroup: { $in: subGroupPatterns } },
+      // Also catch ledgers that might be named differently but are in the right group
+      { group: natureFilter, subGroup: { $regex: reportType === 'receivable' ? /debtor|receivable/i : /creditor|payable/i } },
+    ],
+  }).lean() as any[];
+
+  if (partyLedgers.length === 0) {
+    return {
+      reportType,
+      reportTitle: reportType === 'receivable' ? 'Outstanding Receivables' : 'Outstanding Payables',
+      financialYear,
+      asOnDate: referenceDateStr,
+      parties: [],
+      totalOutstanding: 0,
+      totalBilled: 0,
+      totalSettled: 0,
+      partyCount: 0,
+      aging: AGING_BUCKETS.map(b => ({ ...b, amount: 0, count: 0, percentage: 0 })),
+      subGroupWise: [],
+    };
+  }
+
+  const partyLedgerIds = partyLedgers.map((l: any) => l._id);
+  const partyLedgerMap = new Map<string, any>();
+  for (const l of partyLedgers) {
+    partyLedgerMap.set(String(l._id), l);
+  }
+
+  // 2. Get all vouchers involving these party ledgers (up to asOnDate)
+  const dateFilter: any = { financialYear, isReversed: { $ne: true } };
+  if (asOnDate) {
+    dateFilter.date = { $lte: asOnDate };
+  }
+  dateFilter['entries.ledgerId'] = { $in: partyLedgerIds };
+
+  const vouchers = await AccVoucher.find(dateFilter).sort({ date: 1 }).lean() as any[];
+
+  // 3. Build per-party transaction lists
+  const partyTransactions = new Map<string, { bills: any[]; settlements: any[] }>();
+
+  for (const v of vouchers) {
+    for (const entry of v.entries || []) {
+      const ledgerIdStr = String(entry.ledgerId);
+      if (!partyLedgerMap.has(ledgerIdStr)) continue;
+
+      if (!partyTransactions.has(ledgerIdStr)) {
+        partyTransactions.set(ledgerIdStr, { bills: [], settlements: [] });
+      }
+      const txns = partyTransactions.get(ledgerIdStr)!;
+
+      // Find contra ledger (the other side of the entry)
+      const contraEntry = v.entries.find((e: any) => String(e.ledgerId) !== ledgerIdStr);
+      const contraLedger = contraEntry?.ledgerName || '';
+
+      const txn = {
+        voucherId: String(v._id),
+        voucherNumber: v.voucherNumber,
+        date: v.date?.toISOString?.() || String(v.date),
+        type: v.type,
+        amount: entry.amount,
+        entryType: entry.type, // DEBIT or CREDIT
+        narration: v.narration,
+        contraLedger,
+      };
+
+      // For Receivables:
+      //   DEBIT entry on debtor = bill created (Sales, Debit Note)
+      //   CREDIT entry on debtor = settlement (Receipt, Credit Note)
+      // For Payables:
+      //   CREDIT entry on creditor = bill created (Purchase, Credit Note)
+      //   DEBIT entry on creditor = settlement (Payment, Debit Note)
+      const isBill = reportType === 'receivable'
+        ? entry.type === 'DEBIT'
+        : entry.type === 'CREDIT';
+
+      if (isBill) {
+        txns.bills.push(txn);
+      } else {
+        txns.settlements.push(txn);
+      }
+    }
+  }
+
+  // 4. FIFO matching and build party outstanding
+  const parties: PartyOutstanding[] = [];
+  let grandTotalBilled = 0;
+  let grandTotalSettled = 0;
+  let grandTotalOutstanding = 0;
+
+  // For aging
+  const agingBuckets: AgingBucket[] = AGING_BUCKETS.map(b => ({ ...b, amount: 0, count: 0, percentage: 0 }));
+
+  for (const [ledgerIdStr, txns] of partyTransactions) {
+    const ledgerDoc = partyLedgerMap.get(ledgerIdStr);
+    if (!ledgerDoc) continue;
+
+    // Sort bills by date (FIFO)
+    txns.bills.sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    txns.settlements.sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    // Include opening balance as a synthetic "bill" if it creates an outstanding
+    const hasOpeningBal = (ledgerDoc.openingBalance || 0) > 0;
+    if (hasOpeningBal) {
+      const isOpeningBill = reportType === 'receivable'
+        ? ledgerDoc.openingBalanceType === 'DEBIT'
+        : ledgerDoc.openingBalanceType === 'CREDIT';
+
+      if (isOpeningBill) {
+        // Opening balance acts as the oldest bill — insert at beginning
+        const fyStart = financialYear.split('-')[0];
+        const openingDate = `${fyStart}-04-01T00:00:00.000Z`;
+        txns.bills.unshift({
+          voucherId: 'opening',
+          voucherNumber: 'Opening Balance',
+          date: openingDate,
+          type: 'OPENING',
+          amount: ledgerDoc.openingBalance,
+          entryType: ledgerDoc.openingBalanceType,
+          narration: 'Opening balance brought forward',
+          contraLedger: '',
+        });
+      } else {
+        // Opening balance is a settlement (advance/overpayment brought forward)
+        const fyStart = financialYear.split('-')[0];
+        const openingDate = `${fyStart}-04-01T00:00:00.000Z`;
+        txns.settlements.unshift({
+          voucherId: 'opening',
+          voucherNumber: 'Opening Balance',
+          date: openingDate,
+          type: 'OPENING',
+          amount: ledgerDoc.openingBalance,
+          entryType: ledgerDoc.openingBalanceType,
+          narration: 'Opening balance brought forward',
+          contraLedger: '',
+        });
+      }
+    }
+
+    // FIFO matching: apply settlements to bills in order
+    const billTracking = txns.bills.map((b: any) => ({
+      ...b,
+      billAmount: b.amount,
+      settledAmount: 0,
+      pendingAmount: b.amount,
+    }));
+
+    let totalSettledForParty = 0;
+    for (const settlement of txns.settlements) {
+      let remaining = settlement.amount;
+      for (const bill of billTracking) {
+        if (remaining <= 0) break;
+        if (bill.pendingAmount <= 0) continue;
+
+        const settle = Math.min(remaining, bill.pendingAmount);
+        bill.settledAmount += settle;
+        bill.pendingAmount -= settle;
+        remaining -= settle;
+      }
+      totalSettledForParty += settlement.amount;
+    }
+
+    // Calculate totals
+    const totalBilled = billTracking.reduce((sum: number, b: any) => sum + b.billAmount, 0);
+    const totalOutstanding = billTracking.reduce((sum: number, b: any) => sum + b.pendingAmount, 0);
+
+    // Skip parties with zero outstanding
+    if (Math.abs(totalOutstanding) < 0.01) continue;
+
+    // Build outstanding bills (only those with pending > 0)
+    const outstandingBills: OutstandingBill[] = [];
+    let oldestBillDays = 0;
+
+    for (const b of billTracking) {
+      if (b.pendingAmount < 0.01) continue;
+
+      const billDate = new Date(b.date);
+      const dueDate = billDate; // TODO: add creditDays from ledger metadata
+      const overdueDays = Math.max(0, Math.floor((referenceDate.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)));
+
+      if (overdueDays > oldestBillDays) oldestBillDays = overdueDays;
+
+      outstandingBills.push({
+        voucherId: b.voucherId,
+        voucherNumber: b.voucherNumber,
+        date: b.date?.split?.('T')?.[0] || b.date,
+        dueDate: dueDate.toISOString().split('T')[0],
+        type: b.type,
+        billAmount: Math.round(b.billAmount * 100) / 100,
+        settledAmount: Math.round(b.settledAmount * 100) / 100,
+        pendingAmount: Math.round(b.pendingAmount * 100) / 100,
+        overdueDays,
+        narration: b.narration,
+        contraLedger: b.contraLedger,
+      });
+
+      // Add to aging buckets
+      for (const bucket of agingBuckets) {
+        if (overdueDays >= bucket.min && (bucket.max === null || overdueDays <= bucket.max)) {
+          bucket.amount += b.pendingAmount;
+          bucket.count++;
+          break;
+        }
+      }
+    }
+
+    // Build settlement history
+    const settlementHistory: OutstandingBill[] = txns.settlements.map((s: any) => ({
+      voucherId: s.voucherId,
+      voucherNumber: s.voucherNumber,
+      date: s.date?.split?.('T')?.[0] || s.date,
+      dueDate: '',
+      type: s.type,
+      billAmount: 0,
+      settledAmount: Math.round(s.amount * 100) / 100,
+      pendingAmount: 0,
+      overdueDays: 0,
+      narration: s.narration,
+      contraLedger: s.contraLedger,
+    }));
+
+    const roundedOutstanding = Math.round(totalOutstanding * 100) / 100;
+    const roundedBilled = Math.round(totalBilled * 100) / 100;
+    const roundedSettled = Math.round(totalSettledForParty * 100) / 100;
+
+    parties.push({
+      ledgerId: ledgerIdStr,
+      ledgerName: ledgerDoc.name,
+      group: ledgerDoc.group,
+      subGroup: ledgerDoc.subGroup || '',
+      phone: ledgerDoc.phone,
+      email: ledgerDoc.email,
+      totalBilled: roundedBilled,
+      totalSettled: roundedSettled,
+      totalOutstanding: roundedOutstanding,
+      outstandingType: reportType === 'receivable' ? 'Dr' : 'Cr',
+      oldestBillDays: oldestBillDays,
+      bills: outstandingBills,
+      settlements: settlementHistory,
+    });
+
+    grandTotalBilled += roundedBilled;
+    grandTotalSettled += roundedSettled;
+    grandTotalOutstanding += roundedOutstanding;
+  }
+
+  // Sort by outstanding (descending)
+  parties.sort((a, b) => b.totalOutstanding - a.totalOutstanding);
+
+  // Calculate aging percentages
+  for (const bucket of agingBuckets) {
+    bucket.amount = Math.round(bucket.amount * 100) / 100;
+    bucket.percentage = grandTotalOutstanding > 0
+      ? Math.round((bucket.amount / grandTotalOutstanding) * 10000) / 100
+      : 0;
+  }
+
+  // Sub-group wise summary
+  const subGroupMap = new Map<string, { totalOutstanding: number; partyCount: number }>();
+  for (const p of parties) {
+    const sg = p.subGroup || 'Other';
+    const entry = subGroupMap.get(sg) || { totalOutstanding: 0, partyCount: 0 };
+    entry.totalOutstanding += p.totalOutstanding;
+    entry.partyCount++;
+    subGroupMap.set(sg, entry);
+  }
+  const subGroupWise = Array.from(subGroupMap.entries())
+    .map(([subGroup, data]) => ({ subGroup, ...data }))
+    .sort((a, b) => b.totalOutstanding - a.totalOutstanding);
+
+  return {
+    reportType,
+    reportTitle: reportType === 'receivable' ? 'Outstanding Receivables' : 'Outstanding Payables',
+    financialYear,
+    asOnDate: referenceDateStr,
+    parties,
+    totalOutstanding: Math.round(grandTotalOutstanding * 100) / 100,
+    totalBilled: Math.round(grandTotalBilled * 100) / 100,
+    totalSettled: Math.round(grandTotalSettled * 100) / 100,
+    partyCount: parties.length,
+    aging: agingBuckets,
+    subGroupWise,
+  };
+}
+
+/**
+ * Get outstanding for a single party (ledger-level drill-down)
+ */
+export async function getOutstandingByParty(
+  ledgerId: string,
+  financialYear: string,
+  asOnDate?: Date
+): Promise<PartyOutstanding | null> {
+  await connectDB();
+  const AccLedger = getAccLedger();
+
+  const ledger = await AccLedger.findById(ledgerId).lean() as any;
+  if (!ledger) return null;
+
+  // Determine if receivable or payable
+  const isReceivable = RECEIVABLE_SUBGROUPS.some(sg =>
+    (ledger.subGroup || '').toLowerCase().includes(sg.toLowerCase())
+  ) || ledger.group === 'ASSET';
+
+  const report = await getOutstandingReport(
+    isReceivable ? 'receivable' : 'payable',
+    financialYear,
+    asOnDate
+  );
+
+  return report.parties.find(p => p.ledgerId === ledgerId) || null;
+}

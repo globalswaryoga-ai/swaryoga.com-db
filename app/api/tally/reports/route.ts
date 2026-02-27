@@ -24,6 +24,8 @@ import {
   batchCalculateLedgerBalances,
   invalidateReportCache,
   getGroupSummary,
+  getOutstandingReceivables,
+  getOutstandingPayables,
 } from '@/lib/tally/engine';
 
 function getAuth(request: NextRequest) {
@@ -120,8 +122,20 @@ export async function GET(request: NextRequest) {
         break;
       }
 
+      case 'outstanding-receivable': {
+        const asOn = searchParams.get('asOnDate') ? new Date(searchParams.get('asOnDate')!) : undefined;
+        result = await getOutstandingReceivables(fy, asOn);
+        break;
+      }
+
+      case 'outstanding-payable': {
+        const asOn = searchParams.get('asOnDate') ? new Date(searchParams.get('asOnDate')!) : undefined;
+        result = await getOutstandingPayables(fy, asOn);
+        break;
+      }
+
       default:
-        return apiError('VALIDATION_ERROR', `Unknown report type: ${reportType}. Use: trial-balance, profit-loss, balance-sheet, monthly-pl, cash-bank, summary, ca-audit, group-summary`);
+        return apiError('VALIDATION_ERROR', `Unknown report type: ${reportType}. Use: trial-balance, profit-loss, balance-sheet, monthly-pl, cash-bank, summary, ca-audit, group-summary, outstanding-receivable, outstanding-payable`);
     }
 
     setRouteCache(cacheKey, result);
