@@ -96,26 +96,27 @@ function buildVoucherXml(voucher, contraLedger) {
   const amount = voucher.amount || 0;
 
   // Tally vouchers need double-entry: Debit one ledger, Credit another
+  // Tally convention: Debit = NEGATIVE amount, Credit = POSITIVE amount
   let debitLedger, creditLedger, debitAmt, creditAmt;
 
   if (voucher.voucherType === 'Receipt') {
     // Receipt: Debit Bank/Cash, Credit Income/Party
     debitLedger = contraLedger;
     creditLedger = voucher.ledgerName;
-    debitAmt = amount;
-    creditAmt = -amount; // Tally uses negative for credit entries in voucher
+    debitAmt = -amount;   // Tally: debit = negative
+    creditAmt = amount;   // Tally: credit = positive
   } else if (voucher.voucherType === 'Payment') {
     // Payment: Debit Expense/Party, Credit Bank/Cash
     debitLedger = voucher.ledgerName;
     creditLedger = contraLedger;
-    debitAmt = amount;
-    creditAmt = -amount;
+    debitAmt = -amount;
+    creditAmt = amount;
   } else {
     // Journal: Debit the ledger, Credit Suspense/P&L
     debitLedger = voucher.ledgerName;
     creditLedger = contraLedger;
-    debitAmt = amount;
-    creditAmt = -amount;
+    debitAmt = -amount;
+    creditAmt = amount;
   }
 
   const narration = escXml(voucher.narration || `${voucher.voucherType} - ${voucher.ledgerName}`);

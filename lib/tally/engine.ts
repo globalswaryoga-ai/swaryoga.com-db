@@ -1045,41 +1045,57 @@ export async function exportTallyXML(financialYear: string): Promise<string> {
   const ledgers = await AccLedger.find({ financialYear, isActive: true }).lean() as any[];
   const vouchers = await AccVoucher.find({ financialYear, isReversed: { $ne: true } }).sort({ date: 1 }).lean() as any[];
 
-  // Tally group mapping
+  // Tally group mapping — fallback when no subGroup match
   const TALLY_GROUP_MAP: Record<string, string> = {
     ASSET: 'Current Assets',
     LIABILITY: 'Current Liabilities',
-    INCOME: 'Income (Direct)',
+    INCOME: 'Direct Incomes',
     EXPENSE: 'Indirect Expenses',
     CAPITAL: 'Capital Account',
   };
 
+  // Maps our DB subGroup names → Tally Prime built-in group names
   const TALLY_SUBGROUP_MAP: Record<string, string> = {
+    // ── Assets ──
     'Cash-in-Hand': 'Cash-in-Hand',
     'Bank Accounts': 'Bank Accounts',
     'Fixed Assets': 'Fixed Assets',
     'Current Assets': 'Current Assets',
     'Sundry Debtors': 'Sundry Debtors',
     'Investments': 'Investments',
+    'Deposits': 'Deposits (Asset)',
+    'Loans & Advances': 'Loans & Advances (Asset)',
+    // ── Liabilities ──
     'Current Liabilities': 'Current Liabilities',
     'Sundry Creditors': 'Sundry Creditors',
     'Secured Loans': 'Secured Loans',
     'Unsecured Loans': 'Unsecured Loans',
     'Duties & Taxes': 'Duties & Taxes',
     'Provisions': 'Provisions',
+    // ── Income ──
     'Direct Incomes': 'Direct Incomes',
     'Indirect Incomes': 'Indirect Incomes',
     'Sales Accounts': 'Sales Accounts',
+    // ── Expenses ──
     'Direct Expenses': 'Direct Expenses',
     'Indirect Expenses': 'Indirect Expenses',
     'Purchase Accounts': 'Purchase Accounts',
     'Admin Expenses': 'Indirect Expenses',
+    'Administrative Expenses': 'Indirect Expenses',
+    'Operating Expenses': 'Indirect Expenses',
+    'Office Expenses': 'Indirect Expenses',
+    'Travelling Expenses': 'Indirect Expenses',
     'Depreciation': 'Indirect Expenses',
+    // ── Capital / Equity ──
     'Capital Account': 'Capital Account',
     'Share Capital': 'Capital Account',
+    'Preference Share Capital': 'Capital Account',
+    'Share Premium': 'Capital Account',
     'Retained Earnings': 'Reserves & Surplus',
     'Capital Reserve': 'Reserves & Surplus',
     'General Reserve': 'Reserves & Surplus',
+    'Reserves & Surplus': 'Reserves & Surplus',
+    'Surplus from P&L A/c': 'Reserves & Surplus',
   };
 
   const TALLY_VOUCHER_TYPE: Record<string, string> = {
@@ -1111,7 +1127,7 @@ export async function exportTallyXML(financialYear: string): Promise<string> {
   xml += ` <BODY>\n`;
   xml += `  <IMPORTDATA>\n`;
   xml += `   <REQUESTDESC>\n`;
-  xml += `    <REPORTNAME>All Masters</REPORTNAME>\n`;
+  xml += `    <REPORTNAME>All Masters and Vouchers</REPORTNAME>\n`;
   xml += `    <STATICVARIABLES>\n`;
   xml += `     <SVCURRENTCOMPANY>${escXml(companyName)}</SVCURRENTCOMPANY>\n`;
   xml += `    </STATICVARIABLES>\n`;
@@ -1173,8 +1189,9 @@ export async function exportTallyXML(financialYear: string): Promise<string> {
   const nominalLedgers: typeof ledgers = []; // income/expense to journal later
 
   for (const l of ledgers) {
+    // Resolve Tally parent group: mapped subGroup > Tally built-in subGroup > nature fallback
     const tallyGroup = l.subGroup
-      ? (TALLY_SUBGROUP_MAP[l.subGroup] || l.subGroup)
+      ? (TALLY_SUBGROUP_MAP[l.subGroup] || (TALLY_BUILTIN_GROUPS.has(l.subGroup) ? l.subGroup : (TALLY_GROUP_MAP[l.group] || 'Sundry Debtors')))
       : (TALLY_GROUP_MAP[l.group] || 'Sundry Debtors');
 
     const openBal = l.openingBalance || 0;
@@ -1231,36 +1248,38 @@ export async function exportTallyXML(financialYear: string): Promise<string> {
     xml += `      <NARRATION>FY ${financialYear} — CA Report: Annual Income &amp; Expense Summary</NARRATION>\n`;
 
     // Debit all expense ledgers
+    // Tally convention: Debit = NEGATIVE amount, ISDEEMEDPOSITIVE = Yes
     for (const l of expenseEntries) {
       const amt = l.openingBalance || 0;
       xml += `      <ALLLEDGERENTRIES.LIST>\n`;
       xml += `       <LEDGERNAME>${escXml(l.name)}</LEDGERNAME>\n`;
       xml += `       <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>\n`;
-      xml += `       <AMOUNT>${amt.toFixed(2)}</AMOUNT>\n`;
+      xml += `       <AMOUNT>-${amt.toFixed(2)}</AMOUNT>\n`;
       xml += `      </ALLLEDGERENTRIES.LIST>\n`;
     }
 
     // Credit all income ledgers
+    // Tally convention: Credit = POSITIVE amount, ISDEEMEDPOSITIVE = No
     for (const l of incomeEntries) {
       const amt = l.openingBalance || 0;
       xml += `      <ALLLEDGERENTRIES.LIST>\n`;
       xml += `       <LEDGERNAME>${escXml(l.name)}</LEDGERNAME>\n`;
       xml += `       <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>\n`;
-      xml += `       <AMOUNT>-${amt.toFixed(2)}</AMOUNT>\n`;
+      xml += `       <AMOUNT>${amt.toFixed(2)}</AMOUNT>\n`;
       xml += `      </ALLLEDGERENTRIES.LIST>\n`;
     }
 
     // Balancing entry → Profit & Loss A/c
-    // Journal sum so far: +totalExpAmt (Dr) - totalIncAmt (Cr)
-    // P&L entry must be -plDiff to bring total to 0
+    // Journal sum so far: -totalExpAmt (Dr) + totalIncAmt (Cr)
+    // P&L entry must make total = 0  →  P&L amount = totalExpAmt - totalIncAmt
     const plDiff = totalExpAmt - totalIncAmt; // positive = loss, negative = profit
     if (Math.abs(plDiff) > 0.01) {
-      // Loss (plDiff>0): P&L A/c is CREDITED (-plDiff is negative) to balance
-      // Profit (plDiff<0): P&L A/c is DEBITED (-plDiff is positive) to balance
+      // Loss (plDiff>0): P&L A/c is CREDITED (positive amount) to balance
+      // Profit (plDiff<0): P&L A/c is DEBITED (negative amount) to balance
       xml += `      <ALLLEDGERENTRIES.LIST>\n`;
       xml += `       <LEDGERNAME>Profit &amp; Loss A/c</LEDGERNAME>\n`;
       xml += `       <ISDEEMEDPOSITIVE>${plDiff > 0 ? 'No' : 'Yes'}</ISDEEMEDPOSITIVE>\n`;
-      xml += `       <AMOUNT>${(-plDiff).toFixed(2)}</AMOUNT>\n`;
+      xml += `       <AMOUNT>${plDiff.toFixed(2)}</AMOUNT>\n`;
       xml += `      </ALLLEDGERENTRIES.LIST>\n`;
     }
 
@@ -1288,14 +1307,17 @@ export async function exportTallyXML(financialYear: string): Promise<string> {
       xml += `      <VOUCHERTYPENAME>Journal</VOUCHERTYPENAME>\n`;
       xml += `      <NARRATION>Year End Profit Transfer — FY ${financialYear}</NARRATION>\n`;
       xml += `      <ALLLEDGERENTRIES.LIST>\n`;
+      // Tally convention: Debit = negative AMOUNT, Credit = positive AMOUNT
+      // Profit: Dr P&L (close it) → Cr Capital (increase equity)
+      // Loss: Dr Capital (reduce equity) → Cr P&L (close it)
       xml += `       <LEDGERNAME>Profit &amp; Loss A/c</LEDGERNAME>\n`;
       xml += `       <ISDEEMEDPOSITIVE>${pl.isProfit ? 'Yes' : 'No'}</ISDEEMEDPOSITIVE>\n`;
-      xml += `       <AMOUNT>${pl.isProfit ? -profitToCapital : profitToCapital}</AMOUNT>\n`;
+      xml += `       <AMOUNT>${pl.isProfit ? (-profitToCapital).toFixed(2) : profitToCapital.toFixed(2)}</AMOUNT>\n`;
       xml += `      </ALLLEDGERENTRIES.LIST>\n`;
       xml += `      <ALLLEDGERENTRIES.LIST>\n`;
       xml += `       <LEDGERNAME>Capital Account</LEDGERNAME>\n`;
       xml += `       <ISDEEMEDPOSITIVE>${pl.isProfit ? 'No' : 'Yes'}</ISDEEMEDPOSITIVE>\n`;
-      xml += `       <AMOUNT>${pl.isProfit ? profitToCapital : -profitToCapital}</AMOUNT>\n`;
+      xml += `       <AMOUNT>${pl.isProfit ? profitToCapital.toFixed(2) : (-profitToCapital).toFixed(2)}</AMOUNT>\n`;
       xml += `      </ALLLEDGERENTRIES.LIST>\n`;
       xml += `     </VOUCHER>\n`;
       xml += `    </TALLYMESSAGE>\n`;
@@ -1317,9 +1339,9 @@ export async function exportTallyXML(financialYear: string): Promise<string> {
     if (v.partyName) xml += `      <PARTYLEDGERNAME>${escXml(v.partyName)}</PARTYLEDGERNAME>\n`;
 
     // Ledger entries — Tally uses ALLLEDGERENTRIES.LIST
+    // Tally convention: Debit = NEGATIVE amount, Credit = POSITIVE amount
     for (const entry of v.entries || []) {
-      // In Tally: positive amount = debit, negative = credit
-      const tallyAmount = entry.type === 'DEBIT' ? entry.amount : -entry.amount;
+      const tallyAmount = entry.type === 'DEBIT' ? -entry.amount : entry.amount;
       xml += `      <ALLLEDGERENTRIES.LIST>\n`;
       xml += `       <LEDGERNAME>${escXml(entry.ledgerName)}</LEDGERNAME>\n`;
       xml += `       <ISDEEMEDPOSITIVE>${entry.type === 'DEBIT' ? 'Yes' : 'No'}</ISDEEMEDPOSITIVE>\n`;
@@ -1362,7 +1384,7 @@ export function buildTallyXML(
   xml += `  <BODY>\n`;
   xml += `    <IMPORTDATA>\n`;
   xml += `      <REQUESTDESC>\n`;
-  xml += `        <REPORTNAME>All Masters</REPORTNAME>\n`;
+  xml += `        <REPORTNAME>All Masters and Vouchers</REPORTNAME>\n`;
   xml += `      </REQUESTDESC>\n`;
   xml += `      <REQUESTDATA>\n`;
 
@@ -1408,9 +1430,11 @@ export function buildTallyXML(
     xml += `            <NARRATION>${escXml(v.narration || '')}</NARRATION>\n`;
 
     for (const e of v.entries) {
-      const amt = e.type === 'DEBIT' ? e.amount : -e.amount;
+      // Tally convention: Debit = NEGATIVE, Credit = POSITIVE
+      const amt = e.type === 'DEBIT' ? -e.amount : e.amount;
       xml += `            <ALLLEDGERENTRIES.LIST>\n`;
       xml += `              <LEDGERNAME>${escXml(e.ledgerName)}</LEDGERNAME>\n`;
+      xml += `              <ISDEEMEDPOSITIVE>${e.type === 'DEBIT' ? 'Yes' : 'No'}</ISDEEMEDPOSITIVE>\n`;
       xml += `              <AMOUNT>${amt}</AMOUNT>\n`;
       xml += `            </ALLLEDGERENTRIES.LIST>\n`;
     }
