@@ -92,7 +92,8 @@ function generateLedgerXml(entries: any[], companyName: string): string {
   for (const entry of entries) {
     const tallyGroup = GROUP_MAP[entry.parentGroup] || entry.parentGroup;
     // In Tally: positive = Debit, negative = Credit
-    const amount = entry.drCr === 'Cr' ? -Math.abs(entry.amount) : Math.abs(entry.amount);
+    const rawAmount = Number(entry.amount) || 0;  // NaN-safe
+    const amount = entry.drCr === 'Cr' ? -Math.abs(rawAmount) : Math.abs(rawAmount);
     const amountStr = amount !== 0 ? amount.toFixed(2) : '';
 
     messages += `
@@ -184,6 +185,7 @@ function generateVoucherXml(vouchers: any[], companyName: string): string {
     <TALLYMESSAGE xmlns:UDF="TallyUDF">
       <VOUCHER VCHTYPE="${escapeXml(tallyType)}" ACTION="Create">
         <DATE>${date}</DATE>
+        <EFFECTIVEDATE>${date}</EFFECTIVEDATE>
         <VOUCHERTYPENAME>${escapeXml(tallyType)}</VOUCHERTYPENAME>${voucherNumber ? `
         <VOUCHERNUMBER>${voucherNumber}</VOUCHERNUMBER>` : ''}
         <NARRATION>${narration}</NARRATION>
@@ -271,7 +273,7 @@ export async function GET(request: NextRequest) {
     <VERSION>1</VERSION>
     <TALLYREQUEST>Import</TALLYREQUEST>
     <TYPE>Data</TYPE>
-    <ID>All Masters</ID>
+    <ID>All Masters and Vouchers</ID>
   </HEADER>
   <BODY>
     <DESC>
@@ -282,7 +284,7 @@ export async function GET(request: NextRequest) {
     <DATA>
       <IMPORTDATA>
         <REQUESTDESC>
-          <REPORTNAME>All Masters</REPORTNAME>
+          <REPORTNAME>All Masters and Vouchers</REPORTNAME>
           <STATICVARIABLES>
             <SVCURRENTCOMPANY>${escapeXml(companyName)}</SVCURRENTCOMPANY>
           </STATICVARIABLES>

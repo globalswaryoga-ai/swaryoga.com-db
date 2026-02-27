@@ -1257,18 +1257,9 @@ export async function exportTallyXML(financialYear: string): Promise<string> {
     xml += `    </TALLYMESSAGE>\n`;
   }
 
-  // ── Create "Profit & Loss A/c" ledger (required for journal vouchers) ──
-  // This is a Tally reserved ledger under "Primary" group. We must create it
-  // explicitly so the compound journal can reference it.
-  xml += `    <TALLYMESSAGE xmlns:UDF="TallyUDF">\n`;
-  xml += `     <LEDGER NAME="Profit &amp; Loss A/c" ACTION="Create">\n`;
-  xml += `      <NAME.LIST>\n`;
-  xml += `       <NAME>Profit &amp; Loss A/c</NAME>\n`;
-  xml += `      </NAME.LIST>\n`;
-  xml += `      <PARENT>Primary</PARENT>\n`;
-  xml += `      <OPENINGBALANCE>0.00</OPENINGBALANCE>\n`;
-  xml += `     </LEDGER>\n`;
-  xml += `    </TALLYMESSAGE>\n`;
+  // NOTE: "Profit & Loss A/c" is a Tally Prime BUILT-IN ledger that exists
+  // in every company by default. Do NOT create it via XML — it would cause
+  // duplicate ledger errors on import.
 
   // ── Export Ledgers ──
   // CRITICAL for Tally Prime: Income/Expense are NOMINAL accounts — they must
@@ -1282,7 +1273,7 @@ export async function exportTallyXML(financialYear: string): Promise<string> {
       ? (TALLY_SUBGROUP_MAP[l.subGroup] || (TALLY_BUILTIN_GROUPS.has(l.subGroup) ? l.subGroup : (TALLY_GROUP_MAP[l.group] || 'Sundry Debtors')))
       : (TALLY_GROUP_MAP[l.group] || 'Sundry Debtors');
 
-    const openBal = l.openingBalance || 0;
+    const openBal = Number(l.openingBalance) || 0;  // NaN-safe
     const isNominal = l.group === 'INCOME' || l.group === 'EXPENSE';
 
     // Tally convention: positive = debit, negative = credit for opening
@@ -1375,42 +1366,13 @@ export async function exportTallyXML(financialYear: string): Promise<string> {
     xml += `    </TALLYMESSAGE>\n`;
   }
 
-  // ── Year-End Profit → Capital Transfer (Voucher-mode only) ──
-  // Only needed when actual vouchers exist. For CA Report mode, the compound
-  // journal above already pushes the net P&L into "Profit & Loss A/c", and
-  // the BS OBs (being closing figures) already include the P&L absorption —
-  // adding a transfer would double-count.
-  if (vouchers.length > 0) {
-    const balanceMap = await batchCalculateLedgerBalances(financialYear);
-    const pl = await generateProfitLoss(financialYear, undefined, balanceMap);
-    const profitFromVouchers = pl.netProfit;
-    if (Math.abs(profitFromVouchers) > 0) {
-      const profitToCapital = Math.abs(profitFromVouchers);
-      const fyEndDate = fmtDate(fyEnd);
-
-      xml += `    <TALLYMESSAGE xmlns:UDF="TallyUDF">\n`;
-      xml += `     <VOUCHER VCHTYPE="Journal" ACTION="Create">\n`;
-      xml += `      <DATE>${fyEndDate}</DATE>\n`;
-      xml += `      <EFFECTIVEDATE>${fyEndDate}</EFFECTIVEDATE>\n`;
-      xml += `      <VOUCHERTYPENAME>Journal</VOUCHERTYPENAME>\n`;
-      xml += `      <NARRATION>Year End Profit Transfer — FY ${financialYear}</NARRATION>\n`;
-      xml += `      <ALLLEDGERENTRIES.LIST>\n`;
-      // Tally convention: Debit = negative AMOUNT, Credit = positive AMOUNT
-      // Profit: Dr P&L (close it) → Cr Capital (increase equity)
-      // Loss: Dr Capital (reduce equity) → Cr P&L (close it)
-      xml += `       <LEDGERNAME>Profit &amp; Loss A/c</LEDGERNAME>\n`;
-      xml += `       <ISDEEMEDPOSITIVE>${pl.isProfit ? 'Yes' : 'No'}</ISDEEMEDPOSITIVE>\n`;
-      xml += `       <AMOUNT>${pl.isProfit ? (-profitToCapital).toFixed(2) : profitToCapital.toFixed(2)}</AMOUNT>\n`;
-      xml += `      </ALLLEDGERENTRIES.LIST>\n`;
-      xml += `      <ALLLEDGERENTRIES.LIST>\n`;
-      xml += `       <LEDGERNAME>Capital Account</LEDGERNAME>\n`;
-      xml += `       <ISDEEMEDPOSITIVE>${pl.isProfit ? 'No' : 'Yes'}</ISDEEMEDPOSITIVE>\n`;
-      xml += `       <AMOUNT>${pl.isProfit ? profitToCapital.toFixed(2) : (-profitToCapital).toFixed(2)}</AMOUNT>\n`;
-      xml += `      </ALLLEDGERENTRIES.LIST>\n`;
-      xml += `     </VOUCHER>\n`;
-      xml += `    </TALLYMESSAGE>\n`;
-    }
-  }
+  // ── Year-End Profit Transfer — SKIPPED ──
+  // Tally Prime automatically computes the net P&L from vouchers and shows
+  // it under "Profit & Loss A/c" in the Balance Sheet. Adding an explicit
+  // Journal entry to transfer profit to Capital Account would:
+  //   1. Reference "Capital Account" which is a GROUP name, not a ledger
+  //   2. Double-count the profit (Tally already does this internally)
+  // So we intentionally skip this step.
 
   // ── Export Vouchers ──
   for (const v of vouchers) {
@@ -1455,12 +1417,12 @@ export async function exportTallyXML(financialYear: string): Promise<string> {
  *
  * @param ledgers Array of { name, group, openingBalance, openingBalanceType }
  * @param vouchers Array of { date (YYYY-MM-DD), narration, entries: [{ ledgerName, amount, type }] }
- * @param profitToCapital Net Profit/Loss amount to transfer to Capital Account
+ * @param _profitToCapital DEPRECATED — Tally auto-computes P&L, no manual transfer needed
  */
 export function buildTallyXML(
   ledgers: { name: string; group: string; openingBalance: number; openingBalanceType: string }[],
   vouchers: { date: string; narration?: string; entries: { ledgerName: string; amount: number; type: string }[] }[],
-  profitToCapital: number,
+  _profitToCapital?: number,
 ): string {
   const escXml = (s: string) => s?.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') || '';
 
@@ -1478,39 +1440,24 @@ export function buildTallyXML(
 
   // 1. Export LEDGERS
   for (const l of ledgers) {
-    const balance = l.openingBalanceType === 'DEBIT' ? l.openingBalance : -l.openingBalance;
+    const ob = Number(l.openingBalance) || 0;  // NaN-safe
+    const balance = l.openingBalanceType === 'DEBIT' ? ob : -ob;
     xml += `        <TALLYMESSAGE>\n`;
-    xml += `          <LEDGER NAME="${escXml(l.name)}">\n`;
-    xml += `            <GROUP>${escXml(l.group)}</GROUP>\n`;
-    xml += `            <OPENINGBALANCE>${balance}</OPENINGBALANCE>\n`;
+    xml += `          <LEDGER NAME="${escXml(l.name)}" ACTION="Create">\n`;
+    xml += `            <PARENT>${escXml(l.group)}</PARENT>\n`;
+    xml += `            <OPENINGBALANCE>${balance.toFixed(2)}</OPENINGBALANCE>\n`;
     xml += `          </LEDGER>\n`;
     xml += `        </TALLYMESSAGE>\n`;
   }
 
-  // 2. Transfer PROFIT → CAPITAL / RESERVES
-  if (Math.abs(profitToCapital) > 0) {
-    xml += `        <TALLYMESSAGE>\n`;
-    xml += `          <VOUCHER VCHTYPE="Journal" ACTION="Create">\n`;
-    xml += `            <DATE>01042024</DATE>\n`;
-    xml += `            <NARRATION>Year End Profit Transfer</NARRATION>\n`;
-    xml += `            <ALLLEDGERENTRIES.LIST>\n`;
-    xml += `              <LEDGERNAME>Profit &amp; Loss A/c</LEDGERNAME>\n`;
-    xml += `              <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>\n`;
-    xml += `              <AMOUNT>-${Math.abs(profitToCapital)}</AMOUNT>\n`;
-    xml += `            </ALLLEDGERENTRIES.LIST>\n`;
-    xml += `            <ALLLEDGERENTRIES.LIST>\n`;
-    xml += `              <LEDGERNAME>Capital Account</LEDGERNAME>\n`;
-    xml += `              <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>\n`;
-    xml += `              <AMOUNT>${Math.abs(profitToCapital)}</AMOUNT>\n`;
-    xml += `            </ALLLEDGERENTRIES.LIST>\n`;
-    xml += `          </VOUCHER>\n`;
-    xml += `        </TALLYMESSAGE>\n`;
-  }
+  // 2. Transfer PROFIT → CAPITAL / RESERVES — SKIPPED
+  // Tally Prime auto-computes P&L from vouchers. Manual transfer would
+  // double-count. "Capital Account" is a group name, not a ledger.
 
   // 3. Export VOUCHERS
   for (const v of vouchers) {
     const [Y, M, D] = v.date.split('-');
-    const tallyDate = `${D}${M}${Y}`;
+    const tallyDate = `${Y}${M}${D}`; // Tally uses YYYYMMDD format
 
     xml += `        <TALLYMESSAGE>\n`;
     xml += `          <VOUCHER VCHTYPE="Journal" ACTION="Create">\n`;
