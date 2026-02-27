@@ -2528,6 +2528,27 @@ ${contentHtml}
           </div>
         )}
 
+        {/* Cash Flow Summary */}
+        {caAudit.cashFlowSummary && (
+          <div className="bg-gray-900 rounded-xl border border-gray-800 p-5">
+            <h4 className="text-sm font-semibold text-gray-400 mb-3 flex items-center gap-2"><Wallet className="w-4 h-4" /> Cash Flow Summary</h4>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="p-3 bg-green-500/10 rounded-lg text-center">
+                <div className="text-xs text-gray-500">Total Receipts</div>
+                <div className="text-lg font-mono font-bold text-green-400">{fmt(caAudit.cashFlowSummary.totalReceipts)}</div>
+              </div>
+              <div className="p-3 bg-red-500/10 rounded-lg text-center">
+                <div className="text-xs text-gray-500">Total Payments</div>
+                <div className="text-lg font-mono font-bold text-red-400">{fmt(caAudit.cashFlowSummary.totalPayments)}</div>
+              </div>
+              <div className="p-3 bg-blue-500/10 rounded-lg text-center">
+                <div className="text-xs text-gray-500">Closing Cash/Bank</div>
+                <div className="text-lg font-mono font-bold text-blue-400">{fmt(caAudit.cashFlowSummary.closingCash)}</div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ═══════════════════════════════════════════════════════════
             TALLY PRIME-STYLE DRILL-DOWN — Account Groups → Sub-Groups → Ledgers → Transactions
             ═══════════════════════════════════════════════════════════ */}
@@ -2879,27 +2900,6 @@ ${contentHtml}
                   ))}
                 </tbody>
               </table>
-            </div>
-          </div>
-        )}
-
-        {/* Cash Flow Summary */}
-        {caAudit.cashFlowSummary && (
-          <div className="bg-gray-900 rounded-xl border border-gray-800 p-5">
-            <h4 className="text-sm font-semibold text-gray-400 mb-3 flex items-center gap-2"><Wallet className="w-4 h-4" /> Cash Flow Summary</h4>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="p-3 bg-green-500/10 rounded-lg text-center">
-                <div className="text-xs text-gray-500">Total Receipts</div>
-                <div className="text-lg font-mono font-bold text-green-400">{fmt(caAudit.cashFlowSummary.totalReceipts)}</div>
-              </div>
-              <div className="p-3 bg-red-500/10 rounded-lg text-center">
-                <div className="text-xs text-gray-500">Total Payments</div>
-                <div className="text-lg font-mono font-bold text-red-400">{fmt(caAudit.cashFlowSummary.totalPayments)}</div>
-              </div>
-              <div className="p-3 bg-blue-500/10 rounded-lg text-center">
-                <div className="text-xs text-gray-500">Closing Cash/Bank</div>
-                <div className="text-lg font-mono font-bold text-blue-400">{fmt(caAudit.cashFlowSummary.closingCash)}</div>
-              </div>
             </div>
           </div>
         )}
