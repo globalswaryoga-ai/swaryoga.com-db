@@ -7629,147 +7629,286 @@ ${contentHtml}
       <style dangerouslySetInnerHTML={{ __html: `
         /* ══════════════════════════════════════════════════════════
            Tally Prime Authentic Theme
-           Top Bar: #003366 (navy), Headers: #4472C4 (blue),
-           BG: #B8CCE4 (light blue), Cards: #FFFFFF, Text: #000000,
-           Selection: #FFB800 (gold), Amounts: Green #008000 Red #FF0000
+           Top Bar: #003366 navy | Tab Bar: #FFFFFF white bg
+           BG: #B8CCE4 blue-gray | Cards: #FFFFFF white
+           Amounts: BLACK #000 normal, RED #CC0000 negative ONLY
+           Selection: #FFB800 gold | Headers: #4472C4 blue
            ══════════════════════════════════════════════════════════ */
 
-        .tally-classic { background: #B8CCE4 !important; color: #000000 !important; font-family: 'Segoe UI', Tahoma, Verdana, sans-serif !important; }
+        .tally-classic {
+          background: #B8CCE4 !important;
+          color: #000000 !important;
+          font-family: 'Segoe UI', Tahoma, Verdana, sans-serif !important;
+        }
 
-        /* Cards & panels */
-        .tally-classic .bg-gray-900 { background: #FFFFFF !important; border: 1px solid #8898AA !important; }
-        .tally-classic .bg-gray-800 { background: #EEF2F7 !important; }
-        .tally-classic [class*="bg-gray-800\/"] { background: #EEF2F7 !important; }
+        /* ── Cards & Panels ─────────────────────────────────────── */
+        .tally-classic .bg-gray-900 { background: #FFFFFF !important; border: 1px solid #7A8CA0 !important; }
+        .tally-classic .bg-gray-800 { background: #F0F4F8 !important; }
+        .tally-classic [class*="bg-gray-800\/"] { background: #F0F4F8 !important; }
         .tally-classic .bg-gray-950 { background: #B8CCE4 !important; }
 
-        /* Borders */
+        /* ── Borders ────────────────────────────────────────────── */
         .tally-classic .border-gray-800,
         .tally-classic .border-gray-700,
-        .tally-classic [class*="border-gray-"] { border-color: #8898AA !important; }
+        .tally-classic [class*="border-gray-"] { border-color: #7A8CA0 !important; }
 
-        /* Text */
+        /* ── Text — ALL black on white (Tally Prime rule) ────── */
         .tally-classic .text-white { color: #000000 !important; }
+        /* Preserve white text inside buttons/headers with dark backgrounds */
+        .tally-classic .bg-yellow-600 .text-white,
+        .tally-classic .bg-green-600 .text-white,
+        .tally-classic .bg-blue-600 .text-white,
+        .tally-classic .bg-emerald-600 .text-white,
+        .tally-classic .bg-red-600 .text-white,
+        .tally-classic .bg-cyan-600 .text-white,
+        .tally-classic .bg-gray-700 .text-white,
+        .tally-classic thead .text-white,
+        .tally-classic tfoot .text-white,
+        .tally-classic [class*="bg-blue-600\/"] .text-white,
+        .tally-classic [class*="bg-green-600\/"] .text-white { color: #FFFFFF !important; }
         .tally-classic .text-gray-200 { color: #000000 !important; }
-        .tally-classic .text-gray-300 { color: #1A1A1A !important; }
-        .tally-classic .text-gray-400 { color: #333333 !important; }
-        .tally-classic .text-gray-500 { color: #555555 !important; }
+        .tally-classic .text-gray-300 { color: #111111 !important; }
+        .tally-classic .text-gray-400 { color: #222222 !important; }
+        .tally-classic .text-gray-500 { color: #333333 !important; }
 
-        /* ── Amount Colors ───────────────────────────────────────── */
-        .tally-classic .text-blue-400, .tally-classic .text-blue-300 { color: #0000FF !important; }
-        .tally-classic .text-red-400, .tally-classic .text-red-300 { color: #FF0000 !important; }
-        .tally-classic .text-green-400, .tally-classic .text-green-300 { color: #008000 !important; }
-        .tally-classic .text-yellow-400 { color: #003366 !important; font-weight: 600 !important; }
+        /* ══ AMOUNT COLORS — Tally Prime: BLACK or RED only ═══ */
+        .tally-classic .text-blue-400,
+        .tally-classic .text-blue-300,
+        .tally-classic .text-blue-200 { color: #000000 !important; font-weight: 600 !important; }
+        .tally-classic .text-green-400,
+        .tally-classic .text-green-300,
+        .tally-classic .text-green-600 { color: #000000 !important; font-weight: 600 !important; }
+        .tally-classic .text-cyan-400,
+        .tally-classic .text-cyan-300 { color: #000000 !important; font-weight: 600 !important; }
+        .tally-classic .text-emerald-400,
+        .tally-classic .text-emerald-300,
+        .tally-classic .text-emerald-600 { color: #000000 !important; font-weight: 600 !important; }
+        .tally-classic .text-teal-400 { color: #000000 !important; font-weight: 600 !important; }
+        .tally-classic .text-indigo-400,
+        .tally-classic .text-indigo-300 { color: #000000 !important; font-weight: 600 !important; }
+        .tally-classic .text-amber-400 { color: #000000 !important; font-weight: 600 !important; }
+        .tally-classic .text-yellow-400 { color: #000000 !important; font-weight: 700 !important; }
         .tally-classic .text-yellow-300 { color: #FFFFFF !important; }
-        .tally-classic .text-orange-400 { color: #FF6600 !important; }
-        .tally-classic .text-purple-400, .tally-classic .text-pink-400 { color: #FF00FF !important; }
-        .tally-classic .text-cyan-400 { color: #006680 !important; }
-        .tally-classic .text-emerald-400 { color: #008000 !important; }
-        .tally-classic .text-rose-400 { color: #FF0000 !important; }
-        .tally-classic .text-indigo-400 { color: #0000FF !important; }
-        .tally-classic .text-amber-400 { color: #996600 !important; }
+        .tally-classic .text-blue-600 { color: #003366 !important; }
+
+        /* RED amounts — negatives, expenses, credits */
+        .tally-classic .text-red-400,
+        .tally-classic .text-red-300,
+        .tally-classic .text-red-200 { color: #CC0000 !important; font-weight: 600 !important; }
+        .tally-classic .text-orange-400 { color: #CC0000 !important; font-weight: 600 !important; }
+        .tally-classic .text-rose-400 { color: #CC0000 !important; font-weight: 600 !important; }
+
+        /* Purple/Pink — also RED in Tally for liabilities/capital */
+        .tally-classic .text-purple-400 { color: #CC0000 !important; font-weight: 600 !important; }
+        .tally-classic .text-pink-400 { color: #CC0000 !important; font-weight: 600 !important; }
+
+        /* Opacity variants — must explicitly override */
+        .tally-classic [class*="text-blue-300\\/"],
+        .tally-classic [class*="text-blue-400\\/"] { color: #333333 !important; }
+        .tally-classic [class*="text-red-300\\/"],
+        .tally-classic [class*="text-red-400\\/"] { color: #CC0000 !important; }
+        .tally-classic [class*="text-green-400\\/"] { color: #333333 !important; }
+        .tally-classic [class*="text-emerald-300"] { color: #000000 !important; }
+        .tally-classic [class*="text-purple-400\\/"] { color: #CC0000 !important; }
+
+        /* ── Yellow-500 for loading spinner / hints — keep visible */
+        .tally-classic .text-yellow-500 { color: #003366 !important; }
+        .tally-classic [class*="text-yellow-500\\/"] { color: #003366 !important; }
 
         /* ── Tables ──────────────────────────────────────────────── */
-        .tally-classic table { border-collapse: collapse !important; border: 1px solid #8898AA !important; }
-        .tally-classic thead { background: #4472C4 !important; }
+        .tally-classic table { border-collapse: collapse !important; border: 1px solid #7A8CA0 !important; }
+        .tally-classic thead { background: #003366 !important; }
         .tally-classic thead th, .tally-classic thead td {
-          color: #FFFFFF !important; font-weight: 600 !important;
-          border-right: 1px solid #5B86CF !important; padding: 8px 12px !important;
+          color: #FFFFFF !important; font-weight: 700 !important;
+          border-right: 1px solid #1A4D80 !important; padding: 8px 12px !important;
+          font-size: 13px !important; text-transform: uppercase !important; letter-spacing: 0.3px !important;
         }
-        .tally-classic tfoot { background: #4472C4 !important; }
-        .tally-classic tfoot td { color: #FFFFFF !important; font-weight: 700 !important; border-right: 1px solid #5B86CF !important; }
+        .tally-classic tfoot { background: #003366 !important; }
+        .tally-classic tfoot td {
+          color: #FFFFFF !important; font-weight: 700 !important;
+          border-right: 1px solid #1A4D80 !important;
+        }
         .tally-classic tbody tr { background: #FFFFFF !important; }
-        .tally-classic tbody tr:nth-child(even) { background: #F2F6FA !important; }
-        .tally-classic tbody tr:hover { background: #D6E4F0 !important; }
-        .tally-classic tbody td { border-right: 1px solid #D0D8E4 !important; border-bottom: 1px solid #E8ECF0 !important; padding: 6px 12px !important; color: #000000 !important; }
+        .tally-classic tbody tr:nth-child(even) { background: #F5F8FC !important; }
+        .tally-classic tbody tr:hover { background: #E0E8F0 !important; }
+        .tally-classic tbody td {
+          border-right: 1px solid #D0D8E4 !important;
+          border-bottom: 1px solid #E4E8EE !important;
+          padding: 6px 12px !important;
+          color: #000000 !important;
+        }
         .tally-classic .divide-gray-800 > :not([hidden]) ~ :not([hidden]) { border-color: #D0D8E4 !important; }
 
-        /* Selected row — golden highlight like Tally */
-        .tally-classic tr.bg-gray-800\/50, .tally-classic tr[class*="bg-gray-800"] { background: #FFB800 !important; color: #000000 !important; }
-        .tally-classic tr.bg-gray-800\/50 td, .tally-classic tr[class*="bg-gray-800"] td { color: #000000 !important; }
+        /* Selected row — golden highlight */
+        .tally-classic tr.bg-gray-800\/50,
+        .tally-classic tr[class*="bg-gray-800"] { background: #FFB800 !important; color: #000000 !important; }
+        .tally-classic tr.bg-gray-800\/50 td,
+        .tally-classic tr[class*="bg-gray-800"] td { color: #000000 !important; }
 
-        /* ── Stat Cards ──────────────────────────────────────────── */
-        .tally-classic [class*="bg-blue-500\/"] { background: #DEEAF6 !important; }
-        .tally-classic [class*="bg-green-500\/"] { background: #E2EFDA !important; }
-        .tally-classic [class*="bg-red-500\/"] { background: #FCE4EC !important; }
-        .tally-classic [class*="bg-yellow-500\/"], .tally-classic [class*="bg-yellow-600\/"] { background: #FFF2CC !important; }
-        .tally-classic [class*="bg-purple-500\/"], .tally-classic [class*="bg-purple-600\/"] { background: #E8DAEF !important; }
-        .tally-classic [class*="bg-orange-500\/"] { background: #FFF3E0 !important; }
-        .tally-classic [class*="bg-cyan-500\/"] { background: #E0F7FA !important; }
-        .tally-classic [class*="bg-emerald-500\/"] { background: #E0F2F1 !important; }
-        .tally-classic [class*="bg-rose-500\/"] { background: #FCE4EC !important; }
-        .tally-classic [class*="bg-indigo-500\/"], .tally-classic [class*="bg-indigo-600\/"] { background: #DEEAF6 !important; }
-        .tally-classic [class*="border-blue-"] { border-color: #9BC2E6 !important; }
-        .tally-classic [class*="border-green-"] { border-color: #A9D18E !important; }
-        .tally-classic [class*="border-red-"] { border-color: #EF9A9A !important; }
-        .tally-classic [class*="border-yellow-"] { border-color: #FFD966 !important; }
-        .tally-classic [class*="border-purple-"] { border-color: #B4A7D6 !important; }
-        .tally-classic [class*="border-cyan-"] { border-color: #80DEEA !important; }
-        .tally-classic [class*="border-orange-"] { border-color: #FFCC80 !important; }
-        .tally-classic [class*="border-emerald-"] { border-color: #80CBC4 !important; }
+        /* ── Stat Cards — WHITE bg with colored LEFT BORDER ──── */
+        .tally-classic [class*="bg-blue-500\/"] { background: #FFFFFF !important; border-left: 4px solid #003366 !important; }
+        .tally-classic [class*="bg-green-500\/"] { background: #FFFFFF !important; border-left: 4px solid #006400 !important; }
+        .tally-classic [class*="bg-red-500\/"] { background: #FFF5F5 !important; border-left: 4px solid #CC0000 !important; }
+        .tally-classic [class*="bg-yellow-500\/"],
+        .tally-classic [class*="bg-yellow-600\/"] { background: #FFFFFF !important; border-left: 4px solid #B8860B !important; }
+        .tally-classic [class*="bg-purple-500\/"],
+        .tally-classic [class*="bg-purple-600\/"] { background: #FFFFFF !important; border-left: 4px solid #663399 !important; }
+        .tally-classic [class*="bg-orange-500\/"] { background: #FFF5F5 !important; border-left: 4px solid #CC0000 !important; }
+        .tally-classic [class*="bg-cyan-500\/"] { background: #FFFFFF !important; border-left: 4px solid #003366 !important; }
+        .tally-classic [class*="bg-emerald-500\/"] { background: #FFFFFF !important; border-left: 4px solid #006400 !important; }
+        .tally-classic [class*="bg-rose-500\/"] { background: #FFF5F5 !important; border-left: 4px solid #CC0000 !important; }
+        .tally-classic [class*="bg-indigo-500\/"],
+        .tally-classic [class*="bg-indigo-600\/"] { background: #FFFFFF !important; border-left: 4px solid #003366 !important; }
+        .tally-classic [class*="bg-teal-500\/"] { background: #FFFFFF !important; border-left: 4px solid #003366 !important; }
+        .tally-classic [class*="bg-pink-500\/"] { background: #FFFFFF !important; border-left: 4px solid #CC0000 !important; }
+        .tally-classic [class*="bg-amber-500\/"] { background: #FFFFFF !important; border-left: 4px solid #B8860B !important; }
+
+        /* Additional buttons */
+        .tally-classic .bg-cyan-600 { background: #003366 !important; color: #FFFFFF !important; }
+        .tally-classic .hover\\:bg-cyan-500:hover { background: #004488 !important; }
+
+        /* Chart / progress bar colors — keep distinct but muted for Tally */
+        .tally-classic .bg-orange-500 { background: #CC6600 !important; }
+        .tally-classic .bg-amber-500 { background: #B8860B !important; }
+        .tally-classic .bg-pink-500 { background: #CC3366 !important; }
+        .tally-classic .bg-purple-500 { background: #663399 !important; }
+        .tally-classic .bg-cyan-500 { background: #006699 !important; }
+        .tally-classic .bg-teal-500 { background: #006666 !important; }
+        .tally-classic .bg-rose-500 { background: #CC3333 !important; }
+
+        /* Stat card borders — subtle */
+        .tally-classic [class*="border-blue-"] { border-color: #B0C4DE !important; }
+        .tally-classic [class*="border-green-"] { border-color: #B0C4DE !important; }
+        .tally-classic [class*="border-red-"] { border-color: #E0A0A0 !important; }
+        .tally-classic [class*="border-yellow-"] { border-color: #B0C4DE !important; }
+        .tally-classic [class*="border-purple-"] { border-color: #B0C4DE !important; }
+        .tally-classic [class*="border-cyan-"] { border-color: #B0C4DE !important; }
+        .tally-classic [class*="border-orange-"] { border-color: #E0A0A0 !important; }
+        .tally-classic [class*="border-emerald-"] { border-color: #B0C4DE !important; }
+        .tally-classic [class*="border-indigo-"] { border-color: #B0C4DE !important; }
+        .tally-classic [class*="border-teal-"] { border-color: #B0C4DE !important; }
+        .tally-classic [class*="border-pink-"] { border-color: #E0A0A0 !important; }
+        .tally-classic [class*="border-rose-"] { border-color: #E0A0A0 !important; }
+        .tally-classic [class*="border-amber-"] { border-color: #B0C4DE !important; }
 
         /* ── Tab Bar ─────────────────────────────────────────────── */
-        .tally-classic .border-yellow-500 { border-color: #FFB800 !important; }
-        .tally-classic .border-b-2.border-yellow-500 { border-bottom-color: #FFB800 !important; }
-        .tally-classic .border-b.border-gray-800 { border-bottom: 2px solid #003366 !important; }
+        .tally-classic .border-yellow-500 { border-color: #003366 !important; }
+        .tally-classic .border-b-2.border-yellow-500 { border-bottom: 3px solid #003366 !important; }
+        .tally-classic .border-b.border-gray-800 { border-bottom: 2px solid #7A8CA0 !important; }
 
         /* ── Inputs ──────────────────────────────────────────────── */
         .tally-classic input, .tally-classic select, .tally-classic textarea {
-          background: #FFFFFF !important; border: 1px solid #8898AA !important;
+          background: #FFFFFF !important; border: 1px solid #7A8CA0 !important;
           color: #000000 !important; border-radius: 3px !important;
         }
         .tally-classic input:focus, .tally-classic select:focus, .tally-classic textarea:focus {
-          border-color: #4472C4 !important; outline: none !important;
-          box-shadow: 0 0 0 2px rgba(68,114,196,0.25) !important;
+          border-color: #003366 !important; outline: none !important;
+          box-shadow: 0 0 0 2px rgba(0,51,102,0.25) !important;
         }
-        .tally-classic input::placeholder, .tally-classic textarea::placeholder { color: #888 !important; }
+        .tally-classic input::placeholder, .tally-classic textarea::placeholder { color: #777 !important; }
         .tally-classic option { background: #FFFFFF !important; color: #000000 !important; }
 
         /* ── Buttons ─────────────────────────────────────────────── */
-        .tally-classic .hover\\:bg-gray-800:hover, .tally-classic .hover\\:bg-gray-600:hover { background: #D6E4F0 !important; }
+        .tally-classic .hover\\:bg-gray-800:hover,
+        .tally-classic .hover\\:bg-gray-600:hover { background: #D6E4F0 !important; }
         .tally-classic .bg-gray-700 { background: #003366 !important; color: #FFFFFF !important; }
         .tally-classic .bg-gray-700:hover { background: #004488 !important; }
         .tally-classic [class*="bg-yellow-600\/"] { background: #003366 !important; }
         .tally-classic [class*="border-yellow-600\/"] { border-color: #004488 !important; }
 
+        /* Action buttons — ALL become navy #003366 in Tally */
+        .tally-classic .bg-yellow-600 { background: #003366 !important; color: #FFFFFF !important; }
+        .tally-classic .hover\\:bg-yellow-500:hover { background: #004488 !important; }
+        .tally-classic .hover\\:bg-yellow-700:hover { background: #001A33 !important; }
+        .tally-classic .bg-green-600 { background: #003366 !important; color: #FFFFFF !important; }
+        .tally-classic .hover\\:bg-green-500:hover { background: #004488 !important; }
+        .tally-classic .hover\\:bg-green-700:hover { background: #001A33 !important; }
+        .tally-classic .bg-blue-600 { background: #003366 !important; color: #FFFFFF !important; }
+        .tally-classic .hover\\:bg-blue-500:hover { background: #004488 !important; }
+        .tally-classic .hover\\:bg-blue-700:hover { background: #001A33 !important; }
+        .tally-classic .bg-emerald-600 { background: #003366 !important; color: #FFFFFF !important; }
+        .tally-classic .hover\\:bg-emerald-700:hover { background: #001A33 !important; }
+        .tally-classic .bg-red-600 { background: #CC0000 !important; color: #FFFFFF !important; }
+        .tally-classic .hover\\:bg-red-700:hover { background: #990000 !important; }
+
+        /* Semi-transparent button backgrounds */
+        .tally-classic [class*="bg-blue-600\/"] { background: #003366 !important; color: #FFFFFF !important; }
+        .tally-classic [class*="bg-green-600\/"] { background: #003366 !important; color: #FFFFFF !important; }
+        .tally-classic [class*="bg-emerald-600\/"] { background: #003366 !important; color: #FFFFFF !important; }
+        .tally-classic [class*="border-blue-600\/"] { border-color: #003366 !important; }
+        .tally-classic [class*="border-green-600\/"] { border-color: #003366 !important; }
+        .tally-classic [class*="border-emerald-600\/"] { border-color: #003366 !important; }
+
+        /* Status panels */
+        .tally-classic [class*="bg-green-900\/"] { background: #F0FFF0 !important; }
+        .tally-classic [class*="border-green-700\/"] { border-color: #006400 !important; }
+        .tally-classic [class*="bg-red-900\/"] { background: #FFF0F0 !important; }
+        .tally-classic [class*="border-red-700\/"] { border-color: #CC0000 !important; }
+
+        /* Hover backgrounds for yellow highlights */
+        .tally-classic [class*="hover\\:bg-yellow-500\\/"] { }
+        .tally-classic [class*="bg-yellow-500\\/"] { background: #FFF8E0 !important; }
+
         /* ── Cards ───────────────────────────────────────────────── */
-        .tally-classic .rounded-xl { border-radius: 4px !important; box-shadow: 0 1px 3px rgba(0,0,0,0.12) !important; }
+        .tally-classic .rounded-xl { border-radius: 4px !important; box-shadow: 0 1px 4px rgba(0,0,0,0.15) !important; }
         .tally-classic .rounded-lg { border-radius: 3px !important; }
 
         /* ── Modals & Overlays ────────────────────────────────────── */
-        .tally-classic [class*="bg-black\/"] { background: rgba(0,0,0,0.5) !important; }
-        .tally-classic [class*="bg-red-500\/"][class*="border-red-"] { background: #FCE4EC !important; }
-        .tally-classic [class*="bg-green-500\/"][class*="border-green-"] { background: #E2EFDA !important; }
+        .tally-classic [class*="bg-black\/"] { background: rgba(0,0,0,0.55) !important; }
+        .tally-classic [class*="bg-red-500\/"][class*="border-red-"] { background: #FFF0F0 !important; }
+        .tally-classic [class*="bg-green-500\/"][class*="border-green-"] { background: #F0FFF0 !important; }
 
         /* ── Dropdown ────────────────────────────────────────────── */
-        .tally-classic .z-50 { background: #FFFFFF !important; border: 1px solid #8898AA !important; box-shadow: 0 4px 12px rgba(0,0,0,0.2) !important; }
+        .tally-classic .z-50 {
+          background: #FFFFFF !important; border: 1px solid #7A8CA0 !important;
+          box-shadow: 0 4px 16px rgba(0,0,0,0.25) !important;
+        }
 
         /* Error banners */
-        .tally-classic [class*="bg-red-900\/"] { background: #FCE4EC !important; }
-        .tally-classic [class*="border-red-700"] { border-color: #EF5350 !important; }
+        .tally-classic [class*="bg-red-900\/"] { background: #FFF0F0 !important; }
+        .tally-classic [class*="border-red-700"] { border-color: #CC0000 !important; }
+
+        /* ── Section Headers (sub-group labels) ──────────────────── */
+        .tally-classic [class*="text-green-400\\/"] { color: #006400 !important; }
+        .tally-classic [class*="text-red-400\\/"] { color: #CC0000 !important; }
+        .tally-classic [class*="text-blue-400\\/"] { color: #003366 !important; }
+        .tally-classic [class*="text-purple-400\\/"] { color: #660066 !important; }
 
         /* ── Scrollbar ───────────────────────────────────────────── */
         .tally-classic ::-webkit-scrollbar { width: 10px; height: 10px; }
-        .tally-classic ::-webkit-scrollbar-track { background: #D4DCE8; }
-        .tally-classic ::-webkit-scrollbar-thumb { background: #8898AA; border-radius: 5px; border: 2px solid #D4DCE8; }
-        .tally-classic ::-webkit-scrollbar-thumb:hover { background: #6878AA; }
+        .tally-classic ::-webkit-scrollbar-track { background: #C8D4E4; }
+        .tally-classic ::-webkit-scrollbar-thumb { background: #7A8CA0; border-radius: 5px; border: 2px solid #C8D4E4; }
+        .tally-classic ::-webkit-scrollbar-thumb:hover { background: #5A6C80; }
 
         .tally-classic .font-mono { font-family: 'Courier New', Courier, monospace !important; }
 
         /* ── Right Sidebar (Gateway Panel) ───────────────────────── */
-        .tally-gateway { background: #EEF2F7; border-left: 2px solid #8898AA; }
-        .tally-gateway-header { background: #4472C4; color: #FFFFFF; font-weight: 700; padding: 6px 12px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
-        .tally-gateway-section { color: #4472C4; font-weight: 700; font-size: 11px; text-transform: uppercase; padding: 8px 12px 2px; letter-spacing: 0.5px; }
+        .tally-gateway { background: #F0F4F8; border-left: 2px solid #7A8CA0; }
+        .tally-gateway-header {
+          background: #003366; color: #FFD700; font-weight: 700;
+          padding: 10px 14px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.8px;
+        }
+        .tally-gateway-section {
+          color: #003366; font-weight: 700; font-size: 11px; text-transform: uppercase;
+          padding: 10px 14px 3px; letter-spacing: 0.5px; border-bottom: 1px solid #D0D8E4;
+        }
         .tally-gateway-item {
-          display: flex; align-items: center; gap: 8px; padding: 5px 12px; cursor: pointer;
+          display: flex; align-items: center; gap: 8px; padding: 6px 14px; cursor: pointer;
           font-size: 13px; color: #000000; transition: background 0.1s;
         }
         .tally-gateway-item:hover { background: #D6E4F0; }
-        .tally-gateway-item.active { background: #FFB800; font-weight: 600; }
+        .tally-gateway-item.active { background: #FFB800; font-weight: 700; }
         .tally-gateway-key {
           display: inline-flex; align-items: center; justify-content: center;
-          min-width: 24px; height: 20px; padding: 0 4px;
-          background: #003366; color: #FFFFFF; font-size: 10px; font-weight: 700;
+          min-width: 26px; height: 22px; padding: 0 4px;
+          background: #003366; color: #FFD700; font-size: 10px; font-weight: 700;
           border-radius: 3px; font-family: 'Segoe UI', sans-serif;
+        }
+
+        /* ── Bottom Bar ──────────────────────────────────────────── */
+        .tally-bottom-bar {
+          background: #003366 !important;
+          border-top: 2px solid #001A33 !important;
         }
       ` }} />
     )}
