@@ -1491,10 +1491,26 @@ const videoPlaylistSchema = new mongoose.Schema({
   // Type: 'batch' for workshop batch videos, 'post' for monthly post videos
   type: { type: String, enum: ['batch', 'post'], required: true, index: true },
   
+  // Video type: 'gallery' or 'speaker' — allows separate playlists per view
+  videoType: { type: String, enum: ['gallery', 'speaker', 'mixed'], default: 'mixed', index: true },
+  
+  // Language
+  language: { type: String, enum: ['hindi', 'english', 'marathi', 'mandarin', 'spanish', 'french', 'arabic', 'german', 'portuguese', 'japanese', 'korean', 'russian', 'italian', 'turkish', 'dutch', 'swedish', 'thai', 'indonesian', 'both'], default: 'hindi' },
+  
   // For batch playlists
   batchNumber: { type: Number }, // 1, 2, 3... for batch type
   workshopSlug: { type: String, trim: true }, // swar-yoga, aham-bramhasmi, etc.
-  workshopName: { type: String, trim: true },
+  workshopName: { type: String, trim: true }, // Editable — user can type custom name
+  
+  // Zoom meeting details
+  zoomMeetingId: { type: String, trim: true },
+  zoomPassword: { type: String, trim: true },
+  
+  // Day-wise session plan (e.g. [{day:1,topic:"Introduction"},{day:2,topic:"Breathwork"}])
+  sessionPlan: [{
+    day: { type: Number, required: true },
+    topic: { type: String, trim: true, default: '' },
+  }],
   
   // For post/update videos (month-wise)
   year: { type: Number }, // 2026
@@ -1503,8 +1519,9 @@ const videoPlaylistSchema = new mongoose.Schema({
   // Community association
   communityId: { type: String, index: true }, // Can be linked to specific community
   
-  // Visibility
+  // Visibility & Access
   isPublic: { type: Boolean, default: false },
+  membersOnly: { type: Boolean, default: true }, // Video for members only
   status: { type: String, enum: ['active', 'draft', 'archived'], default: 'active', index: true },
   
   // Ordering
@@ -1539,10 +1556,18 @@ const playlistVideoSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true },
   description: { type: String, default: '', trim: true },
   
-  // Video source
-  videoUrl: { type: String, required: true }, // S3 URL or external URL
+  // Video source — supports S3, Bunny Stream, or external URLs
+  videoUrl: { type: String, required: true }, // Primary playback URL (Bunny embed or S3)
   s3Key: { type: String, trim: true }, // If uploaded to S3
+  bunnyVideoId: { type: String, trim: true }, // Bunny Stream video GUID
+  bunnyEmbedUrl: { type: String, trim: true }, // Bunny iframe embed URL
   thumbnailUrl: { type: String, trim: true },
+  
+  // Video type: gallery or speaker view
+  videoType: { type: String, enum: ['gallery', 'speaker', 'screen', 'other'], default: 'speaker', index: true },
+  
+  // Short URL code — e.g. swaryoga.com/Xsde123
+  shortCode: { type: String, unique: true, sparse: true, trim: true },
   
   // Video details
   duration: { type: Number, default: 0 }, // Seconds

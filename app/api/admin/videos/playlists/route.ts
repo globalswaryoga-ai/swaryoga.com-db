@@ -90,13 +90,19 @@ export async function POST(request: NextRequest) {
       description,
       thumbnailUrl,
       type, // 'batch' or 'post'
+      videoType, // 'gallery', 'speaker', or 'mixed'
+      language, // 'hindi', 'english', or 'both'
       batchNumber,
       workshopSlug,
       workshopName,
+      zoomMeetingId,
+      zoomPassword,
+      sessionPlan, // [{day:1,topic:"Intro"}, ...]
       year,
       month,
       communityId,
       isPublic,
+      membersOnly,
       sortOrder,
     } = body;
 
@@ -112,8 +118,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Year and month are required for post playlists' }, { status: 400 });
     }
 
-    // Check for duplicate
+    // Check for duplicate (include videoType so speaker + gallery pairs don't clash)
     const existingQuery: any = { type, status: { $ne: 'archived' } };
+    if (videoType) existingQuery.videoType = videoType;
     if (type === 'batch') {
       existingQuery.batchNumber = batchNumber;
       existingQuery.workshopSlug = workshopSlug || null;
@@ -137,13 +144,19 @@ export async function POST(request: NextRequest) {
       description: description || '',
       thumbnailUrl,
       type,
+      videoType: videoType || 'mixed',
+      language: language || 'hindi',
       batchNumber: type === 'batch' ? batchNumber : undefined,
       workshopSlug: type === 'batch' ? workshopSlug : undefined,
       workshopName: type === 'batch' ? workshopName : undefined,
+      zoomMeetingId: zoomMeetingId || undefined,
+      zoomPassword: zoomPassword || undefined,
+      sessionPlan: sessionPlan || [],
       year: type === 'post' ? year : undefined,
       month: type === 'post' ? month : undefined,
       communityId,
       isPublic: isPublic || false,
+      membersOnly: membersOnly !== false, // default true
       sortOrder: sortOrder || 0,
       status: 'active',
       createdBy: decoded.userId || decoded.email,

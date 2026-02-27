@@ -246,6 +246,81 @@ export async function createVoucher(data: {
   return voucher;
 }
 
+// ─── Update Voucher ─────────────────────────────────────────────────
+
+export async function updateVoucher(
+  voucherId: string,
+  data: {
+    date?: Date | string;
+    type?: VoucherType;
+    entries?: { ledgerId: string; ledgerName: string; amount: number; type: BalanceType }[];
+    narration?: string;
+  },
+) {
+  await connectDB();
+  const AccVoucher = getAccVoucher();
+  const AccFinancialYear = getAccFinancialYear();
+
+  const voucher = await AccVoucher.findById(voucherId);
+  if (!voucher) throw new Error('Voucher not found');
+  const v = voucher as any;
+
+  // Check if FY is locked
+  const fyDoc = await AccFinancialYear.findOne({ code: v.financialYear }).lean() as any;
+  if (fyDoc?.isClosed) {
+    throw new Error(`FY ${v.financialYear} is locked. Cannot edit vouchers in a closed financial year.`);
+  }
+
+  if (v.isReversed) throw new Error('Cannot edit a reversed voucher.');
+
+  // Update fields
+  if (data.date) v.date = new Date(data.date);
+  if (data.type) v.type = data.type;
+  if (data.narration !== undefined) v.narration = data.narration;
+
+  if (data.entries) {
+    const validation = validateVoucherEntries(data.entries);
+    if (!validation.valid) {
+      throw new Error(`Voucher validation failed:\n${validation.errors.join('\n')}`);
+    }
+    v.entries = data.entries;
+    v.totalDebit = Math.round(data.entries.filter(e => e.type === 'DEBIT').reduce((s, e) => s + e.amount, 0) * 100) / 100;
+    v.totalCredit = Math.round(data.entries.filter(e => e.type === 'CREDIT').reduce((s, e) => s + e.amount, 0) * 100) / 100;
+  }
+
+  await v.save();
+  invalidateReportCache(v.financialYear);
+  return v;
+}
+
+// ─── Delete (Reverse) Voucher ───────────────────────────────────────
+
+export async function deleteVoucher(voucherId: string) {
+  await connectDB();
+  const AccVoucher = getAccVoucher();
+  const AccFinancialYear = getAccFinancialYear();
+
+  const voucher = await AccVoucher.findById(voucherId);
+  if (!voucher) throw new Error('Voucher not found');
+  const v = voucher as any;
+
+  // Check if FY is locked
+  const fyDoc = await AccFinancialYear.findOne({ code: v.financialYear }).lean() as any;
+  if (fyDoc?.isClosed) {
+    throw new Error(`FY ${v.financialYear} is locked. Cannot delete vouchers in a closed financial year.`);
+  }
+
+  if (v.isReversed) throw new Error('Voucher is already deleted/reversed.');
+
+  // Soft-delete: mark as reversed
+  v.isReversed = true;
+  v.reversedAt = new Date();
+  await v.save();
+
+  invalidateReportCache(v.financialYear);
+  return { message: `Voucher ${v.voucherNumber} deleted successfully`, voucherNumber: v.voucherNumber };
+}
+
 // ─── Ledger Balance Calculation ─────────────────────────────────────
 
 /**
@@ -761,6 +836,19 @@ export async function getLedgerStatement(
 
   const vouchers = await AccVoucher.find(query).sort({ date: 1 }).lean();
 
+  // Collect all contra ledger IDs to fetch their group info
+  const contraLedgerIds = new Set<string>();
+  for (const v of vouchers as any[]) {
+    for (const e of v.entries || []) {
+      if (String(e.ledgerId) !== String(l._id)) contraLedgerIds.add(String(e.ledgerId));
+    }
+  }
+  const contraLedgers = await AccLedger.find({ _id: { $in: Array.from(contraLedgerIds) } }).select('_id name group subGroup').lean() as any[];
+  const contraLedgerMap = new Map<string, { name: string; group: string; subGroup?: string }>();
+  for (const cl of contraLedgers) {
+    contraLedgerMap.set(String(cl._id), { name: cl.name, group: cl.group, subGroup: cl.subGroup });
+  }
+
   // Build running balance
   let runningBalance = l.openingBalanceType === 'DEBIT' ? l.openingBalance : -l.openingBalance;
 
@@ -775,12 +863,18 @@ export async function getLedgerStatement(
     // Find contra ledger (the other side of this transaction)
     const contraEntries = v.entries.filter((e: any) => String(e.ledgerId) !== String(l._id));
     const contraNames = contraEntries.map((e: any) => e.ledgerName).join(', ');
+    // Get contra ledger group info (use first contra entry)
+    const primaryContra = contraEntries[0];
+    const contraInfo = primaryContra ? contraLedgerMap.get(String(primaryContra.ledgerId)) : undefined;
 
     return {
+      voucherId: String(v._id),
       date: v.date,
       voucherNumber: v.voucherNumber,
       voucherType: v.type,
       contraLedger: contraNames,
+      contraLedgerGroup: contraInfo?.group || 'OTHER',
+      contraLedgerSubGroup: contraInfo?.subGroup || 'General',
       narration: v.narration,
       debit,
       credit,
@@ -2217,7 +2311,7 @@ export interface CAAuditReport {
   voucherSummary: { type: string; count: number; totalAmount: number }[];
   ledgerWise: { name: string; group: string; subGroup?: string; debit: number; credit: number; closing: number; closingType: string }[];
   cashFlowSummary: { openingCash: number; totalReceipts: number; totalPayments: number; closingCash: number };
-  pendingBills: { voucherId: string; voucherNumber: string; date: string; type: string; amount: number; narration?: string }[];
+  pendingBills: { voucherId: string; voucherNumber: string; date: string; type: string; amount: number; narration?: string; ledgerName?: string; ledgerGroup?: string; ledgerSubGroup?: string }[];
   billsAttached: number;
   billsMissing: number;
 }
@@ -2225,6 +2319,7 @@ export interface CAAuditReport {
 export async function generateCAAuditReport(financialYear: string): Promise<CAAuditReport> {
   await connectDB();
   const AccVoucher = getAccVoucher();
+  const AccLedger = getAccLedger();
   const AccFinancialYear = getAccFinancialYear();
 
   // Get company info
@@ -2253,11 +2348,16 @@ export async function generateCAAuditReport(financialYear: string): Promise<CAAu
     totalAmount: Math.round(v.totalAmount * 100) / 100,
   }));
 
-  // Generate ledger-wise details
+  // Generate ledger-wise details (include IDs + opening balances for drill-down)
   const ledgerWise = tb.rows.map((r: any) => ({
+    ledgerId: r.ledgerId,
     name: r.ledgerName,
     group: r.group,
     subGroup: r.subGroup || '',
+    openingDebit: r.openingDebit || 0,
+    openingCredit: r.openingCredit || 0,
+    periodDebit: r.periodDebit || 0,
+    periodCredit: r.periodCredit || 0,
     debit: r.closingDebit,
     credit: r.closingCredit,
     closing: r.closingBalance || Math.abs(r.closingDebit - r.closingCredit),
@@ -2285,17 +2385,42 @@ export async function generateCAAuditReport(financialYear: string): Promise<CAAu
   const billsAttached = allVouchers.filter(v => v.receiptFileUrl).length;
   const billsMissing = allVouchers.filter(v => !v.receiptFileUrl).length;
 
-  // Pending bills = vouchers without receipts
+  // Build a ledgerId→info map for enriching pending bills
+  const allLedgerIds = new Set<string>();
+  for (const v of allVouchers) {
+    for (const e of v.entries || []) {
+      allLedgerIds.add(String(e.ledgerId));
+    }
+  }
+  const allLedgersForBills = await AccLedger.find({ _id: { $in: Array.from(allLedgerIds) } }).lean() as any[];
+  const ledgerInfoMap = new Map<string, { name: string; group: string; subGroup?: string }>();
+  for (const l of allLedgersForBills) {
+    ledgerInfoMap.set(String(l._id), { name: l.name, group: l.group, subGroup: l.subGroup });
+  }
+
+  // Pending bills = vouchers without receipts, enriched with primary expense ledger
   const pendingBills = allVouchers
     .filter(v => !v.receiptFileUrl)
-    .map(v => ({
-      voucherId: String(v._id),
-      voucherNumber: v.voucherNumber,
-      date: v.date?.toISOString?.() || String(v.date),
-      type: v.type,
-      amount: v.totalDebit || 0,
-      narration: v.narration,
-    }));
+    .map(v => {
+      // Find the expense/non-cash side ledger (debit side for PAYMENT, credit side for RECEIPT)
+      const primaryEntry = v.entries?.find((e: any) => {
+        const info = ledgerInfoMap.get(String(e.ledgerId));
+        // Skip cash/bank ledgers; pick the expense/income/liability side
+        return info && !['Cash-in-Hand', 'Bank Accounts', 'Cash', 'Bank'].includes(info.subGroup || '');
+      }) || v.entries?.[0];
+      const ledgerInfo = primaryEntry ? ledgerInfoMap.get(String(primaryEntry.ledgerId)) : undefined;
+      return {
+        voucherId: String(v._id),
+        voucherNumber: v.voucherNumber,
+        date: v.date?.toISOString?.() || String(v.date),
+        type: v.type,
+        amount: v.totalDebit || 0,
+        narration: v.narration,
+        ledgerName: ledgerInfo?.name || primaryEntry?.ledgerName || 'Unknown',
+        ledgerGroup: ledgerInfo?.group || 'OTHER',
+        ledgerSubGroup: ledgerInfo?.subGroup || 'General',
+      };
+    });
 
   return {
     companyName,

@@ -1,6 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, VideoPlaylist, PlaylistVideo } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import crypto from 'crypto';
+
+// Generate a unique short code for video URLs (e.g. Xsde123)
+function generateShortCode(length = 7): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let code = '';
+  const bytes = crypto.randomBytes(length);
+  for (let i = 0; i < length; i++) {
+    code += chars[bytes[i] % chars.length];
+  }
+  return code;
+}
 
 // GET - List videos in a playlist
 export async function GET(request: NextRequest) {
@@ -89,7 +101,10 @@ export async function POST(request: NextRequest) {
       description,
       videoUrl,
       s3Key,
+      bunnyVideoId,
+      bunnyEmbedUrl,
       thumbnailUrl,
+      videoType,
       duration,
       quality,
       fileSize,
@@ -122,6 +137,16 @@ export async function POST(request: NextRequest) {
       finalSortOrder = lastVideo ? ((lastVideo as any).sortOrder || 0) + 1 : 0;
     }
 
+    // Generate unique short code
+    let shortCode = generateShortCode();
+    let codeExists = await PlaylistVideo.findOne({ shortCode }).lean();
+    let attempts = 0;
+    while (codeExists && attempts < 10) {
+      shortCode = generateShortCode();
+      codeExists = await PlaylistVideo.findOne({ shortCode }).lean();
+      attempts++;
+    }
+
     // Create video
     const video = await PlaylistVideo.create({
       playlistId,
@@ -129,7 +154,11 @@ export async function POST(request: NextRequest) {
       description: description || '',
       videoUrl,
       s3Key,
+      bunnyVideoId: bunnyVideoId || undefined,
+      bunnyEmbedUrl: bunnyEmbedUrl || undefined,
       thumbnailUrl,
+      videoType: videoType || 'speaker',
+      shortCode,
       duration: duration || 0,
       quality: quality || '720p',
       fileSize,

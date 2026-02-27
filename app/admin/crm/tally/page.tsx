@@ -39,6 +39,8 @@ import {
   ArrowRight,
   ChevronDown,
   ChevronRight,
+  Trash2,
+  Pencil,
 } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────
@@ -211,13 +213,31 @@ export default function TallyPage() {
   // Form states
   const [showLedgerForm, setShowLedgerForm] = useState(false);
   const [showVoucherForm, setShowVoucherForm] = useState(false);
+  const [editingVoucher, setEditingVoucher] = useState<Voucher | null>(null); // for edit modal
+  const [deletingVoucherId, setDeletingVoucherId] = useState<string | null>(null);
   const [ledgerSearch, setLedgerSearch] = useState('');
   const [gstEnabled, setGstEnabled] = useState(false);
   const [fyLocked, setFyLocked] = useState(false);
   const [lockLoading, setLockLoading] = useState(false);
+  const [lastCreatedVoucherId, setLastCreatedVoucherId] = useState<string | null>(null);
 
   // Company profile for print headers
   const [companyProfile, setCompanyProfile] = useState<Record<string, string>>({});
+
+  // CA Audit drill-down state (Tally Prime style)
+  const [caExpandedGroups, setCaExpandedGroups] = useState<Record<string, boolean>>({});
+  const [caExpandedSubGroups, setCaExpandedSubGroups] = useState<Record<string, boolean>>({});
+  const [caExpandedLedgers, setCaExpandedLedgers] = useState<Record<string, boolean>>({});
+  const [caLedgerStatements, setCaLedgerStatements] = useState<Record<string, any>>({});
+  const [caLedgerLoading, setCaLedgerLoading] = useState<Record<string, boolean>>({});
+
+  // Pending Bills drill-down state
+  const [billExpandedGroups, setBillExpandedGroups] = useState<Record<string, boolean>>({});
+  const [billExpandedHeads, setBillExpandedHeads] = useState<Record<string, boolean>>({});
+
+  // Level 4 statement drill-down state: ledgerId→group and ledgerId→head expanded
+  const [stmtExpandedGroups, setStmtExpandedGroups] = useState<Record<string, boolean>>({});
+  const [stmtExpandedHeads, setStmtExpandedHeads] = useState<Record<string, boolean>>({});
 
   // ── API Helper ────────────────────────────────────────────────────
 
@@ -250,6 +270,12 @@ export default function TallyPage() {
     setDaybookLedgerSummary(null);
     setMonthlyPL([]);
     setCaAudit(null);
+    // Reset drill-down state
+    setCaExpandedGroups({});
+    setCaExpandedSubGroups({});
+    setCaExpandedLedgers({});
+    setCaLedgerStatements({});
+    setCaLedgerLoading({});
   }, []);
 
   const loadSummary = useCallback(async () => {
@@ -576,6 +602,8 @@ export default function TallyPage() {
         }
 
         setShowVoucherForm(false);
+        // Track last created voucher for auto-highlight
+        if (result?.id) setLastCreatedVoucherId(result.id);
         // Clear all cached data so every tab fetches fresh from server
         clearAllCachedData();
         refreshCurrentTab();
@@ -720,6 +748,172 @@ export default function TallyPage() {
             <button type="submit" disabled={saving || !isBalanced}
               className="flex-1 px-4 py-2 text-sm bg-yellow-600 text-black rounded-lg hover:bg-yellow-500 disabled:opacity-50 flex items-center justify-center gap-2 font-semibold">
               <Save className="w-4 h-4" />{saving ? 'Saving...' : 'Create Voucher'}
+            </button>
+          </div>
+        </form>
+      </div>
+    );
+  };
+
+  // ── Delete Voucher Handler ────────────────────────────────────────
+
+  const handleDeleteVoucher = async (voucherId: string) => {
+    if (!confirm('Are you sure you want to delete this voucher? This action marks it as reversed.')) return;
+    try {
+      await apiFetch('/api/tally/vouchers', {
+        method: 'DELETE',
+        body: JSON.stringify({ id: voucherId }),
+      });
+      clearAllCachedData();
+      setCaLedgerStatements({});
+      refreshCurrentTab();
+    } catch (e: any) { setError(e.message); }
+  };
+
+  // ── Edit Voucher Handler ──────────────────────────────────────────
+
+  const openEditVoucher = (v: Voucher) => {
+    loadLedgers();
+    setEditingVoucher(v);
+  };
+
+  // ── Edit Voucher Modal ────────────────────────────────────────────
+
+  const EditVoucherForm = () => {
+    if (!editingVoucher) return null;
+    const v = editingVoucher;
+
+    const [vType, setVType] = useState<VoucherType>(v.type);
+    const [date, setDate] = useState(new Date(v.date).toISOString().split('T')[0]);
+    const [narration, setNarration] = useState(v.narration || '');
+    const [entries, setEntries] = useState<{ ledgerId: string; ledgerName: string; amount: string; type: BalanceType }[]>(
+      v.entries.map(e => ({ ledgerId: e.ledgerId, ledgerName: e.ledgerName, amount: String(e.amount), type: e.type }))
+    );
+    const [saving, setSaving] = useState(false);
+
+    const totalDebit = entries.filter(e => e.type === 'DEBIT').reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
+    const totalCredit = entries.filter(e => e.type === 'CREDIT').reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
+    const isBalanced = Math.abs(totalDebit - totalCredit) < 0.01 && totalDebit > 0;
+
+    const addEntry = () => setEntries([...entries, { ledgerId: '', ledgerName: '', amount: '', type: 'CREDIT' }]);
+    const removeEntry = (i: number) => { if (entries.length > 2) setEntries(entries.filter((_, idx) => idx !== i)); };
+
+    const updateEntry = (i: number, field: string, value: string) => {
+      const updated = [...entries];
+      if (field === 'ledgerId') {
+        const ledger = ledgers.find(l => l.id === value);
+        updated[i] = { ...updated[i], ledgerId: value, ledgerName: ledger?.name || '' };
+      } else {
+        (updated[i] as any)[field] = value;
+      }
+      setEntries(updated);
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!isBalanced) { setError('Voucher is NOT balanced. Debit must equal Credit.'); return; }
+      setSaving(true);
+      try {
+        await apiFetch('/api/tally/vouchers', {
+          method: 'PUT',
+          body: JSON.stringify({
+            id: v.id,
+            date, type: vType, narration,
+            entries: entries.map(en => ({
+              ledgerId: en.ledgerId,
+              ledgerName: en.ledgerName,
+              amount: parseFloat(en.amount) || 0,
+              type: en.type,
+            })),
+          }),
+        });
+        setEditingVoucher(null);
+        clearAllCachedData();
+        setCaLedgerStatements({});
+        refreshCurrentTab();
+      } catch (e: any) { setError(e.message); }
+      setSaving(false);
+    };
+
+    return (
+      <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+        <form onSubmit={handleSubmit} className="bg-gray-900 rounded-xl shadow-xl border border-gray-800 p-6 w-full max-w-2xl space-y-4 max-h-[90vh] overflow-auto">
+          <h3 className="text-lg font-bold text-white flex items-center gap-2">
+            <Pencil className="w-5 h-5 text-yellow-400" /> Edit Voucher — {v.voucherNumber}
+          </h3>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-400 mb-1">Voucher Type *</label>
+              <select value={vType} onChange={e => setVType(e.target.value as VoucherType)}
+                className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm">
+                {['RECEIPT', 'PAYMENT', 'JOURNAL', 'CONTRA', 'SALES', 'PURCHASE', 'DEBIT_NOTE', 'CREDIT_NOTE'].map(t => (
+                  <option key={t} value={t}>{t.replace('_', ' ')}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-400 mb-1">Date *</label>
+              <input type="date" value={date} onChange={e => setDate(e.target.value)}
+                className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm" required />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-400 mb-1">Narration</label>
+            <input value={narration} onChange={e => setNarration(e.target.value)}
+              className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm placeholder-gray-500" placeholder="Description of the transaction" />
+          </div>
+
+          {/* Entries */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-medium text-gray-400">Entries (Double-Entry) *</label>
+              <button type="button" onClick={addEntry} className="text-xs text-yellow-400 hover:text-yellow-300 flex items-center gap-1">
+                <Plus className="w-3 h-3" /> Add Row
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {entries.map((entry, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <select value={entry.ledgerId} onChange={e => updateEntry(i, 'ledgerId', e.target.value)}
+                    className="flex-1 bg-gray-800 border border-gray-700 text-white rounded-lg px-2 py-1.5 text-sm">
+                    <option value="">Select Ledger</option>
+                    {ledgers.map(l => (
+                      <option key={l.id} value={l.id}>{l.name} ({l.group})</option>
+                    ))}
+                  </select>
+                  <input type="number" value={entry.amount} onChange={e => updateEntry(i, 'amount', e.target.value)}
+                    className="w-28 bg-gray-800 border border-gray-700 text-white rounded-lg px-2 py-1.5 text-sm text-right placeholder-gray-500" placeholder="Amount" min="0.01" step="0.01" />
+                  <select value={entry.type} onChange={e => updateEntry(i, 'type', e.target.value)}
+                    className={`w-24 border rounded-lg px-2 py-1.5 text-sm font-medium ${entry.type === 'DEBIT' ? 'text-blue-400 bg-blue-500/10 border-blue-500/30' : 'text-red-400 bg-red-500/10 border-red-500/30'}`}>
+                    <option value="DEBIT">Dr</option>
+                    <option value="CREDIT">Cr</option>
+                  </select>
+                  {entries.length > 2 && (
+                    <button type="button" onClick={() => removeEntry(i)} className="text-red-400 hover:text-red-300 text-sm">×</button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Balance indicator */}
+            <div className={`mt-3 p-3 rounded-lg text-sm font-medium flex items-center gap-2 ${isBalanced ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
+              {isBalanced ? <CheckCircle className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+              <span>Total Debit: {fmt(totalDebit)}</span>
+              <span className="mx-2">|</span>
+              <span>Total Credit: {fmt(totalCredit)}</span>
+              {isBalanced && <span className="ml-auto text-green-400 font-bold">✓ BALANCED</span>}
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={() => setEditingVoucher(null)}
+              className="flex-1 px-4 py-2 text-sm border border-gray-700 rounded-lg text-gray-400 hover:bg-gray-800">Cancel</button>
+            <button type="submit" disabled={saving || !isBalanced}
+              className="flex-1 px-4 py-2 text-sm bg-yellow-600 text-black rounded-lg hover:bg-yellow-500 disabled:opacity-50 flex items-center justify-center gap-2 font-semibold">
+              <Save className="w-4 h-4" />{saving ? 'Saving...' : 'Update Voucher'}
             </button>
           </div>
         </form>
@@ -1225,11 +1419,12 @@ export default function TallyPage() {
               <th className="px-4 py-2.5 text-left font-medium">Particulars</th>
               <th className="px-4 py-2.5 text-right font-medium">Debit</th>
               <th className="px-4 py-2.5 text-right font-medium">Credit</th>
+              <th className="px-4 py-2.5 text-center font-medium">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-800">
             {vouchers.map(v => (
-              <tr key={v.id} className="hover:bg-gray-800/50">
+              <tr key={v.id} ref={v.id === lastCreatedVoucherId ? (el) => { if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(() => setLastCreatedVoucherId(null), 3000); } } : undefined} className={`hover:bg-gray-800/50 transition-colors ${v.id === lastCreatedVoucherId ? 'bg-yellow-500/10 border-l-2 border-l-yellow-500 animate-pulse' : ''}`}>
                 <td className="px-4 py-2.5 font-mono text-xs text-gray-500">{v.voucherNumber}</td>
                 <td className="px-4 py-2.5 text-gray-400">{new Date(v.date).toLocaleDateString('en-IN')}</td>
                 <td className="px-4 py-2.5">
@@ -1241,6 +1436,18 @@ export default function TallyPage() {
                 </td>
                 <td className="px-4 py-2.5 text-right font-mono text-blue-400">{fmt(v.totalDebit)}</td>
                 <td className="px-4 py-2.5 text-right font-mono text-red-400">{fmt(v.totalCredit)}</td>
+                <td className="px-4 py-2.5 text-center">
+                  <div className="flex items-center justify-center gap-1">
+                    <button onClick={() => openEditVoucher(v)} title="Edit Voucher"
+                      className="p-1.5 rounded hover:bg-yellow-500/20 text-gray-400 hover:text-yellow-400 transition-colors">
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={() => handleDeleteVoucher(v.id)} title="Delete Voucher"
+                      className="p-1.5 rounded hover:bg-red-500/20 text-gray-400 hover:text-red-400 transition-colors">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -2112,7 +2319,49 @@ ${contentHtml}
     }
   };
 
-  // ── CA Audit View ─────────────────────────────────────────────────
+  // ── CA Audit View (Tally Prime Style Drill-Down) ───────────────
+
+  // Toggle helpers for drill-down
+  const toggleCaGroup = (group: string) => {
+    setCaExpandedGroups(prev => ({ ...prev, [group]: !prev[group] }));
+  };
+  const toggleCaSubGroup = (key: string) => {
+    setCaExpandedSubGroups(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+  const toggleCaLedger = async (ledgerId: string) => {
+    const isExpanding = !caExpandedLedgers[ledgerId];
+    setCaExpandedLedgers(prev => ({ ...prev, [ledgerId]: isExpanding }));
+
+    // Fetch statement on expand (if not already cached)
+    if (isExpanding && !caLedgerStatements[ledgerId]) {
+      setCaLedgerLoading(prev => ({ ...prev, [ledgerId]: true }));
+      try {
+        const data = await apiFetch(`/api/tally/ledgers/${ledgerId}/statement?fy=${fy}`);
+        setCaLedgerStatements(prev => ({ ...prev, [ledgerId]: data }));
+      } catch (e: any) {
+        console.error('Failed to load ledger statement:', e);
+        setCaLedgerStatements(prev => ({ ...prev, [ledgerId]: { error: e.message, transactions: [] } }));
+      }
+      setCaLedgerLoading(prev => ({ ...prev, [ledgerId]: false }));
+    }
+  };
+
+  const expandAllCaGroups = () => {
+    if (!caAudit?.ledgerWise) return;
+    const groups: Record<string, boolean> = {};
+    const subGroups: Record<string, boolean> = {};
+    for (const l of caAudit.ledgerWise) {
+      groups[l.group] = true;
+      subGroups[`${l.group}:${l.subGroup || 'Other'}`] = true;
+    }
+    setCaExpandedGroups(groups);
+    setCaExpandedSubGroups(subGroups);
+  };
+  const collapseAllCaGroups = () => {
+    setCaExpandedGroups({});
+    setCaExpandedSubGroups({});
+    setCaExpandedLedgers({});
+  };
 
   const CAAuditView = () => {
     if (!caAudit) return <div className="text-gray-500 text-center py-12">Loading CA Audit Report...</div>;
@@ -2147,10 +2396,13 @@ ${contentHtml}
         html += `<tr class="total-row"><td><strong>${caAudit.profitLoss.isProfit ? 'Net Profit' : 'Net Loss'}</strong></td><td class="text-right ${caAudit.profitLoss.isProfit ? 'profit' : 'loss'}"><strong>${fmt(Math.abs(caAudit.profitLoss.netProfit))}</strong></td></tr></table>`;
       }
 
-      // Ledger-wise
+      // Ledger-wise with opening/closing
       if (caAudit.ledgerWise?.length) {
-        html += '<div class="section-title">LEDGER-WISE DETAILS</div><table><tr><th>Ledger</th><th>Group</th><th class="text-right">Debit</th><th class="text-right">Credit</th><th class="text-right">Closing</th><th>Type</th></tr>';
-        caAudit.ledgerWise.forEach((l: any) => { html += `<tr><td>${l.name}</td><td>${l.group}</td><td class="text-right">${fmt(l.debit)}</td><td class="text-right">${fmt(l.credit)}</td><td class="text-right">${fmt(l.closing)}</td><td>${l.closingType}</td></tr>`; });
+        html += '<div class="section-title">LEDGER-WISE DETAILS</div><table><tr><th>Ledger</th><th>Group</th><th class="text-right">Opening</th><th class="text-right">Debit</th><th class="text-right">Credit</th><th class="text-right">Closing</th><th>Type</th></tr>';
+        caAudit.ledgerWise.forEach((l: any) => {
+          const opening = (l.openingDebit || 0) - (l.openingCredit || 0);
+          html += `<tr><td>${l.name}</td><td>${l.group}</td><td class="text-right">${fmt(Math.abs(opening))} ${opening >= 0 ? 'Dr' : 'Cr'}</td><td class="text-right">${fmt(l.debit)}</td><td class="text-right">${fmt(l.credit)}</td><td class="text-right">${fmt(l.closing)}</td><td>${l.closingType}</td></tr>`;
+        });
         html += '</table>';
       }
 
@@ -2170,8 +2422,9 @@ ${contentHtml}
         html += '</table>';
       }
 
-      // Pending Bills
-      if (caAudit.pendingBills?.length) {
+      // Pending Bills — only for FY 2025-26 onwards (receipt tracking not applicable for 2024-25)
+      const fyYear = parseInt(caAudit.financialYear?.split('-')?.[0] || '0');
+      if (fyYear >= 2025 && caAudit.pendingBills?.length) {
         html += '<div class="section-title">PENDING BILLS (Missing Receipts)</div><table><tr><th>Voucher</th><th>Date</th><th>Type</th><th class="text-right">Amount (₹)</th><th>Narration</th></tr>';
         caAudit.pendingBills.forEach((b: any) => { html += `<tr><td>${b.voucherNumber}</td><td>${new Date(b.date).toLocaleDateString('en-IN')}</td><td>${b.type}</td><td class="text-right">${fmt(b.amount)}</td><td>${b.narration || '-'}</td></tr>`; });
         html += '</table>';
@@ -2180,14 +2433,54 @@ ${contentHtml}
       handlePrintReport('CA Audit Report (Complete)', html);
     };
 
+    // ── Build drill-down data structure ──────────────────────────
+    // Group ledgers: Group → SubGroup → Ledger[]
+    const ledgerData = caAudit.ledgerWise || [];
+    const GROUP_ORDER_LIST = ['ASSET', 'LIABILITY', 'INCOME', 'EXPENSE', 'CAPITAL'];
+    const GROUP_LABELS: Record<string, string> = {
+      ASSET: 'Assets',
+      LIABILITY: 'Liabilities',
+      INCOME: 'Income',
+      EXPENSE: 'Expenses',
+      CAPITAL: 'Capital & Equity',
+    };
+    const GROUP_THEME: Record<string, { border: string; headerBg: string; text: string; subBg: string; accent: string }> = {
+      ASSET: { border: 'border-blue-500/30', headerBg: 'bg-blue-500/10', text: 'text-blue-400', subBg: 'bg-blue-500/5', accent: 'text-blue-300' },
+      LIABILITY: { border: 'border-red-500/30', headerBg: 'bg-red-500/10', text: 'text-red-400', subBg: 'bg-red-500/5', accent: 'text-red-300' },
+      INCOME: { border: 'border-green-500/30', headerBg: 'bg-green-500/10', text: 'text-green-400', subBg: 'bg-green-500/5', accent: 'text-green-300' },
+      EXPENSE: { border: 'border-orange-500/30', headerBg: 'bg-orange-500/10', text: 'text-orange-400', subBg: 'bg-orange-500/5', accent: 'text-orange-300' },
+      CAPITAL: { border: 'border-purple-500/30', headerBg: 'bg-purple-500/10', text: 'text-purple-400', subBg: 'bg-purple-500/5', accent: 'text-purple-300' },
+    };
+
+    // Build hierarchy: group → subGroup → ledgers
+    const groupHierarchy: Record<string, Record<string, any[]>> = {};
+    const groupTotals: Record<string, { debit: number; credit: number; closing: number }> = {};
+
+    for (const l of ledgerData) {
+      const g = l.group || 'OTHER';
+      const sg = l.subGroup || 'General';
+      if (!groupHierarchy[g]) { groupHierarchy[g] = {}; groupTotals[g] = { debit: 0, credit: 0, closing: 0 }; }
+      if (!groupHierarchy[g][sg]) groupHierarchy[g][sg] = [];
+      groupHierarchy[g][sg].push(l);
+      groupTotals[g].debit += l.debit || 0;
+      groupTotals[g].credit += l.credit || 0;
+      groupTotals[g].closing += l.closing || 0;
+    }
+
+    const sortedGroups = GROUP_ORDER_LIST.filter(g => groupHierarchy[g]);
+
     return (
       <div className="space-y-4">
         {/* Header with download */}
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-gray-400 flex items-center gap-2"><Shield className="w-4 h-4" /> CA Audit Report — FY {fy}</h3>
-          <button onClick={printFullAudit} className="px-4 py-2 bg-yellow-600 text-black text-sm rounded-lg hover:bg-yellow-500 flex items-center gap-2 font-semibold">
-            <Printer className="w-4 h-4" /> Print / Download PDF
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={expandAllCaGroups} className="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-400 text-xs rounded">Expand All</button>
+            <button onClick={collapseAllCaGroups} className="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-400 text-xs rounded">Collapse All</button>
+            <button onClick={printFullAudit} className="px-4 py-2 bg-yellow-600 text-black text-sm rounded-lg hover:bg-yellow-500 flex items-center gap-2 font-semibold">
+              <Printer className="w-4 h-4" /> Print / Download PDF
+            </button>
+          </div>
         </div>
 
         {/* Summary Cards */}
@@ -2212,7 +2505,7 @@ ${contentHtml}
           </div>
         </div>
 
-        {/* Trial Balance Summary */}
+        {/* Trial Balance Quick Stats */}
         {caAudit.trialBalance && (
           <div className="bg-gray-900 rounded-xl border border-gray-800 p-5">
             <h4 className="text-sm font-semibold text-gray-400 mb-3 flex items-center gap-2"><Scale className="w-4 h-4" /> Trial Balance</h4>
@@ -2234,6 +2527,334 @@ ${contentHtml}
             </div>
           </div>
         )}
+
+        {/* ═══════════════════════════════════════════════════════════
+            TALLY PRIME-STYLE DRILL-DOWN — Account Groups → Sub-Groups → Ledgers → Transactions
+            ═══════════════════════════════════════════════════════════ */}
+        <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+          <div className="px-4 py-3 bg-yellow-500/10 border-b border-gray-800 flex items-center justify-between">
+            <h4 className="text-sm font-semibold text-yellow-400 flex items-center gap-2">
+              <BookOpen className="w-4 h-4" /> Account Drill-Down
+              <span className="text-xs text-gray-500 font-normal ml-1">(Click to expand like Tally Prime)</span>
+            </h4>
+            <div className="text-xs text-gray-500">{ledgerData.length} ledgers</div>
+          </div>
+
+          {/* Column headers */}
+          <div className="grid grid-cols-12 gap-0 px-4 py-2 bg-gray-800/50 text-xs font-medium text-gray-500 border-b border-gray-800">
+            <div className="col-span-5">Particulars</div>
+            <div className="col-span-2 text-right">Opening</div>
+            <div className="col-span-2 text-right">Debit</div>
+            <div className="col-span-2 text-right">Credit</div>
+            <div className="col-span-1 text-right">Closing</div>
+          </div>
+
+          <div className="divide-y divide-gray-800">
+            {sortedGroups.map(group => {
+              const theme = GROUP_THEME[group] || GROUP_THEME.ASSET;
+              const isGroupExpanded = caExpandedGroups[group];
+              const subGroups = groupHierarchy[group];
+              const totals = groupTotals[group];
+              const subGroupKeys = Object.keys(subGroups).sort();
+
+              return (
+                <div key={group}>
+                  {/* ── LEVEL 1: Account Group Header ── */}
+                  <button
+                    onClick={() => toggleCaGroup(group)}
+                    className={`w-full grid grid-cols-12 gap-0 px-4 py-3 items-center hover:bg-gray-800/70 transition-colors cursor-pointer ${theme.headerBg}`}
+                  >
+                    <div className="col-span-5 flex items-center gap-2">
+                      {isGroupExpanded ? <ChevronDown className={`w-4 h-4 ${theme.text}`} /> : <ChevronRight className={`w-4 h-4 ${theme.text}`} />}
+                      <span className={`text-sm font-bold ${theme.text}`}>{GROUP_LABELS[group] || group}</span>
+                      <span className="text-xs text-gray-500">({subGroupKeys.length} sub-groups)</span>
+                    </div>
+                    <div className="col-span-2 text-right text-xs font-mono text-gray-400">
+                      {/* Group opening = sum of all ledger openings under this group */}
+                    </div>
+                    <div className="col-span-2 text-right text-sm font-mono font-semibold text-blue-400">
+                      {totals.debit > 0 ? fmt(totals.debit) : '-'}
+                    </div>
+                    <div className="col-span-2 text-right text-sm font-mono font-semibold text-red-400">
+                      {totals.credit > 0 ? fmt(totals.credit) : '-'}
+                    </div>
+                    <div className={`col-span-1 text-right text-sm font-mono font-bold ${theme.text}`}>
+                      {fmt(totals.closing)}
+                    </div>
+                  </button>
+
+                  {/* ── LEVEL 2: Sub-Groups ── */}
+                  {isGroupExpanded && subGroupKeys.map(sg => {
+                    const sgKey = `${group}:${sg}`;
+                    const isSgExpanded = caExpandedSubGroups[sgKey];
+                    const sgLedgers = subGroups[sg];
+                    const sgTotalDebit = sgLedgers.reduce((s: number, l: any) => s + (l.debit || 0), 0);
+                    const sgTotalCredit = sgLedgers.reduce((s: number, l: any) => s + (l.credit || 0), 0);
+                    const sgTotalClosing = sgLedgers.reduce((s: number, l: any) => s + (l.closing || 0), 0);
+                    const sgTotalOpeningDr = sgLedgers.reduce((s: number, l: any) => s + (l.openingDebit || 0), 0);
+                    const sgTotalOpeningCr = sgLedgers.reduce((s: number, l: any) => s + (l.openingCredit || 0), 0);
+                    const sgOpeningNet = sgTotalOpeningDr - sgTotalOpeningCr;
+
+                    return (
+                      <div key={sgKey}>
+                        <div
+                          className={`w-full grid grid-cols-12 gap-0 px-4 py-2.5 items-center hover:bg-gray-800/50 transition-colors cursor-pointer ${theme.subBg}`}
+                        >
+                          <div className="col-span-5 flex items-center gap-2 pl-6" onClick={() => toggleCaSubGroup(sgKey)}>
+                            {isSgExpanded ? <ChevronDown className="w-3.5 h-3.5 text-gray-400" /> : <ChevronRight className="w-3.5 h-3.5 text-gray-400" />}
+                            <span className={`text-sm font-semibold ${theme.accent}`}>{sg}</span>
+                            <span className="text-xs text-gray-600">({sgLedgers.length})</span>
+                            {isSgExpanded && (
+                              <button onClick={(e) => { e.stopPropagation(); toggleCaSubGroup(sgKey); }}
+                                className="ml-2 p-0.5 rounded hover:bg-gray-700 text-gray-500 hover:text-yellow-400 transition-colors" title="Collapse">
+                                <ArrowLeft className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+                          <div className="col-span-2 text-right text-xs font-mono text-gray-500" onClick={() => toggleCaSubGroup(sgKey)}>
+                            {Math.abs(sgOpeningNet) > 0.01 ? `${fmt(Math.abs(sgOpeningNet))} ${sgOpeningNet >= 0 ? 'Dr' : 'Cr'}` : '-'}
+                          </div>
+                          <div className="col-span-2 text-right text-xs font-mono text-blue-400/80" onClick={() => toggleCaSubGroup(sgKey)}>
+                            {sgTotalDebit > 0 ? fmt(sgTotalDebit) : '-'}
+                          </div>
+                          <div className="col-span-2 text-right text-xs font-mono text-red-400/80" onClick={() => toggleCaSubGroup(sgKey)}>
+                            {sgTotalCredit > 0 ? fmt(sgTotalCredit) : '-'}
+                          </div>
+                          <div className={`col-span-1 text-right text-xs font-mono font-semibold ${theme.accent}`} onClick={() => toggleCaSubGroup(sgKey)}>
+                            {fmt(sgTotalClosing)}
+                          </div>
+                        </div>
+
+                        {/* ── LEVEL 3: Individual Ledgers ── */}
+                        {isSgExpanded && sgLedgers.map((ledger: any, li: number) => {
+                          const isLedgerExpanded = caExpandedLedgers[ledger.ledgerId];
+                          const isLedgerLoading = caLedgerLoading[ledger.ledgerId];
+                          const statement = caLedgerStatements[ledger.ledgerId];
+                          const openingNet = (ledger.openingDebit || 0) - (ledger.openingCredit || 0);
+
+                          return (
+                            <div key={`${sgKey}-${li}`}>
+                              <div
+                                className="w-full grid grid-cols-12 gap-0 px-4 py-2 items-center hover:bg-gray-800/40 transition-colors cursor-pointer"
+                              >
+                                <div className="col-span-5 flex items-center gap-2 pl-12" onClick={() => ledger.ledgerId && toggleCaLedger(ledger.ledgerId)}>
+                                  {isLedgerExpanded ? <ChevronDown className="w-3 h-3 text-gray-500" /> : <ChevronRight className="w-3 h-3 text-gray-500" />}
+                                  <span className="text-sm text-gray-300">{ledger.name}</span>
+                                  {isLedgerLoading && <RefreshCw className="w-3 h-3 text-yellow-500 animate-spin" />}
+                                  {isLedgerExpanded && (
+                                    <button onClick={(e) => { e.stopPropagation(); toggleCaLedger(ledger.ledgerId); }}
+                                      className="ml-1 p-0.5 rounded hover:bg-gray-700 text-gray-500 hover:text-yellow-400 transition-colors" title="Collapse">
+                                      <ArrowLeft className="w-3 h-3" />
+                                    </button>
+                                  )}
+                                </div>
+                                <div className="col-span-2 text-right text-xs font-mono text-gray-500" onClick={() => ledger.ledgerId && toggleCaLedger(ledger.ledgerId)}>
+                                  {Math.abs(openingNet) > 0.01 ? `${fmt(Math.abs(openingNet))} ${openingNet >= 0 ? 'Dr' : 'Cr'}` : '-'}
+                                </div>
+                                <div className="col-span-2 text-right text-xs font-mono text-blue-400/70" onClick={() => ledger.ledgerId && toggleCaLedger(ledger.ledgerId)}>
+                                  {ledger.debit > 0 ? fmt(ledger.debit) : '-'}
+                                </div>
+                                <div className="col-span-2 text-right text-xs font-mono text-red-400/70" onClick={() => ledger.ledgerId && toggleCaLedger(ledger.ledgerId)}>
+                                  {ledger.credit > 0 ? fmt(ledger.credit) : '-'}
+                                </div>
+                                <div className="col-span-1 text-right text-xs font-mono text-yellow-400 font-semibold" onClick={() => ledger.ledgerId && toggleCaLedger(ledger.ledgerId)}>
+                                  {fmt(ledger.closing)} <span className="text-gray-500">{ledger.closingType}</span>
+                                </div>
+                              </div>
+
+                              {/* ── LEVEL 4: Tally Prime-style Ledger Voucher View ── */}
+                              {isLedgerExpanded && (
+                                <div className="mx-4 mb-3 ml-16 mr-6 bg-gray-950 rounded-lg border border-gray-800 overflow-hidden">
+                                  {/* ── Header Bar ── */}
+                                  <div className="flex items-center justify-between px-4 py-2.5 bg-gray-800 border-b border-gray-700">
+                                    <button onClick={() => toggleCaLedger(ledger.ledgerId)}
+                                      className="flex items-center gap-2 text-sm text-gray-300 hover:text-yellow-400 transition-colors">
+                                      <ArrowLeft className="w-4 h-4" />
+                                      <span className="font-semibold">Back</span>
+                                    </button>
+                                    <div className="text-center">
+                                      <div className="text-sm font-bold text-yellow-400">{ledger.name}</div>
+                                      <div className="text-[10px] text-gray-500">{caAudit.financialYear || 'FY'} &middot; Ledger Vouchers</div>
+                                    </div>
+                                    <div className="w-16"></div>
+                                  </div>
+
+                                  {isLedgerLoading && (
+                                    <div className="flex items-center justify-center py-8 text-gray-500 text-sm gap-2">
+                                      <RefreshCw className="w-4 h-4 animate-spin text-yellow-500" /> Loading transactions...
+                                    </div>
+                                  )}
+
+                                  {statement?.error && (
+                                    <div className="px-4 py-3 text-xs text-red-400 bg-red-500/10">
+                                      <AlertTriangle className="w-3 h-3 inline mr-1" /> {statement.error}
+                                    </div>
+                                  )}
+
+                                  {statement && !statement.error && (() => {
+                                    const txns = statement.transactions || [];
+
+                                    return (
+                                      <div className="max-h-[70vh] overflow-y-auto">
+                                        {/* Column Headers */}
+                                        <div className="grid grid-cols-12 gap-0 px-4 py-2 bg-gray-800/60 border-b border-gray-700 text-[10px] font-semibold text-gray-400 uppercase tracking-wider sticky top-0 z-10">
+                                          <div className="col-span-2">Date</div>
+                                          <div className="col-span-3">Particulars</div>
+                                          <div className="col-span-2">Vch Type</div>
+                                          <div className="col-span-1">Vch No.</div>
+                                          <div className="col-span-2 text-right">Debit (₹)</div>
+                                          <div className="col-span-2 text-right">Credit (₹)</div>
+                                        </div>
+
+                                        {/* Opening Balance */}
+                                        <div className="grid grid-cols-12 gap-0 px-4 py-2 bg-yellow-500/5 border-b border-gray-800 font-semibold">
+                                          <div className="col-span-2 text-xs text-gray-500">—</div>
+                                          <div className="col-span-3 text-xs text-yellow-400">Opening Balance</div>
+                                          <div className="col-span-3"></div>
+                                          <div className="col-span-2 text-right text-xs font-mono text-blue-400">
+                                            {statement.openingBalanceType === 'Dr' ? fmt(statement.openingBalance || 0) : ''}
+                                          </div>
+                                          <div className="col-span-2 text-right text-xs font-mono text-red-400">
+                                            {statement.openingBalanceType === 'Cr' ? fmt(statement.openingBalance || 0) : ''}
+                                          </div>
+                                        </div>
+
+                                        {/* Transaction Rows */}
+                                        {txns.map((txn: any, ti: number) => (
+                                          <div
+                                            key={ti}
+                                            onClick={async () => {
+                                              if (!txn.voucherId) return;
+                                              try {
+                                                const res = await apiFetch(`/api/tally/vouchers?id=${txn.voucherId}`);
+                                                if (res) openEditVoucher(res);
+                                              } catch (e: any) { setError(e.message); }
+                                            }}
+                                            className={`grid grid-cols-12 gap-0 px-4 py-1.5 border-b border-gray-800/30 hover:bg-yellow-500/10 transition-colors items-center ${txn.voucherId ? 'cursor-pointer' : ''}`}
+                                            title={txn.voucherId ? 'Click to open voucher' : ''}
+                                          >
+                                            <div className="col-span-2 text-xs text-gray-400">
+                                              {new Date(txn.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' })}
+                                            </div>
+                                            <div className="col-span-3 text-xs text-gray-300 truncate" title={`${txn.contraLedger || '-'} ${txn.narration ? '| ' + txn.narration : ''}`}>
+                                              {txn.contraLedger || '-'}
+                                              {txn.narration && <span className="text-gray-600 ml-1">({txn.narration})</span>}
+                                            </div>
+                                            <div className="col-span-2">
+                                              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${VOUCHER_COLORS[txn.voucherType] || 'text-gray-400 bg-gray-800'}`}>
+                                                {txn.voucherType}
+                                              </span>
+                                            </div>
+                                            <div className="col-span-1 text-xs font-mono text-gray-500">{txn.voucherNumber}</div>
+                                            <div className="col-span-2 text-right text-xs font-mono text-blue-400">
+                                              {txn.debit > 0 ? fmt(txn.debit) : ''}
+                                            </div>
+                                            <div className="col-span-2 text-right text-xs font-mono text-red-400">
+                                              {txn.credit > 0 ? fmt(txn.credit) : ''}
+                                            </div>
+                                          </div>
+                                        ))}
+
+                                        {/* Current Total */}
+                                        <div className="grid grid-cols-12 gap-0 px-4 py-2 bg-gray-800/40 border-t border-gray-700 font-semibold sticky bottom-8 z-10">
+                                          <div className="col-span-2 text-xs text-gray-500"></div>
+                                          <div className="col-span-3 text-xs text-gray-400">Current Total</div>
+                                          <div className="col-span-3"></div>
+                                          <div className="col-span-2 text-right text-xs font-mono font-bold text-blue-400">
+                                            {fmt(txns.reduce((s: number, t: any) => s + (t.debit || 0), 0))}
+                                          </div>
+                                          <div className="col-span-2 text-right text-xs font-mono font-bold text-red-400">
+                                            {fmt(txns.reduce((s: number, t: any) => s + (t.credit || 0), 0))}
+                                          </div>
+                                        </div>
+
+                                        {/* Closing Balance */}
+                                        <div className="grid grid-cols-12 gap-0 px-4 py-2.5 bg-yellow-500/10 border-t-2 border-yellow-500/30 font-bold sticky bottom-0 z-10">
+                                          <div className="col-span-2 text-xs text-gray-500">—</div>
+                                          <div className="col-span-3 text-xs text-yellow-400">Closing Balance</div>
+                                          <div className="col-span-3"></div>
+                                          <div className="col-span-2 text-right text-sm font-mono text-blue-400">
+                                            {(statement.closingBalanceType || 'Dr') === 'Dr' ? fmt(statement.closingBalance || 0) : ''}
+                                          </div>
+                                          <div className="col-span-2 text-right text-sm font-mono text-red-400">
+                                            {(statement.closingBalanceType || 'Dr') === 'Cr' ? fmt(statement.closingBalance || 0) : ''}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })()}
+
+                                  {/* Footer */}
+                                  <div className="flex items-center justify-between px-4 py-1.5 bg-gray-800/50 border-t border-gray-700 text-[10px] text-gray-600">
+                                    <span>{statement?.transactions?.length || 0} transaction(s)</span>
+                                    <span>↗ Click any row to open voucher</span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+
+                        {/* Sub-group Total */}
+                        {isSgExpanded && (
+                          <div className={`grid grid-cols-12 gap-0 px-4 py-1.5 ${theme.subBg} border-t border-gray-800/50`}>
+                            <div className="col-span-5 pl-12 text-xs font-semibold text-gray-400">
+                              Total: {sg}
+                            </div>
+                            <div className="col-span-2"></div>
+                            <div className="col-span-2 text-right text-xs font-mono font-semibold text-blue-400/80">
+                              {sgTotalDebit > 0 ? fmt(sgTotalDebit) : ''}
+                            </div>
+                            <div className="col-span-2 text-right text-xs font-mono font-semibold text-red-400/80">
+                              {sgTotalCredit > 0 ? fmt(sgTotalCredit) : ''}
+                            </div>
+                            <div className={`col-span-1 text-right text-xs font-mono font-bold ${theme.accent}`}>
+                              {fmt(sgTotalClosing)}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* Group Total */}
+                  {isGroupExpanded && (
+                    <div className={`grid grid-cols-12 gap-0 px-4 py-2 ${theme.headerBg} border-t border-gray-800`}>
+                      <div className={`col-span-5 text-xs font-bold ${theme.text} pl-4`}>
+                        Total: {GROUP_LABELS[group] || group}
+                      </div>
+                      <div className="col-span-2"></div>
+                      <div className="col-span-2 text-right text-sm font-mono font-bold text-blue-400">
+                        {totals.debit > 0 ? fmt(totals.debit) : ''}
+                      </div>
+                      <div className="col-span-2 text-right text-sm font-mono font-bold text-red-400">
+                        {totals.credit > 0 ? fmt(totals.credit) : ''}
+                      </div>
+                      <div className={`col-span-1 text-right text-sm font-mono font-bold ${theme.text}`}>
+                        {fmt(totals.closing)}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Grand Total */}
+            <div className="grid grid-cols-12 gap-0 px-4 py-3 bg-yellow-500/10 border-t-2 border-yellow-500/30">
+              <div className="col-span-5 text-sm font-bold text-yellow-400">Grand Total</div>
+              <div className="col-span-2"></div>
+              <div className="col-span-2 text-right text-sm font-mono font-bold text-blue-400">
+                {fmt(sortedGroups.reduce((s, g) => s + groupTotals[g].debit, 0))}
+              </div>
+              <div className="col-span-2 text-right text-sm font-mono font-bold text-red-400">
+                {fmt(sortedGroups.reduce((s, g) => s + groupTotals[g].credit, 0))}
+              </div>
+              <div className="col-span-1 text-right text-sm font-mono font-bold text-yellow-400">
+                {fmt(sortedGroups.reduce((s, g) => s + groupTotals[g].closing, 0))}
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Voucher Summary */}
         {caAudit.voucherSummary?.length > 0 && (
@@ -2283,73 +2904,217 @@ ${contentHtml}
           </div>
         )}
 
-        {/* Ledger-wise Details */}
-        {caAudit.ledgerWise?.length > 0 && (
-          <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
-            <div className="px-4 py-3 bg-gray-800/50 border-b border-gray-800">
-              <h4 className="text-sm font-semibold text-gray-400 flex items-center gap-2"><BookOpen className="w-4 h-4" /> Ledger-wise Details ({caAudit.ledgerWise.length})</h4>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-800/50 text-gray-400">
-                  <tr>
-                    <th className="px-4 py-2 text-left font-medium">Ledger</th>
-                    <th className="px-4 py-2 text-left font-medium">Group</th>
-                    <th className="px-4 py-2 text-right font-medium">Debit (₹)</th>
-                    <th className="px-4 py-2 text-right font-medium">Credit (₹)</th>
-                    <th className="px-4 py-2 text-right font-medium">Closing</th>
-                    <th className="px-4 py-2 text-center font-medium">Type</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-800">
-                  {caAudit.ledgerWise.map((l: any, i: number) => (
-                    <tr key={i} className="hover:bg-gray-800/50">
-                      <td className="px-4 py-2 text-gray-200">{l.name}</td>
-                      <td className="px-4 py-2"><span className={`text-xs px-2 py-0.5 rounded ${GROUP_COLORS[l.group as AccountGroup] || ''}`}>{l.group}</span></td>
-                      <td className="px-4 py-2 text-right font-mono text-blue-400">{l.debit > 0 ? fmt(l.debit) : '-'}</td>
-                      <td className="px-4 py-2 text-right font-mono text-red-400">{l.credit > 0 ? fmt(l.credit) : '-'}</td>
-                      <td className="px-4 py-2 text-right font-mono text-yellow-400">{fmt(l.closing)}</td>
-                      <td className="px-4 py-2 text-center text-gray-400">{l.closingType}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+        {/* Pending Bills — Drill-down by Main Head → Sub-Head → Bills (only FY 2025-26+) */}
+        {(() => { const fy = parseInt(caAudit.financialYear?.split('-')?.[0] || '0'); return fy >= 2025; })() && caAudit.pendingBills?.length > 0 && (() => {
+          // 1) Group pending bills: Main Group → Ledger Name → bills
+          const BILL_GROUP_ORDER = ['INCOME', 'EXPENSE', 'ASSET', 'LIABILITY', 'CAPITAL'];
+          const BILL_GROUP_LABELS: Record<string, string> = {
+            INCOME: 'Income', EXPENSE: 'Expenses', ASSET: 'Assets', LIABILITY: 'Liabilities', CAPITAL: 'Capital & Equity',
+          };
+          const BILL_GROUP_THEME: Record<string, { border: string; bg: string; text: string; accent: string }> = {
+            INCOME:    { border: 'border-green-500/30',  bg: 'bg-green-500/10',  text: 'text-green-400',  accent: 'text-green-300' },
+            EXPENSE:   { border: 'border-orange-500/30', bg: 'bg-orange-500/10', text: 'text-orange-400', accent: 'text-orange-300' },
+            ASSET:     { border: 'border-blue-500/30',   bg: 'bg-blue-500/10',   text: 'text-blue-400',   accent: 'text-blue-300' },
+            LIABILITY: { border: 'border-red-500/30',    bg: 'bg-red-500/10',    text: 'text-red-400',    accent: 'text-red-300' },
+            CAPITAL:   { border: 'border-purple-500/30', bg: 'bg-purple-500/10', text: 'text-purple-400', accent: 'text-purple-300' },
+          };
+          const defaultTheme = { border: 'border-gray-500/30', bg: 'bg-gray-500/10', text: 'text-gray-400', accent: 'text-gray-300' };
 
-        {/* Pending Bills */}
-        {caAudit.pendingBills?.length > 0 && (
-          <div className="bg-gray-900 rounded-xl border border-red-800/50 overflow-hidden">
-            <div className="px-4 py-3 bg-red-500/10 border-b border-red-800/50">
-              <h4 className="text-sm font-semibold text-red-400 flex items-center gap-2"><AlertTriangle className="w-4 h-4" /> Pending Bills — Missing Receipts ({caAudit.pendingBills.length})</h4>
+          // Build hierarchy: group → headName → { bills[], total }
+          const billHierarchy: Record<string, Record<string, { bills: any[]; total: number }>> = {};
+          const billGroupTotals: Record<string, { count: number; total: number }> = {};
+
+          for (const b of caAudit.pendingBills) {
+            const g = b.ledgerGroup || 'OTHER';
+            const h = b.ledgerName || 'Unknown';
+            if (!billHierarchy[g]) { billHierarchy[g] = {}; billGroupTotals[g] = { count: 0, total: 0 }; }
+            if (!billHierarchy[g][h]) billHierarchy[g][h] = { bills: [], total: 0 };
+            billHierarchy[g][h].bills.push(b);
+            billHierarchy[g][h].total += b.amount || 0;
+            billGroupTotals[g].count += 1;
+            billGroupTotals[g].total += b.amount || 0;
+          }
+
+          const sortedBillGroups = BILL_GROUP_ORDER.filter(g => billHierarchy[g]);
+          const otherGroups = Object.keys(billHierarchy).filter(g => !BILL_GROUP_ORDER.includes(g)).sort();
+          const allBillGroups = [...sortedBillGroups, ...otherGroups];
+          const grandTotal = caAudit.pendingBills.reduce((s: number, b: any) => s + (b.amount || 0), 0);
+
+          return (
+            <div className="bg-gray-900 rounded-xl border border-red-800/50 overflow-hidden">
+              <div className="px-4 py-3 bg-red-500/10 border-b border-red-800/50 flex items-center justify-between">
+                <h4 className="text-sm font-semibold text-red-400 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4" /> Pending Bills — Missing Receipts ({caAudit.pendingBills.length})
+                </h4>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-mono text-red-300">Total: {fmt(grandTotal)}</span>
+                  <button onClick={() => {
+                    const eg: Record<string, boolean> = {};
+                    const eh: Record<string, boolean> = {};
+                    allBillGroups.forEach(g => {
+                      eg[`bill_${g}`] = true;
+                      Object.keys(billHierarchy[g]).forEach(h => { eh[`bill_${g}_${h}`] = true; });
+                    });
+                    setBillExpandedGroups(eg);
+                    setBillExpandedHeads(eh);
+                  }} className="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-400 text-xs rounded">Expand All</button>
+                  <button onClick={() => { setBillExpandedGroups({}); setBillExpandedHeads({}); }} className="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-400 text-xs rounded">Collapse All</button>
+                </div>
+              </div>
+
+              {/* Column headers */}
+              <div className="grid grid-cols-12 gap-0 px-4 py-2 bg-gray-800/50 text-[10px] font-medium text-gray-500 uppercase tracking-wider border-b border-gray-800">
+                <div className="col-span-6">Main Head / Sub-Head / Account</div>
+                <div className="col-span-2 text-right">Count</div>
+                <div className="col-span-4 text-right">Total Amount (₹)</div>
+              </div>
+
+              <div className="divide-y divide-gray-800">
+                {allBillGroups.map(grp => {
+                  const gTheme = BILL_GROUP_THEME[grp] || defaultTheme;
+                  const gTotals = billGroupTotals[grp];
+                  const gKey = `bill_${grp}`;
+                  const gExpanded = billExpandedGroups[gKey];
+                  const heads = Object.keys(billHierarchy[grp]).sort((a, b) => billHierarchy[grp][b].total - billHierarchy[grp][a].total);
+
+                  return (
+                    <div key={grp}>
+                      {/* ── Level 1: Main Group (Income / Expense / ...) ── */}
+                      <div
+                        onClick={() => setBillExpandedGroups(prev => ({ ...prev, [gKey]: !prev[gKey] }))}
+                        className={`grid grid-cols-12 gap-0 px-4 py-2.5 items-center cursor-pointer hover:bg-gray-800/50 transition-colors ${gTheme.bg}`}
+                      >
+                        <div className="col-span-6 flex items-center gap-2">
+                          {gExpanded ? <ChevronDown className={`w-4 h-4 ${gTheme.text}`} /> : <ChevronRight className="w-4 h-4 text-gray-500" />}
+                          <span className={`text-sm font-bold ${gTheme.text}`}>{BILL_GROUP_LABELS[grp] || grp}</span>
+                          {gExpanded && (
+                            <button onClick={(e) => { e.stopPropagation(); setBillExpandedGroups(prev => ({ ...prev, [gKey]: false })); }}
+                              className="ml-1 p-0.5 rounded hover:bg-gray-700 text-gray-500 hover:text-yellow-400 transition-colors" title="Collapse">
+                              <ArrowLeft className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                        <div className={`col-span-2 text-right text-xs ${gTheme.accent}`}>{gTotals.count} bills</div>
+                        <div className={`col-span-4 text-right text-sm font-mono font-semibold ${gTheme.text}`}>{fmt(gTotals.total)}</div>
+                      </div>
+
+                      {/* ── Level 2: Sub-heads (individual ledger names) under this group ── */}
+                      {gExpanded && (
+                        <div className={`ml-4 border-l-2 ${gTheme.border}`}>
+                          {heads.map(head => {
+                            const hData = billHierarchy[grp][head];
+                            const hKey = `bill_${grp}_${head}`;
+                            const hExpanded = billExpandedHeads[hKey];
+
+                            return (
+                              <div key={head}>
+                                <div
+                                  onClick={() => setBillExpandedHeads(prev => ({ ...prev, [hKey]: !prev[hKey] }))}
+                                  className="grid grid-cols-12 gap-0 px-4 py-2 items-center hover:bg-gray-800/50 transition-colors cursor-pointer"
+                                >
+                                  <div className="col-span-6 flex items-center gap-2">
+                                    {hExpanded ? <ChevronDown className={`w-3.5 h-3.5 ${gTheme.accent}`} /> : <ChevronRight className="w-3.5 h-3.5 text-gray-500" />}
+                                    <span className="text-sm font-medium text-gray-200">{head}</span>
+                                    {hExpanded && (
+                                      <button onClick={(e) => { e.stopPropagation(); setBillExpandedHeads(prev => ({ ...prev, [hKey]: false })); }}
+                                        className="ml-1 p-0.5 rounded hover:bg-gray-700 text-gray-500 hover:text-yellow-400 transition-colors" title="Collapse">
+                                        <ArrowLeft className="w-3 h-3" />
+                                      </button>
+                                    )}
+                                  </div>
+                                  <div className="col-span-2 text-right text-xs text-gray-500">{hData.bills.length} bills</div>
+                                  <div className={`col-span-4 text-right text-sm font-mono font-semibold ${gTheme.accent}`}>{fmt(hData.total)}</div>
+                                </div>
+
+                                {/* ── Level 3: Individual bills under this sub-head ── */}
+                                {hExpanded && (
+                                  <div className="mx-4 mb-3 ml-8 bg-gray-950 rounded-lg border border-gray-800 overflow-hidden">
+                                    {/* Back arrow */}
+                                    <div className="flex items-center justify-between px-3 py-1.5 bg-gray-800/50 border-b border-gray-800">
+                                      <button onClick={() => setBillExpandedHeads(prev => ({ ...prev, [hKey]: false }))}
+                                        className="flex items-center gap-2 text-xs text-gray-400 hover:text-yellow-400 transition-colors">
+                                        <ArrowLeft className="w-3.5 h-3.5" />
+                                        <span className="font-medium">Back</span>
+                                      </button>
+                                      <span className="text-xs text-gray-500">{hData.bills.length} voucher(s) — {fmt(hData.total)}</span>
+                                    </div>
+
+                                    {/* Bill detail header */}
+                                    <div className="grid grid-cols-12 gap-0 px-3 py-1.5 bg-gray-800/20 border-b border-gray-800/50 text-[10px] text-gray-600 font-medium uppercase tracking-wider">
+                                      <div className="col-span-2">Voucher</div>
+                                      <div className="col-span-2">Date</div>
+                                      <div className="col-span-2">Type</div>
+                                      <div className="col-span-3">Narration</div>
+                                      <div className="col-span-2 text-right">Amount (₹)</div>
+                                      <div className="col-span-1 text-right">
+                                        <span className="text-yellow-500/50">↗ Click</span>
+                                      </div>
+                                    </div>
+
+                                    {hData.bills.map((b: any, bi: number) => (
+                                      <div key={bi}
+                                        onClick={async () => {
+                                          if (!b.voucherId) return;
+                                          try {
+                                            const res = await apiFetch(`/api/tally/vouchers?id=${b.voucherId}`);
+                                            if (res) openEditVoucher(res);
+                                          } catch (e: any) { setError(e.message); }
+                                        }}
+                                        className={`grid grid-cols-12 gap-0 px-3 py-1.5 border-b border-gray-800/30 hover:bg-yellow-500/10 transition-colors items-center ${b.voucherId ? 'cursor-pointer' : ''}`}
+                                        title={b.voucherId ? 'Click to open voucher entry' : ''}
+                                      >
+                                        <div className="col-span-2 text-xs font-mono text-gray-500">{b.voucherNumber}</div>
+                                        <div className="col-span-2 text-xs text-gray-400">{new Date(b.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' })}</div>
+                                        <div className="col-span-2">
+                                          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${VOUCHER_COLORS[b.type] || 'text-gray-400 bg-gray-800'}`}>{b.type}</span>
+                                        </div>
+                                        <div className="col-span-3 text-xs text-gray-500 truncate" title={b.narration}>{b.narration || '-'}</div>
+                                        <div className="col-span-2 text-right text-xs font-mono text-yellow-400">{fmt(b.amount)}</div>
+                                        <div className="col-span-1 flex items-center justify-end gap-1">
+                                          {b.voucherId && (
+                                            <button onClick={(e) => { e.stopPropagation(); handleDeleteVoucher(b.voucherId); }}
+                                              className="p-1 rounded hover:bg-gray-700 text-gray-500 hover:text-red-400 transition-colors" title="Delete">
+                                              <Trash2 className="w-3 h-3" />
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))}
+
+                                    {/* Sub-total */}
+                                    <div className="grid grid-cols-12 gap-0 px-3 py-2 bg-red-500/5 border-t border-gray-700">
+                                      <div className="col-span-9 text-xs font-semibold text-red-300">Sub-Total: {head}</div>
+                                      <div className="col-span-2 text-right text-xs font-mono font-bold text-red-400">{fmt(hData.total)}</div>
+                                      <div className="col-span-1"></div>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+
+                          {/* Group total row */}
+                          <div className={`grid grid-cols-12 gap-0 px-4 py-2 ${gTheme.bg} border-t border-gray-800`}>
+                            <div className={`col-span-6 text-xs font-semibold ${gTheme.text}`}>Total: {BILL_GROUP_LABELS[grp] || grp}</div>
+                            <div className={`col-span-2 text-right text-xs font-mono ${gTheme.accent}`}>{gTotals.count}</div>
+                            <div className={`col-span-4 text-right text-xs font-mono font-bold ${gTheme.text}`}>{fmt(gTotals.total)}</div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Grand Total */}
+                <div className="grid grid-cols-12 gap-0 px-4 py-3 bg-red-500/10 border-t-2 border-red-500/30">
+                  <div className="col-span-6 text-sm font-bold text-red-400">Grand Total — Missing Bills</div>
+                  <div className="col-span-2 text-right text-sm font-mono text-red-300">{caAudit.pendingBills.length}</div>
+                  <div className="col-span-4 text-right text-sm font-mono font-bold text-red-400">{fmt(grandTotal)}</div>
+                </div>
+              </div>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-800/50 text-gray-400">
-                  <tr>
-                    <th className="px-4 py-2 text-left font-medium">Voucher</th>
-                    <th className="px-4 py-2 text-left font-medium">Date</th>
-                    <th className="px-4 py-2 text-left font-medium">Type</th>
-                    <th className="px-4 py-2 text-right font-medium">Amount (₹)</th>
-                    <th className="px-4 py-2 text-left font-medium">Narration</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-800">
-                  {caAudit.pendingBills.map((b: any, i: number) => (
-                    <tr key={i} className="hover:bg-gray-800/50">
-                      <td className="px-4 py-2 font-mono text-xs text-gray-400">{b.voucherNumber}</td>
-                      <td className="px-4 py-2 text-gray-400">{new Date(b.date).toLocaleDateString('en-IN')}</td>
-                      <td className="px-4 py-2"><span className={`text-xs font-medium px-2 py-0.5 rounded ${VOUCHER_COLORS[b.type] || ''}`}>{b.type}</span></td>
-                      <td className="px-4 py-2 text-right font-mono text-yellow-400">{fmt(b.amount)}</td>
-                      <td className="px-4 py-2 text-gray-500 text-xs">{b.narration || '-'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
     );
   };
@@ -3361,6 +4126,7 @@ ${contentHtml}
       {/* Modals */}
       {showLedgerForm && <LedgerForm />}
       {showVoucherForm && <VoucherForm />}
+      {editingVoucher && <EditVoucherForm />}
     </div>
   );
 }
