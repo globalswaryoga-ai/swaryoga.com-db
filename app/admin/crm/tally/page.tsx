@@ -51,6 +51,7 @@ import {
   Percent,
   GitBranch,
   Activity,
+  Palette,
 } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────
@@ -217,6 +218,20 @@ export default function TallyPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Theme: 'dark' (default) or 'tally' (Tally Prime cream/blue)
+  const [tallyTheme, setTallyTheme] = useState<'dark' | 'tally'>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('tallyTheme') as 'dark' | 'tally') || 'dark';
+    }
+    return 'dark';
+  });
+  const toggleTheme = () => {
+    const next = tallyTheme === 'dark' ? 'tally' : 'dark';
+    setTallyTheme(next);
+    localStorage.setItem('tallyTheme', next);
+  };
+  const isTally = tallyTheme === 'tally';
 
   // Data states
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -7504,7 +7519,133 @@ ${contentHtml}
   // ── Main Render ───────────────────────────────────────────────────
 
   return (
-    <div className="flex min-h-screen bg-gray-950 text-white">
+    <>
+    {/* Tally Prime Theme CSS Overrides */}
+    {isTally && (
+      <style dangerouslySetInnerHTML={{ __html: `
+        /* ── Tally Prime Classic Theme ─────────────────────────── */
+        .tally-classic { background: #F4EFE1 !important; color: #1A1A2E !important; }
+
+        /* Cards & panels */
+        .tally-classic .bg-gray-900 { background: #FFFFFF !important; }
+        .tally-classic .bg-gray-800 { background: #EDE8D5 !important; }
+        .tally-classic [class*="bg-gray-800\/"] { background: #F0EBD8 !important; }
+        .tally-classic .bg-gray-950 { background: #F4EFE1 !important; }
+
+        /* Borders */
+        .tally-classic .border-gray-800 { border-color: #D4C9A8 !important; }
+        .tally-classic .border-gray-700 { border-color: #C5B99B !important; }
+        .tally-classic [class*="border-gray-"] { border-color: #D4C9A8 !important; }
+
+        /* Text */
+        .tally-classic .text-white { color: #1A1A2E !important; }
+        .tally-classic .text-gray-200 { color: #1A1A2E !important; }
+        .tally-classic .text-gray-300 { color: #2A2A3E !important; }
+        .tally-classic .text-gray-400 { color: #4A4A5A !important; }
+        .tally-classic .text-gray-500 { color: #6A6A7A !important; }
+
+        /* Amount colors — keep meaningful but darken */
+        .tally-classic .text-blue-400,
+        .tally-classic .text-blue-300 { color: #003399 !important; }
+        .tally-classic .text-red-400,
+        .tally-classic .text-red-300 { color: #CC0000 !important; }
+        .tally-classic .text-green-400,
+        .tally-classic .text-green-300 { color: #006600 !important; }
+        .tally-classic .text-yellow-400,
+        .tally-classic .text-yellow-300 { color: #8B6914 !important; }
+        .tally-classic .text-orange-400 { color: #CC6600 !important; }
+        .tally-classic .text-purple-400 { color: #6600AA !important; }
+        .tally-classic .text-cyan-400 { color: #006680 !important; }
+        .tally-classic .text-emerald-400 { color: #005533 !important; }
+        .tally-classic .text-rose-400 { color: #CC3333 !important; }
+        .tally-classic .text-indigo-400 { color: #3333AA !important; }
+        .tally-classic .text-pink-400 { color: #AA3366 !important; }
+        .tally-classic .text-amber-400 { color: #996600 !important; }
+
+        /* Table header — signature Tally navy blue */
+        .tally-classic thead { background: #003366 !important; }
+        .tally-classic thead th,
+        .tally-classic thead td { color: #FFFFFF !important; }
+        .tally-classic tfoot { background: #003366 !important; }
+        .tally-classic tfoot td { color: #FFFFFF !important; }
+
+        /* Table rows */
+        .tally-classic tbody tr { background: #FFFFFF !important; }
+        .tally-classic tbody tr:nth-child(even) { background: #FAF7F0 !important; }
+        .tally-classic tbody tr:hover { background: #EDE8D5 !important; }
+        .tally-classic .divide-gray-800 > :not([hidden]) ~ :not([hidden]) { border-color: #E0D9C4 !important; }
+
+        /* Color tints for stat cards */
+        .tally-classic [class*="bg-blue-500\/"] { background: #E3F0FE !important; }
+        .tally-classic [class*="bg-green-500\/"] { background: #E3F5E3 !important; }
+        .tally-classic [class*="bg-red-500\/"] { background: #FEE3E3 !important; }
+        .tally-classic [class*="bg-yellow-500\/"],
+        .tally-classic [class*="bg-yellow-600\/"] { background: #FFF8E1 !important; }
+        .tally-classic [class*="bg-purple-500\/"],
+        .tally-classic [class*="bg-purple-600\/"] { background: #F0E3FE !important; }
+        .tally-classic [class*="bg-orange-500\/"] { background: #FFF3E0 !important; }
+        .tally-classic [class*="bg-cyan-500\/"] { background: #E0F7FA !important; }
+        .tally-classic [class*="bg-emerald-500\/"] { background: #E0F2EF !important; }
+        .tally-classic [class*="bg-rose-500\/"] { background: #FEE3E8 !important; }
+        .tally-classic [class*="bg-indigo-500\/"],
+        .tally-classic [class*="bg-indigo-600\/"] { background: #E8E3FE !important; }
+
+        /* Borders for tinted cards */
+        .tally-classic [class*="border-blue-"] { border-color: #90CAF9 !important; }
+        .tally-classic [class*="border-green-"] { border-color: #A5D6A7 !important; }
+        .tally-classic [class*="border-red-"] { border-color: #EF9A9A !important; }
+        .tally-classic [class*="border-yellow-"] { border-color: #E6C85E !important; }
+        .tally-classic [class*="border-purple-"] { border-color: #CE93D8 !important; }
+        .tally-classic [class*="border-cyan-"] { border-color: #80DEEA !important; }
+        .tally-classic [class*="border-orange-"] { border-color: #FFCC80 !important; }
+        .tally-classic [class*="border-emerald-"] { border-color: #80CBC4 !important; }
+
+        /* Active tab highlight — Tally navy blue */
+        .tally-classic .border-yellow-500 { border-color: #003366 !important; }
+        .tally-classic .border-b-2.border-yellow-500 { border-bottom-color: #003366 !important; }
+
+        /* Tab bar bottom border */
+        .tally-classic .border-b.border-gray-800 { border-bottom-color: #C5B99B !important; }
+
+        /* Inputs & selects */
+        .tally-classic input,
+        .tally-classic select,
+        .tally-classic textarea {
+          background: #FFFFFF !important;
+          border-color: #C5B99B !important;
+          color: #1A1A2E !important;
+        }
+        .tally-classic input::placeholder,
+        .tally-classic textarea::placeholder { color: #999 !important; }
+        .tally-classic option { background: #FFFFFF !important; color: #1A1A2E !important; }
+
+        /* Buttons */
+        .tally-classic .hover\\:bg-gray-800:hover,
+        .tally-classic .hover\\:bg-gray-600:hover { background: #EDE8D5 !important; }
+        .tally-classic .bg-gray-700 { background: #003366 !important; color: #FFFFFF !important; }
+        .tally-classic .bg-gray-700:hover { background: #004488 !important; }
+
+        /* Rounded cards */
+        .tally-classic .rounded-xl { border-radius: 8px !important; box-shadow: 0 1px 3px rgba(0,0,0,0.08) !important; }
+
+        /* Modals */
+        .tally-classic [class*="bg-black\/"] { background: rgba(0,0,0,0.4) !important; }
+
+        /* Lock/unlock button overrides */
+        .tally-classic [class*="bg-red-500\/"][class*="border-red-"] { background: #FEE3E3 !important; }
+        .tally-classic [class*="bg-green-500\/"][class*="border-green-"] { background: #E3F5E3 !important; }
+
+        /* Scrollbar for Tally theme */
+        .tally-classic ::-webkit-scrollbar { width: 8px; height: 8px; }
+        .tally-classic ::-webkit-scrollbar-track { background: #F4EFE1; }
+        .tally-classic ::-webkit-scrollbar-thumb { background: #C5B99B; border-radius: 4px; }
+        .tally-classic ::-webkit-scrollbar-thumb:hover { background: #A89870; }
+
+        /* Print header */
+        .tally-classic .font-mono { font-family: 'Courier New', Courier, monospace !important; }
+      ` }} />
+    )}
+    <div className={`flex min-h-screen ${isTally ? 'tally-classic bg-[#F4EFE1] text-[#1A1A2E]' : 'bg-gray-950 text-white'}`}>
       <AdminSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <main className="flex-1 p-4 lg:p-6 overflow-auto">
@@ -7561,6 +7702,20 @@ ${contentHtml}
             <button onClick={() => { clearAllCachedData(); refreshCurrentTab(); }}
               className="p-2 hover:bg-gray-800 rounded-lg" title="Refresh">
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-yellow-500' : 'text-gray-400'}`} />
+            </button>
+
+            {/* Theme Toggle */}
+            <button
+              onClick={toggleTheme}
+              className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                isTally
+                  ? 'bg-[#003366] border-[#003366] text-white hover:bg-[#004488]'
+                  : 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'
+              }`}
+              title={isTally ? 'Switch to Dark theme' : 'Switch to Tally Prime theme'}
+            >
+              <Palette className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">{isTally ? 'Tally' : 'Dark'}</span>
             </button>
           </div>
         </div>
@@ -7634,5 +7789,6 @@ ${contentHtml}
       {showVoucherForm && <VoucherForm />}
       {editingVoucher && <EditVoucherForm />}
     </div>
+    </>
   );
 }
