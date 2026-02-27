@@ -41,6 +41,8 @@ import {
   ChevronRight,
   Trash2,
   Pencil,
+  Layers,
+  Banknote,
 } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────
@@ -48,7 +50,7 @@ import {
 type AccountGroup = 'ASSET' | 'LIABILITY' | 'INCOME' | 'EXPENSE' | 'CAPITAL';
 type BalanceType = 'DEBIT' | 'CREDIT';
 type VoucherType = 'RECEIPT' | 'PAYMENT' | 'JOURNAL' | 'CONTRA' | 'SALES' | 'PURCHASE' | 'DEBIT_NOTE' | 'CREDIT_NOTE';
-type ViewTab = 'dashboard' | 'account' | 'ledgers' | 'vouchers' | 'trial-balance' | 'profit-loss' | 'monthly-pl' | 'balance-sheet' | 'daybook' | 'ca-audit' | 'ca-bills' | 'settings';
+type ViewTab = 'dashboard' | 'account' | 'ledgers' | 'vouchers' | 'trial-balance' | 'profit-loss' | 'monthly-pl' | 'balance-sheet' | 'daybook' | 'cashbank' | 'group-summary' | 'ca-audit' | 'ca-bills' | 'settings';
 
 interface Ledger {
   id: string;
@@ -149,6 +151,8 @@ const TABS: { key: ViewTab; label: string; icon: any }[] = [
   { key: 'ledgers', label: 'Ledgers', icon: BookOpen },
   { key: 'vouchers', label: 'Vouchers', icon: FileText },
   { key: 'daybook', label: 'Day Book', icon: Calendar },
+  { key: 'cashbank', label: 'Cash/Bank', icon: Wallet },
+  { key: 'group-summary', label: 'Group Summary', icon: Layers },
   { key: 'trial-balance', label: 'Trial Balance', icon: Scale },
   { key: 'profit-loss', label: 'P&L (Yearly)', icon: TrendingUp },
   { key: 'monthly-pl', label: 'P&L (Monthly)', icon: IndianRupee },
@@ -209,6 +213,24 @@ export default function TallyPage() {
   const [daybookTypeFilter, setDaybookTypeFilter] = useState<string>('ALL');
   const [daybookSearch, setDaybookSearch] = useState('');
   const [daybookTotals, setDaybookTotals] = useState({ totalDebit: 0, totalCredit: 0 });
+
+  // Cash/Bank Book state
+  const [cashBankLedgers, setCashBankLedgers] = useState<{ id: string; name: string; subGroup: string; openingBalance: number; openingBalanceType: string }[]>([]);
+  const [cashBankSelectedLedger, setCashBankSelectedLedger] = useState('');
+  const [cashBankData, setCashBankData] = useState<any>(null);
+  const [cashBankDateFrom, setCashBankDateFrom] = useState('');
+  const [cashBankDateTo, setCashBankDateTo] = useState('');
+  const [cashBankSearch, setCashBankSearch] = useState('');
+  const [cashBankLoading, setCashBankLoading] = useState(false);
+
+  // Group Summary state
+  const [groupSummary, setGroupSummary] = useState<any>(null);
+  const [gsExpandedGroups, setGsExpandedGroups] = useState<Record<string, boolean>>({});
+  const [gsExpandedSubGroups, setGsExpandedSubGroups] = useState<Record<string, boolean>>({});
+  const [gsExpandedLedgers, setGsExpandedLedgers] = useState<Record<string, boolean>>({});
+  const [gsLedgerStatements, setGsLedgerStatements] = useState<Record<string, any>>({});
+  const [gsLedgerLoading, setGsLedgerLoading] = useState<Record<string, boolean>>({});
+
   const [monthlyPL, setMonthlyPL] = useState<MonthlyPLRow[]>([]);
   const [caAudit, setCaAudit] = useState<any>(null);
   const [bills, setBills] = useState<any[]>([]);
@@ -273,6 +295,9 @@ export default function TallyPage() {
     setBalanceSheet(null);
     setDaybook([]);
     setDaybookLedgerSummary(null);
+    setCashBankLedgers([]);
+    setCashBankSelectedLedger('');
+    setCashBankData(null);
     setMonthlyPL([]);
     setCaAudit(null);
     // Reset drill-down state
@@ -281,6 +306,13 @@ export default function TallyPage() {
     setCaExpandedLedgers({});
     setCaLedgerStatements({});
     setCaLedgerLoading({});
+    // Reset group summary state
+    setGroupSummary(null);
+    setGsExpandedGroups({});
+    setGsExpandedSubGroups({});
+    setGsExpandedLedgers({});
+    setGsLedgerStatements({});
+    setGsLedgerLoading({});
   }, []);
 
   const loadSummary = useCallback(async () => {
@@ -338,6 +370,35 @@ export default function TallyPage() {
     } catch (e: any) { setError(e.message); }
   }, [apiFetch, fy]);
 
+  // Load Cash/Bank Book ledger list
+  const loadCashBankLedgers = useCallback(async () => {
+    try {
+      const data = await apiFetch(`/api/tally/daybook?fy=${fy}&register=cashbank`);
+      const list = data?.ledgers || [];
+      setCashBankLedgers(list);
+      // Auto-select Cash-in-Hand or first available
+      if (list.length > 0 && !cashBankSelectedLedger) {
+        const cashLedger = list.find((l: any) => l.subGroup === 'Cash-in-Hand');
+        setCashBankSelectedLedger(cashLedger?.id || list[0].id);
+      }
+    } catch (e: any) { setError(e.message); }
+  }, [apiFetch, fy, cashBankSelectedLedger]);
+
+  // Load Cash/Bank Book statement for selected ledger
+  const loadCashBankStatement = useCallback(async (ledgerId?: string, dateFrom?: string, dateTo?: string) => {
+    const lid = ledgerId || cashBankSelectedLedger;
+    if (!lid) return;
+    setCashBankLoading(true);
+    try {
+      let url = `/api/tally/ledgers/${lid}/statement?fy=${fy}`;
+      if (dateFrom) url += `&dateFrom=${dateFrom}`;
+      if (dateTo) url += `&dateTo=${dateTo}`;
+      const data = await apiFetch(url);
+      setCashBankData(data);
+    } catch (e: any) { setError(e.message); }
+    setCashBankLoading(false);
+  }, [apiFetch, fy, cashBankSelectedLedger]);
+
   const loadMonthlyPL = useCallback(async () => {
     try {
       const data = await apiFetch(`/api/tally/reports?type=monthly-pl&fy=${fy}`);
@@ -359,6 +420,13 @@ export default function TallyPage() {
     } catch (e: any) { setError(e.message); }
   }, [apiFetch, fy, billsMonth, billsYear]);
 
+  const loadGroupSummary = useCallback(async () => {
+    try {
+      const data = await apiFetch(`/api/tally/reports?type=group-summary&fy=${fy}`);
+      setGroupSummary(data?.groups || null);
+    } catch (e: any) { setError(e.message); }
+  }, [apiFetch, fy]);
+
   const refreshCurrentTab = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -373,12 +441,14 @@ export default function TallyPage() {
         case 'monthly-pl': await loadMonthlyPL(); break;
         case 'balance-sheet': await loadBalanceSheet(); break;
         case 'daybook': await loadDayBook(); break;
+        case 'cashbank': await loadCashBankLedgers(); break;
+        case 'group-summary': await loadGroupSummary(); break;
         case 'ca-audit': await loadCAAudit(); break;
         case 'ca-bills': await loadBills(); break;
       }
     } catch (e: any) { setError(e.message); }
     setLoading(false);
-  }, [tab, loadSummary, loadLedgers, loadVouchers, loadTrialBalance, loadProfitLoss, loadMonthlyPL, loadBalanceSheet, loadDayBook, loadCAAudit, loadBills]);
+  }, [tab, loadSummary, loadLedgers, loadVouchers, loadTrialBalance, loadProfitLoss, loadMonthlyPL, loadBalanceSheet, loadDayBook, loadCashBankLedgers, loadGroupSummary, loadCAAudit, loadBills]);
 
   // Toggle FY lock/unlock
   const toggleFYLock = useCallback(async () => {
@@ -1814,6 +1884,340 @@ export default function TallyPage() {
     );
   };
 
+  // ── Cash / Bank Book View (Tally Prime Style) ─────────────────────
+
+  const CashBankBookView = () => {
+    // Auto-load statement when ledger changes
+    useEffect(() => {
+      if (cashBankSelectedLedger && !cashBankData) {
+        loadCashBankStatement(cashBankSelectedLedger);
+      }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [cashBankSelectedLedger]);
+
+    const isCash = cashBankLedgers.find(l => l.id === cashBankSelectedLedger)?.subGroup === 'Cash-in-Hand';
+    const bookTitle = isCash ? 'Cash Book' : 'Bank Book';
+
+    // Determine opening balance
+    const obAmount = cashBankData?.openingBalance || 0;
+    const obType = cashBankData?.openingBalanceType || 'DEBIT';
+    const obSigned = obType === 'DEBIT' ? obAmount : -obAmount;
+
+    // Filter transactions
+    const txns = (cashBankData?.transactions || []).filter((t: any) => {
+      if (!cashBankSearch) return true;
+      const q = cashBankSearch.toLowerCase();
+      return t.contraLedger?.toLowerCase().includes(q)
+        || t.narration?.toLowerCase().includes(q)
+        || t.voucherNumber?.toLowerCase().includes(q);
+    });
+
+    // Compute totals
+    let totalReceipts = 0, totalPayments = 0;
+    for (const t of txns) {
+      totalReceipts += t.debit || 0;
+      totalPayments += t.credit || 0;
+    }
+    const closingBalance = cashBankData?.closingBalance || 0;
+    const closingType = cashBankData?.closingBalanceType || 'DEBIT';
+
+    // Fetch voucher to edit
+    const openVoucherEdit = async (voucherId: string) => {
+      try {
+        const data = await apiFetch(`/api/tally/vouchers?id=${voucherId}`);
+        if (data) setEditingVoucher(data);
+      } catch (e: any) { console.error('Failed to load voucher', e); }
+    };
+
+    // Handle ledger change
+    const handleLedgerChange = (ledgerId: string) => {
+      setCashBankSelectedLedger(ledgerId);
+      setCashBankData(null); // clear old data
+      loadCashBankStatement(ledgerId, cashBankDateFrom || undefined, cashBankDateTo || undefined);
+    };
+
+    // Handle date filter go
+    const handleGo = () => {
+      loadCashBankStatement(cashBankSelectedLedger, cashBankDateFrom || undefined, cashBankDateTo || undefined);
+    };
+
+    // Handle clear
+    const handleClear = () => {
+      setCashBankDateFrom('');
+      setCashBankDateTo('');
+      loadCashBankStatement(cashBankSelectedLedger);
+    };
+
+    if (cashBankLedgers.length === 0) {
+      return (
+        <div className="bg-gray-900 rounded-xl border border-gray-800 p-8 text-center">
+          <Wallet className="w-10 h-10 text-gray-600 mx-auto mb-3" />
+          <p className="text-gray-400 text-sm">No Cash or Bank account ledgers found for FY {fy}.</p>
+          <p className="text-gray-600 text-xs mt-1">Create ledgers with sub-group &quot;Cash-in-Hand&quot; or &quot;Bank Accounts&quot; first.</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+        {/* ── Header Bar ── */}
+        <div className="px-4 py-3 bg-gray-800/50 border-b border-gray-800">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-base font-bold text-white flex items-center gap-2">
+              <Wallet className="w-5 h-5 text-emerald-500" /> {bookTitle}
+              <span className="text-sm font-normal text-gray-400 ml-2">FY {fy}</span>
+            </h3>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500">{txns.length} transaction{txns.length !== 1 ? 's' : ''}</span>
+              <button onClick={() => printCashBankBook()} className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs rounded flex items-center gap-1">
+                <Printer className="w-3 h-3" /> Print
+              </button>
+            </div>
+          </div>
+
+          {/* ── Filters Row ── */}
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Ledger Selector */}
+            <select
+              value={cashBankSelectedLedger}
+              onChange={e => handleLedgerChange(e.target.value)}
+              className="bg-gray-800 border border-gray-700 text-gray-300 text-xs rounded px-2.5 py-1.5 focus:border-emerald-500 focus:outline-none min-w-[180px]"
+            >
+              {cashBankLedgers.filter(l => l.subGroup === 'Cash-in-Hand').length > 0 && (
+                <optgroup label="Cash">
+                  {cashBankLedgers.filter(l => l.subGroup === 'Cash-in-Hand').map(l => (
+                    <option key={l.id} value={l.id}>{l.name}</option>
+                  ))}
+                </optgroup>
+              )}
+              {cashBankLedgers.filter(l => l.subGroup !== 'Cash-in-Hand').length > 0 && (
+                <optgroup label="Bank Accounts">
+                  {cashBankLedgers.filter(l => l.subGroup !== 'Cash-in-Hand').map(l => (
+                    <option key={l.id} value={l.id}>{l.name}</option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+
+            {/* Separator */}
+            <div className="w-px h-6 bg-gray-700" />
+
+            {/* Date Range */}
+            <div className="flex items-center gap-1.5">
+              <label className="text-xs text-gray-500">From:</label>
+              <input
+                type="date"
+                value={cashBankDateFrom}
+                onChange={e => setCashBankDateFrom(e.target.value)}
+                className="bg-gray-800 border border-gray-700 text-gray-300 text-xs rounded px-2 py-1.5 focus:border-emerald-500 focus:outline-none"
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <label className="text-xs text-gray-500">To:</label>
+              <input
+                type="date"
+                value={cashBankDateTo}
+                onChange={e => setCashBankDateTo(e.target.value)}
+                className="bg-gray-800 border border-gray-700 text-gray-300 text-xs rounded px-2 py-1.5 focus:border-emerald-500 focus:outline-none"
+              />
+            </div>
+            <button
+              onClick={handleGo}
+              className="px-3 py-1.5 bg-emerald-600/30 border border-emerald-600/50 text-emerald-300 text-xs rounded hover:bg-emerald-600/40 font-medium"
+            >
+              Go
+            </button>
+            {(cashBankDateFrom || cashBankDateTo) && (
+              <button
+                onClick={handleClear}
+                className="px-2 py-1.5 text-gray-400 text-xs hover:text-white"
+              >
+                Clear
+              </button>
+            )}
+
+            {/* Separator */}
+            <div className="w-px h-6 bg-gray-700" />
+
+            {/* Search */}
+            <div className="flex-1 min-w-[150px] max-w-[250px]">
+              <input
+                type="text"
+                placeholder="Search ledger / narration..."
+                value={cashBankSearch}
+                onChange={e => setCashBankSearch(e.target.value)}
+                className="w-full bg-gray-800 border border-gray-700 text-gray-300 text-xs rounded px-2.5 py-1.5 focus:border-emerald-500 focus:outline-none placeholder-gray-600"
+              />
+            </div>
+          </div>
+        </div>
+
+        {cashBankLoading ? (
+          <div className="text-center py-12">
+            <RefreshCw className="w-5 h-5 animate-spin text-emerald-500 mx-auto mb-2" />
+            <p className="text-xs text-gray-500">Loading {bookTitle}...</p>
+          </div>
+        ) : (
+          <>
+            {/* ── Column Headers (sticky) ── */}
+            <div className="sticky top-0 z-10 bg-gray-800 border-b border-gray-700">
+              <div className="grid grid-cols-[90px_1fr_100px_90px_120px_120px_140px] px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                <div>Date</div>
+                <div>Particulars</div>
+                <div>Vch Type</div>
+                <div>Vch No.</div>
+                <div className="text-right">{isCash ? 'Receipt' : 'Deposit'} (₹)</div>
+                <div className="text-right">{isCash ? 'Payment' : 'Withdrawal'} (₹)</div>
+                <div className="text-right">Balance (₹)</div>
+              </div>
+            </div>
+
+            {/* ── Scrollable Body ── */}
+            <div className="max-h-[70vh] overflow-y-auto divide-y divide-gray-800/50">
+              {/* Opening Balance Row */}
+              <div className="grid grid-cols-[90px_1fr_100px_90px_120px_120px_140px] px-4 py-2.5 items-center bg-gray-800/30">
+                <div className="text-xs text-gray-500">—</div>
+                <div className="text-sm text-gray-300 font-medium italic">Opening Balance</div>
+                <div />
+                <div />
+                <div className="text-right text-sm font-mono">
+                  {obType === 'DEBIT' && obAmount > 0 ? <span className="text-emerald-400">{fmt(obAmount)}</span> : ''}
+                </div>
+                <div className="text-right text-sm font-mono">
+                  {obType === 'CREDIT' && obAmount > 0 ? <span className="text-red-400">{fmt(obAmount)}</span> : ''}
+                </div>
+                <div className="text-right text-sm font-mono font-medium">
+                  <span className={obSigned >= 0 ? 'text-emerald-300' : 'text-red-300'}>
+                    {fmt(Math.abs(obSigned))} {obSigned >= 0 ? 'Dr' : 'Cr'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Transaction Rows */}
+              {txns.length === 0 ? (
+                <div className="text-center text-gray-500 py-12">No transactions found.</div>
+              ) : (
+                txns.map((t: any, idx: number) => {
+                  const txDate = new Date(t.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+                  return (
+                    <div
+                      key={t.voucherId || idx}
+                      className="group hover:bg-gray-800/40 cursor-pointer transition-colors"
+                      onClick={() => t.voucherId && openVoucherEdit(t.voucherId)}
+                    >
+                      <div className="grid grid-cols-[90px_1fr_100px_90px_120px_120px_140px] px-4 py-2 items-center">
+                        {/* Date */}
+                        <div className="text-xs text-gray-400">{txDate}</div>
+
+                        {/* Particulars (contra ledger + narration) */}
+                        <div className="text-sm text-gray-200">
+                          {t.contraLedger || '—'}
+                          {t.narration && (
+                            <div className="text-[11px] text-gray-500 mt-0.5 italic truncate max-w-[300px]">{t.narration}</div>
+                          )}
+                        </div>
+
+                        {/* Vch Type */}
+                        <div>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${VOUCHER_COLORS[t.voucherType] || 'text-gray-400 bg-gray-800'}`}>
+                            {t.voucherType}
+                          </span>
+                        </div>
+
+                        {/* Vch No */}
+                        <div className="text-xs text-gray-400 font-mono">{t.voucherNumber}</div>
+
+                        {/* Debit (Receipts) */}
+                        <div className="text-right text-sm font-mono">
+                          {t.debit > 0 ? <span className="text-emerald-400">{fmt(t.debit)}</span> : ''}
+                        </div>
+
+                        {/* Credit (Payments) */}
+                        <div className="text-right text-sm font-mono">
+                          {t.credit > 0 ? <span className="text-red-400">{fmt(t.credit)}</span> : ''}
+                        </div>
+
+                        {/* Running Balance */}
+                        <div className="text-right text-sm font-mono font-medium">
+                          <span className={t.balanceType === 'DEBIT' ? 'text-emerald-300' : 'text-red-300'}>
+                            {fmt(t.balance)} {t.balanceType === 'DEBIT' ? 'Dr' : 'Cr'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* ── Summary Footer (sticky) ── */}
+            <div className="sticky bottom-0 bg-gray-800 border-t border-gray-700">
+              <div className="grid grid-cols-[90px_1fr_100px_90px_120px_120px_140px] px-4 py-3 items-center">
+                <div />
+                <div className="text-sm font-bold text-gray-200">Closing Balance</div>
+                <div />
+                <div />
+                <div className="text-right text-sm font-mono font-bold text-emerald-300">{fmt(totalReceipts)}</div>
+                <div className="text-right text-sm font-mono font-bold text-red-300">{fmt(totalPayments)}</div>
+                <div className="text-right text-sm font-mono font-bold">
+                  <span className={closingType === 'DEBIT' ? 'text-emerald-200' : 'text-red-200'}>
+                    {fmt(closingBalance)} {closingType === 'DEBIT' ? 'Dr' : 'Cr'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
+
+  // Print Cash/Bank Book
+  const printCashBankBook = () => {
+    if (!cashBankData) return;
+    const isCash = cashBankLedgers.find(l => l.id === cashBankSelectedLedger)?.subGroup === 'Cash-in-Hand';
+    const title = isCash ? 'Cash Book' : 'Bank Book';
+    const ledgerName = cashBankData.ledgerName || '';
+    const obAmount = cashBankData.openingBalance || 0;
+    const obType = cashBankData.openingBalanceType || 'DEBIT';
+    const txns = cashBankData.transactions || [];
+
+    let rows = '';
+    // Opening Balance row
+    rows += `<tr style="background:#f5f5f5;font-style:italic"><td>—</td><td>Opening Balance</td><td></td><td></td>`;
+    rows += `<td class="text-right">${obType === 'DEBIT' && obAmount > 0 ? fmt(obAmount) : ''}</td>`;
+    rows += `<td class="text-right">${obType === 'CREDIT' && obAmount > 0 ? fmt(obAmount) : ''}</td>`;
+    const obSigned = obType === 'DEBIT' ? obAmount : -obAmount;
+    rows += `<td class="text-right">${fmt(Math.abs(obSigned))} ${obSigned >= 0 ? 'Dr' : 'Cr'}</td></tr>`;
+
+    let totalDr = 0, totalCr = 0;
+    for (const t of txns) {
+      const dt = new Date(t.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+      rows += `<tr>`;
+      rows += `<td>${dt}</td>`;
+      rows += `<td>${t.contraLedger || '—'}${t.narration ? '<br/><small style="color:#999;font-style:italic">' + t.narration + '</small>' : ''}</td>`;
+      rows += `<td>${t.voucherType}</td>`;
+      rows += `<td>${t.voucherNumber || ''}</td>`;
+      rows += `<td class="text-right">${t.debit > 0 ? fmt(t.debit) : ''}</td>`;
+      rows += `<td class="text-right">${t.credit > 0 ? fmt(t.credit) : ''}</td>`;
+      rows += `<td class="text-right">${fmt(t.balance)} ${t.balanceType === 'DEBIT' ? 'Dr' : 'Cr'}</td>`;
+      rows += `</tr>`;
+      totalDr += t.debit || 0;
+      totalCr += t.credit || 0;
+    }
+
+    const closingBal = cashBankData.closingBalance || 0;
+    const closingType = cashBankData.closingBalanceType || 'DEBIT';
+    rows += `<tr class="total-row"><td colspan="4">Closing Balance</td><td class="text-right">${fmt(totalDr)}</td><td class="text-right">${fmt(totalCr)}</td><td class="text-right">${fmt(closingBal)} ${closingType === 'DEBIT' ? 'Dr' : 'Cr'}</td></tr>`;
+
+    const drLabel = isCash ? 'Receipt' : 'Deposit';
+    const crLabel = isCash ? 'Payment' : 'Withdrawal';
+    handlePrintReport(
+      `${title} — ${ledgerName}`,
+      `<table><tr><th>Date</th><th>Particulars</th><th>Vch Type</th><th>Vch No.</th><th class="text-right">${drLabel} (₹)</th><th class="text-right">${crLabel} (₹)</th><th class="text-right">Balance (₹)</th></tr>${rows}</table>`
+    );
+  };
+
   // ── Day Book View (Tally Prime Style) ──────────────────────────────
 
   const [expandedDaybookGroups, setExpandedDaybookGroups] = useState<Record<string, boolean>>({});
@@ -2438,6 +2842,312 @@ ${contentHtml}
       handlePrintReport(`Day Book — FY ${fy} (CA Report)`, html);
       return;
     }
+  };
+
+  // ── Group Summary View (Tally Prime Style) ─────────────────────────
+
+  const GROUP_ORDER: AccountGroup[] = ['CAPITAL', 'ASSET', 'LIABILITY', 'INCOME', 'EXPENSE'];
+  const GROUP_LABELS: Record<string, string> = {
+    CAPITAL: 'Capital Account',
+    ASSET: 'Assets',
+    LIABILITY: 'Liabilities',
+    INCOME: 'Income',
+    EXPENSE: 'Expenses',
+  };
+
+  const toggleGsGroup = (g: string) => setGsExpandedGroups(prev => ({ ...prev, [g]: !prev[g] }));
+  const toggleGsSubGroup = (key: string) => setGsExpandedSubGroups(prev => ({ ...prev, [key]: !prev[key] }));
+  const toggleGsLedger = async (ledgerId: string) => {
+    const isExpanding = !gsExpandedLedgers[ledgerId];
+    setGsExpandedLedgers(prev => ({ ...prev, [ledgerId]: isExpanding }));
+    if (isExpanding && !gsLedgerStatements[ledgerId]) {
+      setGsLedgerLoading(prev => ({ ...prev, [ledgerId]: true }));
+      try {
+        const data = await apiFetch(`/api/tally/ledgers/${ledgerId}/statement?fy=${fy}`);
+        setGsLedgerStatements(prev => ({ ...prev, [ledgerId]: data }));
+      } catch (e: any) {
+        setGsLedgerStatements(prev => ({ ...prev, [ledgerId]: { error: e.message, transactions: [] } }));
+      }
+      setGsLedgerLoading(prev => ({ ...prev, [ledgerId]: false }));
+    }
+  };
+
+  const GroupSummaryView = () => {
+    if (!groupSummary) return <div className="text-gray-500 text-center py-12">Loading Group Summary...</div>;
+
+    const groupKeys = GROUP_ORDER.filter(g => groupSummary[g]);
+    if (groupKeys.length === 0) {
+      return (
+        <div className="bg-gray-900 rounded-xl border border-gray-800 p-8 text-center">
+          <Layers className="w-10 h-10 text-gray-600 mx-auto mb-3" />
+          <p className="text-gray-400 text-sm">No ledger data found for FY {fy}.</p>
+        </div>
+      );
+    }
+
+    // Grand totals
+    let grandDebit = 0, grandCredit = 0;
+    for (const gk of groupKeys) {
+      grandDebit += groupSummary[gk].totalDebit;
+      grandCredit += groupSummary[gk].totalCredit;
+    }
+
+    // Fetch voucher to edit
+    const openVoucherEdit = async (voucherId: string) => {
+      try {
+        const data = await apiFetch(`/api/tally/vouchers?id=${voucherId}`);
+        if (data) setEditingVoucher(data);
+      } catch (e: any) { console.error('Failed to load voucher', e); }
+    };
+
+    return (
+      <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+        {/* Header */}
+        <div className="px-4 py-3 bg-gray-800/50 border-b border-gray-800 flex items-center justify-between">
+          <h3 className="text-base font-bold text-white flex items-center gap-2">
+            <Layers className="w-5 h-5 text-cyan-500" /> Group Summary
+            <span className="text-sm font-normal text-gray-400 ml-2">FY {fy}</span>
+          </h3>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { const all: Record<string, boolean> = {}; for (const gk of groupKeys) { all[gk] = true; } setGsExpandedGroups(all); }}
+              className="px-2 py-1 text-xs text-gray-400 hover:text-white"
+            >Expand All</button>
+            <button
+              onClick={() => { setGsExpandedGroups({}); setGsExpandedSubGroups({}); setGsExpandedLedgers({}); }}
+              className="px-2 py-1 text-xs text-gray-400 hover:text-white"
+            >Collapse All</button>
+            <button onClick={printGroupSummary} className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs rounded flex items-center gap-1">
+              <Printer className="w-3 h-3" /> Print
+            </button>
+          </div>
+        </div>
+
+        {/* Column Headers */}
+        <div className="sticky top-0 z-10 bg-gray-800 border-b border-gray-700">
+          <div className="grid grid-cols-[1fr_140px_140px_160px] px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+            <div>Group / Sub-Group / Ledger</div>
+            <div className="text-right">Debit (₹)</div>
+            <div className="text-right">Credit (₹)</div>
+            <div className="text-right">Closing (₹)</div>
+          </div>
+        </div>
+
+        {/* Groups */}
+        <div className="max-h-[70vh] overflow-y-auto">
+          {groupKeys.map(gk => {
+            const g = groupSummary[gk];
+            const isGroupExpanded = gsExpandedGroups[gk];
+            const colorClass = GROUP_ICON_COLORS[gk] || 'text-gray-400 bg-gray-800 border-gray-700';
+            const subGroupKeys = Object.keys(g.subGroups).sort();
+
+            return (
+              <div key={gk}>
+                {/* Group Row */}
+                <button
+                  onClick={() => toggleGsGroup(gk)}
+                  className="w-full grid grid-cols-[1fr_140px_140px_160px] px-4 py-3 items-center hover:bg-gray-800/50 transition-colors cursor-pointer border-b border-gray-800/50"
+                >
+                  <div className="flex items-center gap-2">
+                    {isGroupExpanded ? <ChevronDown className={`w-4 h-4 ${colorClass.split(' ')[0]}`} /> : <ChevronRight className={`w-4 h-4 ${colorClass.split(' ')[0]}`} />}
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${colorClass}`}>{gk}</span>
+                    <span className="text-sm font-semibold text-gray-200">{GROUP_LABELS[gk] || gk}</span>
+                    <span className="text-xs text-gray-600">({subGroupKeys.length} sub-groups)</span>
+                  </div>
+                  <div className="text-right text-sm font-mono text-blue-400">{g.totalDebit > 0 ? fmt(g.totalDebit) : ''}</div>
+                  <div className="text-right text-sm font-mono text-red-400">{g.totalCredit > 0 ? fmt(g.totalCredit) : ''}</div>
+                  <div className="text-right text-sm font-mono font-bold">
+                    <span className={g.closingBalanceType === 'DEBIT' ? 'text-blue-300' : 'text-red-300'}>
+                      {fmt(g.closingBalance)} {g.closingBalanceType === 'DEBIT' ? 'Dr' : 'Cr'}
+                    </span>
+                  </div>
+                </button>
+
+                {/* Sub-Groups */}
+                {isGroupExpanded && subGroupKeys.map(sgk => {
+                  const sg = g.subGroups[sgk];
+                  const sgKey = `${gk}:${sgk}`;
+                  const isSGExpanded = gsExpandedSubGroups[sgKey];
+
+                  return (
+                    <div key={sgKey}>
+                      {/* Sub-Group Row */}
+                      <button
+                        onClick={() => toggleGsSubGroup(sgKey)}
+                        className="w-full grid grid-cols-[1fr_140px_140px_160px] px-4 py-2 items-center hover:bg-gray-800/30 transition-colors cursor-pointer border-b border-gray-800/30 pl-10"
+                      >
+                        <div className="flex items-center gap-2">
+                          {isSGExpanded ? <ChevronDown className="w-3.5 h-3.5 text-gray-400" /> : <ChevronRight className="w-3.5 h-3.5 text-gray-400" />}
+                          <span className="text-sm text-gray-300">{sgk}</span>
+                          <span className="text-xs text-gray-600">({sg.ledgers.length})</span>
+                        </div>
+                        <div className="text-right text-sm font-mono text-blue-400/70">{sg.totalDebit > 0 ? fmt(sg.totalDebit) : ''}</div>
+                        <div className="text-right text-sm font-mono text-red-400/70">{sg.totalCredit > 0 ? fmt(sg.totalCredit) : ''}</div>
+                        <div className="text-right text-sm font-mono">
+                          <span className={sg.closingBalanceType === 'DEBIT' ? 'text-blue-300/80' : 'text-red-300/80'}>
+                            {fmt(sg.closingBalance)} {sg.closingBalanceType === 'DEBIT' ? 'Dr' : 'Cr'}
+                          </span>
+                        </div>
+                      </button>
+
+                      {/* Ledgers */}
+                      {isSGExpanded && sg.ledgers.map((ledger: any) => {
+                        const isLedgerExpanded = gsExpandedLedgers[ledger.ledgerId];
+                        const statement = gsLedgerStatements[ledger.ledgerId];
+                        const isLoadingStmt = gsLedgerLoading[ledger.ledgerId];
+
+                        return (
+                          <div key={ledger.ledgerId}>
+                            {/* Ledger Row */}
+                            <button
+                              onClick={() => toggleGsLedger(ledger.ledgerId)}
+                              className="w-full grid grid-cols-[1fr_140px_140px_160px] px-4 py-1.5 items-center hover:bg-gray-800/20 transition-colors cursor-pointer border-b border-gray-800/20 pl-16"
+                            >
+                              <div className="flex items-center gap-2">
+                                {isLedgerExpanded ? <ChevronDown className="w-3 h-3 text-gray-500" /> : <ChevronRight className="w-3 h-3 text-gray-500" />}
+                                <span className="text-sm text-gray-400">{ledger.ledgerName}</span>
+                              </div>
+                              <div className="text-right text-xs font-mono text-blue-400/60">{ledger.closingDebit > 0 ? fmt(ledger.closingDebit) : ''}</div>
+                              <div className="text-right text-xs font-mono text-red-400/60">{ledger.closingCredit > 0 ? fmt(ledger.closingCredit) : ''}</div>
+                              <div className="text-right text-xs font-mono">
+                                <span className={ledger.closingBalanceType === 'DEBIT' ? 'text-blue-300/60' : 'text-red-300/60'}>
+                                  {fmt(ledger.closingBalance)} {ledger.closingBalanceType === 'DEBIT' ? 'Dr' : 'Cr'}
+                                </span>
+                              </div>
+                            </button>
+
+                            {/* Ledger Statement (Level 4 drill-down) */}
+                            {isLedgerExpanded && (
+                              <div className="ml-20 mr-4 mb-2 mt-1 bg-gray-800/40 rounded-lg border border-gray-700/50 overflow-hidden">
+                                {isLoadingStmt ? (
+                                  <div className="text-center py-4">
+                                    <RefreshCw className="w-4 h-4 animate-spin text-cyan-500 mx-auto" />
+                                    <p className="text-xs text-gray-500 mt-1">Loading statement...</p>
+                                  </div>
+                                ) : statement?.transactions?.length > 0 ? (
+                                  <>
+                                    {/* Statement header */}
+                                    <div className="grid grid-cols-[70px_1fr_80px_70px_90px_90px_100px] px-3 py-1.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider bg-gray-800/60 border-b border-gray-700/50">
+                                      <div>Date</div>
+                                      <div>Particulars</div>
+                                      <div>Vch Type</div>
+                                      <div>Vch No.</div>
+                                      <div className="text-right">Debit</div>
+                                      <div className="text-right">Credit</div>
+                                      <div className="text-right">Balance</div>
+                                    </div>
+                                    {/* Opening balance */}
+                                    <div className="grid grid-cols-[70px_1fr_80px_70px_90px_90px_100px] px-3 py-1 text-xs items-center bg-gray-800/30">
+                                      <div className="text-gray-600">—</div>
+                                      <div className="text-gray-400 italic">Opening Balance</div>
+                                      <div /><div />
+                                      <div className="text-right font-mono text-blue-400/50">
+                                        {statement.openingBalanceType === 'DEBIT' && statement.openingBalance > 0 ? fmt(statement.openingBalance) : ''}
+                                      </div>
+                                      <div className="text-right font-mono text-red-400/50">
+                                        {statement.openingBalanceType === 'CREDIT' && statement.openingBalance > 0 ? fmt(statement.openingBalance) : ''}
+                                      </div>
+                                      <div className="text-right font-mono text-gray-400">
+                                        {statement.openingBalance > 0 ? `${fmt(statement.openingBalance)} ${statement.openingBalanceType === 'DEBIT' ? 'Dr' : 'Cr'}` : '—'}
+                                      </div>
+                                    </div>
+                                    {/* Transactions */}
+                                    {statement.transactions.map((tx: any, ti: number) => {
+                                      const txDate = new Date(tx.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+                                      return (
+                                        <div
+                                          key={ti}
+                                          className="grid grid-cols-[70px_1fr_80px_70px_90px_90px_100px] px-3 py-1 text-xs items-center hover:bg-gray-700/30 cursor-pointer border-t border-gray-800/30"
+                                          onClick={() => tx.voucherId && openVoucherEdit(tx.voucherId)}
+                                        >
+                                          <div className="text-gray-500">{txDate}</div>
+                                          <div className="text-gray-300 truncate">
+                                            {tx.contraLedger || '—'}
+                                            {tx.narration && <span className="text-gray-600 text-[10px] ml-1 italic">({tx.narration})</span>}
+                                          </div>
+                                          <div>
+                                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${VOUCHER_COLORS[tx.voucherType] || 'text-gray-400 bg-gray-800'}`}>
+                                              {tx.voucherType}
+                                            </span>
+                                          </div>
+                                          <div className="text-gray-500 font-mono text-[10px]">{tx.voucherNumber}</div>
+                                          <div className="text-right font-mono">{tx.debit > 0 ? <span className="text-blue-400">{fmt(tx.debit)}</span> : ''}</div>
+                                          <div className="text-right font-mono">{tx.credit > 0 ? <span className="text-red-400">{fmt(tx.credit)}</span> : ''}</div>
+                                          <div className="text-right font-mono">
+                                            <span className={tx.balanceType === 'DEBIT' ? 'text-blue-300' : 'text-red-300'}>
+                                              {fmt(tx.balance)} {tx.balanceType === 'DEBIT' ? 'Dr' : 'Cr'}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                    {/* Closing balance */}
+                                    <div className="grid grid-cols-[70px_1fr_80px_70px_90px_90px_100px] px-3 py-1.5 text-xs items-center bg-gray-800/60 border-t border-gray-700/50 font-bold">
+                                      <div /><div className="text-gray-200">Closing Balance</div><div /><div />
+                                      <div /><div />
+                                      <div className="text-right font-mono">
+                                        <span className={statement.closingBalanceType === 'DEBIT' ? 'text-blue-200' : 'text-red-200'}>
+                                          {fmt(statement.closingBalance)} {statement.closingBalanceType === 'DEBIT' ? 'Dr' : 'Cr'}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <div className="text-center text-gray-500 text-xs py-4">
+                                    No transactions for this ledger.
+                                    {statement?.openingBalance > 0 && (
+                                      <span className="block mt-1 text-gray-400">
+                                        Opening Balance: {fmt(statement.openingBalance)} {statement.openingBalanceType === 'DEBIT' ? 'Dr' : 'Cr'}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Grand Total Footer */}
+        <div className="sticky bottom-0 bg-gray-800 border-t border-gray-700">
+          <div className="grid grid-cols-[1fr_140px_140px_160px] px-4 py-3 items-center">
+            <div className="text-sm font-bold text-gray-200">Grand Total</div>
+            <div className="text-right text-sm font-mono font-bold text-blue-300">{fmt(grandDebit)}</div>
+            <div className="text-right text-sm font-mono font-bold text-red-300">{fmt(grandCredit)}</div>
+            <div />
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Print Group Summary
+  const printGroupSummary = () => {
+    if (!groupSummary) return;
+    const groupKeys = GROUP_ORDER.filter(g => groupSummary[g]);
+    let html = '';
+    for (const gk of groupKeys) {
+      const g = groupSummary[gk];
+      html += `<div style="background:#f5f5f5;padding:8px;margin-top:12px;font-weight:bold">${GROUP_LABELS[gk] || gk} — ${fmt(g.closingBalance)} ${g.closingBalanceType === 'DEBIT' ? 'Dr' : 'Cr'}</div>`;
+      const subGroupKeys = Object.keys(g.subGroups).sort();
+      html += '<table style="width:100%"><tr><th style="text-align:left">Ledger</th><th style="text-align:left">Sub-Group</th><th style="text-align:right">Debit (₹)</th><th style="text-align:right">Credit (₹)</th><th style="text-align:right">Closing (₹)</th></tr>';
+      for (const sgk of subGroupKeys) {
+        const sg = g.subGroups[sgk];
+        html += `<tr style="background:#eaeaea;font-weight:600"><td colspan="2">${sgk} (${sg.ledgers.length})</td><td style="text-align:right">${sg.totalDebit > 0 ? fmt(sg.totalDebit) : ''}</td><td style="text-align:right">${sg.totalCredit > 0 ? fmt(sg.totalCredit) : ''}</td><td style="text-align:right">${fmt(sg.closingBalance)} ${sg.closingBalanceType === 'DEBIT' ? 'Dr' : 'Cr'}</td></tr>`;
+        for (const l of sg.ledgers) {
+          html += `<tr><td style="padding-left:20px">${l.ledgerName}</td><td>${l.subGroup || ''}</td><td style="text-align:right">${l.closingDebit > 0 ? fmt(l.closingDebit) : ''}</td><td style="text-align:right">${l.closingCredit > 0 ? fmt(l.closingCredit) : ''}</td><td style="text-align:right">${fmt(l.closingBalance)} ${l.closingBalanceType === 'DEBIT' ? 'Dr' : 'Cr'}</td></tr>`;
+        }
+      }
+      html += '</table>';
+    }
+    handlePrintReport('Group Summary', html);
   };
 
   // ── CA Audit View (Tally Prime Style Drill-Down) ───────────────
@@ -4237,6 +4947,8 @@ ${contentHtml}
             {tab === 'monthly-pl' && <MonthlyPLView />}
             {tab === 'balance-sheet' && <BalanceSheetView />}
             {tab === 'daybook' && <DayBookView />}
+            {tab === 'cashbank' && <CashBankBookView />}
+            {tab === 'group-summary' && <GroupSummaryView />}
             {tab === 'ca-audit' && <CAAuditView />}
             {tab === 'ca-bills' && <CABillsView />}
             {tab === 'settings' && <SettingsView />}

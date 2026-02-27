@@ -7,7 +7,7 @@
 import { NextRequest } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
-import { getDayBook, getReceiptsRegister, getPaymentsRegister, getDayBookLedgerSummary } from '@/lib/tally/engine';
+import { getDayBook, getReceiptsRegister, getPaymentsRegister, getDayBookLedgerSummary, getCashBankLedgers } from '@/lib/tally/engine';
 
 function getAuth(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -28,7 +28,17 @@ export async function GET(request: NextRequest) {
     const date = searchParams.get('date');
     const dateFrom = searchParams.get('dateFrom');
     const dateTo = searchParams.get('dateTo');
-    const register = searchParams.get('register'); // 'receipts' or 'payments'
+    const register = searchParams.get('register'); // 'receipts' or 'payments' or 'cashbank'
+
+    // Cash/Bank ledger list (for selector)
+    if (register === 'cashbank') {
+      const ledgers = await getCashBankLedgers(fy);
+      return apiSuccess({
+        register: 'CashBank',
+        financialYear: fy,
+        ledgers,
+      });
+    }
 
     // Receipts/Payments register
     if (register === 'receipts') {

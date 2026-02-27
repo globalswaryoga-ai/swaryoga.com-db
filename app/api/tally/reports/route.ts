@@ -23,6 +23,7 @@ import {
   generateCAAuditReport,
   batchCalculateLedgerBalances,
   invalidateReportCache,
+  getGroupSummary,
 } from '@/lib/tally/engine';
 
 function getAuth(request: NextRequest) {
@@ -113,8 +114,14 @@ export async function GET(request: NextRequest) {
         break;
       }
 
+      case 'group-summary': {
+        const groups = await getGroupSummary(fy);
+        result = { reportType: 'Group Summary', financialYear: fy, groups };
+        break;
+      }
+
       default:
-        return apiError('VALIDATION_ERROR', `Unknown report type: ${reportType}. Use: trial-balance, profit-loss, balance-sheet, monthly-pl, cash-bank, summary, ca-audit`);
+        return apiError('VALIDATION_ERROR', `Unknown report type: ${reportType}. Use: trial-balance, profit-loss, balance-sheet, monthly-pl, cash-bank, summary, ca-audit, group-summary`);
     }
 
     setRouteCache(cacheKey, result);

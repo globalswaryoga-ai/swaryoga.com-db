@@ -895,6 +895,26 @@ export async function getLedgerStatement(
   };
 }
 
+// ─── Cash/Bank Ledger List (for Cash Book / Bank Book selector) ─────
+
+export async function getCashBankLedgers(financialYear: string) {
+  await connectDB();
+  const AccLedger = getAccLedger();
+  const ledgers = await AccLedger.find({
+    financialYear,
+    isActive: { $ne: false },
+    subGroup: { $in: ['Cash-in-Hand', 'Bank Accounts', 'Bank OCC A/c', 'Bank OD A/c'] },
+  }).select('_id name group subGroup openingBalance openingBalanceType').sort({ subGroup: 1, name: 1 }).lean();
+
+  return (ledgers as any[]).map(l => ({
+    id: String(l._id),
+    name: l.name,
+    subGroup: l.subGroup,
+    openingBalance: l.openingBalance || 0,
+    openingBalanceType: l.openingBalanceType || 'DEBIT',
+  }));
+}
+
 // ─── Cash/Bank Summary ──────────────────────────────────────────────
 
 export async function getCashBankSummary(financialYear: string, _balanceMap?: Map<string, LedgerBalance>) {
@@ -904,13 +924,17 @@ export async function getCashBankSummary(financialYear: string, _balanceMap?: Ma
   const balanceMap = _balanceMap || await batchCalculateLedgerBalances(financialYear);
 
   const cashBankSubGroups = new Set(['Cash-in-Hand', 'Bank Accounts', 'Cash', 'Bank']);
-  const result: { name: string; subGroup: string; balance: number; balanceType: BalanceType; totalReceipts: number; totalPayments: number }[] = [];
+  const result: { ledgerId: string; name: string; subGroup: string; openingBalance: number; openingBalanceType: BalanceType; balance: number; balanceType: BalanceType; totalReceipts: number; totalPayments: number }[] = [];
 
   for (const bal of balanceMap.values()) {
     if (bal.group === 'ASSET' && cashBankSubGroups.has(bal.subGroup || '')) {
+      const openingNet = bal.openingDebit - bal.openingCredit;
       result.push({
+        ledgerId: bal.ledgerId,
         name: bal.ledgerName,
         subGroup: bal.subGroup || '',
+        openingBalance: Math.abs(openingNet),
+        openingBalanceType: openingNet >= 0 ? 'DEBIT' : 'CREDIT',
         balance: bal.closingBalance,
         balanceType: bal.closingBalanceType,
         totalReceipts: bal.periodDebit,
@@ -920,6 +944,70 @@ export async function getCashBankSummary(financialYear: string, _balanceMap?: Ma
   }
 
   return result;
+}
+
+// ─── Group Summary (Tally Prime style) ─────────────────────────────
+
+export interface GroupSummarySubGroup {
+  subGroup: string;
+  ledgers: LedgerBalance[];
+  totalDebit: number;
+  totalCredit: number;
+  closingBalance: number;
+  closingBalanceType: BalanceType;
+}
+
+export interface GroupSummaryGroup {
+  group: AccountGroup;
+  subGroups: Record<string, GroupSummarySubGroup>;
+  totalDebit: number;
+  totalCredit: number;
+  closingBalance: number;
+  closingBalanceType: BalanceType;
+}
+
+export async function getGroupSummary(
+  financialYear: string,
+): Promise<Record<string, GroupSummaryGroup>> {
+  const balanceMap = await batchCalculateLedgerBalances(financialYear);
+
+  const groups: Record<string, GroupSummaryGroup> = {};
+
+  for (const bal of balanceMap.values()) {
+    const g = bal.group;
+    const sg = bal.subGroup || 'General';
+
+    if (!groups[g]) {
+      groups[g] = { group: g as AccountGroup, subGroups: {}, totalDebit: 0, totalCredit: 0, closingBalance: 0, closingBalanceType: 'DEBIT' };
+    }
+    if (!groups[g].subGroups[sg]) {
+      groups[g].subGroups[sg] = { subGroup: sg, ledgers: [], totalDebit: 0, totalCredit: 0, closingBalance: 0, closingBalanceType: 'DEBIT' };
+    }
+
+    groups[g].subGroups[sg].ledgers.push(bal);
+    groups[g].subGroups[sg].totalDebit += bal.closingDebit;
+    groups[g].subGroups[sg].totalCredit += bal.closingCredit;
+
+    groups[g].totalDebit += bal.closingDebit;
+    groups[g].totalCredit += bal.closingCredit;
+  }
+
+  // Compute net closing balance for each group and subgroup
+  for (const g of Object.values(groups)) {
+    const net = g.totalDebit - g.totalCredit;
+    g.closingBalance = Math.round(Math.abs(net) * 100) / 100;
+    g.closingBalanceType = net >= 0 ? 'DEBIT' : 'CREDIT';
+
+    for (const sg of Object.values(g.subGroups)) {
+      const sgNet = sg.totalDebit - sg.totalCredit;
+      sg.closingBalance = Math.round(Math.abs(sgNet) * 100) / 100;
+      sg.closingBalanceType = sgNet >= 0 ? 'DEBIT' : 'CREDIT';
+      // Sort ledgers by name
+      sg.ledgers.sort((a, b) => a.ledgerName.localeCompare(b.ledgerName));
+    }
+  }
+
+  return groups;
 }
 
 // ─── Dashboard Summary ──────────────────────────────────────────────
