@@ -115,8 +115,19 @@ export default function FunnelManagePage() {
   const [newFilterLabel, setNewFilterLabel] = useState('');
   const [customConnections, setCustomConnections] = useState<string[]>([]);
 
-  // Merged connections: defaults + any custom-added
-  const allConnections = [...DEFAULT_CONNECTIONS, ...customConnections.filter(c => !DEFAULT_CONNECTIONS.includes(c))];
+  // Custom filter options from DB (for country, workshop, connection)
+  const [customFilterOptions, setCustomFilterOptions] = useState<{ country: string[]; workshop: string[]; connection: string[] }>({ country: [], workshop: [], connection: [] });
+  const [isAddingCountry, setIsAddingCountry] = useState(false);
+  const [newCountry, setNewCountry] = useState('');
+  const [isAddingWorkshop, setIsAddingWorkshop] = useState(false);
+  const [newWorkshop, setNewWorkshop] = useState('');
+
+  // Merged connections: defaults + DB custom + local custom
+  const allConnections = [...new Set([...DEFAULT_CONNECTIONS, ...customFilterOptions.connection, ...customConnections])];
+  // Merged countries: from leads + DB custom
+  const allCountries = [...new Set([...filterOptions.countries, ...customFilterOptions.country])].sort();
+  // Merged workshops: from leads + DB custom
+  const allWorkshops = [...new Set([...filterOptions.workshops, ...customFilterOptions.workshop])].sort();
 
   // Selection & modals
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
@@ -161,6 +172,36 @@ export default function FunnelManagePage() {
       setIsSuperAdmin((u?.userId === 'admin' || u?.userId === 'admincrm') || perms.includes('all'));
     } catch { setIsSuperAdmin(false); }
   }, []);
+
+  // Fetch custom filter options from DB
+  const fetchCustomFilterOptions = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch('/api/admin/crm/filter-options', { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.data?.options) setCustomFilterOptions(json.data.options);
+      }
+    } catch (e) { console.error(e); }
+  }, [token]);
+
+  // Add a custom filter option to DB
+  const addCustomFilterOption = async (category: 'country' | 'workshop' | 'connection', value: string) => {
+    if (!token || !value.trim()) return;
+    try {
+      const res = await fetch('/api/admin/crm/filter-options', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category, value: value.trim() }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.data?.values) {
+          setCustomFilterOptions(prev => ({ ...prev, [category]: json.data.values }));
+        }
+      }
+    } catch (e) { console.error(e); }
+  };
 
   // Fetch funnel config
   const fetchConfig = useCallback(async () => {
@@ -253,11 +294,11 @@ export default function FunnelManagePage() {
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      await Promise.all([fetchConfig(), fetchAdminUsers()]);
+      await Promise.all([fetchConfig(), fetchAdminUsers(), fetchCustomFilterOptions()]);
       setLoading(false);
     };
     if (token) load();
-  }, [token, fetchConfig, fetchAdminUsers]);
+  }, [token, fetchConfig, fetchAdminUsers, fetchCustomFilterOptions]);
 
   useEffect(() => {
     if (token) fetchLeads();
@@ -737,92 +778,121 @@ export default function FunnelManagePage() {
             </select>
 
             {/* Country */}
-            <select
-              value={filterCountry}
-              onChange={e => setFilterCountry(e.target.value)}
-              className="px-3 py-2 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none flex-shrink-0"
-            >
-              <option value="">All Countries</option>
-              {filterOptions.countries.map(c => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
+            <div className="flex items-center gap-0.5 flex-shrink-0">
+              <select
+                value={filterCountry}
+                onChange={e => setFilterCountry(e.target.value)}
+                className="px-3 py-2 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none"
+              >
+                <option value="">All Countries</option>
+                {allCountries.map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+              {isAddingCountry ? (
+                <div className="flex items-center gap-0.5">
+                  <input
+                    type="text"
+                    value={newCountry}
+                    onChange={e => setNewCountry(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && newCountry.trim()) {
+                        addCustomFilterOption('country', newCountry.trim());
+                        setNewCountry(''); setIsAddingCountry(false);
+                      } else if (e.key === 'Escape') {
+                        setNewCountry(''); setIsAddingCountry(false);
+                      }
+                    }}
+                    placeholder="New country..."
+                    autoFocus
+                    className="px-2 py-1.5 rounded-lg border border-indigo-300 text-sm w-28 focus:ring-2 focus:ring-indigo-200 outline-none"
+                  />
+                  <button onClick={() => { if (newCountry.trim()) addCustomFilterOption('country', newCountry.trim()); setNewCountry(''); setIsAddingCountry(false); }} className="p-1 rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 transition"><Check className="h-3 w-3" /></button>
+                  <button onClick={() => { setNewCountry(''); setIsAddingCountry(false); }} className="p-1 rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 transition"><X className="h-3 w-3" /></button>
+                </div>
+              ) : (
+                <button onClick={() => setIsAddingCountry(true)} title="Add country" className="p-1.5 rounded-lg text-xs font-bold text-indigo-600 hover:bg-indigo-50 transition border border-dashed border-indigo-300">+</button>
+              )}
+            </div>
 
             {/* Workshop */}
-            <select
-              value={filterWorkshop}
-              onChange={e => setFilterWorkshop(e.target.value)}
-              className="px-3 py-2 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none flex-shrink-0"
-            >
-              <option value="">All Workshops</option>
-              {filterOptions.workshops.map(w => (
-                <option key={w} value={w}>{w}</option>
-              ))}
-            </select>
+            <div className="flex items-center gap-0.5 flex-shrink-0">
+              <select
+                value={filterWorkshop}
+                onChange={e => setFilterWorkshop(e.target.value)}
+                className="px-3 py-2 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none"
+              >
+                <option value="">All Workshops</option>
+                {allWorkshops.map(w => (
+                  <option key={w} value={w}>{w}</option>
+                ))}
+              </select>
+              {isAddingWorkshop ? (
+                <div className="flex items-center gap-0.5">
+                  <input
+                    type="text"
+                    value={newWorkshop}
+                    onChange={e => setNewWorkshop(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && newWorkshop.trim()) {
+                        addCustomFilterOption('workshop', newWorkshop.trim());
+                        setNewWorkshop(''); setIsAddingWorkshop(false);
+                      } else if (e.key === 'Escape') {
+                        setNewWorkshop(''); setIsAddingWorkshop(false);
+                      }
+                    }}
+                    placeholder="New workshop..."
+                    autoFocus
+                    className="px-2 py-1.5 rounded-lg border border-indigo-300 text-sm w-28 focus:ring-2 focus:ring-indigo-200 outline-none"
+                  />
+                  <button onClick={() => { if (newWorkshop.trim()) addCustomFilterOption('workshop', newWorkshop.trim()); setNewWorkshop(''); setIsAddingWorkshop(false); }} className="p-1 rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 transition"><Check className="h-3 w-3" /></button>
+                  <button onClick={() => { setNewWorkshop(''); setIsAddingWorkshop(false); }} className="p-1 rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 transition"><X className="h-3 w-3" /></button>
+                </div>
+              ) : (
+                <button onClick={() => setIsAddingWorkshop(true)} title="Add workshop" className="p-1.5 rounded-lg text-xs font-bold text-indigo-600 hover:bg-indigo-50 transition border border-dashed border-indigo-300">+</button>
+              )}
+            </div>
 
             {/* Connection */}
-            <select
-              value={filterLabel}
-              onChange={e => setFilterLabel(e.target.value)}
-              className="px-3 py-2 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none flex-shrink-0"
-            >
-              <option value="">All Connections</option>
-              {allConnections.map(l => (
-                <option key={l} value={l}>{l}</option>
-              ))}
-            </select>
-
-            {/* Add new connection type */}
-            {isAddingLabel ? (
-              <div className="flex items-center gap-1 flex-shrink-0">
-                <input
-                  type="text"
-                  value={newFilterLabel}
-                  onChange={e => setNewFilterLabel(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' && newFilterLabel.trim()) {
-                      if (!allConnections.includes(newFilterLabel.trim())) {
-                        setCustomConnections(prev => [...prev, newFilterLabel.trim()]);
-                      }
-                      setNewFilterLabel('');
-                      setIsAddingLabel(false);
-                    } else if (e.key === 'Escape') {
-                      setNewFilterLabel('');
-                      setIsAddingLabel(false);
-                    }
-                  }}
-                  placeholder="New connection..."
-                  autoFocus
-                  className="px-2 py-1.5 rounded-lg border border-indigo-300 text-sm w-36 focus:ring-2 focus:ring-indigo-200 outline-none"
-                />
-                <button
-                  onClick={() => {
-                    if (newFilterLabel.trim() && !allConnections.includes(newFilterLabel.trim())) {
-                      setCustomConnections(prev => [...prev, newFilterLabel.trim()]);
-                    }
-                    setNewFilterLabel('');
-                    setIsAddingLabel(false);
-                  }}
-                  className="p-1.5 rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 transition"
-                >
-                  <Check className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  onClick={() => { setNewFilterLabel(''); setIsAddingLabel(false); }}
-                  className="p-1.5 rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 transition"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setIsAddingLabel(true)}
-                title="Add new connection type"
-                className="flex items-center gap-1 px-2 py-2 rounded-xl text-xs font-medium text-indigo-600 hover:bg-indigo-50 transition border border-dashed border-indigo-300 flex-shrink-0"
+            <div className="flex items-center gap-0.5 flex-shrink-0">
+              <select
+                value={filterLabel}
+                onChange={e => setFilterLabel(e.target.value)}
+                className="px-3 py-2 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none"
               >
-                <span className="text-sm font-bold">+</span>
-              </button>
-            )}
+                <option value="">All Connections</option>
+                {allConnections.map(l => (
+                  <option key={l} value={l}>{l}</option>
+                ))}
+              </select>
+              {isAddingLabel ? (
+                <div className="flex items-center gap-0.5">
+                  <input
+                    type="text"
+                    value={newFilterLabel}
+                    onChange={e => setNewFilterLabel(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && newFilterLabel.trim()) {
+                        addCustomFilterOption('connection', newFilterLabel.trim());
+                        if (!allConnections.includes(newFilterLabel.trim())) {
+                          setCustomConnections(prev => [...prev, newFilterLabel.trim()]);
+                        }
+                        setNewFilterLabel(''); setIsAddingLabel(false);
+                      } else if (e.key === 'Escape') {
+                        setNewFilterLabel(''); setIsAddingLabel(false);
+                      }
+                    }}
+                    placeholder="New connection..."
+                    autoFocus
+                    className="px-2 py-1.5 rounded-lg border border-indigo-300 text-sm w-28 focus:ring-2 focus:ring-indigo-200 outline-none"
+                  />
+                  <button onClick={() => { if (newFilterLabel.trim()) { addCustomFilterOption('connection', newFilterLabel.trim()); if (!allConnections.includes(newFilterLabel.trim())) setCustomConnections(prev => [...prev, newFilterLabel.trim()]); } setNewFilterLabel(''); setIsAddingLabel(false); }} className="p-1 rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 transition"><Check className="h-3 w-3" /></button>
+                  <button onClick={() => { setNewFilterLabel(''); setIsAddingLabel(false); }} className="p-1 rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 transition"><X className="h-3 w-3" /></button>
+                </div>
+              ) : (
+                <button onClick={() => setIsAddingLabel(true)} title="Add connection" className="p-1.5 rounded-lg text-xs font-bold text-indigo-600 hover:bg-indigo-50 transition border border-dashed border-indigo-300">+</button>
+              )}
+            </div>
 
             {/* Clear filters */}
             {(searchQuery || filterAdmin || filterMonth || filterLanguage || filterCountry || filterWorkshop || filterLabel) && (

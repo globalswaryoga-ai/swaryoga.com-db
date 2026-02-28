@@ -2383,6 +2383,17 @@ FunnelStageHistorySchema.index({ toStage: 1, createdAt: -1 });
 FunnelStageHistorySchema.index({ changedByUserId: 1, createdAt: -1 });
 
 
+// ─── CRM Filter Option (custom dropdown values for country, workshop, connection) ───
+const CRMFilterOptionSchema = new mongoose.Schema(
+  {
+    category: { type: String, required: true, enum: ['country', 'workshop', 'connection'], index: true },
+    value: { type: String, required: true, trim: true },
+  },
+  { timestamps: true }
+);
+CRMFilterOptionSchema.index({ category: 1, value: 1 }, { unique: true });
+
+
 // ============================================================================
 // MODEL INITIALIZATION (LAZY - DEFERRED TO FIRST USE)
 // ============================================================================
@@ -2484,6 +2495,7 @@ export function getLeadAssignmentSettings() { return getModel('LeadAssignmentSet
 export function getFunnelConfig() { return getModel('FunnelConfig', FunnelConfigSchema); }
 export function getAdminSession() { return getModel('AdminSession', AdminSessionSchema); }
 export function getFunnelStageHistory() { return getModel('FunnelStageHistory', FunnelStageHistorySchema); }
+export function getCRMFilterOption() { return getModel('CRMFilterOption', CRMFilterOptionSchema); }
 
 // LEGACY PROXY EXPORTS - For backward compatibility with existing code
 // These use Proxies to defer initialization
