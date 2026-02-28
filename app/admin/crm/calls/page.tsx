@@ -681,7 +681,10 @@ export default function CallWorkflowPage() {
                         })}
                       </div>
                     </div>
-                    <button onClick={() => fetchUpdates(lead._id)} title="Updates" className="flex items-center gap-0.5 px-1.5 py-1 rounded-lg text-[10px] font-medium bg-cyan-50 text-cyan-600 hover:bg-cyan-100 transition whitespace-nowrap"><ListChecks className="h-3 w-3" />Updates</button>
+                  </div>
+                  {/* Row 3 - Updates */}
+                  <div className="flex justify-center mt-0.5">
+                    <button onClick={() => fetchUpdates(lead._id)} title="Updates" className="flex items-center gap-1 px-3 py-1 rounded-lg text-[11px] font-semibold text-white transition hover:opacity-90 whitespace-nowrap" style={{ background: 'linear-gradient(135deg, #10B981, #34D399)' }}><ListChecks className="h-3.5 w-3.5" />Updates</button>
                   </div>
                 </div>
               </div>
@@ -784,7 +787,7 @@ export default function CallWorkflowPage() {
         );
       })()}
 
-      {/* Updates Popup (all call records) */}
+      {/* Updates Popup — bottom-right card */}
       {updatesLeadId && (() => {
         const ul = leads.find(l => l._id === updatesLeadId);
         if (!ul) return null;
@@ -793,29 +796,31 @@ export default function CallWorkflowPage() {
         const purposeLabel: Record<string, string> = { welcome: '\uD83D\uDE4F Welcome', follow_up: '\uD83D\uDCDE Follow-up', answer_questions: '\uD83D\uDCAC Answer Back', workshop_reminder: '\uD83D\uDCC5 Workshop', collect_info: '\uD83D\uDCCB Collect Info', payment_reminder: '\uD83D\uDCB3 Payment', custom: '\u270F\uFE0F Custom' };
 
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setUpdatesLeadId(null)}>
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()} style={{ maxHeight: '80vh' }}>
-              <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100" style={{ background: 'linear-gradient(135deg, #06B6D4, #3B82F6)' }}>
+          <div className="fixed inset-0 z-[60]" onClick={() => setUpdatesLeadId(null)}>
+            <div className="absolute bottom-6 right-6 w-[420px] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col" style={{ maxHeight: 'calc(100vh - 48px)' }} onClick={e => e.stopPropagation()}>
+              <div className="flex items-center gap-3 px-4 py-3" style={{ background: 'linear-gradient(135deg, #10B981, #34D399)' }}>
+                <button onClick={() => setUpdatesLeadId(null)} className="p-0.5 rounded hover:bg-white/20 transition flex-shrink-0"><ChevronLeft className="h-5 w-5 text-white" /></button>
                 <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 bg-white/20 text-white">{(ul.name || ul.displayName || '?')[0].toUpperCase()}</div>
                 <div className="flex-1 min-w-0">
                   <p className="text-white font-semibold text-sm truncate">{ul.title ? `${ul.title}. ` : ''}{ul.name || ul.displayName || 'Unknown'}</p>
-                  <p className="text-cyan-100 text-[11px]">All Call Records &amp; Updates</p>
+                  <p className="text-emerald-100 text-[11px]">All Call Records &amp; Updates</p>
                 </div>
-                <button onClick={() => setUpdatesLeadId(null)} className="p-1 rounded hover:bg-white/20 transition"><X className="h-4 w-4 text-white" /></button>
+                <button onClick={() => setUpdatesLeadId(null)} className="p-1 rounded hover:bg-white/20 transition flex-shrink-0"><X className="h-4 w-4 text-white" /></button>
               </div>
-              <div className="overflow-y-auto px-5 py-4 space-y-2" style={{ maxHeight: 'calc(80vh - 120px)' }}>
+              <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2" style={{ maxHeight: '420px' }}>
                 {updatesLoading ? (
-                  <div className="flex items-center justify-center py-12"><div className="animate-spin h-6 w-6 border-3 border-cyan-500 border-t-transparent rounded-full" /></div>
+                  <div className="flex items-center justify-center py-12"><div className="animate-spin h-6 w-6 border-3 border-emerald-500 border-t-transparent rounded-full" /></div>
                 ) : updatesCallHistory.length === 0 ? (
                   <div className="text-center py-12 text-gray-400 text-sm">
                     <ListChecks className="h-8 w-8 mx-auto mb-2 opacity-30" />
                     <p>No call records yet</p>
+                    <p className="text-xs mt-1">Make a call to see updates here</p>
                   </div>
                 ) : updatesCallHistory.map(call => (
                   <div key={call._id} className="rounded-xl border border-gray-100 p-3 hover:bg-gray-50/50 transition">
                     <div className="flex items-center gap-2 mb-1">
                       <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${call.status === 'completed' ? 'bg-green-50 text-green-600' : call.status === 'failed' ? 'bg-red-50 text-red-600' : call.status === 'no_answer' ? 'bg-orange-50 text-orange-600' : 'bg-gray-50 text-gray-600'}`}>{call.status}</span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-600 font-medium">{purposeLabel[call.purpose] || call.purpose}</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 font-medium">{purposeLabel[call.purpose] || call.purpose}</span>
                       <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-50 text-gray-500">{call.language === 'hi-IN' || call.language === 'hi' ? '\uD83C\uDDEE\uD83C\uDDF3 Hindi' : '\uD83C\uDDEC\uD83C\uDDE7 English'}</span>
                       {call.sentiment && <span className="text-xs">{sentimentIcon(call.sentiment)}</span>}
                       <span className="text-[10px] text-gray-400 ml-auto">{fmtDt(call.createdAt)}</span>
@@ -834,7 +839,7 @@ export default function CallWorkflowPage() {
                   </div>
                 ))}
               </div>
-              <div className="px-5 py-3 border-t border-gray-100 flex gap-2">
+              <div className="px-4 py-3 border-t border-gray-100 flex gap-2">
                 <button onClick={() => { setUpdatesLeadId(null); setAiCallLeadId(ul._id); }} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-white transition hover:opacity-90" style={{ background: 'linear-gradient(135deg, #F97316, #FB923C)' }}>
                   <Bot className="h-3.5 w-3.5" /> Make AI Call
                 </button>
