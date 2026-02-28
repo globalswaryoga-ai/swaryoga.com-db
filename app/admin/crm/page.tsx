@@ -464,6 +464,7 @@ export default function CRMDashboard() {
                 <QuickActionCard href="/admin/crm/meta" icon={MessageCircle} label="WhatsApp" color="green" />
                 <QuickActionCard href="/admin/crm/sales" icon={DollarSign} label="Sales" color="emerald" />
                 <QuickActionCard href="/admin/crm/broadcast" icon={Radio} label="Broadcast" color="pink" />
+                <QuickActionCard href="/admin/crm/calls" icon={UserPlus} label="Call Workflows" color="emerald" />
                 <QuickActionCard href="/admin/crm/templates" icon={FileText} label="Templates" color="orange" />
                 <QuickActionCard href="/admin/crm/analytics" icon={BarChart3} label="Analytics" color="purple" />
               </div>

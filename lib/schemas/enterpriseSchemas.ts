@@ -2401,7 +2401,7 @@ const AICallLogSchema = new mongoose.Schema(
     retellCallId: { type: String, index: true }, // Retell's call ID
     agentId: { type: String }, // Retell agent ID used
     direction: { type: String, enum: ['outbound', 'inbound'], default: 'outbound' },
-    purpose: { type: String, enum: ['follow_up', 'workshop_reminder', 'collect_info', 'payment_reminder', 'welcome', 'custom'], default: 'custom' },
+    purpose: { type: String, enum: ['follow_up', 'workshop_reminder', 'collect_info', 'payment_reminder', 'welcome', 'answer_questions', 'custom'], default: 'custom' },
     customPrompt: { type: String }, // Custom instructions for this call
     status: { type: String, enum: ['queued', 'ringing', 'in_progress', 'completed', 'failed', 'no_answer', 'busy', 'canceled'], default: 'queued', index: true },
     phoneNumber: { type: String }, // Number called
@@ -2435,6 +2435,67 @@ const AICallLogSchema = new mongoose.Schema(
 AICallLogSchema.index({ leadId: 1, createdAt: -1 });
 AICallLogSchema.index({ retellCallId: 1 }, { unique: true, sparse: true });
 AICallLogSchema.index({ status: 1, createdAt: -1 });
+
+
+// ─── Call Workflow (Inbound/Outbound call preparation pipeline) ───
+const CallWorkflowSchema = new mongoose.Schema(
+  {
+    leadId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lead', required: true, index: true },
+    direction: { type: String, enum: ['inbound', 'outbound'], required: true },
+    workflowStatus: {
+      type: String,
+      enum: ['new', 'transcribed', 'rules_set', 'answer_ready', 'voice_ready', 'approved', 'scheduled', 'completed'],
+      default: 'new',
+    },
+
+    // ── Inbound fields ──
+    voiceRecordingUrl: { type: String },          // Row 1: incoming voice recording
+    transcribedText: { type: String },            // Row 2: voice-to-text transcription
+
+    // ── Outbound fields ──
+    lastQuery: { type: String },                  // Row 1: last question/context from lead
+    scriptText: { type: String },                 // Row 2: text of what to say
+
+    // ── Common fields ──
+    rules: { type: String },                      // Do's and Don'ts
+    preparedAnswer: { type: String },             // Prepared answer text (inbound) / final script (outbound)
+    voiceUrl: { type: String },                   // Converted text-to-voice URL
+
+    // ── Admin Approval ──
+    adminApproved: { type: Boolean, default: false },
+    approvedBy: { type: String },
+    approvedAt: { type: Date },
+
+    // ── Scheduling (outbound) ──
+    scheduledAt: { type: Date },
+
+    // ── AI Feedback / Analysis ──
+    aiFeedback: {
+      summary: { type: String },
+      sentiment: { type: String, enum: ['positive', 'neutral', 'negative', ''] },
+      suggestions: [{ type: String }],
+      score: { type: Number, min: 0, max: 100 },
+      analysedAt: { type: Date },
+    },
+
+    // ── Link to actual call ──
+    aiCallLogId: { type: mongoose.Schema.Types.ObjectId, ref: 'AICallLog' },
+
+    // ── Lead snapshot (for display without populate) ──
+    leadSnapshot: {
+      name: { type: String },
+      phone: { type: String },
+      funnelStage: { type: String },
+      country: { type: String },
+    },
+
+    notes: { type: String },
+    createdBy: { type: String },
+  },
+  { timestamps: true }
+);
+CallWorkflowSchema.index({ direction: 1, workflowStatus: 1, createdAt: -1 });
+CallWorkflowSchema.index({ leadId: 1, direction: 1 });
 
 
 // ============================================================================
@@ -2540,6 +2601,7 @@ export function getAdminSession() { return getModel('AdminSession', AdminSession
 export function getFunnelStageHistory() { return getModel('FunnelStageHistory', FunnelStageHistorySchema); }
 export function getCRMFilterOption() { return getModel('CRMFilterOption', CRMFilterOptionSchema); }
 export function getAICallLog() { return getModel('AICallLog', AICallLogSchema); }
+export function getCallWorkflow() { return getModel('CallWorkflow', CallWorkflowSchema); }
 
 // LEGACY PROXY EXPORTS - For backward compatibility with existing code
 // These use Proxies to defer initialization

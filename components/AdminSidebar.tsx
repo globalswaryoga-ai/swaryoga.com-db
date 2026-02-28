@@ -267,6 +267,12 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
       color: 'text-indigo-500',
     },
     {
+      icon: Phone,
+      label: 'Call Workflows',
+      href: '/admin/crm/calls',
+      color: 'text-emerald-500',
+    },
+    {
       icon: BarChart3,
       label: 'Analytics',
       href: '/admin/crm/analytics',
