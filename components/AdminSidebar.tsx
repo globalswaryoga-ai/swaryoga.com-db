@@ -273,6 +273,12 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
       color: 'text-emerald-500',
     },
     {
+      icon: Bot,
+      label: 'Call Scripts',
+      href: '/admin/crm/calls/templates',
+      color: 'text-orange-500',
+    },
+    {
       icon: BarChart3,
       label: 'Analytics',
       href: '/admin/crm/analytics',

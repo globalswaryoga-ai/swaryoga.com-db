@@ -2603,6 +2603,31 @@ export function getCRMFilterOption() { return getModel('CRMFilterOption', CRMFil
 export function getAICallLog() { return getModel('AICallLog', AICallLogSchema); }
 export function getCallWorkflow() { return getModel('CallWorkflow', CallWorkflowSchema); }
 
+// ─── AI Call Template (Sakshi prompt scripts for inbound/outbound calls) ───
+const AICallTemplateSchema = new mongoose.Schema(
+  {
+    key: { type: String, required: true, unique: true, index: true }, // e.g. 'welcome', 'follow_up'
+    name: { type: String, required: true }, // Display name
+    description: { type: String, default: '' },
+    category: { type: String, enum: ['outbound', 'inbound', 'both'], default: 'outbound' },
+    language: { type: String, enum: ['hi', 'en', 'both'], default: 'both' },
+    promptText: { type: String, required: true }, // The full prompt with {{variable}} placeholders
+    isActive: { type: Boolean, default: true },
+    isDefault: { type: Boolean, default: false }, // true for the 7 built-in prompts
+    variables: [{ type: String }], // e.g. ['leadName', 'lang', 'workshopName']
+    tags: [{ type: String }], // custom tags for filtering
+    usageCount: { type: Number, default: 0 },
+    lastUsedAt: { type: Date },
+    createdBy: { type: String }, // admin userId
+    updatedBy: { type: String },
+  },
+  { timestamps: true, collection: 'ai_call_templates' }
+);
+AICallTemplateSchema.index({ category: 1, isActive: 1 });
+AICallTemplateSchema.index({ key: 1, language: 1 });
+
+export function getAICallTemplate() { return getModel('AICallTemplate', AICallTemplateSchema); }
+
 // LEGACY PROXY EXPORTS - For backward compatibility with existing code
 // These use Proxies to defer initialization
 export const Lead = createModelProxy('Lead', LeadSchema);

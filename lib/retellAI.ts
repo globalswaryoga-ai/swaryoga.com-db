@@ -10,6 +10,9 @@
  *   5. Configure webhook URL: https://yourdomain.com/api/admin/crm/calls/webhook
  */
 
+import { connectDB } from '@/lib/db';
+import { getAICallTemplate } from '@/lib/schemas/enterpriseSchemas';
+
 const RETELL_API_BASE = 'https://api.retellai.com';
 
 interface RetellConfig {
@@ -80,6 +83,42 @@ export interface CreateCallResult {
   success: boolean;
   callId?: string;
   error?: string;
+}
+
+/**
+ * Try loading a call prompt template from DB.
+ * Returns null if not found — caller should fall back to hardcoded prompt.
+ */
+async function loadTemplateFromDB(purpose: string): Promise<string | null> {
+  try {
+    await connectDB();
+    const AICallTemplate = getAICallTemplate();
+    const template = await AICallTemplate.findOne({ key: purpose, isActive: true }).lean() as any;
+    if (template?.promptText) {
+      // Increment usage count (fire-and-forget)
+      AICallTemplate.updateOne({ _id: template._id }, { $inc: { usageCount: 1 }, $set: { lastUsedAt: new Date() } }).catch(() => {});
+      return template.promptText;
+    }
+    return null;
+  } catch (err) {
+    console.warn('[retellAI] Failed to load template from DB, using hardcoded:', err);
+    return null;
+  }
+}
+
+/**
+ * Replace {{variable}} placeholders in a template string with actual values
+ */
+function interpolateTemplate(template: string, vars: Record<string, string>): string {
+  let result = template;
+  for (const [key, value] of Object.entries(vars)) {
+    result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value);
+  }
+  // Handle {{#if var}}...{{/if}} blocks
+  result = result.replace(/\{\{#if (\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g, (_, varName, content) => {
+    return vars[varName] ? content : '';
+  });
+  return result;
 }
 
 /**
@@ -393,11 +432,27 @@ NEVER say "Mohan Sir aapko call karenge" — YOU (Sakshi) will always call back.
       retell_llm_dynamic_variables: dynamicVars,
     };
 
+    // Try loading prompt from DB first, fall back to hardcoded
+    let resolvedPrompt: string | null = null;
+    const templateVars: Record<string, string> = {
+      leadName: leadName,
+      lang: lang,
+      workshopName: workshopName,
+      customPrompt: input.customPrompt || '',
+    };
+
+    const dbTemplate = await loadTemplateFromDB(input.purpose);
+    if (dbTemplate) {
+      resolvedPrompt = interpolateTemplate(dbTemplate, templateVars);
+    } else {
+      resolvedPrompt = purposePrompts[input.purpose] || purposePrompts.custom;
+    }
+
     // If custom prompt override, use override_agent as general_prompt
-    if (input.customPrompt || input.purpose !== 'custom') {
+    if (input.customPrompt || input.purpose !== 'custom' || dbTemplate) {
       body.override_agent = {
         agent_name: `Swar Yoga - ${input.purpose}`,
-        general_prompt: purposePrompts[input.purpose] || purposePrompts.custom,
+        general_prompt: resolvedPrompt,
         general_tools: [],
       };
     }
