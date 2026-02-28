@@ -1,7 +1,12 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { X, Phone, PhoneCall, PlayCircle, Clock, Globe, Mic, Loader2, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { X, Phone, PhoneCall, PlayCircle, Clock, Globe, Mic, Loader2, CheckCircle, XCircle, AlertCircle, Monitor, Bot, Copy, ExternalLink } from 'lucide-react';
+
+const PERSONAL_NUMBER = '919779006820';
+const PERSONAL_NUMBER_DISPLAY = '+91 97790 06820';
+
+type CallMode = 'ai' | 'pc';
 
 interface CallLog {
   _id: string;
@@ -47,6 +52,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; icon: React.Reac
 };
 
 export default function AICallModal({ leadId, leadName, leadPhone, token, onClose, onCallMade }: AICallModalProps) {
+  const [mode, setMode] = useState<CallMode>('pc');
   const [purpose, setPurpose] = useState('follow_up');
   const [language, setLanguage] = useState('hi');
   const [customPrompt, setCustomPrompt] = useState('');
@@ -57,6 +63,7 @@ export default function AICallModal({ leadId, leadName, leadPhone, token, onClos
   const [historyLoading, setHistoryLoading] = useState(true);
   const [configured, setConfigured] = useState(true);
   const [missingKeys, setMissingKeys] = useState<string[]>([]);
+  const [copied, setCopied] = useState(false);
 
   // Fetch call history
   useEffect(() => {
@@ -132,6 +139,24 @@ export default function AICallModal({ leadId, leadName, leadPhone, token, onClos
     return m > 0 ? `${m}m ${s}s` : `${s}s`;
   };
 
+  const handleCopyNumber = async () => {
+    const num = leadPhone || '';
+    if (!num) return;
+    try {
+      await navigator.clipboard.writeText(num.startsWith('+') ? num : `+${num}`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* fallback */ }
+  };
+
+  const formattedLeadPhone = (() => {
+    const raw = (leadPhone || '').replace(/\D/g, '');
+    if (raw.length === 12 && raw.startsWith('91')) {
+      return `+${raw.slice(0, 2)} ${raw.slice(2, 7)} ${raw.slice(7)}`;
+    }
+    return raw ? `+${raw}` : 'No phone';
+  })();
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
       <div
@@ -142,17 +167,119 @@ export default function AICallModal({ leadId, leadName, leadPhone, token, onClos
         <div className="px-6 pt-5 pb-3 flex items-start justify-between border-b border-gray-100">
           <div>
             <p className="text-xs font-bold tracking-widest text-orange-600 uppercase flex items-center gap-1">
-              <PhoneCall className="h-3.5 w-3.5" /> AI Voice Call
+              <PhoneCall className="h-3.5 w-3.5" /> Call Center
             </p>
             <h2 className="text-lg font-bold text-gray-900 mt-0.5">{leadName || 'Lead'}</h2>
-            <p className="text-xs text-gray-400">{leadPhone || 'No phone'}</p>
+            <p className="text-xs text-gray-400">{formattedLeadPhone}</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition p-1">
             <X className="h-5 w-5" />
           </button>
         </div>
 
+        {/* Mode Toggle */}
+        <div className="px-6 pt-3 pb-1 flex gap-2">
+          <button
+            onClick={() => { setMode('pc'); setError(''); setCallResult(null); }}
+            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition ${
+              mode === 'pc'
+                ? 'border-blue-400 bg-blue-50 text-blue-700'
+                : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
+            }`}
+          >
+            <Monitor className="h-3.5 w-3.5" />
+            PC Call
+          </button>
+          <button
+            onClick={() => { setMode('ai'); setError(''); setCallResult(null); }}
+            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition ${
+              mode === 'ai'
+                ? 'border-orange-400 bg-orange-50 text-orange-700'
+                : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
+            }`}
+          >
+            <Bot className="h-3.5 w-3.5" />
+            AI Call
+          </button>
+        </div>
+
         <div className="flex-1 overflow-y-auto">
+
+          {/* ═══════════ PC CALL MODE ═══════════ */}
+          {mode === 'pc' && (
+            <div className="px-6 pt-4 pb-4">
+              {/* From number */}
+              <div className="mb-4 px-4 py-3 bg-blue-50 border border-blue-100 rounded-xl">
+                <p className="text-[10px] text-blue-400 font-semibold uppercase tracking-wider mb-1">Calling from</p>
+                <p className="text-sm font-bold text-blue-700">{PERSONAL_NUMBER_DISPLAY}</p>
+                <p className="text-[10px] text-blue-400 mt-0.5">Personal Number</p>
+              </div>
+
+              {/* Lead number display */}
+              <div className="mb-4 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-1">Calling to</p>
+                  <p className="text-sm font-bold text-gray-800">{formattedLeadPhone}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">{leadName}</p>
+                </div>
+                <button
+                  onClick={handleCopyNumber}
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+                    copied ? 'bg-green-100 text-green-600' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                  }`}
+                >
+                  {copied ? <CheckCircle className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                  {copied ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+
+              {/* Call buttons */}
+              <div className="space-y-2">
+                <a
+                  href={`tel:+${(leadPhone || '').replace(/\D/g, '')}`}
+                  onClick={() => onCallMade?.()}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold text-white transition"
+                  style={{ background: 'linear-gradient(135deg, #2563EB, #3B82F6)' }}
+                >
+                  <Phone className="h-4 w-4" />
+                  Call from This Device
+                </a>
+                <div className="flex gap-2">
+                  <a
+                    href={`https://wa.me/${(leadPhone || '').replace(/\D/g, '')}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-green-50 text-green-600 border border-green-200 hover:bg-green-100 transition"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    WhatsApp
+                  </a>
+                  <a
+                    href={`facetime:+${(leadPhone || '').replace(/\D/g, '')}`}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-purple-50 text-purple-600 border border-purple-200 hover:bg-purple-100 transition"
+                  >
+                    <Phone className="h-3 w-3" />
+                    FaceTime
+                  </a>
+                  <a
+                    href={`skype:+${(leadPhone || '').replace(/\D/g, '')}?call`}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-sky-50 text-sky-600 border border-sky-200 hover:bg-sky-100 transition"
+                  >
+                    <Phone className="h-3 w-3" />
+                    Skype
+                  </a>
+                </div>
+              </div>
+
+              <p className="text-[10px] text-gray-400 text-center mt-3">
+                Call will be made using your device&apos;s phone or calling app
+              </p>
+            </div>
+          )}
+
+          {/* ═══════════ AI CALL MODE ═══════════ */}
+          {mode === 'ai' && (
+            <>
           {/* Not configured warning */}
           {!configured && (
             <div className="mx-6 mt-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700">
@@ -256,11 +383,13 @@ export default function AICallModal({ leadId, leadName, leadPhone, token, onClos
               )}
             </button>
           </div>
+            </>
+          )}
 
-          {/* Call History */}
+          {/* Call History (both modes) */}
           <div className="px-6 pb-4">
             <h3 className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
-              <Clock className="h-3.5 w-3.5" /> Call History
+              <Clock className="h-3.5 w-3.5" /> {mode === 'ai' ? 'AI Call History' : 'Call History'}
             </h3>
 
             {historyLoading ? (
@@ -316,7 +445,9 @@ export default function AICallModal({ leadId, leadName, leadPhone, token, onClos
 
         {/* Footer */}
         <div className="px-6 py-3 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between">
-          <span className="text-[10px] text-gray-400">Powered by Retell.ai</span>
+          <span className="text-[10px] text-gray-400">
+            {mode === 'ai' ? 'AI Call — Powered by Retell.ai' : `PC Call — From ${PERSONAL_NUMBER_DISPLAY}`}
+          </span>
           <button onClick={onClose} className="text-sm font-medium text-gray-500 hover:text-gray-700 transition">
             Close
           </button>
