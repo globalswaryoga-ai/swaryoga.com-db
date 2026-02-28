@@ -1,810 +1,767 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import {
-  FileText, Phone, PhoneIncoming, PhoneOutgoing, Plus, Search,
+  Phone, PhoneIncoming, PhoneOutgoing, Plus, Search,
   Edit3, Trash2, Copy, Check, X, ChevronDown, ChevronRight,
-  ChevronLeft, Eye, EyeOff, Tag, Clock, Sparkles, Save,
-  RefreshCw, ArrowLeft, Bot, Loader2, ToggleLeft, ToggleRight,
-  MessageSquare, Zap, BookOpen, Settings,
+  ChevronLeft, Save, RefreshCw, ArrowLeft, Bot, Loader2,
+  Mic, MicOff, FileText, Shield, ShieldCheck, ShieldAlert,
+  Send, Clock, CheckCircle, XCircle, AlertCircle,
+  Upload, Play, Pause, Volume2,
 } from 'lucide-react';
 
-// ── Color palette ──
-const COLORS = {
-  indigo:  { main: '#6366F1', light: '#818CF8', bg: 'rgba(99,102,241,0.08)',  border: 'rgba(99,102,241,0.2)' },
-  blue:    { main: '#3B82F6', light: '#60A5FA', bg: 'rgba(59,130,246,0.08)',  border: 'rgba(59,130,246,0.2)' },
-  cyan:    { main: '#06B6D4', light: '#22D3EE', bg: 'rgba(6,182,212,0.08)',   border: 'rgba(6,182,212,0.2)' },
-  violet:  { main: '#8B5CF6', light: '#A78BFA', bg: 'rgba(139,92,246,0.08)',  border: 'rgba(139,92,246,0.2)' },
-  amber:   { main: '#F59E0B', light: '#FBBF24', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.2)' },
-  emerald: { main: '#10B981', light: '#34D399', bg: 'rgba(16,185,129,0.08)', border: 'rgba(16,185,129,0.2)' },
-  pink:    { main: '#EC4899', light: '#F472B6', bg: 'rgba(236,72,153,0.08)', border: 'rgba(236,72,153,0.2)' },
-  orange:  { main: '#F97316', light: '#FB923C', bg: 'rgba(249,115,22,0.08)', border: 'rgba(249,115,22,0.2)' },
-  pageBg:  '#F8FAFC',
+// ── Colors ──
+const C = {
+  indigo:  { main: '#6366F1', light: '#818CF8', bg: 'rgba(99,102,241,0.08)' },
+  blue:    { main: '#3B82F6', light: '#60A5FA', bg: 'rgba(59,130,246,0.08)' },
+  emerald: { main: '#10B981', light: '#34D399', bg: 'rgba(16,185,129,0.08)' },
+  amber:   { main: '#F59E0B', light: '#FBBF24', bg: 'rgba(245,158,11,0.08)' },
+  orange:  { main: '#F97316', light: '#FB923C', bg: 'rgba(249,115,22,0.08)' },
+  pink:    { main: '#EC4899', light: '#F472B6', bg: 'rgba(236,72,153,0.08)' },
+  violet:  { main: '#8B5CF6', light: '#A78BFA', bg: 'rgba(139,92,246,0.08)' },
+  red:     { main: '#EF4444', light: '#F87171', bg: 'rgba(239,68,68,0.08)' },
+  gray:    { main: '#6B7280', light: '#9CA3AF', bg: 'rgba(107,114,128,0.08)' },
 };
 
-interface CallTemplate {
+const LANGUAGES = [
+  { key: 'hi', label: 'Hindi',   flag: '🇮🇳', color: C.orange },
+  { key: 'en', label: 'English', flag: '🇬🇧', color: C.blue },
+  { key: 'mr', label: 'Marathi', flag: '🇮🇳', color: C.emerald },
+  { key: 'ne', label: 'Nepali',  flag: '🇳🇵', color: C.pink },
+  { key: 'other', label: 'Other', flag: '🌐', color: C.violet },
+];
+
+const OUTBOUND_STAGES = [
+  { order: 1, key: 'ob_welcome',   name: 'Welcome Call',      icon: '👋' },
+  { order: 2, key: 'ob_follow_up', name: 'Follow-Up',         icon: '🔄' },
+  { order: 3, key: 'ob_answer',    name: 'Answer Questions',  icon: '💬' },
+  { order: 4, key: 'ob_workshop',  name: 'Workshop Reminder', icon: '🧘' },
+  { order: 5, key: 'ob_collect',   name: 'Collect Info',      icon: '📋' },
+  { order: 6, key: 'ob_payment',   name: 'Payment Reminder',  icon: '💰' },
+];
+
+const INBOUND_STAGES = [
+  { order: 1, key: 'ib_greeting',   name: 'Greeting',    icon: '🙏' },
+  { order: 2, key: 'ib_enquiry',    name: 'Enquiry',     icon: '❓' },
+  { order: 3, key: 'ib_support',    name: 'Support',     icon: '🛟' },
+  { order: 4, key: 'ib_booking',    name: 'Booking',     icon: '📅' },
+  { order: 5, key: 'ib_feedback',   name: 'Feedback',    icon: '⭐' },
+  { order: 6, key: 'ib_escalation', name: 'Escalation',  icon: '🚨' },
+];
+
+const APPROVAL_BADGES: Record<string, { label: string; color: string; bg: string; Icon: any }> = {
+  draft:    { label: 'Draft',    color: C.gray.main,    bg: C.gray.bg,    Icon: Edit3 },
+  pending:  { label: 'Pending',  color: C.amber.main,   bg: C.amber.bg,   Icon: Clock },
+  approved: { label: 'Approved', color: C.emerald.main, bg: C.emerald.bg, Icon: CheckCircle },
+  rejected: { label: 'Rejected', color: C.red.main,     bg: C.red.bg,     Icon: XCircle },
+};
+
+interface Template {
   _id: string;
   key: string;
   name: string;
   description: string;
-  category: 'outbound' | 'inbound' | 'both';
-  language: 'hi' | 'en' | 'both';
+  category: 'outbound' | 'inbound';
+  language: string;
+  stageOrder: number;
   promptText: string;
+  voiceRecordingUrl: string;
+  voiceRecordingName: string;
+  approvalStatus: 'draft' | 'pending' | 'approved' | 'rejected';
+  approvalNote: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  submittedAt?: string;
   isActive: boolean;
   isDefault: boolean;
   variables: string[];
   tags: string[];
   usageCount: number;
-  lastUsedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
-
-const CATEGORY_CONFIG = {
-  outbound: { label: 'Outbound', icon: PhoneOutgoing, color: COLORS.emerald },
-  inbound:  { label: 'Inbound',  icon: PhoneIncoming, color: COLORS.blue },
-  both:     { label: 'Both',     icon: Phone,         color: COLORS.violet },
-};
-
-const LANG_LABELS: Record<string, string> = { hi: 'Hindi', en: 'English', both: 'Hindi & English' };
 
 export default function CallTemplatesPage() {
   const token = useAuth();
   const router = useRouter();
 
-  const [templates, setTemplates] = useState<CallTemplate[]>([]);
+  // Data
+  const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterCategory, setFilterCategory] = useState<string>('');
-  const [selectedTemplate, setSelectedTemplate] = useState<CallTemplate | null>(null);
-  const [editMode, setEditMode] = useState(false);
-  const [showCreateModal, setShowCreateModal] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [copiedId, setCopiedId] = useState('');
-  const [deleteConfirm, setDeleteConfirm] = useState('');
 
-  // Edit form state
-  const [editForm, setEditForm] = useState({
-    name: '', description: '', category: 'outbound' as string,
-    language: 'both' as string, promptText: '', tags: '' as string,
-    variables: '' as string,
-  });
+  // Filters
+  const [activeLang, setActiveLang] = useState('hi');
+  const [activeCategory, setActiveCategory] = useState<'outbound' | 'inbound'>('outbound');
 
-  // Create form state
-  const [createForm, setCreateForm] = useState({
-    key: '', name: '', description: '', category: 'outbound',
-    language: 'both', promptText: '', tags: '', variables: '',
-  });
+  // Selection & editing
+  const [selectedId, setSelectedId] = useState('');
+  const [editPrompt, setEditPrompt] = useState('');
+  const [editMode, setEditMode] = useState(false);
+  const [approvalNote, setApprovalNote] = useState('');
 
-  // ── Fetch templates ──
+  // Sidebar
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // ── Fetch ──
   const fetchTemplates = useCallback(async () => {
     if (!token) return;
     setLoading(true);
     try {
-      const res = await fetch('/api/admin/crm/calls/templates', {
+      const res = await fetch(`/api/admin/crm/calls/templates?language=${activeLang}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
-      if (data.success) {
-        setTemplates(data.data.templates || []);
-      }
+      if (data.success) setTemplates(data.data.templates || []);
     } catch (err) {
-      console.error('Failed to fetch templates:', err);
+      console.error('Fetch error:', err);
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, activeLang]);
 
-  useEffect(() => {
-    if (!token) return;
-    fetchTemplates();
-  }, [fetchTemplates, token]);
+  useEffect(() => { fetchTemplates(); }, [fetchTemplates]);
 
-  // ── Filter templates ──
-  const filteredTemplates = templates.filter(t => {
-    if (filterCategory && t.category !== filterCategory) return false;
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      return t.name.toLowerCase().includes(q) || t.key.toLowerCase().includes(q) ||
-        t.description.toLowerCase().includes(q) || t.tags.some(tag => tag.toLowerCase().includes(q));
-    }
-    return true;
-  });
+  // ── Derived ──
+  const outbound = templates.filter(t => t.category === 'outbound').sort((a, b) => a.stageOrder - b.stageOrder);
+  const inbound = templates.filter(t => t.category === 'inbound').sort((a, b) => a.stageOrder - b.stageOrder);
+  const stages = activeCategory === 'outbound' ? OUTBOUND_STAGES : INBOUND_STAGES;
+  const stageTemplates = activeCategory === 'outbound' ? outbound : inbound;
+  const selected = templates.find(t => t._id === selectedId) || null;
 
-  const outboundCount = templates.filter(t => t.category === 'outbound' || t.category === 'both').length;
-  const inboundCount = templates.filter(t => t.category === 'inbound' || t.category === 'both').length;
+  // Sidebar items = all stages for both categories
+  const sidebarItems = [
+    { header: 'Outbound', cat: 'outbound' as const, stages: OUTBOUND_STAGES, templates: outbound },
+    { header: 'Inbound', cat: 'inbound' as const, stages: INBOUND_STAGES, templates: inbound },
+  ];
 
   // ── Select template ──
-  const selectTemplate = (t: CallTemplate) => {
-    setSelectedTemplate(t);
+  const selectTemplate = (t: Template) => {
+    setSelectedId(t._id);
+    setEditPrompt(t.promptText || '');
     setEditMode(false);
-    setEditForm({
-      name: t.name, description: t.description, category: t.category,
-      language: t.language, promptText: t.promptText,
-      tags: t.tags.join(', '), variables: t.variables.join(', '),
-    });
+    setApprovalNote('');
+    setActiveCategory(t.category);
   };
 
-  // ── Save edit ──
-  const handleSave = async () => {
-    if (!selectedTemplate || !token) return;
+  // ── Save text ──
+  const handleSaveText = async () => {
+    if (!selected || !token) return;
     setSaving(true);
     try {
       const res = await fetch('/api/admin/crm/calls/templates', {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: selectedTemplate._id,
-          name: editForm.name,
-          description: editForm.description,
-          category: editForm.category,
-          language: editForm.language,
-          promptText: editForm.promptText,
-          tags: editForm.tags.split(',').map(s => s.trim()).filter(Boolean),
-          variables: editForm.variables.split(',').map(s => s.trim()).filter(Boolean),
-        }),
+        body: JSON.stringify({ id: selected._id, promptText: editPrompt }),
       });
       const data = await res.json();
       if (data.success) {
         await fetchTemplates();
-        setSelectedTemplate({ ...selectedTemplate, ...data.data.template });
         setEditMode(false);
       }
-    } catch (err) {
-      console.error('Save failed:', err);
-    } finally {
-      setSaving(false);
-    }
+    } catch (err) { console.error(err); }
+    finally { setSaving(false); }
   };
 
-  // ── Create template ──
-  const handleCreate = async () => {
-    if (!token) return;
-    if (!createForm.key || !createForm.name || !createForm.promptText) return;
+  // ── Submit for approval ──
+  const handleSubmit = async () => {
+    if (!selected || !token) return;
     setSaving(true);
-    try {
-      const res = await fetch('/api/admin/crm/calls/templates', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...createForm,
-          tags: createForm.tags.split(',').map(s => s.trim()).filter(Boolean),
-          variables: createForm.variables.split(',').map(s => s.trim()).filter(Boolean),
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        await fetchTemplates();
-        setShowCreateModal(false);
-        setCreateForm({ key: '', name: '', description: '', category: 'outbound', language: 'both', promptText: '', tags: '', variables: '' });
-      }
-    } catch (err) {
-      console.error('Create failed:', err);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // ── Delete template ──
-  const handleDelete = async (id: string) => {
-    if (!token) return;
-    try {
-      const res = await fetch('/api/admin/crm/calls/templates', {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        await fetchTemplates();
-        if (selectedTemplate?._id === id) setSelectedTemplate(null);
-        setDeleteConfirm('');
-      }
-    } catch (err) {
-      console.error('Delete failed:', err);
-    }
-  };
-
-  // ── Toggle active ──
-  const toggleActive = async (t: CallTemplate) => {
-    if (!token) return;
     try {
       await fetch('/api/admin/crm/calls/templates', {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: t._id, isActive: !t.isActive }),
+        body: JSON.stringify({ id: selected._id, action: 'submit' }),
       });
       await fetchTemplates();
-    } catch (err) {
-      console.error('Toggle failed:', err);
-    }
+    } catch (err) { console.error(err); }
+    finally { setSaving(false); }
   };
 
-  // ── Copy prompt ──
-  const copyPrompt = (t: CallTemplate) => {
-    navigator.clipboard.writeText(t.promptText);
-    setCopiedId(t._id);
-    setTimeout(() => setCopiedId(''), 2000);
-  };
-
-  // ── Duplicate template ──
-  const duplicateTemplate = async (t: CallTemplate) => {
-    if (!token) return;
-    const newKey = `${t.key}_copy_${Date.now()}`;
+  // ── Approve / Reject ──
+  const handleApproval = async (decision: 'approve' | 'reject') => {
+    if (!selected || !token) return;
+    setSaving(true);
     try {
-      const res = await fetch('/api/admin/crm/calls/templates', {
-        method: 'POST',
+      await fetch('/api/admin/crm/calls/templates', {
+        method: 'PUT',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          key: newKey,
-          name: `${t.name} (Copy)`,
-          description: t.description,
-          category: t.category,
-          language: t.language,
-          promptText: t.promptText,
-          tags: t.tags,
-          variables: t.variables,
-        }),
+        body: JSON.stringify({ id: selected._id, action: decision, approvalNote }),
       });
-      if (res.ok) await fetchTemplates();
-    } catch (err) {
-      console.error('Duplicate failed:', err);
-    }
+      await fetchTemplates();
+      setApprovalNote('');
+    } catch (err) { console.error(err); }
+    finally { setSaving(false); }
   };
 
+  // ── Voice recording URL save ──
+  const handleSaveVoice = async (url: string, name: string) => {
+    if (!selected || !token) return;
+    setSaving(true);
+    try {
+      await fetch('/api/admin/crm/calls/templates', {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: selected._id, voiceRecordingUrl: url, voiceRecordingName: name }),
+      });
+      await fetchTemplates();
+    } catch (err) { console.error(err); }
+    finally { setSaving(false); }
+  };
+
+  // ── Loading ──
   if (!token || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: COLORS.pageBg }}>
+      <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
         <div className="flex items-center gap-3">
           <Loader2 className="h-6 w-6 animate-spin text-indigo-500" />
-          <span className="text-gray-500 text-sm">Loading templates...</span>
+          <span className="text-gray-500 text-sm">Loading call scripts...</span>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen" style={{ background: COLORS.pageBg }}>
-      {/* ── Top header ── */}
+    <div className="min-h-screen bg-[#F8FAFC]">
+
+      {/* ═══ TOP HEADER ═══ */}
       <div className="bg-white border-b border-gray-100 sticky top-0 z-30">
-        <div className="px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button onClick={() => router.push('/admin/crm/calls')} className="p-2 rounded-xl hover:bg-gray-100 text-gray-400 transition">
+        {/* Title row */}
+        <div className="px-5 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button onClick={() => router.push('/admin/crm/calls')} className="p-2 rounded-xl hover:bg-gray-100 text-gray-400">
               <ArrowLeft className="h-5 w-5" />
             </button>
-            <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${COLORS.orange.main}, ${COLORS.amber.main})` }}>
+            <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${C.orange.main}, ${C.amber.main})` }}>
               <Bot className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-gray-900">Call Scripts & Templates</h1>
-              <p className="text-xs text-gray-400 mt-0.5">Manage Sakshi&apos;s AI call prompts — Inbound &amp; Outbound</p>
+              <h1 className="text-lg font-bold text-gray-900">Call Scripts & Templates</h1>
+              <p className="text-[11px] text-gray-400">Sakshi AI — Text, Voice Recording, Approval Workflow</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <button onClick={fetchTemplates} className="p-2.5 rounded-xl hover:bg-gray-100 text-gray-400 transition" title="Refresh">
-              <RefreshCw className="h-4.5 w-4.5" />
-            </button>
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-semibold shadow-lg shadow-indigo-500/25 transition hover:shadow-xl"
-              style={{ background: `linear-gradient(135deg, ${COLORS.indigo.main}, ${COLORS.violet.main})` }}
-            >
-              <Plus className="h-4 w-4" /> New Template
-            </button>
-          </div>
+          <button onClick={fetchTemplates} className="p-2 rounded-xl hover:bg-gray-100 text-gray-400" title="Refresh">
+            <RefreshCw className="h-4 w-4" />
+          </button>
         </div>
 
-        {/* ── Stats row ── */}
-        <div className="px-6 pb-3 flex items-center gap-6 text-xs">
-          <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-full" style={{ background: COLORS.indigo.main }} />
-            <span className="text-gray-500">{templates.length} Total</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <PhoneOutgoing className="h-3.5 w-3.5 text-emerald-500" />
-            <span className="text-gray-500">{outboundCount} Outbound</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <PhoneIncoming className="h-3.5 w-3.5 text-blue-500" />
-            <span className="text-gray-500">{inboundCount} Inbound</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-            <span className="text-gray-500">{templates.filter(t => t.isActive).length} Active</span>
-          </div>
+        {/* ═══ LANGUAGE TABS ═══ */}
+        <div className="px-5 pb-2 flex items-center gap-2">
+          {LANGUAGES.map(lang => {
+            const isActive = activeLang === lang.key;
+            return (
+              <button
+                key={lang.key}
+                onClick={() => { setActiveLang(lang.key); setSelectedId(''); }}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+                  isActive
+                    ? 'text-white shadow-lg'
+                    : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
+                }`}
+                style={isActive ? { background: `linear-gradient(135deg, ${lang.color.main}, ${lang.color.light})`, boxShadow: `0 4px 14px ${lang.color.main}30` } : {}}
+              >
+                <span className="text-base">{lang.flag}</span>
+                {lang.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* ── Main content ── */}
-      <div className="flex" style={{ minHeight: 'calc(100vh - 120px)' }}>
+      {/* ═══ MAIN LAYOUT ═══ */}
+      <div className="flex" style={{ minHeight: 'calc(100vh - 110px)' }}>
 
-        {/* ── Left sidebar: Template list ── */}
-        <aside className="w-80 flex-shrink-0 bg-white border-r border-gray-100 flex flex-col">
-          {/* Search & filter */}
-          <div className="px-3 py-3 border-b border-gray-100 space-y-2">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-300" />
-              <input
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Search templates..."
-                className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-gray-200 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-              />
-            </div>
-            <div className="flex gap-1.5">
-              {['', 'outbound', 'inbound', 'both'].map(cat => (
-                <button
-                  key={cat}
-                  onClick={() => setFilterCategory(cat)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${filterCategory === cat ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
-                >
-                  {cat === '' ? 'All' : cat === 'both' ? 'Both' : cat.charAt(0).toUpperCase() + cat.slice(1)}
-                </button>
-              ))}
-            </div>
+        {/* ═══ SIDEBAR — All template headers ═══ */}
+        <aside className={`${sidebarCollapsed ? 'w-14' : 'w-72'} flex-shrink-0 bg-white border-r border-gray-100 transition-all duration-300 flex flex-col`}>
+          <div className="px-3 py-3 border-b border-gray-100 flex items-center justify-between">
+            {!sidebarCollapsed && <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">All Scripts</span>}
+            <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400">
+              {sidebarCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+            </button>
           </div>
 
-          {/* Template cards */}
           <div className="flex-1 overflow-y-auto">
-            {filteredTemplates.length === 0 ? (
-              <div className="px-4 py-12 text-center">
-                <FileText className="h-8 w-8 mx-auto text-gray-200 mb-3" />
-                <p className="text-sm text-gray-400">No templates found</p>
-              </div>
-            ) : (
-              filteredTemplates.map(t => {
-                const catConf = CATEGORY_CONFIG[t.category] || CATEGORY_CONFIG.both;
-                const CatIcon = catConf.icon;
-                const isSelected = selectedTemplate?._id === t._id;
+            {sidebarItems.map(group => {
+              const isOB = group.cat === 'outbound';
+              const groupColor = isOB ? C.emerald : C.blue;
+              const GroupIcon = isOB ? PhoneOutgoing : PhoneIncoming;
 
-                return (
-                  <button
-                    key={t._id}
-                    onClick={() => selectTemplate(t)}
-                    className={`w-full px-4 py-3.5 flex items-start gap-3 transition text-left border-b border-gray-50 ${isSelected ? '' : 'hover:bg-gray-50/80'}`}
-                    style={{
-                      backgroundColor: isSelected ? catConf.color.bg : undefined,
-                      borderLeft: isSelected ? `3px solid ${catConf.color.main}` : '3px solid transparent',
-                    }}
+              return (
+                <div key={group.cat}>
+                  {/* Group header */}
+                  <div
+                    className="px-3 py-2.5 flex items-center gap-2 border-b border-gray-50 cursor-pointer hover:bg-gray-50/50"
+                    onClick={() => { setActiveCategory(group.cat); setSelectedId(''); }}
+                    style={{ borderLeft: activeCategory === group.cat ? `3px solid ${groupColor.main}` : '3px solid transparent' }}
                   >
-                    <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5" style={{ background: `linear-gradient(135deg, ${catConf.color.main}, ${catConf.color.light})` }}>
-                      <CatIcon className="h-4 w-4 text-white" />
+                    <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `linear-gradient(135deg, ${groupColor.main}, ${groupColor.light})` }}>
+                      <GroupIcon className="h-3.5 w-3.5 text-white" />
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-gray-800 truncate">{t.name}</span>
-                        {!t.isActive && (
-                          <span className="px-1.5 py-0.5 text-[10px] font-medium bg-gray-100 text-gray-400 rounded-md">OFF</span>
-                        )}
+                    {!sidebarCollapsed && (
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-bold text-gray-700 uppercase">{group.header}</div>
+                        <div className="text-[10px] text-gray-400">{group.templates.length} scripts</div>
                       </div>
-                      <div className="text-xs text-gray-400 mt-0.5 truncate">{t.description || t.key}</div>
-                      <div className="flex items-center gap-2 mt-1.5">
-                        <span className="px-1.5 py-0.5 text-[10px] font-medium rounded-md" style={{ background: catConf.color.bg, color: catConf.color.main }}>
-                          {catConf.label}
-                        </span>
-                        <span className="text-[10px] text-gray-300">{LANG_LABELS[t.language] || t.language}</span>
-                        {t.isDefault && (
-                          <span className="px-1.5 py-0.5 text-[10px] font-medium bg-amber-50 text-amber-600 rounded-md">Default</span>
-                        )}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })
-            )}
+                    )}
+                  </div>
+
+                  {/* Stage items */}
+                  {!sidebarCollapsed && group.stages.map(stage => {
+                    const tmpl = group.templates.find(t => t.key === stage.key);
+                    const isSelected = tmpl && tmpl._id === selectedId;
+                    const status = tmpl?.approvalStatus || 'draft';
+                    const badge = APPROVAL_BADGES[status];
+
+                    return (
+                      <button
+                        key={stage.key}
+                        onClick={() => tmpl && selectTemplate(tmpl)}
+                        className={`w-full px-3 py-2.5 flex items-center gap-2.5 text-left transition border-b border-gray-50/50 ${
+                          isSelected ? '' : 'hover:bg-gray-50/60'
+                        }`}
+                        style={{
+                          backgroundColor: isSelected ? groupColor.bg : undefined,
+                          borderLeft: isSelected ? `3px solid ${groupColor.main}` : '3px solid transparent',
+                        }}
+                      >
+                        <span className="text-base flex-shrink-0">{stage.icon}</span>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-medium text-gray-700 truncate">{stage.name}</div>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="px-1.5 py-px text-[9px] font-semibold rounded" style={{ background: badge.bg, color: badge.color }}>
+                              {badge.label}
+                            </span>
+                            {tmpl?.promptText && <FileText className="h-2.5 w-2.5 text-gray-300" />}
+                            {tmpl?.voiceRecordingUrl && <Mic className="h-2.5 w-2.5 text-gray-300" />}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })}
           </div>
         </aside>
 
-        {/* ── Right side: Template detail / editor ── */}
+        {/* ═══ MAIN CONTENT ═══ */}
         <main className="flex-1 overflow-y-auto">
-          {!selectedTemplate ? (
-            <div className="flex flex-col items-center justify-center h-full text-center px-8">
-              <div className="w-20 h-20 rounded-3xl flex items-center justify-center mb-6" style={{ background: `linear-gradient(135deg, ${COLORS.orange.main}20, ${COLORS.amber.main}20)` }}>
-                <Bot className="h-10 w-10 text-orange-300" />
+          {!selected ? (
+            /* ── Empty state: show stage grid ── */
+            <div className="p-6">
+              {/* Category toggle */}
+              <div className="flex items-center gap-3 mb-6">
+                <button
+                  onClick={() => setActiveCategory('outbound')}
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition ${
+                    activeCategory === 'outbound' ? 'text-white shadow-lg' : 'bg-white text-gray-500 border border-gray-200'
+                  }`}
+                  style={activeCategory === 'outbound' ? { background: `linear-gradient(135deg, ${C.emerald.main}, ${C.emerald.light})` } : {}}
+                >
+                  <PhoneOutgoing className="h-4 w-4" /> Outbound (6 Stages)
+                </button>
+                <button
+                  onClick={() => setActiveCategory('inbound')}
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition ${
+                    activeCategory === 'inbound' ? 'text-white shadow-lg' : 'bg-white text-gray-500 border border-gray-200'
+                  }`}
+                  style={activeCategory === 'inbound' ? { background: `linear-gradient(135deg, ${C.blue.main}, ${C.blue.light})` } : {}}
+                >
+                  <PhoneIncoming className="h-4 w-4" /> Inbound (6 Stages)
+                </button>
               </div>
-              <h2 className="text-xl font-bold text-gray-700 mb-2">Sakshi&apos;s Call Scripts</h2>
-              <p className="text-sm text-gray-400 max-w-md">
-                Select a template from the left to view or edit. Each template defines how Sakshi speaks during AI calls — her greeting, conversation flow, and closing.
-              </p>
-              <div className="mt-8 grid grid-cols-3 gap-4 max-w-lg">
-                <div className="p-4 rounded-2xl bg-white border border-gray-100 text-center">
-                  <PhoneOutgoing className="h-6 w-6 mx-auto mb-2 text-emerald-500" />
-                  <div className="text-xs font-semibold text-gray-700">Outbound</div>
-                  <div className="text-[10px] text-gray-400 mt-1">Sakshi calls leads</div>
-                </div>
-                <div className="p-4 rounded-2xl bg-white border border-gray-100 text-center">
-                  <PhoneIncoming className="h-6 w-6 mx-auto mb-2 text-blue-500" />
-                  <div className="text-xs font-semibold text-gray-700">Inbound</div>
-                  <div className="text-[10px] text-gray-400 mt-1">Leads call Swar Yoga</div>
-                </div>
-                <div className="p-4 rounded-2xl bg-white border border-gray-100 text-center">
-                  <Sparkles className="h-6 w-6 mx-auto mb-2 text-amber-500" />
-                  <div className="text-xs font-semibold text-gray-700">Custom</div>
-                  <div className="text-[10px] text-gray-400 mt-1">Your own scripts</div>
+
+              {/* ── 6 stage cards ── */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {stages.map(stage => {
+                  const tmpl = stageTemplates.find(t => t.key === stage.key);
+                  const status = tmpl?.approvalStatus || 'draft';
+                  const badge = APPROVAL_BADGES[status];
+                  const BadgeIcon = badge.Icon;
+                  const catColor = activeCategory === 'outbound' ? C.emerald : C.blue;
+
+                  return (
+                    <div
+                      key={stage.key}
+                      onClick={() => tmpl && selectTemplate(tmpl)}
+                      className="bg-white rounded-2xl border border-gray-100 p-5 cursor-pointer hover:shadow-lg hover:border-gray-200 transition-all group"
+                    >
+                      {/* Top row */}
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <span className="text-2xl">{stage.icon}</span>
+                          <div>
+                            <div className="text-sm font-bold text-gray-800">{stage.name}</div>
+                            <div className="text-[10px] text-gray-400">Stage {stage.order}</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 px-2 py-1 rounded-lg" style={{ background: badge.bg }}>
+                          <BadgeIcon className="h-3 w-3" style={{ color: badge.color }} />
+                          <span className="text-[10px] font-bold" style={{ color: badge.color }}>{badge.label}</span>
+                        </div>
+                      </div>
+
+                      {/* Status indicators */}
+                      <div className="flex items-center gap-3 text-[11px]">
+                        <div className={`flex items-center gap-1 ${tmpl?.promptText ? 'text-emerald-500' : 'text-gray-300'}`}>
+                          <FileText className="h-3 w-3" />
+                          Text {tmpl?.promptText ? '✓' : '—'}
+                        </div>
+                        <div className={`flex items-center gap-1 ${tmpl?.voiceRecordingUrl ? 'text-emerald-500' : 'text-gray-300'}`}>
+                          <Mic className="h-3 w-3" />
+                          Voice {tmpl?.voiceRecordingUrl ? '✓' : '—'}
+                        </div>
+                        <div className={`flex items-center gap-1 ${tmpl?.isActive ? 'text-emerald-500' : 'text-gray-300'}`}>
+                          <ShieldCheck className="h-3 w-3" />
+                          Approved {tmpl?.isActive ? '✓' : '—'}
+                        </div>
+                      </div>
+
+                      {/* Progress bar */}
+                      <div className="mt-3 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{
+                            width: `${((tmpl?.promptText ? 33 : 0) + (tmpl?.voiceRecordingUrl ? 33 : 0) + (tmpl?.isActive ? 34 : 0))}%`,
+                            background: `linear-gradient(90deg, ${catColor.main}, ${catColor.light})`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Legend */}
+              <div className="mt-8 p-4 bg-white rounded-2xl border border-gray-100">
+                <div className="text-xs font-bold text-gray-600 mb-3">Workflow: How each script goes live</div>
+                <div className="flex items-center gap-3">
+                  {[
+                    { step: '1', label: 'Write Text', icon: FileText, color: C.indigo },
+                    { step: '2', label: 'Add Voice Recording', icon: Mic, color: C.violet },
+                    { step: '3', label: 'Admin Approval', icon: Shield, color: C.amber },
+                    { step: '4', label: 'Submit to Use', icon: Send, color: C.emerald },
+                  ].map((s, i) => (
+                    <div key={s.step} className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ background: s.color.main }}>
+                        {s.step}
+                      </div>
+                      <div className="text-xs text-gray-600 font-medium">{s.label}</div>
+                      {i < 3 && <ChevronRight className="h-4 w-4 text-gray-300 mx-1" />}
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
           ) : (
-            <div className="max-w-4xl mx-auto p-6 space-y-6">
-              {/* Template header */}
-              <div className="bg-white rounded-2xl border border-gray-100 p-6">
-                <div className="flex items-start justify-between">
+            /* ═══ TEMPLATE DETAIL VIEW ═══ */
+            <div className="max-w-4xl mx-auto p-6 space-y-5">
+
+              {/* ── Header card ── */}
+              <div className="bg-white rounded-2xl border border-gray-100 p-5">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    {(() => {
-                      const catConf = CATEGORY_CONFIG[selectedTemplate.category] || CATEGORY_CONFIG.both;
-                      const CatIcon = catConf.icon;
-                      return (
-                        <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${catConf.color.main}, ${catConf.color.light})` }}>
-                          <CatIcon className="h-7 w-7 text-white" />
-                        </div>
-                      );
-                    })()}
+                    <span className="text-3xl">
+                      {(activeCategory === 'outbound' ? OUTBOUND_STAGES : INBOUND_STAGES).find(s => s.key === selected.key)?.icon || '📄'}
+                    </span>
                     <div>
-                      {editMode ? (
-                        <input
-                          value={editForm.name}
-                          onChange={e => setEditForm({ ...editForm, name: e.target.value })}
-                          className="text-xl font-bold text-gray-900 border-b-2 border-indigo-300 outline-none pb-1 bg-transparent"
-                        />
-                      ) : (
-                        <h2 className="text-xl font-bold text-gray-900">{selectedTemplate.name}</h2>
-                      )}
-                      <div className="flex items-center gap-3 mt-1.5">
-                        <span className="px-2 py-0.5 text-xs font-medium rounded-lg" style={{ background: CATEGORY_CONFIG[selectedTemplate.category]?.color.bg, color: CATEGORY_CONFIG[selectedTemplate.category]?.color.main }}>
-                          {CATEGORY_CONFIG[selectedTemplate.category]?.label}
+                      <h2 className="text-lg font-bold text-gray-900">{selected.name}</h2>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="px-2 py-0.5 text-[10px] font-bold rounded-lg text-white" style={{ background: activeCategory === 'outbound' ? C.emerald.main : C.blue.main }}>
+                          {activeCategory === 'outbound' ? 'Outbound' : 'Inbound'}
                         </span>
-                        <span className="text-xs text-gray-400">{LANG_LABELS[selectedTemplate.language]}</span>
-                        <span className="text-xs text-gray-300">Key: {selectedTemplate.key}</span>
-                        {selectedTemplate.isDefault && (
-                          <span className="px-2 py-0.5 text-xs font-medium bg-amber-50 text-amber-600 rounded-lg">Built-in</span>
-                        )}
+                        <span className="text-xs text-gray-400">Stage {selected.stageOrder}</span>
+                        <span className="text-xs text-gray-300">•</span>
+                        <span className="text-xs text-gray-400">{LANGUAGES.find(l => l.key === activeLang)?.label}</span>
+                        <span className="text-xs text-gray-300">•</span>
+                        {(() => {
+                          const b = APPROVAL_BADGES[selected.approvalStatus];
+                          const BIcon = b.Icon;
+                          return (
+                            <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold" style={{ background: b.bg, color: b.color }}>
+                              <BIcon className="h-3 w-3" /> {b.label}
+                            </span>
+                          );
+                        })()}
                       </div>
                     </div>
+                  </div>
+                  <button onClick={() => setSelectedId('')} className="p-2 rounded-xl hover:bg-gray-100 text-gray-400">
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                {selected.description && <p className="mt-2 text-xs text-gray-500">{selected.description}</p>}
+              </div>
+
+              {/* ── STEP 1: Text Script ── */}
+              <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ background: C.indigo.main }}>1</div>
+                    <span className="text-sm font-bold text-gray-700">Script Text</span>
+                    {selected.promptText && <CheckCircle className="h-3.5 w-3.5 text-emerald-400" />}
                   </div>
                   <div className="flex items-center gap-2">
                     {editMode ? (
                       <>
                         <button
-                          onClick={handleSave}
+                          onClick={handleSaveText}
                           disabled={saving}
-                          className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-white text-sm font-semibold transition shadow-lg shadow-emerald-500/25"
-                          style={{ background: `linear-gradient(135deg, ${COLORS.emerald.main}, #059669)` }}
+                          className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-white text-xs font-bold shadow"
+                          style={{ background: C.emerald.main }}
                         >
-                          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                          Save
+                          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />} Save
                         </button>
-                        <button
-                          onClick={() => { setEditMode(false); selectTemplate(selectedTemplate); }}
-                          className="px-4 py-2 rounded-xl text-sm font-medium text-gray-500 bg-gray-100 hover:bg-gray-200 transition"
-                        >
+                        <button onClick={() => { setEditMode(false); setEditPrompt(selected.promptText); }} className="px-3 py-1.5 rounded-xl text-xs font-medium text-gray-500 bg-gray-100">
                           Cancel
                         </button>
                       </>
                     ) : (
-                      <>
-                        <button
-                          onClick={() => setEditMode(true)}
-                          className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-white text-sm font-semibold transition shadow-lg shadow-indigo-500/25"
-                          style={{ background: `linear-gradient(135deg, ${COLORS.indigo.main}, ${COLORS.violet.main})` }}
-                        >
-                          <Edit3 className="h-4 w-4" /> Edit
-                        </button>
-                        <button onClick={() => copyPrompt(selectedTemplate)} className="p-2 rounded-xl hover:bg-gray-100 text-gray-400 transition" title="Copy prompt">
-                          {copiedId === selectedTemplate._id ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
-                        </button>
-                        <button onClick={() => duplicateTemplate(selectedTemplate)} className="p-2 rounded-xl hover:bg-gray-100 text-gray-400 transition" title="Duplicate">
-                          <Plus className="h-4 w-4" />
-                        </button>
-                        <button onClick={() => toggleActive(selectedTemplate)} className="p-2 rounded-xl hover:bg-gray-100 transition" title={selectedTemplate.isActive ? 'Deactivate' : 'Activate'}>
-                          {selectedTemplate.isActive ? <ToggleRight className="h-5 w-5 text-emerald-500" /> : <ToggleLeft className="h-5 w-5 text-gray-300" />}
-                        </button>
-                        {deleteConfirm === selectedTemplate._id ? (
-                          <div className="flex items-center gap-1 ml-2">
-                            <button onClick={() => handleDelete(selectedTemplate._id)} className="px-3 py-1.5 rounded-lg bg-red-500 text-white text-xs font-medium">Confirm</button>
-                            <button onClick={() => setDeleteConfirm('')} className="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-500 text-xs font-medium">Cancel</button>
-                          </div>
-                        ) : (
-                          <button onClick={() => setDeleteConfirm(selectedTemplate._id)} className="p-2 rounded-xl hover:bg-red-50 text-gray-300 hover:text-red-400 transition" title="Delete">
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        )}
-                      </>
+                      <button
+                        onClick={() => setEditMode(true)}
+                        className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-white text-xs font-bold shadow"
+                        style={{ background: C.indigo.main }}
+                      >
+                        <Edit3 className="h-3.5 w-3.5" /> Edit
+                      </button>
                     )}
                   </div>
                 </div>
-
-                {/* Description */}
-                {editMode ? (
-                  <div className="mt-4">
-                    <label className="text-xs font-medium text-gray-500 mb-1 block">Description</label>
-                    <input
-                      value={editForm.description}
-                      onChange={e => setEditForm({ ...editForm, description: e.target.value })}
-                      className="w-full px-3 py-2 text-sm rounded-xl border border-gray-200 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 outline-none"
-                      placeholder="Brief description of this template..."
-                    />
-                  </div>
-                ) : (
-                  selectedTemplate.description && (
-                    <p className="mt-3 text-sm text-gray-500">{selectedTemplate.description}</p>
-                  )
-                )}
-
-                {/* Meta info row */}
-                {editMode ? (
-                  <div className="mt-4 grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-xs font-medium text-gray-500 mb-1 block">Category</label>
-                      <select
-                        value={editForm.category}
-                        onChange={e => setEditForm({ ...editForm, category: e.target.value })}
-                        className="w-full px-3 py-2 text-sm rounded-xl border border-gray-200 focus:border-indigo-300 outline-none"
-                      >
-                        <option value="outbound">Outbound</option>
-                        <option value="inbound">Inbound</option>
-                        <option value="both">Both</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-xs font-medium text-gray-500 mb-1 block">Language</label>
-                      <select
-                        value={editForm.language}
-                        onChange={e => setEditForm({ ...editForm, language: e.target.value })}
-                        className="w-full px-3 py-2 text-sm rounded-xl border border-gray-200 focus:border-indigo-300 outline-none"
-                      >
-                        <option value="both">Hindi & English</option>
-                        <option value="hi">Hindi</option>
-                        <option value="en">English</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-xs font-medium text-gray-500 mb-1 block">Variables (comma-separated)</label>
-                      <input
-                        value={editForm.variables}
-                        onChange={e => setEditForm({ ...editForm, variables: e.target.value })}
-                        className="w-full px-3 py-2 text-sm rounded-xl border border-gray-200 focus:border-indigo-300 outline-none"
-                        placeholder="leadName, lang, workshopName"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-medium text-gray-500 mb-1 block">Tags (comma-separated)</label>
-                      <input
-                        value={editForm.tags}
-                        onChange={e => setEditForm({ ...editForm, tags: e.target.value })}
-                        className="w-full px-3 py-2 text-sm rounded-xl border border-gray-200 focus:border-indigo-300 outline-none"
-                        placeholder="follow-up, reminder"
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="mt-4 flex items-center gap-4 flex-wrap">
-                    {selectedTemplate.variables.length > 0 && (
-                      <div className="flex items-center gap-1.5">
-                        <Settings className="h-3.5 w-3.5 text-gray-300" />
-                        <span className="text-xs text-gray-400">Variables:</span>
-                        {selectedTemplate.variables.map(v => (
-                          <span key={v} className="px-2 py-0.5 text-[10px] font-mono font-medium bg-indigo-50 text-indigo-600 rounded-md">{`{{${v}}}`}</span>
-                        ))}
-                      </div>
-                    )}
-                    {selectedTemplate.tags.length > 0 && (
-                      <div className="flex items-center gap-1.5">
-                        <Tag className="h-3.5 w-3.5 text-gray-300" />
-                        {selectedTemplate.tags.map(tag => (
-                          <span key={tag} className="px-2 py-0.5 text-[10px] font-medium bg-gray-100 text-gray-500 rounded-md">{tag}</span>
-                        ))}
-                      </div>
-                    )}
-                    {selectedTemplate.usageCount > 0 && (
-                      <div className="flex items-center gap-1.5 text-xs text-gray-300">
-                        <Zap className="h-3.5 w-3.5" />
-                        Used {selectedTemplate.usageCount} times
-                      </div>
-                    )}
-                    <div className="flex items-center gap-1.5 text-xs text-gray-300">
-                      <Clock className="h-3.5 w-3.5" />
-                      Updated {new Date(selectedTemplate.updatedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* ── Prompt text ── */}
-              <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-                <div className="px-6 py-3 border-b border-gray-100 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <MessageSquare className="h-4 w-4 text-indigo-500" />
-                    <span className="text-sm font-semibold text-gray-700">Prompt Script</span>
-                  </div>
-                  {!editMode && (
-                    <button onClick={() => copyPrompt(selectedTemplate)} className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1">
-                      {copiedId === selectedTemplate._id ? <><Check className="h-3.5 w-3.5 text-emerald-500" /> Copied!</> : <><Copy className="h-3.5 w-3.5" /> Copy</>}
-                    </button>
-                  )}
-                </div>
-                <div className="p-6">
+                <div className="p-5">
                   {editMode ? (
                     <textarea
-                      value={editForm.promptText}
-                      onChange={e => setEditForm({ ...editForm, promptText: e.target.value })}
-                      rows={24}
+                      value={editPrompt}
+                      onChange={e => setEditPrompt(e.target.value)}
+                      rows={18}
                       className="w-full px-4 py-3 text-sm font-mono leading-relaxed rounded-xl border border-gray-200 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 outline-none resize-y"
-                      placeholder="Enter Sakshi's prompt script here..."
+                      placeholder="Write Sakshi's call script here...&#10;&#10;Use {{leadName}}, {{lang}}, {{workshopName}} as variables."
                     />
-                  ) : (
-                    <pre className="text-sm font-mono leading-relaxed text-gray-700 whitespace-pre-wrap break-words">
-                      {selectedTemplate.promptText}
+                  ) : selected.promptText ? (
+                    <pre className="text-sm font-mono leading-relaxed text-gray-700 whitespace-pre-wrap break-words max-h-[500px] overflow-y-auto">
+                      {selected.promptText}
                     </pre>
+                  ) : (
+                    <div className="text-center py-10 text-gray-300">
+                      <FileText className="h-8 w-8 mx-auto mb-2" />
+                      <p className="text-sm">No script text yet. Click Edit to add.</p>
+                    </div>
                   )}
                 </div>
               </div>
 
-              {/* ── Variable guide ── */}
-              {!editMode && (
-                <div className="bg-white rounded-2xl border border-gray-100 p-6">
-                  <div className="flex items-center gap-2 mb-4">
-                    <BookOpen className="h-4 w-4 text-amber-500" />
-                    <span className="text-sm font-semibold text-gray-700">Variable Reference</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 text-xs">
-                    <div className="p-3 rounded-xl bg-gray-50">
-                      <span className="font-mono font-medium text-indigo-600">{`{{leadName}}`}</span>
-                      <span className="text-gray-400 ml-2">Lead&apos;s display name or &quot;ji&quot;</span>
-                    </div>
-                    <div className="p-3 rounded-xl bg-gray-50">
-                      <span className="font-mono font-medium text-indigo-600">{`{{lang}}`}</span>
-                      <span className="text-gray-400 ml-2">Hindi or English</span>
-                    </div>
-                    <div className="p-3 rounded-xl bg-gray-50">
-                      <span className="font-mono font-medium text-indigo-600">{`{{workshopName}}`}</span>
-                      <span className="text-gray-400 ml-2">Name of the workshop</span>
-                    </div>
-                    <div className="p-3 rounded-xl bg-gray-50">
-                      <span className="font-mono font-medium text-indigo-600">{`{{customPrompt}}`}</span>
-                      <span className="text-gray-400 ml-2">Custom instructions (answers, etc.)</span>
-                    </div>
+              {/* ── STEP 2: Voice Recording ── */}
+              <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ background: C.violet.main }}>2</div>
+                    <span className="text-sm font-bold text-gray-700">Voice Recording</span>
+                    {selected.voiceRecordingUrl && <CheckCircle className="h-3.5 w-3.5 text-emerald-400" />}
                   </div>
                 </div>
-              )}
+                <div className="p-5">
+                  {selected.voiceRecordingUrl ? (
+                    <div className="flex items-center gap-4 p-4 rounded-xl bg-violet-50/50 border border-violet-100">
+                      <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: C.violet.main }}>
+                        <Volume2 className="h-6 w-6 text-white" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-semibold text-gray-800 truncate">{selected.voiceRecordingName || 'Recording'}</div>
+                        <a href={selected.voiceRecordingUrl} target="_blank" rel="noreferrer" className="text-xs text-violet-500 hover:underline truncate block">
+                          {selected.voiceRecordingUrl}
+                        </a>
+                      </div>
+                      <button
+                        onClick={() => handleSaveVoice('', '')}
+                        className="p-2 rounded-xl hover:bg-red-50 text-gray-400 hover:text-red-500"
+                        title="Remove recording"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <VoiceUploader onSave={handleSaveVoice} saving={saving} />
+                  )}
+                </div>
+              </div>
+
+              {/* ── STEP 3: Admin Approval ── */}
+              <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ background: C.amber.main }}>3</div>
+                  <span className="text-sm font-bold text-gray-700">Admin Approval</span>
+                </div>
+                <div className="p-5">
+                  {selected.approvalStatus === 'draft' && (
+                    <div className="text-center py-6">
+                      <Shield className="h-8 w-8 mx-auto text-gray-200 mb-2" />
+                      <p className="text-sm text-gray-400 mb-4">Add text and/or voice recording, then submit for approval.</p>
+                      <button
+                        onClick={handleSubmit}
+                        disabled={saving || (!selected.promptText && !selected.voiceRecordingUrl)}
+                        className="flex items-center gap-2 mx-auto px-6 py-2.5 rounded-xl text-white text-sm font-bold shadow-lg disabled:opacity-40 transition"
+                        style={{ background: `linear-gradient(135deg, ${C.amber.main}, ${C.orange.main})` }}
+                      >
+                        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                        Submit for Approval
+                      </button>
+                    </div>
+                  )}
+
+                  {selected.approvalStatus === 'pending' && (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3 p-4 rounded-xl bg-amber-50 border border-amber-100">
+                        <Clock className="h-5 w-5 text-amber-500 flex-shrink-0" />
+                        <div>
+                          <div className="text-sm font-semibold text-amber-800">Pending Admin Approval</div>
+                          <div className="text-xs text-amber-600 mt-0.5">
+                            Submitted {selected.submittedAt ? new Date(selected.submittedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                          </div>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 mb-1 block">Approval Note (optional)</label>
+                        <input
+                          value={approvalNote}
+                          onChange={e => setApprovalNote(e.target.value)}
+                          className="w-full px-3 py-2 text-sm rounded-xl border border-gray-200 focus:border-indigo-300 outline-none"
+                          placeholder="Add note for approval/rejection..."
+                        />
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => handleApproval('approve')}
+                          disabled={saving}
+                          className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-white text-sm font-bold shadow-lg"
+                          style={{ background: C.emerald.main }}
+                        >
+                          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => handleApproval('reject')}
+                          disabled={saving}
+                          className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-white text-sm font-bold shadow-lg"
+                          style={{ background: C.red.main }}
+                        >
+                          <XCircle className="h-4 w-4" /> Reject
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {selected.approvalStatus === 'approved' && (
+                    <div className="flex items-center gap-3 p-4 rounded-xl bg-emerald-50 border border-emerald-100">
+                      <ShieldCheck className="h-6 w-6 text-emerald-500 flex-shrink-0" />
+                      <div>
+                        <div className="text-sm font-bold text-emerald-800">Approved & Active</div>
+                        <div className="text-xs text-emerald-600 mt-0.5">
+                          Approved {selected.approvedAt ? new Date(selected.approvedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}
+                          {selected.approvedBy && ` by ${selected.approvedBy}`}
+                        </div>
+                        {selected.approvalNote && <div className="text-xs text-emerald-500 mt-1 italic">&ldquo;{selected.approvalNote}&rdquo;</div>}
+                      </div>
+                    </div>
+                  )}
+
+                  {selected.approvalStatus === 'rejected' && (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3 p-4 rounded-xl bg-red-50 border border-red-100">
+                        <ShieldAlert className="h-6 w-6 text-red-500 flex-shrink-0" />
+                        <div>
+                          <div className="text-sm font-bold text-red-800">Rejected</div>
+                          <div className="text-xs text-red-600 mt-0.5">
+                            {selected.approvedBy && `By ${selected.approvedBy}`}
+                            {selected.approvedAt && ` on ${new Date(selected.approvedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`}
+                          </div>
+                          {selected.approvalNote && <div className="text-xs text-red-500 mt-1 italic">&ldquo;{selected.approvalNote}&rdquo;</div>}
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-500">Edit the script and re-submit for approval.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* ── STEP 4: Submit to Use (status summary) ── */}
+              <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ background: C.emerald.main }}>4</div>
+                  <span className="text-sm font-bold text-gray-700">Ready to Use</span>
+                </div>
+                <div className="p-5">
+                  {selected.isActive ? (
+                    <div className="flex items-center gap-3 p-4 rounded-xl bg-emerald-50 border border-emerald-100">
+                      <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: C.emerald.main }}>
+                        <CheckCircle className="h-6 w-6 text-white" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold text-emerald-800">This script is LIVE</div>
+                        <div className="text-xs text-emerald-600 mt-0.5">
+                          Sakshi will use this script for {selected.name} calls in {LANGUAGES.find(l => l.key === activeLang)?.label}.
+                          {selected.usageCount > 0 && ` Used ${selected.usageCount} times.`}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3 p-4 rounded-xl bg-gray-50 border border-gray-100">
+                      <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-gray-200">
+                        <AlertCircle className="h-6 w-6 text-gray-400" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold text-gray-600">Not yet active</div>
+                        <div className="text-xs text-gray-400 mt-0.5">
+                          Complete the workflow: Add text → Voice recording → Get admin approval
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
         </main>
       </div>
+    </div>
+  );
+}
 
-      {/* ── Create Modal ── */}
-      {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setShowCreateModal(false)} />
-          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto mx-4">
-            <div className="sticky top-0 bg-white px-6 py-4 border-b border-gray-100 flex items-center justify-between rounded-t-3xl z-10">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${COLORS.indigo.main}, ${COLORS.violet.main})` }}>
-                  <Plus className="h-5 w-5 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-gray-900">New Call Template</h3>
-                  <p className="text-xs text-gray-400">Create a new prompt script for Sakshi</p>
-                </div>
-              </div>
-              <button onClick={() => setShowCreateModal(false)} className="p-2 rounded-xl hover:bg-gray-100 text-gray-400 transition">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+// ═══ Voice URL Uploader Component ═══
+function VoiceUploader({ onSave, saving }: { onSave: (url: string, name: string) => void; saving: boolean }) {
+  const [voiceUrl, setVoiceUrl] = useState('');
+  const [voiceName, setVoiceName] = useState('');
 
-            <div className="px-6 py-5 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-medium text-gray-600 mb-1 block">Template Key *</label>
-                  <input
-                    value={createForm.key}
-                    onChange={e => setCreateForm({ ...createForm, key: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '_') })}
-                    className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 outline-none"
-                    placeholder="e.g. renewal_reminder"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-gray-600 mb-1 block">Display Name *</label>
-                  <input
-                    value={createForm.name}
-                    onChange={e => setCreateForm({ ...createForm, name: e.target.value })}
-                    className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 outline-none"
-                    placeholder="e.g. Renewal Reminder"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Description</label>
-                <input
-                  value={createForm.description}
-                  onChange={e => setCreateForm({ ...createForm, description: e.target.value })}
-                  className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 outline-none"
-                  placeholder="Brief description of when to use this template"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-medium text-gray-600 mb-1 block">Category</label>
-                  <select
-                    value={createForm.category}
-                    onChange={e => setCreateForm({ ...createForm, category: e.target.value })}
-                    className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-indigo-300 outline-none"
-                  >
-                    <option value="outbound">Outbound</option>
-                    <option value="inbound">Inbound</option>
-                    <option value="both">Both</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-gray-600 mb-1 block">Language</label>
-                  <select
-                    value={createForm.language}
-                    onChange={e => setCreateForm({ ...createForm, language: e.target.value })}
-                    className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-indigo-300 outline-none"
-                  >
-                    <option value="both">Hindi & English</option>
-                    <option value="hi">Hindi</option>
-                    <option value="en">English</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-medium text-gray-600 mb-1 block">Variables (comma-separated)</label>
-                  <input
-                    value={createForm.variables}
-                    onChange={e => setCreateForm({ ...createForm, variables: e.target.value })}
-                    className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-indigo-300 outline-none"
-                    placeholder="leadName, lang, workshopName"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-gray-600 mb-1 block">Tags (comma-separated)</label>
-                  <input
-                    value={createForm.tags}
-                    onChange={e => setCreateForm({ ...createForm, tags: e.target.value })}
-                    className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-indigo-300 outline-none"
-                    placeholder="reminder, renewal"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Prompt Script *</label>
-                <textarea
-                  value={createForm.promptText}
-                  onChange={e => setCreateForm({ ...createForm, promptText: e.target.value })}
-                  rows={14}
-                  className="w-full px-4 py-3 text-sm font-mono leading-relaxed rounded-xl border border-gray-200 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 outline-none resize-y"
-                  placeholder={`You are Sakshi, the official AI assistant of Swar Yoga...\n\nWrite the full prompt script here. Use {{leadName}}, {{lang}}, {{workshopName}} as variables.`}
-                />
-              </div>
-            </div>
-
-            <div className="sticky bottom-0 bg-white px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-3 rounded-b-3xl">
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="px-5 py-2.5 rounded-xl text-sm font-medium text-gray-500 bg-gray-100 hover:bg-gray-200 transition"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreate}
-                disabled={saving || !createForm.key || !createForm.name || !createForm.promptText}
-                className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-white text-sm font-semibold shadow-lg shadow-indigo-500/25 transition hover:shadow-xl disabled:opacity-50"
-                style={{ background: `linear-gradient(135deg, ${COLORS.indigo.main}, ${COLORS.violet.main})` }}
-              >
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                Create Template
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-gray-400">Add a voice recording URL (Google Drive, Dropbox, or any public link).</p>
+      <div>
+        <label className="text-xs font-medium text-gray-600 mb-1 block">Recording Name</label>
+        <input
+          value={voiceName}
+          onChange={e => setVoiceName(e.target.value)}
+          className="w-full px-3 py-2 text-sm rounded-xl border border-gray-200 focus:border-violet-300 outline-none"
+          placeholder="e.g. Welcome Call Hindi v2"
+        />
+      </div>
+      <div>
+        <label className="text-xs font-medium text-gray-600 mb-1 block">Recording URL</label>
+        <input
+          value={voiceUrl}
+          onChange={e => setVoiceUrl(e.target.value)}
+          className="w-full px-3 py-2 text-sm rounded-xl border border-gray-200 focus:border-violet-300 outline-none"
+          placeholder="https://drive.google.com/file/..."
+        />
+      </div>
+      <button
+        onClick={() => { if (voiceUrl) onSave(voiceUrl, voiceName || 'Recording'); }}
+        disabled={saving || !voiceUrl}
+        className="flex items-center gap-2 px-5 py-2 rounded-xl text-white text-sm font-bold shadow disabled:opacity-40"
+        style={{ background: C.violet.main }}
+      >
+        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+        Save Recording
+      </button>
     </div>
   );
 }

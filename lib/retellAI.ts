@@ -87,13 +87,33 @@ export interface CreateCallResult {
 
 /**
  * Try loading a call prompt template from DB.
+ * Maps purpose to new key format (ob_welcome, ob_follow_up, etc.) and filters by language.
  * Returns null if not found — caller should fall back to hardcoded prompt.
  */
-async function loadTemplateFromDB(purpose: string): Promise<string | null> {
+async function loadTemplateFromDB(purpose: string, language?: string): Promise<string | null> {
   try {
     await connectDB();
     const AICallTemplate = getAICallTemplate();
-    const template = await AICallTemplate.findOne({ key: purpose, isActive: true }).lean() as any;
+
+    // Map old purpose keys to new outbound keys
+    const keyMap: Record<string, string> = {
+      welcome: 'ob_welcome',
+      follow_up: 'ob_follow_up',
+      answer_questions: 'ob_answer',
+      workshop_reminder: 'ob_workshop',
+      collect_info: 'ob_collect',
+      payment_reminder: 'ob_payment',
+      custom: 'ob_welcome', // fallback
+    };
+    const dbKey = keyMap[purpose] || purpose;
+    const lang = language || 'hi';
+
+    // Try exact language match first, then fallback to any active
+    let template = await AICallTemplate.findOne({ key: dbKey, language: lang, isActive: true }).lean() as any;
+    if (!template) {
+      template = await AICallTemplate.findOne({ key: dbKey, isActive: true }).lean() as any;
+    }
+
     if (template?.promptText) {
       // Increment usage count (fire-and-forget)
       AICallTemplate.updateOne({ _id: template._id }, { $inc: { usageCount: 1 }, $set: { lastUsedAt: new Date() } }).catch(() => {});
@@ -441,7 +461,7 @@ NEVER say "Mohan Sir aapko call karenge" — YOU (Sakshi) will always call back.
       customPrompt: input.customPrompt || '',
     };
 
-    const dbTemplate = await loadTemplateFromDB(input.purpose);
+    const dbTemplate = await loadTemplateFromDB(input.purpose, input.language);
     if (dbTemplate) {
       resolvedPrompt = interpolateTemplate(dbTemplate, templateVars);
     } else {

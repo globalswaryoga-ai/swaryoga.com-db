@@ -2606,25 +2606,38 @@ export function getCallWorkflow() { return getModel('CallWorkflow', CallWorkflow
 // ─── AI Call Template (Sakshi prompt scripts for inbound/outbound calls) ───
 const AICallTemplateSchema = new mongoose.Schema(
   {
-    key: { type: String, required: true, unique: true, index: true }, // e.g. 'welcome', 'follow_up'
+    key: { type: String, required: true, index: true }, // e.g. 'ob_welcome', 'ib_greeting'
     name: { type: String, required: true }, // Display name
     description: { type: String, default: '' },
-    category: { type: String, enum: ['outbound', 'inbound', 'both'], default: 'outbound' },
-    language: { type: String, enum: ['hi', 'en', 'both'], default: 'both' },
-    promptText: { type: String, required: true }, // The full prompt with {{variable}} placeholders
-    isActive: { type: Boolean, default: true },
-    isDefault: { type: Boolean, default: false }, // true for the 7 built-in prompts
-    variables: [{ type: String }], // e.g. ['leadName', 'lang', 'workshopName']
-    tags: [{ type: String }], // custom tags for filtering
+    category: { type: String, enum: ['outbound', 'inbound'], required: true },
+    language: { type: String, enum: ['hi', 'en', 'mr', 'ne', 'other'], required: true },
+    stageOrder: { type: Number, default: 1 }, // 1-6 stage within category
+    promptText: { type: String, default: '' }, // The full prompt script
+    voiceRecordingUrl: { type: String, default: '' }, // URL to voice recording
+    voiceRecordingName: { type: String, default: '' }, // Filename
+    approvalStatus: {
+      type: String,
+      enum: ['draft', 'pending', 'approved', 'rejected'],
+      default: 'draft',
+    },
+    approvalNote: { type: String, default: '' }, // Reviewer note
+    approvedBy: { type: String }, // Admin who approved
+    approvedAt: { type: Date },
+    submittedAt: { type: Date }, // When submitted for approval
+    isActive: { type: Boolean, default: false }, // Only true after approval
+    isDefault: { type: Boolean, default: false },
+    variables: [{ type: String }],
+    tags: [{ type: String }],
     usageCount: { type: Number, default: 0 },
     lastUsedAt: { type: Date },
-    createdBy: { type: String }, // admin userId
+    createdBy: { type: String },
     updatedBy: { type: String },
   },
   { timestamps: true, collection: 'ai_call_templates' }
 );
-AICallTemplateSchema.index({ category: 1, isActive: 1 });
-AICallTemplateSchema.index({ key: 1, language: 1 });
+AICallTemplateSchema.index({ category: 1, language: 1, stageOrder: 1 });
+AICallTemplateSchema.index({ key: 1, language: 1 }, { unique: true });
+AICallTemplateSchema.index({ approvalStatus: 1 });
 
 export function getAICallTemplate() { return getModel('AICallTemplate', AICallTemplateSchema); }
 
