@@ -149,12 +149,14 @@ export default function AICallModal({ leadId, leadName, leadPhone, token, onClos
     } catch { /* fallback */ }
   };
 
+  const rawPhone = (leadPhone || '').replace(/\D/g, '');
+  const isIndian = rawPhone.startsWith('91') && rawPhone.length === 12;
+
   const formattedLeadPhone = (() => {
-    const raw = (leadPhone || '').replace(/\D/g, '');
-    if (raw.length === 12 && raw.startsWith('91')) {
-      return `+${raw.slice(0, 2)} ${raw.slice(2, 7)} ${raw.slice(7)}`;
+    if (isIndian) {
+      return `+${rawPhone.slice(0, 2)} ${rawPhone.slice(2, 7)} ${rawPhone.slice(7)}`;
     }
-    return raw ? `+${raw}` : 'No phone';
+    return rawPhone ? `+${rawPhone}` : 'No phone';
   })();
 
   return (
@@ -208,6 +210,14 @@ export default function AICallModal({ leadId, leadName, leadPhone, token, onClos
           {/* ═══════════ PC CALL MODE ═══════════ */}
           {mode === 'pc' && (
             <div className="px-6 pt-4 pb-4">
+              {/* International badge */}
+              {!isIndian && rawPhone && (
+                <div className="mb-3 px-4 py-2.5 bg-green-50 border border-green-200 rounded-xl text-xs text-green-700">
+                  <p className="font-semibold flex items-center gap-1">🌍 International Number — Use WhatsApp Call (Free)</p>
+                  <p className="text-[10px] text-green-500 mt-0.5">Regular calls will incur international charges. WhatsApp call is free over internet.</p>
+                </div>
+              )}
+
               {/* From number */}
               <div className="mb-4 px-4 py-3 bg-blue-50 border border-blue-100 rounded-xl">
                 <p className="text-[10px] text-blue-400 font-semibold uppercase tracking-wider mb-1">Calling from</p>
@@ -220,7 +230,7 @@ export default function AICallModal({ leadId, leadName, leadPhone, token, onClos
                 <div>
                   <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-1">Calling to</p>
                   <p className="text-sm font-bold text-gray-800">{formattedLeadPhone}</p>
-                  <p className="text-[10px] text-gray-400 mt-0.5">{leadName}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">{leadName} {!isIndian && rawPhone ? '(International)' : ''}</p>
                 </div>
                 <button
                   onClick={handleCopyNumber}
@@ -233,46 +243,91 @@ export default function AICallModal({ leadId, leadName, leadPhone, token, onClos
                 </button>
               </div>
 
-              {/* Call buttons */}
+              {/* Call buttons — different layout for Indian vs International */}
               <div className="space-y-2">
-                <a
-                  href={`tel:+${(leadPhone || '').replace(/\D/g, '')}`}
-                  onClick={() => onCallMade?.()}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold text-white transition"
-                  style={{ background: 'linear-gradient(135deg, #2563EB, #3B82F6)' }}
-                >
-                  <Phone className="h-4 w-4" />
-                  Call from This Device
-                </a>
-                <div className="flex gap-2">
-                  <a
-                    href={`https://wa.me/${(leadPhone || '').replace(/\D/g, '')}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-green-50 text-green-600 border border-green-200 hover:bg-green-100 transition"
-                  >
-                    <ExternalLink className="h-3 w-3" />
-                    WhatsApp
-                  </a>
-                  <a
-                    href={`facetime:+${(leadPhone || '').replace(/\D/g, '')}`}
-                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-purple-50 text-purple-600 border border-purple-200 hover:bg-purple-100 transition"
-                  >
-                    <Phone className="h-3 w-3" />
-                    FaceTime
-                  </a>
-                  <a
-                    href={`skype:+${(leadPhone || '').replace(/\D/g, '')}?call`}
-                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-sky-50 text-sky-600 border border-sky-200 hover:bg-sky-100 transition"
-                  >
-                    <Phone className="h-3 w-3" />
-                    Skype
-                  </a>
-                </div>
+                {isIndian ? (
+                  <>
+                    {/* Indian: Phone call is primary */}
+                    <a
+                      href={`tel:+${rawPhone}`}
+                      onClick={() => onCallMade?.()}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold text-white transition"
+                      style={{ background: 'linear-gradient(135deg, #2563EB, #3B82F6)' }}
+                    >
+                      <Phone className="h-4 w-4" />
+                      Call from This Device
+                    </a>
+                    <div className="flex gap-2">
+                      <a
+                        href={`https://wa.me/${rawPhone}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-green-50 text-green-600 border border-green-200 hover:bg-green-100 transition"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        WhatsApp Call
+                      </a>
+                      <a
+                        href={`facetime:+${rawPhone}`}
+                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-purple-50 text-purple-600 border border-purple-200 hover:bg-purple-100 transition"
+                      >
+                        <Phone className="h-3 w-3" />
+                        FaceTime
+                      </a>
+                      <a
+                        href={`skype:+${rawPhone}?call`}
+                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-sky-50 text-sky-600 border border-sky-200 hover:bg-sky-100 transition"
+                      >
+                        <Phone className="h-3 w-3" />
+                        Skype
+                      </a>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* International: WhatsApp call is primary (free) */}
+                    <a
+                      href={`https://wa.me/${rawPhone}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={() => onCallMade?.()}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold text-white transition"
+                      style={{ background: 'linear-gradient(135deg, #16A34A, #22C55E)' }}
+                    >
+                      <Phone className="h-4 w-4" />
+                      WhatsApp Call (Free)
+                    </a>
+                    <div className="flex gap-2">
+                      <a
+                        href={`tel:+${rawPhone}`}
+                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition"
+                      >
+                        <Phone className="h-3 w-3" />
+                        Phone (Charges)
+                      </a>
+                      <a
+                        href={`facetime:+${rawPhone}`}
+                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-purple-50 text-purple-600 border border-purple-200 hover:bg-purple-100 transition"
+                      >
+                        <Phone className="h-3 w-3" />
+                        FaceTime
+                      </a>
+                      <a
+                        href={`skype:+${rawPhone}?call`}
+                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-sky-50 text-sky-600 border border-sky-200 hover:bg-sky-100 transition"
+                      >
+                        <Phone className="h-3 w-3" />
+                        Skype
+                      </a>
+                    </div>
+                  </>
+                )}
               </div>
 
               <p className="text-[10px] text-gray-400 text-center mt-3">
-                Call will be made using your device&apos;s phone or calling app
+                {isIndian
+                  ? 'Call will be made using your device\u0027s phone or calling app'
+                  : 'WhatsApp call recommended for international — no charges over internet'}
               </p>
             </div>
           )}
