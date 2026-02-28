@@ -195,9 +195,15 @@ export default function FunnelManagePage() {
     if (!token) return;
     try {
       const params = new URLSearchParams();
-      if (activeStage) params.set('stage', activeStage);
-      else params.set('all', '1');
-      if (searchQuery) params.set('search', searchQuery);
+      // When searching, always search across all stages
+      if (searchQuery) {
+        params.set('all', '1');
+        params.set('search', searchQuery);
+      } else if (activeStage) {
+        params.set('stage', activeStage);
+      } else {
+        params.set('all', '1');
+      }
       if (filterCountry) params.set('country', filterCountry);
       if (filterLanguage) params.set('language', filterLanguage);
       if (filterAdmin) params.set('assignedTo', filterAdmin);

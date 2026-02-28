@@ -42,9 +42,11 @@ export async function GET(request: NextRequest) {
 
     // Non-super admins only see their own leads
     if (!isSuper) {
-      query.$or = [
-        { assignedToUserId: viewerId },
-        { createdByUserId: viewerId },
+      query.$and = [
+        { $or: [
+          { assignedToUserId: viewerId },
+          { createdByUserId: viewerId },
+        ] },
       ];
     } else if (assignedTo) {
       query.assignedToUserId = assignedTo;
@@ -52,16 +54,29 @@ export async function GET(request: NextRequest) {
 
     if (search) {
       const esc = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      query.$or = [
-        { name: { $regex: esc, $options: 'i' } },
-        { phoneNumber: { $regex: esc, $options: 'i' } },
-        { email: { $regex: esc, $options: 'i' } },
-        { leadNumber: { $regex: esc, $options: 'i' } },
-      ];
+      const searchOr = {
+        $or: [
+          { name: { $regex: esc, $options: 'i' } },
+          { displayName: { $regex: esc, $options: 'i' } },
+          { phoneNumber: { $regex: esc, $options: 'i' } },
+          { email: { $regex: esc, $options: 'i' } },
+          { leadNumber: { $regex: esc, $options: 'i' } },
+          { source: { $regex: esc, $options: 'i' } },
+          { workshopName: { $regex: esc, $options: 'i' } },
+          { country: { $regex: esc, $options: 'i' } },
+          { labels: { $regex: esc, $options: 'i' } },
+          { title: { $regex: esc, $options: 'i' } },
+        ],
+      };
+      if (query.$and) {
+        query.$and.push(searchOr);
+      } else {
+        query.$or = searchOr.$or;
+      }
     }
 
     if (country) query.country = country;
-    if (languageCode) query.languageCode = languageCode;
+    if (languageCode) query.language = languageCode; // filter by language name (e.g., "Hindi"), not code
     if (region) query.region = region;
     if (state) query.state = state;
     if (label) query.labels = label;
