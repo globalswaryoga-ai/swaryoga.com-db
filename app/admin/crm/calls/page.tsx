@@ -10,7 +10,7 @@ import {
   Calendar, ChevronLeft, Link2, Check,
   PauseCircle, Repeat, Flower2, Megaphone,
   MessageSquare, PhoneCall, Bot, History, Plus,
-  CalendarClock,
+  CalendarClock, ListChecks, PhoneIncoming, PhoneOutgoing, Loader2,
 } from 'lucide-react';
 import LeadDetailModal from '@/components/admin/crm/LeadDetailModal';
 import AICallModal from '@/components/admin/crm/AICallModal';
@@ -137,6 +137,15 @@ export default function CallWorkflowPage() {
   // Schedule call
   const [scheduleLeadId, setScheduleLeadId] = useState<string | null>(null);
   const [scheduleDate, setScheduleDate] = useState('');
+
+  // Updates popup (all call records for a lead)
+  const [updatesLeadId, setUpdatesLeadId] = useState<string | null>(null);
+  const [updatesCallHistory, setUpdatesCallHistory] = useState<Array<{ _id: string; purpose: string; status: string; language: string; duration: number; summary: string; sentiment: string; callEndedReason: string; crmUpdates: any[]; createdAt: string }>>([]);
+  const [updatesLoading, setUpdatesLoading] = useState(false);
+
+  // Bulk calling
+  const [bulkCalling, setBulkCalling] = useState(false);
+  const [bulkCallProgress, setBulkCallProgress] = useState({ done: 0, total: 0, failed: 0 });
 
   const selectAll = selectedLeadIds.size === leads.length && leads.length > 0;
 
@@ -293,6 +302,37 @@ export default function CallWorkflowPage() {
     setCallHistoryLoading(false);
   };
 
+  const fetchUpdates = async (leadId: string) => {
+    setUpdatesLeadId(leadId);
+    setUpdatesLoading(true);
+    setUpdatesCallHistory([]);
+    try {
+      const res = await fetch(`/api/admin/crm/calls?leadId=${leadId}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) { const json = await res.json(); setUpdatesCallHistory(json.data?.calls || []); }
+    } catch (_) { /* ignore */ }
+    setUpdatesLoading(false);
+  };
+
+  const handleBulkCall = async (lang: 'hi' | 'en' | 'other', direction: 'outbound' | 'inbound') => {
+    if (!token || selectedLeadIds.size === 0 || bulkCalling) return;
+    const ids = Array.from(selectedLeadIds);
+    setBulkCalling(true);
+    setBulkCallProgress({ done: 0, total: ids.length, failed: 0 });
+    let failed = 0;
+    for (let i = 0; i < ids.length; i++) {
+      try {
+        await fetch('/api/admin/crm/calls', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ leadId: ids[i], purpose: direction === 'inbound' ? 'follow_up' : 'welcome', language: lang === 'other' ? 'en' : lang }),
+        });
+      } catch { failed++; }
+      setBulkCallProgress({ done: i + 1, total: ids.length, failed });
+    }
+    setBulkCalling(false);
+    fetchLeads();
+  };
+
   const toggleSelectAll = () => {
     if (selectAll) setSelectedLeadIds(new Set());
     else setSelectedLeadIds(new Set(leads.map(l => l._id)));
@@ -408,8 +448,34 @@ export default function CallWorkflowPage() {
             <div className="flex items-center gap-2">
               {/* Bulk actions */}
               {selectedLeadIds.size > 0 && (
-                <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-indigo-200" style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(236,72,153,0.06))' }}>
+                <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-indigo-200 flex-wrap" style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(236,72,153,0.06))' }}>
                   <span className="text-[11px] font-semibold text-indigo-700 whitespace-nowrap">{selectedLeadIds.size} selected</span>
+                  <div className="h-3.5 w-px bg-indigo-200" />
+                  {/* Bulk Call buttons */}
+                  {bulkCalling ? (
+                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-orange-50 text-orange-600 text-[10px] font-medium">
+                      <Loader2 className="h-3 w-3 animate-spin" /> {bulkCallProgress.done}/{bulkCallProgress.total}{bulkCallProgress.failed > 0 && <span className="text-red-500"> ({bulkCallProgress.failed} failed)</span>}
+                    </div>
+                  ) : (
+                    <>
+                      <button onClick={() => handleBulkCall('hi', 'outbound')} className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium text-white transition hover:opacity-90" style={{ background: 'linear-gradient(135deg, #F97316, #FB923C)' }}>
+                        <Bot className="h-3 w-3" /> Bulk Hindi
+                      </button>
+                      <button onClick={() => handleBulkCall('en', 'outbound')} className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium text-white transition hover:opacity-90" style={{ background: 'linear-gradient(135deg, #3B82F6, #60A5FA)' }}>
+                        <Bot className="h-3 w-3" /> Bulk English
+                      </button>
+                      <button onClick={() => handleBulkCall('other', 'outbound')} className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium bg-violet-100 text-violet-700 hover:bg-violet-200 transition">
+                        <Bot className="h-3 w-3" /> Bulk Other
+                      </button>
+                      <div className="h-3.5 w-px bg-indigo-200" />
+                      <button onClick={() => handleBulkCall('hi', 'inbound')} className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition">
+                        <PhoneIncoming className="h-3 w-3" /> Inbound
+                      </button>
+                      <button onClick={() => handleBulkCall('hi', 'outbound')} className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium bg-cyan-50 text-cyan-600 hover:bg-cyan-100 transition">
+                        <PhoneOutgoing className="h-3 w-3" /> Outbound
+                      </button>
+                    </>
+                  )}
                   <div className="h-3.5 w-px bg-indigo-200" />
                   <div className="relative">
                     <button onClick={() => setShowBulkActions(!showBulkActions)} className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium bg-violet-50 text-violet-600 hover:bg-violet-100 transition">
@@ -594,20 +660,20 @@ export default function CallWorkflowPage() {
                 </div>
 
                 {/* Right: Call Action Buttons */}
-                <div className="flex flex-col gap-1 px-3 py-1 border-l border-gray-100 flex-shrink-0">
+                <div className="flex flex-col gap-1 px-2 py-1 border-l border-gray-100 flex-shrink-0">
                   {/* Row 1 */}
-                  <div className="flex items-center gap-1">
-                    <button onClick={() => setSelectedLeadId(lead._id)} title="View" className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition whitespace-nowrap"><Eye className="h-3 w-3" />View</button>
-                    <button onClick={() => setAiCallLeadId(lead._id)} title="AI Call (Sakshi)" className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium text-white transition hover:opacity-90 whitespace-nowrap" style={{ background: 'linear-gradient(135deg, #F97316, #FB923C)' }}><Bot className="h-3 w-3" />AI Call</button>
-                    <a href={`tel:${lead.phoneNumber || ''}`} title="PC Call" className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition whitespace-nowrap"><Phone className="h-3 w-3" />PC Call</a>
-                    <button onClick={() => router.push(`/admin/crm/meta?phone=${encodeURIComponent(lead.phoneNumber?.replace(/\D/g, '') || '')}`)} title="WhatsApp" className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium text-white transition hover:opacity-90 whitespace-nowrap" style={{ background: '#25D366' }}><Send className="h-3 w-3" />WA</button>
+                  <div className="flex items-center gap-0.5">
+                    <button onClick={() => setSelectedLeadId(lead._id)} title="View" className="flex items-center gap-0.5 px-1.5 py-1 rounded-lg text-[10px] font-medium bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition whitespace-nowrap"><Eye className="h-3 w-3" />View</button>
+                    <button onClick={() => setAiCallLeadId(lead._id)} title="AI Call" className="flex items-center gap-0.5 px-1.5 py-1 rounded-lg text-[10px] font-medium text-white transition hover:opacity-90 whitespace-nowrap" style={{ background: 'linear-gradient(135deg, #F97316, #FB923C)' }}><Bot className="h-3 w-3" />AI Call</button>
+                    <a href={`tel:${lead.phoneNumber || ''}`} title="PC Call" className="flex items-center gap-0.5 px-1.5 py-1 rounded-lg text-[10px] font-medium bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition whitespace-nowrap"><Phone className="h-3 w-3" />PC Call</a>
+                    <button onClick={() => router.push(`/admin/crm/meta?phone=${encodeURIComponent(lead.phoneNumber?.replace(/\D/g, '') || '')}`)} title="WA" className="flex items-center gap-0.5 px-1.5 py-1 rounded-lg text-[10px] font-medium text-white transition hover:opacity-90 whitespace-nowrap" style={{ background: '#25D366' }}><Send className="h-3 w-3" />WA</button>
                   </div>
                   {/* Row 2 */}
-                  <div className="flex items-center gap-1">
-                    <button onClick={() => fetchCallHistory(lead._id)} title="Call Log" className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium bg-violet-50 text-violet-600 hover:bg-violet-100 transition whitespace-nowrap"><History className="h-3 w-3" />Call Log</button>
-                    <button onClick={() => { setScheduleLeadId(lead._id); setScheduleDate(''); }} title="Schedule" className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium bg-amber-50 text-amber-600 hover:bg-amber-100 transition whitespace-nowrap"><CalendarClock className="h-3 w-3" />Schedule</button>
+                  <div className="flex items-center gap-0.5">
+                    <button onClick={() => fetchCallHistory(lead._id)} title="Call Log" className="flex items-center gap-0.5 px-1.5 py-1 rounded-lg text-[10px] font-medium bg-violet-50 text-violet-600 hover:bg-violet-100 transition whitespace-nowrap"><History className="h-3 w-3" />Call Log</button>
+                    <button onClick={() => { setScheduleLeadId(lead._id); setScheduleDate(''); }} title="Schedule" className="flex items-center gap-0.5 px-1.5 py-1 rounded-lg text-[10px] font-medium bg-amber-50 text-amber-600 hover:bg-amber-100 transition whitespace-nowrap"><CalendarClock className="h-3 w-3" />Schedule</button>
                     <div className="relative group">
-                      <button title="Move stage" className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium bg-pink-50 text-pink-600 hover:bg-pink-100 transition whitespace-nowrap"><ArrowLeftRight className="h-3 w-3" />Move</button>
+                      <button title="Move" className="flex items-center gap-0.5 px-1.5 py-1 rounded-lg text-[10px] font-medium bg-pink-50 text-pink-600 hover:bg-pink-100 transition whitespace-nowrap"><ArrowLeftRight className="h-3 w-3" />Move</button>
                       <div className="absolute right-0 top-full mt-1 w-44 bg-white rounded-xl shadow-xl border border-gray-100 py-1 z-40 hidden group-hover:block">
                         {stages.filter(s => s.key !== lead.funnelStage).map((s) => {
                           const c = getStageColor(stages.findIndex(st => st.key === s.key));
@@ -615,6 +681,7 @@ export default function CallWorkflowPage() {
                         })}
                       </div>
                     </div>
+                    <button onClick={() => fetchUpdates(lead._id)} title="Updates" className="flex items-center gap-0.5 px-1.5 py-1 rounded-lg text-[10px] font-medium bg-cyan-50 text-cyan-600 hover:bg-cyan-100 transition whitespace-nowrap"><ListChecks className="h-3 w-3" />Updates</button>
                   </div>
                 </div>
               </div>
@@ -709,6 +776,69 @@ export default function CallWorkflowPage() {
                   <Bot className="h-3.5 w-3.5" /> Make AI Call
                 </button>
                 <a href={`tel:${cl.phoneNumber || ''}`} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition">
+                  <Phone className="h-3.5 w-3.5" /> PC Call
+                </a>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Updates Popup (all call records) */}
+      {updatesLeadId && (() => {
+        const ul = leads.find(l => l._id === updatesLeadId);
+        if (!ul) return null;
+        const fmtDt = (d: string) => new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' }) + ' ' + new Date(d).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+        const sentimentIcon = (s: string) => s === 'positive' ? '\uD83D\uDE0A' : s === 'negative' ? '\uD83D\uDE1F' : '\uD83D\uDE10';
+        const purposeLabel: Record<string, string> = { welcome: '\uD83D\uDE4F Welcome', follow_up: '\uD83D\uDCDE Follow-up', answer_questions: '\uD83D\uDCAC Answer Back', workshop_reminder: '\uD83D\uDCC5 Workshop', collect_info: '\uD83D\uDCCB Collect Info', payment_reminder: '\uD83D\uDCB3 Payment', custom: '\u270F\uFE0F Custom' };
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setUpdatesLeadId(null)}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()} style={{ maxHeight: '80vh' }}>
+              <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100" style={{ background: 'linear-gradient(135deg, #06B6D4, #3B82F6)' }}>
+                <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 bg-white/20 text-white">{(ul.name || ul.displayName || '?')[0].toUpperCase()}</div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white font-semibold text-sm truncate">{ul.title ? `${ul.title}. ` : ''}{ul.name || ul.displayName || 'Unknown'}</p>
+                  <p className="text-cyan-100 text-[11px]">All Call Records &amp; Updates</p>
+                </div>
+                <button onClick={() => setUpdatesLeadId(null)} className="p-1 rounded hover:bg-white/20 transition"><X className="h-4 w-4 text-white" /></button>
+              </div>
+              <div className="overflow-y-auto px-5 py-4 space-y-2" style={{ maxHeight: 'calc(80vh - 120px)' }}>
+                {updatesLoading ? (
+                  <div className="flex items-center justify-center py-12"><div className="animate-spin h-6 w-6 border-3 border-cyan-500 border-t-transparent rounded-full" /></div>
+                ) : updatesCallHistory.length === 0 ? (
+                  <div className="text-center py-12 text-gray-400 text-sm">
+                    <ListChecks className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                    <p>No call records yet</p>
+                  </div>
+                ) : updatesCallHistory.map(call => (
+                  <div key={call._id} className="rounded-xl border border-gray-100 p-3 hover:bg-gray-50/50 transition">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${call.status === 'completed' ? 'bg-green-50 text-green-600' : call.status === 'failed' ? 'bg-red-50 text-red-600' : call.status === 'no_answer' ? 'bg-orange-50 text-orange-600' : 'bg-gray-50 text-gray-600'}`}>{call.status}</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-600 font-medium">{purposeLabel[call.purpose] || call.purpose}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-50 text-gray-500">{call.language === 'hi-IN' || call.language === 'hi' ? '\uD83C\uDDEE\uD83C\uDDF3 Hindi' : '\uD83C\uDDEC\uD83C\uDDE7 English'}</span>
+                      {call.sentiment && <span className="text-xs">{sentimentIcon(call.sentiment)}</span>}
+                      <span className="text-[10px] text-gray-400 ml-auto">{fmtDt(call.createdAt)}</span>
+                    </div>
+                    {call.duration > 0 && <p className="text-[11px] text-gray-500">Duration: {Math.round(call.duration)}s</p>}
+                    {call.summary && <p className="text-xs text-gray-600 mt-1">{call.summary}</p>}
+                    {call.callEndedReason && <p className="text-[10px] text-gray-400 mt-1">Ended: {call.callEndedReason}</p>}
+                    {call.crmUpdates && call.crmUpdates.length > 0 && (
+                      <div className="mt-2 pt-2 border-t border-gray-50">
+                        <p className="text-[10px] text-gray-400 font-semibold mb-1">CRM Updates:</p>
+                        {call.crmUpdates.map((u: any, i: number) => (
+                          <div key={i} className="text-[10px] text-gray-500 flex items-center gap-1"><span className="text-gray-400">{u.field}:</span> <span className="line-through text-red-400">{String(u.oldValue || '—')}</span> → <span className="text-green-600 font-medium">{String(u.newValue)}</span></div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="px-5 py-3 border-t border-gray-100 flex gap-2">
+                <button onClick={() => { setUpdatesLeadId(null); setAiCallLeadId(ul._id); }} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-white transition hover:opacity-90" style={{ background: 'linear-gradient(135deg, #F97316, #FB923C)' }}>
+                  <Bot className="h-3.5 w-3.5" /> Make AI Call
+                </button>
+                <a href={`tel:${ul.phoneNumber || ''}`} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition">
                   <Phone className="h-3.5 w-3.5" /> PC Call
                 </a>
               </div>
