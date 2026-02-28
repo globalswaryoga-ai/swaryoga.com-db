@@ -429,11 +429,11 @@ export default function FunnelManagePage() {
   // Count leads with open Meta chat window
   const openWindowCount = Object.values(windowStatus).filter(w => w.isOpen).length;
 
-  // Sort leads: untouched (new) leads first, then open-window leads, then the rest
+  // Sort leads: new_lead stage first, then open-window leads, then the rest
   const sortedLeads = [...leads].sort((a, b) => {
-    // Primary: untouched leads at top
-    const aNew = !a.firstTouchedAt ? 1 : 0;
-    const bNew = !b.firstTouchedAt ? 1 : 0;
+    // Primary: new_lead stage leads at top
+    const aNew = (!a.funnelStage || a.funnelStage === 'new_lead') ? 1 : 0;
+    const bNew = (!b.funnelStage || b.funnelStage === 'new_lead') ? 1 : 0;
     if (bNew !== aNew) return bNew - aNew;
     // Secondary: open-window leads next
     const aOpen = windowStatus[a._id]?.isOpen ? 1 : 0;
@@ -857,7 +857,7 @@ export default function FunnelManagePage() {
             const stageColor = stageIdx >= 0 ? getStageColor(stageIdx) : COLORS.indigo;
             const stageName = stages.find(s => s.key === lead.funnelStage)?.name || lead.funnelStage || 'New Lead';
             const isSelected = selectedLeadIds.has(lead._id);
-            const isUntouched = !lead.firstTouchedAt;
+            const isUntouched = !lead.funnelStage || lead.funnelStage === 'new_lead';
 
             return (
               <div
@@ -1135,7 +1135,16 @@ export default function FunnelManagePage() {
                       Call
                     </a>
                     <button
-                      onClick={() => { touchLead(lead._id); setChatbotFlowLeadId(lead._id); }}
+                      onClick={() => {
+                        touchLead(lead._id);
+                        // Auto-open Meta Business inbox for this number
+                        const phone = (lead.phoneNumber || '').replace(/\D/g, '');
+                        if (phone) {
+                          window.open(`https://wa.me/${phone}`, '_blank');
+                        }
+                        // Open chatbot flow modal
+                        setChatbotFlowLeadId(lead._id);
+                      }}
                       title={(() => {
                         const cb = chatbotStates[lead._id];
                         if (!cb || !cb.hasActiveFlow) return 'Chatbot Off';
