@@ -10,6 +10,7 @@ import {
   Calendar, Globe, Languages, MapPin, MoreHorizontal, ChevronLeft, Link2, Check,
   PauseCircle, Repeat, Flower2, Megaphone,
   Pencil, Receipt, MessageSquare, PhoneCall, Bot, Clock, History, Star, User, Tag, Plus, ExternalLink,
+  MessageCircle, ArrowDown, ArrowUp,
 } from 'lucide-react';
 import LeadDetailModal from '@/components/admin/crm/LeadDetailModal';
 import ReceiptPreviewModal from '@/components/admin/crm/ReceiptPreviewModal';
@@ -130,6 +131,13 @@ export default function FunnelManagePage() {
   const [updatesLeadId, setUpdatesLeadId] = useState<string | null>(null);
   const [stageHistory, setStageHistory] = useState<Array<{ _id: string; fromStage: string; toStage: string; changedByName?: string; note?: string; createdAt: string }>>([]);
   const [updatesLoading, setUpdatesLoading] = useState(false);
+  const [updateNote, setUpdateNote] = useState('');
+  const [addingNote, setAddingNote] = useState(false);
+  const [updatesMetaMsgs, setUpdatesMetaMsgs] = useState<Array<{ _id: string; direction: string; messageContent?: string; templateName?: string; sentAt?: string; createdAt: string }>>([]);
+  const [updatesEmails, setUpdatesEmails] = useState<Array<{ _id: string; recipientEmail?: string; recipientName?: string; subject?: string; status?: string; source?: string; createdAt: string }>>([]);
+  const [metaMsgsLoading, setMetaMsgsLoading] = useState(false);
+  const [emailsLoading, setEmailsLoading] = useState(false);
+  const [updatesTab, setUpdatesTab] = useState<'overview' | 'chat' | 'email'>('overview');
   const [windowStatus, setWindowStatus] = useState<Record<string, { lastInboundAt: string | null; expiresAt: string | null; isOpen: boolean }>>({});
   const [now, setNow] = useState(Date.now());
 
@@ -330,21 +338,68 @@ export default function FunnelManagePage() {
     } catch (e) { console.error(e); }
   };
 
-  // Fetch stage history for a lead and open popup
+  // Fetch stage history, meta messages, and emails for a lead and open popup
   const fetchStageHistory = async (leadId: string) => {
     setUpdatesLeadId(leadId);
     setUpdatesLoading(true);
+    setMetaMsgsLoading(true);
+    setEmailsLoading(true);
     setStageHistory([]);
+    setUpdatesMetaMsgs([]);
+    setUpdatesEmails([]);
+    setUpdateNote('');
+    setUpdatesTab('overview');
+
+    const lead = leads.find(l => l._id === leadId);
+
+    // Fetch all 3 in parallel
+    const [histRes, msgRes, emlRes] = await Promise.allSettled([
+      fetch(`/api/admin/crm/funnel/stage-history?leadId=${leadId}`, { headers: { Authorization: `Bearer ${token}` } }),
+      fetch(`/api/admin/crm/messages?leadId=${leadId}&provider=meta&limit=50`, { headers: { Authorization: `Bearer ${token}` } }),
+      lead?.email
+        ? fetch(`/api/admin/crm/email/logs?search=${encodeURIComponent(lead.email)}&limit=30`, { headers: { Authorization: `Bearer ${token}` } })
+        : Promise.resolve(null),
+    ]);
+
+    if (histRes.status === 'fulfilled' && histRes.value?.ok) {
+      const json = await histRes.value.json();
+      setStageHistory(json.data?.history || []);
+    }
+    setUpdatesLoading(false);
+
+    if (msgRes.status === 'fulfilled' && msgRes.value?.ok) {
+      const json = await msgRes.value.json();
+      setUpdatesMetaMsgs(json.data?.messages || []);
+    }
+    setMetaMsgsLoading(false);
+
+    if (emlRes.status === 'fulfilled' && emlRes.value && emlRes.value.ok) {
+      const json = await emlRes.value.json();
+      setUpdatesEmails(json.data?.logs || json.data || []);
+    }
+    setEmailsLoading(false);
+  };
+
+  // Add a note/update to stage history
+  const addUpdateNote = async () => {
+    if (!updatesLeadId || !updateNote.trim() || !token) return;
+    setAddingNote(true);
     try {
-      const res = await fetch(`/api/admin/crm/funnel/stage-history?leadId=${leadId}`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const res = await fetch('/api/admin/crm/funnel/stage-history', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId: updatesLeadId, note: updateNote.trim() }),
       });
       if (res.ok) {
         const json = await res.json();
-        setStageHistory(json.data?.history || []);
+        const entry = json.data?.entry;
+        if (entry) {
+          setStageHistory(prev => [{ _id: entry._id, fromStage: '', toStage: '', changedByName: entry.changedByName, note: entry.note, createdAt: entry.createdAt }, ...prev]);
+        }
+        setUpdateNote('');
       }
     } catch (_) { /* ignore */ }
-    setUpdatesLoading(false);
+    setAddingNote(false);
   };
 
   // Helper: get stage name from key
@@ -1268,11 +1323,16 @@ export default function FunnelManagePage() {
         const stageColor = stageIdx >= 0 ? getStageColor(stageIdx) : COLORS.indigo;
         const stageName = stages.find(s => s.key === ul.funnelStage)?.name || ul.funnelStage || 'New Lead';
 
+        const fmtDt = (d: string) => {
+          const dt = new Date(d);
+          return dt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' }) + ' ' + dt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+        };
+
         return (
           <div className="fixed inset-0 z-[60]" onClick={() => setUpdatesLeadId(null)}>
             {/* Floating chat-widget panel */}
             <div
-              className="absolute bottom-6 right-6 w-[380px] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+              className="absolute bottom-6 right-6 w-[400px] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col"
               style={{ maxHeight: 'calc(100vh - 48px)' }}
               onClick={e => e.stopPropagation()}
             >
@@ -1289,181 +1349,305 @@ export default function FunnelManagePage() {
                   <p className="text-green-200 text-[11px] truncate">Lead Updates & History</p>
                 </div>
                 <button onClick={() => setUpdatesLeadId(null)} className="p-1 rounded hover:bg-white/20 transition flex-shrink-0">
-                  <MoreHorizontal className="h-4 w-4 text-white/70" />
-                </button>
-                <button onClick={() => setUpdatesLeadId(null)} className="p-1 rounded hover:bg-white/20 transition flex-shrink-0">
                   <X className="h-4 w-4 text-white" />
                 </button>
               </div>
 
-              {/* ── Scrollable Chat Body ── */}
-              <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3" style={{ background: '#F9FAFB', maxHeight: '70vh' }}>
+              {/* ── Tab Bar ── */}
+              <div className="flex border-b border-gray-200 bg-white">
+                {([
+                  { key: 'overview' as const, label: 'Overview', icon: User },
+                  { key: 'chat' as const, label: `Chat (${updatesMetaMsgs.length})`, icon: MessageSquare },
+                  { key: 'email' as const, label: `Email (${updatesEmails.length})`, icon: Mail },
+                ]).map(tab => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setUpdatesTab(tab.key)}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-[11px] font-semibold border-b-2 transition ${
+                      updatesTab === tab.key
+                        ? 'border-green-600 text-green-700'
+                        : 'border-transparent text-gray-400 hover:text-gray-600'
+                    }`}
+                  >
+                    <tab.icon className="h-3.5 w-3.5" />
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
 
-                {/* Info notice */}
-                <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-white border border-gray-200 text-xs text-gray-500">
-                  <span className="flex-shrink-0 mt-0.5">ℹ️</span>
-                  <span>Joined on <strong>{new Date(ul.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</strong> · Lead #{ul.leadNumber || '—'}</span>
-                </div>
+              {/* ── Scrollable Body ── */}
+              <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5" style={{ background: '#F9FAFB', maxHeight: '60vh' }}>
 
-                {/* Card 1: User Details */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                  <div className="flex items-center gap-2 px-4 py-2.5" style={{ background: '#EFF6FF' }}>
-                    <User className="h-3.5 w-3.5 text-blue-600" />
-                    <span className="text-xs font-bold text-blue-800">User Details</span>
-                  </div>
-                  <div className="px-4 py-3 space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-[11px] text-gray-400">Phone</span>
-                      <span className="text-[12px] font-medium text-gray-800">{ul.phoneNumber || '—'}</span>
+                {/* ═══ OVERVIEW TAB ═══ */}
+                {updatesTab === 'overview' && (
+                  <>
+                    {/* Info notice */}
+                    <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-white border border-gray-200 text-xs text-gray-500">
+                      <span className="flex-shrink-0 mt-0.5">ℹ️</span>
+                      <span>Joined on <strong>{new Date(ul.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</strong> · Lead #{ul.leadNumber || '—'}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-[11px] text-gray-400">Email</span>
-                      <span className="text-[12px] font-medium text-gray-800 truncate max-w-[180px]">{ul.email || '—'}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-[11px] text-gray-400">Stage</span>
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold text-white" style={{ background: stageColor.main }}>
-                        {stageName}
-                      </span>
-                    </div>
-                    {(ul.country || ul.state) && (
-                      <div className="flex justify-between">
-                        <span className="text-[11px] text-gray-400">Location</span>
-                        <span className="text-[12px] font-medium text-gray-800">{[ul.state, ul.country].filter(Boolean).join(', ')}</span>
+
+                    {/* Card 1: User Details */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                      <div className="flex items-center gap-2 px-3 py-2" style={{ background: '#EFF6FF' }}>
+                        <User className="h-3.5 w-3.5 text-blue-600" />
+                        <span className="text-xs font-bold text-blue-800">User Details</span>
                       </div>
-                    )}
-                    {ul.language && (
-                      <div className="flex justify-between">
-                        <span className="text-[11px] text-gray-400">Language</span>
-                        <span className="text-[12px] font-medium text-gray-800">{ul.language}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Card 2: Assigned Admin */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                  <div className="flex items-center gap-2 px-4 py-2.5" style={{ background: '#FFF7ED' }}>
-                    <Users className="h-3.5 w-3.5 text-orange-600" />
-                    <span className="text-xs font-bold text-orange-800">Assigned To</span>
-                  </div>
-                  <div className="px-4 py-3">
-                    {assignedAdmin ? (
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs" style={{ background: '#F97316' }}>
-                          {(assignedAdmin.name || assignedAdmin.userId || '?')[0].toUpperCase()}
+                      <div className="px-3 py-2.5 space-y-1.5">
+                        <div className="flex justify-between">
+                          <span className="text-[11px] text-gray-400">Phone</span>
+                          <span className="text-[12px] font-medium text-gray-800">{ul.phoneNumber || '—'}</span>
                         </div>
-                        <div>
-                          <p className="text-[12px] font-semibold text-gray-800">{assignedAdmin.name || assignedAdmin.userId}</p>
-                          {assignedAdmin.email && <p className="text-[11px] text-gray-400">{assignedAdmin.email}</p>}
+                        <div className="flex justify-between">
+                          <span className="text-[11px] text-gray-400">Email</span>
+                          <span className="text-[12px] font-medium text-gray-800 truncate max-w-[180px]">{ul.email || '—'}</span>
                         </div>
-                      </div>
-                    ) : (
-                      <p className="text-[12px] text-gray-400 italic">Not assigned</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Card 3: Connected With */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                  <div className="flex items-center gap-2 px-4 py-2.5" style={{ background: '#F0FDF4' }}>
-                    <Tag className="h-3.5 w-3.5 text-green-600" />
-                    <span className="text-xs font-bold text-green-800">Connected With</span>
-                  </div>
-                  <div className="px-4 py-3">
-                    {(ul.labels?.length || 0) > 0 ? (
-                      <div className="flex flex-wrap gap-1.5">
-                        {ul.labels.map(label => (
-                          <span key={label} className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-green-50 text-green-700 border border-green-200">
-                            {label}
+                        <div className="flex justify-between items-center">
+                          <span className="text-[11px] text-gray-400">Stage</span>
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold text-white" style={{ background: stageColor.main }}>
+                            {stageName}
                           </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-[12px] text-gray-400 italic">No connections</p>
-                    )}
-                    {(ul.source || ul.workshopName) && (
-                      <div className="flex flex-wrap gap-1.5 mt-2 pt-2 border-t border-gray-100">
-                        {ul.source && (
-                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            Source: {ul.source}
-                          </span>
+                        </div>
+                        {(ul.country || ul.state) && (
+                          <div className="flex justify-between">
+                            <span className="text-[11px] text-gray-400">Location</span>
+                            <span className="text-[12px] font-medium text-gray-800">{[ul.state, ul.country].filter(Boolean).join(', ')}</span>
+                          </div>
                         )}
-                        {ul.workshopName && (
-                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-                            Workshop: {ul.workshopName}
-                          </span>
+                        {ul.language && (
+                          <div className="flex justify-between">
+                            <span className="text-[11px] text-gray-400">Language</span>
+                            <span className="text-[12px] font-medium text-gray-800">{ul.language}</span>
+                          </div>
                         )}
                       </div>
-                    )}
-                  </div>
-                </div>
+                    </div>
 
-                {/* Card 4: Stage Change History */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                  <div className="flex items-center gap-2 px-4 py-2.5" style={{ background: '#FAF5FF' }}>
-                    <History className="h-3.5 w-3.5 text-purple-600" />
-                    <span className="text-xs font-bold text-purple-800">Stage History</span>
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-600 ml-auto">
-                      {stageHistory.length}
-                    </span>
-                  </div>
-                  <div className="px-4 py-3">
-                    {updatesLoading ? (
-                      <div className="flex items-center justify-center py-4">
-                        <RefreshCw className="h-4 w-4 animate-spin text-purple-400" />
+                    {/* Card 2: Assigned Admin */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                      <div className="flex items-center gap-2 px-3 py-2" style={{ background: '#FFF7ED' }}>
+                        <Users className="h-3.5 w-3.5 text-orange-600" />
+                        <span className="text-xs font-bold text-orange-800">Assigned To</span>
                       </div>
-                    ) : stageHistory.length === 0 ? (
-                      <p className="text-[12px] text-gray-400 italic text-center py-3">No stage changes yet</p>
+                      <div className="px-3 py-2.5">
+                        {assignedAdmin ? (
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-7 h-7 rounded-full flex items-center justify-center text-white font-bold text-xs" style={{ background: '#F97316' }}>
+                              {(assignedAdmin.name || assignedAdmin.userId || '?')[0].toUpperCase()}
+                            </div>
+                            <div>
+                              <p className="text-[12px] font-semibold text-gray-800">{assignedAdmin.name || assignedAdmin.userId}</p>
+                              {assignedAdmin.email && <p className="text-[11px] text-gray-400">{assignedAdmin.email}</p>}
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-[12px] text-gray-400 italic">Not assigned</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Card 3: Connected With */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                      <div className="flex items-center gap-2 px-3 py-2" style={{ background: '#F0FDF4' }}>
+                        <Tag className="h-3.5 w-3.5 text-green-600" />
+                        <span className="text-xs font-bold text-green-800">Connected With</span>
+                      </div>
+                      <div className="px-3 py-2.5">
+                        {(ul.labels?.length || 0) > 0 ? (
+                          <div className="flex flex-wrap gap-1.5">
+                            {ul.labels.map(label => (
+                              <span key={label} className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-green-50 text-green-700 border border-green-200">
+                                {label}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-[12px] text-gray-400 italic">No connections</p>
+                        )}
+                        {(ul.source || ul.workshopName) && (
+                          <div className="flex flex-wrap gap-1.5 mt-2 pt-2 border-t border-gray-100">
+                            {ul.source && (
+                              <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                Source: {ul.source}
+                              </span>
+                            )}
+                            {ul.workshopName && (
+                              <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                                Workshop: {ul.workshopName}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Card 4: Stage Change History */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                      <div className="flex items-center gap-2 px-3 py-2" style={{ background: '#FAF5FF' }}>
+                        <History className="h-3.5 w-3.5 text-purple-600" />
+                        <span className="text-xs font-bold text-purple-800">Stage History</span>
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-600 ml-auto">
+                          {stageHistory.length}
+                        </span>
+                      </div>
+                      <div className="px-3 py-2.5">
+                        {updatesLoading ? (
+                          <div className="flex items-center justify-center py-3">
+                            <RefreshCw className="h-4 w-4 animate-spin text-purple-400" />
+                          </div>
+                        ) : stageHistory.length === 0 ? (
+                          <p className="text-[12px] text-gray-400 italic text-center py-2">No stage changes yet</p>
+                        ) : (
+                          <div className="space-y-1.5">
+                            {stageHistory.map((h) => {
+                              const isNote = !h.fromStage && !h.toStage && h.note;
+                              if (isNote) {
+                                return (
+                                  <div key={h._id} className="rounded-lg px-3 py-2 border border-blue-50 bg-blue-50/50">
+                                    <p className="text-[11px] text-gray-700">{h.note}</p>
+                                    <div className="flex items-center gap-2 mt-1">
+                                      <span className="text-[10px] text-gray-400">{fmtDt(h.createdAt)}</span>
+                                      {h.changedByName && <span className="text-[10px] text-gray-500 font-medium">by {h.changedByName}</span>}
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              const fromColor = getStageColor(stages.findIndex(s => s.key === h.fromStage));
+                              const toColor = getStageColor(stages.findIndex(s => s.key === h.toStage));
+                              return (
+                                <div key={h._id} className="rounded-lg px-3 py-2 border border-purple-50" style={{ background: '#FDFAFF' }}>
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    {h.fromStage ? (
+                                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold text-white" style={{ background: fromColor.main }}>
+                                        {getStageName(h.fromStage)}
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] text-gray-400 font-medium">New</span>
+                                    )}
+                                    <span className="text-[10px] text-gray-400">→</span>
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold text-white" style={{ background: toColor.main }}>
+                                      {getStageName(h.toStage)}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <span className="text-[10px] text-gray-400">{fmtDt(h.createdAt)}</span>
+                                    {h.changedByName && <span className="text-[10px] text-gray-500 font-medium">by {h.changedByName}</span>}
+                                  </div>
+                                  {h.note && <p className="text-[10px] text-gray-500 mt-0.5 italic">{h.note}</p>}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* ═══ CHAT TAB (Meta WhatsApp Messages) ═══ */}
+                {updatesTab === 'chat' && (
+                  <>
+                    {metaMsgsLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <RefreshCw className="h-5 w-5 animate-spin text-green-500" />
+                      </div>
+                    ) : updatesMetaMsgs.length === 0 ? (
+                      <div className="text-center py-8">
+                        <MessageSquare className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                        <p className="text-sm text-gray-400">No WhatsApp messages found</p>
+                      </div>
                     ) : (
                       <div className="space-y-2">
-                        {stageHistory.map((h) => {
-                          const fromColor = getStageColor(stages.findIndex(s => s.key === h.fromStage));
-                          const toColor = getStageColor(stages.findIndex(s => s.key === h.toStage));
+                        {updatesMetaMsgs.map((msg) => {
+                          const isInbound = msg.direction === 'inbound';
                           return (
-                            <div key={h._id} className="rounded-lg px-3 py-2 border border-purple-50" style={{ background: '#FDFAFF' }}>
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                {h.fromStage ? (
-                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold text-white" style={{ background: fromColor.main }}>
-                                    {getStageName(h.fromStage)}
-                                  </span>
-                                ) : (
-                                  <span className="text-[10px] text-gray-400 font-medium">New</span>
-                                )}
-                                <span className="text-[10px] text-gray-400">→</span>
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold text-white" style={{ background: toColor.main }}>
-                                  {getStageName(h.toStage)}
-                                </span>
+                            <div key={msg._id} className={`flex ${isInbound ? 'justify-start' : 'justify-end'}`}>
+                              <div
+                                className={`max-w-[80%] rounded-xl px-3 py-2 ${
+                                  isInbound
+                                    ? 'bg-white border border-gray-200 rounded-tl-sm'
+                                    : 'bg-green-600 text-white rounded-tr-sm'
+                                }`}
+                              >
+                                <p className={`text-[12px] leading-relaxed ${isInbound ? 'text-gray-800' : 'text-white'}`}>
+                                  {msg.messageContent || (msg.templateName ? `📋 Template: ${msg.templateName}` : '(media/other)')}
+                                </p>
+                                <p className={`text-[9px] mt-1 text-right ${isInbound ? 'text-gray-400' : 'text-green-200'}`}>
+                                  {fmtDt(msg.sentAt || msg.createdAt)}
+                                </p>
                               </div>
-                              <div className="flex items-center gap-2 mt-1">
-                                <span className="text-[10px] text-gray-400">
-                                  {new Date(h.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })}
-                                  {' '}
-                                  {new Date(h.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-                                </span>
-                                {h.changedByName && (
-                                  <span className="text-[10px] text-gray-500 font-medium">by {h.changedByName}</span>
-                                )}
-                              </div>
-                              {h.note && (
-                                <p className="text-[10px] text-gray-500 mt-0.5 italic">{h.note}</p>
-                              )}
                             </div>
                           );
                         })}
                       </div>
                     )}
-                  </div>
-                </div>
+                  </>
+                )}
 
+                {/* ═══ EMAIL TAB ═══ */}
+                {updatesTab === 'email' && (
+                  <>
+                    {emailsLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <RefreshCw className="h-5 w-5 animate-spin text-blue-500" />
+                      </div>
+                    ) : updatesEmails.length === 0 ? (
+                      <div className="text-center py-8">
+                        <Mail className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                        <p className="text-sm text-gray-400">No emails found</p>
+                        {!ul.email && <p className="text-[11px] text-gray-300 mt-1">Lead has no email address</p>}
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {updatesEmails.map((eml) => (
+                          <div key={eml._id} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                            <div className="px-3 py-2.5">
+                              <div className="flex items-start justify-between gap-2">
+                                <p className="text-[12px] font-semibold text-gray-800 line-clamp-2 flex-1">{eml.subject || '(No Subject)'}</p>
+                                <span className={`flex-shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                                  eml.status === 'sent' ? 'bg-green-100 text-green-700' :
+                                  eml.status === 'failed' ? 'bg-red-100 text-red-700' :
+                                  eml.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                                  'bg-gray-100 text-gray-600'
+                                }`}>{eml.status || 'unknown'}</span>
+                              </div>
+                              <div className="flex items-center gap-2 mt-1.5">
+                                <span className="text-[10px] text-gray-400">{fmtDt(eml.createdAt)}</span>
+                                {eml.source && <span className="text-[10px] text-gray-400">· {eml.source}</span>}
+                              </div>
+                              {eml.recipientEmail && (
+                                <p className="text-[10px] text-gray-400 mt-0.5">To: {eml.recipientEmail}</p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
 
-              {/* ── Footer ── */}
-              <div className="px-4 py-2.5 border-t border-gray-100 bg-white">
-                <p className="text-[10px] text-gray-400 text-center">
-                  Last updated: {new Date(ul.updatedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                  {' '}
-                  {new Date(ul.updatedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+              {/* ── Note Input + Footer ── */}
+              <div className="border-t border-gray-100 bg-white">
+                <div className="px-3 py-2 flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={updateNote}
+                    onChange={e => setUpdateNote(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addUpdateNote(); } }}
+                    placeholder="Add a note or update..."
+                    className="flex-1 text-[12px] px-3 py-1.5 rounded-full border border-gray-200 bg-gray-50 focus:outline-none focus:border-green-400 focus:bg-white transition"
+                  />
+                  <button
+                    onClick={addUpdateNote}
+                    disabled={addingNote || !updateNote.trim()}
+                    className="p-1.5 rounded-full bg-green-600 text-white hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed transition flex-shrink-0"
+                  >
+                    {addingNote ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                  </button>
+                </div>
+                <p className="text-[10px] text-gray-400 text-center pb-2">
+                  Last updated: {fmtDt(ul.updatedAt)}
                 </p>
               </div>
             </div>
