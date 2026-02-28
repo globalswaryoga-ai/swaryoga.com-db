@@ -107,27 +107,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: result.message }, { status: 400 });
     }
 
-    // Also update ChatbotConversationState for UI consistency
-    try {
-      const ChatbotState = getChatbotConversationState();
-      const ChatbotFlow = getChatbotFlow();
-      const flow = await ChatbotFlow.findById(flowId).lean() as any;
-      await ChatbotState.findOneAndUpdate(
-        { leadId },
-        {
-          $set: {
-            activeFlowId: flowId,
-            currentNodeId: flow?.startNodeId || null,
-            flowStartedAt: new Date(),
-            mode: 'bot',
-          },
-          $setOnInsert: { phoneNumber: phone || '', messageCount: 0 },
+    // Fire-and-forget: Sync ChatbotConversationState for UI consistency (non-blocking)
+    // This is non-critical — the canonical state is lead.metadata.chatbotFlowState
+    const ChatbotState = getChatbotConversationState();
+    ChatbotState.findOneAndUpdate(
+      { leadId },
+      {
+        $set: {
+          activeFlowId: flowId,
+          currentNodeId: null,
+          flowStartedAt: new Date(),
+          mode: 'bot',
         },
-        { upsert: true, new: true }
-      );
-    } catch (stateErr) {
+        $setOnInsert: { phoneNumber: phone || '', messageCount: 0 },
+      },
+      { upsert: true, new: true }
+    ).catch((stateErr: any) => {
       console.warn('[chatbot/flows POST] ChatbotConversationState sync error (non-critical):', stateErr);
-    }
+    });
 
     return NextResponse.json({
       success: true,

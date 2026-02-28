@@ -1,7 +1,8 @@
 import { connectDB } from '@/lib/db';
 import { ConsentManager } from '@/lib/consentManager';
 import { Lead, WhatsAppAutomationRule, WhatsAppMessage, ChatbotFlow, getChatbotScheduledAction } from '@/lib/schemas/enterpriseSchemas';
-import { normalizePhone, sendWhatsAppText, sendWhatsAppPresence, sendWhatsAppInteractiveButtons } from '@/lib/whatsapp';
+import { normalizePhone, sendWhatsAppText, sendWhatsAppPresence, sendWhatsAppInteractiveButtons, getWhatsAppEnv, extractYouTubeVideoId, sendWhatsAppTemplate as sendWhatsAppTemplateFn, buildCloudTemplateSendInput } from '@/lib/whatsapp';
+import { getWhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
 import { getBotResponse, searchKnowledgeBase, isAdminAvailable } from '@/lib/chatbot/knowledge-bot';
 
 type InboundContext = {
@@ -188,7 +189,6 @@ async function sendOutboundText(lead: any, to: string, text: string, metadata?: 
 
   // Persist outbound message
   const now = new Date();
-  const { getWhatsAppEnv } = await import('@/lib/whatsapp');
   const env = getWhatsAppEnv();
   const senderNumber = env?.phoneNumber || '9779006820';
 
@@ -198,11 +198,12 @@ async function sendOutboundText(lead: any, to: string, text: string, metadata?: 
     finalContent = applySpintax(text);
   }
 
-  // Handle Presence Delay
+  // Handle Presence Delay — skip for admin-initiated manual starts to save 1-10s
+  const isManualStart = metadata?.chatbot?.manualStart === true;
   const presenceType = metadata?.chatbot?.presenceType || metadata?.automation?.presenceType;
   const presenceDelay = Number(metadata?.chatbot?.presenceDelay || metadata?.automation?.presenceDelay || 0);
 
-  if (presenceType && presenceType !== 'none') {
+  if (!isManualStart && presenceType && presenceType !== 'none') {
     try {
       await sendWhatsAppPresence(to, presenceType as any);
       if (presenceDelay > 0) {
@@ -262,13 +263,14 @@ async function sendOutboundInteractiveButtons(
   if (!compliance.compliant) return;
 
   const now = new Date();
-  const { getWhatsAppEnv, extractYouTubeVideoId } = await import('@/lib/whatsapp');
   const env = getWhatsAppEnv();
   const senderNumber = env?.phoneNumber || '9779006820';
 
+  // Skip presence delay for admin-initiated manual starts
+  const isManualStart = metadata?.chatbot?.manualStart === true;
   const presenceType = metadata?.chatbot?.presenceType;
   const presenceDelay = Number(metadata?.chatbot?.presenceDelay || 0);
-  if (presenceType && presenceType !== 'none') {
+  if (!isManualStart && presenceType && presenceType !== 'none') {
     try {
       await sendWhatsAppPresence(to, presenceType as any);
       if (presenceDelay > 0) await sleep(Math.min(presenceDelay, 10) * 1000);
@@ -312,16 +314,15 @@ async function sendOutboundInteractiveButtons(
 }
 
 async function sendOutboundTemplate(lead: any, to: string, templateId: string, templateVariables?: any, metadata?: any) {
-  const { getWhatsAppTemplate } = await import('@/lib/schemas/enterpriseSchemas');
   const TemplateModel = getWhatsAppTemplate();
-  const template = await TemplateModel.findById(templateId).lean();
+  const [template, compliance] = await Promise.all([
+    TemplateModel.findById(templateId).lean(),
+    ConsentManager.validateCompliance(to),
+  ]);
   if (!template) return;
-
-  const compliance = await ConsentManager.validateCompliance(to);
   if (!compliance.compliant) return;
 
   const now = new Date();
-  const { getWhatsAppEnv } = await import('@/lib/whatsapp');
   const env = getWhatsAppEnv();
   const senderNumber = env?.phoneNumber || '9779006820';
 
@@ -340,10 +341,9 @@ async function sendOutboundTemplate(lead: any, to: string, templateId: string, t
   });
 
   try {
-    const { sendWhatsAppTemplate, buildCloudTemplateSendInput } = await import('@/lib/whatsapp');
     // Use buildCloudTemplateSendInput to properly include headerMedia, buttons, bodyParams
     const cloudInput = buildCloudTemplateSendInput(template, to);
-    const apiResult = await sendWhatsAppTemplate(cloudInput);
+    const apiResult = await sendWhatsAppTemplateFn(cloudInput);
 
     await WhatsAppMessage.updateOne(
       { _id: message._id },
@@ -407,32 +407,34 @@ async function advanceChatbotFlow(lead: any, ctx: InboundContext, flow: any): Pr
   const state = md.chatbotFlowState || { flowId: String(flow._id), nodeId: flow.startNodeId };
   
   // ===== DUPLICATE MESSAGE PREVENTION =====
-  // If this exact node was already processed for this message, skip
-  const lastProcessedMsg = state.lastProcessedMessageBody;
-  const lastProcessedNode = state.lastProcessedNodeId;
-  const lastProcessedAt = state.lastProcessedAt ? new Date(state.lastProcessedAt).getTime() : 0;
-  const timeSinceLastProcess = ctx.now.getTime() - lastProcessedAt;
-  
-  // Prevent duplicate: same node + same message body within 30 seconds
-  if (
-    lastProcessedNode === state.nodeId &&
-    lastProcessedMsg === ctx.body &&
-    timeSinceLastProcess < 30000 &&
-    ctx.body !== '' // Allow empty body for auto-advance
-  ) {
-    console.log(`[Chatbot] DEDUP: Skipping duplicate - same node ${state.nodeId}, same message "${ctx.body.substring(0,30)}..." within ${Math.round(timeSinceLastProcess/1000)}s`);
-    return null;
+  // Skip dedup for admin-initiated starts (empty body) — saves a DB write (~100-300ms)
+  if (ctx.body !== '') {
+    // If this exact node was already processed for this message, skip
+    const lastProcessedMsg = state.lastProcessedMessageBody;
+    const lastProcessedNode = state.lastProcessedNodeId;
+    const lastProcessedAt = state.lastProcessedAt ? new Date(state.lastProcessedAt).getTime() : 0;
+    const timeSinceLastProcess = ctx.now.getTime() - lastProcessedAt;
+    
+    // Prevent duplicate: same node + same message body within 30 seconds
+    if (
+      lastProcessedNode === state.nodeId &&
+      lastProcessedMsg === ctx.body &&
+      timeSinceLastProcess < 30000
+    ) {
+      console.log(`[Chatbot] DEDUP: Skipping duplicate - same node ${state.nodeId}, same message "${ctx.body.substring(0,30)}..." within ${Math.round(timeSinceLastProcess/1000)}s`);
+      return null;
+    }
+    
+    // Track this processing (fire-and-forget for speed, non-critical)
+    Lead.updateOne(
+      { _id: lead._id },
+      { $set: {
+        'metadata.chatbotFlowState.lastProcessedMessageBody': ctx.body,
+        'metadata.chatbotFlowState.lastProcessedNodeId': state.nodeId,
+        'metadata.chatbotFlowState.lastProcessedAt': ctx.now
+      } }
+    ).catch(() => {});
   }
-  
-  // Track this processing
-  await Lead.updateOne(
-    { _id: lead._id },
-    { $set: {
-      'metadata.chatbotFlowState.lastProcessedMessageBody': ctx.body,
-      'metadata.chatbotFlowState.lastProcessedNodeId': state.nodeId,
-      'metadata.chatbotFlowState.lastProcessedAt': ctx.now
-    } }
-  );
   // ===== END DUPLICATE PREVENTION =====
   
   // If user changed flows or something went wrong, restart or stay
@@ -861,7 +863,6 @@ async function advanceChatbotFlow(lead: any, ctx: InboundContext, flow: any): Pr
   // TEMPLATE node - send WhatsApp template
   if (nextNode.type === 'template') {
     // Look up template by name or ID to get the actual template document
-    const { getWhatsAppTemplate } = await import('@/lib/schemas/enterpriseSchemas');
     const WhatsAppTemplateModel = getWhatsAppTemplate();
     let tplDoc: any = null;
     if (nextNode.templateId) {
@@ -978,7 +979,12 @@ export async function startChatbotFlowForLead(input: {
 }): Promise<{ success: boolean; message: string; firstReply?: any }> {
   await connectDB();
 
-  const flow = await ChatbotFlow.findById(input.flowId).lean() as any;
+  // Fetch flow and lead in parallel instead of sequentially
+  const [flow, lead] = await Promise.all([
+    ChatbotFlow.findById(input.flowId).lean() as any,
+    Lead.findById(input.leadId).lean() as any,
+  ]);
+
   if (!flow || !flow.enabled) {
     return { success: false, message: 'Flow not found or disabled' };
   }
@@ -988,7 +994,6 @@ export async function startChatbotFlowForLead(input: {
     return { success: false, message: 'Flow has no start node' };
   }
 
-  const lead = await Lead.findById(input.leadId).lean() as any;
   if (!lead) {
     return { success: false, message: 'Lead not found' };
   }
@@ -999,24 +1004,21 @@ export async function startChatbotFlowForLead(input: {
   }
 
   const now = new Date();
+  const flowState = {
+    flowId: String(flow._id),
+    nodeId: startNodeId,
+    updatedAt: now,
+    manualStart: true,
+  };
 
-  // Set flow state on lead.metadata.chatbotFlowState (used by the automation engine)
+  // Set flow state on lead — no need to reload, just merge locally
   await Lead.updateOne(
     { _id: lead._id },
-    {
-      $set: {
-        'metadata.chatbotFlowState': {
-          flowId: String(flow._id),
-          nodeId: startNodeId,
-          updatedAt: now,
-          manualStart: true,
-        },
-      },
-    }
+    { $set: { 'metadata.chatbotFlowState': flowState } }
   );
 
-  // Reload lead with updated state
-  const updatedLead = await Lead.findById(lead._id).lean() as any;
+  // Merge state locally instead of re-fetching from DB (saves ~200-500ms)
+  const updatedLead = { ...lead, metadata: { ...(lead.metadata || {}), chatbotFlowState: flowState } };
 
   // Build context (empty body since this is admin-initiated, not a user message)
   const ctx: InboundContext = {
@@ -1261,7 +1263,6 @@ export async function handleInboundWhatsAppAutomations(input: {
           
           if (kw.action === 'send_template' && kw.templateName) {
             // Send WhatsApp template
-            const { getWhatsAppTemplate } = await import('@/lib/schemas/enterpriseSchemas');
             const WhatsAppTemplateModel = getWhatsAppTemplate();
             const template = await WhatsAppTemplateModel.findOne({ templateName: kw.templateName }).lean();
             
@@ -1344,8 +1345,7 @@ export async function handleInboundWhatsAppAutomations(input: {
 
     if (triggerType === 'chatbot') {
       console.log(`[Automation] Chatbot trigger active`);
-      const { getChatbotFlow } = await import('@/lib/schemas/enterpriseSchemas');
-      const ChatbotFlow = getChatbotFlow();
+      // ChatbotFlow already imported at top level
       const activeFlow = await ChatbotFlow.findOne({ enabled: true }).lean();
       
       if (activeFlow) {
