@@ -2394,6 +2394,49 @@ const CRMFilterOptionSchema = new mongoose.Schema(
 CRMFilterOptionSchema.index({ category: 1, value: 1 }, { unique: true });
 
 
+// ─── AI Call Log (Retell.ai voice agent calls) ───
+const AICallLogSchema = new mongoose.Schema(
+  {
+    leadId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lead', required: true, index: true },
+    retellCallId: { type: String, index: true }, // Retell's call ID
+    agentId: { type: String }, // Retell agent ID used
+    direction: { type: String, enum: ['outbound', 'inbound'], default: 'outbound' },
+    purpose: { type: String, enum: ['follow_up', 'workshop_reminder', 'collect_info', 'payment_reminder', 'welcome', 'custom'], default: 'custom' },
+    customPrompt: { type: String }, // Custom instructions for this call
+    status: { type: String, enum: ['queued', 'ringing', 'in_progress', 'completed', 'failed', 'no_answer', 'busy', 'canceled'], default: 'queued', index: true },
+    phoneNumber: { type: String }, // Number called
+    fromNumber: { type: String }, // Caller ID / virtual number used
+    language: { type: String, default: 'hi-IN' }, // hi-IN, en-IN
+
+    // Call results
+    duration: { type: Number, default: 0 }, // seconds
+    transcript: { type: String }, // Full call transcript
+    summary: { type: String }, // AI-generated call summary
+    sentiment: { type: String, enum: ['positive', 'neutral', 'negative', ''] },
+    callEndedReason: { type: String }, // Why call ended
+    recordingUrl: { type: String }, // Call recording URL
+
+    // Collected data (from info-gathering calls)
+    collectedData: { type: mongoose.Schema.Types.Mixed, default: {} },
+
+    // CRM updates made during/after call
+    crmUpdates: [{
+      field: String,
+      oldValue: mongoose.Schema.Types.Mixed,
+      newValue: mongoose.Schema.Types.Mixed,
+    }],
+
+    startedAt: { type: Date },
+    endedAt: { type: Date },
+    initiatedBy: { type: String }, // admin userId who triggered the call
+  },
+  { timestamps: true }
+);
+AICallLogSchema.index({ leadId: 1, createdAt: -1 });
+AICallLogSchema.index({ retellCallId: 1 }, { unique: true, sparse: true });
+AICallLogSchema.index({ status: 1, createdAt: -1 });
+
+
 // ============================================================================
 // MODEL INITIALIZATION (LAZY - DEFERRED TO FIRST USE)
 // ============================================================================
@@ -2496,6 +2539,7 @@ export function getFunnelConfig() { return getModel('FunnelConfig', FunnelConfig
 export function getAdminSession() { return getModel('AdminSession', AdminSessionSchema); }
 export function getFunnelStageHistory() { return getModel('FunnelStageHistory', FunnelStageHistorySchema); }
 export function getCRMFilterOption() { return getModel('CRMFilterOption', CRMFilterOptionSchema); }
+export function getAICallLog() { return getModel('AICallLog', AICallLogSchema); }
 
 // LEGACY PROXY EXPORTS - For backward compatibility with existing code
 // These use Proxies to defer initialization

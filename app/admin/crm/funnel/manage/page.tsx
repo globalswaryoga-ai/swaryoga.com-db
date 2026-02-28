@@ -15,6 +15,7 @@ import {
 import LeadDetailModal from '@/components/admin/crm/LeadDetailModal';
 import ReceiptPreviewModal from '@/components/admin/crm/ReceiptPreviewModal';
 import ChatbotFlowModal from '@/components/admin/crm/ChatbotFlowModal';
+import AICallModal from '@/components/admin/crm/AICallModal';
 import { AddToBroadcastModal } from '@/components/admin/crm';
 
 // ── Same 4K color palette as Sales Funnel ──
@@ -139,6 +140,7 @@ export default function FunnelManagePage() {
   const [chatbotStates, setChatbotStates] = useState<Record<string, { mode: string; hasActiveFlow: boolean; lastBotReplyAt: string | null }>>({});
   const [receiptLeadId, setReceiptLeadId] = useState<string | null>(null);
   const [chatbotFlowLeadId, setChatbotFlowLeadId] = useState<string | null>(null);
+  const [aiCallLeadId, setAiCallLeadId] = useState<string | null>(null);
   const [updatesLeadId, setUpdatesLeadId] = useState<string | null>(null);
   const [stageHistory, setStageHistory] = useState<Array<{ _id: string; fromStage: string; toStage: string; changedByName?: string; note?: string; createdAt: string }>>([]);
   const [updatesLoading, setUpdatesLoading] = useState(false);
@@ -148,7 +150,9 @@ export default function FunnelManagePage() {
   const [updatesEmails, setUpdatesEmails] = useState<Array<{ _id: string; recipientEmail?: string; recipientName?: string; subject?: string; status?: string; source?: string; createdAt: string }>>([]);
   const [metaMsgsLoading, setMetaMsgsLoading] = useState(false);
   const [emailsLoading, setEmailsLoading] = useState(false);
-  const [updatesTab, setUpdatesTab] = useState<'overview' | 'chat' | 'email'>('overview');
+  const [updatesTab, setUpdatesTab] = useState<'overview' | 'chat' | 'email' | 'calls'>('overview');
+  const [updatesCalls, setUpdatesCalls] = useState<Array<{ _id: string; purpose: string; status: string; language: string; duration: number; summary: string; sentiment: string; callEndedReason: string; crmUpdates: any[]; createdAt: string }>>([]);
+  const [callsLoading, setCallsLoading] = useState(false);
   const [windowStatus, setWindowStatus] = useState<Record<string, { lastInboundAt: string | null; expiresAt: string | null; isOpen: boolean }>>({});
   const [now, setNow] = useState(Date.now());
 
@@ -396,6 +400,7 @@ export default function FunnelManagePage() {
     setUpdatesEmails([]);
     setUpdateNote('');
     setUpdatesTab('overview');
+    setUpdatesCalls([]);
 
     const lead = leads.find(l => l._id === leadId);
 
@@ -1202,14 +1207,14 @@ export default function FunnelManagePage() {
                       <MessageSquare className="h-3 w-3" />
                       SMS
                     </a>
-                    <a
-                      href={`tel:${lead.phoneNumber || ''}`}
-                      title="Call"
+                    <button
+                      onClick={() => { touchLead(lead._id); setAiCallLeadId(lead._id); }}
+                      title="AI Call"
                       className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium bg-orange-50 text-orange-600 hover:bg-orange-100 transition whitespace-nowrap"
                     >
                       <PhoneCall className="h-3 w-3" />
                       Call
-                    </a>
+                    </button>
                     <button
                       onClick={() => {
                         touchLead(lead._id);
@@ -1401,6 +1406,20 @@ export default function FunnelManagePage() {
         );
       })()}
 
+      {/* ── AI Call Modal ── */}
+      {aiCallLeadId && token && (() => {
+        const cl = leads.find(l => l._id === aiCallLeadId);
+        return (
+          <AICallModal
+            leadId={aiCallLeadId}
+            leadName={cl?.displayName || cl?.name || ''}
+            leadPhone={cl?.phoneNumber?.replace(/\D/g, '') || ''}
+            token={token}
+            onClose={() => setAiCallLeadId(null)}
+          />
+        );
+      })()}
+
       {/* ── Updates Popup (Chat-widget style, bottom-right) ── */}
       {updatesLeadId && (() => {
         const ul = leads.find(l => l._id === updatesLeadId);
@@ -1446,11 +1465,28 @@ export default function FunnelManagePage() {
                   { key: 'overview' as const, label: 'Overview', icon: User },
                   { key: 'chat' as const, label: `Chat (${updatesMetaMsgs.length})`, icon: MessageSquare },
                   { key: 'email' as const, label: `Email (${updatesEmails.length})`, icon: Mail },
+                  { key: 'calls' as const, label: `Calls (${updatesCalls.length})`, icon: PhoneCall },
                 ]).map(tab => (
                   <button
                     key={tab.key}
-                    onClick={() => setUpdatesTab(tab.key)}
-                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-[11px] font-semibold border-b-2 transition ${
+                    onClick={() => {
+                      setUpdatesTab(tab.key);
+                      // Lazy-load calls
+                      if (tab.key === 'calls' && updatesCalls.length === 0 && !callsLoading && updatesLeadId) {
+                        (async () => {
+                          setCallsLoading(true);
+                          try {
+                            const res = await fetch(`/api/admin/crm/calls?leadId=${updatesLeadId}`, { headers: { Authorization: `Bearer ${token}` } });
+                            if (res.ok) {
+                              const json = await res.json();
+                              setUpdatesCalls(json.data?.calls || []);
+                            }
+                          } catch (_) {}
+                          setCallsLoading(false);
+                        })();
+                      }
+                    }}
+                    className={`flex-1 flex items-center justify-center gap-1 py-2 text-[10px] font-semibold border-b-2 transition ${
                       updatesTab === tab.key
                         ? 'border-green-600 text-green-700'
                         : 'border-transparent text-gray-400 hover:text-gray-600'
@@ -1708,6 +1744,59 @@ export default function FunnelManagePage() {
                             </div>
                           </div>
                         ))}
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* ═══ CALLS TAB ═══ */}
+                {updatesTab === 'calls' && (
+                  <>
+                    {callsLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <RefreshCw className="h-5 w-5 animate-spin text-orange-500" />
+                      </div>
+                    ) : updatesCalls.length === 0 ? (
+                      <div className="text-center py-8">
+                        <PhoneCall className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                        <p className="text-sm text-gray-400">No AI calls yet</p>
+                        <p className="text-[11px] text-gray-300 mt-1">Click Call on the lead card to start</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {updatesCalls.map(call => {
+                          const purposeLabels: Record<string, string> = { follow_up: '📞 Follow-up', workshop_reminder: '📅 Workshop', collect_info: '📋 Collect Info', payment_reminder: '💳 Payment', welcome: '🙏 Welcome', custom: '✏️ Custom' };
+                          const statusColors: Record<string, string> = { completed: 'bg-green-100 text-green-700', failed: 'bg-red-100 text-red-600', no_answer: 'bg-orange-100 text-orange-600', busy: 'bg-orange-100 text-orange-600', in_progress: 'bg-blue-100 text-blue-600', ringing: 'bg-yellow-100 text-yellow-600', queued: 'bg-gray-100 text-gray-500' };
+                          const dur = call.duration ? `${Math.floor(call.duration / 60)}m ${call.duration % 60}s` : '—';
+                          return (
+                            <div key={call._id} className="bg-white rounded-xl shadow-sm border border-gray-100 px-3 py-2.5">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[12px] font-semibold text-gray-800">{purposeLabels[call.purpose] || call.purpose}</span>
+                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${statusColors[call.status] || 'bg-gray-100 text-gray-500'}`}>{call.status}</span>
+                              </div>
+                              <div className="flex items-center gap-3 mt-1 text-[10px] text-gray-400">
+                                <span>{fmtDt(call.createdAt)}</span>
+                                <span>⏱ {dur}</span>
+                                {call.sentiment && (
+                                  <span>{call.sentiment === 'positive' ? '😊' : call.sentiment === 'negative' ? '😔' : '😐'} {call.sentiment}</span>
+                                )}
+                              </div>
+                              {call.summary && <p className="text-[11px] text-gray-500 mt-1.5 line-clamp-3">{call.summary}</p>}
+                              {call.callEndedReason && call.status !== 'completed' && (
+                                <p className="text-[10px] text-red-400 mt-0.5">{call.callEndedReason}</p>
+                              )}
+                              {call.crmUpdates?.length > 0 && (
+                                <div className="mt-1.5 flex flex-wrap gap-1">
+                                  {call.crmUpdates.map((u: any, i: number) => (
+                                    <span key={i} className="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded text-[9px] font-medium">
+                                      ✅ {u.field}: {String(u.newValue).slice(0, 20)}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </>
