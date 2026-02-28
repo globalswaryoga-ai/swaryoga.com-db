@@ -1,0 +1,1475 @@
+'use client';
+
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/hooks/useAuth';
+import {
+  Sparkles, Phone, Heart, Play, Handshake, CheckCircle, Trophy,
+  Users, Send, Mail, Eye, Search, RefreshCw, ChevronDown, ChevronRight,
+  X, Filter, Radio, UserPlus, Trash2, ArrowLeftRight,
+  Calendar, Globe, Languages, MapPin, MoreHorizontal, ChevronLeft, Link2, Check,
+  PauseCircle, Repeat, Flower2, Megaphone,
+  Pencil, Receipt, MessageSquare, PhoneCall, Bot, Clock, History, Star, User, Tag, Plus, ExternalLink,
+} from 'lucide-react';
+import LeadDetailModal from '@/components/admin/crm/LeadDetailModal';
+import ReceiptPreviewModal from '@/components/admin/crm/ReceiptPreviewModal';
+import ChatbotFlowModal from '@/components/admin/crm/ChatbotFlowModal';
+import { AddToBroadcastModal } from '@/components/admin/crm';
+
+// ── Same 4K color palette as Sales Funnel ──
+const COLORS = {
+  indigo:  { main: '#6366F1', light: '#818CF8', bg: 'rgba(99,102,241,0.08)',  border: 'rgba(99,102,241,0.2)' },
+  blue:    { main: '#3B82F6', light: '#60A5FA', bg: 'rgba(59,130,246,0.08)',  border: 'rgba(59,130,246,0.2)' },
+  cyan:    { main: '#06B6D4', light: '#22D3EE', bg: 'rgba(6,182,212,0.08)',   border: 'rgba(6,182,212,0.2)' },
+  violet:  { main: '#8B5CF6', light: '#A78BFA', bg: 'rgba(139,92,246,0.08)',  border: 'rgba(139,92,246,0.2)' },
+  amber:   { main: '#F59E0B', light: '#FBBF24', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.2)' },
+  emerald: { main: '#10B981', light: '#34D399', bg: 'rgba(16,185,129,0.08)', border: 'rgba(16,185,129,0.2)' },
+  pink:    { main: '#EC4899', light: '#F472B6', bg: 'rgba(236,72,153,0.08)', border: 'rgba(236,72,153,0.2)' },
+  pageBg:  '#F8FAFC',
+};
+
+const gray    = { main: '#6B7280', light: '#9CA3AF', bg: 'rgba(107,114,128,0.08)', border: 'rgba(107,114,128,0.2)' };
+const orange  = { main: '#F97316', light: '#FB923C', bg: 'rgba(249,115,22,0.08)',  border: 'rgba(249,115,22,0.2)' };
+const teal    = { main: '#14B8A6', light: '#2DD4BF', bg: 'rgba(20,184,166,0.08)',  border: 'rgba(20,184,166,0.2)' };
+const purple  = { main: '#A855F7', light: '#C084FC', bg: 'rgba(168,85,247,0.08)',  border: 'rgba(168,85,247,0.2)' };
+
+const STAGE_COLORS = [COLORS.indigo, COLORS.blue, COLORS.cyan, COLORS.violet, COLORS.amber, COLORS.emerald, COLORS.pink, gray, orange, teal, purple];
+const STAGE_ICONS: Record<string, any> = {
+  sparkles: Sparkles, phone: Phone, heart: Heart, play: Play,
+  handshake: Handshake, 'check-circle': CheckCircle, trophy: Trophy,
+  'pause-circle': PauseCircle, repeat: Repeat, lotus: Flower2, megaphone: Megaphone,
+};
+
+interface FunnelStage {
+  key: string; name: string; color: string; colorGradient: string;
+  order: number; icon: string; isDefault: boolean; description: string;
+}
+
+interface Lead {
+  _id: string; leadNumber?: string; name: string; phoneNumber: string;
+  email?: string; status: string; labels: string[]; source: string;
+  workshopName?: string; funnelStage: string; assignedToUserId?: string;
+  lastMessageAt?: string; chatStatus?: string; createdAt: string;
+  updatedAt: string; country?: string; countryCode?: string;
+  region?: string; state?: string; language?: string; languageCode?: string;
+  title?: string; displayName?: string;
+  firstTouchedAt?: string;
+}
+
+interface AdminUser {
+  userId: string; name?: string; email?: string;
+}
+
+// ── Generate month options for last 24 months ──
+function getMonthOptions(): { value: string; label: string }[] {
+  const opts: { value: string; label: string }[] = [{ value: '', label: 'All Months' }];
+  const now = new Date();
+  for (let i = 0; i < 24; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const lbl = d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+    opts.push({ value: val, label: lbl });
+  }
+  return opts;
+}
+
+const MONTH_OPTIONS = getMonthOptions();
+
+// Fixed connection types
+const DEFAULT_CONNECTIONS = [
+  'Signup', 'Whatsapp', 'Community', 'Website', 'Email', 'Facebook', 'Social media', 'Crm upload',
+];
+
+export default function FunnelManagePage() {
+  const router = useRouter();
+  const token = useAuth();
+
+  // Data
+  const [stages, setStages] = useState<FunnelStage[]>([]);
+  const [stageCounts, setStageCounts] = useState<Record<string, number>>({});
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [totalLeads, setTotalLeads] = useState(0);
+  const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
+  const [filterOptions, setFilterOptions] = useState<{
+    labels: string[]; workshops: string[]; countries: string[]; languages: string[];
+  }>({ labels: [], workshops: [], countries: [], languages: [] });
+
+  // UI state
+  const [loading, setLoading] = useState(true);
+  const [activeStage, setActiveStage] = useState('');
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [page, setPage] = useState(0);
+  const LIMIT = 50;
+
+  // Filters
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterAdmin, setFilterAdmin] = useState('');
+  const [filterMonth, setFilterMonth] = useState('');
+  const [filterLanguage, setFilterLanguage] = useState('');
+  const [filterCountry, setFilterCountry] = useState('');
+  const [filterWorkshop, setFilterWorkshop] = useState('');
+  const [filterLabel, setFilterLabel] = useState('');
+  const [isAddingLabel, setIsAddingLabel] = useState(false);
+  const [newFilterLabel, setNewFilterLabel] = useState('');
+  const [customConnections, setCustomConnections] = useState<string[]>([]);
+
+  // Merged connections: defaults + any custom-added
+  const allConnections = [...DEFAULT_CONNECTIONS, ...customConnections.filter(c => !DEFAULT_CONNECTIONS.includes(c))];
+
+  // Selection & modals
+  const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
+  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
+  const [broadcastModalOpen, setBroadcastModalOpen] = useState(false);
+  const [showBulkActions, setShowBulkActions] = useState(false);
+  const [bulkStageTarget, setBulkStageTarget] = useState('');
+  const [connectionDropdownLeadId, setConnectionDropdownLeadId] = useState<string | null>(null);
+  const [chatbotStates, setChatbotStates] = useState<Record<string, { mode: string; hasActiveFlow: boolean; lastBotReplyAt: string | null }>>({});
+  const [receiptLeadId, setReceiptLeadId] = useState<string | null>(null);
+  const [chatbotFlowLeadId, setChatbotFlowLeadId] = useState<string | null>(null);
+  const [updatesLeadId, setUpdatesLeadId] = useState<string | null>(null);
+  const [stageHistory, setStageHistory] = useState<Array<{ _id: string; fromStage: string; toStage: string; changedByName?: string; note?: string; createdAt: string }>>([]);
+  const [updatesLoading, setUpdatesLoading] = useState(false);
+  const [windowStatus, setWindowStatus] = useState<Record<string, { lastInboundAt: string | null; expiresAt: string | null; isOpen: boolean }>>({});
+  const [now, setNow] = useState(Date.now());
+
+  // Tick every second for countdown timers
+  const windowTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    // Only tick if any window is open
+    const hasOpen = Object.values(windowStatus).some(w => w.isOpen);
+    if (hasOpen) {
+      windowTimerRef.current = setInterval(() => setNow(Date.now()), 1000);
+    }
+    return () => { if (windowTimerRef.current) clearInterval(windowTimerRef.current); };
+  }, [windowStatus]);
+
+  const selectAll = selectedLeadIds.size === leads.length && leads.length > 0;
+
+  useEffect(() => {
+    try {
+      const u = JSON.parse(localStorage.getItem('admin_user') || '{}');
+      const perms: string[] = Array.isArray(u?.permissions) ? u.permissions : [];
+      setIsSuperAdmin((u?.userId === 'admin' || u?.userId === 'admincrm') || perms.includes('all'));
+    } catch { setIsSuperAdmin(false); }
+  }, []);
+
+  // Fetch funnel config
+  const fetchConfig = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch('/api/admin/crm/funnel/config', { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const json = await res.json();
+        setStages((json.data.stages || []).sort((a: FunnelStage, b: FunnelStage) => a.order - b.order));
+      }
+    } catch (e) { console.error(e); }
+  }, [token]);
+
+  // Fetch admin users
+  const fetchAdminUsers = useCallback(async () => {
+    if (!token || !isSuperAdmin) return;
+    try {
+      const res = await fetch('/api/admin/auth/users', { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const json = await res.json();
+        setAdminUsers(
+          (Array.isArray(json?.data) ? json.data : [])
+            .map((u: any) => ({ userId: String(u?.userId || ''), name: u?.name, email: u?.email }))
+            .filter((u: AdminUser) => u.userId)
+        );
+      }
+    } catch (e) { console.error(e); }
+  }, [token, isSuperAdmin]);
+
+  // Fetch leads
+  const fetchLeads = useCallback(async () => {
+    if (!token) return;
+    try {
+      const params = new URLSearchParams();
+      if (activeStage) params.set('stage', activeStage);
+      else params.set('all', '1');
+      if (searchQuery) params.set('search', searchQuery);
+      if (filterCountry) params.set('country', filterCountry);
+      if (filterLanguage) params.set('language', filterLanguage);
+      if (filterAdmin) params.set('assignedTo', filterAdmin);
+      if (filterWorkshop) params.set('workshop', filterWorkshop);
+      if (filterLabel) params.set('label', filterLabel);
+      if (filterMonth) params.set('month', filterMonth);
+      params.set('limit', String(LIMIT));
+      params.set('skip', String(page * LIMIT));
+
+      const res = await fetch(`/api/admin/crm/funnel/leads?${params}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const json = await res.json();
+        setStageCounts(json.data.stageCounts || {});
+        const fetchedLeads = json.data.leads || [];
+        setLeads(fetchedLeads);
+        setTotalLeads(json.data.totalLeads || 0);
+        if (json.data.filters) setFilterOptions(json.data.filters);
+
+        // Fetch chatbot states for these leads
+        if (fetchedLeads.length > 0) {
+          const ids = fetchedLeads.map((l: any) => l._id).join(',');
+          try {
+            const cbRes = await fetch(`/api/admin/crm/chatbot/states?leadIds=${ids}`, { headers: { Authorization: `Bearer ${token}` } });
+            if (cbRes.ok) {
+              const cbJson = await cbRes.json();
+              setChatbotStates(cbJson.states || {});
+            }
+          } catch (_) { /* ignore */ }
+
+          // Fetch WhatsApp 24h window status
+          try {
+            const wsRes = await fetch(`/api/admin/crm/whatsapp/window-status?leadIds=${ids}`, { headers: { Authorization: `Bearer ${token}` } });
+            if (wsRes.ok) {
+              const wsJson = await wsRes.json();
+              setWindowStatus(wsJson.windows || {});
+              setNow(Date.now());
+            }
+          } catch (_) { /* ignore */ }
+        } else {
+          setChatbotStates({});
+          setWindowStatus({});
+        }
+      }
+    } catch (e) { console.error(e); }
+  }, [token, activeStage, searchQuery, filterCountry, filterLanguage, filterAdmin, filterWorkshop, filterLabel, filterMonth, page]);
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      await Promise.all([fetchConfig(), fetchAdminUsers()]);
+      setLoading(false);
+    };
+    if (token) load();
+  }, [token, fetchConfig, fetchAdminUsers]);
+
+  useEffect(() => {
+    if (token) fetchLeads();
+  }, [token, fetchLeads]);
+
+  // Reset page on filter change
+  useEffect(() => { setPage(0); }, [activeStage, searchQuery, filterCountry, filterLanguage, filterAdmin, filterWorkshop, filterLabel, filterMonth]);
+
+  // Move lead
+  const moveLead = async (leadId: string, toStage: string) => {
+    if (!token) return;
+    try {
+      await fetch('/api/admin/crm/funnel/move', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId, toStage }),
+      });
+      fetchLeads();
+    } catch (e) { console.error(e); }
+  };
+
+  // Mark a lead as "touched" (removes new-lead highlight)
+  const touchLead = useCallback(async (leadId: string) => {
+    // Skip if already touched locally
+    const lead = leads.find(l => l._id === leadId);
+    if (!lead || lead.firstTouchedAt || !token) return;
+    try {
+      await fetch('/api/admin/crm/funnel/touch', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId }),
+      });
+      // Update local state immediately
+      setLeads(prev => prev.map(l => l._id === leadId ? { ...l, firstTouchedAt: new Date().toISOString() } : l));
+    } catch (e) { console.error(e); }
+  }, [leads, token]);
+
+  // Bulk move
+  const bulkMoveLeads = async (toStage: string) => {
+    if (!token || selectedLeadIds.size === 0) return;
+    try {
+      await Promise.all(
+        Array.from(selectedLeadIds).map(id =>
+          fetch('/api/admin/crm/funnel/move', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ leadId: id, toStage }),
+          })
+        )
+      );
+      setSelectedLeadIds(new Set());
+      setBulkStageTarget('');
+      fetchLeads();
+    } catch (e) { console.error(e); }
+  };
+
+  const toggleSelectAll = () => {
+    if (selectAll) setSelectedLeadIds(new Set());
+    else setSelectedLeadIds(new Set(leads.map(l => l._id)));
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedLeadIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  // Toggle a connection (label) on a lead
+  const toggleConnection = async (leadId: string, connection: string) => {
+    if (!token || !connection.trim()) return;
+    try {
+      const lead = leads.find(l => l._id === leadId);
+      const current = lead?.labels || [];
+      const has = current.includes(connection.trim());
+      const updated = has ? current.filter(c => c !== connection.trim()) : [...current, connection.trim()];
+      await fetch(`/api/admin/crm/leads/${leadId}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ labels: updated }),
+      });
+      setLeads(prev => prev.map(l => l._id === leadId ? { ...l, labels: updated } : l));
+    } catch (e) { console.error(e); }
+  };
+
+  // Fetch stage history for a lead and open popup
+  const fetchStageHistory = async (leadId: string) => {
+    setUpdatesLeadId(leadId);
+    setUpdatesLoading(true);
+    setStageHistory([]);
+    try {
+      const res = await fetch(`/api/admin/crm/funnel/stage-history?leadId=${leadId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const json = await res.json();
+        setStageHistory(json.data?.history || []);
+      }
+    } catch (_) { /* ignore */ }
+    setUpdatesLoading(false);
+  };
+
+  // Helper: get stage name from key
+  const getStageName = (key: string) => stages.find(s => s.key === key)?.name || key;
+
+  // Helper: format countdown for 24h WhatsApp window
+  const formatWindowCountdown = (leadId: string): { text: string; isOpen: boolean } => {
+    const ws = windowStatus[leadId];
+    if (!ws?.isOpen || !ws.expiresAt) return { text: '00:00', isOpen: false };
+    const remaining = new Date(ws.expiresAt).getTime() - now;
+    if (remaining <= 0) return { text: '00:00', isOpen: false };
+    const hrs = Math.floor(remaining / 3600000);
+    const mins = Math.floor((remaining % 3600000) / 60000);
+    const secs = Math.floor((remaining % 60000) / 1000);
+    return {
+      text: hrs > 0 ? `${hrs}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}` : `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`,
+      isOpen: true,
+    };
+  };
+
+  const getStageColor = (idx: number) => STAGE_COLORS[idx % STAGE_COLORS.length];
+  const getStageIcon = (icon: string) => STAGE_ICONS[icon] || Sparkles;
+
+  const totalPipelineLeads = Object.values(stageCounts).reduce((s, c) => s + c, 0);
+  const totalPages = Math.ceil(totalLeads / LIMIT);
+
+  // Count leads with open Meta chat window
+  const openWindowCount = Object.values(windowStatus).filter(w => w.isOpen).length;
+
+  // Sort leads: untouched (new) leads first, then open-window leads, then the rest
+  const sortedLeads = [...leads].sort((a, b) => {
+    // Primary: untouched leads at top
+    const aNew = !a.firstTouchedAt ? 1 : 0;
+    const bNew = !b.firstTouchedAt ? 1 : 0;
+    if (bNew !== aNew) return bNew - aNew;
+    // Secondary: open-window leads next
+    const aOpen = windowStatus[a._id]?.isOpen ? 1 : 0;
+    const bOpen = windowStatus[b._id]?.isOpen ? 1 : 0;
+    return bOpen - aOpen;
+  });
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center">
+          <div className="animate-spin h-10 w-10 border-4 border-indigo-500 border-t-transparent rounded-full mx-auto" />
+          <p className="mt-4 text-gray-500">Loading Manage Pipeline...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen flex" style={{ background: COLORS.pageBg }}>
+      {/* ── Sidebar: Pipeline Stages ── */}
+      <aside
+        className={`${sidebarCollapsed ? 'w-16' : 'w-64'} flex-shrink-0 bg-white border-r border-gray-100 transition-all duration-300 flex flex-col`}
+        style={{ minHeight: 'calc(100vh - 64px)' }}
+      >
+        {/* Sidebar header */}
+        <div className="px-3 py-4 border-b border-gray-100 flex items-center justify-between">
+          {!sidebarCollapsed && (
+            <h3 className="text-sm font-semibold text-gray-700 tracking-wide uppercase">Pipeline</h3>
+          )}
+          <button
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition"
+          >
+            {sidebarCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          </button>
+        </div>
+
+        {/* All leads button */}
+        <button
+          onClick={() => setActiveStage('')}
+          className={`w-full px-3 py-3 flex items-center gap-3 transition text-left border-b border-gray-50 ${
+            !activeStage ? 'bg-indigo-50/80' : 'hover:bg-gray-50/80'
+          }`}
+          style={!activeStage ? { borderLeft: `3px solid ${COLORS.indigo.main}` } : { borderLeft: '3px solid transparent' }}
+        >
+          <div
+            className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ background: `linear-gradient(135deg, ${COLORS.indigo.main}, ${COLORS.violet.main})` }}
+          >
+            <Users className="h-4 w-4 text-white" />
+          </div>
+          {!sidebarCollapsed && (
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-medium text-gray-800">All Leads</div>
+              <div className="text-xs text-gray-400">{totalPipelineLeads}</div>
+            </div>
+          )}
+        </button>
+
+        {/* Stage buttons */}
+        <div className="flex-1 overflow-y-auto">
+          {/* Meta Window Active leads indicator */}
+          {openWindowCount > 0 && (
+            <div
+              className="w-full px-3 py-3 flex items-center gap-3 border-b border-gray-50"
+              style={{ borderLeft: '3px solid #22C55E', background: '#f0fdf4' }}
+            >
+              <div
+                className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 relative"
+                style={{ background: 'linear-gradient(135deg, #22C55E, #16A34A)' }}
+              >
+                <Star className="h-4 w-4 text-white animate-pulse" />
+              </div>
+              {!sidebarCollapsed && (
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-semibold text-green-800 flex items-center gap-1.5">
+                    <span className="inline-block w-2 h-2 rounded-full bg-green-500 animate-ping" />
+                    Meta Window
+                  </div>
+                  <div className="text-[11px] text-green-600">Active conversations</div>
+                </div>
+              )}
+              <span className="flex-shrink-0 inline-flex items-center justify-center min-w-[22px] h-[22px] rounded-full bg-green-600 text-white text-[11px] font-bold shadow">
+                {openWindowCount}
+              </span>
+            </div>
+          )}
+          {stages.map((stage, idx) => {
+            const color = getStageColor(idx);
+            const Icon = getStageIcon(stage.icon);
+            const count = stageCounts[stage.key] || 0;
+            const isActive = activeStage === stage.key;
+
+            return (
+              <button
+                key={stage.key}
+                onClick={() => setActiveStage(isActive ? '' : stage.key)}
+                className={`w-full px-3 py-3 flex items-center gap-3 transition text-left border-b border-gray-50 ${
+                  isActive ? '' : 'hover:bg-gray-50/80'
+                }`}
+                style={{
+                  backgroundColor: isActive ? color.bg : undefined,
+                  borderLeft: isActive ? `3px solid ${color.main}` : '3px solid transparent',
+                }}
+              >
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ background: `linear-gradient(135deg, ${color.main}, ${color.light})` }}
+                >
+                  <Icon className="h-4 w-4 text-white" />
+                </div>
+                {!sidebarCollapsed && (
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium text-gray-800 truncate">{stage.name}</div>
+                    <div className="text-xs text-gray-400">{count} leads</div>
+                  </div>
+                )}
+                {!sidebarCollapsed && (
+                  <div className="text-lg font-bold flex-shrink-0" style={{ color: color.main }}>{count}</div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Back to funnel link */}
+        {!sidebarCollapsed && (
+          <div className="px-3 py-3 border-t border-gray-100">
+            <button
+              onClick={() => router.push('/admin/crm/funnel')}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" /> Back to Funnel Dashboard
+            </button>
+          </div>
+        )}
+      </aside>
+
+      {/* ── Main Content ── */}
+      <main className="flex-1 min-w-0 flex flex-col">
+        {/* ── Header / Menubar ── */}
+        <div className="bg-white border-b border-gray-100 px-4 sm:px-6 py-3">
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => router.push('/admin/crm/funnel')}
+                className="w-9 h-9 rounded-xl flex items-center justify-center hover:opacity-80 transition shadow-sm"
+                style={{ background: 'linear-gradient(135deg, #6366F1, #EC4899)' }}
+                title="Back to Sales Funnel"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+              </button>
+              <div>
+                <h1 className="text-lg font-bold text-gray-900">
+                  {activeStage ? stages.find(s => s.key === activeStage)?.name || 'Leads' : 'All Pipeline Leads'}
+                </h1>
+                <p className="text-xs text-gray-400">{totalLeads} leads {activeStage && `in this stage`}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {/* ── Bulk Actions (auto-show when selected) ── */}
+              {selectedLeadIds.size > 0 && (
+                <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-indigo-200 animate-in fade-in" style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(236,72,153,0.06))' }}>
+                  <span className="text-[11px] font-semibold text-indigo-700 whitespace-nowrap">
+                    {selectedLeadIds.size} selected
+                  </span>
+                  <div className="h-3.5 w-px bg-indigo-200" />
+                  {/* WhatsApp */}
+                  <button
+                    onClick={() => {
+                      const ids = Array.from(selectedLeadIds).join(',');
+                      router.push(`/admin/crm/broadcast?leadIds=${encodeURIComponent(ids)}`);
+                    }}
+                    title="WhatsApp bulk"
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium text-white transition hover:opacity-90"
+                    style={{ background: '#25D366' }}
+                  >
+                    <Send className="h-3 w-3" /> WA
+                  </button>
+                  {/* Broadcast */}
+                  <button
+                    onClick={() => setBroadcastModalOpen(true)}
+                    title="Broadcast"
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium text-white transition hover:opacity-90"
+                    style={{ background: COLORS.indigo.main }}
+                  >
+                    <Radio className="h-3 w-3" /> Broadcast
+                  </button>
+                  {/* Email */}
+                  <button
+                    onClick={() => {
+                      const ids = Array.from(selectedLeadIds).join(',');
+                      router.push(`/admin/crm/email?leadIds=${encodeURIComponent(ids)}`);
+                    }}
+                    title="Email bulk"
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium bg-blue-50 text-blue-600 hover:bg-blue-100 transition"
+                  >
+                    <Mail className="h-3 w-3" /> Email
+                  </button>
+                  {/* Move Stage */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowBulkActions(!showBulkActions)}
+                      title="Move stage"
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium bg-violet-50 text-violet-600 hover:bg-violet-100 transition"
+                    >
+                      <ArrowLeftRight className="h-3 w-3" /> Move <ChevronDown className="h-2.5 w-2.5" />
+                    </button>
+                    {showBulkActions && (
+                      <div className="absolute right-0 top-full mt-1 w-44 bg-white rounded-xl shadow-xl border border-gray-100 py-1 z-50">
+                        {stages.map((s, idx) => {
+                          const c = getStageColor(idx);
+                          return (
+                            <button
+                              key={s.key}
+                              onClick={() => { bulkMoveLeads(s.key); setShowBulkActions(false); }}
+                              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 transition"
+                            >
+                              <div className="w-2.5 h-2.5 rounded-full" style={{ background: c.main }} />
+                              {s.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                  {/* Clear */}
+                  <button
+                    onClick={() => setSelectedLeadIds(new Set())}
+                    title="Clear selection"
+                    className="flex items-center justify-center w-5 h-5 rounded-full text-gray-400 hover:bg-red-50 hover:text-red-500 transition"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              )}
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="Search name, phone..."
+                  className="pl-8 pr-3 py-2 rounded-xl border border-gray-200 text-sm w-52 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none"
+                />
+              </div>
+              <button
+                onClick={() => fetchLeads()}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition shadow-sm"
+              >
+                <RefreshCw className="h-4 w-4" /> Refresh
+              </button>
+            </div>
+          </div>
+
+          {/* ── Filter Bar ── */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1">
+            {/* Admin user */}
+            {isSuperAdmin && (
+              <select
+                value={filterAdmin}
+                onChange={e => setFilterAdmin(e.target.value)}
+                className="px-3 py-2 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none flex-shrink-0"
+              >
+                <option value="">All Admins</option>
+                {adminUsers.map(a => (
+                  <option key={a.userId} value={a.userId}>{a.name || a.userId}</option>
+                ))}
+              </select>
+            )}
+
+            {/* Month */}
+            <select
+              value={filterMonth}
+              onChange={e => setFilterMonth(e.target.value)}
+              className="px-3 py-2 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none flex-shrink-0"
+            >
+              {MONTH_OPTIONS.map(m => (
+                <option key={m.value} value={m.value}>{m.label}</option>
+              ))}
+            </select>
+
+            {/* Language */}
+            <select
+              value={filterLanguage}
+              onChange={e => setFilterLanguage(e.target.value)}
+              className="px-3 py-2 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none flex-shrink-0"
+            >
+              <option value="">All Languages</option>
+              {filterOptions.languages.map(l => (
+                <option key={l} value={l}>{l}</option>
+              ))}
+            </select>
+
+            {/* Country */}
+            <select
+              value={filterCountry}
+              onChange={e => setFilterCountry(e.target.value)}
+              className="px-3 py-2 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none flex-shrink-0"
+            >
+              <option value="">All Countries</option>
+              {filterOptions.countries.map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+
+            {/* Workshop */}
+            <select
+              value={filterWorkshop}
+              onChange={e => setFilterWorkshop(e.target.value)}
+              className="px-3 py-2 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none flex-shrink-0"
+            >
+              <option value="">All Workshops</option>
+              {filterOptions.workshops.map(w => (
+                <option key={w} value={w}>{w}</option>
+              ))}
+            </select>
+
+            {/* Connection */}
+            <select
+              value={filterLabel}
+              onChange={e => setFilterLabel(e.target.value)}
+              className="px-3 py-2 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none flex-shrink-0"
+            >
+              <option value="">All Connections</option>
+              {allConnections.map(l => (
+                <option key={l} value={l}>{l}</option>
+              ))}
+            </select>
+
+            {/* Add new connection type */}
+            {isAddingLabel ? (
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <input
+                  type="text"
+                  value={newFilterLabel}
+                  onChange={e => setNewFilterLabel(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && newFilterLabel.trim()) {
+                      if (!allConnections.includes(newFilterLabel.trim())) {
+                        setCustomConnections(prev => [...prev, newFilterLabel.trim()]);
+                      }
+                      setNewFilterLabel('');
+                      setIsAddingLabel(false);
+                    } else if (e.key === 'Escape') {
+                      setNewFilterLabel('');
+                      setIsAddingLabel(false);
+                    }
+                  }}
+                  placeholder="New connection..."
+                  autoFocus
+                  className="px-2 py-1.5 rounded-lg border border-indigo-300 text-sm w-36 focus:ring-2 focus:ring-indigo-200 outline-none"
+                />
+                <button
+                  onClick={() => {
+                    if (newFilterLabel.trim() && !allConnections.includes(newFilterLabel.trim())) {
+                      setCustomConnections(prev => [...prev, newFilterLabel.trim()]);
+                    }
+                    setNewFilterLabel('');
+                    setIsAddingLabel(false);
+                  }}
+                  className="p-1.5 rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 transition"
+                >
+                  <Check className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  onClick={() => { setNewFilterLabel(''); setIsAddingLabel(false); }}
+                  className="p-1.5 rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 transition"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setIsAddingLabel(true)}
+                title="Add new connection type"
+                className="flex items-center gap-1 px-2 py-2 rounded-xl text-xs font-medium text-indigo-600 hover:bg-indigo-50 transition border border-dashed border-indigo-300 flex-shrink-0"
+              >
+                <span className="text-sm font-bold">+</span>
+              </button>
+            )}
+
+            {/* Clear filters */}
+            {(searchQuery || filterAdmin || filterMonth || filterLanguage || filterCountry || filterWorkshop || filterLabel) && (
+              <button
+                onClick={() => {
+                  setSearchQuery(''); setFilterAdmin(''); setFilterMonth('');
+                  setFilterLanguage(''); setFilterCountry(''); setFilterWorkshop('');
+                  setFilterLabel('');
+                }}
+                className="flex items-center gap-1 px-2 py-2 rounded-xl text-xs text-red-500 hover:bg-red-50 transition flex-shrink-0"
+              >
+                <X className="h-3.5 w-3.5" /> Clear
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* ── Leads List (Two-row cards) ── */}
+        <div className="flex-1 overflow-auto px-4 sm:px-6 py-3 space-y-1">
+          {/* Select all bar */}
+          <div className="flex items-center gap-3 px-3 py-2 bg-gray-50/80 rounded-xl mb-2">
+            <input
+              type="checkbox"
+              checked={selectAll}
+              onChange={toggleSelectAll}
+              className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Select All</span>
+            <span className="text-xs text-gray-400 ml-auto">{totalLeads} leads total</span>
+          </div>
+
+          {leads.length === 0 && (
+            <div className="text-center py-16 text-gray-400 text-sm">No leads found. Adjust your filters.</div>
+          )}
+
+          {sortedLeads.map((lead) => {
+            const stageIdx = stages.findIndex(s => s.key === lead.funnelStage);
+            const stageColor = stageIdx >= 0 ? getStageColor(stageIdx) : COLORS.indigo;
+            const stageName = stages.find(s => s.key === lead.funnelStage)?.name || lead.funnelStage || 'New Lead';
+            const isSelected = selectedLeadIds.has(lead._id);
+            const isUntouched = !lead.firstTouchedAt;
+
+            return (
+              <div
+                key={lead._id}
+                className={`rounded-xl border transition-all duration-150 hover:shadow-md flex ${
+                  isUntouched
+                    ? 'border-yellow-300 shadow-sm hover:border-yellow-400'
+                    : isSelected
+                      ? 'bg-indigo-50/50 border-indigo-200 shadow-sm'
+                      : 'bg-white border-gray-100 hover:border-indigo-200 hover:bg-gray-50/30'
+                }`}
+                style={isUntouched ? { background: 'linear-gradient(90deg, #FFF9E6 0%, #FFFDF5 100%)' } : undefined}
+              >
+                {/* ── Left: Lead Info (2 rows) ── */}
+                <div className="flex-1 min-w-0">
+                  {/* Row 1: Main info */}
+                  <div className="flex items-center gap-2.5 px-4 py-3">
+                    {/* Checkbox */}
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleSelect(lead._id)}
+                      className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 flex-shrink-0"
+                    />
+
+                    {/* Lead number */}
+                    {lead.leadNumber && (
+                      <span className="text-[11px] text-gray-400 flex-shrink-0 font-mono">#{lead.leadNumber}</span>
+                    )}
+
+                    {/* NEW badge for untouched leads */}
+                    {isUntouched && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-yellow-400 text-yellow-900 flex-shrink-0 animate-pulse">
+                        NEW
+                      </span>
+                    )}
+
+                    {/* Name */}
+                    <button
+                      onClick={() => setSelectedLeadId(lead._id)}
+                      className="text-sm font-semibold text-gray-800 hover:text-indigo-600 transition truncate text-left flex-shrink-0 max-w-[200px]"
+                    >
+                      {lead.title ? `${lead.title}. ` : ''}{lead.name || lead.displayName || 'Unknown'}
+                    </button>
+
+                    {/* Mobile */}
+                    <span className="text-xs text-gray-500 font-mono flex-shrink-0">
+                      {lead.phoneNumber || '—'}
+                    </span>
+
+                    {/* Email */}
+                    {lead.email && (
+                      <span className="text-xs text-gray-400 flex-shrink-0 flex items-center gap-1 truncate max-w-[200px]">
+                        <Mail className="h-3 w-3" /> {lead.email}
+                      </span>
+                    )}
+
+                    {/* Country */}
+                    {lead.country ? (
+                      <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 whitespace-nowrap flex-shrink-0">
+                        {lead.country}
+                      </span>
+                    ) : null}
+
+                    {/* Language */}
+                    {lead.language ? (
+                      <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-600 flex-shrink-0">{lead.language}</span>
+                    ) : null}
+
+                    {/* Region */}
+                    {lead.region && (
+                      <span className={`text-[11px] px-1.5 py-0.5 rounded-full flex-shrink-0 ${
+                        lead.region === 'South India' ? 'bg-cyan-50 text-cyan-600' : 'bg-amber-50 text-amber-600'
+                      }`}>
+                        {lead.region === 'South India' ? '🌴' : '🏔️'} {lead.region}
+                      </span>
+                    )}
+
+                    {/* Stage badge */}
+                    <span
+                      className="text-[11px] px-2 py-0.5 rounded-full font-medium text-white whitespace-nowrap flex-shrink-0"
+                      style={{ background: `linear-gradient(135deg, ${stageColor.main}, ${stageColor.light})` }}
+                    >
+                      {stageName}
+                    </span>
+                  </div>
+
+                  {/* Row 2: Secondary details */}
+                  <div className="flex items-center gap-2.5 px-4 py-1.5 border-t border-gray-50 bg-gray-50/30">
+                    {/* Spacer for checkbox alignment */}
+                    <div className="w-4 flex-shrink-0" />
+
+                    {/* Joined date */}
+                    <span className="text-[11px] text-gray-400 flex-shrink-0 flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      {new Date(lead.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })}
+                    </span>
+
+                    {lead.workshopName && (
+                      <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 flex-shrink-0">
+                        {lead.workshopName}
+                      </span>
+                    )}
+                    {lead.source && (
+                      <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 flex-shrink-0">
+                        {lead.source}
+                      </span>
+                    )}
+
+                    {/* Connections Dropdown */}
+                    <div className="relative flex-shrink-0">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setConnectionDropdownLeadId(connectionDropdownLeadId === lead._id ? null : lead._id);
+                        }}
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[11px] font-medium transition border ${
+                          (lead.labels?.length || 0) > 0
+                            ? 'bg-indigo-50 text-indigo-600 border-indigo-200 hover:bg-indigo-100'
+                            : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'
+                        }`}
+                      >
+                        <Link2 className="h-3 w-3" />
+                        {(lead.labels?.length || 0) > 0
+                          ? `${lead.labels!.slice(0, 2).join(', ')}${lead.labels!.length > 2 ? ` +${lead.labels!.length - 2}` : ''}`
+                          : 'Connections'
+                        }
+                        <ChevronDown className="h-2.5 w-2.5" />
+                      </button>
+
+                      {connectionDropdownLeadId === lead._id && (
+                        <div
+                          className="absolute left-0 bottom-full mb-1 w-56 bg-white rounded-xl shadow-xl border border-gray-200 z-50 py-1 max-h-64 overflow-y-auto"
+                          onClick={e => e.stopPropagation()}
+                        >
+                          <div className="px-3 py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Connections</div>
+                          {allConnections.length === 0 && (
+                            <div className="px-3 py-2 text-xs text-gray-400 italic">No connections available</div>
+                          )}
+                          {allConnections.map(conn => {
+                            const isActive = (lead.labels || []).includes(conn);
+                            return (
+                              <button
+                                key={conn}
+                                onClick={() => toggleConnection(lead._id, conn)}
+                                className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left transition hover:bg-gray-50 ${
+                                  isActive ? 'text-indigo-600 font-medium' : 'text-gray-600'
+                                }`}
+                              >
+                                <span className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 ${
+                                  isActive ? 'bg-indigo-500 text-white' : 'border border-gray-300'
+                                }`}>
+                                  {isActive && <Check className="h-3 w-3" />}
+                                </span>
+                                {conn}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {lead.lastMessageAt && (
+                      <span className="text-[11px] text-gray-400 flex-shrink-0 ml-auto">
+                        Last msg: {new Date(lead.lastMessageAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                      </span>
+                    )}
+
+                    {/* WhatsApp 24h Window Timer */}
+                    {(() => {
+                      const { text, isOpen } = formatWindowCountdown(lead._id);
+                      return (
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-mono font-semibold flex-shrink-0 ${
+                            isOpen
+                              ? 'bg-green-50 text-green-700 border border-green-200'
+                              : 'bg-gray-50 text-gray-400 border border-gray-200'
+                          }`}
+                          title={isOpen ? 'Meta chat window open – free-form messaging allowed' : 'Chat window closed – only templates allowed'}
+                        >
+                          <Clock className={`h-3 w-3 ${isOpen ? 'text-green-500' : 'text-gray-300'}`} />
+                          {text}
+                        </span>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                {/* ── Right: Action Buttons (two rows) ── */}
+                <div className="flex flex-col gap-1 px-3 py-1 border-l border-gray-100 flex-shrink-0">
+                  {/* Row 1 */}
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => { touchLead(lead._id); setSelectedLeadId(lead._id); }}
+                      title="View details"
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition whitespace-nowrap"
+                    >
+                      <Eye className="h-3 w-3" />
+                      View
+                    </button>
+                    <button
+                      onClick={() => { touchLead(lead._id); setSelectedLeadId(lead._id); }}
+                      title="Edit lead"
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium bg-amber-50 text-amber-600 hover:bg-amber-100 transition whitespace-nowrap"
+                    >
+                      <Pencil className="h-3 w-3" />
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => { touchLead(lead._id); router.push(`/admin/crm/meta?phone=${encodeURIComponent(lead.phoneNumber?.replace(/\D/g, '') || '')}`); }}
+                      title="WhatsApp (Meta)"
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium text-white transition hover:opacity-90 whitespace-nowrap"
+                      style={{ background: '#25D366' }}
+                    >
+                      <Send className="h-3 w-3" />
+                      WA
+                    </button>
+                    <div className="relative group">
+                      <button
+                        title="Move stage"
+                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium bg-violet-50 text-violet-600 hover:bg-violet-100 transition whitespace-nowrap"
+                      >
+                        <ArrowLeftRight className="h-3 w-3" />
+                        Move
+                      </button>
+                      <div className="absolute right-0 top-full mt-1 w-44 bg-white rounded-xl shadow-xl border border-gray-100 py-1 z-40 hidden group-hover:block">
+                        {stages.filter(s => s.key !== lead.funnelStage).map((s) => {
+                          const c = getStageColor(stages.findIndex(st => st.key === s.key));
+                          return (
+                            <button
+                              key={s.key}
+                              onClick={() => { touchLead(lead._id); moveLead(lead._id, s.key); }}
+                              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 transition"
+                            >
+                              <div className="w-2.5 h-2.5 rounded-full" style={{ background: c.main }} />
+                              {s.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                  {/* Row 2 */}
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => { touchLead(lead._id); setReceiptLeadId(lead._id); }}
+                      title="Receipts"
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition whitespace-nowrap"
+                    >
+                      <Receipt className="h-3 w-3" />
+                      Receipts
+                    </button>
+                    <a
+                      href={`mailto:${lead.email || ''}`}
+                      title="Send email"
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium bg-blue-50 text-blue-600 hover:bg-blue-100 transition whitespace-nowrap"
+                    >
+                      <Mail className="h-3 w-3" />
+                      Email
+                    </a>
+                    <a
+                      href={`sms:${lead.phoneNumber || ''}`}
+                      title="Send SMS"
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium bg-cyan-50 text-cyan-600 hover:bg-cyan-100 transition whitespace-nowrap"
+                    >
+                      <MessageSquare className="h-3 w-3" />
+                      SMS
+                    </a>
+                    <a
+                      href={`tel:${lead.phoneNumber || ''}`}
+                      title="Call"
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium bg-orange-50 text-orange-600 hover:bg-orange-100 transition whitespace-nowrap"
+                    >
+                      <PhoneCall className="h-3 w-3" />
+                      Call
+                    </a>
+                    <button
+                      onClick={() => { touchLead(lead._id); setChatbotFlowLeadId(lead._id); }}
+                      title={(() => {
+                        const cb = chatbotStates[lead._id];
+                        if (!cb || !cb.hasActiveFlow) return 'Chatbot Off';
+                        if (cb.lastBotReplyAt && (Date.now() - new Date(cb.lastBotReplyAt).getTime()) > 7 * 24 * 60 * 60 * 1000) return 'Chatbot Stale (>7 days)';
+                        if (cb.hasActiveFlow && cb.mode === 'bot' && !cb.lastBotReplyAt) return 'Chatbot On but not working';
+                        return 'Chatbot Active';
+                      })()}
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium bg-purple-50 text-purple-600 hover:bg-purple-100 transition whitespace-nowrap relative"
+                    >
+                      <Bot className="h-3 w-3" />
+                      Chatbot
+                      {/* Status indicator ring */}
+                      {(() => {
+                        const cb = chatbotStates[lead._id];
+                        let color = '#EAB308'; // yellow = off (no active flow)
+                        let symbol = '−';
+                        let tip = 'Off';
+                        if (cb && cb.hasActiveFlow) {
+                          if (cb.lastBotReplyAt) {
+                            const age = Date.now() - new Date(cb.lastBotReplyAt).getTime();
+                            if (age > 7 * 24 * 60 * 60 * 1000) {
+                              color = '#3B82F6'; // blue = stale > 7 days
+                              symbol = '!';
+                              tip = '>7d';
+                            } else {
+                              color = '#22C55E'; // green = active & working
+                              symbol = '✓';
+                              tip = 'On';
+                            }
+                          } else {
+                            color = '#EF4444'; // red = on but not working (never replied)
+                            symbol = '✕';
+                            tip = 'Error';
+                          }
+                        }
+                        return (
+                          <span
+                            className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border-2 border-white text-[6px] font-bold text-white shadow-sm"
+                            style={{ background: color }}
+                            title={tip}
+                          >
+                            {symbol}
+                          </span>
+                        );
+                      })()}
+                    </button>
+                  </div>
+                  {/* Row 3: Updates (centered) */}
+                  <div className="flex items-center justify-center">
+                    <button
+                      onClick={() => fetchStageHistory(lead._id)}
+                      title="Stage change updates"
+                      className="flex items-center gap-1 px-3 py-1 rounded-lg text-[11px] font-semibold text-green-800 transition hover:opacity-90 whitespace-nowrap bg-lavender"
+                      style={{ background: '#E8E0F0' }}
+                    >
+                      <History className="h-3 w-3" />
+                      Updates
+                    </button>
+                  </div>
+
+
+                </div>
+              </div>
+            );
+          })}
+
+
+        </div>
+
+        {/* ── Pagination ── */}
+        {totalPages > 1 && (
+          <div className="bg-white border-t border-gray-100 px-4 sm:px-6 py-3 flex items-center justify-between">
+            <div className="text-xs text-gray-400">
+              Showing {page * LIMIT + 1}–{Math.min((page + 1) * LIMIT, totalLeads)} of {totalLeads}
+            </div>
+            <div className="flex gap-1">
+              <button
+                onClick={() => setPage(p => Math.max(0, p - 1))}
+                disabled={page === 0}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Previous
+              </button>
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                const start = Math.max(0, Math.min(page - 2, totalPages - 5));
+                const p = start + i;
+                if (p >= totalPages) return null;
+                return (
+                  <button
+                    key={p}
+                    onClick={() => setPage(p)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+                      page === p
+                        ? 'text-white shadow-sm'
+                        : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+                    }`}
+                    style={page === p ? { background: `linear-gradient(135deg, ${COLORS.indigo.main}, ${COLORS.violet.main})` } : {}}
+                  >
+                    {p + 1}
+                  </button>
+                );
+              })}
+              <button
+                onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+                disabled={page >= totalPages - 1}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* ── Lead Detail Modal ── */}
+      {selectedLeadId && token && (
+        <LeadDetailModal
+          leadId={selectedLeadId}
+          token={token}
+          onClose={() => setSelectedLeadId(null)}
+          onUpdate={() => fetchLeads()}
+          adminUsers={adminUsers}
+          labelOptions={allConnections}
+          workshopOptions={filterOptions.workshops}
+          stages={stages.map(s => ({ key: s.key, name: s.name, color: s.color }))}
+          isSuperAdmin={isSuperAdmin}
+        />
+      )}
+
+      {/* ── Broadcast Modal ── */}
+      <AddToBroadcastModal
+        isOpen={broadcastModalOpen}
+        onClose={() => setBroadcastModalOpen(false)}
+        leads={selectedLeadIds.size > 0 ? leads.filter(l => selectedLeadIds.has(l._id)) : leads}
+        token={token || undefined}
+        onSuccess={() => { setBroadcastModalOpen(false); setSelectedLeadIds(new Set()); }}
+      />
+
+      {/* ── Receipt Preview Modal ── */}
+      {receiptLeadId && token && (() => {
+        const rl = leads.find(l => l._id === receiptLeadId);
+        return (
+          <ReceiptPreviewModal
+            leadId={receiptLeadId}
+            leadName={rl?.name || ''}
+            leadPhone={rl?.phoneNumber || ''}
+            leadEmail={rl?.email || ''}
+            token={token}
+            onClose={() => setReceiptLeadId(null)}
+          />
+        );
+      })()}
+
+      {/* ── Chatbot Flow Modal ── */}
+      {chatbotFlowLeadId && token && (() => {
+        const cl = leads.find(l => l._id === chatbotFlowLeadId);
+        return (
+          <ChatbotFlowModal
+            leadId={chatbotFlowLeadId}
+            leadName={cl?.name || ''}
+            leadPhone={cl?.phoneNumber?.replace(/\D/g, '') || ''}
+            token={token}
+            onClose={() => setChatbotFlowLeadId(null)}
+            onFlowChanged={async () => {
+              // Refresh chatbot states after flow change
+              const ids = leads.map(l => l._id).join(',');
+              if (ids && token) {
+                try {
+                  const cbRes = await fetch(`/api/admin/crm/chatbot/states?leadIds=${ids}`, { headers: { Authorization: `Bearer ${token}` } });
+                  const cbJson = await cbRes.json();
+                  if (cbJson.success) setChatbotStates(cbJson.states || {});
+                } catch {}
+              }
+            }}
+          />
+        );
+      })()}
+
+      {/* ── Updates Popup (Chat-widget style, bottom-right) ── */}
+      {updatesLeadId && (() => {
+        const ul = leads.find(l => l._id === updatesLeadId);
+        if (!ul) return null;
+        const assignedAdmin = adminUsers.find(a => a.userId === ul.assignedToUserId);
+        const stageIdx = stages.findIndex(s => s.key === ul.funnelStage);
+        const stageColor = stageIdx >= 0 ? getStageColor(stageIdx) : COLORS.indigo;
+        const stageName = stages.find(s => s.key === ul.funnelStage)?.name || ul.funnelStage || 'New Lead';
+
+        return (
+          <div className="fixed inset-0 z-[60]" onClick={() => setUpdatesLeadId(null)}>
+            {/* Floating chat-widget panel */}
+            <div
+              className="absolute bottom-6 right-6 w-[380px] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+              style={{ maxHeight: 'calc(100vh - 48px)' }}
+              onClick={e => e.stopPropagation()}
+            >
+              {/* ── Green Header ── */}
+              <div className="flex items-center gap-3 px-4 py-3" style={{ background: '#00684A' }}>
+                <button onClick={() => setUpdatesLeadId(null)} className="p-0.5 rounded hover:bg-white/20 transition flex-shrink-0">
+                  <ChevronLeft className="h-5 w-5 text-white" />
+                </button>
+                <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0" style={{ background: '#00ED64', color: '#00684A' }}>
+                  {(ul.name || ul.displayName || '?')[0].toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white font-semibold text-sm truncate">{ul.title ? `${ul.title}. ` : ''}{ul.name || ul.displayName || 'Unknown'}</p>
+                  <p className="text-green-200 text-[11px] truncate">Lead Updates & History</p>
+                </div>
+                <button onClick={() => setUpdatesLeadId(null)} className="p-1 rounded hover:bg-white/20 transition flex-shrink-0">
+                  <MoreHorizontal className="h-4 w-4 text-white/70" />
+                </button>
+                <button onClick={() => setUpdatesLeadId(null)} className="p-1 rounded hover:bg-white/20 transition flex-shrink-0">
+                  <X className="h-4 w-4 text-white" />
+                </button>
+              </div>
+
+              {/* ── Scrollable Chat Body ── */}
+              <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3" style={{ background: '#F9FAFB', maxHeight: '70vh' }}>
+
+                {/* Info notice */}
+                <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-white border border-gray-200 text-xs text-gray-500">
+                  <span className="flex-shrink-0 mt-0.5">ℹ️</span>
+                  <span>Joined on <strong>{new Date(ul.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</strong> · Lead #{ul.leadNumber || '—'}</span>
+                </div>
+
+                {/* Card 1: User Details */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                  <div className="flex items-center gap-2 px-4 py-2.5" style={{ background: '#EFF6FF' }}>
+                    <User className="h-3.5 w-3.5 text-blue-600" />
+                    <span className="text-xs font-bold text-blue-800">User Details</span>
+                  </div>
+                  <div className="px-4 py-3 space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-[11px] text-gray-400">Phone</span>
+                      <span className="text-[12px] font-medium text-gray-800">{ul.phoneNumber || '—'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-[11px] text-gray-400">Email</span>
+                      <span className="text-[12px] font-medium text-gray-800 truncate max-w-[180px]">{ul.email || '—'}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[11px] text-gray-400">Stage</span>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold text-white" style={{ background: stageColor.main }}>
+                        {stageName}
+                      </span>
+                    </div>
+                    {(ul.country || ul.state) && (
+                      <div className="flex justify-between">
+                        <span className="text-[11px] text-gray-400">Location</span>
+                        <span className="text-[12px] font-medium text-gray-800">{[ul.state, ul.country].filter(Boolean).join(', ')}</span>
+                      </div>
+                    )}
+                    {ul.language && (
+                      <div className="flex justify-between">
+                        <span className="text-[11px] text-gray-400">Language</span>
+                        <span className="text-[12px] font-medium text-gray-800">{ul.language}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Card 2: Assigned Admin */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                  <div className="flex items-center gap-2 px-4 py-2.5" style={{ background: '#FFF7ED' }}>
+                    <Users className="h-3.5 w-3.5 text-orange-600" />
+                    <span className="text-xs font-bold text-orange-800">Assigned To</span>
+                  </div>
+                  <div className="px-4 py-3">
+                    {assignedAdmin ? (
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs" style={{ background: '#F97316' }}>
+                          {(assignedAdmin.name || assignedAdmin.userId || '?')[0].toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="text-[12px] font-semibold text-gray-800">{assignedAdmin.name || assignedAdmin.userId}</p>
+                          {assignedAdmin.email && <p className="text-[11px] text-gray-400">{assignedAdmin.email}</p>}
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-[12px] text-gray-400 italic">Not assigned</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Card 3: Connected With */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                  <div className="flex items-center gap-2 px-4 py-2.5" style={{ background: '#F0FDF4' }}>
+                    <Tag className="h-3.5 w-3.5 text-green-600" />
+                    <span className="text-xs font-bold text-green-800">Connected With</span>
+                  </div>
+                  <div className="px-4 py-3">
+                    {(ul.labels?.length || 0) > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {ul.labels.map(label => (
+                          <span key={label} className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-green-50 text-green-700 border border-green-200">
+                            {label}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-[12px] text-gray-400 italic">No connections</p>
+                    )}
+                    {(ul.source || ul.workshopName) && (
+                      <div className="flex flex-wrap gap-1.5 mt-2 pt-2 border-t border-gray-100">
+                        {ul.source && (
+                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            Source: {ul.source}
+                          </span>
+                        )}
+                        {ul.workshopName && (
+                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                            Workshop: {ul.workshopName}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Card 4: Stage Change History */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                  <div className="flex items-center gap-2 px-4 py-2.5" style={{ background: '#FAF5FF' }}>
+                    <History className="h-3.5 w-3.5 text-purple-600" />
+                    <span className="text-xs font-bold text-purple-800">Stage History</span>
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-600 ml-auto">
+                      {stageHistory.length}
+                    </span>
+                  </div>
+                  <div className="px-4 py-3">
+                    {updatesLoading ? (
+                      <div className="flex items-center justify-center py-4">
+                        <RefreshCw className="h-4 w-4 animate-spin text-purple-400" />
+                      </div>
+                    ) : stageHistory.length === 0 ? (
+                      <p className="text-[12px] text-gray-400 italic text-center py-3">No stage changes yet</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {stageHistory.map((h) => {
+                          const fromColor = getStageColor(stages.findIndex(s => s.key === h.fromStage));
+                          const toColor = getStageColor(stages.findIndex(s => s.key === h.toStage));
+                          return (
+                            <div key={h._id} className="rounded-lg px-3 py-2 border border-purple-50" style={{ background: '#FDFAFF' }}>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {h.fromStage ? (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold text-white" style={{ background: fromColor.main }}>
+                                    {getStageName(h.fromStage)}
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] text-gray-400 font-medium">New</span>
+                                )}
+                                <span className="text-[10px] text-gray-400">→</span>
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold text-white" style={{ background: toColor.main }}>
+                                  {getStageName(h.toStage)}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-[10px] text-gray-400">
+                                  {new Date(h.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })}
+                                  {' '}
+                                  {new Date(h.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                                {h.changedByName && (
+                                  <span className="text-[10px] text-gray-500 font-medium">by {h.changedByName}</span>
+                                )}
+                              </div>
+                              {h.note && (
+                                <p className="text-[10px] text-gray-500 mt-0.5 italic">{h.note}</p>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+
+              {/* ── Footer ── */}
+              <div className="px-4 py-2.5 border-t border-gray-100 bg-white">
+                <p className="text-[10px] text-gray-400 text-center">
+                  Last updated: {new Date(ul.updatedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  {' '}
+                  {new Date(ul.updatedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                </p>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+    </div>
+  );
+}

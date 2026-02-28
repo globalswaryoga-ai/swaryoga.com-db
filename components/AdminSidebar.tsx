@@ -32,6 +32,7 @@ import {
   Shield,
   Mail,
   Building2,
+  Filter,
 } from 'lucide-react';
 
 interface AdminSidebarProps {
@@ -252,6 +253,18 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
       label: 'Meta Report',
       href: '/admin/crm/meta-dashboard',
       color: 'text-blue-400',
+    },
+    {
+      icon: Filter,
+      label: 'Sales Funnel',
+      href: '/admin/crm/funnel',
+      color: 'text-rose-500',
+    },
+    {
+      icon: Users,
+      label: 'Manage Pipeline',
+      href: '/admin/crm/funnel/manage',
+      color: 'text-indigo-500',
     },
     {
       icon: BarChart3,

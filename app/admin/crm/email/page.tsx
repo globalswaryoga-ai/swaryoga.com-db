@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import AdminSidebar from '@/components/AdminSidebar';
 import { 
   Mail, Send, Users, Filter, Search, X, Plus, 
@@ -103,6 +103,7 @@ interface FollowUpStep {
 
 export default function EmailAutomationPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   
   // Auth & Permissions
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -113,7 +114,7 @@ export default function EmailAutomationPage() {
   
   // UI State
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [activeTab, setActiveTab] = useState<'compose' | 'campaigns' | 'reports' | 'templates' | 'followups' | 'analytics' | 'replies'>('compose');
+  const [activeTab, setActiveTab] = useState<'compose' | 'campaigns' | 'reports' | 'templates' | 'followups' | 'analytics' | 'replies' | 'settings'>('compose');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -148,6 +149,21 @@ export default function EmailAutomationPage() {
   const [followupSequences, setFollowupSequences] = useState<FollowUpSequence[]>([]);
   const [showFollowupModal, setShowFollowupModal] = useState(false);
   const [editingFollowup, setEditingFollowup] = useState<FollowUpSequence | null>(null);
+
+  // Email Settings State
+  interface EmailSetting {
+    _id: string;
+    senderEmail: string;
+    senderName: string;
+    resendApiKey: string;
+    isDefault: boolean;
+    isVerified: boolean;
+    lastVerifiedAt?: string;
+    createdAt: string;
+    updatedAt: string;
+  }
+  const [emailSettings, setEmailSettings] = useState<EmailSetting[]>([]);
+  const [settingsLoading, setSettingsLoading] = useState(false);
   
   const token = useMemo(() => {
     if (typeof window === 'undefined') return '';
@@ -209,7 +225,23 @@ export default function EmailAutomationPage() {
     void fetchTemplates();
     void fetchCampaigns();
     void fetchFollowupSequences();
+    void fetchEmailSettings();
   }, [isAuthenticated, token]);
+
+  // Auto-select leads from URL params (e.g. from pipeline manage page)
+  useEffect(() => {
+    const leadIdsParam = searchParams.get('leadIds');
+    if (!leadIdsParam || leads.length === 0) return;
+
+    const ids = leadIdsParam.split(',').filter(Boolean);
+    if (ids.length === 0) return;
+
+    const matchedLeads = leads.filter(l => ids.includes(l._id) && l.email?.trim());
+    if (matchedLeads.length > 0) {
+      setSelectedRecipients(matchedLeads);
+      setActiveTab('compose');
+    }
+  }, [leads, searchParams]);
 
   // Filter leads based on search and filters
   useEffect(() => {
@@ -316,6 +348,21 @@ export default function EmailAutomationPage() {
       }
     } catch (err) {
       console.error('Failed to fetch follow-up sequences:', err);
+    }
+  };
+
+  // Email Settings CRUD
+  const fetchEmailSettings = async () => {
+    try {
+      const response = await fetch('/api/admin/crm/email/settings', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setEmailSettings(data.data?.settings || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch email settings:', err);
     }
   };
 
@@ -578,6 +625,22 @@ export default function EmailAutomationPage() {
                 <h1 className="text-2xl font-bold text-gray-900">Email Automation</h1>
                 <p className="text-sm text-gray-600">Manage email campaigns and follow-ups</p>
               </div>
+              {/* Connection Status Badge */}
+              {(() => {
+                const hasVerified = emailSettings.some(s => s.isVerified);
+                return (
+                  <span
+                    className={`ml-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${
+                      hasVerified
+                        ? 'bg-green-50 text-green-700 border border-green-200'
+                        : 'bg-red-50 text-red-700 border border-red-200'
+                    }`}
+                  >
+                    <span className={`w-2 h-2 rounded-full ${hasVerified ? 'bg-green-500' : 'bg-red-500'}`} />
+                    {hasVerified ? 'Email Connected' : 'Email Not Connected'}
+                  </span>
+                );
+              })()}
             </div>
             <button
               onClick={handleLogout}
@@ -678,6 +741,19 @@ export default function EmailAutomationPage() {
               <div className="flex items-center gap-2">
                 <Mail className="w-4 h-4" />
                 Replies
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('settings')}
+              className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
+                activeTab === 'settings'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Settings className="w-4 h-4" />
+                Settings
               </div>
             </button>
           </div>
@@ -788,6 +864,18 @@ export default function EmailAutomationPage() {
 
           {activeTab === 'replies' && (
             <RepliesTab token={token} />
+          )}
+
+          {activeTab === 'settings' && (
+            <EmailSettingsTab
+              settings={emailSettings}
+              loading={settingsLoading}
+              token={token}
+              onRefresh={fetchEmailSettings}
+              setError={setError}
+              setMessage={setMessage}
+              setSettingsLoading={setSettingsLoading}
+            />
           )}
         </main>
       </div>
@@ -1165,3 +1253,247 @@ function ComposeTab({
 }
 
 // Additional tab components will be added in the next message due to length...
+
+// ── Email Settings Tab ──
+function EmailSettingsTab({ settings, loading, token, onRefresh, setError, setMessage, setSettingsLoading }: {
+  settings: Array<{
+    _id: string; senderEmail: string; senderName: string; resendApiKey: string;
+    isDefault: boolean; isVerified: boolean; lastVerifiedAt?: string; createdAt: string; updatedAt: string;
+  }>;
+  loading: boolean;
+  token: string;
+  onRefresh: () => Promise<void>;
+  setError: (msg: string) => void;
+  setMessage: (msg: string) => void;
+  setSettingsLoading: (v: boolean) => void;
+}) {
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [formEmail, setFormEmail] = useState('');
+  const [formName, setFormName] = useState('Swar Yoga');
+  const [formApiKey, setFormApiKey] = useState('');
+  const [formDefault, setFormDefault] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  const resetForm = () => {
+    setFormEmail('');
+    setFormName('Swar Yoga');
+    setFormApiKey('');
+    setFormDefault(false);
+    setEditingId(null);
+    setShowForm(false);
+  };
+
+  const startEdit = (s: typeof settings[0]) => {
+    setFormEmail(s.senderEmail);
+    setFormName(s.senderName);
+    setFormApiKey(s.resendApiKey);
+    setFormDefault(s.isDefault);
+    setEditingId(s._id);
+    setShowForm(true);
+  };
+
+  const handleSubmit = async () => {
+    if (!formEmail.trim()) {
+      setError('Sender email is required');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const method = editingId ? 'PUT' : 'POST';
+      const body = editingId
+        ? { id: editingId, senderEmail: formEmail, senderName: formName, resendApiKey: formApiKey, isDefault: formDefault }
+        : { senderEmail: formEmail, senderName: formName, resendApiKey: formApiKey, isDefault: formDefault };
+
+      const res = await fetch('/api/admin/crm/email/settings', {
+        method,
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to save');
+
+      setMessage(editingId ? '✅ Sender email updated' : '✅ Sender email added');
+      resetForm();
+      await onRefresh();
+    } catch (err: any) {
+      setError(err.message || 'Failed to save sender email');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Delete this sender email? This cannot be undone.')) return;
+    try {
+      const res = await fetch(`/api/admin/crm/email/settings?id=${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Failed to delete');
+      setMessage('✅ Sender email deleted');
+      await onRefresh();
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete');
+    }
+  };
+
+  return (
+    <div className="max-w-3xl">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-xl font-bold text-gray-900">Email Settings</h2>
+          <p className="text-sm text-gray-600 mt-1">Manage sender email addresses and API configuration</p>
+        </div>
+        <button
+          onClick={() => { resetForm(); setShowForm(true); }}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+        >
+          <Plus className="w-4 h-4" />
+          Add Sender Email
+        </button>
+      </div>
+
+      {/* Add / Edit Form */}
+      {showForm && (
+        <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6 shadow-sm">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            {editingId ? 'Edit Sender Email' : 'Add New Sender Email'}
+          </h3>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Sender Email *</label>
+                <input
+                  type="email"
+                  value={formEmail}
+                  onChange={e => setFormEmail(e.target.value)}
+                  placeholder="noreply@swaryoga.com"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Sender Name</label>
+                <input
+                  type="text"
+                  value={formName}
+                  onChange={e => setFormName(e.target.value)}
+                  placeholder="Swar Yoga"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Resend API Key <span className="text-gray-400 font-normal">(leave empty to use server default)</span>
+              </label>
+              <input
+                type="password"
+                value={formApiKey}
+                onChange={e => setFormApiKey(e.target.value)}
+                placeholder="re_xxxxxxxxxx..."
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formDefault}
+                onChange={e => setFormDefault(e.target.checked)}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-700">Set as default sender</span>
+            </label>
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                onClick={handleSubmit}
+                disabled={submitting}
+                className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm font-medium flex items-center gap-2"
+              >
+                {submitting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                {editingId ? 'Update & Verify' : 'Add & Verify'}
+              </button>
+              <button
+                onClick={resetForm}
+                className="px-5 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Settings List */}
+      {settings.length === 0 ? (
+        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+          <Mail className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+          <h3 className="text-lg font-medium text-gray-700">No Sender Emails Configured</h3>
+          <p className="text-sm text-gray-500 mt-1">Add a sender email to start sending emails from the CRM.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {settings.map(s => (
+            <div
+              key={s._id}
+              className="bg-white rounded-xl border border-gray-200 p-5 flex items-center justify-between hover:shadow-sm transition"
+            >
+              <div className="flex items-center gap-4">
+                {/* Status dot */}
+                <div className={`w-3 h-3 rounded-full flex-shrink-0 ${s.isVerified ? 'bg-green-500' : 'bg-red-500'}`} />
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-gray-900">{s.senderName}</span>
+                    {s.isDefault && (
+                      <span className="px-2 py-0.5 text-[10px] font-semibold bg-blue-100 text-blue-700 rounded-full">DEFAULT</span>
+                    )}
+                    <span className={`px-2 py-0.5 text-[10px] font-semibold rounded-full ${
+                      s.isVerified ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                    }`}>
+                      {s.isVerified ? 'CONNECTED' : 'NOT CONNECTED'}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-500 mt-0.5">{s.senderEmail}</p>
+                  {s.lastVerifiedAt && (
+                    <p className="text-[11px] text-gray-400 mt-0.5">
+                      Last verified: {new Date(s.lastVerifiedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => startEdit(s)}
+                  className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                  title="Edit"
+                >
+                  <Edit className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => handleDelete(s._id)}
+                  className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                  title="Delete"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Info box */}
+      <div className="mt-6 p-4 bg-blue-50 rounded-xl border border-blue-100">
+        <h4 className="text-sm font-semibold text-blue-800 mb-1">How it works</h4>
+        <ul className="text-xs text-blue-700 space-y-1 list-disc list-inside">
+          <li>Add your sender email address and optionally a Resend API key.</li>
+          <li>On submit, a verification email is sent to confirm the connection.</li>
+          <li>A <span className="font-semibold text-green-700">green</span> status means the email is connected and ready to send.</li>
+          <li>A <span className="font-semibold text-red-700">red</span> status means verification failed — check your API key and email domain.</li>
+          <li>Set one email as default to use it for all outgoing emails.</li>
+        </ul>
+      </div>
+    </div>
+  );
+}

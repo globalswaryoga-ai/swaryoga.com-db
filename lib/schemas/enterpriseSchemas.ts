@@ -152,6 +152,24 @@ const LeadSchema = new mongoose.Schema(
       },
     },
 
+    // Country and language tracking for international funnels
+    country: { type: String, trim: true, default: 'India', index: true },
+    countryCode: { type: String, trim: true, default: 'IN', uppercase: true, index: true },
+    // Region within India: 'North India' or 'South India' (auto-set from state)
+    region: { type: String, trim: true, default: '', index: true },
+    state: { type: String, trim: true, default: '', index: true },
+    city: { type: String, trim: true, default: '' },
+    language: { type: String, trim: true, default: 'Hindi', index: true },
+    languageCode: { type: String, trim: true, default: 'hi', lowercase: true, index: true },
+
+    // Funnel stage tracking (maps to FunnelConfig.stages[].key)
+    funnelStage: { type: String, default: 'new_lead', trim: true, index: true },
+    funnelStageChangedAt: { type: Date },
+
+    // Admin "first touch" tracking — null means lead is new/untouched
+    firstTouchedAt: { type: Date, default: null, index: true },
+    firstTouchedBy: { type: String, trim: true },
+
     // Simple flag for UI routing (e.g., open a richer view once in sales)
     inSales: { type: Boolean, default: false, index: true },
 
@@ -192,6 +210,10 @@ const LeadSchema = new mongoose.Schema(
 LeadSchema.index({ status: 1, lastMessageAt: -1 });
 LeadSchema.index({ labels: 1 });
 LeadSchema.index({ assignedToUserId: 1, lastMessageAt: -1 });
+LeadSchema.index({ country: 1, funnelStage: 1 });
+LeadSchema.index({ languageCode: 1, funnelStage: 1 });
+LeadSchema.index({ region: 1, funnelStage: 1 });
+LeadSchema.index({ state: 1 });
 
 // ============================================================================
 // 0b. CRM COUNTERS - Atomic sequences for human-friendly IDs
@@ -906,6 +928,18 @@ const SalesReportSchema = new mongoose.Schema(
     superAdminApprovedAt: { type: Date },
     superAdminApprovedBy: { type: String, trim: true },
     reportedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+
+    // Tally Prime integration
+    tallySynced: { type: Boolean, default: false, index: true },
+    tallySyncedAt: { type: Date },
+    tallySyncedBy: { type: String, trim: true },
+    tallyVoucherId: { type: String, trim: true },
+    tallyError: { type: String, trim: true },
+
+    // Receipt linkage
+    receiptId: { type: mongoose.Schema.Types.ObjectId, ref: 'CrmReceipt', sparse: true },
+    receiptNumber: { type: String, trim: true },
+
     metadata: mongoose.Schema.Types.Mixed,
   },
   { timestamps: true, collection: 'sales_reports' }
@@ -2184,6 +2218,25 @@ EmailLogSchema.index({ status: 1, createdAt: -1 });
 EmailLogSchema.index({ sentBy: 1, createdAt: -1 });
 
 // ============================================================================
+// EMAIL SETTINGS SCHEMA - Sender emails, API keys, connection status
+// ============================================================================
+const EmailSettingsSchema = new mongoose.Schema(
+  {
+    senderEmail: { type: String, required: true, trim: true },
+    senderName: { type: String, default: 'Swar Yoga', trim: true },
+    resendApiKey: { type: String, default: '', trim: true },
+    isDefault: { type: Boolean, default: false },
+    isVerified: { type: Boolean, default: false },
+    lastVerifiedAt: { type: Date },
+    createdBy: { type: String },
+    updatedBy: { type: String },
+  },
+  { timestamps: true }
+);
+EmailSettingsSchema.index({ senderEmail: 1 }, { unique: true });
+EmailSettingsSchema.index({ isDefault: 1 });
+
+// ============================================================================
 // ZOOM RECORDING SYNC SCHEMA
 // ============================================================================
 // LEAD ASSIGNMENT SETTINGS - Round-robin assignment for new WhatsApp leads
@@ -2249,6 +2302,85 @@ const ZoomRecordingSyncSchema = new mongoose.Schema(
 ZoomRecordingSyncSchema.index({ zoomMeetingUuid: 1 }, { unique: true });
 ZoomRecordingSyncSchema.index({ syncedAt: -1 });
 ZoomRecordingSyncSchema.index({ topic: 1 });
+
+
+// ============================================================================
+// FUNNEL CONFIGURATION - Editable 7-step sales funnel
+// ============================================================================
+const FunnelConfigSchema = new mongoose.Schema(
+  {
+    name: { type: String, default: 'Default Funnel', trim: true },
+    isActive: { type: Boolean, default: true, index: true },
+    createdByUserId: { type: String, trim: true, index: true },
+    stages: [
+      {
+        key: { type: String, required: true, trim: true },        // e.g. 'new_lead'
+        name: { type: String, required: true, trim: true },       // e.g. 'New Lead'
+        color: { type: String, default: '#6366F1' },              // Primary color
+        colorGradient: { type: String, default: '' },             // Gradient end color
+        order: { type: Number, required: true },
+        icon: { type: String, default: '' },                      // Optional icon name
+        isDefault: { type: Boolean, default: false },             // Stage new leads land in
+        description: { type: String, default: '', trim: true },
+      },
+    ],
+    metadata: mongoose.Schema.Types.Mixed,
+  },
+  { timestamps: true, collection: 'funnel_configs' }
+);
+
+FunnelConfigSchema.index({ isActive: 1 });
+
+// ============================================================================
+// ADMIN SESSION TRACKING - Login/logout, activity tracking
+// ============================================================================
+const AdminSessionSchema = new mongoose.Schema(
+  {
+    userId: { type: String, required: true, trim: true, index: true },
+    userName: { type: String, trim: true },
+    loginAt: { type: Date, default: Date.now, index: true },
+    logoutAt: { type: Date },
+    lastActiveAt: { type: Date, default: Date.now },
+    isOnline: { type: Boolean, default: true, index: true },
+    ipAddress: { type: String, trim: true },
+    userAgent: { type: String, trim: true },
+    // Today's activity counters (reset daily)
+    todayStats: {
+      leadsContacted: { type: Number, default: 0 },
+      messagesSent: { type: Number, default: 0 },
+      stageChanges: { type: Number, default: 0 },
+      salesRecorded: { type: Number, default: 0 },
+      callsMade: { type: Number, default: 0 },
+      leadsCreated: { type: Number, default: 0 },
+      lastResetDate: { type: String, default: '' },  // YYYY-MM-DD
+    },
+    metadata: mongoose.Schema.Types.Mixed,
+  },
+  { timestamps: true, collection: 'admin_sessions' }
+);
+
+AdminSessionSchema.index({ userId: 1, loginAt: -1 });
+AdminSessionSchema.index({ isOnline: 1 });
+
+// ============================================================================
+// FUNNEL STAGE HISTORY - Track every stage change for analytics
+// ============================================================================
+const FunnelStageHistorySchema = new mongoose.Schema(
+  {
+    leadId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lead', required: true, index: true },
+    fromStage: { type: String, trim: true },
+    toStage: { type: String, required: true, trim: true },
+    changedByUserId: { type: String, trim: true, index: true },
+    changedByName: { type: String, trim: true },
+    note: { type: String, trim: true },
+    metadata: mongoose.Schema.Types.Mixed,
+  },
+  { timestamps: true, collection: 'funnel_stage_history' }
+);
+
+FunnelStageHistorySchema.index({ leadId: 1, createdAt: -1 });
+FunnelStageHistorySchema.index({ toStage: 1, createdAt: -1 });
+FunnelStageHistorySchema.index({ changedByUserId: 1, createdAt: -1 });
 
 
 // ============================================================================
@@ -2346,8 +2478,12 @@ export function getEmailCampaign() { return getModel('EmailCampaign', EmailCampa
 export function getFollowUpSequence() { return getModel('FollowUpSequence', FollowUpSequenceSchema); }
 export function getFollowUpInstance() { return getModel('FollowUpInstance', FollowUpInstanceSchema); }
 export function getEmailLog() { return getModel('EmailLog', EmailLogSchema); }
+export function getEmailSettings() { return getModel('EmailSettings', EmailSettingsSchema); }
 export function getZoomRecordingSync() { return getModel('ZoomRecordingSync', ZoomRecordingSyncSchema); }
 export function getLeadAssignmentSettings() { return getModel('LeadAssignmentSettings', LeadAssignmentSettingsSchema); }
+export function getFunnelConfig() { return getModel('FunnelConfig', FunnelConfigSchema); }
+export function getAdminSession() { return getModel('AdminSession', AdminSessionSchema); }
+export function getFunnelStageHistory() { return getModel('FunnelStageHistory', FunnelStageHistorySchema); }
 
 // LEGACY PROXY EXPORTS - For backward compatibility with existing code
 // These use Proxies to defer initialization
@@ -2390,6 +2526,9 @@ export const FollowUpInstance = createModelProxy('FollowUpInstance', FollowUpIns
 export const EmailLog = createModelProxy('EmailLog', EmailLogSchema);
 export const ZoomRecordingSync = createModelProxy('ZoomRecordingSync', ZoomRecordingSyncSchema);
 export const LeadAssignmentSettings = createModelProxy('LeadAssignmentSettings', LeadAssignmentSettingsSchema);
+export const FunnelConfig = createModelProxy('FunnelConfig', FunnelConfigSchema);
+export const AdminSession = createModelProxy('AdminSession', AdminSessionSchema);
+export const FunnelStageHistory = createModelProxy('FunnelStageHistory', FunnelStageHistorySchema);
 // Accounting system models (double-entry bookkeeping)
 export const AccGroup = createModelProxy('AccGroup', AccGroupSchema);
 export const AccLedger = createModelProxy('AccLedger', AccLedgerSchema);

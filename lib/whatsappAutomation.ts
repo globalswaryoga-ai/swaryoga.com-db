@@ -340,13 +340,10 @@ async function sendOutboundTemplate(lead: any, to: string, templateId: string, t
   });
 
   try {
-    const { sendWhatsAppTemplate } = await import('@/lib/whatsapp');
-    const apiResult = await sendWhatsAppTemplate({
-      to,
-      templateName: (template as any).templateName,
-      language: (template as any).language || 'en',
-      bodyParams: Array.isArray(templateVariables) ? templateVariables : [],
-    });
+    const { sendWhatsAppTemplate, buildCloudTemplateSendInput } = await import('@/lib/whatsapp');
+    // Use buildCloudTemplateSendInput to properly include headerMedia, buttons, bodyParams
+    const cloudInput = buildCloudTemplateSendInput(template, to);
+    const apiResult = await sendWhatsAppTemplate(cloudInput);
 
     await WhatsAppMessage.updateOne(
       { _id: message._id },
@@ -965,6 +962,102 @@ async function advanceChatbotFlow(lead: any, ctx: InboundContext, flow: any): Pr
   }
 
   return replyObj;
+}
+
+/**
+ * Start a chatbot flow for a lead and send the first message.
+ * Used by the admin UI to manually assign & kick off a flow.
+ *
+ * Sets `lead.metadata.chatbotFlowState` (the canonical state the engine reads)
+ * and immediately advances from the start node, sending the first outbound message.
+ */
+export async function startChatbotFlowForLead(input: {
+  leadId: string;
+  flowId: string;
+  phoneNumber: string;
+}): Promise<{ success: boolean; message: string; firstReply?: any }> {
+  await connectDB();
+
+  const flow = await ChatbotFlow.findById(input.flowId).lean() as any;
+  if (!flow || !flow.enabled) {
+    return { success: false, message: 'Flow not found or disabled' };
+  }
+
+  const startNodeId = flow.startNodeId;
+  if (!startNodeId) {
+    return { success: false, message: 'Flow has no start node' };
+  }
+
+  const lead = await Lead.findById(input.leadId).lean() as any;
+  if (!lead) {
+    return { success: false, message: 'Lead not found' };
+  }
+
+  const to = normalizePhone(input.phoneNumber || String(lead.phoneNumber || ''));
+  if (!to) {
+    return { success: false, message: 'No phone number for lead' };
+  }
+
+  const now = new Date();
+
+  // Set flow state on lead.metadata.chatbotFlowState (used by the automation engine)
+  await Lead.updateOne(
+    { _id: lead._id },
+    {
+      $set: {
+        'metadata.chatbotFlowState': {
+          flowId: String(flow._id),
+          nodeId: startNodeId,
+          updatedAt: now,
+          manualStart: true,
+        },
+      },
+    }
+  );
+
+  // Reload lead with updated state
+  const updatedLead = await Lead.findById(lead._id).lean() as any;
+
+  // Build context (empty body since this is admin-initiated, not a user message)
+  const ctx: InboundContext = {
+    leadId: String(lead._id),
+    fromPhone: to,
+    body: '',
+    now,
+    wasFirstInbound: false,
+  };
+
+  try {
+    const reply = await advanceChatbotFlow(updatedLead, ctx, flow);
+
+    if (reply) {
+      await Lead.updateOne({ _id: lead._id }, { $set: { 'metadata._chatbot_last_reply_at': now } });
+
+      if (reply.isTemplate && reply.templateId) {
+        await sendOutboundTemplate(updatedLead, to, reply.templateId, [], {
+          chatbot: { flowId: String(flow._id), manualStart: true },
+        });
+      } else if (reply.interactiveButtons?.length > 0) {
+        await sendOutboundInteractiveButtons(
+          updatedLead, to,
+          reply.text || 'Please choose:',
+          reply.interactiveButtons,
+          { chatbot: { flowId: String(flow._id), manualStart: true, presenceType: reply.presenceType, presenceDelay: reply.presenceDelay } }
+        );
+      } else if (reply.text) {
+        await sendOutboundText(updatedLead, to, reply.text, {
+          chatbot: { flowId: String(flow._id), manualStart: true, spintaxEnabled: reply.spintaxEnabled, presenceType: reply.presenceType, presenceDelay: reply.presenceDelay },
+        });
+      }
+
+      return { success: true, message: `Flow "${flow.name}" started – first message sent`, firstReply: reply };
+    }
+
+    return { success: true, message: `Flow "${flow.name}" started (no immediate reply node)` };
+  } catch (err: any) {
+    console.error('[startChatbotFlowForLead] Error advancing flow:', err);
+    return { success: false, message: `Flow started but first message failed: ${err.message}` };
+  }
 }
 
 export async function handleInboundWhatsAppAutomations(input: {

@@ -80,12 +80,29 @@ export const connectDB = async () => {
     if (globalThis.__mongooseConnectionPromise) {
       console.log('⏳ MongoDB connection already in progress (global)...');
       await globalThis.__mongooseConnectionPromise;
-      return mongoose.connection;
+      // After awaiting, verify the connection is actually usable
+      if (mongoose.connection.readyState === 1) {
+        lastConnectionStatus = 'Connected';
+        return mongoose.connection;
+      }
+      // Promise resolved but connection dropped — clear stale promise and reconnect
+      console.warn('⚠️  Global promise resolved but connection not ready (state:', mongoose.connection.readyState, '), reconnecting...');
+      globalThis.__mongooseConnectionPromise = undefined;
     }
 
     if (isConnecting) {
-      console.log('⏳ MongoDB connection already in progress (local)...');
-      return mongoose.connection;
+      console.log('⏳ MongoDB connection already in progress (local), waiting...');
+      // Wait briefly for the connection to establish rather than returning immediately
+      for (let i = 0; i < 20; i++) {
+        await new Promise(r => setTimeout(r, 500));
+        if (mongoose.connection.readyState === 1) {
+          lastConnectionStatus = 'Connected';
+          return mongoose.connection;
+        }
+      }
+      // If still not connected after waiting, fall through to reconnect
+      console.warn('⚠️  Waited 10s but connection still not ready, forcing reconnect...');
+      isConnecting = false;
     }
 
     isConnecting = true;
@@ -116,6 +133,8 @@ export const connectDB = async () => {
     })();
 
     const conn = await globalThis.__mongooseConnectionPromise;
+    // Clear the promise after successful connection so future calls re-check readyState
+    globalThis.__mongooseConnectionPromise = undefined;
     const actualDbName = conn.connection?.db?.databaseName;
     console.log(`✅ Successfully connected to MongoDB (db: ${actualDbName || 'unknown'})`);
     lastConnectionStatus = 'Connected';

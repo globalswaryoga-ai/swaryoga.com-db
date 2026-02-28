@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 
 // ============================================================================
@@ -138,6 +139,7 @@ function ProgressBar({ value, max, color = 'blue' }: { value: number; max: numbe
 // ============================================================================
 export default function BroadcastPage() {
   const token = useAuth();
+  const searchParams = useSearchParams();
 
   // Step management
   const [step, setStep] = useState<Step>(1);
@@ -340,6 +342,19 @@ export default function BroadcastPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Pre-select leads from URL params (from funnel manage page)
+  useEffect(() => {
+    const preselect = searchParams.get('leadIds');
+    if (preselect && leads.length > 0) {
+      const ids = preselect.split(',').filter(Boolean);
+      const validIds = ids.filter(id => leads.some(l => l._id === id));
+      if (validIds.length > 0) {
+        setSelectedLeads(new Set(validIds));
+        setStep(2); // Jump to template selection step
+      }
+    }
+  }, [searchParams, leads]);
 
   // Refresh progress every 5 seconds when there are active runs
   useEffect(() => {

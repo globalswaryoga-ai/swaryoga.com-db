@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import AdminSidebar from '@/components/AdminSidebar';
@@ -319,6 +319,44 @@ export default function TallyPage() {
 
   // Company profile for print headers
   const [companyProfile, setCompanyProfile] = useState<Record<string, string>>({});
+
+  // ── Global Search ─────────────────────────────────────────────
+  const [globalSearch, setGlobalSearch] = useState('');
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
+  const globalSearchRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (globalSearchRef.current && !globalSearchRef.current.contains(e.target as Node)) setGlobalSearchOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const globalSearchResults = useMemo(() => {
+    const q = globalSearch.trim().toLowerCase();
+    if (q.length < 2) return { ledgers: [] as Ledger[], vouchers: [] as Voucher[], groups: [] as string[] };
+
+    const matchedLedgers = ledgers.filter(l =>
+      l.name.toLowerCase().includes(q) ||
+      l.group.toLowerCase().includes(q) ||
+      (l.subGroup || '').toLowerCase().includes(q)
+    ).slice(0, 8);
+
+    const matchedVouchers = vouchers.filter(v =>
+      v.voucherNumber.toLowerCase().includes(q) ||
+      v.type.toLowerCase().includes(q) ||
+      (v.narration || '').toLowerCase().includes(q) ||
+      (v.partyName || '').toLowerCase().includes(q) ||
+      v.entries.some(e => e.ledgerName.toLowerCase().includes(q))
+    ).slice(0, 8);
+
+    const allGroups = [...new Set(ledgers.map(l => l.group))];
+    const matchedGroups = allGroups.filter(g => g.toLowerCase().includes(q)).slice(0, 5);
+
+    return { ledgers: matchedLedgers, vouchers: matchedVouchers, groups: matchedGroups };
+  }, [globalSearch, ledgers, vouchers]);
 
   // ── Gateway navigation helper ─────────────────────────────────
   const gatewayNavigate = useCallback((tabKey: ViewTab, label?: string) => {
@@ -969,8 +1007,8 @@ export default function TallyPage() {
             <div className="flex items-center gap-3">
               <label className="flex-1 cursor-pointer">
                 <div className={`w-full border-2 border-dashed rounded-lg px-4 py-3 text-center text-sm transition-colors ${
-                  billFile ? 'border-green-500/50 bg-green-500/10 text-green-400' : 'border-gray-700 bg-gray-800/50 text-gray-500 hover:border-yellow-600/50 hover:bg-yellow-600/5'
-                }`}>
+                  billFile ? 'border-green-500/50 bg-green-500/10 text-green-400' : 'border-gray-700 bg-gray-800/50 hover:border-yellow-600/50 hover:bg-yellow-600/5'
+                }`} style={{ color: billFile ? undefined : '#FFFFFF' }}>
                   {billFile ? (
                     <span className="flex items-center justify-center gap-2"><CheckCircle className="w-4 h-4" /> {billFile.name} ({(billFile.size / 1024).toFixed(0)} KB)</span>
                   ) : (
@@ -2518,10 +2556,10 @@ export default function TallyPage() {
                 <div className="text-sm font-bold text-gray-200">Closing Balance</div>
                 <div />
                 <div />
-                <div className="text-right text-sm font-mono font-bold text-emerald-300">{fmt(totalReceipts)}</div>
-                <div className="text-right text-sm font-mono font-bold text-red-300">{fmt(totalPayments)}</div>
+                <div className="text-right text-sm font-mono font-bold" style={{color: '#006400'}}>{fmt(totalReceipts)}</div>
+                <div className="text-right text-sm font-mono font-bold" style={{color: '#CC0000'}}>{fmt(totalPayments)}</div>
                 <div className="text-right text-sm font-mono font-bold">
-                  <span className={closingType === 'DEBIT' ? 'text-emerald-200' : 'text-red-200'}>
+                  <span style={{color: closingType === 'DEBIT' ? '#006400' : '#CC0000'}}>
                     {fmt(closingBalance)} {closingType === 'DEBIT' ? 'Dr' : 'Cr'}
                   </span>
                 </div>
@@ -7655,8 +7693,11 @@ ${contentHtml}
         /* ── Text — ALL black on white (Tally Prime rule) ────── */
         .tally-classic .text-white { color: #000000 !important; }
         /* Preserve white text inside the navy header bar */
-        .tally-header-bar,
-        .tally-header-bar * { color: #FFFFFF !important; }
+        .tally-header-bar { color: #FFFFFF !important; }
+        .tally-header-bar button,
+        .tally-header-bar span { color: inherit; }
+        .tally-header-bar h1 { color: #FFD700 !important; }
+        .tally-header-bar h1 + p { color: #FFD700 !important; }
         .tally-header-bar .text-blue-200 { color: #B8CCE4 !important; font-weight: 400 !important; }
         .tally-header-bar .text-\[\#FFD700\],
         .tally-header-bar .text-yellow-500 { color: #FFD700 !important; }
@@ -7969,11 +8010,11 @@ ${contentHtml}
               <ArrowLeft className="w-5 h-5" />
             </button>
             <div>
-              <h1 className={`text-xl font-bold flex items-center gap-2 ${isTally ? 'text-white' : 'text-white'}`}>
+              <h1 className={`text-xl font-bold flex items-center gap-2 ${isTally ? '' : 'text-white'}`} style={isTally ? { color: '#FFD700' } : undefined}>
                 <Building2 className={`w-5 h-5 ${isTally ? 'text-[#FFD700]' : 'text-yellow-500'}`} />
                 Tally Prime
               </h1>
-              <p className={`text-xs ${isTally ? 'text-blue-200' : 'text-gray-500'}`}>Double-Entry Bookkeeping</p>
+              <p className={`text-xs ${isTally ? '' : 'text-gray-500'}`} style={isTally ? { color: '#FFD700' } : undefined}>Double-Entry Bookkeeping</p>
             </div>
             {/* Online Connected Indicator */}
             {isTally && (
@@ -7988,11 +8029,109 @@ ${contentHtml}
           </div>
 
           <div className="flex items-center gap-3">
+            {/* ── Global Search Bar ── */}
+            <div className="relative" ref={globalSearchRef}>
+              <div className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 ${
+                isTally ? 'bg-[#004488] border border-[#005599]' : 'bg-gray-800 border border-gray-700'
+              }`}>
+                <Search className={`w-3.5 h-3.5 flex-shrink-0 ${isTally ? 'text-[#FFD700]' : 'text-gray-400'}`} />
+                <input
+                  type="text"
+                  value={globalSearch}
+                  onChange={e => { setGlobalSearch(e.target.value); setGlobalSearchOpen(true); }}
+                  onFocus={() => { if (globalSearch.trim().length >= 2) setGlobalSearchOpen(true); }}
+                  placeholder="Search ledgers, vouchers..."
+                  className="bg-transparent outline-none text-xs w-[140px] md:w-[200px] placeholder-gray-400"
+                  style={{ color: isTally ? '#FFFFFF' : '#E0E0E0' }}
+                />
+                {globalSearch && (
+                  <button onClick={() => { setGlobalSearch(''); setGlobalSearchOpen(false); }}
+                    className="text-gray-400 hover:text-white text-xs">✕</button>
+                )}
+              </div>
+
+              {/* Search Results Dropdown */}
+              {globalSearchOpen && globalSearch.trim().length >= 2 && (
+                <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-gray-300 rounded-lg shadow-2xl min-w-[320px] max-h-[60vh] overflow-y-auto"
+                  style={{ color: '#000000' }}>
+
+                  {globalSearchResults.groups.length === 0 && globalSearchResults.ledgers.length === 0 && globalSearchResults.vouchers.length === 0 ? (
+                    <div className="px-4 py-6 text-center text-gray-500 text-sm">No results for &quot;{globalSearch}&quot;</div>
+                  ) : (
+                    <>
+                      {/* Groups / Heads */}
+                      {globalSearchResults.groups.length > 0 && (
+                        <div>
+                          <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider" style={{ background: '#003366', color: '#FFD700' }}>Account Groups</div>
+                          {globalSearchResults.groups.map(g => (
+                            <button key={g} onClick={() => { setTab('group-summary'); setGlobalSearch(''); setGlobalSearchOpen(false); }}
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-yellow-100 border-b border-gray-100 flex items-center gap-2">
+                              <Building2 className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
+                              <span className="font-medium">{g}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Ledgers */}
+                      {globalSearchResults.ledgers.length > 0 && (
+                        <div>
+                          <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider" style={{ background: '#003366', color: '#FFD700' }}>Ledgers / Accounts</div>
+                          {globalSearchResults.ledgers.map(l => (
+                            <button key={l.id} onClick={() => { setTab('ledgers'); setLedgerSearch(l.name); setGlobalSearch(''); setGlobalSearchOpen(false); }}
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-yellow-100 border-b border-gray-100 flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <BookOpen className="w-3.5 h-3.5 text-green-600 flex-shrink-0" />
+                                <div className="min-w-0">
+                                  <div className="font-medium truncate">{l.name}</div>
+                                  <div className="text-[10px] text-gray-500">{l.group}{l.subGroup ? ` › ${l.subGroup}` : ''}</div>
+                                </div>
+                              </div>
+                              <div className="text-right flex-shrink-0">
+                                <div className={`text-xs font-mono font-bold ${l.closingBalanceType === 'DEBIT' ? 'text-blue-700' : 'text-red-600'}`}>
+                                  {l.closingBalance !== undefined ? `₹${(l.closingBalance || 0).toLocaleString('en-IN')} ${l.closingBalanceType === 'DEBIT' ? 'Dr' : 'Cr'}` : '—'}
+                                </div>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Vouchers */}
+                      {globalSearchResults.vouchers.length > 0 && (
+                        <div>
+                          <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider" style={{ background: '#003366', color: '#FFD700' }}>Vouchers / Entries</div>
+                          {globalSearchResults.vouchers.map(v => (
+                            <button key={v.id} onClick={() => { openEditVoucher(v); setGlobalSearch(''); setGlobalSearchOpen(false); }}
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-yellow-100 border-b border-gray-100 flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <FileText className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" />
+                                <div className="min-w-0">
+                                  <div className="font-medium truncate">{v.voucherNumber}</div>
+                                  <div className="text-[10px] text-gray-500">
+                                    {v.type} &middot; {new Date(v.date).toLocaleDateString('en-IN')} &middot; {v.entries.map(e => e.ledgerName).join(', ')}
+                                  </div>
+                                  {v.narration && <div className="text-[10px] text-gray-400 italic truncate">{v.narration}</div>}
+                                </div>
+                              </div>
+                              <div className="text-right flex-shrink-0">
+                                <div className="text-xs font-mono font-bold" style={{ color: '#000000' }}>₹{v.totalDebit.toLocaleString('en-IN')}</div>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+
             <div className={`flex items-center gap-2 rounded-lg px-3 py-1.5 ${
               isTally ? 'bg-[#004488] border border-[#005599]' : 'bg-yellow-600/20 border border-yellow-600/50'
             }`}>
               <Calendar className={`w-4 h-4 ${isTally ? 'text-[#FFD700]' : 'text-yellow-400'}`} />
-              <select value={fy} onChange={e => { setFy(e.target.value); clearAllCachedData(); }}
+              <select id="fy-selector" value={fy} onChange={e => { setFy(e.target.value); clearAllCachedData(); }}
                 className={`text-sm bg-transparent outline-none ${isTally ? '!text-white !bg-transparent !border-none' : 'text-yellow-300'}`}>
                 <option value="2025-26" className={isTally ? 'bg-[#003366] text-white' : 'bg-gray-900 text-white'}>FY 2025-26{fy === '2025-26' && fyLocked ? ' (Locked)' : ''}</option>
                 <option value="2024-25" className={isTally ? 'bg-[#003366] text-white' : 'bg-gray-900 text-white'}>FY 2024-25{fy === '2024-25' && fyLocked ? ' (Locked)' : ''}</option>
@@ -8035,13 +8174,13 @@ ${contentHtml}
               onClick={toggleTheme}
               className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium border transition-all ${
                 isTally
-                  ? 'bg-[#FFD700] border-[#FFD700] text-[#003366] hover:bg-[#FFE44D] font-bold'
+                  ? 'bg-[#FFD700] border-[#FFD700] hover:bg-[#FFE44D] font-bold'
                   : 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'
               }`}
               title={isTally ? 'Switch to Dark theme' : 'Switch to Tally Prime theme'}
             >
-              <Palette className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">{isTally ? 'Tally' : 'Dark'}</span>
+              <Palette className="w-3.5 h-3.5" style={isTally ? {color: '#000000'} : undefined} />
+              <span className="hidden md:inline" style={isTally ? {color: '#000000'} : undefined}>{isTally ? 'Tally' : 'Dark'}</span>
             </button>
           </div>
         </div>
@@ -8155,6 +8294,27 @@ ${contentHtml}
           <div className="tally-gateway-header flex items-center justify-between">
             <span>Gateway of Tally</span>
             <button onClick={() => setShowGateway(false)} className="text-white/70 hover:text-white text-xs">✕</button>
+          </div>
+
+          {/* ── COMPANY ──────────────────────────────────── */}
+          <div className="tally-gateway-section">Company</div>
+          <div
+            className={`tally-gateway-item ${gatewayActive === 'Company Info' ? 'active' : ''}`}
+            onClick={() => gatewayNavigate('account', 'Company Info')}
+          >
+            <span className="tally-gateway-key">F3</span>
+            <span>Company Info</span>
+          </div>
+          <div
+            className={`tally-gateway-item ${gatewayActive === 'Select Company' ? 'active' : ''}`}
+            onClick={() => {
+              const sel = document.getElementById('fy-selector');
+              if (sel) { sel.focus(); (sel as HTMLSelectElement).click?.(); }
+              setGatewayActive('Select Company');
+            }}
+          >
+            <span className="tally-gateway-key">F1</span>
+            <span>Select Company</span>
           </div>
 
           {/* ── MASTERS ──────────────────────────────────── */}

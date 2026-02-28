@@ -16,6 +16,7 @@ import {
   Toolbar,
   StatusBadge,
 } from '@/components/admin/crm';
+import ReceiptPreviewModal from '@/components/admin/crm/ReceiptPreviewModal';
 
 function toDateInputValue(v: string | undefined | null): string {
   if (!v) return '';
@@ -82,6 +83,13 @@ interface SaleRecord {
   paymentMode: string;
   saleDate?: string;
   createdAt?: string;
+  tallySynced?: boolean;
+  tallySyncedAt?: string;
+  tallySyncedBy?: string;
+  tallyVoucherId?: string;
+  tallyError?: string;
+  receiptId?: string;
+  receiptNumber?: string;
 }
 
 interface SalesSummary {
@@ -190,6 +198,8 @@ export default function SalesPage() {
   const [csvColumnMap, setCsvColumnMap] = useState<CSVColumnMap | null>(null);
   const [csvFileName, setCsvFileName] = useState('');
   const [csvImporting, setCsvImporting] = useState(false);
+  const [receiptSaleId, setReceiptSaleId] = useState<string | null>(null);
+  const [tallySyncingId, setTallySyncingId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     customerId: '',
@@ -696,6 +706,49 @@ export default function SalesPage() {
       render: (date: string) => (date ? new Date(date).toLocaleDateString() : '-'),
     },
     {
+      key: 'tallySynced',
+      label: 'Tally',
+      render: (_: any, sale: SaleRecord) => (
+        <div className="flex items-center gap-2">
+          {sale.tallySynced ? (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-900/40 text-emerald-400 border border-emerald-500/30">
+              ✓ Synced
+            </span>
+          ) : (
+            <button
+              onClick={async (e) => {
+                e.stopPropagation();
+                if (tallySyncingId) return;
+                setTallySyncingId(sale._id);
+                try {
+                  const res = await fetch('/api/admin/crm/sales/tally-sync', {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ saleId: sale._id, generateReceipt: true }),
+                  });
+                  const json = await res.json();
+                  if (res.ok) {
+                    fetchSalesData();
+                  } else {
+                    setError(json.error || 'Tally sync failed');
+                  }
+                } catch {
+                  setError('Tally sync failed');
+                } finally {
+                  setTallySyncingId(null);
+                }
+              }}
+              disabled={tallySyncingId === sale._id}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-900/40 text-amber-400 border border-amber-500/30 hover:bg-amber-800/60 transition cursor-pointer disabled:opacity-50"
+              title="Click to sync to Tally & generate receipt"
+            >
+              {tallySyncingId === sale._id ? '⏳' : '⚡'} Sync Tally
+            </button>
+          )}
+        </div>
+      ),
+    },
+    {
       key: 'actions',
       label: 'Actions',
       render: (_: any, sale: SaleRecord) => (
@@ -704,11 +757,18 @@ export default function SalesPage() {
 
           {/* Receipts Button */}
           <button
-            onClick={() => router.push(`/admin/crm/sales/${sale._id}`)}
+            onClick={() => {
+              const leadId = getLeadIdString(sale.leadId);
+              if (leadId) {
+                setReceiptSaleId(sale._id);
+              } else {
+                router.push(`/admin/crm/sales/${sale._id}`);
+              }
+            }}
             className="px-3 py-1.5 bg-black border border-yellow-500 text-yellow-400 rounded-lg text-sm font-medium transition-colors hover:bg-yellow-400 hover:text-black"
             title="View Receipt"
           >
-            Receipts
+            {sale.receiptNumber ? `📄 ${sale.receiptNumber}` : 'Receipts'}
           </button>
 
           {/* WhatsApp Button */}
@@ -1617,6 +1677,23 @@ export default function SalesPage() {
           </div>
         </FormModal>
       )}
+
+      {/* ── Receipt Preview Modal ── */}
+      {receiptSaleId && token && (() => {
+        const sale = sales.find(s => s._id === receiptSaleId);
+        const leadId = sale ? getLeadIdString(sale.leadId) : '';
+        if (!leadId) return null;
+        return (
+          <ReceiptPreviewModal
+            leadId={leadId}
+            leadName={sale?.customerName || ''}
+            leadPhone={sale?.customerPhone || ''}
+            leadEmail={sale?.customerEmail || ''}
+            token={token}
+            onClose={() => setReceiptSaleId(null)}
+          />
+        );
+      })()}
     </div>
   );
 }
