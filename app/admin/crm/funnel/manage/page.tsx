@@ -1315,6 +1315,8 @@ export default function FunnelManagePage() {
             token={token}
             onClose={() => setChatbotFlowLeadId(null)}
             onFlowChanged={async () => {
+              // Small delay to let fire-and-forget ChatbotConversationState sync complete
+              await new Promise(r => setTimeout(r, 600));
               // Refresh chatbot states after flow change
               const ids = leads.map(l => l._id).join(',');
               if (ids && token) {

@@ -110,14 +110,16 @@ export async function POST(request: NextRequest) {
     // Fire-and-forget: Sync ChatbotConversationState for UI consistency (non-blocking)
     // This is non-critical — the canonical state is lead.metadata.chatbotFlowState
     const ChatbotState = getChatbotConversationState();
+    const syncNow = new Date();
     ChatbotState.findOneAndUpdate(
       { leadId },
       {
         $set: {
           activeFlowId: flowId,
           currentNodeId: null,
-          flowStartedAt: new Date(),
+          flowStartedAt: syncNow,
           mode: 'bot',
+          lastBotReplyAt: result.firstReply ? syncNow : undefined,
         },
         $setOnInsert: { phoneNumber: phone || '', messageCount: 0 },
       },
@@ -126,9 +128,18 @@ export async function POST(request: NextRequest) {
       console.warn('[chatbot/flows POST] ChatbotConversationState sync error (non-critical):', stateErr);
     });
 
+    // Resolve flow name for the UI
+    const ChatbotFlow = getChatbotFlow();
+    const startedFlow = await ChatbotFlow.findById(flowId).select('name').lean() as any;
+
     return NextResponse.json({
       success: true,
       message: result.message,
+      state: {
+        flowId: String(flowId),
+        flowName: startedFlow?.name || 'Flow',
+        startedAt: syncNow.toISOString(),
+      },
       firstReply: result.firstReply ? {
         text: result.firstReply.text,
         isTemplate: result.firstReply.isTemplate,
