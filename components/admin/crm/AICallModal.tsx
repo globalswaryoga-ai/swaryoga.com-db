@@ -32,11 +32,12 @@ interface AICallModalProps {
 }
 
 const PURPOSE_OPTIONS = [
-  { value: 'welcome', label: '🙏 Welcome Call', desc: 'Introduce Swar Yoga to the lead' },
-  { value: 'follow_up', label: '📞 Follow-up', desc: 'Check in, ask if they have questions' },
-  { value: 'workshop_reminder', label: '📅 Workshop Reminder', desc: 'Remind about upcoming workshop' },
+  { value: 'welcome', label: '🙏 Welcome', desc: 'First call — introduce Swar Yoga' },
+  { value: 'follow_up', label: '📞 Follow-up', desc: 'Check in, collect questions' },
+  { value: 'answer_questions', label: '💬 Answer Back', desc: 'Call back with answers from Mohan Sir' },
+  { value: 'workshop_reminder', label: '📅 Workshop', desc: 'Remind about workshop enrollment' },
   { value: 'collect_info', label: '📋 Collect Info', desc: 'Gather email, country, preferences' },
-  { value: 'payment_reminder', label: '💳 Payment Reminder', desc: 'Polite payment follow-up' },
+  { value: 'payment_reminder', label: '💳 Payment', desc: 'Gentle payment follow-up' },
   { value: 'custom', label: '✏️ Custom', desc: 'Write your own call instructions' },
 ];
 
@@ -100,7 +101,7 @@ export default function AICallModal({ leadId, leadName, leadPhone, token, onClos
           leadId,
           purpose,
           language,
-          customPrompt: purpose === 'custom' ? customPrompt : undefined,
+          customPrompt: (purpose === 'custom' || purpose === 'answer_questions') ? customPrompt : undefined,
         }),
       });
 
@@ -365,14 +366,16 @@ export default function AICallModal({ leadId, leadName, leadPhone, token, onClos
             </div>
           </div>
 
-          {/* Custom prompt (shown only for custom purpose) */}
-          {purpose === 'custom' && (
+          {/* Custom prompt / Answer questions textarea */}
+          {(purpose === 'custom' || purpose === 'answer_questions') && (
             <div className="px-6 pb-2">
               <textarea
                 value={customPrompt}
                 onChange={e => setCustomPrompt(e.target.value)}
-                placeholder="Write instructions for the AI agent... e.g., 'Ask about their interest in morning yoga sessions and if weekdays or weekends work better.'"
-                rows={3}
+                placeholder={purpose === 'answer_questions'
+                  ? "Paste answers from Mohan Sir for their questions...\ne.g., Q: Workshop timing? A: Every Saturday 7-8 AM IST\nQ: Fee? A: ₹500 per month"
+                  : "Write instructions for the AI agent... e.g., 'Ask about their interest in morning yoga sessions and if weekdays or weekends work better.'"}
+                rows={4}
                 className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-orange-200 focus:border-orange-400 outline-none resize-none"
               />
             </div>
@@ -421,7 +424,7 @@ export default function AICallModal({ leadId, leadName, leadPhone, token, onClos
           <div className="px-6 pb-4">
             <button
               onClick={handleCall}
-              disabled={calling || !configured || (purpose === 'custom' && !customPrompt.trim())}
+              disabled={calling || !configured || ((purpose === 'custom' || purpose === 'answer_questions') && !customPrompt.trim())}
               className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ background: 'linear-gradient(135deg, #EA580C, #F97316)' }}
             >
