@@ -13,7 +13,7 @@ import {
   PERMISSION_PRESETS, 
   UserPermissions 
 } from '@/lib/permissions';
-import { Shield, Check, X, Users, Mail, MessageSquare, TrendingUp, Settings, DollarSign, FileText, Calendar } from 'lucide-react';
+import { Shield, Check, X, Users, Mail, MessageSquare, TrendingUp, Settings, DollarSign, FileText, Calendar, Phone, Bot, BarChart3, Video, Globe, Filter } from 'lucide-react';
 
 interface PermissionManagerProps {
   initialPermissions?: UserPermissions;
@@ -31,12 +31,18 @@ const MODULE_ICONS: Record<string, React.ComponentType<any>> = {
   messages: MessageSquare,
   broadcasts: Mail,
   templates: FileText,
+  calls: Phone,
+  callScripts: Bot,
+  aiAgents: Bot,
   workshops: Calendar,
   payments: DollarSign,
   invoices: FileText,
+  salesFunnel: Filter,
+  community: Globe,
+  recordings: Video,
   analytics: TrendingUp,
   reports: FileText,
-  dashboard: TrendingUp,
+  dashboard: BarChart3,
   users: Users,
   settings: Settings,
   auditLogs: FileText,
@@ -52,9 +58,15 @@ const MODULE_LABELS: Record<string, string> = {
   messages: 'Messages',
   broadcasts: 'Broadcasts',
   templates: 'Templates',
+  calls: 'Call Workflows',
+  callScripts: 'Call Scripts',
+  aiAgents: 'AI Agents',
   workshops: 'Workshops',
   payments: 'Payments',
   invoices: 'Invoices',
+  salesFunnel: 'Sales Funnel',
+  community: 'Community',
+  recordings: 'Recordings',
   analytics: 'Analytics',
   reports: 'Reports',
   dashboard: 'Dashboard',
@@ -83,6 +95,11 @@ const ACTION_LABELS: Record<string, string> = {
   assignToOthers: 'Assign to Others',
   viewAll: 'View All (Not Just Assigned)',
   managePermissions: 'Manage Permissions',
+  manage: 'Manage',
+  approve: 'Approve/Reject',
+  moderate: 'Moderate',
+  upload: 'Upload',
+  moveLeads: 'Move Leads',
 };
 
 export default function PermissionManager({ 

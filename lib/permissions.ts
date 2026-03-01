@@ -19,10 +19,20 @@ export const PERMISSION_MODULES = {
   BROADCASTS: 'broadcasts',
   TEMPLATES: 'templates',
   
+  // AI & Calling
+  CALLS: 'calls',
+  CALL_SCRIPTS: 'callScripts',
+  AI_AGENTS: 'aiAgents',
+  
   // Business
   WORKSHOPS: 'workshops',
   PAYMENTS: 'payments',
   INVOICES: 'invoices',
+  SALES_FUNNEL: 'salesFunnel',
+  
+  // Content & Community
+  COMMUNITY: 'community',
+  RECORDINGS: 'recordings',
   
   // Analytics & Reports
   ANALYTICS: 'analytics',
@@ -115,6 +125,25 @@ export interface UserPermissions {
     delete?: boolean;
   };
   
+  calls?: {
+    read?: boolean;      // View call history and logs
+    create?: boolean;    // Initiate AI calls to leads
+    manage?: boolean;    // Manage call workflows and settings
+  };
+  
+  callScripts?: {
+    read?: boolean;      // View call scripts and templates
+    write?: boolean;     // Create/edit call scripts
+    approve?: boolean;   // Approve/reject scripts for use
+    delete?: boolean;    // Delete call scripts
+  };
+  
+  aiAgents?: {
+    read?: boolean;      // View AI agents list and settings
+    manage?: boolean;    // Set active agent, configure agents
+    create?: boolean;    // Create new agents (via Retell)
+  };
+  
   workshops?: {
     read?: boolean;
     write?: boolean;
@@ -135,6 +164,26 @@ export interface UserPermissions {
     write?: boolean;
     delete?: boolean;
     export?: boolean;
+  };
+  
+  salesFunnel?: {
+    read?: boolean;      // View sales funnel and pipeline
+    manage?: boolean;    // Manage funnel stages
+    moveLeads?: boolean; // Move leads between stages
+  };
+  
+  community?: {
+    read?: boolean;      // View community content
+    write?: boolean;     // Create/edit community posts
+    moderate?: boolean;  // Moderate community content
+    delete?: boolean;    // Delete community content
+  };
+  
+  recordings?: {
+    read?: boolean;      // View recordings
+    upload?: boolean;    // Upload new recordings
+    delete?: boolean;    // Delete recordings
+    manage?: boolean;    // Manage recording categories
   };
   
   analytics?: {
@@ -185,9 +234,15 @@ export const PERMISSION_PRESETS = {
     messages: { read: true, send: true, delete: true },
     broadcasts: { read: true, create: true, send: true, schedule: true, delete: true },
     templates: { read: true, write: true, delete: true },
+    calls: { read: true, create: true, manage: true },
+    callScripts: { read: true, write: true, approve: true, delete: true },
+    aiAgents: { read: true, manage: true, create: true },
     workshops: { read: true, write: true, delete: true, manageRegistrations: true, viewPayments: true },
     payments: { read: true, write: true, refund: true, export: true },
     invoices: { read: true, write: true, delete: true, export: true },
+    salesFunnel: { read: true, manage: true, moveLeads: true },
+    community: { read: true, write: true, moderate: true, delete: true },
+    recordings: { read: true, upload: true, delete: true, manage: true },
     analytics: { read: true, export: true },
     reports: { read: true, create: true, export: true },
     dashboard: { read: true },
@@ -207,8 +262,14 @@ export const PERMISSION_PRESETS = {
     messages: { read: true, send: true, delete: false },
     broadcasts: { read: true, create: false, send: false, schedule: false, delete: false },
     templates: { read: true, write: false, delete: false },
+    calls: { read: true, create: true, manage: false },
+    callScripts: { read: true, write: true, approve: false, delete: false },
+    aiAgents: { read: true, manage: false, create: false },
     workshops: { read: true, write: false, delete: false, manageRegistrations: true, viewPayments: true },
     payments: { read: true, write: false, refund: false, export: false },
+    salesFunnel: { read: true, manage: false, moveLeads: true },
+    community: { read: true, write: false, moderate: false, delete: false },
+    recordings: { read: true, upload: false, delete: false, manage: false },
     analytics: { read: true, export: false },
     reports: { read: true, create: false, export: true },
     dashboard: { read: true },
@@ -222,6 +283,10 @@ export const PERMISSION_PRESETS = {
     whatsapp: { read: true, send: true, broadcast: false, manageGroups: false, viewMedia: true },
     email: { read: true, send: true, broadcast: false, manageTemplates: false },
     messages: { read: true, send: true, delete: false },
+    calls: { read: true, create: true, manage: false },
+    callScripts: { read: true, write: false, approve: false, delete: false },
+    aiAgents: { read: true, manage: false, create: false },
+    salesFunnel: { read: true, manage: false, moveLeads: true },
     dashboard: { read: true },
   } as UserPermissions,
   

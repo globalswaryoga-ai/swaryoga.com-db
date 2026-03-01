@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import {
   Sparkles, Phone, Heart, Play, Handshake, CheckCircle, Trophy,
@@ -10,10 +11,14 @@ import {
   Calendar, ChevronLeft, Link2, Check,
   PauseCircle, Repeat, Flower2, Megaphone,
   MessageSquare, PhoneCall, Bot, History, Plus,
-  CalendarClock, ListChecks, PhoneIncoming, PhoneOutgoing, Loader2,
+  CalendarClock, ListChecks, PhoneIncoming, PhoneOutgoing, Loader2, Zap,
+  Home, FileText,
 } from 'lucide-react';
+import { BarChart3 } from 'lucide-react';
 import LeadDetailModal from '@/components/admin/crm/LeadDetailModal';
 import AICallModal from '@/components/admin/crm/AICallModal';
+import BulkCallModal from '@/components/admin/crm/BulkCallModal';
+import CallHistoryPanel from '@/components/admin/crm/CallHistoryPanel';
 
 // ── Color palette (matches funnel) ──
 const COLORS = {
@@ -129,23 +134,20 @@ export default function CallWorkflowPage() {
   const [aiCallLeadId, setAiCallLeadId] = useState<string | null>(null);
   const [showBulkActions, setShowBulkActions] = useState(false);
 
-  // Call history popup
-  const [callHistoryLeadId, setCallHistoryLeadId] = useState<string | null>(null);
-  const [callHistory, setCallHistory] = useState<Array<{ _id: string; purpose: string; status: string; language: string; duration: number; summary: string; sentiment: string; callEndedReason: string; crmUpdates: any[]; createdAt: string }>>([]);
-  const [callHistoryLoading, setCallHistoryLoading] = useState(false);
+  // Call history panel (unified — replaces old call history & updates popups)
+  const [callPanelLeadId, setCallPanelLeadId] = useState<string | null>(null);
 
   // Schedule call
   const [scheduleLeadId, setScheduleLeadId] = useState<string | null>(null);
   const [scheduleDate, setScheduleDate] = useState('');
 
-  // Updates popup (all call records for a lead)
-  const [updatesLeadId, setUpdatesLeadId] = useState<string | null>(null);
-  const [updatesCallHistory, setUpdatesCallHistory] = useState<Array<{ _id: string; purpose: string; status: string; language: string; duration: number; summary: string; sentiment: string; callEndedReason: string; crmUpdates: any[]; createdAt: string }>>([]);
-  const [updatesLoading, setUpdatesLoading] = useState(false);
-
   // Bulk calling
   const [bulkCalling, setBulkCalling] = useState(false);
   const [bulkCallProgress, setBulkCallProgress] = useState({ done: 0, total: 0, failed: 0 });
+  const [showBulkCallModal, setShowBulkCallModal] = useState(false);
+
+  // Today's call status per lead: { leadId: { totalToday, active, lastStatus } }
+  const [todayCalls, setTodayCalls] = useState<Record<string, { totalToday: number; active: boolean; lastStatus: string }>>({});
 
   const selectAll = selectedLeadIds.size === leads.length && leads.length > 0;
 
@@ -248,6 +250,25 @@ export default function CallWorkflowPage() {
   useEffect(() => { if (token) fetchLeads(); }, [token, fetchLeads]);
   useEffect(() => { setPage(0); }, [activeStage, searchQuery, filterCountry, filterLanguage, filterAdmin, filterWorkshop, filterLabel, filterMonth]);
 
+  // Fetch today's call summary (call counts + active status per lead)
+  const fetchTodayCalls = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch('/api/admin/crm/calls?action=today_summary', { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const json = await res.json();
+        setTodayCalls(json.data?.todayCalls || {});
+      }
+    } catch { /* ignore */ }
+  }, [token]);
+
+  // Fetch on load and poll every 15s for live status
+  useEffect(() => {
+    if (token) fetchTodayCalls();
+    const interval = setInterval(() => { if (token) fetchTodayCalls(); }, 15000);
+    return () => clearInterval(interval);
+  }, [token, fetchTodayCalls]);
+
   const moveLead = async (leadId: string, toStage: string) => {
     if (!token) return;
     try {
@@ -291,26 +312,8 @@ export default function CallWorkflowPage() {
     } catch (e) { console.error(e); }
   };
 
-  const fetchCallHistory = async (leadId: string) => {
-    setCallHistoryLeadId(leadId);
-    setCallHistoryLoading(true);
-    setCallHistory([]);
-    try {
-      const res = await fetch(`/api/admin/crm/calls?leadId=${leadId}`, { headers: { Authorization: `Bearer ${token}` } });
-      if (res.ok) { const json = await res.json(); setCallHistory(json.data?.calls || []); }
-    } catch (_) { /* ignore */ }
-    setCallHistoryLoading(false);
-  };
-
-  const fetchUpdates = async (leadId: string) => {
-    setUpdatesLeadId(leadId);
-    setUpdatesLoading(true);
-    setUpdatesCallHistory([]);
-    try {
-      const res = await fetch(`/api/admin/crm/calls?leadId=${leadId}`, { headers: { Authorization: `Bearer ${token}` } });
-      if (res.ok) { const json = await res.json(); setUpdatesCallHistory(json.data?.calls || []); }
-    } catch (_) { /* ignore */ }
-    setUpdatesLoading(false);
+  const openCallPanel = (leadId: string) => {
+    setCallPanelLeadId(leadId);
   };
 
   const handleBulkCall = async (lang: 'hi' | 'en' | 'other', direction: 'outbound' | 'inbound') => {
@@ -435,9 +438,12 @@ export default function CallWorkflowPage() {
         <div className="bg-white border-b border-gray-100 px-4 sm:px-6 py-3">
           <div className="flex items-center justify-between gap-3 mb-3">
             <div className="flex items-center gap-3">
-              <button onClick={() => router.push('/admin/crm')} className="w-9 h-9 rounded-xl flex items-center justify-center hover:opacity-80 transition shadow-sm" style={{ background: 'linear-gradient(135deg, #6366F1, #EC4899)' }} title="Back to CRM">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+              <button onClick={() => router.back()} className="w-9 h-9 rounded-xl flex items-center justify-center bg-gray-100 hover:bg-gray-200 transition text-gray-500" title="Go Back">
+                <ChevronLeft className="h-5 w-5" />
               </button>
+              <Link href="/admin/crm" className="w-9 h-9 rounded-xl flex items-center justify-center bg-gray-100 hover:bg-gray-200 transition text-gray-500" title="Home — CRM Dashboard">
+                <Home className="h-4.5 w-4.5" />
+              </Link>
               <div>
                 <h1 className="text-lg font-bold text-gray-900">
                   {activeStage ? stages.find(s => s.key === activeStage)?.name || 'Leads' : 'All Pipeline Leads'} &mdash; Call Manager
@@ -446,6 +452,15 @@ export default function CallWorkflowPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <Link href="/admin/crm/calls/broadcasts" className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all" style={{ background: 'linear-gradient(135deg, #6366F1, #818CF8)' }}>
+                <Megaphone className="h-4 w-4" /> Broadcasts
+              </Link>
+              <Link href="/admin/crm/calls/reports" className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all" style={{ background: 'linear-gradient(135deg, #8B5CF6, #A78BFA)' }}>
+                <BarChart3 className="h-4 w-4" /> Reports
+              </Link>
+              <Link href="/admin/crm/calls/templates" className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all" style={{ background: 'linear-gradient(135deg, #10B981, #34D399)' }}>
+                <FileText className="h-4 w-4" /> Templates
+              </Link>
               {/* Bulk actions */}
               {selectedLeadIds.size > 0 && (
                 <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-indigo-200 flex-wrap" style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(236,72,153,0.06))' }}>
@@ -458,21 +473,9 @@ export default function CallWorkflowPage() {
                     </div>
                   ) : (
                     <>
-                      <button onClick={() => handleBulkCall('hi', 'outbound')} className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium text-white transition hover:opacity-90" style={{ background: 'linear-gradient(135deg, #F97316, #FB923C)' }}>
-                        <Bot className="h-3 w-3" /> Bulk Hindi
-                      </button>
-                      <button onClick={() => handleBulkCall('en', 'outbound')} className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium text-white transition hover:opacity-90" style={{ background: 'linear-gradient(135deg, #3B82F6, #60A5FA)' }}>
-                        <Bot className="h-3 w-3" /> Bulk English
-                      </button>
-                      <button onClick={() => handleBulkCall('other', 'outbound')} className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium bg-violet-100 text-violet-700 hover:bg-violet-200 transition">
-                        <Bot className="h-3 w-3" /> Bulk Other
-                      </button>
-                      <div className="h-3.5 w-px bg-indigo-200" />
-                      <button onClick={() => handleBulkCall('hi', 'inbound')} className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition">
-                        <PhoneIncoming className="h-3 w-3" /> Inbound
-                      </button>
-                      <button onClick={() => handleBulkCall('hi', 'outbound')} className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium bg-cyan-50 text-cyan-600 hover:bg-cyan-100 transition">
-                        <PhoneOutgoing className="h-3 w-3" /> Outbound
+                      <button onClick={() => setShowBulkCallModal(true)} className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-medium text-white transition hover:opacity-90" style={{ background: 'linear-gradient(135deg, #6366F1, #EC4899)' }}>
+                        <Zap className="h-3 w-3" /> Bulk Broadcast
+                        <span className="px-1 py-0.5 rounded bg-white/20 text-[9px] ml-0.5">~${(selectedLeadIds.size * 0.14).toFixed(2)}</span>
                       </button>
                     </>
                   )}
@@ -596,22 +599,43 @@ export default function CallWorkflowPage() {
             const stageName = stages.find(s => s.key === lead.funnelStage)?.name || lead.funnelStage || 'New Lead';
             const isSelected = selectedLeadIds.has(lead._id);
             const isUntouched = !lead.funnelStage || lead.funnelStage === 'new_lead';
+            const callStatus = todayCalls[lead._id];
+            const isCallActive = callStatus?.active;
+            const todayCount = callStatus?.totalToday || 0;
 
             return (
               <div
                 key={lead._id}
                 className={`rounded-xl border transition-all duration-150 hover:shadow-md flex ${
-                  isUntouched ? 'border-yellow-300 shadow-sm hover:border-yellow-400'
+                  isCallActive ? 'border-green-300 shadow-sm shadow-green-100'
+                  : isUntouched ? 'border-yellow-300 shadow-sm hover:border-yellow-400'
                   : isSelected ? 'bg-indigo-50/50 border-indigo-200 shadow-sm'
                   : 'bg-white border-gray-100 hover:border-indigo-200 hover:bg-gray-50/30'
                 }`}
-                style={isUntouched ? { background: 'linear-gradient(90deg, #FFF9E6 0%, #FFFDF5 100%)' } : undefined}
+                style={isUntouched && !isCallActive ? { background: 'linear-gradient(90deg, #FFF9E6 0%, #FFFDF5 100%)' } : isCallActive ? { background: 'linear-gradient(90deg, #F0FFF4 0%, #FAFFFE 100%)' } : undefined}
               >
                 {/* Left: Lead Info */}
                 <div className="flex-1 min-w-0">
                   {/* Row 1 */}
                   <div className="flex items-center gap-2.5 px-4 py-3">
                     <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(lead._id)} className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 flex-shrink-0" />
+
+                    {/* Call status indicator — click to open call history */}
+                    <button onClick={() => openCallPanel(lead._id)} className="relative flex-shrink-0 cursor-pointer group/indicator" title={isCallActive ? 'Call in progress — click for details' : todayCount > 0 ? `${todayCount} call${todayCount > 1 ? 's' : ''} today — click for details` : 'No calls today — click for history'}>
+                      {isCallActive && <span className="block w-2.5 h-2.5 rounded-full bg-green-500 animate-ping absolute" />}
+                      <span className={`block w-2.5 h-2.5 rounded-full flex-shrink-0 relative ${
+                        isCallActive ? 'bg-green-500'
+                        : todayCount > 0 && callStatus?.lastStatus === 'failed' ? 'bg-red-400'
+                        : todayCount > 0 ? 'bg-green-400'
+                        : 'bg-gray-300'
+                      }`} />
+                      {todayCount > 0 && (
+                        <span className={`absolute -top-1.5 -right-2 min-w-[14px] h-[14px] flex items-center justify-center rounded-full text-[8px] font-bold text-white leading-none px-0.5 ${
+                          isCallActive ? 'bg-green-600' : callStatus?.lastStatus === 'failed' ? 'bg-red-500' : 'bg-green-500'
+                        }`}>{todayCount}</span>
+                      )}
+                    </button>
+
                     {lead.leadNumber && <span className="text-[11px] text-gray-400 flex-shrink-0 font-mono">#{lead.leadNumber}</span>}
                     {isUntouched && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-yellow-400 text-yellow-900 flex-shrink-0 animate-pulse">NEW</span>}
                     <button onClick={() => setSelectedLeadId(lead._id)} className="text-sm font-semibold text-gray-800 hover:text-indigo-600 transition truncate text-left flex-shrink-0 max-w-[200px]">
@@ -670,7 +694,7 @@ export default function CallWorkflowPage() {
                   </div>
                   {/* Row 2 */}
                   <div className="flex items-center gap-0.5">
-                    <button onClick={() => fetchCallHistory(lead._id)} title="Call Log" className="flex items-center gap-0.5 px-1.5 py-1 rounded-lg text-[10px] font-medium bg-violet-50 text-violet-600 hover:bg-violet-100 transition whitespace-nowrap"><History className="h-3 w-3" />Call Log</button>
+                    <button onClick={() => openCallPanel(lead._id)} title="Call Log" className="flex items-center gap-0.5 px-1.5 py-1 rounded-lg text-[10px] font-medium bg-violet-50 text-violet-600 hover:bg-violet-100 transition whitespace-nowrap"><History className="h-3 w-3" />Call Log</button>
                     <button onClick={() => { setScheduleLeadId(lead._id); setScheduleDate(''); }} title="Schedule" className="flex items-center gap-0.5 px-1.5 py-1 rounded-lg text-[10px] font-medium bg-amber-50 text-amber-600 hover:bg-amber-100 transition whitespace-nowrap"><CalendarClock className="h-3 w-3" />Schedule</button>
                     <div className="relative group">
                       <button title="Move" className="flex items-center gap-0.5 px-1.5 py-1 rounded-lg text-[10px] font-medium bg-pink-50 text-pink-600 hover:bg-pink-100 transition whitespace-nowrap"><ArrowLeftRight className="h-3 w-3" />Move</button>
@@ -684,7 +708,7 @@ export default function CallWorkflowPage() {
                   </div>
                   {/* Row 3 - Updates */}
                   <div className="flex justify-center mt-0.5">
-                    <button onClick={() => fetchUpdates(lead._id)} title="Updates" className="flex items-center gap-1 px-3 py-1 rounded-lg text-[11px] font-semibold text-white transition hover:opacity-90 whitespace-nowrap" style={{ background: 'linear-gradient(135deg, #10B981, #34D399)' }}><ListChecks className="h-3.5 w-3.5" />Updates</button>
+                    <button onClick={() => openCallPanel(lead._id)} title="Updates" className="flex items-center gap-1 px-3 py-1 rounded-lg text-[11px] font-semibold text-white transition hover:opacity-90 whitespace-nowrap" style={{ background: 'linear-gradient(135deg, #10B981, #34D399)' }}><ListChecks className="h-3.5 w-3.5" />Updates</button>
                   </div>
                 </div>
               </div>
@@ -730,125 +754,30 @@ export default function CallWorkflowPage() {
         return <AICallModal leadId={aiCallLeadId} leadName={cl?.displayName || cl?.name || ''} leadPhone={cl?.phoneNumber?.replace(/\D/g, '') || ''} token={token} onClose={() => setAiCallLeadId(null)} />;
       })()}
 
-      {/* Call History Popup */}
-      {callHistoryLeadId && (() => {
-        const cl = leads.find(l => l._id === callHistoryLeadId);
+      {/* Bulk Call Broadcast Modal */}
+      {showBulkCallModal && token && (
+        <BulkCallModal
+          selectedCount={selectedLeadIds.size}
+          selectedLeadIds={Array.from(selectedLeadIds)}
+          token={token}
+          onClose={() => setShowBulkCallModal(false)}
+          onComplete={() => { setSelectedLeadIds(new Set()); fetchLeads(); }}
+        />
+      )}
+
+      {/* Call History & Details Panel */}
+      {callPanelLeadId && token && (() => {
+        const cl = leads.find(l => l._id === callPanelLeadId);
         if (!cl) return null;
-        const fmtDt = (d: string) => new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' }) + ' ' + new Date(d).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-        const sentimentIcon = (s: string) => s === 'positive' ? '\uD83D\uDE0A' : s === 'negative' ? '\uD83D\uDE1F' : '\uD83D\uDE10';
-
         return (
-          <div className="fixed inset-0 z-[60]" onClick={() => setCallHistoryLeadId(null)}>
-            <div className="absolute bottom-6 right-6 w-[400px] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col" style={{ maxHeight: 'calc(100vh - 48px)' }} onClick={e => e.stopPropagation()}>
-              <div className="flex items-center gap-3 px-4 py-3" style={{ background: 'linear-gradient(135deg, #6366F1, #8B5CF6)' }}>
-                <button onClick={() => setCallHistoryLeadId(null)} className="p-0.5 rounded hover:bg-white/20 transition flex-shrink-0"><ChevronLeft className="h-5 w-5 text-white" /></button>
-                <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0" style={{ background: '#818CF8', color: 'white' }}>{(cl.name || cl.displayName || '?')[0].toUpperCase()}</div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-white font-semibold text-sm truncate">{cl.title ? `${cl.title}. ` : ''}{cl.name || cl.displayName || 'Unknown'}</p>
-                  <p className="text-indigo-200 text-[11px] truncate">Call History &amp; Logs</p>
-                </div>
-                <button onClick={() => setCallHistoryLeadId(null)} className="p-1 rounded hover:bg-white/20 transition flex-shrink-0"><X className="h-4 w-4 text-white" /></button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2" style={{ maxHeight: '400px' }}>
-                {callHistoryLoading ? (
-                  <div className="flex items-center justify-center py-12"><div className="animate-spin h-6 w-6 border-3 border-indigo-500 border-t-transparent rounded-full" /></div>
-                ) : callHistory.length === 0 ? (
-                  <div className="text-center py-12 text-gray-400 text-sm">
-                    <PhoneCall className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                    <p>No call history yet</p>
-                    <p className="text-xs mt-1">Make the first call using AI Call or PC Call</p>
-                  </div>
-                ) : callHistory.map(call => (
-                  <div key={call._id} className="rounded-xl border border-gray-100 p-3 hover:bg-gray-50/50 transition">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${call.status === 'completed' ? 'bg-green-50 text-green-600' : call.status === 'failed' ? 'bg-red-50 text-red-600' : call.status === 'no_answer' ? 'bg-orange-50 text-orange-600' : 'bg-gray-50 text-gray-600'}`}>{call.status}</span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 font-medium">{call.purpose}</span>
-                      {call.sentiment && <span className="text-xs">{sentimentIcon(call.sentiment)}</span>}
-                      <span className="text-[10px] text-gray-400 ml-auto">{fmtDt(call.createdAt)}</span>
-                    </div>
-                    {call.duration > 0 && <p className="text-[11px] text-gray-500">Duration: {Math.round(call.duration)}s &middot; {call.language || 'hi'}</p>}
-                    {call.summary && <p className="text-xs text-gray-600 mt-1 line-clamp-3">{call.summary}</p>}
-                    {call.callEndedReason && <p className="text-[10px] text-gray-400 mt-1">Ended: {call.callEndedReason}</p>}
-                  </div>
-                ))}
-              </div>
-
-              <div className="px-4 py-3 border-t border-gray-100 flex gap-2">
-                <button onClick={() => { setCallHistoryLeadId(null); setAiCallLeadId(cl._id); }} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-white transition hover:opacity-90" style={{ background: 'linear-gradient(135deg, #F97316, #FB923C)' }}>
-                  <Bot className="h-3.5 w-3.5" /> Make AI Call
-                </button>
-                <a href={`tel:${cl.phoneNumber || ''}`} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition">
-                  <Phone className="h-3.5 w-3.5" /> PC Call
-                </a>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* Updates Popup — bottom-right card */}
-      {updatesLeadId && (() => {
-        const ul = leads.find(l => l._id === updatesLeadId);
-        if (!ul) return null;
-        const fmtDt = (d: string) => new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' }) + ' ' + new Date(d).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-        const sentimentIcon = (s: string) => s === 'positive' ? '\uD83D\uDE0A' : s === 'negative' ? '\uD83D\uDE1F' : '\uD83D\uDE10';
-        const purposeLabel: Record<string, string> = { welcome: '\uD83D\uDE4F Welcome', follow_up: '\uD83D\uDCDE Follow-up', answer_questions: '\uD83D\uDCAC Answer Back', workshop_reminder: '\uD83D\uDCC5 Workshop', collect_info: '\uD83D\uDCCB Collect Info', payment_reminder: '\uD83D\uDCB3 Payment', custom: '\u270F\uFE0F Custom' };
-
-        return (
-          <div className="fixed inset-0 z-[60]" onClick={() => setUpdatesLeadId(null)}>
-            <div className="absolute bottom-6 right-6 w-[420px] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col" style={{ maxHeight: 'calc(100vh - 48px)' }} onClick={e => e.stopPropagation()}>
-              <div className="flex items-center gap-3 px-4 py-3" style={{ background: 'linear-gradient(135deg, #10B981, #34D399)' }}>
-                <button onClick={() => setUpdatesLeadId(null)} className="p-0.5 rounded hover:bg-white/20 transition flex-shrink-0"><ChevronLeft className="h-5 w-5 text-white" /></button>
-                <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 bg-white/20 text-white">{(ul.name || ul.displayName || '?')[0].toUpperCase()}</div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-white font-semibold text-sm truncate">{ul.title ? `${ul.title}. ` : ''}{ul.name || ul.displayName || 'Unknown'}</p>
-                  <p className="text-emerald-100 text-[11px]">All Call Records &amp; Updates</p>
-                </div>
-                <button onClick={() => setUpdatesLeadId(null)} className="p-1 rounded hover:bg-white/20 transition flex-shrink-0"><X className="h-4 w-4 text-white" /></button>
-              </div>
-              <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2" style={{ maxHeight: '420px' }}>
-                {updatesLoading ? (
-                  <div className="flex items-center justify-center py-12"><div className="animate-spin h-6 w-6 border-3 border-emerald-500 border-t-transparent rounded-full" /></div>
-                ) : updatesCallHistory.length === 0 ? (
-                  <div className="text-center py-12 text-gray-400 text-sm">
-                    <ListChecks className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                    <p>No call records yet</p>
-                    <p className="text-xs mt-1">Make a call to see updates here</p>
-                  </div>
-                ) : updatesCallHistory.map(call => (
-                  <div key={call._id} className="rounded-xl border border-gray-100 p-3 hover:bg-gray-50/50 transition">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${call.status === 'completed' ? 'bg-green-50 text-green-600' : call.status === 'failed' ? 'bg-red-50 text-red-600' : call.status === 'no_answer' ? 'bg-orange-50 text-orange-600' : 'bg-gray-50 text-gray-600'}`}>{call.status}</span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 font-medium">{purposeLabel[call.purpose] || call.purpose}</span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-50 text-gray-500">{call.language === 'hi-IN' || call.language === 'hi' ? '\uD83C\uDDEE\uD83C\uDDF3 Hindi' : '\uD83C\uDDEC\uD83C\uDDE7 English'}</span>
-                      {call.sentiment && <span className="text-xs">{sentimentIcon(call.sentiment)}</span>}
-                      <span className="text-[10px] text-gray-400 ml-auto">{fmtDt(call.createdAt)}</span>
-                    </div>
-                    {call.duration > 0 && <p className="text-[11px] text-gray-500">Duration: {Math.round(call.duration)}s</p>}
-                    {call.summary && <p className="text-xs text-gray-600 mt-1">{call.summary}</p>}
-                    {call.callEndedReason && <p className="text-[10px] text-gray-400 mt-1">Ended: {call.callEndedReason}</p>}
-                    {call.crmUpdates && call.crmUpdates.length > 0 && (
-                      <div className="mt-2 pt-2 border-t border-gray-50">
-                        <p className="text-[10px] text-gray-400 font-semibold mb-1">CRM Updates:</p>
-                        {call.crmUpdates.map((u: any, i: number) => (
-                          <div key={i} className="text-[10px] text-gray-500 flex items-center gap-1"><span className="text-gray-400">{u.field}:</span> <span className="line-through text-red-400">{String(u.oldValue || '—')}</span> → <span className="text-green-600 font-medium">{String(u.newValue)}</span></div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-              <div className="px-4 py-3 border-t border-gray-100 flex gap-2">
-                <button onClick={() => { setUpdatesLeadId(null); setAiCallLeadId(ul._id); }} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-white transition hover:opacity-90" style={{ background: 'linear-gradient(135deg, #F97316, #FB923C)' }}>
-                  <Bot className="h-3.5 w-3.5" /> Make AI Call
-                </button>
-                <a href={`tel:${ul.phoneNumber || ''}`} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition">
-                  <Phone className="h-3.5 w-3.5" /> PC Call
-                </a>
-              </div>
-            </div>
-          </div>
+          <CallHistoryPanel
+            leadId={callPanelLeadId}
+            leadName={cl.title ? `${cl.title}. ${cl.displayName || cl.name || ''}` : (cl.displayName || cl.name || 'Unknown')}
+            leadPhone={cl.phoneNumber?.replace(/\D/g, '') || ''}
+            token={token}
+            onClose={() => setCallPanelLeadId(null)}
+            onMakeCall={() => setAiCallLeadId(callPanelLeadId)}
+          />
         );
       })()}
 

@@ -125,6 +125,7 @@ export default function AdminUsersPage() {
             userId: String(u?.userId || ''),
             email: u?.email ? String(u.email) : undefined,
             permissions: Array.isArray(u?.permissions) ? u.permissions.map((p: any) => String(p)) : undefined,
+            permissionsV2: u?.permissionsV2 || undefined,
             createdAt: u?.createdAt ? String(u.createdAt) : undefined,
           }))
           .filter((u: AdminUserRow) => Boolean(u._id) && Boolean(u.userId))
@@ -330,6 +331,7 @@ export default function AdminUsersPage() {
                   permissions: Array.isArray(updated?.permissions)
                     ? updated.permissions.map((p: any) => String(p))
                     : u.permissions,
+                  permissionsV2: updated?.permissionsV2 || u.permissionsV2,
                 }
               : u
           )
@@ -602,8 +604,8 @@ export default function AdminUsersPage() {
             }}
             aria-hidden="true"
           />
-          <div className="relative w-full max-w-2xl mx-4 bg-white rounded-xl shadow-xl border border-swar-border">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-swar-border">
+          <div className="relative w-full max-w-2xl mx-4 bg-white rounded-xl shadow-xl border border-swar-border max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-swar-border sticky top-0 bg-white z-10">
               <h2 className="text-xl font-bold text-swar-text">Edit User: {selectedUser.userId}</h2>
               <button
                 onClick={() => setEditOpen(false)}
@@ -732,7 +734,7 @@ export default function AdminUsersPage() {
               )}
             </div>
 
-            <div className="px-6 py-4 border-t border-swar-border flex items-center justify-end gap-2">
+            <div className="px-6 py-4 border-t border-swar-border flex items-center justify-end gap-2 sticky bottom-0 bg-white">
               <button
                 onClick={() => setEditOpen(false)}
                 className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200"

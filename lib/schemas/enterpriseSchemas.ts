@@ -2401,7 +2401,7 @@ const AICallLogSchema = new mongoose.Schema(
     retellCallId: { type: String, index: true }, // Retell's call ID
     agentId: { type: String }, // Retell agent ID used
     direction: { type: String, enum: ['outbound', 'inbound'], default: 'outbound' },
-    purpose: { type: String, enum: ['follow_up', 'workshop_reminder', 'collect_info', 'payment_reminder', 'welcome', 'answer_questions', 'custom'], default: 'custom' },
+    purpose: { type: String, default: 'custom' }, // e.g. follow_up, welcome, custom, or template key
     customPrompt: { type: String }, // Custom instructions for this call
     status: { type: String, enum: ['queued', 'ringing', 'in_progress', 'completed', 'failed', 'no_answer', 'busy', 'canceled'], default: 'queued', index: true },
     phoneNumber: { type: String }, // Number called
@@ -2429,6 +2429,13 @@ const AICallLogSchema = new mongoose.Schema(
     startedAt: { type: Date },
     endedAt: { type: Date },
     initiatedBy: { type: String }, // admin userId who triggered the call
+
+    // Batch / Broadcast tracking
+    batchName: { type: String, index: true },       // Name of the broadcast batch
+    retellBatchId: { type: String, index: true },    // Retell batch ID
+    scheduledAt: { type: Date, index: true },        // Scheduled call time (if scheduled)
+    templateId: { type: String },                    // AICallTemplate ID used
+    templateKey: { type: String },                   // Template key (e.g. ob_welcome)
   },
   { timestamps: true }
 );
@@ -2444,7 +2451,7 @@ const CallWorkflowSchema = new mongoose.Schema(
     direction: { type: String, enum: ['inbound', 'outbound'], required: true },
     workflowStatus: {
       type: String,
-      enum: ['new', 'transcribed', 'rules_set', 'answer_ready', 'voice_ready', 'approved', 'scheduled', 'completed'],
+      enum: ['new', 'transcribed', 'rules_set', 'answer_ready', 'voice_ready', 'approved', 'scheduled', 'completed', 'cancelled'],
       default: 'new',
     },
 

@@ -492,6 +492,137 @@ NEVER say "Mohan Sir aapko call karenge" — YOU (Sakshi) will always call back.
   }
 }
 
+// ── Batch Calls ──
+
+export interface BatchCallTask {
+  toNumber: string;       // E.164 e.g. +919673322573
+  leadName: string;
+  leadId?: string;
+  dynamicVars?: Record<string, string>;
+}
+
+export interface CreateBatchCallInput {
+  name: string;                // Batch name / label
+  tasks: BatchCallTask[];      // List of numbers to dial
+  purpose: string;             // welcome, follow_up, etc.
+  language: 'hi' | 'en';
+  customPrompt?: string;
+  fromNumber?: string;
+  overrideAgentId?: string;
+  scheduledAt?: string;        // ISO string – omit for "Send Now"
+  maxConcurrency?: number;     // Retell concurrency limit (default 5)
+}
+
+export interface CreateBatchCallResult {
+  success: boolean;
+  batchId?: string;
+  totalTasks?: number;
+  estimatedCost?: string;      // e.g. "$0.25"
+  error?: string;
+}
+
+/**
+ * Create a batch of outbound calls via Retell's batch API.
+ * Retell endpoint: POST /v2/create-batch-call
+ * Falls back to sequential single calls if batch fails.
+ */
+export async function createBatchCall(input: CreateBatchCallInput): Promise<CreateBatchCallResult> {
+  if (!isConfigured()) {
+    return { success: false, error: 'Retell AI is not configured. Set RETELL_API_KEY and RETELL_AGENT_ID.' };
+  }
+
+  const config = getConfig();
+  const agentId = input.overrideAgentId || config.agentId;
+  const fromNumber = input.fromNumber || config.fromNumber;
+
+  if (!fromNumber) {
+    return { success: false, error: 'No from_number configured. Set RETELL_FROM_NUMBER or provide fromNumber.' };
+  }
+
+  if (!input.tasks.length) {
+    return { success: false, error: 'No tasks provided for batch call.' };
+  }
+
+  const lang = input.language === 'hi' ? 'Hindi' : 'English';
+
+  // Try loading prompt from DB
+  const templateVars: Record<string, string> = { lang, customPrompt: input.customPrompt || '' };
+  const dbTemplate = await loadTemplateFromDB(input.purpose, input.language);
+  let generalPrompt = dbTemplate ? interpolateTemplate(dbTemplate, templateVars) : undefined;
+
+  // If no DB template, use purpose prompts (build a generic one)
+  if (!generalPrompt && input.customPrompt) {
+    generalPrompt = input.customPrompt;
+  }
+
+  try {
+    // Build task list for Retell batch API
+    const tasks = input.tasks.map(t => {
+      const num = t.toNumber.startsWith('+') ? t.toNumber : `+${t.toNumber}`;
+      const taskVars: Record<string, string> = {
+        lead_name: t.leadName || 'there',
+        call_purpose: input.purpose,
+        language: lang,
+        ...(t.dynamicVars || {}),
+      };
+      if (input.customPrompt) taskVars.custom_instructions = input.customPrompt;
+
+      return {
+        to_number: num,
+        retell_llm_dynamic_variables: taskVars,
+      };
+    });
+
+    const body: any = {
+      from_number: fromNumber.startsWith('+') ? fromNumber : `+${fromNumber}`,
+      tasks,
+      name: input.name || `Batch ${input.purpose} - ${lang}`,
+    };
+
+    // Attach agent; use override if we have a custom prompt
+    if (generalPrompt) {
+      body.agent_id = agentId;
+      body.agent_override = {
+        agent_name: `Swar Yoga Batch - ${input.purpose}`,
+        general_prompt: generalPrompt,
+        general_tools: [],
+      };
+    } else {
+      body.agent_id = agentId;
+    }
+
+    if (input.scheduledAt) {
+      body.scheduled_time = input.scheduledAt;
+    }
+    if (input.maxConcurrency) {
+      body.max_concurrency = input.maxConcurrency;
+    }
+
+    const result = await retellFetch('/v2/create-batch-call', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+
+    const costPerDial = 0.07; // $0.07 per minute avg
+    const estimatedCost = `$${(input.tasks.length * costPerDial).toFixed(2)}`;
+
+    return {
+      success: true,
+      batchId: result.batch_id || result.batch_call_id || result.id,
+      totalTasks: input.tasks.length,
+      estimatedCost,
+    };
+  } catch (err: any) {
+    console.error('[retellAI] createBatchCall error:', err);
+
+    // If batch API not available, indicate it failed
+    return {
+      success: false,
+      error: `Batch call failed: ${err.message}. You can use individual calls instead.`,
+    };
+  }
+}
+
 // ── Webhook Processing ──
 
 export interface RetellWebhookEvent {
@@ -573,21 +704,21 @@ export function extractCollectedData(analysis: any): Record<string, any> {
  * List all Retell agents
  */
 export async function listAgents() {
-  return retellFetch('/v2/list-agents');
+  return retellFetch('/list-agents');
 }
 
 /**
  * Get agent details
  */
 export async function getAgent(agentId: string) {
-  return retellFetch(`/v2/get-agent/${agentId}`);
+  return retellFetch(`/get-agent/${agentId}`);
 }
 
 /**
  * List phone numbers
  */
 export async function listPhoneNumbers() {
-  return retellFetch('/v2/list-phone-numbers');
+  return retellFetch('/list-phone-numbers');
 }
 
 /**
@@ -610,6 +741,7 @@ export function checkRetellConfig(): { configured: boolean; missing: string[] } 
 
 export default {
   createOutboundCall,
+  createBatchCall,
   checkRetellConfig,
   isConfigured: () => isConfigured(),
   listAgents,

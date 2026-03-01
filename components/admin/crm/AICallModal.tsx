@@ -31,7 +31,7 @@ interface AICallModalProps {
   onCallMade?: () => void;
 }
 
-const PURPOSE_OPTIONS = [
+const DEFAULT_PURPOSE_OPTIONS = [
   { value: 'welcome', label: '🙏 Welcome', desc: 'First call — introduce Swar Yoga' },
   { value: 'follow_up', label: '📞 Follow-up', desc: 'Check in, collect questions' },
   { value: 'answer_questions', label: '💬 Answer Back', desc: 'Call back with answers from Mohan Sir' },
@@ -40,6 +40,19 @@ const PURPOSE_OPTIONS = [
   { value: 'payment_reminder', label: '💳 Payment', desc: 'Gentle payment follow-up' },
   { value: 'custom', label: '✏️ Custom', desc: 'Write your own call instructions' },
 ];
+
+interface SavedTemplate {
+  _id: string;
+  key: string;
+  name: string;
+  description: string;
+  category: string;
+  language: string;
+  promptText: string;
+  voiceRecordingUrl: string;
+  approvalStatus: string;
+  isActive: boolean;
+}
 
 const STATUS_COLORS: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
   queued: { bg: 'bg-gray-100', text: 'text-gray-600', icon: <Clock className="h-3 w-3" /> },
@@ -65,6 +78,8 @@ export default function AICallModal({ leadId, leadName, leadPhone, token, onClos
   const [configured, setConfigured] = useState(true);
   const [missingKeys, setMissingKeys] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
+  const [savedTemplates, setSavedTemplates] = useState<SavedTemplate[]>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
 
   // Fetch call history
   useEffect(() => {
@@ -88,6 +103,40 @@ export default function AICallModal({ leadId, leadName, leadPhone, token, onClos
     })();
   }, [leadId, token]);
 
+  // Fetch saved templates from DB
+  useEffect(() => {
+    (async () => {
+      try {
+        setTemplatesLoading(true);
+        const res = await fetch(`/api/admin/crm/calls/templates?language=${language}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const json = await res.json();
+        if (json.data?.templates) {
+          setSavedTemplates(json.data.templates.filter((t: SavedTemplate) => t.promptText));
+        }
+      } catch (e: any) {
+        console.error('Failed to fetch templates:', e);
+      } finally {
+        setTemplatesLoading(false);
+      }
+    })();
+  }, [token, language]);
+
+  // Merge saved templates with default purposes
+  const purposeOptions = (() => {
+    // Start with templates from DB that have content
+    const fromDB = savedTemplates.map(t => ({
+      value: `tmpl_${t._id}`,
+      label: `📋 ${t.name}`,
+      desc: t.description?.slice(0, 50) || t.promptText?.slice(0, 50) || t.category,
+      promptText: t.promptText,
+    }));
+    // Add custom option at the end
+    const custom = { value: 'custom', label: '✏️ Custom', desc: 'Write your own call instructions', promptText: '' };
+    return fromDB.length > 0 ? [...fromDB, custom] : [...DEFAULT_PURPOSE_OPTIONS];
+  })();
+
   const handleCall = async () => {
     try {
       setCalling(true);
@@ -101,7 +150,7 @@ export default function AICallModal({ leadId, leadName, leadPhone, token, onClos
           leadId,
           purpose,
           language,
-          customPrompt: (purpose === 'custom' || purpose === 'answer_questions') ? customPrompt : undefined,
+          customPrompt: (purpose === 'custom' || purpose === 'answer_questions' || purpose.startsWith('tmpl_')) ? customPrompt : undefined,
         }),
       });
 
@@ -347,12 +396,18 @@ export default function AICallModal({ leadId, leadName, leadPhone, token, onClos
 
           {/* Purpose selection */}
           <div className="px-6 pt-4 pb-2">
-            <label className="text-xs font-semibold text-gray-700 mb-2 block">Call Purpose</label>
+            <label className="text-xs font-semibold text-gray-700 mb-2 block">Call Purpose {templatesLoading && <Loader2 className="inline h-3 w-3 animate-spin ml-1" />}</label>
             <div className="grid grid-cols-2 gap-2">
-              {PURPOSE_OPTIONS.map(opt => (
+              {purposeOptions.map(opt => (
                 <button
                   key={opt.value}
-                  onClick={() => setPurpose(opt.value)}
+                  onClick={() => {
+                    setPurpose(opt.value);
+                    // If it's a saved template, pre-fill the custom prompt with its script
+                    if (opt.value.startsWith('tmpl_') && 'promptText' in opt) {
+                      setCustomPrompt(opt.promptText || '');
+                    }
+                  }}
                   className={`text-left px-3 py-2 rounded-xl text-xs border transition ${
                     purpose === opt.value
                       ? 'border-orange-400 bg-orange-50 text-orange-700'
@@ -366,8 +421,8 @@ export default function AICallModal({ leadId, leadName, leadPhone, token, onClos
             </div>
           </div>
 
-          {/* Custom prompt / Answer questions textarea */}
-          {(purpose === 'custom' || purpose === 'answer_questions') && (
+          {/* Custom prompt / Answer questions / Template script textarea */}
+          {(purpose === 'custom' || purpose === 'answer_questions' || purpose.startsWith('tmpl_')) && (
             <div className="px-6 pb-2">
               <textarea
                 value={customPrompt}
@@ -424,7 +479,7 @@ export default function AICallModal({ leadId, leadName, leadPhone, token, onClos
           <div className="px-6 pb-4">
             <button
               onClick={handleCall}
-              disabled={calling || !configured || ((purpose === 'custom' || purpose === 'answer_questions') && !customPrompt.trim())}
+              disabled={calling || !configured || ((purpose === 'custom' || purpose === 'answer_questions' || purpose.startsWith('tmpl_')) && !customPrompt.trim())}
               className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ background: 'linear-gradient(135deg, #EA580C, #F97316)' }}
             >
@@ -460,7 +515,7 @@ export default function AICallModal({ leadId, leadName, leadPhone, token, onClos
               <div className="space-y-2 max-h-48 overflow-y-auto">
                 {callHistory.map(call => {
                   const st = STATUS_COLORS[call.status] || STATUS_COLORS.queued;
-                  const purposeLabel = PURPOSE_OPTIONS.find(p => p.value === call.purpose)?.label || call.purpose;
+                  const purposeLabel = purposeOptions.find(p => p.value === call.purpose)?.label || DEFAULT_PURPOSE_OPTIONS.find(p => p.value === call.purpose)?.label || call.purpose;
                   return (
                     <div key={call._id} className="border border-gray-100 rounded-xl px-3 py-2">
                       <div className="flex items-center justify-between">

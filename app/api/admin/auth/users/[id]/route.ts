@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
+import { connectDB, getUser } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { Types } from 'mongoose';
 import bcrypt from 'bcryptjs';
-
-const mongoose = await import('mongoose');
 
 export async function PUT(
   request: NextRequest,
@@ -130,7 +128,7 @@ export async function PUT(
     }
 
     await connectDB();
-    const User = mongoose.default.models.User || mongoose.default.model('User', new mongoose.Schema({}));
+    const User = getUser();
 
     // Ensure target exists and is admin user
     const existing = await User.findOne({ _id: new Types.ObjectId(id), isAdmin: true });
@@ -158,7 +156,7 @@ export async function PUT(
       new Types.ObjectId(id),
       { $set: update },
       { new: true }
-    ).select('_id userId email name permissions role managedUserIds createdAt');
+    ).select('_id userId email name permissions permissionsV2 role managedUserIds createdAt');
 
     return NextResponse.json(
       { success: true, data: updated, message: 'Admin user updated successfully' },
@@ -199,7 +197,7 @@ export async function DELETE(
     await connectDB();
 
     // Get User model
-    const User = mongoose.default.models.User || mongoose.default.model('User', new mongoose.Schema({}));
+    const User = getUser();
 
     // Delete admin user
     const result = await User.deleteOne({ _id: new Types.ObjectId(id), isAdmin: true });

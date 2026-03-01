@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch all admin users (minimal fields for assignment UI)
     const adminUsers = await User.find({ isAdmin: true })
-      .select('_id userId email name role managedUserIds permissions isAdmin createdAt')
+      .select('_id userId email name role managedUserIds permissions permissionsV2 isAdmin createdAt')
       .lean();
 
     return NextResponse.json({ success: true, data: adminUsers }, { status: 200 });

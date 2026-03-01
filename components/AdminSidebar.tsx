@@ -279,6 +279,12 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
       color: 'text-orange-500',
     },
     {
+      icon: Bot,
+      label: 'AI Agents',
+      href: '/admin/crm/ai-agents',
+      color: 'text-violet-500',
+    },
+    {
       icon: BarChart3,
       label: 'Analytics',
       href: '/admin/crm/analytics',

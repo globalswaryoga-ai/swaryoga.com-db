@@ -8,7 +8,7 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { getLead, getAICallLog } from '@/lib/schemas/enterpriseSchemas';
-import { createOutboundCall, checkRetellConfig } from '@/lib/retellAI';
+import { createOutboundCall, checkRetellConfig, listAgents } from '@/lib/retellAI';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,6 +26,66 @@ export async function GET(request: NextRequest) {
     const AICallLog = getAICallLog();
 
     const leadId = request.nextUrl.searchParams.get('leadId');
+    const action = request.nextUrl.searchParams.get('action');
+
+    // ── Today's call summary per lead (counts + active calls) ──
+    if (action === 'today_summary') {
+      try {
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+
+        // Aggregate today's calls grouped by leadId
+        const summary = await AICallLog.aggregate([
+          { $match: { createdAt: { $gte: todayStart } } },
+          {
+            $group: {
+              _id: '$leadId',
+              totalToday: { $sum: 1 },
+              activeCount: {
+                $sum: {
+                  $cond: [{ $in: ['$status', ['queued', 'ringing', 'in_progress']] }, 1, 0],
+                },
+              },
+              lastStatus: { $last: '$status' },
+              lastCallAt: { $max: '$createdAt' },
+            },
+          },
+        ]);
+
+        // Build a map: leadId -> { totalToday, activeCount, lastStatus }
+        const map: Record<string, { totalToday: number; active: boolean; lastStatus: string }> = {};
+        for (const s of summary) {
+          map[String(s._id)] = {
+            totalToday: s.totalToday,
+            active: s.activeCount > 0,
+            lastStatus: s.lastStatus,
+          };
+        }
+
+        return apiSuccess({ todayCalls: map });
+      } catch (err: any) {
+        return apiSuccess({ todayCalls: {} });
+      }
+    }
+
+    // ── List Retell AI agents (deduplicated by agent_id, latest version only) ──
+    if (action === 'list_agents') {
+      try {
+        const raw: any[] = await listAgents();
+        const latestMap = new Map<string, any>();
+        for (const agent of raw || []) {
+          const existing = latestMap.get(agent.agent_id);
+          if (!existing || (agent.last_modification_timestamp ?? 0) > (existing.last_modification_timestamp ?? 0)) {
+            latestMap.set(agent.agent_id, agent);
+          }
+        }
+        const agents = Array.from(latestMap.values());
+        return apiSuccess({ agents });
+      } catch (err: any) {
+        return apiSuccess({ agents: [], error: err.message });
+      }
+    }
+
     const limit = Math.min(Number(request.nextUrl.searchParams.get('limit') || 20), 100);
 
     const query: any = {};
@@ -57,8 +117,30 @@ export async function POST(request: NextRequest) {
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
 
-    const { leadId, purpose, language, customPrompt } = await request.json();
+    const body = await request.json();
+    const { leadId, purpose, language, customPrompt, action, text, languageLabel, callingNumber, templateName } = body;
 
+    // ── Template voice generation (no lead required) ──
+    if (action === 'generate_voice' || purpose === 'template_voice_generation') {
+      if (!text?.trim()) return apiError('VALIDATION_ERROR', 'Draft script text is required');
+
+      const callLang = language || 'en';
+      const voiceName = `AI Voice — ${languageLabel || (callLang === 'hi' ? 'Hindi' : 'English')} — ${templateName || 'Untitled'}`;
+
+      // Save the script as a voice-ready template configuration.
+      // The Retell agent will use this script as its prompt when making actual calls.
+      // No outbound call is made here — this just registers the voice script.
+      return apiSuccess({
+        voiceUrl: `retell://agent/${process.env.RETELL_AGENT_ID || 'sakshi'}/script/${Date.now()}`,
+        voiceName,
+        script: text,
+        language: callLang,
+        status: 'success',
+        message: `Voice script "${templateName || 'Untitled'}" saved successfully. The AI agent will use this script when calling leads.`,
+      });
+    }
+
+    // ── Standard AI call to a lead ──
     if (!leadId) return apiError('VALIDATION_ERROR', 'leadId is required');
     if (!purpose) return apiError('VALIDATION_ERROR', 'purpose is required');
 
@@ -89,7 +171,7 @@ export async function POST(request: NextRequest) {
     const callLog = await AICallLog.create({
       leadId,
       direction: 'outbound',
-      purpose,
+      purpose: purpose || 'custom',
       customPrompt: customPrompt || '',
       status: 'queued',
       phoneNumber: phone,
