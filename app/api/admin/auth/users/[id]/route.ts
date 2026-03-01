@@ -78,9 +78,8 @@ export async function PUT(
         return NextResponse.json({ error: 'At least one permission is required' }, { status: 400 });
       }
       const validPermissions = [
-        'all', 'crm', 'whatsapp', 'email', 'broadcasts', 'analytics', 
+        'all', 'manager', 'crm', 'whatsapp', 'email', 'broadcasts', 'analytics', 
         'users', 'workshops', 'templates', 'settings', 'payments', 'reports',
-        // Also accept granular format like "leads:read"
       ];
       const invalidPerms = permissions.filter((p: string) => {
         // Allow granular format "module:action"

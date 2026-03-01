@@ -582,7 +582,7 @@ export async function createBatchCall(input: CreateBatchCallInput): Promise<Crea
     // Attach agent; use override if we have a custom prompt
     if (generalPrompt) {
       body.agent_id = agentId;
-      body.agent_override = {
+      body.override_agent = {
         agent_name: `Swar Yoga Batch - ${input.purpose}`,
         general_prompt: generalPrompt,
         general_tools: [],
@@ -653,7 +653,8 @@ export interface RetellWebhookEvent {
 }
 
 /**
- * Parse and map a Retell webhook event to our internal call status
+ * Parse and map a Retell webhook event to our internal call status.
+ * Retell call_status values: 'registered', 'ongoing', 'ended', 'error', 'not_connected'
  */
 export function mapRetellStatus(callStatus: string, event: string): string {
   if (event === 'call_started') return 'in_progress';
@@ -661,9 +662,13 @@ export function mapRetellStatus(callStatus: string, event: string): string {
     switch (callStatus) {
       case 'ended': return 'completed';
       case 'error': return 'failed';
+      case 'not_connected': return 'failed'; // dial_no_answer, dial_busy, dial_failed etc.
       default: return 'completed';
     }
   }
+  // call_started or unknown event
+  if (callStatus === 'ongoing') return 'in_progress';
+  if (callStatus === 'registered') return 'queued';
   return 'queued';
 }
 
@@ -677,13 +682,24 @@ export function mapDisconnectionReason(reason: string): string {
     call_transfer: 'Transferred',
     inactivity: 'No response / silence',
     machine_detected: 'Voicemail detected',
+    voicemail_reached: 'Voicemail reached',
     max_duration_reached: 'Max duration reached',
     concurrency_limit_reached: 'System busy',
+    no_valid_payment: 'Payment issue',
     dial_busy: 'Line busy',
     dial_failed: 'Call failed to connect',
     dial_no_answer: 'No answer',
     error_inbound_webhook: 'Webhook error',
+    error_llm_websocket_open: 'AI connection error',
+    error_llm_websocket_lost_connection: 'AI connection lost',
+    error_llm_websocket_runtime: 'AI runtime error',
+    error_llm_websocket_corrupt_payload: 'AI corrupt payload',
     error_llm_websocket: 'AI connection error',
+    error_frontend_corrupted_payload: 'Client error',
+    error_twilio: 'Telephony error',
+    error_no_audio_received: 'No audio received',
+    error_asr: 'Speech recognition error',
+    error_retell: 'Retell platform error',
     error_tts_websocket: 'Voice synthesis error',
     registered_call_timeout: 'Timeout',
   };

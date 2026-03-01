@@ -27,10 +27,37 @@ export async function POST(request: NextRequest) {
     await connectDB();
     const AICallLog = getAICallLog();
 
-    // Find our call log entry
-    const callLog = await AICallLog.findOne({ retellCallId: call.call_id }) as any;
+    // Find our call log entry — try by retellCallId first, then fallback for batch calls
+    let callLog = await AICallLog.findOne({ retellCallId: call.call_id }) as any;
+    
+    if (!callLog && call.to_number) {
+      // Fallback: match by phone number for batch/broadcast calls that don't have individual retellCallId
+      const cleanPhone = (call.to_number || '').replace(/\D/g, '');
+      if (cleanPhone) {
+        callLog = await AICallLog.findOne({
+          phoneNumber: { $in: [cleanPhone, cleanPhone.replace(/^91/, ''), `+${cleanPhone}`] },
+          status: { $in: ['queued', 'ringing'] },
+          retellCallId: { $exists: false },
+        }).sort({ createdAt: -1 }) as any;
+        
+        if (!callLog) {
+          // Also try matching calls that have retellCallId but might be a different format
+          callLog = await AICallLog.findOne({
+            phoneNumber: { $in: [cleanPhone, cleanPhone.replace(/^91/, ''), `+${cleanPhone}`] },
+            status: { $in: ['queued', 'ringing'] },
+          }).sort({ createdAt: -1 }) as any;
+        }
+        
+        if (callLog) {
+          // Store the retellCallId for future webhook events on this call
+          await AICallLog.updateOne({ _id: callLog._id }, { $set: { retellCallId: call.call_id } });
+          console.log(`[retell-webhook] Matched call by phone ${cleanPhone}, stored retellCallId: ${call.call_id}`);
+        }
+      }
+    }
+    
     if (!callLog) {
-      console.warn(`[retell-webhook] No call log found for retellCallId: ${call.call_id}`);
+      console.warn(`[retell-webhook] No call log found for retellCallId: ${call.call_id}, to: ${call.to_number}`);
       return NextResponse.json({ received: true, warning: 'Call not found in our system' }, { status: 200 });
     }
 
@@ -73,10 +100,16 @@ export async function POST(request: NextRequest) {
       if (call.disconnection_reason) {
         update.callEndedReason = mapDisconnectionReason(call.disconnection_reason);
 
-        // Map specific reasons to appropriate status
-        if (call.disconnection_reason === 'dial_no_answer') update.status = 'no_answer';
-        if (call.disconnection_reason === 'dial_busy') update.status = 'busy';
-        if (call.disconnection_reason.startsWith('error_')) update.status = 'failed';
+        // Map specific disconnection reasons to appropriate status
+        const reason = call.disconnection_reason;
+        if (reason === 'dial_no_answer') update.status = 'no_answer';
+        else if (reason === 'dial_busy') update.status = 'busy';
+        else if (reason === 'dial_failed') update.status = 'failed';
+        else if (reason === 'registered_call_timeout') update.status = 'failed';
+        else if (reason === 'concurrency_limit_reached') update.status = 'failed';
+        else if (reason === 'no_valid_payment') update.status = 'failed';
+        else if (reason.startsWith('error_')) update.status = 'failed';
+        // For user_hangup, agent_hangup, call_transfer, etc. keep the mapped status (completed)
       }
 
       // From number
@@ -86,20 +119,27 @@ export async function POST(request: NextRequest) {
     if (event === 'call_analyzed') {
       // AI analysis results
       if (call.call_analysis) {
+        // Summary — check call_summary first, then custom_analysis_data
         if (call.call_analysis.call_summary) {
           update.summary = call.call_analysis.call_summary;
+        } else if (call.call_analysis.custom_analysis_data?.call_summary) {
+          update.summary = call.call_analysis.custom_analysis_data.call_summary;
         }
-        if (call.call_analysis.user_sentiment) {
+
+        // Sentiment — check user_sentiment first, then custom_analysis_data
+        const sentimentRaw = call.call_analysis.user_sentiment 
+          || call.call_analysis.custom_analysis_data?.user_sentiment;
+        if (sentimentRaw) {
           const sentimentMap: Record<string, string> = {
             Positive: 'positive',
             Negative: 'negative',
             Neutral: 'neutral',
             Unknown: '',
           };
-          update.sentiment = sentimentMap[call.call_analysis.user_sentiment] || '';
+          update.sentiment = sentimentMap[sentimentRaw] || '';
         }
 
-        // Extract collected data
+        // Extract collected data (includes questions_asked, interested, etc.)
         const collected = extractCollectedData(call.call_analysis);
         if (Object.keys(collected).length > 0) {
           update.collectedData = collected;

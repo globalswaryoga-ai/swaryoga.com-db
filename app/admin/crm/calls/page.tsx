@@ -12,7 +12,7 @@ import {
   PauseCircle, Repeat, Flower2, Megaphone,
   MessageSquare, PhoneCall, Bot, History, Plus,
   CalendarClock, ListChecks, PhoneIncoming, PhoneOutgoing, Loader2, Zap,
-  Home, FileText,
+  Home, FileText, RotateCcw,
 } from 'lucide-react';
 import { BarChart3 } from 'lucide-react';
 import LeadDetailModal from '@/components/admin/crm/LeadDetailModal';
@@ -146,6 +146,10 @@ export default function CallWorkflowPage() {
   const [bulkCallProgress, setBulkCallProgress] = useState({ done: 0, total: 0, failed: 0 });
   const [showBulkCallModal, setShowBulkCallModal] = useState(false);
 
+  // Sync stuck calls
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<string | null>(null);
+
   // Today's call status per lead: { leadId: { totalToday, active, lastStatus } }
   const [todayCalls, setTodayCalls] = useState<Record<string, { totalToday: number; active: boolean; lastStatus: string }>>({});
 
@@ -210,6 +214,33 @@ export default function CallWorkflowPage() {
       }
     } catch (e) { console.error(e); }
   }, [token, isSuperAdmin]);
+
+  // Sync stuck calls from Retell API
+  const syncStuckCalls = async () => {
+    if (!token || syncing) return;
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const res = await fetch('/api/admin/crm/calls/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: 'sync_stuck' }),
+      });
+      const data = await res.json();
+      if (data?.data?.synced > 0) {
+        setSyncResult(`Synced ${data.data.synced}/${data.data.total} calls`);
+        fetchTodayCalls();
+      } else {
+        setSyncResult('All calls up to date');
+      }
+      setTimeout(() => setSyncResult(null), 4000);
+    } catch (e) {
+      setSyncResult('Sync failed');
+      setTimeout(() => setSyncResult(null), 4000);
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const fetchLeads = useCallback(async () => {
     if (!token) return;
@@ -505,6 +536,12 @@ export default function CallWorkflowPage() {
               <button onClick={() => fetchLeads()} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition shadow-sm">
                 <RefreshCw className="h-4 w-4" /> Refresh
               </button>
+              <button onClick={syncStuckCalls} disabled={syncing} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm bg-orange-50 text-orange-600 hover:bg-orange-100 transition shadow-sm disabled:opacity-50" title="Sync stuck calls from Retell">
+                <RotateCcw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} /> {syncing ? 'Syncing...' : 'Sync'}
+              </button>
+              {syncResult && (
+                <span className="text-xs px-2 py-1 rounded-lg bg-green-50 text-green-600 font-medium">{syncResult}</span>
+              )}
             </div>
           </div>
 

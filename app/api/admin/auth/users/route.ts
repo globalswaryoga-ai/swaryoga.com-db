@@ -222,7 +222,7 @@ export async function POST(request: NextRequest) {
     const msg = error instanceof Error ? error.message : String(error);
     console.error('Error creating admin user:', msg);
     return NextResponse.json(
-      { error: 'Failed to create admin user' },
+      { error: msg || 'Failed to create admin user' },
       { status: 500 }
     );
   }

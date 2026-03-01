@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Users, LogOut, Menu, X, UserPlus, Pencil, Trash2, Shield } from 'lucide-react';
+import { Users, LogOut, Menu, X, UserPlus, Pencil, Trash2, Shield, Eye, EyeOff } from 'lucide-react';
 import AdminSidebar from '@/components/AdminSidebar';
 import PermissionManager from '@/components/admin/PermissionManager';
 import { UserPermissions, migrateOldPermissions, getUserPermissionsList } from '@/lib/permissions';
@@ -11,6 +11,7 @@ import { UserPermissions, migrateOldPermissions, getUserPermissionsList } from '
 type AdminUserRow = {
   _id: string;
   userId: string;
+  name?: string;
   email?: string;
   permissions?: string[]; // Legacy
   permissionsV2?: UserPermissions; // New granular permissions
@@ -36,6 +37,7 @@ export default function AdminUsersPage() {
   const [editMsg, setEditMsg] = useState('');
   const [selectedUser, setSelectedUser] = useState<AdminUserRow | null>(null);
   const [editEmail, setEditEmail] = useState('');
+  const [editName, setEditName] = useState('');
   const [editPassword, setEditPassword] = useState('');
   
   // Add User state
@@ -46,6 +48,8 @@ export default function AdminUsersPage() {
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showEditPassword, setShowEditPassword] = useState(false);
   
   // Permission state - supports both legacy and new V2
   const [permissionMode, setPermissionMode] = useState<'legacy' | 'granular'>('granular');
@@ -123,6 +127,7 @@ export default function AdminUsersPage() {
           .map((u: any) => ({
             _id: String(u?._id || ''),
             userId: String(u?.userId || ''),
+            name: u?.name ? String(u.name) : undefined,
             email: u?.email ? String(u.email) : undefined,
             permissions: Array.isArray(u?.permissions) ? u.permissions.map((p: any) => String(p)) : undefined,
             permissionsV2: u?.permissionsV2 || undefined,
@@ -151,6 +156,7 @@ export default function AdminUsersPage() {
     setNewName('');
     setNewEmail('');
     setNewPassword('');
+    setShowNewPassword(false);
     setAddMsg('');
     setPermissionMode('granular');
     setGranularPermissions({ isSuperAdmin: false });
@@ -215,8 +221,10 @@ export default function AdminUsersPage() {
 
   const openEdit = (u: AdminUserRow) => {
     setSelectedUser(u);
+    setEditName(String(u.name || '').trim());
     setEditEmail(String(u.email || '').trim());
     setEditPassword('');
+    setShowEditPassword(false);
     
     // Load permissions - prefer V2, fallback to legacy
     if (u.permissionsV2) {
@@ -294,8 +302,11 @@ export default function AdminUsersPage() {
       }
     }
 
+    const name = editName.trim();
+
     const body: Record<string, any> = { 
-      email, 
+      email,
+      name: name || undefined,
       ...permissionsPayload 
     };
     
@@ -327,6 +338,7 @@ export default function AdminUsersPage() {
             u._id === String(updated._id)
               ? {
                   ...u,
+                  name: updated?.name ? String(updated.name) : u.name,
                   email: updated?.email ? String(updated.email) : u.email,
                   permissions: Array.isArray(updated?.permissions)
                     ? updated.permissions.map((p: any) => String(p))
@@ -533,6 +545,7 @@ export default function AdminUsersPage() {
                   <thead className="bg-swar-bg border-b border-swar-border">
                     <tr>
                       <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">User ID</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">Name</th>
                       <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">Email</th>
                       <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">Permissions</th>
                       <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">Created</th>
@@ -546,6 +559,7 @@ export default function AdminUsersPage() {
                       return (
                         <tr key={u._id} className={index % 2 === 0 ? 'bg-white' : 'bg-swar-bg'}>
                           <td className="px-6 py-4 text-sm text-swar-text font-semibold">{u.userId}</td>
+                          <td className="px-6 py-4 text-sm text-swar-text">{u.name || '—'}</td>
                           <td className="px-6 py-4 text-sm text-swar-text-secondary">{u.email || '—'}</td>
                           <td className="px-6 py-4 text-sm">
                             <PermissionBadges user={u} />
@@ -628,6 +642,16 @@ export default function AdminUsersPage() {
                   />
                 </div>
                 <div>
+                  <label className="block text-sm font-semibold text-swar-text mb-1">Full Name</label>
+                  <input
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    className="w-full border border-swar-border rounded-lg px-3 py-2"
+                    placeholder="e.g. Rahul Sharma"
+                    disabled={editBusy}
+                  />
+                </div>
+                <div className="md:col-span-2">
                   <label className="block text-sm font-semibold text-swar-text mb-1">Email</label>
                   <input
                     type="email"
@@ -640,14 +664,23 @@ export default function AdminUsersPage() {
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-sm font-semibold text-swar-text mb-1">Reset Password (optional)</label>
-                  <input
-                    type="password"
-                    value={editPassword}
-                    onChange={(e) => setEditPassword(e.target.value)}
-                    className="w-full border border-swar-border rounded-lg px-3 py-2"
-                    placeholder="Leave blank to keep current password"
-                    disabled={editBusy}
-                  />
+                  <div className="relative">
+                    <input
+                      type={showEditPassword ? 'text' : 'password'}
+                      value={editPassword}
+                      onChange={(e) => setEditPassword(e.target.value)}
+                      className="w-full border border-swar-border rounded-lg px-3 py-2 pr-10"
+                      placeholder="Leave blank to keep current password"
+                      disabled={editBusy}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowEditPassword(!showEditPassword)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
+                    >
+                      {showEditPassword ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
+                    </button>
+                  </div>
                   <p className="mt-1 text-xs text-swar-text-secondary">If you enter a password, it must be at least 6 characters.</p>
                 </div>
               </div>
@@ -811,14 +844,23 @@ export default function AdminUsersPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-swar-text mb-1">Password *</label>
-                  <input
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="w-full border border-swar-border rounded-lg px-3 py-2"
-                    placeholder="At least 6 characters"
-                    disabled={addBusy}
-                  />
+                  <div className="relative">
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="w-full border border-swar-border rounded-lg px-3 py-2 pr-10"
+                      placeholder="At least 6 characters"
+                      disabled={addBusy}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
+                    >
+                      {showNewPassword ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
+                    </button>
+                  </div>
                 </div>
               </div>
 

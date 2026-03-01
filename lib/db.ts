@@ -166,11 +166,10 @@ const userSchema = new mongoose.Schema({
   }, // superadmin=full access, manager=team lead, admin=basic admin, user=regular
   
   // DEPRECATED: Legacy permissions array (kept for backward compatibility)
+  // Accepts both legacy module names ('crm','whatsapp') and granular format ('leads:read','users:write')
   permissions: { 
     type: [String], 
-    enum: ['all', 'manager', 'crm', 'whatsapp', 'email', 'broadcasts', 'analytics', 'users', 'workshops', 'templates', 'settings', 'payments', 'reports'], 
     default: [],
-    sparse: true 
   },
   
   // NEW: Granular permissions object (preferred, see lib/permissions.ts)
