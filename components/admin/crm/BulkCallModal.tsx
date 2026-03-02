@@ -6,6 +6,36 @@ import {
   DollarSign, Users, Globe, Zap, Clock, ChevronDown,
 } from 'lucide-react';
 
+// Supported languages for AI calls
+const CALL_LANGUAGES = [
+  { code: 'hi', label: 'Hindi', flag: '🇮🇳' },
+  { code: 'en', label: 'English', flag: '🇬🇧' },
+  { code: 'mr', label: 'Marathi', flag: '🇮🇳' },
+  { code: 'zh', label: 'Mandarin', flag: '🇨🇳' },
+  { code: 'es', label: 'Spanish', flag: '🇪🇸' },
+  { code: 'fr', label: 'French', flag: '🇫🇷' },
+  { code: 'ar', label: 'Arabic', flag: '🇸🇦' },
+  { code: 'de', label: 'German', flag: '🇩🇪' },
+  { code: 'pt', label: 'Portuguese', flag: '🇧🇷' },
+  { code: 'ja', label: 'Japanese', flag: '🇯🇵' },
+  { code: 'ko', label: 'Korean', flag: '🇰🇷' },
+  { code: 'ru', label: 'Russian', flag: '🇷🇺' },
+  { code: 'it', label: 'Italian', flag: '🇮🇹' },
+  { code: 'tr', label: 'Turkish', flag: '🇹🇷' },
+  { code: 'nl', label: 'Dutch', flag: '🇳🇱' },
+  { code: 'sv', label: 'Swedish', flag: '🇸🇪' },
+  { code: 'th', label: 'Thai', flag: '🇹🇭' },
+  { code: 'id', label: 'Indonesian', flag: '🇮🇩' },
+  { code: 'multi', label: 'Multi', flag: '🌐' },
+];
+
+interface RetellAgentOption {
+  agent_id: string;
+  agent_name: string;
+  language?: string;
+  voice_id?: string;
+}
+
 interface SavedTemplate {
   _id: string;
   key: string;
@@ -32,11 +62,18 @@ export default function BulkCallModal({ selectedCount, selectedLeadIds, token, o
   const [step, setStep] = useState<'config' | 'confirm' | 'progress' | 'done'>('config');
 
   // Config
-  const [language, setLanguage] = useState<'hi' | 'en'>('hi');
+  const [language, setLanguage] = useState('hi');
   const [purpose, setPurpose] = useState('welcome');
   const [customPrompt, setCustomPrompt] = useState('');
   const [batchName, setBatchName] = useState('');
   const [concurrency, setConcurrency] = useState(5);
+
+  // Agent mapping
+  const [resolvedAgent, setResolvedAgent] = useState<{ agentId: string; agentName: string } | null>(null);
+  const [agentResolving, setAgentResolving] = useState(false);
+  const [manualAgentMode, setManualAgentMode] = useState(false);
+  const [manualAgentId, setManualAgentId] = useState('');
+  const [availableAgents, setAvailableAgents] = useState<RetellAgentOption[]>([]);
 
   // Templates
   const [templates, setTemplates] = useState<SavedTemplate[]>([]);
@@ -82,6 +119,45 @@ export default function BulkCallModal({ selectedCount, selectedLeadIds, token, o
     }
   }, [selectedTemplate, templates]);
 
+  // Resolve agent for selected language
+  useEffect(() => {
+    if (manualAgentMode) return;
+    (async () => {
+      try {
+        setAgentResolving(true);
+        const res = await fetch(`/api/admin/crm/calls/agent-mapping?resolve=${language}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const json = await res.json();
+        setResolvedAgent(json.data?.resolved || null);
+      } catch {
+        setResolvedAgent(null);
+      } finally {
+        setAgentResolving(false);
+      }
+    })();
+  }, [language, token, manualAgentMode]);
+
+  // Fetch available agents for manual override
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/admin/crm/calls?action=list_agents', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const json = await res.json();
+        if (json.data?.agents) {
+          setAvailableAgents(json.data.agents.map((a: any) => ({
+            agent_id: a.agent_id,
+            agent_name: a.agent_name || a.agent_id,
+            language: a.language,
+            voice_id: a.voice_id,
+          })));
+        }
+      } catch { /* ignore */ }
+    })();
+  }, [token]);
+
   const estimatedCost = (selectedCount * AVG_CALL_DURATION * COST_PER_MINUTE).toFixed(2);
   const estimatedTime = Math.ceil(selectedCount / concurrency) * AVG_CALL_DURATION;
 
@@ -101,6 +177,10 @@ export default function BulkCallModal({ selectedCount, selectedLeadIds, token, o
           customPrompt: customPrompt || undefined,
           name: batchName || undefined,
           maxConcurrency: concurrency,
+          overrideAgentId: manualAgentMode && manualAgentId ? manualAgentId : undefined,
+          overrideVoiceId: manualAgentMode && manualAgentId
+            ? availableAgents.find(a => a.agent_id === manualAgentId)?.voice_id || undefined
+            : undefined,
         }),
       });
 
@@ -120,7 +200,7 @@ export default function BulkCallModal({ selectedCount, selectedLeadIds, token, o
     setCalling(false);
   };
 
-  const langLabel = language === 'hi' ? 'Hindi' : 'English';
+  const langLabel = CALL_LANGUAGES.find(l => l.code === language)?.label || language;
 
   const PURPOSE_OPTIONS = [
     { key: 'welcome', label: 'Welcome Call', icon: '🙏', color: 'bg-orange-50 text-orange-700 border-orange-200' },
@@ -175,21 +255,72 @@ export default function BulkCallModal({ selectedCount, selectedLeadIds, token, o
             {/* Language */}
             <div>
               <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-2">Language</label>
-              <div className="flex gap-2">
-                {(['hi', 'en'] as const).map(l => (
+              <div className="flex flex-wrap gap-1.5">
+                {CALL_LANGUAGES.map(l => (
                   <button
-                    key={l}
-                    onClick={() => { setLanguage(l); setSelectedTemplate(''); setCustomPrompt(''); }}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium border-2 transition ${language === l
+                    key={l.code}
+                    onClick={() => { setLanguage(l.code); setSelectedTemplate(''); setCustomPrompt(''); setManualAgentMode(false); setManualAgentId(''); }}
+                    className={`flex items-center gap-1 px-2.5 py-2 rounded-xl text-xs font-medium border-2 transition ${language === l.code
                       ? 'border-indigo-500 bg-indigo-50 text-indigo-700 shadow-sm'
                       : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
                     }`}
                   >
-                    <Globe className="h-4 w-4" />
-                    {l === 'hi' ? '🇮🇳 Hindi' : '🇬🇧 English'}
+                    <span>{l.flag}</span> {l.label}
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* AI Agent — auto resolved + manual override */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                  <Bot className="h-3.5 w-3.5" /> AI Agent
+                </label>
+                <button
+                  onClick={() => { setManualAgentMode(!manualAgentMode); setManualAgentId(''); }}
+                  className={`text-[10px] font-medium px-2 py-0.5 rounded-full transition ${
+                    manualAgentMode
+                      ? 'bg-amber-100 text-amber-700'
+                      : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                  }`}
+                >
+                  {manualAgentMode ? '← Auto' : 'Manual Override'}
+                </button>
+              </div>
+
+              {manualAgentMode ? (
+                <div className="relative">
+                  <select
+                    value={manualAgentId}
+                    onChange={e => setManualAgentId(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border border-amber-200 bg-amber-50 text-sm focus:ring-2 focus:ring-amber-200 focus:border-amber-400 outline-none appearance-none pr-8"
+                  >
+                    <option value="">Select agent manually...</option>
+                    {availableAgents.map(a => (
+                      <option key={a.agent_id} value={a.agent_id}>
+                        {a.agent_name} {a.language ? `(${a.language})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-3 h-4 w-4 text-amber-400 pointer-events-none" />
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-100">
+                  {agentResolving ? (
+                    <Loader2 className="h-3 w-3 animate-spin text-emerald-500" />
+                  ) : (
+                    <CheckCircle className="h-3 w-3 text-emerald-500" />
+                  )}
+                  <span className="text-xs text-emerald-700 font-medium">
+                    {agentResolving
+                      ? 'Resolving...'
+                      : resolvedAgent
+                        ? `Auto: ${resolvedAgent.agentName}`
+                        : 'Default agent (no mapping)'}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Purpose */}

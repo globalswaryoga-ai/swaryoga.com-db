@@ -39,6 +39,9 @@ export const PERMISSION_MODULES = {
   REPORTS: 'reports',
   DASHBOARD: 'dashboard',
   
+  // Accounting
+  TALLY: 'tally',
+  
   // System
   USERS: 'users',
   SETTINGS: 'settings',
@@ -201,6 +204,12 @@ export interface UserPermissions {
     read?: boolean;
   };
   
+  tally?: {
+    read?: boolean;      // View tally/accounting data
+    write?: boolean;     // Create/edit tally entries
+    manage?: boolean;    // Manage tally settings
+  };
+  
   users?: {
     read?: boolean;      // View admin users list
     write?: boolean;     // Create/edit admin users
@@ -246,33 +255,38 @@ export const PERMISSION_PRESETS = {
     analytics: { read: true, export: true },
     reports: { read: true, create: true, export: true },
     dashboard: { read: true },
+    tally: { read: true, write: true, manage: true },
     users: { read: true, write: true, delete: true, managePermissions: true },
     settings: { read: true, write: true },
     auditLogs: { read: true, export: true },
   } as UserPermissions,
   
-  // CRM Manager - manage leads and customers
+  // CRM Manager - full access EXCEPT settings, delete, and user management
   CRM_MANAGER: {
     isSuperAdmin: false,
-    leads: { read: true, write: true, delete: false, export: true, assignToOthers: false, viewAll: false },
+    leads: { read: true, write: true, delete: false, export: true, assignToOthers: true, viewAll: true },
     contacts: { read: true, write: true, delete: false, export: true },
     customers: { read: true, write: true, delete: false, export: true },
-    whatsapp: { read: true, send: true, broadcast: false, manageGroups: false, viewMedia: true },
-    email: { read: true, send: true, broadcast: false, manageTemplates: false },
+    whatsapp: { read: true, send: true, broadcast: true, manageGroups: true, viewMedia: true },
+    email: { read: true, send: true, broadcast: true, manageTemplates: true },
     messages: { read: true, send: true, delete: false },
-    broadcasts: { read: true, create: false, send: false, schedule: false, delete: false },
-    templates: { read: true, write: false, delete: false },
-    calls: { read: true, create: true, manage: false },
-    callScripts: { read: true, write: true, approve: false, delete: false },
-    aiAgents: { read: true, manage: false, create: false },
-    workshops: { read: true, write: false, delete: false, manageRegistrations: true, viewPayments: true },
-    payments: { read: true, write: false, refund: false, export: false },
-    salesFunnel: { read: true, manage: false, moveLeads: true },
-    community: { read: true, write: false, moderate: false, delete: false },
-    recordings: { read: true, upload: false, delete: false, manage: false },
-    analytics: { read: true, export: false },
-    reports: { read: true, create: false, export: true },
+    broadcasts: { read: true, create: true, send: true, schedule: true, delete: false },
+    templates: { read: true, write: true, delete: false },
+    calls: { read: true, create: true, manage: true },
+    callScripts: { read: true, write: true, approve: true, delete: false },
+    aiAgents: { read: true, manage: true, create: true },
+    workshops: { read: true, write: true, delete: false, manageRegistrations: true, viewPayments: true },
+    payments: { read: true, write: true, refund: false, export: true },
+    invoices: { read: true, write: true, delete: false, export: true },
+    salesFunnel: { read: true, manage: true, moveLeads: true },
+    community: { read: true, write: true, moderate: true, delete: false },
+    recordings: { read: true, upload: true, delete: false, manage: true },
+    analytics: { read: true, export: true },
+    reports: { read: true, create: true, export: true },
     dashboard: { read: true },
+    users: { read: true, write: false, delete: false, managePermissions: false },
+    // settings: NOT included - managers cannot access settings
+    auditLogs: { read: true, export: false },
   } as UserPermissions,
   
   // Sales Representative - basic lead management
@@ -317,6 +331,63 @@ export const PERMISSION_PRESETS = {
     reports: { read: true, create: true, export: true },
     dashboard: { read: true },
     auditLogs: { read: true, export: true },
+  } as UserPermissions,
+
+  // DM (District Manager) - View all, add new, assign, NO delete, NO edit
+  DM: {
+    isSuperAdmin: false,
+    leads: { read: true, write: true, delete: false, export: true, assignToOthers: true, viewAll: true },
+    contacts: { read: true, write: true, delete: false, export: true },
+    customers: { read: true, write: true, delete: false, export: true },
+    whatsapp: { read: true, send: true, broadcast: true, manageGroups: true, viewMedia: true },
+    email: { read: true, send: true, broadcast: true, manageTemplates: true },
+    messages: { read: true, send: true, delete: false },
+    broadcasts: { read: true, create: true, send: true, schedule: true, delete: false },
+    templates: { read: true, write: true, delete: false },
+    calls: { read: true, create: true, manage: true },
+    callScripts: { read: true, write: true, approve: true, delete: false },
+    aiAgents: { read: true, manage: true, create: true },
+    workshops: { read: true, write: true, delete: false, manageRegistrations: true, viewPayments: true },
+    payments: { read: true, write: true, refund: false, export: true },
+    invoices: { read: true, write: true, delete: false, export: true },
+    salesFunnel: { read: true, manage: true, moveLeads: true },
+    community: { read: true, write: true, moderate: true, delete: false },
+    recordings: { read: true, upload: true, delete: false, manage: true },
+    analytics: { read: true, export: true },
+    reports: { read: true, create: true, export: true },
+    dashboard: { read: true },
+    tally: { read: true, write: true, manage: true },
+    users: { read: true, write: true, delete: false, managePermissions: false },
+    settings: { read: true, write: false },
+    auditLogs: { read: true, export: true },
+  } as UserPermissions,
+
+  // ADMIN_USER - CRM, sales, payments, whatsapp, report, funnel, email, call
+  // Can't see other admin data, can assign, no tally, no community, no settings
+  ADMIN_USER: {
+    isSuperAdmin: false,
+    leads: { read: true, write: true, delete: false, export: true, assignToOthers: true, viewAll: false },
+    contacts: { read: true, write: true, delete: false, export: true },
+    customers: { read: true, write: true, delete: false, export: true },
+    whatsapp: { read: true, send: true, broadcast: true, manageGroups: false, viewMedia: true },
+    email: { read: true, send: true, broadcast: true, manageTemplates: false },
+    messages: { read: true, send: true, delete: false },
+    broadcasts: { read: true, create: true, send: true, schedule: true, delete: false },
+    templates: { read: true, write: false, delete: false },
+    calls: { read: true, create: true, manage: false },
+    callScripts: { read: true, write: false, approve: false, delete: false },
+    aiAgents: { read: true, manage: false, create: false },
+    workshops: { read: true, write: true, delete: false, manageRegistrations: true, viewPayments: true },
+    payments: { read: true, write: true, refund: false, export: true },
+    invoices: { read: true, write: true, delete: false, export: true },
+    salesFunnel: { read: true, manage: false, moveLeads: true },
+    analytics: { read: true, export: false },
+    reports: { read: true, create: true, export: false },
+    dashboard: { read: true },
+    // tally: NOT included - admin users cannot access tally
+    // community: NOT included - admin users cannot access community
+    // users: NOT included - admin users cannot manage other users
+    // settings: NOT included - admin users cannot access settings
   } as UserPermissions,
 };
 

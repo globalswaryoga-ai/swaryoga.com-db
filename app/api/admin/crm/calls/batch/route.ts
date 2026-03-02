@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { leadIds, purpose, language, customPrompt, name, maxConcurrency } = body;
+    const { leadIds, purpose, language, customPrompt, name, maxConcurrency, overrideAgentId, overrideVoiceId } = body;
 
     if (!leadIds?.length) return apiError('VALIDATION_ERROR', 'leadIds array is required');
     if (!purpose) return apiError('VALIDATION_ERROR', 'purpose is required');
@@ -43,8 +43,9 @@ export async function POST(request: NextRequest) {
 
     if (!leads.length) return apiError('NOT_FOUND', 'No leads found for the provided IDs');
 
-    const callLang = language === 'hi' ? 'hi' : 'en';
-    const langLabel = callLang === 'hi' ? 'Hindi' : 'English';
+    const callLang = language || 'hi';
+    const langForLog = callLang === 'hi' ? 'hi-IN' : callLang === 'en' ? 'en-IN' : callLang;
+    const langLabel = callLang === 'hi' ? 'Hindi' : callLang === 'en' ? 'English' : callLang;
 
     // Build tasks — only leads with valid phone numbers
     const tasks: Array<{ toNumber: string; leadName: string; leadId: string; dynamicVars: Record<string, string> }> = [];
@@ -87,20 +88,22 @@ export async function POST(request: NextRequest) {
       customPrompt: customPrompt || '',
       status: 'queued',
       phoneNumber: t.toNumber.replace(/\+/g, ''),
-      language: callLang === 'hi' ? 'hi-IN' : 'en-IN',
+      language: langForLog,
       initiatedBy: adminId,
       batchName,
     }));
 
     const createdLogs = await AICallLog.insertMany(logEntries);
 
-    // Execute bulk call via Retell batch API
+    // Execute bulk call via Retell batch API (agent auto-resolved from language mapping)
     const result = await createBatchCall({
       name: batchName,
       tasks,
       purpose,
-      language: callLang as 'hi' | 'en',
+      language: callLang,
       customPrompt,
+      overrideAgentId: overrideAgentId || undefined,
+      overrideVoiceId: overrideVoiceId || undefined,
       maxConcurrency: maxConcurrency || 5,
     });
 

@@ -7,20 +7,7 @@ import { Vision } from '@/lib/types/lifePlanner';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 import VisionModal from './VisionModal';
 import ActionPlanModal from '@/components/ActionPlanModal';
-
-// Category Color Mapping - 10 colors for 10 vision heads
-const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
-  'Life': { bg: 'bg-purple-600', text: 'text-white' },
-  'Health': { bg: 'bg-swar-primary', text: 'text-white' },
-  'Wealth': { bg: 'bg-red-600', text: 'text-white' },
-  'Success': { bg: 'bg-blue-600', text: 'text-white' },
-  'Respect': { bg: 'bg-orange-600', text: 'text-white' },
-  'Pleasure': { bg: 'bg-pink-600', text: 'text-white' },
-  'Prosperity': { bg: 'bg-indigo-600', text: 'text-white' },
-  'Luxurious': { bg: 'bg-yellow-600', text: 'text-white' },
-  'Good Habits': { bg: 'bg-teal-600', text: 'text-white' },
-  'Sadhana': { bg: 'bg-cyan-600', text: 'text-white' },
-};
+import { CATEGORY_COLORS, MONTHS } from '@/lib/lifePlannerConstants';
 
 type SliderCard = {
   id: string;
@@ -90,8 +77,6 @@ export default function VisionPage() {
 
   useEffect(() => {
     if (!mounted || !hasLoaded) return;
-    // Prevent overwriting Mongo data with empty array due to any transient state.
-    if (visions.length === 0) return;
     (async () => {
       await lifePlannerStorage.saveVisions(visions);
     })();
@@ -118,7 +103,18 @@ export default function VisionPage() {
   };
 
   const handleDeleteVision = (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this vision?')) return;
     setVisions(prev => prev.filter(v => v.id !== id));
+  };
+
+  const handleCompleteVision = (id: string) => {
+    setVisions(prev =>
+      prev.map(v =>
+        v.id === id
+          ? { ...v, status: 'completed', updatedAt: new Date().toISOString() }
+          : v
+      )
+    );
   };
 
   const uniqueCategories = Array.from(
@@ -129,7 +125,6 @@ export default function VisionPage() {
     new Set(visions.map(v => v.status).filter(Boolean) as string[])
   ).sort((a, b) => a.localeCompare(b));
 
-  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
 
   const normalizedSearch = searchText.trim().toLowerCase();
 
@@ -202,7 +197,7 @@ export default function VisionPage() {
     await lifePlannerStorage.saveActionPlans(actionPlans);
     setIsActionPlanModalOpen(false);
     setSelectedVisionForActionPlan(null);
-    alert('Action Plan created successfully!');
+    // Action plan saved
   };
 
   if (!mounted) return null;
@@ -359,7 +354,7 @@ export default function VisionPage() {
           <div className="flex gap-6 overflow-x-auto pb-4 scrollbar-hide snap-x snap-mandatory">
             {filteredVisions.slice(sliderIndex, sliderIndex + 3).length > 0 ? (
               filteredVisions.slice(sliderIndex, sliderIndex + 3).map((vision) => (
-              <div key={vision.id} className="flex-shrink-0 w-80 min-w-[300px] max-w-[300px] h-full snap-start">
+              <div key={vision.id} className="flex-shrink-0 w-full sm:w-80 sm:min-w-[300px] sm:max-w-[300px] h-full snap-start">
                 {/* Card */}
                 <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden hover:shadow-lg transition-all duration-300 h-full flex flex-col">
                   <div className="relative h-48 overflow-hidden">
@@ -400,6 +395,7 @@ export default function VisionPage() {
 
                     <div className="mt-4 flex flex-wrap gap-2">
                       <button
+                        onClick={() => handleCompleteVision(vision.id)}
                         className="flex-1 px-3 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition"
                       >
                         Done
@@ -518,24 +514,7 @@ export default function VisionPage() {
         </div>
       )}
 
-      {visions.length === 0 && filteredVisions.length === 0 && (
-        <div className="text-center py-12">
-          <div className="text-swar-text-secondary mb-4">
-            <svg className="h-12 w-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-          </div>
-          <h3 className="text-lg font-medium text-swar-text mb-2">No vision plans yet</h3>
-          <p className="text-swar-text-secondary mb-4">Start by creating your first vision plan.</p>
-          <button
-            onClick={handleAddVision}
-            className="inline-flex items-center space-x-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Add Vision Plan</span>
-          </button>
-        </div>
-      )}
+
 
       {isModalOpen && (
         <VisionModal

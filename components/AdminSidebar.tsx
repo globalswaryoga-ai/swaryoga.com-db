@@ -110,21 +110,25 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
   const token = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [userRole, setUserRole] = useState<string>('admin');
+  const [permissionsV2, setPermissionsV2] = useState<any>(null);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
-  // Determine super-admin status
+  // Determine super-admin status and permissions
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const userStr = localStorage.getItem('admin_user');
     let resolvedUserId = localStorage.getItem('adminUser') || '';
     let legacyPerms: string[] = [];
-    let permissionsV2: any = null;
+    let pv2: any = null;
+    let role = 'admin';
     if (userStr) {
       try {
         const u = JSON.parse(userStr);
         resolvedUserId = (u?.userId as string) || resolvedUserId;
         legacyPerms = Array.isArray(u?.permissions) ? u.permissions : [];
-        permissionsV2 = u?.permissionsV2 || null;
+        pv2 = u?.permissionsV2 || null;
+        role = u?.role || 'admin';
       } catch {
         // ignore
       }
@@ -134,9 +138,11 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
       resolvedUserId === 'admin' ||
       resolvedUserId === 'admincrm' ||
       legacyPerms.includes('all') ||
-      permissionsV2?.isSuperAdmin === true;
+      pv2?.isSuperAdmin === true;
 
     setIsSuperAdmin(superAdmin);
+    setUserRole(role);
+    setPermissionsV2(pv2);
   }, []);
 
   // Fetch unread message count
@@ -189,6 +195,15 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
     }
   };
 
+  // Permission check helper - returns true if user has access to a module
+  const hasModuleAccess = (module: string): boolean => {
+    if (isSuperAdmin) return true;
+    if (!permissionsV2) return true; // If no V2 permissions, fallback to showing everything
+    const modulePerms = permissionsV2[module];
+    if (!modulePerms || typeof modulePerms !== 'object') return false;
+    return Object.values(modulePerms).some((v: any) => v === true);
+  };
+
   // Header dropdown items
   const userDataItems = [
     { label: 'Signup Data', href: '/admin/signup-data', icon: Users },
@@ -222,24 +237,28 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
       label: 'Dashboard',
       href: '/admin/crm',
       color: 'text-blue-500',
+      module: 'dashboard',
     },
     {
       icon: Users,
       label: 'Leads',
       href: '/admin/crm/leads',
       color: 'text-emerald-500',
+      module: 'leads',
     },
     {
       icon: Phone,
       label: 'Leads Followup',
       href: '/admin/crm/leads-followup',
       color: 'text-violet-500',
+      module: 'leads',
     },
     {
       icon: ShoppingBag,
       label: 'Sales',
       href: '/admin/crm/sales',
       color: 'text-green-500',
+      module: 'payments',
     },
     {
       icon: MessageCircle,
@@ -247,84 +266,98 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
       href: '/admin/crm/meta',
       color: 'text-cyan-500',
       badge: unreadCount,
+      module: 'whatsapp',
     },
     {
       icon: TrendingUp,
       label: 'Meta Report',
       href: '/admin/crm/meta-dashboard',
       color: 'text-blue-400',
+      module: 'whatsapp',
     },
     {
       icon: Filter,
       label: 'Sales Funnel',
       href: '/admin/crm/funnel',
       color: 'text-rose-500',
+      module: 'salesFunnel',
     },
     {
       icon: Users,
       label: 'Manage Pipeline',
       href: '/admin/crm/funnel/manage',
       color: 'text-indigo-500',
+      module: 'salesFunnel',
     },
     {
       icon: Phone,
       label: 'Call Workflows',
       href: '/admin/crm/calls',
       color: 'text-emerald-500',
+      module: 'calls',
     },
     {
       icon: Bot,
       label: 'Call Scripts',
       href: '/admin/crm/calls/templates',
       color: 'text-orange-500',
+      module: 'callScripts',
     },
     {
       icon: Bot,
       label: 'AI Agents',
       href: '/admin/crm/ai-agents',
       color: 'text-violet-500',
+      module: 'aiAgents',
     },
     {
       icon: BarChart3,
       label: 'Analytics',
       href: '/admin/crm/analytics',
       color: 'text-purple-500',
+      module: 'analytics',
     },
     {
       icon: FileText,
       label: 'Templates',
       href: '/admin/crm/templates',
       color: 'text-orange-500',
+      module: 'templates',
     },
     {
       icon: Radio,
       label: 'Broadcast',
       href: '/admin/crm/broadcast',
       color: 'text-pink-500',
+      module: 'broadcasts',
     },
     {
       icon: Mail,
       label: 'Email',
       href: '/admin/crm/email',
       color: 'text-blue-500',
+      module: 'email',
     },
     {
       icon: Globe,
       label: 'Community',
       href: '/admin/crm/community',
       color: 'text-teal-500',
+      module: 'community',
     },
     {
       icon: Video,
       label: 'Recordings Mgmt',
       href: '/admin/crm/recording-management',
       color: 'text-indigo-500',
+      module: 'recordings',
     },
     {
       icon: Building2,
       label: 'Tally Prime',
       href: '/admin/crm/tally',
       color: 'text-yellow-500',
+      module: 'tally',
     },
   ];
 
@@ -335,24 +368,28 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
       label: 'Messages',
       href: '/admin/crm/messages',
       color: 'text-indigo-500',
+      module: 'messages',
     },
     {
       icon: Bot,
       label: 'Chatbots',
       href: '/admin/crm/chatbots',
       color: 'text-emerald-400',
+      module: 'whatsapp',
     },
     {
       icon: Tag,
       label: 'Labels',
       href: '/admin/crm/labels',
       color: 'text-amber-500',
+      module: 'leads',
     },
     {
       icon: Settings,
       label: 'WhatsApp Settings',
       href: '/admin/crm/whatsapp/settings',
       color: 'text-gray-400',
+      module: 'settings',
     },
   ];
 
@@ -465,7 +502,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
           <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider px-3 py-2">
             CRM
           </p>
-          {sidebarItems.map((item) => {
+          {sidebarItems.filter(item => hasModuleAccess(item.module)).map((item) => {
             const Icon = item.icon;
             const active = isActive(item.href);
             return (
@@ -483,7 +520,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
                 <span className={`font-medium text-sm ${active ? 'text-white' : 'text-gray-300'}`}>
                   {item.label}
                 </span>
-                {item.badge && item.badge > 0 && (
+                {'badge' in item && item.badge && item.badge > 0 && (
                   <span className="ml-auto bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">
                     {item.badge > 99 ? '99+' : item.badge}
                   </span>
@@ -493,10 +530,12 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
           })}
 
           {/* Tools Items */}
-          <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider px-3 pt-4 pb-2">
-            Tools
-          </p>
-          {toolsItems.map((item) => {
+          {toolsItems.filter(item => hasModuleAccess(item.module)).length > 0 && (
+            <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider px-3 pt-4 pb-2">
+              Tools
+            </p>
+          )}
+          {toolsItems.filter(item => hasModuleAccess(item.module)).map((item) => {
             const Icon = item.icon;
             const active = isActive(item.href);
             return (

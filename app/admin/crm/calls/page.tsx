@@ -12,7 +12,7 @@ import {
   PauseCircle, Repeat, Flower2, Megaphone,
   MessageSquare, PhoneCall, Bot, History, Plus,
   CalendarClock, ListChecks, PhoneIncoming, PhoneOutgoing, Loader2, Zap,
-  Home, FileText, RotateCcw,
+  Home, FileText, RotateCcw, PhoneOff, Volume2,
 } from 'lucide-react';
 import { BarChart3 } from 'lucide-react';
 import LeadDetailModal from '@/components/admin/crm/LeadDetailModal';
@@ -136,6 +136,12 @@ export default function CallWorkflowPage() {
 
   // Call history panel (unified — replaces old call history & updates popups)
   const [callPanelLeadId, setCallPanelLeadId] = useState<string | null>(null);
+
+  // All Calls History view
+  const [viewMode, setViewMode] = useState<'leads' | 'history'>('leads');
+  const [allCalls, setAllCalls] = useState<any[]>([]);
+  const [allCallsLoading, setAllCallsLoading] = useState(false);
+  const [expandedCallId, setExpandedCallId] = useState<string | null>(null);
 
   // Schedule call
   const [scheduleLeadId, setScheduleLeadId] = useState<string | null>(null);
@@ -377,6 +383,31 @@ export default function CallWorkflowPage() {
 
   const getStageColor = (idx: number) => STAGE_COLORS[idx % STAGE_COLORS.length];
   const getStageIcon = (icon: string) => STAGE_ICONS[icon] || Sparkles;
+  // Fetch all call history
+  const fetchAllCalls = useCallback(async () => {
+    if (!token) return;
+    setAllCallsLoading(true);
+    try {
+      const res = await fetch('/api/admin/crm/calls?limit=100', { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const json = await res.json();
+        const calls = json.data?.calls || [];
+        // Enrich with lead names
+        const leadIds = [...new Set(calls.map((c: any) => c.leadId))];
+        const leadRes = await fetch(`/api/admin/crm/funnel/leads?all=1&limit=500`, { headers: { Authorization: `Bearer ${token}` } });
+        let leadMap: Record<string, any> = {};
+        if (leadRes.ok) {
+          const lj = await leadRes.json();
+          for (const l of (lj.data?.leads || [])) leadMap[l._id] = l;
+        }
+        setAllCalls(calls.map((c: any) => ({ ...c, _lead: leadMap[c.leadId] || null })));
+      }
+    } catch (err) { console.error(err); }
+    finally { setAllCallsLoading(false); }
+  }, [token]);
+
+  useEffect(() => { if (viewMode === 'history') fetchAllCalls(); }, [viewMode, fetchAllCalls]);
+
   const totalPipelineLeads = Object.values(stageCounts).reduce((s, c) => s + c, 0);
   const totalPages = Math.ceil(totalLeads / LIMIT);
 
@@ -483,6 +514,13 @@ export default function CallWorkflowPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => setViewMode(viewMode === 'history' ? 'leads' : 'history')}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold shadow-sm hover:shadow-md transition-all ${viewMode === 'history' ? 'text-white' : 'text-orange-600 bg-orange-50 hover:bg-orange-100'}`}
+                style={viewMode === 'history' ? { background: 'linear-gradient(135deg, #F97316, #FB923C)' } : {}}
+              >
+                <History className="h-4 w-4" /> {viewMode === 'history' ? 'Back to Leads' : 'Call History'}
+              </button>
               <Link href="/admin/crm/calls/broadcasts" className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all" style={{ background: 'linear-gradient(135deg, #6366F1, #818CF8)' }}>
                 <Megaphone className="h-4 w-4" /> Broadcasts
               </Link>
@@ -491,6 +529,9 @@ export default function CallWorkflowPage() {
               </Link>
               <Link href="/admin/crm/calls/templates" className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all" style={{ background: 'linear-gradient(135deg, #10B981, #34D399)' }}>
                 <FileText className="h-4 w-4" /> Templates
+              </Link>
+              <Link href="/admin/crm/calls/agents" className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all" style={{ background: 'linear-gradient(135deg, #EC4899, #F472B6)' }}>
+                <Bot className="h-4 w-4" /> Agents
               </Link>
               {/* Bulk actions */}
               {selectedLeadIds.size > 0 && (
@@ -620,7 +661,197 @@ export default function CallWorkflowPage() {
           </div>
         </div>
 
-        {/* ═══ Leads List ═══ */}
+        {/* ═══ Leads List OR All Calls History ═══ */}
+        {viewMode === 'history' ? (
+          <div className="flex-1 overflow-auto px-4 sm:px-6 py-3 space-y-2">
+            <div className="flex items-center justify-between px-3 py-2 bg-orange-50/80 rounded-xl mb-2">
+              <div className="flex items-center gap-2">
+                <History className="h-4 w-4 text-orange-500" />
+                <span className="text-sm font-bold text-gray-800">All Call History</span>
+                <span className="text-xs text-gray-400">({allCalls.length} calls)</span>
+              </div>
+              <button onClick={fetchAllCalls} disabled={allCallsLoading} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-orange-100 text-orange-600 hover:bg-orange-200 transition disabled:opacity-50">
+                <RefreshCw className={`h-3 w-3 ${allCallsLoading ? 'animate-spin' : ''}`} /> Refresh
+              </button>
+            </div>
+
+            {allCallsLoading && allCalls.length === 0 && (
+              <div className="text-center py-16">
+                <div className="animate-spin h-8 w-8 border-3 border-orange-500 border-t-transparent rounded-full mx-auto" />
+                <p className="mt-3 text-gray-400 text-sm">Loading call history...</p>
+              </div>
+            )}
+
+            {!allCallsLoading && allCalls.length === 0 && (
+              <div className="text-center py-16 text-gray-400 text-sm">No calls recorded yet.</div>
+            )}
+
+            {allCalls.map(call => {
+              const isExpanded = expandedCallId === call._id;
+              const statusColors: Record<string, string> = {
+                completed: 'bg-green-50 text-green-700 border-green-200',
+                failed: 'bg-red-50 text-red-700 border-red-200',
+                no_answer: 'bg-orange-50 text-orange-700 border-orange-200',
+                busy: 'bg-amber-50 text-amber-700 border-amber-200',
+                ringing: 'bg-blue-50 text-blue-700 border-blue-200',
+                in_progress: 'bg-green-50 text-green-700 border-green-200',
+                queued: 'bg-gray-50 text-gray-600 border-gray-200',
+                canceled: 'bg-gray-50 text-gray-500 border-gray-200',
+              };
+              const statusIcons: Record<string, string> = {
+                completed: '✅', failed: '❌', no_answer: '📵', busy: '🔴',
+                ringing: '🔔', in_progress: '📞', queued: '⏳', canceled: '🚫',
+              };
+              const leadName = call._lead?.displayName || call._lead?.name || call._lead?.phoneNumber || 'Unknown Lead';
+              const duration = call.duration || 0;
+              const dMin = Math.floor(duration / 60);
+              const dSec = Math.round(duration % 60);
+              const dStr = dMin > 0 ? `${dMin}m ${dSec}s` : `${dSec}s`;
+              const callDate = new Date(call.createdAt);
+              const dateStr = callDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' });
+              const timeStr = callDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+
+              // Parse transcript into lines
+              const transcriptLines = call.transcript
+                ? call.transcript.split('\n').filter((l: string) => l.trim()).map((line: string) => {
+                    const agentMatch = line.match(/^(Agent|Sakshi|AI|Bot|assistant)\s*:\s*(.*)/i);
+                    const userMatch = line.match(/^(User|Customer|Lead|Caller|human)\s*:\s*(.*)/i);
+                    if (agentMatch) return { role: 'agent', text: agentMatch[2] };
+                    if (userMatch) return { role: 'user', text: userMatch[2] };
+                    return { role: 'unknown', text: line };
+                  })
+                : [];
+
+              // Parse questions_asked from collectedData
+              const questionsRaw = call.collectedData?.questions_asked || '';
+              const questions = questionsRaw ? questionsRaw.split(/[;\n]/).map((q: string) => q.trim()).filter(Boolean) : [];
+
+              return (
+                <div key={call._id} className={`rounded-xl border transition-all duration-200 ${isExpanded ? 'border-orange-200 shadow-md' : 'border-gray-100 hover:border-gray-200 hover:shadow-sm'}`}>
+                  {/* Header row */}
+                  <button
+                    onClick={() => setExpandedCallId(isExpanded ? null : call._id)}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left"
+                  >
+                    <span className="text-lg">{statusIcons[call.status] || '📞'}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-gray-800 truncate">{leadName}</span>
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${statusColors[call.status] || statusColors.queued}`}>{call.status?.replace('_', ' ')}</span>
+                        {call.sentiment && <span className="text-xs">{call.sentiment === 'positive' ? '😊' : call.sentiment === 'negative' ? '😟' : '😐'}</span>}
+                      </div>
+                      <div className="flex items-center gap-3 text-[11px] text-gray-400 mt-0.5">
+                        <span>{dateStr} {timeStr}</span>
+                        {duration > 0 && <span>⏱ {dStr}</span>}
+                        <span>{call.direction === 'inbound' ? '📥 Inbound' : '📤 Outbound'}</span>
+                        <span className="truncate max-w-[120px]">{call.phoneNumber}</span>
+                      </div>
+                    </div>
+                    {call.summary && <MessageSquare className="h-4 w-4 text-indigo-400 flex-shrink-0" />}
+                    {isExpanded ? <ChevronDown className="h-4 w-4 text-gray-400" /> : <ChevronRight className="h-4 w-4 text-gray-400" />}
+                  </button>
+
+                  {/* Expanded details */}
+                  {isExpanded && (
+                    <div className="px-4 pb-4 space-y-3 border-t border-gray-100 pt-3">
+                      {/* Summary */}
+                      {call.summary && (
+                        <div className="bg-indigo-50/50 rounded-xl p-3">
+                          <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider mb-1">🤖 AI Summary</p>
+                          <p className="text-xs text-gray-700 leading-relaxed">{call.summary}</p>
+                        </div>
+                      )}
+
+                      {/* Questions Asked — extracted separately */}
+                      {questions.length > 0 && (
+                        <div className="bg-amber-50/60 rounded-xl p-3">
+                          <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-1.5">❓ Questions Asked by Lead</p>
+                          <ol className="space-y-1 list-decimal list-inside">
+                            {questions.map((q: string, i: number) => (
+                              <li key={i} className="text-xs text-gray-700 leading-relaxed">{q}</li>
+                            ))}
+                          </ol>
+                        </div>
+                      )}
+
+                      {/* Collected Data (other fields) */}
+                      {call.collectedData && Object.keys(call.collectedData).filter(k => k !== 'questions_asked').length > 0 && (
+                        <div className="bg-cyan-50/50 rounded-xl p-3">
+                          <p className="text-[10px] font-bold text-cyan-600 uppercase tracking-wider mb-1">📋 Collected Info</p>
+                          <div className="space-y-1">
+                            {Object.entries(call.collectedData).filter(([k]) => k !== 'questions_asked').map(([k, v]) => (
+                              <div key={k} className="flex items-start gap-2 text-xs">
+                                <span className="text-gray-400 font-medium capitalize shrink-0">{k.replace(/_/g, ' ')}:</span>
+                                <span className="text-gray-700">{String(v)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Call ended reason */}
+                      {call.callEndedReason && (
+                        <div className="flex items-center gap-1.5 text-[11px] text-gray-500">
+                          <PhoneOff className="h-3 w-3 text-gray-400" /> {call.callEndedReason}
+                        </div>
+                      )}
+
+                      {/* Transcript */}
+                      {transcriptLines.length > 0 && (
+                        <div>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">💬 Conversation</p>
+                          <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+                            {transcriptLines.map((line: any, i: number) => (
+                              <div key={i} className={`flex ${line.role === 'agent' ? 'justify-start' : line.role === 'user' ? 'justify-end' : 'justify-center'}`}>
+                                {line.role === 'unknown' ? (
+                                  <p className="text-[10px] text-gray-400 italic">{line.text}</p>
+                                ) : (
+                                  <div className={`max-w-[85%] px-2.5 py-1.5 rounded-xl text-xs leading-relaxed ${
+                                    line.role === 'agent'
+                                      ? 'bg-indigo-50 text-indigo-800 rounded-tl-sm'
+                                      : 'bg-emerald-50 text-emerald-800 rounded-tr-sm'
+                                  }`}>
+                                    <span className="text-[9px] font-bold uppercase tracking-wider opacity-60 block mb-0.5">
+                                      {line.role === 'agent' ? '🤖 Sakshi' : '👤 Lead'}
+                                    </span>
+                                    {line.text}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Raw transcript fallback */}
+                      {call.transcript && transcriptLines.length === 0 && (
+                        <div>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">📝 Transcript</p>
+                          <pre className="text-xs text-gray-600 bg-gray-50 rounded-lg px-3 py-2 whitespace-pre-wrap max-h-40 overflow-y-auto">{call.transcript}</pre>
+                        </div>
+                      )}
+
+                      {/* Recording */}
+                      {call.recordingUrl && (
+                        <div className="flex items-center gap-2">
+                          <Volume2 className="h-3.5 w-3.5 text-violet-400" />
+                          <a href={call.recordingUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-violet-600 hover:underline">🔊 Play Recording</a>
+                        </div>
+                      )}
+
+                      {/* View Lead button */}
+                      {call._lead && (
+                        <button onClick={() => { setSelectedLeadId(call.leadId); }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition">
+                          <Eye className="h-3 w-3" /> View Lead Details
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
         <div className="flex-1 overflow-auto px-4 sm:px-6 py-3 space-y-1">
           <div className="flex items-center gap-3 px-3 py-2 bg-gray-50/80 rounded-xl mb-2">
             <input type="checkbox" checked={selectAll} onChange={toggleSelectAll} className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
@@ -752,9 +983,10 @@ export default function CallWorkflowPage() {
             );
           })}
         </div>
+        )}
 
         {/* Pagination */}
-        {totalPages > 1 && (
+        {viewMode === 'leads' && totalPages > 1 && (
           <div className="bg-white border-t border-gray-100 px-4 sm:px-6 py-3 flex items-center justify-between">
             <div className="text-xs text-gray-400">Showing {page * LIMIT + 1}&ndash;{Math.min((page + 1) * LIMIT, totalLeads)} of {totalLeads}</div>
             <div className="flex gap-1">

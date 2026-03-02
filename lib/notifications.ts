@@ -444,3 +444,184 @@ export async function notifyCommunityApproval(
 
   return { email };
 }
+
+// ─── 10. Workshop Enrollment Confirmation ───────────────────────────────────
+
+export async function notifyWorkshopEnrollment(
+  recipient: NotificationRecipient,
+  details: {
+    workshopName: string;
+    startDate?: string;
+    endDate?: string;
+    mode?: string;
+    leadNumber?: string;
+  },
+): Promise<NotifyResult> {
+  const body = `
+    <p>Namaste <strong>${safe(recipient.name)}</strong>,</p>
+    <p>You have been successfully registered for our workshop! 🎉</p>
+    <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px 0;color:#666;">Workshop</td>
+        <td style="padding:8px 0;font-weight:bold;">${safe(details.workshopName)}</td>
+      </tr>
+      ${details.startDate ? `
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px 0;color:#666;">Start Date</td>
+        <td style="padding:8px 0;">${safe(details.startDate)}</td>
+      </tr>` : ''}
+      ${details.endDate ? `
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px 0;color:#666;">End Date</td>
+        <td style="padding:8px 0;">${safe(details.endDate)}</td>
+      </tr>` : ''}
+      ${details.mode ? `
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px 0;color:#666;">Mode</td>
+        <td style="padding:8px 0;text-transform:capitalize;">${safe(details.mode)}</td>
+      </tr>` : ''}
+      ${details.leadNumber ? `
+      <tr>
+        <td style="padding:8px 0;color:#666;">Reference ID</td>
+        <td style="padding:8px 0;font-family:monospace;">${safe(details.leadNumber)}</td>
+      </tr>` : ''}
+    </table>
+    <p>We will share the workshop joining details (Zoom link, schedule, etc.) with you before the workshop begins.</p>
+    <p style="text-align:center; margin:24px 0;">
+      <a href="${SITE_URL}/workshop" style="display:inline-block;padding:12px 28px;background:#2A5654;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">View Workshops →</a>
+    </p>
+    <p>If you have any questions, don't hesitate to reach out.</p>
+    <p>Har Har Mahadev 🙏</p>
+  `;
+
+  const email = await sendNotificationEmail(
+    recipient.email,
+    `🎯 Workshop Registration Confirmed – ${safe(details.workshopName)} – Swar Yoga`,
+    body,
+  );
+
+  // Admin notification
+  sendNotificationEmail(
+    ADMIN_EMAIL,
+    `Workshop Enrollment: ${safe(recipient.name)} → ${safe(details.workshopName)}`,
+    `<p>New workshop enrollment:</p>
+     <ul>
+       <li><strong>Name:</strong> ${safe(recipient.name)}</li>
+       <li><strong>Email:</strong> ${safe(recipient.email)}</li>
+       <li><strong>Phone:</strong> ${safe(recipient.phone)}</li>
+       <li><strong>Workshop:</strong> ${safe(details.workshopName)}</li>
+       <li><strong>Mode:</strong> ${safe(details.mode)}</li>
+       <li><strong>Dates:</strong> ${safe(details.startDate)} – ${safe(details.endDate)}</li>
+     </ul>`,
+  ).catch(() => {});
+
+  return { email };
+}
+
+// ─── 11. Zoom Link Notification ─────────────────────────────────────────────
+
+export async function notifyZoomLink(
+  recipient: NotificationRecipient,
+  details: {
+    workshopName: string;
+    zoomJoinUrl: string;
+    zoomPassword?: string;
+    startDate?: string;
+    startTime?: string;
+    duration?: number;
+  },
+): Promise<NotifyResult> {
+  const body = `
+    <p>Namaste <strong>${safe(recipient.name)}</strong>,</p>
+    <p>Here is your Zoom joining link for <strong>${safe(details.workshopName)}</strong>:</p>
+    <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:20px; margin:20px 0; text-align:center;">
+      <p style="margin:0 0 12px; font-size:14px; color:#166534; font-weight:600;">Workshop Zoom Link</p>
+      <p style="margin:0 0 8px;">
+        <a href="${safe(details.zoomJoinUrl)}" style="display:inline-block;padding:14px 32px;background:#2563eb;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:16px;">Join Zoom Meeting →</a>
+      </p>
+      ${details.zoomPassword ? `
+      <p style="margin:12px 0 0; font-size:14px; color:#555;">
+        <strong>Meeting Password:</strong> <span style="font-family:monospace; background:#e5e7eb; padding:3px 8px; border-radius:4px;">${safe(details.zoomPassword)}</span>
+      </p>` : ''}
+    </div>
+    <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px 0;color:#666;">Workshop</td>
+        <td style="padding:8px 0;font-weight:bold;">${safe(details.workshopName)}</td>
+      </tr>
+      ${details.startDate ? `
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px 0;color:#666;">Date</td>
+        <td style="padding:8px 0;">${safe(details.startDate)}</td>
+      </tr>` : ''}
+      ${details.startTime ? `
+      <tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px 0;color:#666;">Time</td>
+        <td style="padding:8px 0;">${safe(details.startTime)}</td>
+      </tr>` : ''}
+      ${details.duration ? `
+      <tr>
+        <td style="padding:8px 0;color:#666;">Duration</td>
+        <td style="padding:8px 0;">${details.duration} minutes</td>
+      </tr>` : ''}
+    </table>
+    <p><strong>Tips for joining:</strong></p>
+    <ul style="color:#555;">
+      <li>Join 5 minutes early to ensure your audio/video is working</li>
+      <li>Find a quiet, comfortable space for the session</li>
+      <li>Keep a yoga mat and water bottle nearby</li>
+    </ul>
+    <p>We look forward to seeing you! 🧘</p>
+    <p>Har Har Mahadev 🙏</p>
+  `;
+
+  const email = await sendNotificationEmail(
+    recipient.email,
+    `🔗 Zoom Link – ${safe(details.workshopName)} – Swar Yoga`,
+    body,
+  );
+
+  return { email };
+}
+
+// ─── 12. Password Reset Notification ────────────────────────────────────────
+
+export async function notifyPasswordReset(
+  recipient: NotificationRecipient,
+  details: { newPassword: string; resetBy?: string },
+): Promise<NotifyResult> {
+  const body = `
+    <p>Namaste <strong>${safe(recipient.name)}</strong>,</p>
+    <p>Your password for <strong>Swar Yoga</strong> has been reset by our admin team.</p>
+    <div style="background:#f8f9fa; border:1px solid #e9ecef; border-radius:8px; padding:20px; margin:20px 0; text-align:center;">
+      <p style="margin:0 0 8px; font-size:14px; color:#6c757d;">Your new password:</p>
+      <p style="margin:0; font-size:24px; font-weight:700; color:#333; letter-spacing:2px; font-family:monospace;">${safe(details.newPassword)}</p>
+    </div>
+    <p><strong>Important:</strong> Please sign in with this password and change it from your profile for security.</p>
+    <p style="text-align:center; margin:24px 0;">
+      <a href="${SITE_URL}/signin" style="display:inline-block;padding:12px 28px;background:#667eea;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">Sign In Now →</a>
+    </p>
+    <p style="font-size:13px; color:#6c757d;">If you did not request this reset, please contact us immediately via WhatsApp.</p>
+    <p>Har Har Mahadev 🙏</p>
+  `;
+
+  const email = await sendNotificationEmail(
+    recipient.email,
+    '🔑 Your Swar Yoga Password Has Been Reset',
+    body,
+  );
+
+  // Admin audit notification
+  sendNotificationEmail(
+    ADMIN_EMAIL,
+    `Password Reset: ${safe(recipient.name)} (${safe(recipient.email)})`,
+    `<p>Password was reset for user:</p>
+     <ul>
+       <li><strong>Name:</strong> ${safe(recipient.name)}</li>
+       <li><strong>Email:</strong> ${safe(recipient.email)}</li>
+       <li><strong>Reset by:</strong> ${safe(details.resetBy)}</li>
+     </ul>`,
+  ).catch(() => {});
+
+  return { email };
+}

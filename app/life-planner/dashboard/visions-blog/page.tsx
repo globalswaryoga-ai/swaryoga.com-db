@@ -9,6 +9,7 @@ import VisionBuilder from './VisionBuilder';
 export default function VisionsBlogPage() {
   const [visions, setVisions] = useState<Vision[]>([]);
   const [mounted, setMounted] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [filterStatus, setFilterStatus] = useState<'all' | 'not-started' | 'in-progress' | 'completed'>('all');
   const [showBuilder, setShowBuilder] = useState(false);
   const [editingVision, setEditingVision] = useState<Vision | null>(null);
@@ -18,15 +19,16 @@ export default function VisionsBlogPage() {
     (async () => {
       const saved = await lifePlannerStorage.getVisions();
       setVisions(saved);
+      setHasLoaded(true);
     })();
   }, []);
 
   useEffect(() => {
-    if (!mounted) return;
+    if (!mounted || !hasLoaded) return;
     (async () => {
       await lifePlannerStorage.saveVisions(visions);
     })();
-  }, [visions, mounted]);
+  }, [visions, mounted, hasLoaded]);
 
   const handleAddVision = () => {
     setEditingVision(null);

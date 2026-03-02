@@ -64,6 +64,7 @@ export async function POST(request: Request) {
       isAdmin: user.isAdmin,
       role: user.role,
       permissions: user.permissions,
+      permissionsV2: user.permissionsV2 || null,
       managedUserIds: user.managedUserIds || [], // For managers: IDs of users they supervise
     });
 
@@ -74,9 +75,11 @@ export async function POST(request: Request) {
         user: {
           userId: user.userId,
           email: user.email,
+          name: user.name,
           role: user.role,
           isAdmin: user.isAdmin,
           permissions: user.permissions,
+          permissionsV2: user.permissionsV2 || null,
           managedUserIds: user.managedUserIds || [],
         }
       },

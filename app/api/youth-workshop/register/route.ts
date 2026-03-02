@@ -3,6 +3,7 @@ import { connectDB } from '@/lib/db';
 import { Lead } from '@/lib/schemas/enterpriseSchemas';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
+import { notifyWorkshopEnrollment } from '@/lib/notifications';
 
 export async function POST(request: NextRequest) {
   try {
@@ -90,6 +91,14 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`✓ Youth workshop lead ${isExisting ? 'updated' : 'created'}: ${leadToUse._id}`);
+
+    // Send workshop enrollment email notification
+    if (leadToUse.email) {
+      notifyWorkshopEnrollment(
+        { name: leadToUse.name, email: leadToUse.email, phone: leadToUse.phoneNumber },
+        { workshopName: 'Youth Workshop', leadNumber: leadToUse.leadNumber },
+      ).catch(err => console.error('[YouthWorkshop] Notification error:', err));
+    }
 
     return NextResponse.json(
       {

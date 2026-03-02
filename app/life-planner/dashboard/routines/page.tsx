@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Clock, AlertCircle, Plus, X } from 'lucide-react';
+import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 
 interface Routine {
   id: string;
@@ -19,10 +20,35 @@ export default function RoutinesPage() {
     timePeriod: 'morning' as 'morning' | 'afternoon' | 'evening' | 'night',
   });
   const [error, setError] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
 
   // Filters (UI-only; never persisted)
   const [searchText, setSearchText] = useState('');
   const [filterPeriod, setFilterPeriod] = useState<'all' | Routine['timePeriod']>('all');
+
+  // Load from MongoDB on mount
+  useEffect(() => {
+    setMounted(true);
+    (async () => {
+      try {
+        const saved = await lifePlannerStorage.getRoutines();
+        if (Array.isArray(saved) && saved.length > 0) {
+          setRoutines(saved as Routine[]);
+        }
+      } finally {
+        setHasLoaded(true);
+      }
+    })();
+  }, []);
+
+  // Save to MongoDB when routines change
+  useEffect(() => {
+    if (!mounted || !hasLoaded) return;
+    (async () => {
+      await lifePlannerStorage.saveRoutines(routines);
+    })();
+  }, [routines, mounted, hasLoaded]);
 
   const isFormValid = useMemo(
     () => formData.text.trim().length > 0 && formData.time,
@@ -54,6 +80,7 @@ export default function RoutinesPage() {
 
   const handleDeleteRoutine = useCallback(
     (id: string) => {
+      if (!window.confirm('Are you sure you want to delete this routine?')) return;
       setRoutines(routines.filter((r) => r.id !== id));
     },
     [routines]

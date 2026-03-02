@@ -6,25 +6,13 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { ActionPlan, Goal, Vision } from '@/lib/types/lifePlanner';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 import ActionPlanModal from '@/components/ActionPlanModal';
+import { CATEGORY_COLORS, MONTHS } from '@/lib/lifePlannerConstants';
 
 const STATUS_COLORS: Record<string, { text: string; bg: string }> = {
   'not-started': { text: 'text-swar-text', bg: 'bg-swar-primary-light' },
   'in-progress': { text: 'text-blue-700', bg: 'bg-blue-100' },
   'completed': { text: 'text-swar-primary', bg: 'bg-swar-primary-light' },
   'on-hold': { text: 'text-yellow-700', bg: 'bg-yellow-100' },
-};
-
-const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
-  'Life': { bg: 'bg-purple-600', text: 'text-white' },
-  'Health': { bg: 'bg-swar-primary', text: 'text-white' },
-  'Wealth': { bg: 'bg-red-600', text: 'text-white' },
-  'Success': { bg: 'bg-blue-600', text: 'text-white' },
-  'Respect': { bg: 'bg-orange-600', text: 'text-white' },
-  'Pleasure': { bg: 'bg-pink-600', text: 'text-white' },
-  'Prosperity': { bg: 'bg-indigo-600', text: 'text-white' },
-  'Luxurious': { bg: 'bg-yellow-600', text: 'text-white' },
-  'Good Habits': { bg: 'bg-teal-600', text: 'text-white' },
-  'Sadhana': { bg: 'bg-cyan-600', text: 'text-white' },
 };
 
 export default function ActionPlanPage() {
@@ -98,8 +86,6 @@ export default function ActionPlanPage() {
 
   useEffect(() => {
     if (!mounted || !hasLoaded) return;
-    // Prevent overwriting Mongo data with an empty array due to transient initial state.
-    if (actionPlans.length === 0) return;
     (async () => {
       await lifePlannerStorage.saveActionPlans(actionPlans);
     })();
@@ -126,6 +112,7 @@ export default function ActionPlanPage() {
   };
 
   const handleDeletePlan = (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this action plan?')) return;
     setActionPlans(prev => prev.filter(p => p.id !== id));
   };
 
@@ -151,7 +138,6 @@ export default function ActionPlanPage() {
     new Set(visions.map(v => v.category).filter(Boolean) as string[])
   ).sort((a, b) => a.localeCompare(b));
 
-  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
 
   const normalizedSearch = searchText.trim().toLowerCase();
 

@@ -43,6 +43,7 @@ const MODULE_ICONS: Record<string, React.ComponentType<any>> = {
   analytics: TrendingUp,
   reports: FileText,
   dashboard: BarChart3,
+  tally: DollarSign,
   users: Users,
   settings: Settings,
   auditLogs: FileText,
@@ -70,6 +71,7 @@ const MODULE_LABELS: Record<string, string> = {
   analytics: 'Analytics',
   reports: 'Reports',
   dashboard: 'Dashboard',
+  tally: 'Tally Prime',
   users: 'Admin Users',
   settings: 'Settings',
   auditLogs: 'Audit Logs',
@@ -219,7 +221,20 @@ export default function PermissionManager({
       {!permissions.isSuperAdmin && (
         <div className="space-y-3">
           <h3 className="font-semibold text-gray-900">Quick Presets</h3>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <button
+              onClick={() => applyPreset('DM')}
+              disabled={disabled}
+              className={`p-3 rounded-lg border-2 transition-all ${
+                activePreset === 'DM' 
+                  ? 'border-indigo-500 bg-indigo-50' 
+                  : 'border-gray-200 hover:border-indigo-300'
+              } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <div className="font-medium text-gray-900">DM</div>
+              <div className="text-xs text-gray-600 mt-1">All access, no delete</div>
+            </button>
+
             <button
               onClick={() => applyPreset('CRM_MANAGER')}
               disabled={disabled}
@@ -229,10 +244,23 @@ export default function PermissionManager({
                   : 'border-gray-200 hover:border-blue-300'
               } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
-              <div className="font-medium text-gray-900">CRM Manager</div>
-              <div className="text-xs text-gray-600 mt-1">Manage leads & customers</div>
+              <div className="font-medium text-gray-900">Manager</div>
+              <div className="text-xs text-gray-600 mt-1">Customizable access</div>
             </button>
             
+            <button
+              onClick={() => applyPreset('ADMIN_USER')}
+              disabled={disabled}
+              className={`p-3 rounded-lg border-2 transition-all ${
+                activePreset === 'ADMIN_USER' 
+                  ? 'border-teal-500 bg-teal-50' 
+                  : 'border-gray-200 hover:border-teal-300'
+              } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <div className="font-medium text-gray-900">Admin User</div>
+              <div className="text-xs text-gray-600 mt-1">CRM, sales, calls only</div>
+            </button>
+
             <button
               onClick={() => applyPreset('SALES_REP')}
               disabled={disabled}
@@ -255,7 +283,7 @@ export default function PermissionManager({
                   : 'border-gray-200 hover:border-purple-300'
               } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
-              <div className="font-medium text-gray-900">Marketing Manager</div>
+              <div className="font-medium text-gray-900">Marketing</div>
               <div className="text-xs text-gray-600 mt-1">Broadcasts & campaigns</div>
             </button>
             

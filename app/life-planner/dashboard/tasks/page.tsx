@@ -6,22 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Task, Goal, Vision } from '@/lib/types/lifePlanner';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 import TaskModal from './TaskModal';
-
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
-
-// Category Color Mapping
-const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
-  'Life': { bg: 'bg-purple-600', text: 'text-white' },
-  'Health': { bg: 'bg-swar-primary', text: 'text-white' },
-  'Wealth': { bg: 'bg-red-600', text: 'text-white' },
-  'Success': { bg: 'bg-blue-600', text: 'text-white' },
-  'Respect': { bg: 'bg-orange-600', text: 'text-white' },
-  'Pleasure': { bg: 'bg-pink-600', text: 'text-white' },
-  'Prosperity': { bg: 'bg-indigo-600', text: 'text-white' },
-  'Luxurious': { bg: 'bg-yellow-600', text: 'text-white' },
-  'Good Habits': { bg: 'bg-teal-600', text: 'text-white' },
-  'Sadhana': { bg: 'bg-cyan-600', text: 'text-white' },
-};
+import { CATEGORY_COLORS, MONTHS } from '@/lib/lifePlannerConstants';
 
 export default function TasksPage() {
   const router = useRouter();
@@ -153,7 +138,18 @@ export default function TasksPage() {
   };
 
   const handleDeleteTask = (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this task?')) return;
     setTasks(prev => prev.filter(t => t.id !== id));
+  };
+
+  const handleCompleteTask = (id: string) => {
+    setTasks(prev =>
+      prev.map(t =>
+        t.id === id
+          ? { ...t, status: 'completed', completed: true, progress: 100, updatedAt: new Date().toISOString() }
+          : t
+      )
+    );
   };
 
   const handleSaveTask = (taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => {
@@ -329,7 +325,7 @@ export default function TasksPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-max justify-items-center">
           {filteredTasks.map((task) => (
-            <div key={task.id} className="w-80 min-w-[300px] max-w-[300px] bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 flex flex-col h-full">
+            <div key={task.id} className="w-full sm:w-80 sm:min-w-[300px] sm:max-w-[300px] bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 flex flex-col h-full">
               {/* Card Image */}
               <div className="relative h-48 overflow-hidden">
                 <img
@@ -369,6 +365,7 @@ export default function TasksPage() {
                 {/* Card Buttons */}
                 <div className="mt-4 flex gap-2">
                   <button
+                    onClick={() => handleCompleteTask(task.id)}
                     className="flex-1 px-3 py-2 bg-gradient-to-r from-orange-500 to-yellow-500 text-white text-xs font-bold rounded-lg hover:from-orange-600 hover:to-yellow-600 transition"
                   >
                     Done

@@ -2648,6 +2648,23 @@ AICallTemplateSchema.index({ approvalStatus: 1 });
 
 export function getAICallTemplate() { return getModel('AICallTemplate', AICallTemplateSchema); }
 
+// ─── Agent Language Mapping (auto-select Retell agent per language) ───
+const AgentLanguageMappingSchema = new mongoose.Schema(
+  {
+    language: { type: String, required: true, unique: true, index: true },
+    // e.g. 'hi', 'en', 'ne', 'mr', 'ta', 'te', 'bn', 'gu', 'ml', 'pa', 'ur', 'es', 'multi'
+    agentId: { type: String, required: true },   // Retell agent_id
+    agentName: { type: String, default: '' },     // Display name for UI
+    voiceId: { type: String, default: '' },       // Retell voice_id (informational)
+    isDefault: { type: Boolean, default: false }, // Fallback agent for unmapped languages
+    isActive: { type: Boolean, default: true },
+    updatedBy: { type: String },
+  },
+  { timestamps: true, collection: 'agent_language_mappings' }
+);
+
+export function getAgentLanguageMapping() { return getModel('AgentLanguageMapping', AgentLanguageMappingSchema); }
+
 // LEGACY PROXY EXPORTS - For backward compatibility with existing code
 // These use Proxies to defer initialization
 export const Lead = createModelProxy('Lead', LeadSchema);

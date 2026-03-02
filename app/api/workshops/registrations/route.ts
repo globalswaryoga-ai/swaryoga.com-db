@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import { connectDB, WorkshopSeatInventory } from '@/lib/db';
+import { notifyWorkshopEnrollment } from '@/lib/notifications';
 
 // Workshop Registration Schema
 const workshopRegistrationSchema = new mongoose.Schema(
@@ -106,6 +107,14 @@ export async function POST(request: NextRequest) {
     } catch (seatError) {
       console.warn('Warning: Could not update seat inventory:', seatError);
       // Don't fail the registration if seat inventory update fails
+    }
+
+    // Send workshop enrollment email notification
+    if (email) {
+      notifyWorkshopEnrollment(
+        { name: `${firstName} ${lastName}`.trim(), email, phone },
+        { workshopName, startDate, endDate, mode },
+      ).catch(err => console.error('[WorkshopReg] Notification error:', err));
     }
 
     return NextResponse.json(

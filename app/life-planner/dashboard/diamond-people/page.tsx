@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Download } from 'lucide-react';
 import { DiamondPerson } from '@/lib/types/lifePlanner';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
+import { csvEscape } from '@/lib/lifePlannerConstants';
 import DiamondPersonModal from './DiamondPersonModal';
 
 const DEFAULT_IMAGE = 'https://i.postimg.cc/Y0zjsTd2/image.jpg';
@@ -55,6 +56,7 @@ const DiamondPeoplePage = () => {
   };
 
   const handleDeletePerson = (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this person?')) return;
     setPeople(prev => prev.filter(p => p.id !== id));
   };
 
@@ -98,7 +100,7 @@ const DiamondPeoplePage = () => {
   const exportToCSV = () => {
     const headers = ['Name', 'Mobile', 'Profession', 'Country', 'State', 'Email', 'Category', 'Vision Head', 'Relationship', 'Last Contact'];
     const csvContent = [
-      headers.join(','),
+      headers.map(csvEscape).join(','),
       ...filteredPeople.map(person =>
         [
           person.name,
@@ -111,7 +113,7 @@ const DiamondPeoplePage = () => {
           person.visionHead,
           person.relationship,
           person.lastContact,
-        ].join(',')
+        ].map(csvEscape).join(',')
       ),
     ].join('\n');
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { notifyWorkshopEnrollment } from '@/lib/notifications';
 
 /**
  * POST /api/crm/workshop-registration
@@ -82,6 +83,14 @@ export async function POST(request: NextRequest) {
         },
         { upsert: true, new: true }
       );
+
+      // Send workshop enrollment email notification
+      if (email) {
+        notifyWorkshopEnrollment(
+          { name: `${firstName} ${lastName || ''}`.trim(), email, phone },
+          { workshopName, leadNumber: lead.leadNumber },
+        ).catch(err => console.error('[WorkshopReg] Notification error:', err));
+      }
 
       return NextResponse.json({
         success: true,

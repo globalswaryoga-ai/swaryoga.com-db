@@ -124,6 +124,9 @@ export default function CallTemplatesPage() {
   // Selection & editing
   const [selectedId, setSelectedId] = useState('');
   const [editPrompt, setEditPrompt] = useState('');
+  const [editStage1, setEditStage1] = useState('');
+  const [editStage2, setEditStage2] = useState('');
+  const [editStage3, setEditStage3] = useState('');
   const [editMode, setEditMode] = useState(false);
   const [approvalNote, setApprovalNote] = useState('');
 
@@ -441,10 +444,34 @@ We're excited to have you as part of the Swar Yoga family. Namaste! 🙏`);
 
 
 
+  // ── Parse 3-stage prompt into individual stages ──
+  const parseStages = (prompt: string) => {
+    const s1 = prompt.match(/--- STAGE 1: OPENING ---\n([\s\S]*?)(?=\n\n--- STAGE 2:|$)/);
+    const s2 = prompt.match(/--- STAGE 2: MAIN CONTENT ---\n([\s\S]*?)(?=\n\n--- STAGE 3:|$)/);
+    const s3 = prompt.match(/--- STAGE 3: CLOSING ---\n([\s\S]*?)$/);
+    return {
+      stage1: s1?.[1]?.trim() || (prompt && !s1 ? prompt : ''),
+      stage2: s2?.[1]?.trim() || '',
+      stage3: s3?.[1]?.trim() || '',
+    };
+  };
+
+  // ── Combine 3 stages into promptText ──
+  const combineStages = (s1: string, s2: string, s3: string) => {
+    const parts = [s1, s2, s3].filter(Boolean);
+    if (parts.length === 0) return '';
+    return `--- STAGE 1: OPENING ---\n${s1}\n\n--- STAGE 2: MAIN CONTENT ---\n${s2}\n\n--- STAGE 3: CLOSING ---\n${s3}`;
+  };
+
   // ── Select template ──
   const selectTemplate = (t: Template, openEdit = false) => {
     setSelectedId(t._id);
-    setEditPrompt(t.promptText || '');
+    const prompt = t.promptText || '';
+    setEditPrompt(prompt);
+    const { stage1, stage2, stage3 } = parseStages(prompt);
+    setEditStage1(stage1);
+    setEditStage2(stage2);
+    setEditStage3(stage3);
     setEditMode(openEdit);
     setApprovalNote('');
     setActiveCategory(t.category);
@@ -501,13 +528,17 @@ We're excited to have you as part of the Swar Yoga family. Namaste! 🙏`);
     if (!selected || !token) return;
     setSaving(true);
     try {
+      // Combine the 3 stages into final promptText
+      const combinedPrompt = combineStages(editStage1, editStage2, editStage3);
       const res = await fetch('/api/admin/crm/calls/templates', {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: selected._id, promptText: editPrompt }),
+        body: JSON.stringify({ id: selected._id, promptText: combinedPrompt }),
       });
       const data = await res.json();
       if (data.success) {
+        // Sync editPrompt with the saved value
+        setEditPrompt(combinedPrompt);
         await fetchTemplates();
         setEditMode(false);
       }
@@ -567,9 +598,10 @@ We're excited to have you as part of the Swar Yoga family. Namaste! 🙏`);
     if (!confirm('Are you sure you want to delete this calling head?')) return;
     setSaving(true);
     try {
-      const res = await fetch(`/api/admin/crm/calls/templates?id=${id}`, {
+      const res = await fetch('/api/admin/crm/calls/templates', {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
       });
       const data = await res.json();
       if (data.success) {
@@ -591,9 +623,10 @@ We're excited to have you as part of the Swar Yoga family. Namaste! 🙏`);
     setSaving(true);
     try {
       for (const id of checkedIds) {
-        await fetch(`/api/admin/crm/calls/templates?id=${id}`, {
+        await fetch('/api/admin/crm/calls/templates', {
           method: 'DELETE',
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id }),
         });
       }
       setCheckedIds(new Set());
@@ -668,9 +701,33 @@ We're excited to have you as part of the Swar Yoga family. Namaste! 🙏`);
             body: JSON.stringify({ id: data.data._id, action: 'submit' }),
           });
         }
+        // Auto-select the newly created template
+        const newId = data.data?._id;
         setActiveLang(formLang);
         setActiveCategory(newHead.category);
-        await fetchTemplates();
+        // Fetch with correct language (fetchTemplates uses activeLang from closure,
+        // so fetch directly with the form language)
+        try {
+          const fetchRes = await fetch(`/api/admin/crm/calls/templates?language=${formLang}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const fetchData = await fetchRes.json();
+          if (fetchData.success) {
+            setTemplates(fetchData.data.templates || []);
+            if (newId) {
+              setSelectedId(newId);
+              const created = (fetchData.data.templates || []).find((t: any) => t._id === newId);
+              if (created) {
+                const prompt = created.promptText || '';
+                setEditPrompt(prompt);
+                const { stage1, stage2, stage3 } = parseStages(prompt);
+                setEditStage1(stage1);
+                setEditStage2(stage2);
+                setEditStage3(stage3);
+              }
+            }
+          }
+        } catch { await fetchTemplates(); }
         setShowAddModal(false);
         resetForm();
       } else {
@@ -2278,17 +2335,96 @@ We're excited to have you as part of the Swar Yoga family. Namaste! 🙏`);
                 </div>
                 <div className="p-5">
                   {editMode ? (
-                    <textarea
-                      value={editPrompt}
-                      onChange={e => setEditPrompt(e.target.value)}
-                      rows={18}
-                      className="w-full px-4 py-3 text-sm font-mono leading-relaxed rounded-xl border border-gray-200 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 outline-none resize-y"
-                      placeholder="Write Sakshi's call script here...&#10;&#10;Use {{leadName}}, {{lang}}, {{workshopName}} as variables."
-                    />
+                    <div className="space-y-4">
+                      {/* Stage 1: Opening */}
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="inline-flex items-center justify-center w-5 h-5 rounded-md text-[10px] font-bold text-white" style={{ background: C.emerald.main }}>1</span>
+                          <span className="text-xs font-bold text-gray-600">STAGE 1: OPENING</span>
+                        </div>
+                        <textarea
+                          value={editStage1}
+                          onChange={e => setEditStage1(e.target.value)}
+                          rows={5}
+                          className="w-full px-4 py-3 text-sm font-mono leading-relaxed rounded-xl border border-emerald-200 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none resize-y"
+                          placeholder="Opening script — greet the lead, introduce yourself..."
+                        />
+                      </div>
+                      {/* Stage 2: Main Content */}
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="inline-flex items-center justify-center w-5 h-5 rounded-md text-[10px] font-bold text-white" style={{ background: C.blue.main }}>2</span>
+                          <span className="text-xs font-bold text-gray-600">STAGE 2: MAIN CONTENT</span>
+                        </div>
+                        <textarea
+                          value={editStage2}
+                          onChange={e => setEditStage2(e.target.value)}
+                          rows={8}
+                          className="w-full px-4 py-3 text-sm font-mono leading-relaxed rounded-xl border border-blue-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none resize-y"
+                          placeholder="Main conversation — purpose, questions, information..."
+                        />
+                      </div>
+                      {/* Stage 3: Closing */}
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="inline-flex items-center justify-center w-5 h-5 rounded-md text-[10px] font-bold text-white" style={{ background: C.violet.main }}>3</span>
+                          <span className="text-xs font-bold text-gray-600">STAGE 3: CLOSING</span>
+                        </div>
+                        <textarea
+                          value={editStage3}
+                          onChange={e => setEditStage3(e.target.value)}
+                          rows={5}
+                          className="w-full px-4 py-3 text-sm font-mono leading-relaxed rounded-xl border border-violet-200 focus:border-violet-400 focus:ring-2 focus:ring-violet-100 outline-none resize-y"
+                          placeholder="Closing — thank them, next steps, goodbye..."
+                        />
+                      </div>
+                      <p className="text-[10px] text-gray-400">Use {'{{leadName}}'}, {'{{lang}}'}, {'{{workshopName}}'} as variables</p>
+                    </div>
                   ) : selected.promptText ? (
-                    <pre className="text-sm font-mono leading-relaxed text-gray-700 whitespace-pre-wrap break-words max-h-[500px] overflow-y-auto">
-                      {selected.promptText}
-                    </pre>
+                    <div className="space-y-3">
+                      {(() => {
+                        const { stage1, stage2, stage3 } = parseStages(selected.promptText);
+                        const hasStages = selected.promptText.includes('--- STAGE 1:');
+                        if (!hasStages) {
+                          return (
+                            <pre className="text-sm font-mono leading-relaxed text-gray-700 whitespace-pre-wrap break-words max-h-[500px] overflow-y-auto">
+                              {selected.promptText}
+                            </pre>
+                          );
+                        }
+                        return (
+                          <>
+                            {stage1 && (
+                              <div className="rounded-xl border border-emerald-100 bg-emerald-50/30 p-4">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-md text-[10px] font-bold text-white" style={{ background: C.emerald.main }}>1</span>
+                                  <span className="text-[10px] font-bold text-emerald-700 uppercase">Opening</span>
+                                </div>
+                                <pre className="text-sm font-mono leading-relaxed text-gray-700 whitespace-pre-wrap break-words">{stage1}</pre>
+                              </div>
+                            )}
+                            {stage2 && (
+                              <div className="rounded-xl border border-blue-100 bg-blue-50/30 p-4">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-md text-[10px] font-bold text-white" style={{ background: C.blue.main }}>2</span>
+                                  <span className="text-[10px] font-bold text-blue-700 uppercase">Main Content</span>
+                                </div>
+                                <pre className="text-sm font-mono leading-relaxed text-gray-700 whitespace-pre-wrap break-words">{stage2}</pre>
+                              </div>
+                            )}
+                            {stage3 && (
+                              <div className="rounded-xl border border-violet-100 bg-violet-50/30 p-4">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-md text-[10px] font-bold text-white" style={{ background: C.violet.main }}>3</span>
+                                  <span className="text-[10px] font-bold text-violet-700 uppercase">Closing</span>
+                                </div>
+                                <pre className="text-sm font-mono leading-relaxed text-gray-700 whitespace-pre-wrap break-words">{stage3}</pre>
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </div>
                   ) : (
                     <div className="text-center py-10 text-gray-300">
                       <FileText className="h-8 w-8 mx-auto mb-2" />

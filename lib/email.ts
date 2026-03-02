@@ -1,7 +1,10 @@
 /**
- * Email Utility using Resend API
+ * Email Utility using Hostinger SMTP (nodemailer)
  * Provides reusable email sending functions for bulk emails, single emails, etc.
+ * Falls back to Resend API if SMTP is not configured.
  */
+
+import nodemailer from 'nodemailer';
 
 const RESEND_API_URL = 'https://api.resend.com/emails';
 
@@ -45,7 +48,14 @@ export interface BulkSendSummary {
 }
 
 /**
- * Get the Resend API key from environment
+ * Check if SMTP is configured (preferred method)
+ */
+function isSmtpConfigured(): boolean {
+  return !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+}
+
+/**
+ * Get the Resend API key from environment (fallback)
  */
 function getResendApiKey(): string {
   const apiKey = process.env.RESEND_API_KEY;
@@ -56,9 +66,27 @@ function getResendApiKey(): string {
 }
 
 /**
+ * Create a nodemailer SMTP transporter (Hostinger)
+ */
+function createSmtpTransporter() {
+  return nodemailer.createTransport({
+    host: process.env.SMTP_HOST || 'smtp.hostinger.com',
+    port: parseInt(process.env.SMTP_PORT || '465'),
+    secure: true, // SSL
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  });
+}
+
+/**
  * Get the default from address
  */
 function getFromAddress(): string {
+  if (isSmtpConfigured()) {
+    return process.env.EMAIL_FROM || `Swar Yoga <${process.env.SMTP_USER}>`;
+  }
   return process.env.EMAIL_FROM || 'Swar Yoga <noreply@swaryoga.com>';
 }
 
@@ -114,9 +142,63 @@ export function wrapInEmailTemplate(content: string, subject: string): string {
 }
 
 /**
- * Send a single email via Resend API
+ * Send a single email via SMTP (Hostinger) or Resend API fallback
  */
 export async function sendEmail(options: SendEmailOptions): Promise<{ success: boolean; id?: string; error?: string }> {
+  // Use SMTP if configured, otherwise fall back to Resend
+  if (isSmtpConfigured()) {
+    return sendEmailViaSMTP(options);
+  }
+  return sendEmailViaResend(options);
+}
+
+/**
+ * Send email via Hostinger SMTP (nodemailer)
+ */
+async function sendEmailViaSMTP(options: SendEmailOptions): Promise<{ success: boolean; id?: string; error?: string }> {
+  try {
+    const transporter = createSmtpTransporter();
+
+    // Build attachments for nodemailer (fetch remote URLs)
+    let mailAttachments: Array<{ filename: string; content: Buffer }> | undefined;
+    if (options.attachments && options.attachments.length > 0) {
+      mailAttachments = [];
+      for (const att of options.attachments) {
+        try {
+          const resp = await fetch(att.url);
+          if (resp.ok) {
+            const buffer = Buffer.from(await resp.arrayBuffer());
+            mailAttachments.push({ filename: att.fileName, content: buffer });
+          } else {
+            console.warn(`[Email/SMTP] Failed to fetch attachment ${att.fileName}: HTTP ${resp.status}`);
+          }
+        } catch (fetchErr) {
+          console.warn(`[Email/SMTP] Failed to fetch attachment ${att.fileName}:`, fetchErr);
+        }
+      }
+    }
+
+    const info = await transporter.sendMail({
+      from: options.from || getFromAddress(),
+      to: options.to,
+      subject: options.subject,
+      html: options.html,
+      replyTo: options.replyTo || undefined,
+      attachments: mailAttachments,
+    });
+
+    console.log('[Email/SMTP] Sent:', info.messageId);
+    return { success: true, id: info.messageId };
+  } catch (error: any) {
+    console.error('[Email/SMTP] Send error:', error);
+    return { success: false, error: error.message || 'SMTP error' };
+  }
+}
+
+/**
+ * Send email via Resend API (fallback)
+ */
+async function sendEmailViaResend(options: SendEmailOptions): Promise<{ success: boolean; id?: string; error?: string }> {
   try {
     const apiKey = getResendApiKey();
 
@@ -134,10 +216,10 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ success: b
               content: buffer.toString('base64'),
             });
           } else {
-            console.warn(`[Email] Failed to fetch attachment ${att.fileName}: HTTP ${resp.status}`);
+            console.warn(`[Email/Resend] Failed to fetch attachment ${att.fileName}: HTTP ${resp.status}`);
           }
         } catch (fetchErr) {
-          console.warn(`[Email] Failed to fetch attachment ${att.fileName}:`, fetchErr);
+          console.warn(`[Email/Resend] Failed to fetch attachment ${att.fileName}:`, fetchErr);
         }
       }
     }
@@ -165,13 +247,13 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ success: b
     const data = await response.json();
 
     if (!response.ok) {
-      console.error('[Email] Send failed:', data);
+      console.error('[Email/Resend] Send failed:', data);
       return { success: false, error: data?.message || data?.error || `HTTP ${response.status}` };
     }
 
     return { success: true, id: data.id };
   } catch (error: any) {
-    console.error('[Email] Send error:', error);
+    console.error('[Email/Resend] Send error:', error);
     return { success: false, error: error.message || 'Unknown error' };
   }
 }

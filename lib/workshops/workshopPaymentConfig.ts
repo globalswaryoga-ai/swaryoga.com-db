@@ -237,6 +237,28 @@ export const WeightLossProgram: WorkshopPaymentConfig = {
 };
 
 /**
+ * PRE-PREGNANCY PROGRAM
+ * Uses same payment links as Master Swar Yoga
+ */
+export const PrePregnancyProgram: WorkshopPaymentConfig = {
+  slug: 'pre-pregnancy',
+  name: 'Pre-Pregnancy Program',
+  shortName: 'Pre-Pregnancy',
+  duration: '6 months',
+  schedule: 'Varies by schedule',
+  basePrice: 15000,
+  currency: 'INR',
+  paymentLinks: {
+    online: {
+      hindi: 'https://u.payu.in/master-swar-yoga-monthly-hindi',
+      english: 'https://u.payu.in/master-swar-yoga-monthly-english',
+      marathi: 'https://u.payu.in/master-swar-yoga-monthly-marathi',
+      nepali: 'https://u.payu.in/master-swar-yoga-monthly-nepali',
+    },
+  },
+};
+
+/**
  * All workshops configuration
  * Use this to dynamically get payment links
  */
@@ -248,6 +270,7 @@ export const workshopPaymentConfig: Record<string, WorkshopPaymentConfig> = {
   'master-swar-yoga': MasterSwarYogaMonthly,
   'master-swar-yoga-3-month': MasterSwarYogaThreeMonth,
   'weight-loss': WeightLossProgram,
+  'pre-pregnancy': PrePregnancyProgram,
 };
 
 /**

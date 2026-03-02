@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Download, Plus } from 'lucide-react';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 import EventModal, { type EventSubtype, type PlannerEvent } from './EventModal';
+import { csvEscape } from '@/lib/lifePlannerConstants';
 import type { Reminder, Todo } from '@/lib/types/lifePlanner';
 
 const EVENTS_STORAGE_KEY = 'swar-life-planner-calendar-events';
@@ -67,16 +68,53 @@ export default function LifePlannerEventsPage() {
   useEffect(() => {
     setMounted(true);
 
-    const list = readArray<PlannerEvent>(EVENTS_STORAGE_KEY)
-      .filter((x) => x && x.type === 'event' && typeof x.id === 'string')
-      .map((x) => ({
-        ...x,
-        startDate: normalizeISO(x.startDate),
-        endDate: normalizeISO(x.endDate),
-        imageUrl: typeof (x as any).imageUrl === 'string' ? (x as any).imageUrl : undefined,
-      }));
-    setEvents(list);
-    setHasLoaded(true);
+    (async () => {
+      try {
+        // Try MongoDB first, fall back to localStorage for migration
+        let mongoEvents = await lifePlannerStorage.getEvents();
+        if (!Array.isArray(mongoEvents)) mongoEvents = [];
+
+        if (mongoEvents.length > 0) {
+          const list = mongoEvents
+            .filter((x: any) => x && x.type === 'event' && typeof x.id === 'string')
+            .map((x: any) => ({
+              ...x,
+              startDate: normalizeISO(x.startDate),
+              endDate: normalizeISO(x.endDate),
+              imageUrl: typeof x.imageUrl === 'string' ? x.imageUrl : undefined,
+            }));
+          setEvents(list);
+        } else {
+          // Migrate from localStorage
+          const localList = readArray<PlannerEvent>(EVENTS_STORAGE_KEY)
+            .filter((x) => x && x.type === 'event' && typeof x.id === 'string')
+            .map((x) => ({
+              ...x,
+              startDate: normalizeISO(x.startDate),
+              endDate: normalizeISO(x.endDate),
+              imageUrl: typeof (x as any).imageUrl === 'string' ? (x as any).imageUrl : undefined,
+            }));
+          setEvents(localList);
+          // Save to MongoDB if local data exists
+          if (localList.length > 0) {
+            await lifePlannerStorage.saveEvents(localList);
+          }
+        }
+      } catch {
+        // Fallback to localStorage on error
+        const list = readArray<PlannerEvent>(EVENTS_STORAGE_KEY)
+          .filter((x) => x && x.type === 'event' && typeof x.id === 'string')
+          .map((x) => ({
+            ...x,
+            startDate: normalizeISO(x.startDate),
+            endDate: normalizeISO(x.endDate),
+            imageUrl: typeof (x as any).imageUrl === 'string' ? (x as any).imageUrl : undefined,
+          }));
+        setEvents(list);
+      } finally {
+        setHasLoaded(true);
+      }
+    })();
 
     (async () => {
       try {
@@ -104,7 +142,11 @@ export default function LifePlannerEventsPage() {
 
   useEffect(() => {
     if (!mounted || !hasLoaded) return;
+    // Save to both MongoDB and localStorage (localStorage as offline fallback)
     writeArray(EVENTS_STORAGE_KEY, events);
+    (async () => {
+      await lifePlannerStorage.saveEvents(events);
+    })();
   }, [events, mounted, hasLoaded]);
 
   const sorted = useMemo(() => [...events].sort((a, b) => (a.startDate || '').localeCompare(b.startDate || '')), [events]);
@@ -136,6 +178,7 @@ export default function LifePlannerEventsPage() {
   };
 
   const remove = (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this event?')) return;
     setEvents((prev) => prev.filter((e) => e.id !== id));
   };
 
@@ -253,9 +296,9 @@ export default function LifePlannerEventsPage() {
   const exportToCSV = () => {
     const headers = ['Title', 'Subtype', 'Start Date', 'End Date', 'Image URL'];
     const csvContent = [
-      headers.join(','),
+      headers.map(csvEscape).join(','),
       ...filteredEvents.map((evt) =>
-        [evt.title, evt.subtype, evt.startDate, evt.endDate || '', evt.imageUrl || ''].map((v) => String(v ?? '')).join(',')
+        [evt.title, evt.subtype, evt.startDate, evt.endDate || '', evt.imageUrl || ''].map(csvEscape).join(',')
       ),
     ].join('\n');
 

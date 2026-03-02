@@ -11,9 +11,20 @@
  */
 
 import { connectDB } from '@/lib/db';
-import { getAICallTemplate } from '@/lib/schemas/enterpriseSchemas';
+import { getAICallTemplate, getAgentLanguageMapping } from '@/lib/schemas/enterpriseSchemas';
 
 const RETELL_API_BASE = 'https://api.retellai.com';
+
+/** Human-readable language labels for prompt injection */
+export const LANGUAGE_LABELS: Record<string, string> = {
+  hi: 'Hindi', en: 'English', mr: 'Marathi',
+  zh: 'Mandarin', es: 'Spanish', fr: 'French',
+  ar: 'Arabic', de: 'German', pt: 'Portuguese',
+  ja: 'Japanese', ko: 'Korean', ru: 'Russian',
+  it: 'Italian', tr: 'Turkish', nl: 'Dutch',
+  sv: 'Swedish', th: 'Thai', id: 'Indonesian',
+  multi: 'Multilingual',
+};
 
 interface RetellConfig {
   apiKey: string;
@@ -62,7 +73,7 @@ export interface CreateCallInput {
   toNumber: string; // E.164 format e.g. +919673322573
   leadName: string;
   purpose: 'follow_up' | 'workshop_reminder' | 'collect_info' | 'payment_reminder' | 'welcome' | 'answer_questions' | 'custom';
-  language: 'hi' | 'en';
+  language: string; // 'hi', 'en', 'ne', 'mr', 'ta', 'te', etc.
   customPrompt?: string; // Additional context/instructions for the AI
   leadContext?: {
     name: string;
@@ -75,7 +86,8 @@ export interface CreateCallInput {
     source?: string;
     language?: string;
   };
-  overrideAgentId?: string; // Use a different agent for this call
+  overrideAgentId?: string; // Use a different agent for this call (manual override)
+  overrideVoiceId?: string; // Force a specific voice_id (e.g. female voice)
   fromNumber?: string; // Override from number
 }
 
@@ -142,6 +154,59 @@ function interpolateTemplate(template: string, vars: Record<string, string>): st
 }
 
 /**
+ * Resolve the best Retell agent for a given language using the DB mapping.
+ * Falls back to the default agent (RETELL_AGENT_ID env var) if no mapping found.
+ * Returns { agentId, agentName, voiceId } or null if no agent available.
+ */
+export async function resolveAgentForLanguage(language: string): Promise<{ agentId: string; agentName: string; voiceId?: string } | null> {
+  try {
+    await connectDB();
+    const AgentLanguageMapping = getAgentLanguageMapping();
+
+    // Normalize: 'hi-IN' → 'hi', 'en-US' → 'en'
+    const normalizedLang = language?.toLowerCase().split('-')[0] || 'hi';
+
+    // Try exact match first
+    let mapping = await AgentLanguageMapping.findOne({ language: normalizedLang, isActive: true }).lean() as any;
+
+    // Try with full code if no short match
+    if (!mapping && language !== normalizedLang) {
+      mapping = await AgentLanguageMapping.findOne({ language: language.toLowerCase(), isActive: true }).lean() as any;
+    }
+
+    // Try 'multi' (multilingual agent) as second fallback
+    if (!mapping) {
+      mapping = await AgentLanguageMapping.findOne({ language: 'multi', isActive: true }).lean() as any;
+    }
+
+    // Try default agent mapping
+    if (!mapping) {
+      mapping = await AgentLanguageMapping.findOne({ isDefault: true, isActive: true }).lean() as any;
+    }
+
+    if (mapping) {
+      return {
+        agentId: mapping.agentId,
+        agentName: mapping.agentName || `Agent (${normalizedLang})`,
+        voiceId: mapping.voiceId || undefined,
+      };
+    }
+
+    // Ultimate fallback: env variable
+    const config = getConfig();
+    if (config.agentId) {
+      return { agentId: config.agentId, agentName: 'Default Agent (env)' };
+    }
+
+    return null;
+  } catch (err) {
+    console.warn('[retellAI] resolveAgentForLanguage failed, using env fallback:', err);
+    const config = getConfig();
+    return config.agentId ? { agentId: config.agentId, agentName: 'Default Agent (env)' } : null;
+  }
+}
+
+/**
  * Create and trigger an outbound AI call via Retell
  */
 export async function createOutboundCall(input: CreateCallInput): Promise<CreateCallResult> {
@@ -150,7 +215,21 @@ export async function createOutboundCall(input: CreateCallInput): Promise<Create
   }
 
   const config = getConfig();
-  const agentId = input.overrideAgentId || config.agentId;
+
+  // Resolve agent: manual override > language mapping > env default
+  let agentId: string;
+  let resolvedVoiceId: string | undefined;
+  if (input.overrideAgentId) {
+    agentId = input.overrideAgentId;
+  } else {
+    const resolved = await resolveAgentForLanguage(input.language);
+    agentId = resolved?.agentId || config.agentId;
+    resolvedVoiceId = resolved?.voiceId;
+  }
+
+  // Voice priority: explicit override > language mapping > env fallback
+  const voiceId = input.overrideVoiceId || resolvedVoiceId || process.env.RETELL_VOICE_ID || undefined;
+
   const fromNumber = input.fromNumber || config.fromNumber;
 
   if (!fromNumber) {
@@ -158,10 +237,11 @@ export async function createOutboundCall(input: CreateCallInput): Promise<Create
   }
 
   // Build dynamic variables for the agent prompt
+  const langLabel = LANGUAGE_LABELS[input.language] || input.language || 'Hindi';
   const dynamicVars: Record<string, string> = {
     lead_name: input.leadName || 'there',
     call_purpose: input.purpose,
-    language: input.language === 'hi' ? 'Hindi' : 'English',
+    language: langLabel,
   };
 
   if (input.leadContext) {
@@ -178,7 +258,7 @@ export async function createOutboundCall(input: CreateCallInput): Promise<Create
   }
 
   // Build general prompt based on purpose
-  const lang = input.language === 'hi' ? 'Hindi' : 'English';
+  const lang = langLabel;
   const leadName = input.leadName || 'ji';
   const workshopName = input.leadContext?.workshopName || 'Swar Yoga workshop';
 
@@ -474,7 +554,11 @@ NEVER say "Mohan Sir aapko call karenge" — YOU (Sakshi) will always call back.
         agent_name: `Swar Yoga - ${input.purpose}`,
         general_prompt: resolvedPrompt,
         general_tools: [],
+        ...(voiceId ? { voice_id: voiceId } : {}),
       };
+    } else if (voiceId) {
+      // Even without prompt override, force voice_id if specified
+      body.override_agent = { voice_id: voiceId };
     }
 
     const result = await retellFetch('/v2/create-phone-call', {
@@ -505,10 +589,11 @@ export interface CreateBatchCallInput {
   name: string;                // Batch name / label
   tasks: BatchCallTask[];      // List of numbers to dial
   purpose: string;             // welcome, follow_up, etc.
-  language: 'hi' | 'en';
+  language: string;            // 'hi', 'en', 'ne', 'mr', etc.
   customPrompt?: string;
   fromNumber?: string;
   overrideAgentId?: string;
+  overrideVoiceId?: string;    // Force a specific voice_id (e.g. female voice)
   scheduledAt?: string;        // ISO string – omit for "Send Now"
   maxConcurrency?: number;     // Retell concurrency limit (default 5)
 }
@@ -532,7 +617,21 @@ export async function createBatchCall(input: CreateBatchCallInput): Promise<Crea
   }
 
   const config = getConfig();
-  const agentId = input.overrideAgentId || config.agentId;
+
+  // Resolve agent: manual override > language mapping > env default
+  let agentId: string;
+  let resolvedVoiceId: string | undefined;
+  if (input.overrideAgentId) {
+    agentId = input.overrideAgentId;
+  } else {
+    const resolved = await resolveAgentForLanguage(input.language);
+    agentId = resolved?.agentId || config.agentId;
+    resolvedVoiceId = resolved?.voiceId;
+  }
+
+  // Voice priority: explicit override > language mapping > env fallback
+  const voiceId = input.overrideVoiceId || resolvedVoiceId || process.env.RETELL_VOICE_ID || undefined;
+
   const fromNumber = input.fromNumber || config.fromNumber;
 
   if (!fromNumber) {
@@ -543,7 +642,7 @@ export async function createBatchCall(input: CreateBatchCallInput): Promise<Crea
     return { success: false, error: 'No tasks provided for batch call.' };
   }
 
-  const lang = input.language === 'hi' ? 'Hindi' : 'English';
+  const lang = LANGUAGE_LABELS[input.language] || input.language || 'Hindi';
 
   // Try loading prompt from DB
   const templateVars: Record<string, string> = { lang, customPrompt: input.customPrompt || '' };
@@ -586,7 +685,11 @@ export async function createBatchCall(input: CreateBatchCallInput): Promise<Crea
         agent_name: `Swar Yoga Batch - ${input.purpose}`,
         general_prompt: generalPrompt,
         general_tools: [],
+        ...(voiceId ? { voice_id: voiceId } : {}),
       };
+    } else if (voiceId) {
+      body.agent_id = agentId;
+      body.override_agent = { voice_id: voiceId };
     } else {
       body.agent_id = agentId;
     }
@@ -738,6 +841,13 @@ export async function listPhoneNumbers() {
 }
 
 /**
+ * List available voices from Retell AI
+ */
+export async function listVoices() {
+  return retellFetch('/list-voices');
+}
+
+/**
  * Get call details from Retell
  */
 export async function getCallDetails(callId: string) {
@@ -759,12 +869,15 @@ export default {
   createOutboundCall,
   createBatchCall,
   checkRetellConfig,
+  resolveAgentForLanguage,
   isConfigured: () => isConfigured(),
   listAgents,
   getAgent,
   listPhoneNumbers,
+  listVoices,
   getCallDetails,
   mapRetellStatus,
   mapDisconnectionReason,
   extractCollectedData,
+  LANGUAGE_LABELS,
 };

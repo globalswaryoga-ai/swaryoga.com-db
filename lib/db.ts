@@ -161,9 +161,9 @@ const userSchema = new mongoose.Schema({
   isAdmin: { type: Boolean, default: false },
   role: { 
     type: String, 
-    enum: ['superadmin', 'manager', 'admin', 'user'], 
+    enum: ['superadmin', 'dm', 'manager', 'admin', 'user'], 
     default: 'user' 
-  }, // superadmin=full access, manager=team lead, admin=basic admin, user=regular
+  }, // superadmin=full access, dm=district manager, manager=team lead, admin=basic admin, user=regular
   
   // DEPRECATED: Legacy permissions array (kept for backward compatibility)
   // Accepts both legacy module names ('crm','whatsapp') and granular format ('leads:read','users:write')

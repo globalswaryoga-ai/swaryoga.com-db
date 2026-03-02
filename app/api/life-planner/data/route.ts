@@ -66,14 +66,12 @@ export async function GET(request: NextRequest) {
     if (dataType) {
       const fieldName = `lifePlanner${dataType.charAt(0).toUpperCase()}${dataType.slice(1)}`;
       const result = user[fieldName as keyof typeof user] || [];
-      console.log(`[GET] ✅ Returned ${dataType}: ${Array.isArray(result) ? result.length : '?'} items`);
       return NextResponse.json({
         data: result,
       });
     }
 
     // Return all Life Planner data
-    console.log(`[GET] ✅ Returned all data`);
     return NextResponse.json({
       visions: user.lifePlannerVisions || [],
       actionPlans: user.lifePlannerActionPlans || [],
@@ -90,7 +88,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Life Planner data fetch error:', error);
     return NextResponse.json(
-      { error: 'Internal server error', details: String(error) },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }
@@ -126,7 +124,6 @@ export async function PUT(request: NextRequest) {
     }
 
     const fieldName = `lifePlanner${type.charAt(0).toUpperCase()}${type.slice(1)}`;
-    console.log(`[PUT] Field name: ${fieldName}, data length: ${Array.isArray(data) ? data.length : 'not array'}`);
 
     const userId = identity.userId;
     const email = identity.email;
@@ -155,17 +152,13 @@ export async function PUT(request: NextRequest) {
     );
 
     if (!user) {
-      console.error(`[PUT] User not found`, {
-        userId: userId && Types.ObjectId.isValid(userId) ? userId : undefined,
-        email: email ? email.trim().toLowerCase() : undefined,
-      });
       return NextResponse.json(
         { error: 'User not found' },
         { status: 404 }
       );
     }
 
-    console.log(`[PUT] ✅ Successfully updated ${type}`);
+    console.log(`[PUT] ✅ Updated ${type}`);
     return NextResponse.json({
       message: 'Data saved successfully',
       data: user[fieldName as keyof typeof user],
@@ -173,7 +166,7 @@ export async function PUT(request: NextRequest) {
   } catch (error) {
     console.error('Life Planner data update error:', error);
     return NextResponse.json(
-      { error: 'Internal server error', details: String(error) },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }

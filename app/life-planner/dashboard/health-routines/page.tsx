@@ -10,6 +10,38 @@ export default function HealthRoutinesPage() {
   const [mounted, setMounted] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
 
+  /** Get today in local timezone (not UTC) */
+  const getLocalToday = () => {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  /** Compute real consecutive-day streak ending at today (or yesterday). */
+  const computeStreak = (completedDates: string[]): number => {
+    if (completedDates.length === 0) return 0;
+    const sorted = [...new Set(completedDates)].sort().reverse(); // newest first
+    const today = getLocalToday();
+    // Streak must include today or yesterday to be active
+    if (sorted[0] !== today) {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+      if (sorted[0] !== yStr) return 0;
+    }
+    let streak = 1;
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = new Date(sorted[i - 1] + 'T00:00:00');
+      const curr = new Date(sorted[i] + 'T00:00:00');
+      const diff = (prev.getTime() - curr.getTime()) / (1000 * 60 * 60 * 24);
+      if (diff === 1) streak++;
+      else break;
+    }
+    return streak;
+  };
+
   useEffect(() => {
     setMounted(true);
     (async () => {
@@ -50,11 +82,12 @@ export default function HealthRoutinesPage() {
   };
 
   const handleDeleteRoutine = (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this routine?')) return;
     setRoutines(prev => prev.filter(r => r.id !== id));
   };
 
   const handleMarkComplete = (id: string) => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalToday();
     setRoutines(prev =>
       prev.map(r => {
         if (r.id === id) {
@@ -66,7 +99,7 @@ export default function HealthRoutinesPage() {
           return {
             ...r,
             completedDates: newCompletedDates,
-            streak: isCompletedToday ? 0 : (r.streak + 1),
+            streak: computeStreak(newCompletedDates),
             updatedAt: new Date().toISOString(),
           };
         }
@@ -134,7 +167,7 @@ export default function HealthRoutinesPage() {
           </div>
         ) : (
           routines.map(routine => {
-            const completedToday = routine.completedDates.includes(new Date().toISOString().split('T')[0]);
+            const completedToday = routine.completedDates.includes(getLocalToday());
             return (
               <div key={routine.id} className="bg-white rounded-xl p-4 shadow hover:shadow-lg transition-all">
                 <div className="flex items-center gap-4">

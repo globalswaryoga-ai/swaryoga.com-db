@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate role
-    const validRoles = ['superadmin', 'manager', 'admin', 'user'];
+    const validRoles = ['superadmin', 'dm', 'manager', 'admin', 'user'];
     const finalRole = validRoles.includes(role) ? role : 'admin';
     
     // Validate managedUserIds (for manager role)

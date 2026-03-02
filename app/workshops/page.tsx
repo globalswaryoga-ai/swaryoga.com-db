@@ -183,11 +183,12 @@ function WorkshopsPageInner() {
     }
   }, []);
 
-  // Filter ONLY basic program and master class
+  // Filter to only the 3 active workshops
   const filteredWorkshopsList = useMemo(() => {
     return workshopCatalog.filter(w => 
-      w.slug === 'swar-yoga-basic-program' || 
-      w.slug === 'master-swar-yoga'
+      w.slug === 'master-swar-yoga' || 
+      w.slug === 'weight-loss' ||
+      w.slug === 'pre-pregnancy'
     );
   }, []);
 
@@ -298,26 +299,16 @@ function WorkshopsPageInner() {
   // Pin the first four workshops in a specific order (as requested).
   // We keep the remaining workshops in their existing sorted order.
   const PINNED_FIRST_WORKSHOP_SLUGS = [
-    // 1st card
-    'swar-yoga-basic',
-    // 2nd card
     'master-swar-yoga',
-    // keep the other previously pinned items after these two
-    'pre-pregnancy',
     'weight-loss',
+    'pre-pregnancy',
   ];
 
-  // Ensure correct order: swar-yoga-basic-program first, master-swar-yoga second, then weight-loss and others
+  // Show only the 3 active workshops in pinned order
   const workshopsForDisplay = [
-    sortedWorkshops.find(w => w.slug === 'swar-yoga-basic-program'),
     sortedWorkshops.find(w => w.slug === 'master-swar-yoga'),
     sortedWorkshops.find(w => w.slug === 'weight-loss'),
-    sortedWorkshops.find(w => w.slug === '96-days-weight-loss'),
     sortedWorkshops.find(w => w.slug === 'pre-pregnancy'),
-    // Include remaining workshops that aren't already pinned
-    ...sortedWorkshops.filter(w => 
-      !['swar-yoga-basic-program', 'master-swar-yoga', 'weight-loss', '96-days-weight-loss', 'pre-pregnancy'].includes(w.slug)
-    ),
   ].filter((w): w is WorkshopOverview => w !== undefined);
 
   // Filter workshops based on selected filters
@@ -593,7 +584,7 @@ function WorkshopsPageInner() {
                           All Workshops
                         </button>
                         {workshopCatalog
-                          .filter(w => w.slug === 'swar-yoga-basic-program' || w.slug === 'master-swar-yoga')
+                          .filter(w => w.slug === 'master-swar-yoga' || w.slug === 'weight-loss' || w.slug === 'pre-pregnancy')
                           .filter(option => !selectedCategory || option.category === selectedCategory)
                           .map((option) => (
                           <button
@@ -898,10 +889,17 @@ function WorkshopsPageInner() {
                           <ArrowRight className="w-4 h-4" />
                         </Link>
 
-                        {/* Register Now Button - Go to Registration Page */}
+                        {/* Register Now Button - Go directly to payment */}
                         <button
                           type="button"
-                          onClick={() => router.push(`/registration/online/hindi/${workshop.slug}`)}
+                          onClick={() => {
+                            const paymentLink = getWorkshopPaymentLink(workshop.slug, 'online', 'hindi');
+                            if (paymentLink) {
+                              window.open(paymentLink, '_blank');
+                            } else {
+                              router.push(`/registration/online/hindi/${workshop.slug}`);
+                            }
+                          }}
                           className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 hover:bg-green-700 active:scale-95 text-white px-4 py-3 font-bold transition"
                         >
                           📝 Register Now

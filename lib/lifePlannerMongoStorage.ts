@@ -437,6 +437,58 @@ class LifePlannerMongoStorage {
     }
   }
 
+  // ---------- Routines (daily routines page — was previously not persisted) ----------
+  async getRoutines(): Promise<any[]> {
+    if (!this.hasAuth()) return [];
+    try {
+      const response = await fetch(`/api/life-planner/data?type=routines`, {
+        headers: this.authHeaders(),
+      });
+      if (response.status === 401) { this.handleUnauthorized(); return []; }
+      if (!response.ok) return [];
+      const result = await response.json();
+      return result.data || [];
+    } catch { return []; }
+  }
+
+  async saveRoutines(routines: any[]): Promise<void> {
+    if (!this.hasAuth()) return;
+    try {
+      const response = await fetch('/api/life-planner/data', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
+        body: JSON.stringify({ type: 'routines', data: routines }),
+      });
+      if (response.status === 401) this.handleUnauthorized();
+    } catch { console.error('Failed to save routines'); }
+  }
+
+  // ---------- Events (was previously localStorage-only) ----------
+  async getEvents(): Promise<any[]> {
+    if (!this.hasAuth()) return [];
+    try {
+      const response = await fetch(`/api/life-planner/data?type=events`, {
+        headers: this.authHeaders(),
+      });
+      if (response.status === 401) { this.handleUnauthorized(); return []; }
+      if (!response.ok) return [];
+      const result = await response.json();
+      return result.data || [];
+    } catch { return []; }
+  }
+
+  async saveEvents(events: any[]): Promise<void> {
+    if (!this.hasAuth()) return;
+    try {
+      const response = await fetch('/api/life-planner/data', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
+        body: JSON.stringify({ type: 'events', data: events }),
+      });
+      if (response.status === 401) this.handleUnauthorized();
+    } catch { console.error('Failed to save events'); }
+  }
+
   /**
    * Get workshop tasks and sadhana for a specific date
    */

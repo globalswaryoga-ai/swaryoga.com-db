@@ -121,6 +121,18 @@ export default function AIAgentsPage() {
   // Active agent ID (stored in localStorage for CRM use)
   const [activeAgentId, setActiveAgentId] = useState<string>('');
 
+  // Language-to-Agent mapping state
+  const [showMappingPanel, setShowMappingPanel] = useState(false);
+  const [mappings, setMappings] = useState<Array<{
+    _id?: string; language: string; agentId: string; agentName: string;
+    voiceId?: string; isDefault: boolean; isActive: boolean;
+  }>>([]);
+  const [mappingsLoading, setMappingsLoading] = useState(false);
+  const [mappingLang, setMappingLang] = useState('');
+  const [mappingAgentId, setMappingAgentId] = useState('');
+  const [mappingIsDefault, setMappingIsDefault] = useState(false);
+  const [mappingSaving, setMappingSaving] = useState(false);
+
   useEffect(() => {
     const stored = localStorage.getItem('crm_active_agent_id') || '';
     setActiveAgentId(stored);
@@ -190,6 +202,81 @@ export default function AIAgentsPage() {
       console.error('Failed to set active agent:', err);
     }
   }, [token]);
+
+  // ── Language Mapping CRUD ──
+  const fetchMappings = useCallback(async () => {
+    if (!token) return;
+    setMappingsLoading(true);
+    try {
+      const res = await fetch('/api/admin/crm/calls/agent-mapping', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      if (json.data?.mappings) setMappings(json.data.mappings);
+    } catch { /* ignore */ }
+    setMappingsLoading(false);
+  }, [token]);
+
+  useEffect(() => {
+    if (token && showMappingPanel) fetchMappings();
+  }, [token, showMappingPanel, fetchMappings]);
+
+  const handleSaveMapping = async () => {
+    if (!mappingLang || !mappingAgentId || !token) return;
+    setMappingSaving(true);
+    try {
+      const agent = agents.find(a => a.agent_id === mappingAgentId);
+      await fetch('/api/admin/crm/calls/agent-mapping', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          language: mappingLang,
+          agentId: mappingAgentId,
+          agentName: agent?.agent_name || mappingAgentId,
+          voiceId: agent?.voice_id || '',
+          isDefault: mappingIsDefault,
+        }),
+      });
+      setMappingLang('');
+      setMappingAgentId('');
+      setMappingIsDefault(false);
+      fetchMappings();
+    } catch { /* ignore */ }
+    setMappingSaving(false);
+  };
+
+  const handleDeleteMapping = async (lang: string) => {
+    if (!token) return;
+    try {
+      await fetch(`/api/admin/crm/calls/agent-mapping?language=${lang}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      fetchMappings();
+    } catch { /* ignore */ }
+  };
+
+  const MAPPING_LANGUAGES = [
+    { code: 'hi', label: 'Hindi', flag: '🇮🇳' },
+    { code: 'en', label: 'English', flag: '🇬🇧' },
+    { code: 'mr', label: 'Marathi', flag: '🇮🇳' },
+    { code: 'zh', label: 'Mandarin', flag: '🇨🇳' },
+    { code: 'es', label: 'Spanish', flag: '🇪🇸' },
+    { code: 'fr', label: 'French', flag: '🇫🇷' },
+    { code: 'ar', label: 'Arabic', flag: '🇸🇦' },
+    { code: 'de', label: 'German', flag: '🇩🇪' },
+    { code: 'pt', label: 'Portuguese', flag: '🇧🇷' },
+    { code: 'ja', label: 'Japanese', flag: '🇯🇵' },
+    { code: 'ko', label: 'Korean', flag: '🇰🇷' },
+    { code: 'ru', label: 'Russian', flag: '🇷🇺' },
+    { code: 'it', label: 'Italian', flag: '🇮🇹' },
+    { code: 'tr', label: 'Turkish', flag: '🇹🇷' },
+    { code: 'nl', label: 'Dutch', flag: '🇳🇱' },
+    { code: 'sv', label: 'Swedish', flag: '🇸🇪' },
+    { code: 'th', label: 'Thai', flag: '🇹🇭' },
+    { code: 'id', label: 'Indonesian', flag: '🇮🇩' },
+    { code: 'multi', label: 'Multi', flag: '🌐' },
+  ];
 
   // ── Filter agents ──
   const filteredAgents = agents.filter(a => {
@@ -262,6 +349,17 @@ export default function AIAgentsPage() {
               <ExternalLink className="h-3.5 w-3.5" />
               Retell Dashboard
             </a>
+            <button
+              onClick={() => setShowMappingPanel(!showMappingPanel)}
+              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl transition ${
+                showMappingPanel
+                  ? 'text-white bg-orange-500'
+                  : 'text-orange-600 bg-orange-50 hover:bg-orange-100'
+              }`}
+            >
+              <Globe className="h-3.5 w-3.5" />
+              Language Mapping
+            </button>
             <Link
               href="/admin/crm/calls/templates"
               className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-white rounded-xl transition"
@@ -334,6 +432,104 @@ export default function AIAgentsPage() {
             </div>
           </div>
         </div>
+
+        {/* ── Language-to-Agent Mapping Panel ── */}
+        {showMappingPanel && (
+          <div className="mb-6 bg-white rounded-2xl border border-orange-200 overflow-hidden">
+            <div className="px-5 py-3 border-b border-orange-100" style={{ background: 'linear-gradient(135deg, rgba(249,115,22,0.06), rgba(234,88,12,0.03))' }}>
+              <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                <Globe className="h-4 w-4 text-orange-500" />
+                Language → Agent Auto-Mapping
+              </h3>
+              <p className="text-[11px] text-gray-500 mt-0.5">When a call is made in a language, the system auto-selects the mapped agent. You can still override manually per call.</p>
+            </div>
+
+            {/* Current mappings */}
+            <div className="px-5 py-3">
+              {mappingsLoading ? (
+                <div className="flex items-center gap-2 text-xs text-gray-400 py-2"><Loader2 className="h-3 w-3 animate-spin" /> Loading mappings...</div>
+              ) : mappings.length === 0 ? (
+                <p className="text-xs text-gray-400 py-2">No mappings configured yet. Add one below.</p>
+              ) : (
+                <div className="space-y-1.5 mb-3">
+                  {mappings.map(m => {
+                    const langInfo = MAPPING_LANGUAGES.find(l => l.code === m.language);
+                    return (
+                      <div key={m.language} className="flex items-center gap-3 px-3 py-2 rounded-xl bg-gray-50 border border-gray-100">
+                        <span className="text-sm">{langInfo?.flag || '🌐'}</span>
+                        <span className="text-xs font-semibold text-gray-700 w-20">{langInfo?.label || m.language}</span>
+                        <span className="text-[10px] text-gray-400">→</span>
+                        <span className="text-xs text-indigo-700 font-medium flex-1 truncate">{m.agentName || m.agentId}</span>
+                        {m.isDefault && (
+                          <span className="text-[9px] bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full font-semibold">DEFAULT</span>
+                        )}
+                        {!m.isActive && (
+                          <span className="text-[9px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded-full font-semibold">INACTIVE</span>
+                        )}
+                        <button
+                          onClick={() => handleDeleteMapping(m.language)}
+                          className="p-1 text-gray-400 hover:text-red-500 transition"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Add new mapping */}
+              <div className="flex items-end gap-2 pt-2 border-t border-gray-100">
+                <div className="flex-1">
+                  <label className="text-[10px] font-semibold text-gray-500 uppercase mb-1 block">Language</label>
+                  <select
+                    value={mappingLang}
+                    onChange={e => setMappingLang(e.target.value)}
+                    className="w-full px-2.5 py-2 rounded-lg border border-gray-200 text-xs focus:ring-2 focus:ring-orange-200 focus:border-orange-400 outline-none"
+                  >
+                    <option value="">Select language...</option>
+                    {MAPPING_LANGUAGES.map(l => (
+                      <option key={l.code} value={l.code}>{l.flag} {l.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex-1">
+                  <label className="text-[10px] font-semibold text-gray-500 uppercase mb-1 block">Agent</label>
+                  <select
+                    value={mappingAgentId}
+                    onChange={e => setMappingAgentId(e.target.value)}
+                    className="w-full px-2.5 py-2 rounded-lg border border-gray-200 text-xs focus:ring-2 focus:ring-orange-200 focus:border-orange-400 outline-none"
+                  >
+                    <option value="">Select agent...</option>
+                    {agents.map(a => (
+                      <option key={a.agent_id} value={a.agent_id}>
+                        {a.agent_name} {a.language ? `(${getLanguageLabel(a.language).label})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <label className="flex items-center gap-1.5 text-[10px] text-gray-500 whitespace-nowrap pb-0.5">
+                  <input
+                    type="checkbox"
+                    checked={mappingIsDefault}
+                    onChange={e => setMappingIsDefault(e.target.checked)}
+                    className="rounded border-gray-300 text-orange-500 focus:ring-orange-400 h-3.5 w-3.5"
+                  />
+                  Default
+                </label>
+                <button
+                  onClick={handleSaveMapping}
+                  disabled={!mappingLang || !mappingAgentId || mappingSaving}
+                  className="flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold text-white transition disabled:opacity-50"
+                  style={{ background: C.orange.main }}
+                >
+                  {mappingSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ── Search ── */}
         <div className="mb-6">

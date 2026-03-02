@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { Mail, KeyRound, AlertCircle, CheckCircle } from 'lucide-react';
+import { Mail, KeyRound, AlertCircle, CheckCircle, MessageCircle } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 
@@ -66,20 +66,33 @@ export default function ForgotPasswordPage() {
               </div>
               <h1 className="text-2xl font-bold text-swar-text mb-2">Forgot your password?</h1>
               <p className="text-swar-text-secondary">
-                Enter your email and we’ll help you get back in.
+                Enter your email below, then contact us via WhatsApp to reset your password.
               </p>
             </div>
 
             {/* Status Messages */}
             {submitStatus === 'success' && (
-              <div className="mb-6 p-4 bg-swar-primary-light border border-green-200 rounded-lg flex items-start space-x-3">
-                <CheckCircle className="h-5 w-5 text-swar-primary mt-0.5" />
-                <div>
-                  <p className="text-swar-primary font-medium">Request received</p>
-                  <p className="text-swar-text-secondary text-sm mt-1">
-                    If an account exists for <span className="font-medium">{email}</span>, you’ll receive reset instructions.
-                  </p>
+              <div className="mb-6 space-y-4">
+                <div className="p-4 bg-swar-primary-light border border-green-200 rounded-lg flex items-start space-x-3">
+                  <CheckCircle className="h-5 w-5 text-swar-primary mt-0.5" />
+                  <div>
+                    <p className="text-swar-primary font-medium">Request noted!</p>
+                    <p className="text-swar-text-secondary text-sm mt-1">
+                      Please contact our team via WhatsApp to reset your password for <span className="font-medium">{email}</span>.
+                    </p>
+                  </div>
                 </div>
+
+                {/* WhatsApp Contact Button */}
+                <a
+                  href={`https://wa.me/919731265189?text=${encodeURIComponent(`Hi, I forgot my password for Swar Yoga. My registered email is: ${email}\nPlease help me reset it.`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors shadow-lg"
+                >
+                  <MessageCircle className="h-5 w-5" />
+                  Contact Us on WhatsApp
+                </a>
               </div>
             )}
 
@@ -149,9 +162,9 @@ export default function ForgotPasswordPage() {
 
             {/* Help */}
             <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm text-blue-800 font-medium mb-2">Need help?</p>
+              <p className="text-sm text-blue-800 font-medium mb-2">How it works</p>
               <p className="text-xs text-blue-700">
-                If you don’t receive an email, check your spam folder or contact us via the WhatsApp widget.
+                Our admin team will reset your password and share the new credentials via WhatsApp. You can then sign in and update your password from your profile.
               </p>
             </div>
           </div>

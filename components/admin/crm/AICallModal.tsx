@@ -1,12 +1,42 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { X, Phone, PhoneCall, PlayCircle, Clock, Globe, Mic, Loader2, CheckCircle, XCircle, AlertCircle, Monitor, Bot, Copy, ExternalLink } from 'lucide-react';
+import { X, Phone, PhoneCall, PlayCircle, Clock, Globe, Mic, Loader2, CheckCircle, XCircle, AlertCircle, Monitor, Bot, Copy, ExternalLink, ChevronDown } from 'lucide-react';
 
 const PERSONAL_NUMBER = '919779006820';
 const PERSONAL_NUMBER_DISPLAY = '+91 97790 06820';
 
 type CallMode = 'ai' | 'pc';
+
+// Supported languages for AI calls
+const CALL_LANGUAGES = [
+  { code: 'hi', label: 'Hindi', flag: '🇮🇳' },
+  { code: 'en', label: 'English', flag: '🇬🇧' },
+  { code: 'mr', label: 'Marathi', flag: '🇮🇳' },
+  { code: 'zh', label: 'Mandarin', flag: '🇨🇳' },
+  { code: 'es', label: 'Spanish', flag: '🇪🇸' },
+  { code: 'fr', label: 'French', flag: '🇫🇷' },
+  { code: 'ar', label: 'Arabic', flag: '🇸🇦' },
+  { code: 'de', label: 'German', flag: '🇩🇪' },
+  { code: 'pt', label: 'Portuguese', flag: '🇧🇷' },
+  { code: 'ja', label: 'Japanese', flag: '🇯🇵' },
+  { code: 'ko', label: 'Korean', flag: '🇰🇷' },
+  { code: 'ru', label: 'Russian', flag: '🇷🇺' },
+  { code: 'it', label: 'Italian', flag: '🇮🇹' },
+  { code: 'tr', label: 'Turkish', flag: '🇹🇷' },
+  { code: 'nl', label: 'Dutch', flag: '🇳🇱' },
+  { code: 'sv', label: 'Swedish', flag: '🇸🇪' },
+  { code: 'th', label: 'Thai', flag: '🇹🇭' },
+  { code: 'id', label: 'Indonesian', flag: '🇮🇩' },
+  { code: 'multi', label: 'Multi', flag: '🌐' },
+];
+
+interface RetellAgentOption {
+  agent_id: string;
+  agent_name: string;
+  language?: string;
+  voice_id?: string;
+}
 
 interface CallLog {
   _id: string;
@@ -81,6 +111,13 @@ export default function AICallModal({ leadId, leadName, leadPhone, token, onClos
   const [savedTemplates, setSavedTemplates] = useState<SavedTemplate[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState(false);
 
+  // Agent mapping state
+  const [resolvedAgent, setResolvedAgent] = useState<{ agentId: string; agentName: string } | null>(null);
+  const [agentResolving, setAgentResolving] = useState(false);
+  const [manualAgentMode, setManualAgentMode] = useState(false);
+  const [manualAgentId, setManualAgentId] = useState('');
+  const [availableAgents, setAvailableAgents] = useState<RetellAgentOption[]>([]);
+
   // Fetch call history
   useEffect(() => {
     (async () => {
@@ -123,6 +160,49 @@ export default function AICallModal({ leadId, leadName, leadPhone, token, onClos
     })();
   }, [token, language]);
 
+  // Resolve agent for selected language (auto-mapping)
+  useEffect(() => {
+    if (manualAgentMode) return;
+    (async () => {
+      try {
+        setAgentResolving(true);
+        const res = await fetch(`/api/admin/crm/calls/agent-mapping?resolve=${language}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const json = await res.json();
+        if (json.data?.resolved) {
+          setResolvedAgent(json.data.resolved);
+        } else {
+          setResolvedAgent(null);
+        }
+      } catch {
+        setResolvedAgent(null);
+      } finally {
+        setAgentResolving(false);
+      }
+    })();
+  }, [language, token, manualAgentMode]);
+
+  // Fetch available agents for manual override dropdown
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/admin/crm/calls?action=list_agents', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const json = await res.json();
+        if (json.data?.agents) {
+          setAvailableAgents(json.data.agents.map((a: any) => ({
+            agent_id: a.agent_id,
+            agent_name: a.agent_name || a.agent_id,
+            language: a.language,
+            voice_id: a.voice_id,
+          })));
+        }
+      } catch { /* ignore */ }
+    })();
+  }, [token]);
+
   // Merge saved templates with default purposes
   const purposeOptions = (() => {
     // Start with templates from DB that have content
@@ -151,6 +231,10 @@ export default function AICallModal({ leadId, leadName, leadPhone, token, onClos
           purpose,
           language,
           customPrompt: (purpose === 'custom' || purpose === 'answer_questions' || purpose.startsWith('tmpl_')) ? customPrompt : undefined,
+          overrideAgentId: manualAgentMode && manualAgentId ? manualAgentId : undefined,
+          overrideVoiceId: manualAgentMode && manualAgentId
+            ? availableAgents.find(a => a.agent_id === manualAgentId)?.voice_id || undefined
+            : undefined,
         }),
       });
 
@@ -405,7 +489,7 @@ export default function AICallModal({ leadId, leadName, leadPhone, token, onClos
                     setPurpose(opt.value);
                     // If it's a saved template, pre-fill the custom prompt with its script
                     if (opt.value.startsWith('tmpl_') && 'promptText' in opt) {
-                      setCustomPrompt(opt.promptText || '');
+                      setCustomPrompt((opt as any).promptText || '');
                     }
                   }}
                   className={`text-left px-3 py-2 rounded-xl text-xs border transition ${
@@ -436,29 +520,76 @@ export default function AICallModal({ leadId, leadName, leadPhone, token, onClos
             </div>
           )}
 
-          {/* Language selection */}
-          <div className="px-6 pb-3 flex items-center gap-3">
-            <label className="text-xs font-semibold text-gray-700 flex items-center gap-1">
+          {/* Language selection — expanded */}
+          <div className="px-6 pb-2">
+            <label className="text-xs font-semibold text-gray-700 flex items-center gap-1 mb-2">
               <Globe className="h-3.5 w-3.5" /> Language
             </label>
-            <div className="flex gap-1">
+            <div className="flex flex-wrap gap-1">
+              {CALL_LANGUAGES.map(l => (
+                <button
+                  key={l.code}
+                  onClick={() => { setLanguage(l.code); setManualAgentMode(false); setManualAgentId(''); }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-medium transition ${
+                    language === l.code ? 'bg-orange-500 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {l.flag} {l.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Agent info — auto-resolved + manual override */}
+          <div className="px-6 pb-3">
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-gray-700 flex items-center gap-1">
+                <Bot className="h-3.5 w-3.5" /> AI Agent
+              </label>
               <button
-                onClick={() => setLanguage('hi')}
-                className={`px-3 py-1 rounded-lg text-xs font-medium transition ${
-                  language === 'hi' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                onClick={() => { setManualAgentMode(!manualAgentMode); setManualAgentId(''); }}
+                className={`text-[10px] font-medium px-2 py-0.5 rounded-full transition ${
+                  manualAgentMode
+                    ? 'bg-amber-100 text-amber-700'
+                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                 }`}
               >
-                हिंदी Hindi
-              </button>
-              <button
-                onClick={() => setLanguage('en')}
-                className={`px-3 py-1 rounded-lg text-xs font-medium transition ${
-                  language === 'en' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                English
+                {manualAgentMode ? '← Auto' : 'Manual Override'}
               </button>
             </div>
+
+            {manualAgentMode ? (
+              <div className="relative">
+                <select
+                  value={manualAgentId}
+                  onChange={e => setManualAgentId(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-amber-200 bg-amber-50 text-sm focus:ring-2 focus:ring-amber-200 focus:border-amber-400 outline-none appearance-none pr-8"
+                >
+                  <option value="">Select agent manually...</option>
+                  {availableAgents.map(a => (
+                    <option key={a.agent_id} value={a.agent_id}>
+                      {a.agent_name} {a.language ? `(${a.language})` : ''}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-2.5 h-4 w-4 text-amber-400 pointer-events-none" />
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-100">
+                {agentResolving ? (
+                  <Loader2 className="h-3 w-3 animate-spin text-emerald-500" />
+                ) : (
+                  <CheckCircle className="h-3 w-3 text-emerald-500" />
+                )}
+                <span className="text-xs text-emerald-700 font-medium">
+                  {agentResolving
+                    ? 'Resolving...'
+                    : resolvedAgent
+                      ? `Auto: ${resolvedAgent.agentName}`
+                      : 'Default agent (no mapping configured)'}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Error */}

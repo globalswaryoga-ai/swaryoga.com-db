@@ -8,7 +8,7 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { getLead, getAICallLog } from '@/lib/schemas/enterpriseSchemas';
-import { createOutboundCall, checkRetellConfig, listAgents } from '@/lib/retellAI';
+import { createOutboundCall, checkRetellConfig, listAgents, listVoices, resolveAgentForLanguage } from '@/lib/retellAI';
 
 export const dynamic = 'force-dynamic';
 
@@ -86,6 +86,16 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // ── List Retell AI voices ──
+    if (action === 'list_voices') {
+      try {
+        const voices: any[] = await listVoices();
+        return apiSuccess({ voices: voices || [] });
+      } catch (err: any) {
+        return apiSuccess({ voices: [], error: err.message });
+      }
+    }
+
     const limit = Math.min(Number(request.nextUrl.searchParams.get('limit') || 20), 100);
 
     const query: any = {};
@@ -118,7 +128,7 @@ export async function POST(request: NextRequest) {
     if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
 
     const body = await request.json();
-    const { leadId, purpose, language, customPrompt, action, text, languageLabel, callingNumber, templateName } = body;
+    const { leadId, purpose, language, customPrompt, overrideAgentId, overrideVoiceId, action, text, languageLabel, callingNumber, templateName } = body;
 
     // ── Template voice generation (no lead required) ──
     if (action === 'generate_voice' || purpose === 'template_voice_generation') {
@@ -167,6 +177,9 @@ export async function POST(request: NextRequest) {
     // Determine language
     const callLang = language || (lead.language?.toLowerCase()?.includes('hindi') ? 'hi' : 'en');
 
+    // Resolve language label for call log (e.g. 'hi' → 'hi-IN', 'ne' stays 'ne')
+    const langForLog = callLang === 'hi' ? 'hi-IN' : callLang === 'en' ? 'en-IN' : callLang;
+
     // Create call log entry (status: queued)
     const callLog = await AICallLog.create({
       leadId,
@@ -175,17 +188,19 @@ export async function POST(request: NextRequest) {
       customPrompt: customPrompt || '',
       status: 'queued',
       phoneNumber: phone,
-      language: callLang === 'hi' ? 'hi-IN' : 'en-IN',
+      language: langForLog,
       initiatedBy: decoded.userId || decoded.email || 'admin',
     });
 
-    // Trigger the call via Retell
+    // Trigger the call via Retell (agent auto-resolved from language mapping)
     const result = await createOutboundCall({
       toNumber: phone,
       leadName: lead.displayName || lead.name || 'there',
       purpose,
-      language: callLang as 'hi' | 'en',
+      language: callLang,
       customPrompt,
+      overrideAgentId: overrideAgentId || undefined,
+      overrideVoiceId: overrideVoiceId || undefined,
       leadContext: {
         name: lead.displayName || lead.name || '',
         phone,

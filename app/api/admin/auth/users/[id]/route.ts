@@ -107,7 +107,7 @@ export async function PUT(
 
     // Role (optional)
     if (body.role !== undefined) {
-      const validRoles = ['superadmin', 'manager', 'admin', 'user'];
+      const validRoles = ['superadmin', 'dm', 'manager', 'admin', 'user'];
       const role = String(body.role || '').trim();
       if (role && validRoles.includes(role)) {
         update.role = role;

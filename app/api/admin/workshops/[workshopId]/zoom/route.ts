@@ -9,6 +9,7 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { getWorkshop } from '@/lib/schemas/workshopSchemas';
 import { updateZoomMeeting, deleteZoomMeeting, createZoomMeeting } from '@/lib/zoom-meetings';
+import { notifyZoomLink } from '@/lib/notifications';
 
 /**
  * PATCH - Update Zoom meeting for workshop
@@ -75,6 +76,35 @@ export async function PATCH(
         zoomStartUrl: meeting.start_url,
         zoomPassword: meeting.password,
       });
+
+      // Send Zoom link email to all enrolled users for this workshop
+      try {
+        const mongoose = await import('mongoose');
+        let WR: any;
+        try { WR = mongoose.default.model('WorkshopRegistration'); } catch { WR = null; }
+        if (WR) {
+          const enrolledUsers = await WR.find({
+            workshopId: workshopId,
+            status: { $in: ['confirmed', 'pending'] },
+          }).lean();
+          for (const user of enrolledUsers) {
+            if (user.email) {
+              notifyZoomLink(
+                { name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Student', email: user.email, phone: user.phone },
+                {
+                  workshopName: workshop.name || user.workshopName,
+                  zoomJoinUrl: meeting.join_url,
+                  zoomPassword: meeting.password,
+                  startDate: user.startDate,
+                },
+              ).catch(err => console.error('[ZoomLink] Notification error:', err));
+            }
+          }
+          console.log(`[Zoom] Sent zoom link to ${enrolledUsers.length} enrolled user(s)`);
+        }
+      } catch (notifErr) {
+        console.error('[Zoom] Failed to send zoom link emails:', notifErr);
+      }
 
       return NextResponse.json({
         success: true,

@@ -6,17 +6,25 @@ import Link from 'next/link';
 import { Users, LogOut, Menu, X, UserPlus, Pencil, Trash2, Shield, Eye, EyeOff } from 'lucide-react';
 import AdminSidebar from '@/components/AdminSidebar';
 import PermissionManager from '@/components/admin/PermissionManager';
-import { UserPermissions, migrateOldPermissions, getUserPermissionsList } from '@/lib/permissions';
+import { UserPermissions, PERMISSION_PRESETS, migrateOldPermissions, getUserPermissionsList } from '@/lib/permissions';
 
 type AdminUserRow = {
   _id: string;
   userId: string;
   name?: string;
   email?: string;
+  role?: string;
   permissions?: string[]; // Legacy
   permissionsV2?: UserPermissions; // New granular permissions
   createdAt?: string;
 };
+
+const ROLE_OPTIONS = [
+  { value: 'superadmin', label: 'Super Admin', color: 'bg-purple-100 text-purple-700', description: 'Full access to everything' },
+  { value: 'dm', label: 'DM', color: 'bg-indigo-100 text-indigo-700', description: 'All access, no delete/edit' },
+  { value: 'manager', label: 'Manager', color: 'bg-blue-100 text-blue-700', description: 'Admin decides permissions' },
+  { value: 'admin', label: 'Admin User', color: 'bg-teal-100 text-teal-700', description: 'CRM, sales, calls only' },
+] as const;
 
 const PERMISSION_KEYS = ['crm', 'whatsapp', 'email'] as const;
 
@@ -50,6 +58,8 @@ export default function AdminUsersPage() {
   const [newPassword, setNewPassword] = useState('');
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showEditPassword, setShowEditPassword] = useState(false);
+  const [selectedRole, setSelectedRole] = useState('admin');
+  const [editRole, setEditRole] = useState('admin');
   
   // Permission state - supports both legacy and new V2
   const [permissionMode, setPermissionMode] = useState<'legacy' | 'granular'>('granular');
@@ -129,6 +139,7 @@ export default function AdminUsersPage() {
             userId: String(u?.userId || ''),
             name: u?.name ? String(u.name) : undefined,
             email: u?.email ? String(u.email) : undefined,
+            role: u?.role ? String(u.role) : undefined,
             permissions: Array.isArray(u?.permissions) ? u.permissions.map((p: any) => String(p)) : undefined,
             permissionsV2: u?.permissionsV2 || undefined,
             createdAt: u?.createdAt ? String(u.createdAt) : undefined,
@@ -158,6 +169,7 @@ export default function AdminUsersPage() {
     setNewPassword('');
     setShowNewPassword(false);
     setAddMsg('');
+    setSelectedRole('admin');
     setPermissionMode('granular');
     setGranularPermissions({ isSuperAdmin: false });
     setSelectedPermissions({ crm: true, whatsapp: false, email: false });
@@ -198,6 +210,7 @@ export default function AdminUsersPage() {
           email,
           name: name || userId,
           password,
+          role: selectedRole,
           permissions,
           permissionsV2,
         }),
@@ -225,6 +238,7 @@ export default function AdminUsersPage() {
     setEditEmail(String(u.email || '').trim());
     setEditPassword('');
     setShowEditPassword(false);
+    setEditRole(u.role || 'admin');
     
     // Load permissions - prefer V2, fallback to legacy
     if (u.permissionsV2) {
@@ -251,6 +265,29 @@ export default function AdminUsersPage() {
 
   const toggleSelectedPermission = (key: keyof typeof selectedPermissions) => {
     setSelectedPermissions((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const handleRoleChange = (role: string, isEdit: boolean) => {
+    if (isEdit) {
+      setEditRole(role);
+    } else {
+      setSelectedRole(role);
+    }
+    
+    // Auto-apply permission preset based on role
+    if (role === 'superadmin') {
+      setPermissionMode('granular');
+      setGranularPermissions(PERMISSION_PRESETS.SUPER_ADMIN);
+    } else if (role === 'dm') {
+      setPermissionMode('granular');
+      setGranularPermissions(PERMISSION_PRESETS.DM);
+    } else if (role === 'manager') {
+      setPermissionMode('granular');
+      setGranularPermissions(PERMISSION_PRESETS.CRM_MANAGER);
+    } else if (role === 'admin') {
+      setPermissionMode('granular');
+      setGranularPermissions(PERMISSION_PRESETS.ADMIN_USER);
+    }
   };
 
   const buildPermissionsPayload = () => {
@@ -307,6 +344,7 @@ export default function AdminUsersPage() {
     const body: Record<string, any> = { 
       email,
       name: name || undefined,
+      role: editRole,
       ...permissionsPayload 
     };
     
@@ -546,6 +584,7 @@ export default function AdminUsersPage() {
                     <tr>
                       <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">User ID</th>
                       <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">Name</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">Role</th>
                       <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">Email</th>
                       <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">Permissions</th>
                       <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">Created</th>
@@ -560,6 +599,16 @@ export default function AdminUsersPage() {
                         <tr key={u._id} className={index % 2 === 0 ? 'bg-white' : 'bg-swar-bg'}>
                           <td className="px-6 py-4 text-sm text-swar-text font-semibold">{u.userId}</td>
                           <td className="px-6 py-4 text-sm text-swar-text">{u.name || '—'}</td>
+                          <td className="px-6 py-4 text-sm">
+                            {(() => {
+                              const roleInfo = ROLE_OPTIONS.find(r => r.value === u.role) || ROLE_OPTIONS[3];
+                              return (
+                                <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${roleInfo.color}`}>
+                                  {roleInfo.label}
+                                </span>
+                              );
+                            })()}
+                          </td>
                           <td className="px-6 py-4 text-sm text-swar-text-secondary">{u.email || '—'}</td>
                           <td className="px-6 py-4 text-sm">
                             <PermissionBadges user={u} />
@@ -685,36 +734,66 @@ export default function AdminUsersPage() {
                 </div>
               </div>
 
+              {/* Role Selector for Edit */}
+              <div className="mt-5 border-t border-swar-border pt-4">
+                <p className="text-sm font-semibold text-swar-text mb-3">Role</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  {ROLE_OPTIONS.map((role) => (
+                    <button
+                      key={role.value}
+                      onClick={() => handleRoleChange(role.value, true)}
+                      disabled={editBusy}
+                      className={`p-3 rounded-lg border-2 transition-all text-left ${
+                        editRole === role.value
+                          ? `${role.color} border-current`
+                          : 'border-gray-200 hover:border-gray-300 bg-white'
+                      } ${editBusy ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      <div className="font-medium text-sm">{role.label}</div>
+                      <div className="text-xs text-gray-500 mt-0.5">{role.description}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="mt-5 border-t border-swar-border pt-4">
                 <div className="flex items-center justify-between mb-4">
                   <p className="text-sm font-semibold text-swar-text">Permissions</p>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setPermissionMode('legacy')}
-                      className={`text-xs px-3 py-1 rounded ${
-                        permissionMode === 'legacy' 
-                          ? 'bg-blue-600 text-white' 
-                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                      }`}
-                      disabled={editBusy}
-                    >
-                      Legacy View
-                    </button>
-                    <button
-                      onClick={() => setPermissionMode('granular')}
-                      className={`text-xs px-3 py-1 rounded ${
-                        permissionMode === 'granular' 
-                          ? 'bg-blue-600 text-white' 
-                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                      }`}
-                      disabled={editBusy}
-                    >
-                      Granular Permissions
-                    </button>
-                  </div>
+                  {editRole !== 'superadmin' && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setPermissionMode('legacy')}
+                        className={`text-xs px-3 py-1 rounded ${
+                          permissionMode === 'legacy' 
+                            ? 'bg-blue-600 text-white' 
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                        disabled={editBusy}
+                      >
+                        Legacy View
+                      </button>
+                      <button
+                        onClick={() => setPermissionMode('granular')}
+                        className={`text-xs px-3 py-1 rounded ${
+                          permissionMode === 'granular' 
+                            ? 'bg-blue-600 text-white' 
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                        disabled={editBusy}
+                      >
+                        Granular Permissions
+                      </button>
+                    </div>
+                  )}
                 </div>
 
-                {permissionMode === 'granular' ? (
+                {editRole === 'superadmin' ? (
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-center">
+                    <Shield className="w-8 h-8 text-purple-600 mx-auto mb-2" />
+                    <p className="font-semibold text-gray-900">Super Administrator</p>
+                    <p className="text-sm text-gray-600">Full access to all features and data</p>
+                  </div>
+                ) : permissionMode === 'granular' ? (
                   <PermissionManager
                     initialPermissions={granularPermissions}
                     onChange={setGranularPermissions}
@@ -864,36 +943,66 @@ export default function AdminUsersPage() {
                 </div>
               </div>
 
+              {/* Role Selector */}
+              <div className="mt-5 border-t border-swar-border pt-4">
+                <p className="text-sm font-semibold text-swar-text mb-3">Role</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  {ROLE_OPTIONS.map((role) => (
+                    <button
+                      key={role.value}
+                      onClick={() => handleRoleChange(role.value, false)}
+                      disabled={addBusy}
+                      className={`p-3 rounded-lg border-2 transition-all text-left ${
+                        selectedRole === role.value
+                          ? `${role.color} border-current`
+                          : 'border-gray-200 hover:border-gray-300 bg-white'
+                      } ${addBusy ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      <div className="font-medium text-sm">{role.label}</div>
+                      <div className="text-xs text-gray-500 mt-0.5">{role.description}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="mt-5 border-t border-swar-border pt-4">
                 <div className="flex items-center justify-between mb-4">
                   <p className="text-sm font-semibold text-swar-text">Permissions</p>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setPermissionMode('legacy')}
-                      className={`text-xs px-3 py-1 rounded ${
-                        permissionMode === 'legacy' 
-                          ? 'bg-blue-600 text-white' 
-                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                      }`}
-                      disabled={addBusy}
-                    >
-                      Legacy
-                    </button>
-                    <button
-                      onClick={() => setPermissionMode('granular')}
-                      className={`text-xs px-3 py-1 rounded ${
-                        permissionMode === 'granular' 
-                          ? 'bg-blue-600 text-white' 
-                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                      }`}
-                      disabled={addBusy}
-                    >
-                      Granular
-                    </button>
-                  </div>
+                  {selectedRole !== 'superadmin' && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setPermissionMode('legacy')}
+                        className={`text-xs px-3 py-1 rounded ${
+                          permissionMode === 'legacy' 
+                            ? 'bg-blue-600 text-white' 
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                        disabled={addBusy}
+                      >
+                        Legacy
+                      </button>
+                      <button
+                        onClick={() => setPermissionMode('granular')}
+                        className={`text-xs px-3 py-1 rounded ${
+                          permissionMode === 'granular' 
+                            ? 'bg-blue-600 text-white' 
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                        disabled={addBusy}
+                      >
+                        Granular
+                      </button>
+                    </div>
+                  )}
                 </div>
 
-                {permissionMode === 'granular' ? (
+                {selectedRole === 'superadmin' ? (
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-center">
+                    <Shield className="w-8 h-8 text-purple-600 mx-auto mb-2" />
+                    <p className="font-semibold text-gray-900">Super Administrator</p>
+                    <p className="text-sm text-gray-600">Full access to all features and data</p>
+                  </div>
+                ) : permissionMode === 'granular' ? (
                   <PermissionManager
                     initialPermissions={granularPermissions}
                     onChange={setGranularPermissions}
