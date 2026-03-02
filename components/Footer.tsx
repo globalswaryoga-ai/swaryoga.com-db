@@ -8,7 +8,8 @@ import {
   Facebook, 
   Twitter, 
   Instagram, 
-  Youtube, 
+  Youtube,
+  Linkedin, 
   Settings,
   Heart,
   ArrowRight,
@@ -54,10 +55,11 @@ export default function Footer() {
   ];
 
   const socialLinks = [
-    { name: 'Facebook', icon: Facebook, href: '#', color: 'hover:text-swar-primary' },
-    { name: 'Twitter', icon: Twitter, href: '#', color: 'hover:text-swar-primary' },
-    { name: 'Instagram', icon: Instagram, href: '#', color: 'hover:text-swar-accent' },
-    { name: 'YouTube', icon: Youtube, href: '#', color: 'hover:text-swar-accent' }
+    { name: 'Facebook', icon: Facebook, href: 'https://www.facebook.com/swaryoga', color: 'hover:text-blue-500' },
+    { name: 'Twitter', icon: Twitter, href: 'https://twitter.com/swaryoga', color: 'hover:text-sky-400' },
+    { name: 'Instagram', icon: Instagram, href: 'https://www.instagram.com/swaryoga', color: 'hover:text-pink-500' },
+    { name: 'YouTube', icon: Youtube, href: 'https://www.youtube.com/@swaryoga', color: 'hover:text-red-500' },
+    { name: 'LinkedIn', icon: Linkedin, href: 'https://www.linkedin.com/in/swar-yoga-65b8081a5/', color: 'hover:text-blue-400' }
   ];
 
   const stats = [
@@ -182,6 +184,8 @@ export default function Footer() {
                     <a 
                       key={index} 
                       href={social.href} 
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className={`text-gray-300 hover:text-white ${social.color} transition-colors p-2 bg-gray-800 rounded-lg hover:bg-gray-700`}
                       aria-label={social.name}
                     >

@@ -318,6 +318,13 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
       module: 'analytics',
     },
     {
+      icon: Video,
+      label: 'Zoom Analytics',
+      href: '/admin/crm/zoom-analytics',
+      color: 'text-indigo-500',
+      module: 'analytics',
+    },
+    {
       icon: FileText,
       label: 'Templates',
       href: '/admin/crm/templates',
