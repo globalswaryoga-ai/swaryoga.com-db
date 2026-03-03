@@ -35,15 +35,21 @@ export async function GET(req: NextRequest) {
     }
 
     const analytics = await getFullMeetingAnalytics(meetingId.trim(), fromDate, toDate);
+    const errors = (analytics as any)._errors as string[] | undefined;
 
     // Add diagnostic warning if 0 participants
     if (analytics.totalUniqueParticipants === 0) {
       console.warn(`[Zoom Analytics] Meeting ${meetingId} returned 0 participants across ${analytics.totalSessions} sessions`);
+      if (errors && errors.length > 0) {
+        console.error(`[Zoom Analytics] Session errors:`, errors);
+      }
       return apiSuccess({
         ...analytics,
-        _warning: analytics.totalSessions > 0
-          ? 'Meeting sessions found but no participant data available. Zoom Reports API can take up to 2 hours after a meeting ends to have participant data.'
-          : 'No meeting instances or participant data found. This meeting may not have occurred yet or the Reports API has not processed it.',
+        _warning: errors && errors.length > 0
+          ? `Failed to fetch participant data: ${errors[0]}`
+          : analytics.totalSessions > 0
+            ? 'Meeting sessions found but no participant data available. Zoom Reports API can take up to 2 hours after a meeting ends to have participant data.'
+            : 'No meeting instances or participant data found. This meeting may not have occurred yet or the Reports API has not processed it.',
       });
     }
 

@@ -61,6 +61,7 @@ export interface MeetingAnalytics {
   participants: ParticipantAnalysis[];
   gradeDistribution: Record<string, number>;
   sessions: SessionDetail[];
+  _errors?: string[];
 }
 
 export interface SessionDetail {
@@ -132,11 +133,12 @@ function formatDuration(seconds: number): string {
 }
 
 function doubleEncodeUUID(uuid: string): string {
-  // Zoom API requires double-encoded UUIDs when they contain / or //
-  if (uuid.includes('/') || uuid.includes('//')) {
+  // Zoom API requires double-encoded UUIDs when they start with / or contain //
+  // Also encode when they contain special URL chars like + or =
+  if (uuid.startsWith('/') || uuid.includes('//') || uuid.includes('+') || uuid.includes('=')) {
     return encodeURIComponent(encodeURIComponent(uuid));
   }
-  return uuid;
+  return encodeURIComponent(uuid);
 }
 
 // ─── Zoom API Calls ──────────────────────────────────────────────────────────
@@ -184,12 +186,12 @@ export async function getMeetingParticipants(
   let nextPageToken = '';
 
   do {
-    const url = new URL(`https://api.zoom.us/v2/report/meetings/${encoded}/participants`);
-    url.searchParams.set('page_size', String(pageSize));
-    if (nextPageToken) url.searchParams.set('next_page_token', nextPageToken);
+    // Build URL manually to avoid new URL() decoding the double-encoded UUID
+    let urlStr = `https://api.zoom.us/v2/report/meetings/${encoded}/participants?page_size=${pageSize}`;
+    if (nextPageToken) urlStr += `&next_page_token=${encodeURIComponent(nextPageToken)}`;
 
-    console.log(`[Zoom Analytics] Calling GET ${url.pathname}${url.search}`);
-    const response = await fetch(url.toString(), {
+    console.log(`[Zoom Analytics] Calling GET /v2/report/meetings/${encoded.slice(0, 20)}...`);
+    const response = await fetch(urlStr, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
@@ -339,6 +341,7 @@ export async function getFullMeetingAnalytics(
 
   // 2) Fetch participants for each session
   const sessions: SessionDetail[] = [];
+  const sessionErrors: string[] = [];
   const participantMap: Map<string, {
     name: string;
     email: string;
@@ -434,7 +437,9 @@ export async function getFullMeetingAnalytics(
         }
       }
     } catch (err: any) {
-      console.warn(`[Zoom Analytics] ⚠️ Failed to fetch participants for instance ${instance.uuid}:`, err.message);
+      const errMsg = `Session ${instance.uuid.slice(0, 10)}… (${new Date(instance.start_time).toISOString().split('T')[0]}): ${err.message}`;
+      console.warn(`[Zoom Analytics] ⚠️ ${errMsg}`);
+      sessionErrors.push(errMsg);
       // Still add the session with 0 participants so it shows up
       sessions.push({
         uuid: instance.uuid,
@@ -501,5 +506,6 @@ export async function getFullMeetingAnalytics(
     participants,
     gradeDistribution,
     sessions,
+    _errors: sessionErrors.length > 0 ? sessionErrors : undefined,
   };
 }

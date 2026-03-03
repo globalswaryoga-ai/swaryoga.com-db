@@ -80,6 +80,7 @@ interface MeetingAnalytics {
   gradeDistribution: Record<string, number>;
   sessions: SessionDetail[];
   _warning?: string;
+  _errors?: string[];
 }
 
 function formatDate(iso: string) {
@@ -453,10 +454,20 @@ function ZoomAnalyticsPageInner() {
                 <div className="flex items-start gap-3">
                   <Clock className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" />
                   <div>
-                    <p className="font-semibold mb-1">⚠️ Limited Data Available</p>
+                    <p className="font-semibold mb-1">Limited Data Available</p>
                     <p>{data._warning}</p>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* API Errors banner */}
+            {data._errors && data._errors.length > 0 && (
+              <div className="mt-4 p-4 rounded-2xl bg-red-50 border border-red-200 text-red-800 text-sm">
+                <p className="font-semibold mb-2">Session Fetch Errors ({data._errors.length})</p>
+                <ul className="list-disc pl-5 space-y-1 text-xs max-h-40 overflow-y-auto">
+                  {data._errors.map((e, i) => <li key={i}>{e}</li>)}
+                </ul>
               </div>
             )}
 
