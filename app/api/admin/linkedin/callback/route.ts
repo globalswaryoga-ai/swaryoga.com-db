@@ -36,10 +36,8 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || (process.env.VERCEL_URL 
-    ? `https://${process.env.VERCEL_URL}` 
-    : 'https://swaryoga.com');
-  const redirectUri = `${baseUrl}/api/admin/linkedin/callback`;
+  // Must match the redirect URI used in the auth route exactly
+  const redirectUri = 'https://swaryoga.com/api/admin/linkedin/callback';
 
   try {
     // Exchange code for access token
