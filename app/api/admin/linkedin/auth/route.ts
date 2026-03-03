@@ -18,9 +18,6 @@ export async function GET(req: NextRequest) {
   const redirectUri = 'https://swaryoga.com/api/admin/linkedin/callback';
 
   const scopes = [
-    'openid',
-    'profile',
-    'email',
     'w_member_social',
   ].join(' ');
 

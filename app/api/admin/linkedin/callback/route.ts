@@ -75,21 +75,10 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Fetch user profile
-    const profileRes = await fetch('https://api.linkedin.com/v2/userinfo', {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-
-    let profileName = 'Swar Yoga';
-    let profileEmail = '';
-    let profilePicture = '';
-
-    if (profileRes.ok) {
-      const profile = await profileRes.json();
-      profileName = profile.name || `${profile.given_name || ''} ${profile.family_name || ''}`.trim() || 'Swar Yoga';
-      profileEmail = profile.email || '';
-      profilePicture = profile.picture || '';
-    }
+    // Profile fetch skipped — we only have w_member_social scope
+    const profileName = 'Swar Yoga';
+    const profileEmail = '';
+    const profilePicture = '';
 
     // Save to database
     await connectDB();
@@ -112,7 +101,7 @@ export async function GET(req: NextRequest) {
         isConnected: true,
         connectedAt: new Date(),
         lastTokenRefresh: new Date(),
-        grantedScopes: ['openid', 'profile', 'email', 'w_member_social'],
+        grantedScopes: ['w_member_social'],
         metadata: {
           lastSyncedAt: new Date(),
           website: 'https://swaryoga.com',
