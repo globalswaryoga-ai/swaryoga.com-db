@@ -147,14 +147,14 @@ function doubleEncodeUUID(uuid: string): string {
  * Get past meeting instances (for recurring meetings).
  * This tells us how many days/sessions the meeting ID was used.
  */
-export async function getMeetingInstances(meetingId: string): Promise<ZoomMeetingInstance[]> {
-  const accessToken = await getZoomAccessToken();
+export async function getMeetingInstances(meetingId: string, accessToken?: string): Promise<ZoomMeetingInstance[]> {
+  const token = accessToken || await getZoomAccessToken();
   console.log(`[Zoom Analytics] Calling GET /v2/past_meetings/${meetingId}/instances`);
 
   const response = await fetch(
     `https://api.zoom.us/v2/past_meetings/${meetingId}/instances`,
     {
-      headers: { Authorization: `Bearer ${accessToken}` },
+      headers: { Authorization: `Bearer ${token}` },
     }
   );
 
@@ -177,9 +177,10 @@ export async function getMeetingInstances(meetingId: string): Promise<ZoomMeetin
  */
 export async function getMeetingParticipants(
   meetingUUIDOrId: string,
-  pageSize: number = 300
+  pageSize: number = 300,
+  accessToken?: string
 ): Promise<ZoomParticipant[]> {
-  const accessToken = await getZoomAccessToken();
+  const token = accessToken || await getZoomAccessToken();
   const encoded = doubleEncodeUUID(meetingUUIDOrId);
 
   const allParticipants: ZoomParticipant[] = [];
@@ -192,7 +193,7 @@ export async function getMeetingParticipants(
 
     console.log(`[Zoom Analytics] Calling GET /v2/report/meetings/${encoded.slice(0, 20)}...`);
     const response = await fetch(urlStr, {
-      headers: { Authorization: `Bearer ${accessToken}` },
+      headers: { Authorization: `Bearer ${token}` },
     });
 
     if (!response.ok) {
@@ -221,14 +222,14 @@ export async function getMeetingParticipants(
 /**
  * Get meeting report/details for a past meeting.
  */
-export async function getMeetingReport(meetingUUIDOrId: string): Promise<any> {
-  const accessToken = await getZoomAccessToken();
+export async function getMeetingReport(meetingUUIDOrId: string, accessToken?: string): Promise<any> {
+  const token = accessToken || await getZoomAccessToken();
   const encoded = doubleEncodeUUID(meetingUUIDOrId);
 
   const response = await fetch(
     `https://api.zoom.us/v2/report/meetings/${encoded}`,
     {
-      headers: { Authorization: `Bearer ${accessToken}` },
+      headers: { Authorization: `Bearer ${token}` },
     }
   );
 
@@ -265,15 +266,20 @@ export async function getFullMeetingAnalytics(
   const meetingId = rawMeetingId.replace(/[\s\-]/g, '');
   console.log(`[Zoom Analytics] Fetching analytics for meeting ID: ${meetingId}, from=${fromDate}, to=${toDate}`);
   
+  // Get ONE access token upfront and reuse it for all API calls
+  // (Zoom invalidates previous tokens when new ones are issued)
+  const accessToken = await getZoomAccessToken();
+  console.log(`[Zoom Analytics] Got access token, will reuse for all API calls`);
+  
   // 1) Get all instances of this meeting
-  let instances = await getMeetingInstances(meetingId);
+  let instances = await getMeetingInstances(meetingId, accessToken);
   console.log(`[Zoom Analytics] Found ${instances.length} instances via past_meetings endpoint`);
 
   // If no instances found, try fetching directly as a single meeting
   if (instances.length === 0) {
     console.log(`[Zoom Analytics] No instances found, trying direct report fetch...`);
     try {
-      const report = await getMeetingReport(meetingId);
+      const report = await getMeetingReport(meetingId, accessToken);
       console.log(`[Zoom Analytics] Direct report fetch result:`, JSON.stringify({
         uuid: report.uuid, topic: report.topic, start_time: report.start_time,
         end_time: report.end_time, duration: report.duration, participants_count: report.participants_count,
@@ -322,7 +328,7 @@ export async function getFullMeetingAnalytics(
   // Get topic from first instance or from a report call
   let topic = 'Unknown Meeting';
   try {
-    const report = await getMeetingReport(instances[instances.length - 1].uuid);
+    const report = await getMeetingReport(instances[instances.length - 1].uuid, accessToken);
     topic = report.topic || topic;
     // Also update duration if available
     for (const inst of instances) {
@@ -361,7 +367,7 @@ export async function getFullMeetingAnalytics(
       let meetingDurationMinutes = instance.duration || 0;
       if (!meetingDurationMinutes) {
         try {
-          const instanceReport = await getMeetingReport(instance.uuid);
+          const instanceReport = await getMeetingReport(instance.uuid, accessToken);
           meetingDurationMinutes = instanceReport.duration || 60;
           instance.duration = meetingDurationMinutes;
           instance.end_time = instance.end_time || instanceReport.end_time;
@@ -371,7 +377,7 @@ export async function getFullMeetingAnalytics(
         }
       }
       
-      const participants = await getMeetingParticipants(instance.uuid);
+      const participants = await getMeetingParticipants(instance.uuid, 300, accessToken);
 
       const meetingDurationSeconds = meetingDurationMinutes * 60; // convert mins to secs
       const sessionStart = instance.start_time;
