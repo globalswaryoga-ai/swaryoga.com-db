@@ -111,6 +111,8 @@ function ZoomAnalyticsPageInner() {
   const printRef = useRef<HTMLDivElement>(null);
 
   const [meetingId, setMeetingId] = useState('');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<MeetingAnalytics | null>(null);
@@ -127,7 +129,11 @@ function ZoomAnalyticsPageInner() {
     setData(null);
 
     try {
-      const res = await fetch(`/api/admin/crm/zoom-analytics?meetingId=${encodeURIComponent(meetingId.trim())}`, {
+      let url = `/api/admin/crm/zoom-analytics?meetingId=${encodeURIComponent(meetingId.trim())}`;
+      if (fromDate) url += `&from=${fromDate}`;
+      if (toDate) url += `&to=${toDate}`;
+      
+      const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const json = await res.json();
@@ -139,7 +145,7 @@ function ZoomAnalyticsPageInner() {
     } finally {
       setLoading(false);
     }
-  }, [meetingId, token]);
+  }, [meetingId, fromDate, toDate, token]);
 
   // Print / Export A4 PDF
   const handleExport = useCallback(() => {
@@ -255,7 +261,7 @@ function ZoomAnalyticsPageInner() {
         </div>
 
         <div style="margin-top:8px;font-size:10px;color:#6b7280;">
-          <strong>Grading Criteria:</strong> A = ≥90% attendance + video on &nbsp;|&nbsp; B = ≥70% &nbsp;|&nbsp; C = ≥50% &nbsp;|&nbsp; D = ≥30% &nbsp;|&nbsp; E = &lt;30%
+          <strong>Grading Criteria:</strong> A = ≥90% attendance &nbsp;|&nbsp; B = ≥70% &nbsp;|&nbsp; C = ≥50% &nbsp;|&nbsp; D = ≥30% &nbsp;|&nbsp; E = &lt;30%
         </div>
 
         <h2>Overall Participant Report</h2>
@@ -358,26 +364,61 @@ function ZoomAnalyticsPageInner() {
       {/* Search Bar */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Enter Zoom Meeting ID (e.g. 85012345678)"
-                value={meetingId}
-                onChange={(e) => setMeetingId(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && fetchAnalytics()}
-                className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none text-sm font-medium"
-              />
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Enter Zoom Meeting ID (e.g. 85012345678)"
+                  value={meetingId}
+                  onChange={(e) => setMeetingId(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && fetchAnalytics()}
+                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none text-sm font-medium"
+                />
+              </div>
+              <button
+                onClick={fetchAnalytics}
+                disabled={loading || !meetingId.trim()}
+                className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white font-bold text-sm transition active:scale-95"
+              >
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                Analyze
+              </button>
             </div>
-            <button
-              onClick={fetchAnalytics}
-              disabled={loading || !meetingId.trim()}
-              className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white font-bold text-sm transition active:scale-95"
-            >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-              Analyze
-            </button>
+            
+            {/* Date range filters */}
+            <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-gray-400" />
+                <span className="text-xs text-gray-500 font-semibold">Date Range (optional):</span>
+              </div>
+              <div className="flex gap-2 items-center">
+                <input
+                  type="date"
+                  value={fromDate}
+                  onChange={(e) => setFromDate(e.target.value)}
+                  className="px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-indigo-400 focus:ring-1 focus:ring-indigo-100 outline-none"
+                  placeholder="From"
+                />
+                <span className="text-gray-400 text-xs">to</span>
+                <input
+                  type="date"
+                  value={toDate}
+                  onChange={(e) => setToDate(e.target.value)}
+                  className="px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-indigo-400 focus:ring-1 focus:ring-indigo-100 outline-none"
+                  placeholder="To"
+                />
+                {(fromDate || toDate) && (
+                  <button
+                    onClick={() => { setFromDate(''); setToDate(''); }}
+                    className="text-xs text-indigo-600 hover:underline"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
 
           {error && (
@@ -491,7 +532,7 @@ function ZoomAnalyticsPageInner() {
               </div>
               <div className="mt-4 p-3 bg-gray-50 rounded-lg text-xs text-gray-500">
                 <strong>Grading Criteria:</strong>{' '}
-                <span className="text-emerald-600 font-semibold">A</span> = ≥90% attendance + video on &nbsp;|&nbsp;
+                <span className="text-emerald-600 font-semibold">A</span> = ≥90% attendance &nbsp;|&nbsp;
                 <span className="text-blue-600 font-semibold">B</span> = ≥70% &nbsp;|&nbsp;
                 <span className="text-amber-600 font-semibold">C</span> = ≥50% &nbsp;|&nbsp;
                 <span className="text-orange-600 font-semibold">D</span> = ≥30% &nbsp;|&nbsp;

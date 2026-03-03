@@ -90,13 +90,13 @@ export interface SessionParticipant {
 
 export function calculateGrade(
   attendancePercent: number,
-  videoOn: boolean
+  _videoOn?: boolean  // kept for API compat but not used for grading (Report API doesn't provide camera data)
 ): { grade: 'A' | 'B' | 'C' | 'D' | 'E'; label: string } {
-  // A: ≥90% attendance + video on
-  if (attendancePercent >= 90 && videoOn) {
-    return { grade: 'A', label: 'Excellent – Full attendance & video on' };
+  // A: ≥90% attendance
+  if (attendancePercent >= 90) {
+    return { grade: 'A', label: 'Excellent – Full attendance' };
   }
-  // B: ≥70% attendance (or ≥90% without video)
+  // B: ≥70% attendance
   if (attendancePercent >= 70) {
     return { grade: 'B', label: 'Good – Strong attendance' };
   }
@@ -254,10 +254,14 @@ export async function getMeetingReport(meetingUUIDOrId: string): Promise<any> {
  * - Attendance % and grades
  * - Grade distribution
  */
-export async function getFullMeetingAnalytics(rawMeetingId: string): Promise<MeetingAnalytics> {
+export async function getFullMeetingAnalytics(
+  rawMeetingId: string,
+  fromDate?: string,
+  toDate?: string,
+): Promise<MeetingAnalytics> {
   // Strip spaces, dashes, and non-numeric characters from meeting ID
   const meetingId = rawMeetingId.replace(/[\s\-]/g, '');
-  console.log(`[Zoom Analytics] Fetching analytics for meeting ID: ${meetingId}`);
+  console.log(`[Zoom Analytics] Fetching analytics for meeting ID: ${meetingId}, from=${fromDate}, to=${toDate}`);
   
   // 1) Get all instances of this meeting
   let instances = await getMeetingInstances(meetingId);
@@ -293,7 +297,43 @@ export async function getFullMeetingAnalytics(rawMeetingId: string): Promise<Mee
   // Sort instances by start time
   instances.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
 
-  const topic = instances[0]?.topic || 'Unknown Meeting';
+  // Apply date range filter if provided
+  if (fromDate || toDate) {
+    const from = fromDate ? new Date(fromDate + 'T00:00:00Z').getTime() : 0;
+    const to = toDate ? new Date(toDate + 'T23:59:59Z').getTime() : Infinity;
+    const beforeFilter = instances.length;
+    instances = instances.filter(i => {
+      const t = new Date(i.start_time).getTime();
+      return t >= from && t <= to;
+    });
+    console.log(`[Zoom Analytics] Date filter: ${beforeFilter} → ${instances.length} instances (from=${fromDate}, to=${toDate})`);
+  }
+
+  if (instances.length === 0) {
+    throw new Error(
+      fromDate || toDate
+        ? `No sessions found for meeting ${meetingId} in the selected date range (${fromDate || 'start'} to ${toDate || 'now'}).`
+        : `Meeting ${meetingId} has no recorded sessions.`
+    );
+  }
+
+  // Get topic from first instance or from a report call
+  let topic = 'Unknown Meeting';
+  try {
+    const report = await getMeetingReport(instances[instances.length - 1].uuid);
+    topic = report.topic || topic;
+    // Also update duration if available
+    for (const inst of instances) {
+      if (!inst.duration && inst.uuid === report.uuid) {
+        inst.duration = report.duration;
+        inst.end_time = report.end_time;
+      }
+    }
+  } catch {
+    // fallback to instance topic
+    topic = instances[0]?.topic || topic;
+  }
+
   const totalSessions = instances.length;
   const sessionDates = instances.map(i => new Date(i.start_time).toISOString().split('T')[0]);
 
@@ -314,9 +354,23 @@ export async function getFullMeetingAnalytics(rawMeetingId: string): Promise<Mee
 
   for (const instance of instances) {
     try {
+      // Get the meeting report for this instance to get actual duration
+      let meetingDurationMinutes = instance.duration || 0;
+      if (!meetingDurationMinutes) {
+        try {
+          const instanceReport = await getMeetingReport(instance.uuid);
+          meetingDurationMinutes = instanceReport.duration || 60;
+          instance.duration = meetingDurationMinutes;
+          instance.end_time = instance.end_time || instanceReport.end_time;
+          if (!instance.topic && instanceReport.topic) instance.topic = instanceReport.topic;
+        } catch {
+          meetingDurationMinutes = 60; // fallback to 60 min
+        }
+      }
+      
       const participants = await getMeetingParticipants(instance.uuid);
 
-      const meetingDurationSeconds = (instance.duration || 60) * 60; // convert mins to secs
+      const meetingDurationSeconds = meetingDurationMinutes * 60; // convert mins to secs
       const sessionStart = instance.start_time;
       const sessionEnd = instance.end_time || new Date(
         new Date(sessionStart).getTime() + meetingDurationSeconds * 1000
@@ -326,8 +380,7 @@ export async function getFullMeetingAnalytics(rawMeetingId: string): Promise<Mee
         const attendancePercent = meetingDurationSeconds > 0
           ? Math.min(100, Math.round((p.duration / meetingDurationSeconds) * 100))
           : 0;
-        const videoOn = p.camera === 'on' || p.camera === 'true';
-        const { grade, label } = calculateGrade(attendancePercent, videoOn);
+        const { grade, label } = calculateGrade(attendancePercent);
 
         return {
           name: p.name || 'Unknown',
@@ -337,7 +390,7 @@ export async function getFullMeetingAnalytics(rawMeetingId: string): Promise<Mee
           durationSeconds: p.duration,
           durationFormatted: formatDuration(p.duration),
           attendancePercent,
-          videoOn,
+          videoOn: false, // Report API does not provide camera data
           grade,
           gradeLabel: label,
         };
@@ -357,13 +410,11 @@ export async function getFullMeetingAnalytics(rawMeetingId: string): Promise<Mee
       for (const p of participants) {
         const key = (p.user_email || p.name || 'unknown').toLowerCase().trim();
         const existing = participantMap.get(key);
-        const videoOn = p.camera === 'on' || p.camera === 'true';
 
         if (existing) {
           existing.totalDuration += p.duration;
           existing.totalMeetingDuration += meetingDurationSeconds;
           existing.sessionsAttended += 1;
-          if (videoOn) existing.videoOnCount += 1;
           if (new Date(p.leave_time) > new Date(existing.lastLeave)) {
             existing.lastLeave = p.leave_time;
           }
@@ -373,7 +424,7 @@ export async function getFullMeetingAnalytics(rawMeetingId: string): Promise<Mee
             email: p.user_email || '',
             totalDuration: p.duration,
             totalMeetingDuration: meetingDurationSeconds,
-            videoOnCount: videoOn ? 1 : 0,
+            videoOnCount: 0,
             sessionsAttended: 1,
             device: p.device,
             location: p.location,
@@ -405,8 +456,7 @@ export async function getFullMeetingAnalytics(rawMeetingId: string): Promise<Mee
       const attendancePercent = p.totalMeetingDuration > 0
         ? Math.min(100, Math.round((p.totalDuration / p.totalMeetingDuration) * 100))
         : 0;
-      const videoOn = p.videoOnCount > (p.sessionsAttended / 2); // majority sessions with video
-      const { grade, label } = calculateGrade(attendancePercent, videoOn);
+      const { grade, label } = calculateGrade(attendancePercent);
 
       gradeDistribution[grade] = (gradeDistribution[grade] || 0) + 1;
 
@@ -418,7 +468,7 @@ export async function getFullMeetingAnalytics(rawMeetingId: string): Promise<Mee
         durationSeconds: p.totalDuration,
         durationFormatted: formatDuration(p.totalDuration),
         attendancePercent,
-        videoOn,
+        videoOn: false,
         grade,
         gradeLabel: label,
         sessionsAttended: p.sessionsAttended,

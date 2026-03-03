@@ -1,6 +1,6 @@
 /**
  * Zoom Meeting Analytics API
- * GET /api/admin/crm/zoom-analytics?meetingId=123456789
+ * GET /api/admin/crm/zoom-analytics?meetingId=123456789&from=2026-02-01&to=2026-03-03
  * Returns full participant analytics, grades, session history.
  */
 import { NextRequest } from 'next/server';
@@ -9,6 +9,7 @@ import { apiError, apiSuccess } from '@/lib/api-error';
 import { getFullMeetingAnalytics } from '@/lib/zoom-analytics';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60; // Allow up to 60s for large meetings
 
 export async function GET(req: NextRequest) {
   try {
@@ -24,12 +25,16 @@ export async function GET(req: NextRequest) {
       return apiError('VALIDATION_ERROR', 'meetingId query parameter is required');
     }
 
+    // Optional date range filters
+    const fromDate = req.nextUrl.searchParams.get('from') || undefined;
+    const toDate = req.nextUrl.searchParams.get('to') || undefined;
+
     // Validate Zoom credentials exist
     if (!process.env.ZOOM_ACCOUNT_ID || !process.env.ZOOM_CLIENT_ID || !process.env.ZOOM_CLIENT_SECRET) {
       return apiError('SERVER_ERROR', 'Zoom API credentials not configured');
     }
 
-    const analytics = await getFullMeetingAnalytics(meetingId.trim());
+    const analytics = await getFullMeetingAnalytics(meetingId.trim(), fromDate, toDate);
 
     // Add diagnostic warning if 0 participants
     if (analytics.totalUniqueParticipants === 0) {
