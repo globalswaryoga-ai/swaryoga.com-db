@@ -1,12 +1,15 @@
 /**
  * LinkedIn OAuth Callback
  * GET /api/admin/linkedin/callback?code=XXX&state=XXX
- * Exchanges authorization code for access token, saves to DB and .env
+ * Exchanges authorization code for access token, saves to DB
+ * Then redirects back to the social media setup page
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, SocialMediaAccount } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
+
+const SETUP_PAGE = '/admin/social-media-setup?platform=linkedin';
 
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get('code');
@@ -16,24 +19,24 @@ export async function GET(req: NextRequest) {
   // Handle errors from LinkedIn
   if (error) {
     console.error('LinkedIn OAuth error:', error, errorDescription);
-    return new NextResponse(renderHTML(false, `LinkedIn OAuth Error: ${errorDescription || error}`), {
-      headers: { 'Content-Type': 'text/html' },
-    });
+    return NextResponse.redirect(
+      new URL(`${SETUP_PAGE}&error=${encodeURIComponent(errorDescription || error)}`, 'https://swaryoga.com')
+    );
   }
 
   if (!code) {
-    return new NextResponse(renderHTML(false, 'No authorization code received'), {
-      headers: { 'Content-Type': 'text/html' },
-    });
+    return NextResponse.redirect(
+      new URL(`${SETUP_PAGE}&error=linkedin_missing_code`, 'https://swaryoga.com')
+    );
   }
 
   const clientId = process.env.LINKEDIN_CLIENT_ID;
   const clientSecret = process.env.LINKEDIN_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
-    return new NextResponse(renderHTML(false, 'LinkedIn credentials not configured'), {
-      headers: { 'Content-Type': 'text/html' },
-    });
+    return NextResponse.redirect(
+      new URL(`${SETUP_PAGE}&error=linkedin_missing_credentials`, 'https://swaryoga.com')
+    );
   }
 
   // Must match the redirect URI used in the auth route exactly
@@ -56,9 +59,9 @@ export async function GET(req: NextRequest) {
     if (!tokenRes.ok) {
       const errText = await tokenRes.text();
       console.error('LinkedIn token exchange failed:', errText);
-      return new NextResponse(renderHTML(false, `Token exchange failed: ${errText}`), {
-        headers: { 'Content-Type': 'text/html' },
-      });
+      return NextResponse.redirect(
+        new URL(`${SETUP_PAGE}&error=${encodeURIComponent('Token exchange failed: ' + errText)}`, 'https://swaryoga.com')
+      );
     }
 
     const tokenData = await tokenRes.json();
@@ -67,9 +70,9 @@ export async function GET(req: NextRequest) {
     const refreshToken = tokenData.refresh_token || '';
 
     if (!accessToken) {
-      return new NextResponse(renderHTML(false, 'No access token in response'), {
-        headers: { 'Content-Type': 'text/html' },
-      });
+      return NextResponse.redirect(
+        new URL(`${SETUP_PAGE}&error=linkedin_token_failed`, 'https://swaryoga.com')
+      );
     }
 
     // Fetch user profile
@@ -80,14 +83,12 @@ export async function GET(req: NextRequest) {
     let profileName = 'Swar Yoga';
     let profileEmail = '';
     let profilePicture = '';
-    let personId = '';
 
     if (profileRes.ok) {
       const profile = await profileRes.json();
       profileName = profile.name || `${profile.given_name || ''} ${profile.family_name || ''}`.trim() || 'Swar Yoga';
       profileEmail = profile.email || '';
       profilePicture = profile.picture || '';
-      personId = profile.sub || '';
     }
 
     // Save to database
@@ -122,81 +123,14 @@ export async function GET(req: NextRequest) {
     );
 
     console.log('✅ LinkedIn connected! Token expires:', tokenExpiresAt.toISOString());
-    console.log('Access Token (first 20 chars):', accessToken.substring(0, 20) + '...');
 
-    return new NextResponse(
-      renderHTML(true, 'LinkedIn connected successfully!', {
-        name: profileName,
-        email: profileEmail,
-        orgId,
-        expiresAt: tokenExpiresAt.toLocaleDateString('en-IN', { 
-          day: '2-digit', month: 'short', year: 'numeric' 
-        }),
-        token: accessToken.substring(0, 15) + '...' + accessToken.substring(accessToken.length - 10),
-      }),
-      { headers: { 'Content-Type': 'text/html' } }
+    return NextResponse.redirect(
+      new URL(`${SETUP_PAGE}&success=linkedin_connected&linkedin_account=${encodeURIComponent(profileName)}`, 'https://swaryoga.com')
     );
   } catch (err: any) {
     console.error('LinkedIn OAuth callback error:', err);
-    return new NextResponse(renderHTML(false, err.message || 'Unknown error'), {
-      headers: { 'Content-Type': 'text/html' },
-    });
+    return NextResponse.redirect(
+      new URL(`${SETUP_PAGE}&error=${encodeURIComponent(err.message || 'Unknown error')}`, 'https://swaryoga.com')
+    );
   }
-}
-
-function renderHTML(
-  success: boolean, 
-  message: string, 
-  details?: { name: string; email: string; orgId: string; expiresAt: string; token: string }
-) {
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <title>LinkedIn ${success ? 'Connected' : 'Error'} – Swar Yoga</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
-           background: #f8fafc; display: flex; justify-content: center; align-items: center; 
-           min-height: 100vh; margin: 0; padding: 20px; }
-    .card { background: white; border-radius: 16px; padding: 40px; max-width: 480px; 
-            width: 100%; box-shadow: 0 4px 24px rgba(0,0,0,0.08); text-align: center; }
-    .icon { font-size: 48px; margin-bottom: 16px; }
-    h1 { font-size: 22px; margin: 0 0 8px; color: ${success ? '#10B981' : '#EF4444'}; }
-    p { color: #6b7280; font-size: 14px; line-height: 1.6; }
-    .detail { background: #f9fafb; border-radius: 8px; padding: 12px 16px; margin: 16px 0 4px; 
-              text-align: left; font-size: 13px; }
-    .detail-label { color: #9ca3af; font-size: 11px; text-transform: uppercase; font-weight: 600; }
-    .detail-value { color: #1f2937; font-weight: 600; margin-top: 2px; }
-    .btn { display: inline-block; margin-top: 20px; padding: 10px 24px; border-radius: 8px; 
-           background: #6366F1; color: white; text-decoration: none; font-weight: 600; font-size: 14px; }
-    .btn:hover { background: #4F46E5; }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <div class="icon">${success ? '✅' : '❌'}</div>
-    <h1>${success ? 'LinkedIn Connected!' : 'Connection Failed'}</h1>
-    <p>${message}</p>
-    ${details ? `
-      <div class="detail">
-        <div class="detail-label">Account</div>
-        <div class="detail-value">${details.name} ${details.email ? `(${details.email})` : ''}</div>
-      </div>
-      <div class="detail">
-        <div class="detail-label">Organization ID</div>
-        <div class="detail-value">${details.orgId}</div>
-      </div>
-      <div class="detail">
-        <div class="detail-label">Token Expires</div>
-        <div class="detail-value">${details.expiresAt}</div>
-      </div>
-      <div class="detail">
-        <div class="detail-label">Access Token</div>
-        <div class="detail-value" style="font-family:monospace;font-size:11px;">${details.token}</div>
-      </div>
-    ` : ''}
-    <a class="btn" href="/admin/crm">← Back to CRM</a>
-  </div>
-</body>
-</html>`;
 }

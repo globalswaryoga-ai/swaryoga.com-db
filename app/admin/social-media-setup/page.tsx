@@ -169,23 +169,12 @@ const platforms: Record<string, PlatformConfig> = {
     idPlaceholder: '12345678',
     idValidation: (id: string) => /^\d{5,15}$/.test(id),
     idError: '⚠️ Organization ID must be a 5-15 digit number from your Company Page URL',
+    useOAuth: true,
     instructions: [
-      '📍 STEP 1: Find Your Company Page ID',
-      '   → Go to your LinkedIn Company Page',
-      '   → Look at the URL:',
-      '     linkedin.com/company/12345678/',
-      '   → Copy the number from the URL',
-      '',
-      '📍 STEP 2: Create LinkedIn Developer App',
-      '   → Go to: linkedin.com/developers/apps',
-      '   → Click "Create App"',
-      '   → Fill in app details',
-      '   → Add your Company Page',
-      '   → Request Marketing API access',
-      '',
-      '📍 STEP 3: Get Access Token',
-      '   → You need OAuth to get a token',
-      '   → Required scopes: w_organization_social, rw_organization_admin',
+      '📍 Click "Connect with LinkedIn" below',
+      '   → You will be redirected to LinkedIn',
+      '   → Approve the permissions',
+      '   → Token is saved automatically',
       '',
       '⚠️ LinkedIn tokens expire in 60 days',
       '📌 You must be a Page admin to post'
@@ -238,9 +227,14 @@ function SocialMediaSetupContent() {
     const success = searchParams.get('success');
     const error = searchParams.get('error');
     const channel = searchParams.get('channel');
+    const linkedinAccount = searchParams.get('linkedin_account');
     
     if (success === 'connected' && channel) {
       setSuccessMessage(`✅ YouTube channel "${decodeURIComponent(channel)}" connected successfully!`);
+      fetchConnectedAccounts();
+    } else if (success === 'linkedin_connected' && linkedinAccount) {
+      setSuccessMessage(`✅ LinkedIn connected as "${decodeURIComponent(linkedinAccount)}"! Token expires in 60 days.`);
+      setSelectedPlatform('linkedin');
       fetchConnectedAccounts();
     } else if (error) {
       const errorMessages: Record<string, string> = {
@@ -250,8 +244,12 @@ function SocialMediaSetupContent() {
         'token_exchange_failed': 'Failed to exchange authorization code. Please try again.',
         'no_channel_found': 'No YouTube channel found for this Google account.',
         'internal_error': 'An unexpected error occurred. Please try again.',
+        'linkedin_missing_code': 'No authorization code received from LinkedIn.',
+        'linkedin_missing_credentials': 'LinkedIn credentials not configured on server.',
+        'linkedin_token_failed': 'Failed to exchange LinkedIn authorization code. Please try again.',
+        'linkedin_error': 'LinkedIn authorization error. Please try again.',
       };
-      setErrorMessage(`❌ ${errorMessages[error] || error}`);
+      setErrorMessage(`❌ ${errorMessages[error] || decodeURIComponent(error)}`);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
@@ -278,6 +276,13 @@ function SocialMediaSetupContent() {
       setErrorMessage(`❌ ${error instanceof Error ? error.message : 'Failed to start OAuth flow'}`);
       setOauthLoading(false);
     }
+  };
+
+  const handleLinkedInOAuth = () => {
+    setOauthLoading(true);
+    setErrorMessage('');
+    // Redirect directly to our LinkedIn auth endpoint
+    window.location.href = '/api/admin/linkedin/auth';
   };
 
   const fetchConnectedAccounts = async () => {
@@ -615,12 +620,36 @@ function SocialMediaSetupContent() {
 
                 {/* Form */}
                 {currentPlatform.useOAuth ? (
-                  /* OAuth-based platform (YouTube) */
+                  /* OAuth-based platform (YouTube / LinkedIn) */
                   <div className="space-y-6">
                     <div className="bg-slate-700/50 rounded-lg p-6 border border-slate-600">
                       <p className="text-slate-300 mb-4">
-                        Click the button below to connect your YouTube channel. You'll be redirected to Google to authorize access.
+                        {selectedPlatform === 'linkedin'
+                          ? 'Click the button below to connect your LinkedIn Company Page. You\'ll be redirected to LinkedIn to authorize access.'
+                          : 'Click the button below to connect your YouTube channel. You\'ll be redirected to Google to authorize access.'}
                       </p>
+                      {selectedPlatform === 'linkedin' ? (
+                        <button
+                          type="button"
+                          onClick={handleLinkedInOAuth}
+                          disabled={oauthLoading}
+                          className="w-full bg-gradient-to-r from-blue-700 to-blue-800 hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 text-white font-bold py-4 px-6 rounded-lg transition flex items-center justify-center gap-3"
+                        >
+                          {oauthLoading ? (
+                            <>
+                              <RefreshCw className="animate-spin" size={20} />
+                              Connecting...
+                            </>
+                          ) : (
+                            <>
+                              <svg viewBox="0 0 24 24" className="w-6 h-6" fill="currentColor">
+                                <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                              </svg>
+                              Connect with LinkedIn
+                            </>
+                          )}
+                        </button>
+                      ) : (
                       <button
                         type="button"
                         onClick={handleYouTubeOAuth}
@@ -644,13 +673,23 @@ function SocialMediaSetupContent() {
                           </>
                         )}
                       </button>
+                      )}
                     </div>
                     
                     <div className="text-slate-400 text-sm">
                       <p className="font-semibold text-white mb-2">Required scopes:</p>
                       <ul className="list-disc pl-5 space-y-1">
-                        <li>youtube.upload - Upload videos to your channel</li>
-                        <li>youtube.readonly - Read channel info and stats</li>
+                        {selectedPlatform === 'linkedin' ? (
+                          <>
+                            <li>openid, profile, email - Account info</li>
+                            <li>w_member_social - Post on your behalf</li>
+                          </>
+                        ) : (
+                          <>
+                            <li>youtube.upload - Upload videos to your channel</li>
+                            <li>youtube.readonly - Read channel info and stats</li>
+                          </>
+                        )}
                       </ul>
                     </div>
                   </div>
