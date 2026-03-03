@@ -147,6 +147,7 @@ function doubleEncodeUUID(uuid: string): string {
  */
 export async function getMeetingInstances(meetingId: string): Promise<ZoomMeetingInstance[]> {
   const accessToken = await getZoomAccessToken();
+  console.log(`[Zoom Analytics] Calling GET /v2/past_meetings/${meetingId}/instances`);
 
   const response = await fetch(
     `https://api.zoom.us/v2/past_meetings/${meetingId}/instances`,
@@ -156,13 +157,15 @@ export async function getMeetingInstances(meetingId: string): Promise<ZoomMeetin
   );
 
   if (!response.ok) {
+    const errorText = await response.text();
+    console.log(`[Zoom Analytics] past_meetings/${meetingId}/instances returned ${response.status}: ${errorText}`);
     // If 404, meeting may not have ended yet or no instances
     if (response.status === 404) return [];
-    const error = await response.text();
-    throw new Error(`Failed to get meeting instances: ${response.status} – ${error}`);
+    throw new Error(`Failed to get meeting instances: ${response.status} – ${errorText}`);
   }
 
   const data = await response.json();
+  console.log(`[Zoom Analytics] past_meetings instances response:`, JSON.stringify(data).slice(0, 500));
   return data.meetings || [];
 }
 
@@ -185,16 +188,19 @@ export async function getMeetingParticipants(
     url.searchParams.set('page_size', String(pageSize));
     if (nextPageToken) url.searchParams.set('next_page_token', nextPageToken);
 
+    console.log(`[Zoom Analytics] Calling GET ${url.pathname}${url.search}`);
     const response = await fetch(url.toString(), {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
     if (!response.ok) {
       const error = await response.text();
+      console.error(`[Zoom Analytics] participants API returned ${response.status}: ${error}`);
       throw new Error(`Failed to get participants: ${response.status} – ${error}`);
     }
 
     const data = await response.json();
+    console.log(`[Zoom Analytics] Participants response: total_records=${data.total_records}, page_count=${data.page_count}, returned=${(data.participants || []).length}`);
     allParticipants.push(...(data.participants || []));
     nextPageToken = data.next_page_token || '';
   } while (nextPageToken);
@@ -236,14 +242,21 @@ export async function getMeetingReport(meetingUUIDOrId: string): Promise<any> {
 export async function getFullMeetingAnalytics(rawMeetingId: string): Promise<MeetingAnalytics> {
   // Strip spaces, dashes, and non-numeric characters from meeting ID
   const meetingId = rawMeetingId.replace(/[\s\-]/g, '');
+  console.log(`[Zoom Analytics] Fetching analytics for meeting ID: ${meetingId}`);
   
   // 1) Get all instances of this meeting
   let instances = await getMeetingInstances(meetingId);
+  console.log(`[Zoom Analytics] Found ${instances.length} instances via past_meetings endpoint`);
 
   // If no instances found, try fetching directly as a single meeting
   if (instances.length === 0) {
+    console.log(`[Zoom Analytics] No instances found, trying direct report fetch...`);
     try {
       const report = await getMeetingReport(meetingId);
+      console.log(`[Zoom Analytics] Direct report fetch result:`, JSON.stringify({
+        uuid: report.uuid, topic: report.topic, start_time: report.start_time,
+        end_time: report.end_time, duration: report.duration, participants_count: report.participants_count,
+      }));
       instances = [{
         uuid: report.uuid || meetingId,
         start_time: report.start_time,
@@ -251,8 +264,14 @@ export async function getFullMeetingAnalytics(rawMeetingId: string): Promise<Mee
         duration: report.duration || 0,
         topic: report.topic || 'Unknown Meeting',
       }];
-    } catch {
-      throw new Error(`Meeting ${meetingId} not found or has no data yet.`);
+    } catch (reportErr: any) {
+      console.error(`[Zoom Analytics] Direct report also failed:`, reportErr.message);
+      throw new Error(
+        `Meeting ${meetingId} not found or has no data yet. ` +
+        `Note: Zoom Reports API requires meetings to have ended at least 2 hours ago. ` +
+        `If this is a scheduled/upcoming meeting, data will not be available until after it ends. ` +
+        `Error: ${reportErr.message}`
+      );
     }
   }
 
@@ -348,8 +367,18 @@ export async function getFullMeetingAnalytics(rawMeetingId: string): Promise<Mee
           });
         }
       }
-    } catch (err) {
-      console.warn(`⚠️ Failed to fetch participants for instance ${instance.uuid}:`, err);
+    } catch (err: any) {
+      console.warn(`[Zoom Analytics] ⚠️ Failed to fetch participants for instance ${instance.uuid}:`, err.message);
+      // Still add the session with 0 participants so it shows up
+      sessions.push({
+        uuid: instance.uuid,
+        date: new Date(instance.start_time).toISOString().split('T')[0],
+        startTime: instance.start_time,
+        endTime: instance.end_time || instance.start_time,
+        duration: instance.duration,
+        participantCount: 0,
+        participants: [],
+      });
     }
   }
 

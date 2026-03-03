@@ -79,6 +79,7 @@ interface MeetingAnalytics {
   participants: ParticipantAnalysis[];
   gradeDistribution: Record<string, number>;
   sessions: SessionDetail[];
+  _warning?: string;
 }
 
 function formatDate(iso: string) {
@@ -381,7 +382,14 @@ function ZoomAnalyticsPageInner() {
 
           {error && (
             <div className="mt-4 p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">
-              <strong>Error:</strong> {error}
+              <p className="font-semibold mb-1">Error</p>
+              <p>{error}</p>
+              {error.includes('not found') && (
+                <p className="mt-2 text-xs text-red-500">
+                  💡 <strong>Tips:</strong> Make sure you enter just the numeric meeting ID (e.g. 85012345678). 
+                  The Zoom Reports API only works for past meetings that ended at least 2 hours ago.
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -398,6 +406,19 @@ function ZoomAnalyticsPageInner() {
         {/* Results */}
         {data && !loading && (
           <div ref={printRef}>
+            {/* Warning banner */}
+            {data._warning && (
+              <div className="mt-6 p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-sm">
+                <div className="flex items-start gap-3">
+                  <Clock className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="font-semibold mb-1">⚠️ Limited Data Available</p>
+                    <p>{data._warning}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Meeting Header */}
             <div className="mt-6 bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
