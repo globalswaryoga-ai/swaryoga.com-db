@@ -233,7 +233,10 @@ export async function getMeetingReport(meetingUUIDOrId: string): Promise<any> {
  * - Attendance % and grades
  * - Grade distribution
  */
-export async function getFullMeetingAnalytics(meetingId: string): Promise<MeetingAnalytics> {
+export async function getFullMeetingAnalytics(rawMeetingId: string): Promise<MeetingAnalytics> {
+  // Strip spaces, dashes, and non-numeric characters from meeting ID
+  const meetingId = rawMeetingId.replace(/[\s\-]/g, '');
+  
   // 1) Get all instances of this meeting
   let instances = await getMeetingInstances(meetingId);
 
