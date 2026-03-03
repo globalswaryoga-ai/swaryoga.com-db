@@ -196,6 +196,14 @@ export async function getMeetingParticipants(
     if (!response.ok) {
       const error = await response.text();
       console.error(`[Zoom Analytics] participants API returned ${response.status}: ${error}`);
+      // Check for scope-related errors
+      if (error.includes('does not contain scopes')) {
+        throw new Error(
+          `Missing Zoom Report API scope. Please add "report:read:list_meeting_participants:admin" ` +
+          `and "report:read:meeting:admin" scopes to your Zoom Server-to-Server OAuth app. ` +
+          `Go to marketplace.zoom.us → Your Apps → Scopes → Report category.`
+        );
+      }
       throw new Error(`Failed to get participants: ${response.status} – ${error}`);
     }
 
@@ -224,6 +232,13 @@ export async function getMeetingReport(meetingUUIDOrId: string): Promise<any> {
 
   if (!response.ok) {
     const error = await response.text();
+    console.error(`[Zoom Analytics] report API returned ${response.status}: ${error}`);
+    if (error.includes('does not contain scopes')) {
+      throw new Error(
+        `Missing Zoom Report API scope. Please add "report:read:meeting:admin" ` +
+        `scope to your Zoom Server-to-Server OAuth app at marketplace.zoom.us.`
+      );
+    }
     throw new Error(`Failed to get meeting report: ${response.status} – ${error}`);
   }
 
