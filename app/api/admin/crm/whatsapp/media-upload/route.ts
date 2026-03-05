@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { uploadToS3 } from '@/lib/aws-s3';
+import { uploadToS3 } from '@/lib/bunny-storage';
 import { verifyToken } from '@/lib/auth';
 
 /**
  * POST /api/admin/crm/whatsapp/media-upload
  * 
- * Uploads media file directly to AWS S3 for QR WhatsApp
+ * Uploads media file to Bunny Storage for QR WhatsApp
  * Uses content-addressed storage to automatically skip duplicates
+ * Returns a public CDN URL (swaryogacrm.b-cdn.net)
  * 
  * @param req FormData with file
  * @returns { success: true, url: string, size: number, mimetype: string }
@@ -56,7 +57,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log(`[media-upload] Uploading ${file.name} (${file.size} bytes, ${file.type}) to S3`);
+    console.log(`[media-upload] Uploading ${file.name} (${file.size} bytes, ${file.type}) to Bunny Storage`);
 
     // Convert File to Buffer
     const arrayBuffer = await file.arrayBuffer();
@@ -76,7 +77,7 @@ export async function POST(req: NextRequest) {
       }
     });
 
-    console.log('[media-upload] ✅ Uploaded to S3:', s3Url);
+    console.log('[media-upload] ✅ Uploaded to Bunny Storage:', s3Url);
 
     return NextResponse.json({
       success: true,
