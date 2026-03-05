@@ -65,7 +65,12 @@ export async function uploadToS3(
 
   // 1. Calculate MD5 hash for de-duplication
   const hash = createHash('md5').update(fileBuffer).digest('hex');
-  const extension = fileName.split('.').pop() || '';
+  const rawExt = (fileName.split('.').pop() || '').toLowerCase();
+  // Normalize common extension aliases to prevent duplicates (e.g. jpeg→jpg)
+  const EXTENSION_ALIASES: Record<string, string> = {
+    jpeg: 'jpg', jfif: 'jpg', tiff: 'tif', htm: 'html', mpeg: 'mpg',
+  };
+  const extension = EXTENSION_ALIASES[rawExt] || rawExt;
   
   // 2. Build a content-addressed key to prevent duplicates
   const contentKey = `uploads/content-cache/${hash}.${extension}`;
