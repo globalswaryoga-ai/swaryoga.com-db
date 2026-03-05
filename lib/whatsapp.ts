@@ -9,7 +9,6 @@
  */
 
 import crypto from 'crypto';
-import { generatePresignedUrl } from './bunny-storage';
 import { 
   recordSuccess, 
   recordFailure, 
@@ -18,32 +17,36 @@ import {
   type ProviderType 
 } from './whatsappProtection';
 
+const OLD_CDN_HOST = 'swaryogadb.b-cdn.net';
+const NEW_CDN_HOST = process.env.BUNNY_STORAGE_CDN_HOST || 'swaryogacrm.b-cdn.net';
+
 /**
- * Convert S3 URL to a publicly accessible signed URL (for Meta API)
- * Meta's servers need to fetch the media, so the URL must be accessible
+ * Convert a stored media URL to one accessible by Meta's servers.
+ * Handles: S3 URLs (direct, public bucket), Bunny CDN URLs (direct, public),
+ * and old suspended Bunny URLs (rewrite to new CDN host).
  */
 export async function getPublicMediaUrl(url: string): Promise<string> {
   if (!url) return url;
   
-  // Check if it's an S3 URL from our bucket
-  const s3Pattern = /https:\/\/([^.]+)\.s3\.([^.]+)\.amazonaws\.com\/(.+)/;
-  const match = url.match(s3Pattern);
-  
-  if (match) {
-    const key = decodeURIComponent(match[3]);
-    console.log(`[WHATSAPP] 🔑 Generating signed URL for S3 key: ${key}`);
-    try {
-      const signedUrl = await generatePresignedUrl(key, { expiresIn: 3600 }); // 1 hour
-      console.log(`[WHATSAPP] ✅ Signed URL generated (${signedUrl.substring(0, 80)}...)`);
-      return signedUrl;
-    } catch (err) {
-      console.error(`[WHATSAPP] ❌ Failed to generate signed URL:`, err);
-      // Fall back to original URL
-      return url;
-    }
+  // Fix old suspended Bunny CDN URLs → rewrite to new CDN host
+  if (url.includes(OLD_CDN_HOST)) {
+    const fixed = url.replace(OLD_CDN_HOST, NEW_CDN_HOST);
+    console.log(`[WHATSAPP] 🔄 Rewrote old Bunny CDN URL: ${fixed.substring(0, 80)}`);
+    return fixed;
   }
 
-  // Not an S3 URL, return as-is
+  // Bunny CDN URLs are already public — return as-is
+  if (url.includes('b-cdn.net')) {
+    return url;
+  }
+
+  // S3 URLs — our bucket is publicly accessible, return as-is
+  // (Previously we generated presigned URLs, but direct access works)
+  if (url.includes('amazonaws.com')) {
+    return url;
+  }
+
+  // Any other URL — return as-is
   return url;
 }
 

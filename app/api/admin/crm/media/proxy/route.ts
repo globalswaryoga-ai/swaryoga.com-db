@@ -1,19 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
-import { generatePresignedUrl } from '@/lib/bunny-storage';
 
 /**
- * GET /api/admin/crm/media/proxy?url=<S3_URL>&token=<AUTH_TOKEN>
+ * GET /api/admin/crm/media/proxy?url=<MEDIA_URL>&token=<AUTH_TOKEN>
  * 
- * Proxies S3 media by:
- * 1. Generating a pre-signed URL for the S3 object
- * 2. Fetching the content server-side
- * 3. Streaming it back to the client
+ * Universal media proxy that handles:
+ * 1. Bunny CDN URLs (swaryogacrm.b-cdn.net) — fetch directly (public)
+ * 2. Old Bunny CDN URLs (swaryogadb.b-cdn.net) — rewrite to new CDN host
+ * 3. AWS S3 URLs (*.s3.*.amazonaws.com) — fetch directly (public bucket)
+ * 4. Any other URL — fetch directly
  * 
- * This bypasses S3's "Block Public Access" setting.
- * 
- * Note: Token can be passed as query param (for img src) or Authorization header
+ * This proxy ensures all media displays in the CRM regardless of storage backend.
+ * Token can be passed as query param (for img src) or Authorization header.
  */
+
+const NEW_CDN_HOST = process.env.BUNNY_STORAGE_CDN_HOST || 'swaryogacrm.b-cdn.net';
+const OLD_CDN_HOST = 'swaryogadb.b-cdn.net';
+
 export async function GET(request: NextRequest) {
   try {
     // Get token from header or query param (img src can't send headers)
@@ -30,62 +33,39 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
-    // Get the S3 URL from query params
-    const originalUrl = searchParams.get('url');
+    let originalUrl = searchParams.get('url');
     
     if (!originalUrl) {
       return NextResponse.json({ error: 'Missing url parameter' }, { status: 400 });
     }
 
-    // Parse URL to extract storage key
-    const s3UrlPattern = /https?:\/\/([^.]+)\.s3\.([^.]+)\.amazonaws\.com\/(.+)/;
-    const s3Match = originalUrl.match(s3UrlPattern);
-
-    let storageKey: string | null = null;
-
-    if (s3Match) {
-      storageKey = decodeURIComponent(s3Match[3]);
-      console.log('[Media Proxy] Extracted key from S3 URL:', storageKey);
+    // Fix old suspended Bunny CDN URLs → rewrite to new CDN host
+    if (originalUrl.includes(OLD_CDN_HOST)) {
+      originalUrl = originalUrl.replace(OLD_CDN_HOST, NEW_CDN_HOST);
+      console.log('[Media Proxy] Rewrote old Bunny CDN URL to:', originalUrl);
     }
 
-    if (!storageKey) {
-      // Unknown URL format, try to fetch directly
-      console.log('[Media Proxy] Unknown URL format, fetching directly:', originalUrl);
-      const response = await fetch(originalUrl);
-      if (!response.ok) {
-        return NextResponse.json({ error: 'Failed to fetch media' }, { status: response.status });
-      }
-      const contentType = response.headers.get('content-type') || 'application/octet-stream';
-      const buffer = await response.arrayBuffer();
-      return new NextResponse(buffer, {
-        headers: {
-          'Content-Type': contentType,
-          'Cache-Control': 'public, max-age=86400',
-        },
-      });
-    }
-
-    // Generate a CDN URL (with optional token auth)
-    const signedUrl = await generatePresignedUrl(storageKey, {
-      expiresIn: 3600 
+    // Fetch the media directly — works for:
+    // - Bunny CDN (public URLs)
+    // - S3 (public bucket or content-addressed uploads)
+    // - Any other accessible URL
+    console.log('[Media Proxy] Fetching:', originalUrl.substring(0, 80));
+    const response = await fetch(originalUrl, {
+      signal: AbortSignal.timeout(30000),
     });
-
-    // Fetch the content via the signed URL
-    const response = await fetch(signedUrl);
+    
     if (!response.ok) {
-      console.error('[Media Proxy] S3 fetch failed:', response.status, response.statusText);
-      return NextResponse.json({ error: 'Failed to fetch from storage' }, { status: response.status });
+      console.error('[Media Proxy] Fetch failed:', response.status, response.statusText, originalUrl.substring(0, 80));
+      return NextResponse.json({ error: 'Failed to fetch media' }, { status: response.status });
     }
 
-    // Get content type from S3 response
     const contentType = response.headers.get('content-type') || 'application/octet-stream';
     const buffer = await response.arrayBuffer();
 
-    // Return the content with appropriate headers
     return new NextResponse(buffer, {
       headers: {
         'Content-Type': contentType,
-        'Cache-Control': 'public, max-age=86400', // Cache for 24 hours
+        'Cache-Control': 'public, max-age=86400',
         'Content-Length': buffer.byteLength.toString(),
       },
     });

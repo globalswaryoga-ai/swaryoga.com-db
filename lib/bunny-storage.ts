@@ -101,6 +101,18 @@ function ensureConfigured() {
 // CONTENT TYPE DETECTION
 // ============================================
 
+/** Determine subfolder for content-cache based on file extension */
+const IMAGE_EXTENSIONS = new Set(['jpg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'tif']);
+const DOCUMENT_EXTENSIONS = new Set(['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv', 'rtf', 'odt', 'ods']);
+const VIDEO_EXTENSIONS = new Set(['mp4', 'webm', 'mov', 'avi', 'mkv', 'mpg', 'wmv']);
+
+function getContentSubfolder(ext: string): string {
+  if (IMAGE_EXTENSIONS.has(ext)) return 'Images/';
+  if (DOCUMENT_EXTENSIONS.has(ext)) return 'Documents/';
+  if (VIDEO_EXTENSIONS.has(ext)) return 'screenshots/'; // videos & screen recordings
+  return ''; // other types stay in root
+}
+
 function getContentType(fileName: string): string {
   const ext = fileName.toLowerCase().split('.').pop();
   const contentTypes: Record<string, string> = {
@@ -142,7 +154,10 @@ export async function uploadToBunnyStorage(
     jpeg: 'jpg', jfif: 'jpg', tiff: 'tif', htm: 'html', mpeg: 'mpg',
   };
   const extension = EXTENSION_ALIASES[rawExt] || rawExt;
-  const contentKey = `uploads/content-cache/${hash}.${extension}`;
+
+  // Organize files into subfolders by type
+  const subfolder = getContentSubfolder(extension);
+  const contentKey = `uploads/content-cache/${subfolder}${hash}.${extension}`;
 
   // Check if already exists by trying a HEAD-like GET (Bunny doesn't have HEAD)
   const checkUrl = `https://${storageHost}/${zoneName}/${contentKey}`;
