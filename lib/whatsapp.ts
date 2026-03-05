@@ -484,65 +484,80 @@ export async function sendWhatsAppMedia(
   // Convert S3 URLs to publicly accessible signed URLs
   const publicMediaUrl = await getPublicMediaUrl(mediaUrl);
 
-  // If Cloud API is configured, try it first
-  if (env) {
+  // Meta Cloud API ONLY — no QR bridge fallback (separate pipelines)
+  if (env && !isCircuitOpen('meta')) {
     try {
-  const { accessToken, phoneNumberId, appSecret } = env;
-  const appSecretProof = generateAppSecretProof(accessToken, appSecret);
-  const url = buildGraphMessagesUrl(phoneNumberId, appSecretProof);
-      
-      const mediaTypeSlug = mediaType;
-      const payload: any = {
-        messaging_product: 'whatsapp',
-        to,
-        type: mediaTypeSlug,
-        [mediaTypeSlug]: {
-          link: publicMediaUrl, // Use the signed/public URL
-        },
-      };
+      const result = await withRetry(async () => {
+        const { accessToken, phoneNumberId, appSecret } = env;
+        const appSecretProof = generateAppSecretProof(accessToken, appSecret);
+        const url = buildGraphMessagesUrl(phoneNumberId, appSecretProof);
+        
+        const mediaTypeSlug = mediaType;
+        const payload: any = {
+          messaging_product: 'whatsapp',
+          to,
+          type: mediaTypeSlug,
+          [mediaTypeSlug]: {
+            link: publicMediaUrl, // Use the signed/public URL
+          },
+        };
 
-      if (caption && caption.trim()) {
-        payload[mediaTypeSlug].caption = String(caption).trim();
-      }
+        if (caption && caption.trim()) {
+          payload[mediaTypeSlug].caption = String(caption).trim();
+        }
 
-      console.log(`[WHATSAPP] 📤 Sending ${mediaTypeSlug} to ${to} via Meta API`);
-      console.log(`[WHATSAPP] 🔗 Original URL: ${mediaUrl}`);
-      console.log(`[WHATSAPP] 🔗 Public URL: ${publicMediaUrl.substring(0, 100)}...`);
-      
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-        body: JSON.stringify(payload),
-        cache: 'no-store',
-      });
+        console.log(`[WHATSAPP] 📤 Sending ${mediaTypeSlug} to ${to} via Meta API`);
+        console.log(`[WHATSAPP] 🔗 Original URL: ${mediaUrl}`);
+        console.log(`[WHATSAPP] 🔗 Public URL: ${publicMediaUrl.substring(0, 100)}...`);
+        
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          body: JSON.stringify(payload),
+          cache: 'no-store',
+        });
 
-      const data = await res.json().catch(() => ({}));
+        const data = await res.json().catch(() => ({}));
 
-      if (res.ok) {
-        const waMessageId =
-          Array.isArray(data?.messages) && data.messages[0]?.id ? String(data.messages[0].id) : undefined;
-        console.log(`[WHATSAPP] ✅ Media sent successfully, messageId: ${waMessageId}`);
-        return { waMessageId, raw: { ...data, provider: 'meta' } };
-      }
-      
-      // Log detailed error from Meta API
-      const errorDetails = {
-        code: data?.error?.code,
-        message: data?.error?.message,
-        type: data?.error?.type,
-        fbtrace_id: data?.error?.fbtrace_id,
-        url: mediaUrl,
-      };
-      console.error('[WHATSAPP] ❌ Meta Cloud API failed (Media):', JSON.stringify(errorDetails, null, 2));
+        if (res.ok) {
+          const waMessageId =
+            Array.isArray(data?.messages) && data.messages[0]?.id ? String(data.messages[0].id) : undefined;
+          
+          if (!waMessageId) {
+            console.error('[sendWhatsAppMedia] Meta API returned 200 but no message ID:', JSON.stringify(data));
+            throw new Error('Meta API returned success but no message ID in response. Response: ' + JSON.stringify(data));
+          }
+          
+          console.log(`[WHATSAPP] ✅ Media sent successfully, messageId: ${waMessageId}`);
+          return { waMessageId, raw: { ...data, provider: 'meta' } };
+        }
+        
+        // Meta API returned an error — throw to trigger retry
+        const errorMsg = data?.error?.message || `Meta API error ${res.status}`;
+        console.error('[WHATSAPP] ❌ Meta Cloud API failed (Media):', JSON.stringify({
+          code: data?.error?.code,
+          message: errorMsg,
+          type: data?.error?.type,
+          url: mediaUrl,
+        }));
+        throw new Error(errorMsg);
+      }, { maxRetries: 2 });
+
+      recordSuccess('meta');
+      return result;
     } catch (err) {
-      console.error('[WHATSAPP] ❌ Meta Cloud API error (Media):', err instanceof Error ? err.message : String(err));
+      const msg = err instanceof Error ? err.message : String(err);
+      recordFailure('meta', msg);
       // IMPORTANT: Do NOT fall back to QR bridge. Meta and QR are separate pipelines.
-      throw new Error(`WhatsApp media sending failed via Meta Cloud API: ${err instanceof Error ? err.message : String(err)}`);
+      throw new Error(`WhatsApp media sending failed via Meta Cloud API: ${msg}`);
     }
+  } else if (isCircuitOpen('meta')) {
+    console.warn('[WHATSAPP] Meta circuit breaker OPEN');
+    throw new Error('WhatsApp media sending failed: Meta API circuit breaker is open (too many recent failures). Try again later.');
   }
 
   throw new Error('WhatsApp media sending failed: Meta Cloud API is not configured (WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID required)');

@@ -3,7 +3,7 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { ConsentManager } from '@/lib/consentManager';
 import { AuditLogger } from '@/lib/auditLogger';
-import { Lead, WhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
+import { getLead, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { normalizePhone, sendWhatsAppText } from '@/lib/whatsapp';
 
 function looksLikeObjectId(value: unknown): value is string {
@@ -49,6 +49,8 @@ export async function POST(request: NextRequest) {
     }
 
     await connectDB();
+    const Lead = getLead();
+    const WhatsAppMessage = getWhatsAppMessage();
 
     let lead: any = null;
     if (leadId) {

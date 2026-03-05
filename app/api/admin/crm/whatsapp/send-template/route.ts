@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
-import { Lead, WhatsAppMessage, WhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
-import { getAnalyticsEvent } from '@/lib/schemas/enterpriseSchemas';
+import { getLead, getWhatsAppMessage, getWhatsAppTemplate, getAnalyticsEvent } from '@/lib/schemas/enterpriseSchemas';
 import { buildCloudTemplateSendInput, normalizePhone, sendWhatsAppTemplate } from '@/lib/whatsapp';
 
 // Mark as dynamic since this route uses request.headers or request.url
@@ -47,8 +46,12 @@ export async function POST(request: NextRequest) {
     }
 
     await connectDB();
+    const Lead = getLead();
+    const WhatsAppMessage = getWhatsAppMessage();
+    const WhatsAppTemplate = getWhatsAppTemplate();
 
-    const superAdmin = decoded?.userId === 'admincrm' || decoded?.userId === 'admin';
+    const userId = decoded?.userId || decoded?.username || 'unknown';
+    const superAdmin = userId === 'admincrm' || userId === 'admin';
     const normalizedPhone = normalizePhone(String(phoneNumber));
     
     // Find or create lead
@@ -66,8 +69,8 @@ export async function POST(request: NextRequest) {
           name: `WhatsApp ${normalizedPhone}`,
           source: 'whatsapp',
           status: 'lead',
-          assignedToUserId: decoded?.userId,
-          createdBy: decoded?.userId,
+          assignedToUserId: userId,
+          createdBy: userId,
         });
         console.log('[send-template] Created new lead for phone:', normalizedPhone, 'leadId:', lead._id);
       }
@@ -75,7 +78,7 @@ export async function POST(request: NextRequest) {
 
     if (!superAdmin) {
       const assignedTo = String((lead as any).assignedToUserId || '').trim();
-      if (!assignedTo || assignedTo !== decoded?.userId) {
+      if (assignedTo && assignedTo !== userId) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
     }
@@ -133,8 +136,8 @@ export async function POST(request: NextRequest) {
       status: 'queued',
       sentAt: new Date(),
       provider: 'meta',
-      sentByUserId: decoded?.userId,
-      sentByLabel: decoded?.username || decoded?.userId || 'admin',
+      sentByUserId: userId,
+      sentByLabel: decoded?.username || userId || 'admin',
       metadata: {
         template: {
           templateName: t.templateName,
@@ -186,7 +189,7 @@ export async function POST(request: NextRequest) {
         await AnalyticsEvent.create({
           eventType: 'whatsapp_template_sent',
           eventSource: 'inbox',
-          userId: decoded?.userId,
+          userId,
           metadata: {
             templateId: t._id,
             templateName: t.templateName,

@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
     const providerScope = body?.provider === 'qr' ? 'qr' : 'meta';
     const providerValue = providerScope === 'qr' ? 'whatsapp_qr' : 'meta';
     
-    const hasMedia = Boolean(media?.base64);
+    const hasMedia = Boolean(media?.url || media?.base64);
     const hasText = Boolean(String(messageContent || '').trim());
     
     if (!phoneNumber || (!hasText && !hasMedia)) {
