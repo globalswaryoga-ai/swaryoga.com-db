@@ -42,8 +42,19 @@ export async function getPublicMediaUrl(url: string): Promise<string> {
       return url;
     }
   }
+
+  // Check if it's a Bunny CDN URL that may be down - convert to proxy URL
+  const bunnyCdnPattern = /https?:\/\/[^/]*b-cdn\.net\/(.+)/;
+  const bunnyMatch = url.match(bunnyCdnPattern);
+  if (bunnyMatch) {
+    const key = decodeURIComponent(bunnyMatch[1]);
+    const { getPublicFileUrl } = await import('./bunny-storage');
+    const proxyUrl = getPublicFileUrl(key);
+    console.log(`[WHATSAPP] 🔄 Converted Bunny CDN URL to proxy: ${proxyUrl.substring(0, 80)}...`);
+    return proxyUrl;
+  }
   
-  // Not an S3 URL, return as-is
+  // Not an S3/Bunny URL, return as-is
   return url;
 }
 
@@ -106,7 +117,8 @@ export type WhatsAppTemplateHeaderMedia = {
 
 export type WhatsAppTemplateButton =
   | { kind: 'quick_reply'; title: string }
-  | { kind: 'url'; title: string; url: string };
+  | { kind: 'url'; title: string; url: string }
+  | { kind: 'catalog'; title: string };
 
 export type WhatsAppSendTemplateInput = {
   to: string;
@@ -692,6 +704,18 @@ function buildTemplateComponents(input: WhatsAppSendTemplateInput): any[] {
         return;
       }
 
+      if (b.kind === 'catalog') {
+        // CATALOG buttons open the business product catalog
+        // Meta requires this component even though no parameters are needed
+        components.push({
+          type: 'button',
+          sub_type: 'CATALOG',
+          index: index,
+          parameters: [],
+        });
+        return;
+      }
+
       if (b.kind === 'url') {
         // For URL buttons, Meta expects the runtime parameter to be the variable part.
         // If the configured URL has no variable (static URL), we omit parameters.
@@ -840,8 +864,16 @@ export function buildCloudTemplateSendInput(template: any, to: string): WhatsApp
 
       if (!title) return;
 
-      if (kind === 'url' || (!!url && url.startsWith('http'))) {
+      // Detect button kind from various fields (kind, type, or title heuristics)
+      const buttonType = String(b?.type || '').trim().toUpperCase();
+      
+      if (kind === 'url' || buttonType === 'URL' || (!!url && url.startsWith('http'))) {
         buttons.push({ kind: 'url', title, url: url || 'https://swaryoga.com' });
+      } else if (kind === 'catalog' || kind === 'CATALOG' || buttonType === 'CATALOG') {
+        buttons.push({ kind: 'catalog', title });
+      } else if (kind === 'phone_number' || buttonType === 'PHONE_NUMBER') {
+        // Phone number buttons don't need runtime parameters
+        buttons.push({ kind: 'quick_reply', title });
       } else {
         buttons.push({ kind: 'quick_reply', title });
       }

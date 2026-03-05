@@ -45,6 +45,38 @@ function getCDNHost(): string {
   return process.env.BUNNY_STORAGE_CDN_HOST || '';
 }
 
+/**
+ * Get the base URL for the app (used for proxy URLs).
+ * In production, uses NEXT_PUBLIC_BASE_URL or VERCEL_URL.
+ * Falls back to localhost for development.
+ */
+function getAppBaseUrl(): string {
+  return (
+    process.env.NEXT_PUBLIC_BASE_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '') ||
+    'http://localhost:3000'
+  );
+}
+
+/**
+ * Build a publicly accessible URL for a storage file.
+ * Uses CDN URL if CDN is working, otherwise uses the app's proxy endpoint.
+ * Set BUNNY_CDN_SUSPENDED=true to force proxy mode.
+ */
+export function getPublicFileUrl(storageKey: string): string {
+  const cdnHost = getCDNHost();
+  const cleanKey = storageKey.replace(/^\/+/, '');
+
+  // If CDN is explicitly marked as suspended or not configured, use proxy
+  const cdnSuspended = process.env.BUNNY_CDN_SUSPENDED === 'true' || !cdnHost;
+  if (cdnSuspended) {
+    const base = getAppBaseUrl();
+    return `${base}/api/media/bunny/${cleanKey}`;
+  }
+
+  return `https://${cdnHost}/${cleanKey}`;
+}
+
 function getZoneName(): string {
   return process.env.BUNNY_STORAGE_ZONE_NAME || '';
 }
@@ -115,9 +147,9 @@ export async function uploadToBunnyStorage(
       headers: { AccessKey: apiKey, Range: 'bytes=0-0' },
     });
     if (checkRes.ok || checkRes.status === 206) {
-      const cdnUrl = `https://${cdnHost}/${contentKey}`;
-      console.log(`♻️  File content already exists in Bunny, reusing: ${cdnUrl}`);
-      return cdnUrl;
+      const publicUrl = getPublicFileUrl(contentKey);
+      console.log(`♻️  File content already exists in Bunny, reusing: ${publicUrl}`);
+      return publicUrl;
     }
   } catch {
     // File doesn't exist, proceed with upload
@@ -140,9 +172,9 @@ export async function uploadToBunnyStorage(
     throw new Error(`Bunny Storage upload failed (${res.status}): ${text}`);
   }
 
-  const cdnUrl = `https://${cdnHost}/${contentKey}`;
-  console.log(`✅ Uploaded to Bunny Storage: ${cdnUrl}`);
-  return cdnUrl;
+  const publicUrl = getPublicFileUrl(contentKey);
+  console.log(`✅ Uploaded to Bunny Storage: ${publicUrl}`);
+  return publicUrl;
 }
 
 // Alias: drop-in for aws-s3 uploadToS3
@@ -170,7 +202,7 @@ async function uploadToPath(
     throw new Error(`Bunny Storage upload failed (${res.status}): ${text}`);
   }
 
-  return `https://${cdnHost}/${cleanPath}`;
+  return getPublicFileUrl(cleanPath);
 }
 
 /**

@@ -117,6 +117,20 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Add CATALOG button component if template has catalog buttons
+    if (Array.isArray(cloudInput.buttons)) {
+      cloudInput.buttons.forEach((btn, idx) => {
+        if (btn.kind === 'catalog') {
+          components.push({
+            type: 'button',
+            sub_type: 'CATALOG',
+            index: idx,
+            parameters: [],
+          });
+        }
+      });
+    }
+
     // Build the payload
     const payload: any = {
       messaging_product: 'whatsapp',
