@@ -28,6 +28,8 @@ const BRIDGE_SECRET =
 
 // Mark as dynamic (uses request.nextUrl for query parameters)
 export const dynamic = 'force-dynamic';
+// Allow large media payloads (base64 encoded images/videos up to 50MB)
+export const maxDuration = 60; // 60s function timeout for Vercel
 
 function decodePathFully(rawPath: string): string {
   let decoded = rawPath || '';
@@ -61,12 +63,14 @@ export async function POST(req: NextRequest) {
     const bridgeUrl = `${BRIDGE_URL}${decodedPath}`;
 
     // Determine timeout based on endpoint type
+    // /send with media: 45s (large base64 payloads)
     // Messages polling: 12s (can be slow, needs more time)
     // Status check: 8s
     // Contact/Group details: 3s (timeout quickly, use fallback)
     // Other endpoints: 8s
     let timeoutMs = 8000;
-    if (decodedPath.includes('/messages')) timeoutMs = 12000; // Increased from 5s to 12s
+    if (decodedPath.includes('/send')) timeoutMs = 45000; // Large media uploads need more time
+    if (decodedPath.includes('/messages')) timeoutMs = 12000;
     if (decodedPath.includes('/contact') || decodedPath.includes('/group')) timeoutMs = 3000;
     
     const controller = new AbortController();
