@@ -1,11 +1,7 @@
 import { NextRequest } from 'next/server';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { verifyToken } from '@/lib/auth';
-import {
-  isBunnyStorageConfigured,
-  uploadToBunnyStorage,
-  generateCRMMediaPath,
-} from '@/lib/bunny-storage';
+import { uploadToS3, buildS3Path } from '@/lib/aws-s3';
 
 export const runtime = 'nodejs';
 
@@ -14,7 +10,7 @@ const MAX_FILE_SIZE = 25 * 1024 * 1024;
 
 /**
  * POST /api/admin/crm/media/upload
- * Upload a file to Bunny Storage and return the CDN URL.
+ * Upload a file to S3 and return the URL.
  * Accepts multipart/form-data with:
  *   - file: the file to upload
  *   - chatId (optional): chat JID for organizing files
@@ -24,13 +20,6 @@ export async function POST(req: NextRequest) {
     const decoded = verifyToken(req.headers.get('authorization') || '');
     if (!decoded?.userId || !decoded?.isAdmin) {
       return apiError('Unauthorized', 403);
-    }
-
-    if (!isBunnyStorageConfigured()) {
-      return apiError(
-        'Bunny Storage not configured. Add BUNNY_STORAGE_ZONE_NAME, BUNNY_STORAGE_API_KEY, BUNNY_STORAGE_CDN_HOST to .env.local',
-        503
-      );
     }
 
     const formData = await req.formData();
@@ -46,15 +35,16 @@ export async function POST(req: NextRequest) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const filePath = generateCRMMediaPath(file.name, chatId);
-    const cdnUrl = await uploadToBunnyStorage(buffer, filePath, { contentType: file.type });
+    const subfolder = chatId ? `crm/chats/${chatId}` : 'crm/media';
+    const s3Key = buildS3Path(subfolder, undefined, file.name);
+    const s3Url = await uploadToS3(buffer, s3Key, { contentType: file.type });
 
     return apiSuccess({
-      url: cdnUrl,
+      url: s3Url,
       fileName: file.name,
       fileSize: file.size,
       contentType: file.type,
-      storagePath: filePath,
+      storagePath: s3Key,
     }, 'File uploaded');
   } catch (err: any) {
     console.error('[media-upload POST]', err);
@@ -64,7 +54,7 @@ export async function POST(req: NextRequest) {
 
 /**
  * GET /api/admin/crm/media/upload
- * Check if Bunny Storage is configured
+ * Check if S3 storage is configured
  */
 export async function GET(req: NextRequest) {
   try {
@@ -73,9 +63,10 @@ export async function GET(req: NextRequest) {
       return apiError('Unauthorized', 403);
     }
 
+    const configured = !!(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY && process.env.AWS_S3_BUCKET);
     return apiSuccess({
-      configured: isBunnyStorageConfigured(),
-      hasStream: !!(process.env.BUNNY_API_KEY && process.env.BUNNY_STREAM_LIBRARY_ID),
+      configured,
+      hasStream: false,
     });
   } catch (err) {
     return apiError('Failed to check config', 500);

@@ -17,7 +17,7 @@ import {
   getWhatsAppMediaUrl, 
   downloadWhatsAppMedia 
 } from '@/lib/whatsapp';
-import { uploadToS3 } from '@/lib/bunny-storage';
+import { uploadToS3 } from '@/lib/aws-s3';
 
 // Safe verify of string
 function safeString(s: any): string {

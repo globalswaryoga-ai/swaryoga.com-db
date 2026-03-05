@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generatePresignedUrl } from '@/lib/bunny-storage';
+import { generatePresignedUrl } from '@/lib/aws-s3';
 
 export const dynamic = 'force-dynamic';
 

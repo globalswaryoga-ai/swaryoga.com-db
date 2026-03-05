@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
-import { getProtectedUrl } from '@/lib/bunny-storage';
+import { getProtectedUrl } from '@/lib/aws-s3';
 
 export const dynamic = 'force-dynamic';
 

@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { getTallyReceiptFile } from '@/lib/schemas/enterpriseSchemas';
-import { uploadToS3, buildS3Path, generatePresignedUrl } from '@/lib/bunny-storage';
+import { uploadToS3, buildS3Path, generatePresignedUrl } from '@/lib/aws-s3';
 
 function unauthorized() {
   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

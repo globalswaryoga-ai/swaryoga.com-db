@@ -9,7 +9,7 @@
  */
 
 import crypto from 'crypto';
-import { generatePresignedUrl } from './bunny-storage';
+import { generatePresignedUrl } from './aws-s3';
 import { 
   recordSuccess, 
   recordFailure, 
@@ -43,18 +43,7 @@ export async function getPublicMediaUrl(url: string): Promise<string> {
     }
   }
 
-  // Check if it's a Bunny CDN URL that may be down - convert to proxy URL
-  const bunnyCdnPattern = /https?:\/\/[^/]*b-cdn\.net\/(.+)/;
-  const bunnyMatch = url.match(bunnyCdnPattern);
-  if (bunnyMatch) {
-    const key = decodeURIComponent(bunnyMatch[1]);
-    const { getPublicFileUrl } = await import('./bunny-storage');
-    const proxyUrl = getPublicFileUrl(key);
-    console.log(`[WHATSAPP] 🔄 Converted Bunny CDN URL to proxy: ${proxyUrl.substring(0, 80)}...`);
-    return proxyUrl;
-  }
-  
-  // Not an S3/Bunny URL, return as-is
+  // Not an S3 URL, return as-is
   return url;
 }
 

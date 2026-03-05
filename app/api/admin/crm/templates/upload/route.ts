@@ -8,7 +8,7 @@ import { verifyToken } from '@/lib/auth';
 import {
   uploadTemplateFileToS3,
   validateTemplateFile,
-} from '@/lib/bunny-storage';
+} from '@/lib/aws-s3';
 
 // Mark as dynamic since this route uses request.headers or request.url
 export const dynamic = 'force-dynamic';

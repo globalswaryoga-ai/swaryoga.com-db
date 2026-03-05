@@ -9,7 +9,7 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { getAccVoucher } from '@/lib/schemas/enterpriseSchemas';
-import { uploadToS3 } from '@/lib/bunny-storage';
+import { uploadToS3 } from '@/lib/aws-s3';
 import { getVouchersWithBills } from '@/lib/tally/engine';
 
 function getAuth(request: NextRequest) {

@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
-import { uploadAdminFile } from '@/lib/bunny-storage';
+import { uploadAdminFile } from '@/lib/aws-s3';
 import { hasPermission } from '@/lib/permissions';
 
 export const dynamic = 'force-dynamic';

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
-import { generatePresignedUrl } from '@/lib/bunny-storage';
+import { generatePresignedUrl } from '@/lib/aws-s3';
 
 /**
  * Get a signed URL for a template image
