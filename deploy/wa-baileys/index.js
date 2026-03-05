@@ -65,6 +65,12 @@ const MAX_RETRIES = 50;         // Allow many retries for QR scanning
 let phoneInfo = null;         // Connected phone info
 let lastQrTime = 0;           // Track when last QR was generated
 let mongoClient = null;
+let lastConnectedTime = 0;     // Track last successful connection time
+let connectionStabilizedTime = 0; // Time when connection became stable (after 30s of no disconnect)
+let lastDisconnectTime = 0;    // Track last disconnect time
+let keepaliveTimer = null;     // Periodic connection health check
+const KEEP_ALIVE_INTERVAL = 60000; // Check connection every 60 seconds
+const STABILIZATION_THRESHOLD = 30000; // Connection is stable after 30 seconds
 
 // ── Guards against common crash patterns ──
 let isStarting = false;          // Prevent concurrent startSocket() calls
@@ -76,10 +82,34 @@ function clearReconnectTimer() {
   if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
 }
 
+function clearKeepaliveTimer() {
+  if (keepaliveTimer) { clearInterval(keepaliveTimer); keepaliveTimer = null; }
+}
+
+function startKeepalive() {
+  clearKeepaliveTimer();
+  keepaliveTimer = setInterval(() => {
+    if (connectionState === 'connected' && sock) {
+      // Check if connection is still alive
+      const timeSinceLastMsg = Date.now() - (sock?.lastMessageTime || Date.now());
+      const timeSinceConnect = Date.now() - lastConnectedTime;
+      if (timeSinceConnect > STABILIZATION_THRESHOLD && timeSinceLastMsg < 300000) {
+        // Connection is stable and no recent disconnect signals
+        if (!connectionStabilizedTime) {
+          connectionStabilizedTime = Date.now();
+          console.log('[KEEP-ALIVE] Connection stabilized ✓');
+        }
+      }
+    }
+  }, KEEP_ALIVE_INTERVAL);
+}
+
 // Simple in-memory chat & message tracking (replaces removed makeInMemoryStore)
 const chatMap = new Map();     // jid -> { id, name, unreadCount, lastMessageTime, isGroup, lastMessage }
 const messageMap = new Map();  // jid -> [{ id, from, fromMe, text, type, timestamp }]  (last 100 per chat)
 const MAX_MSGS_PER_CHAT = 100;
+const rawMessageCache = new Map(); // messageId -> raw WAMessage proto object (for on-demand media download)
+const MAX_RAW_CACHE = 500;        // Limit raw message cache size
 const groupSubjectCache = new Map(); // groupJid -> group subject/name
 const groupMembersCache = new Map(); // groupJid -> Set of participant JIDs (built from messages)
 const contactsCache = new Map();     // jid -> { name, notify, lid, jid } from Baileys contacts events
@@ -248,6 +278,7 @@ async function loadChatsFromDB() {
         hasMedia: doc.hasMedia || !!doc.media?.url,
         mediaUrl: doc.media?.url || null,
         mediaMimetype: doc.media?.mimeType || null,
+        mediaFileName: doc.media?.fileName || null,
       };
       if (!messageMap.has(jid)) messageMap.set(jid, []);
       const arr = messageMap.get(jid);
@@ -501,8 +532,12 @@ async function startSocket() {
     },
     generateHighQualityLinkPreview: false,
     syncFullHistory: false,
-    // Enable history sync to receive contact data (LID → phone mappings)
-    shouldSyncHistoryMessage: () => true,
+    // Disable aggressive history syncing to prevent frequent disconnects
+    // History sync can cause connection instability; rely on real-time message events instead
+    shouldSyncHistoryMessage: () => false,
+    // Connection stability settings
+    markOnlineThrottleMs: 15000,
+    // Disable message read receipts to reduce network overhead
   });
 
   // ── Connection Updates ───────────────────
@@ -520,34 +555,43 @@ async function startSocket() {
 
     if (connection === 'open') {
       connectionState = 'connected';
+      lastConnectedTime = Date.now();
+      connectionStabilizedTime = 0; // Reset stabilization timer on each connect
       qrCode = null;
       qrBase64 = null;
       retryCount = 0;
       intentionalDisconnect = false;
       phoneInfo = sock ? sock.user : null;
       console.log('[CONNECTED] WhatsApp connected as:', sock.user?.id, sock.user?.name);
+      
+      // Start keepalive timer
+      startKeepalive();
 
       // Hydrate in-memory maps from CRM database so old chats show up
       if (chatMap.size === 0) {
         loadChatsFromDB().catch(e => console.error('[DB-LOAD] Error:', e.message));
       }
 
-      // Prefetch all group names so they show properly in chat list
-      prefetchGroupNames().catch(e => console.error('[GROUPS] Prefetch error:', e.message));
-      
-      // Resolve LID contacts to phone numbers using CRM database phone numbers
-      setTimeout(() => {
-        resolveLidsFromDB().catch(e => console.error('[LID-RESOLVE-DB] Error:', e.message));
-      }, 5000); // Delay to let connection stabilize
+      // NOTE: Disabled group prefetching and LID resolution on connect to avoid rate limiting
+      // These operations cause WhatsApp to rate-limit the connection with 429/503/440 errors
+      // Groups and contacts will be resolved on-demand as messages come in
+      // prefetchGroupNames().catch(e => console.error('[GROUPS] Prefetch error:', e.message));
+      // setTimeout(() => {
+      //   resolveLidsFromDB().catch(e => console.error('[LID-RESOLVE-DB] Error:', e.message));
+      // }, 5000);
     }
 
     if (connection === 'close') {
+      lastDisconnectTime = Date.now();
+      clearKeepaliveTimer();
+      connectionStabilizedTime = 0; // Reset stabilization on disconnect
       const hadRecentQR = lastQrTime && (Date.now() - lastQrTime < 120000);
       if (!hadRecentQR) connectionState = 'disconnected';
       phoneInfo = null;
       const statusCode = lastDisconnect?.error?.output?.statusCode || lastDisconnect?.error?.statusCode;
+      const reason = lastDisconnect?.error?.message || 'unknown';
 
-      console.log(`[DISCONNECTED] Status: ${statusCode}, intentional: ${intentionalDisconnect}`);
+      console.log(`[DISCONNECTED] Status: ${statusCode} (${reason}), intentional: ${intentionalDisconnect}`);
 
       // If user clicked Disconnect — do NOT auto-reconnect
       if (intentionalDisconnect) {
@@ -559,18 +603,46 @@ async function startSocket() {
 
       if (shouldReconnect) {
         const isQrTimeout = statusCode === 408 || statusCode === 515 || hadRecentQR;
-        if (!isQrTimeout) retryCount++;
+        const isConnectionConflict = statusCode === 440 || statusCode === 428; // Session replaced, connection closed
+        const isRateLimited = statusCode === 429 || statusCode === 503; // Rate limit, service unavailable
+        const isConnectionDrop = statusCode === 401 || statusCode === 403 || statusCode === 404; // Auth issues
+        
+        // Increment retry count only for non-QR issues
+        if (!isQrTimeout) {
+          retryCount++;
+        } else {
+          retryCount = 0; // Reset on QR timeout
+        }
+        
         if (retryCount > MAX_RETRIES) {
           console.log('[RECONNECT] Max retries reached — stopping');
           connectionState = 'disconnected';
           return;
         }
-        const delay = isQrTimeout ? 1000 : Math.min(retryCount * 2000, 30000);
-        console.log(`[RECONNECT] ${isQrTimeout ? 'QR refresh' : `Attempt ${retryCount}/${MAX_RETRIES}`} in ${delay}ms`);
+        
+        // Smart delay calculation with exponential backoff
+        // Give WhatsApp time to recover from rate limiting and session conflicts
+        let delay;
+        if (isQrTimeout) {
+          delay = 2000; // QR timeouts: 2 second retry
+        } else if (isConnectionConflict) {
+          delay = Math.min(10000 + retryCount * 5000, 120000); // Conflict: start at 10s, grow slowly, cap at 2min
+          console.log(`[RECONNECT] Session conflict detected — waiting ${delay}ms for WhatsApp to stabilize`);
+        } else if (isRateLimited) {
+          delay = Math.min(15000 + retryCount * 5000, 120000); // Rate limit: start at 15s, cap at 2min
+          console.log(`[RECONNECT] Rate limited — waiting ${delay}ms before retry`);
+        } else if (isConnectionDrop) {
+          delay = 5000; // Connection drops: 5 second retry
+        } else {
+          // Standard exponential: 1s → 2s → 4s → 8s → 16s → 32s → 60s (capped)
+          delay = Math.min(1000 * Math.pow(2, Math.min(retryCount - 1, 5)), 60000);
+        }
+        
+        console.log(`[RECONNECT] ${isQrTimeout ? 'QR refresh' : isConnectionConflict ? 'Conflict' : isRateLimited ? 'Rate-limit' : isConnectionDrop ? 'Connection drop' : `Attempt ${retryCount}/${MAX_RETRIES}`} in ${delay}ms`);
         clearReconnectTimer();
         reconnectTimer = setTimeout(() => { isStarting = false; startSocket(); }, delay);
       } else if (statusCode === DisconnectReason.loggedOut) {
-        console.log('[LOGGED OUT] Session expired — clearing auth');
+        console.log('[LOGGED OUT] Session expired — clearing auth and reconnecting');
         try {
           const client = await getMongoClient();
           if (client) {
@@ -582,7 +654,8 @@ async function startSocket() {
         } catch (e) { console.error('[AUTH] Clear failed:', e.message); }
         retryCount = 0;
         clearReconnectTimer();
-        reconnectTimer = setTimeout(() => { isStarting = false; startSocket(); }, 3000);
+        // Longer delay for logout scenario to let WhatsApp session fully expire
+        reconnectTimer = setTimeout(() => { isStarting = false; startSocket(); }, 5000);
       }
     }
   });
@@ -833,6 +906,16 @@ async function startSocket() {
         continue;
       }
 
+      // Cache raw message proto for on-demand media download later
+      if (mediaInfo && msg.message) {
+        rawMessageCache.set(messageId, msg);
+        // Evict oldest entries if cache is full
+        if (rawMessageCache.size > MAX_RAW_CACHE) {
+          const oldest = rawMessageCache.keys().next().value;
+          rawMessageCache.delete(oldest);
+        }
+      }
+
       // Download media if present
       let mediaBase64 = null;
       if (mediaInfo && msg.message) {
@@ -980,6 +1063,7 @@ async function startSocket() {
         pushName: msg.pushName || '',
         hasMedia: !!mediaInfo,
         mediaMimetype: mediaInfo?.mimetype || null,
+        mediaFileName: mediaInfo?.filename || null,
         mediaUrl: null, // Will be populated after webhook upload
       };
       if (!messageMap.has(from)) messageMap.set(from, []);
@@ -1057,6 +1141,9 @@ app.get('/health', (req, res) => {
 
 // Connection status
 app.get('/status', (req, res) => {
+  const timeSinceLastConnect = lastConnectedTime > 0 ? Date.now() - lastConnectedTime : null;
+  const isStable = connectionStabilizedTime > 0;
+  
   res.json({
     connected: connectionState === 'connected',
     status: connectionState,
@@ -1067,6 +1154,11 @@ app.get('/status', (req, res) => {
     qrAvailable: !!qrBase64,
     retryCount,
     uptime: process.uptime(),
+    connectionInfo: {
+      timeSinceLastConnect: timeSinceLastConnect,
+      isStabilized: isStable,
+      lastDisconnectTime,
+    },
   });
 });
 
@@ -1209,20 +1301,33 @@ app.post('/send', async (req, res) => {
 // Get profile picture URL for a JID
 app.get('/profile-pic/:jid', async (req, res) => {
   try {
+    // Only fetch if fully connected (not connecting/reconnecting)
     if (!sock || connectionState !== 'connected') {
-      return res.json({ url: null });
+      return res.json({ url: null, error: 'not_connected' });
     }
+    
     let jid = req.params.jid;
     if (!jid.includes('@')) jid = `${jid}@s.whatsapp.net`;
+    
+    // Add 5-second timeout to prevent hanging on WhatsApp API calls
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('profilePictureUrl timeout')), 5000)
+    );
+    
     try {
-      const url = await sock.profilePictureUrl(jid, 'image');
+      const url = await Promise.race([
+        sock.profilePictureUrl(jid, 'image'),
+        timeoutPromise
+      ]);
       res.json({ url: url || null });
-    } catch {
-      // No profile picture set or privacy prevents access
-      res.json({ url: null });
+    } catch (err) {
+      // No profile picture, privacy restricted, or timeout
+      console.log(`[PROFILE-PIC] Failed for ${jid}: ${err.message}`);
+      res.json({ url: null, error: err.message });
     }
   } catch (e) {
-    res.json({ url: null });
+    console.error('[PROFILE-PIC] Unexpected error:', e.message);
+    res.json({ url: null, error: e.message });
   }
 });
 
@@ -1520,9 +1625,62 @@ app.post('/reconnect', async (req, res) => {
 
 // Download media from a message
 app.get('/media/:messageId', async (req, res) => {
-  // This endpoint allows the CRM to download media from messages
-  // by proxying through the bridge
-  res.status(501).json({ error: 'Use S3 URLs for media. Direct media proxy not implemented.' });
+  try {
+    const messageId = req.params.messageId;
+    const msg = rawMessageCache.get(messageId);
+    
+    if (!msg || !msg.message) {
+      return res.status(404).json({ error: 'Message not found or has no media' });
+    }
+
+    // Download the media buffer
+    let buffer;
+    try {
+      buffer = await downloadMediaMessage(msg, 'buffer', {}, {
+        logger,
+        reuploadRequest: sock?.updateMediaMessage,
+      });
+    } catch (e) {
+      console.error('[MEDIA DOWNLOAD] Failed:', e.message);
+      return res.status(500).json({ error: 'Failed to download media: ' + e.message });
+    }
+
+    if (!buffer) {
+      return res.status(404).json({ error: 'Media buffer is empty' });
+    }
+
+    // Detect MIME type from message
+    const innerMessage = msg.message?.viewOnceMessage?.message || msg.message?.ephemeralMessage?.message || msg.message;
+    let mimetype = 'application/octet-stream';
+    let filename = `media_${messageId}`;
+
+    if (innerMessage?.imageMessage) {
+      mimetype = innerMessage.imageMessage.mimetype || 'image/jpeg';
+      filename = `image_${messageId}.${mime.extension(mimetype) || 'jpg'}`;
+    } else if (innerMessage?.videoMessage) {
+      mimetype = innerMessage.videoMessage.mimetype || 'video/mp4';
+      filename = `video_${messageId}.${mime.extension(mimetype) || 'mp4'}`;
+    } else if (innerMessage?.audioMessage) {
+      mimetype = innerMessage.audioMessage.mimetype || 'audio/ogg';
+      filename = `audio_${messageId}.${mime.extension(mimetype) || 'ogg'}`;
+    } else if (innerMessage?.documentMessage) {
+      mimetype = innerMessage.documentMessage.mimetype || 'application/octet-stream';
+      filename = innerMessage.documentMessage.fileName || `document_${messageId}`;
+    } else if (innerMessage?.stickerMessage) {
+      mimetype = innerMessage.stickerMessage.mimetype || 'image/webp';
+      filename = `sticker_${messageId}.${mime.extension(mimetype) || 'webp'}`;
+    }
+
+    res.setHeader('Content-Type', mimetype);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', buffer.length);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+
+    res.send(buffer);
+  } catch (e) {
+    console.error('[MEDIA] Download error:', e.message);
+    res.status(500).json({ error: 'Failed to download media' });
+  }
 });
 
 // ── Helpers ─────────────────────────────────────────────────────────────
@@ -1562,6 +1720,7 @@ server.on('error', (err) => {
 process.on('SIGINT', async () => {
   console.log('\n[SHUTDOWN] SIGINT received');
   clearReconnectTimer();
+  clearKeepaliveTimer();
   if (sock) try { sock.ev.removeAllListeners(); sock.end(undefined); } catch {}
   if (mongoClient) try { await mongoClient.close(); } catch {}
   process.exit(0);
@@ -1570,6 +1729,7 @@ process.on('SIGINT', async () => {
 process.on('SIGTERM', async () => {
   console.log('\n[SHUTDOWN] SIGTERM received');
   clearReconnectTimer();
+  clearKeepaliveTimer();
   if (sock) try { sock.ev.removeAllListeners(); sock.end(undefined); } catch {}
   if (mongoClient) try { await mongoClient.close(); } catch {}
   process.exit(0);

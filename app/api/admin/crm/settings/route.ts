@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
   try {
     await connectDB();
 
-    const decoded = await verifyToken(req);
+    const decoded = verifyToken(req.headers.get('authorization') || '');
     if (!decoded?.userId || !decoded?.isAdmin) {
       return apiError('Unauthorized', 403);
     }
@@ -34,7 +34,7 @@ export async function PUT(req: NextRequest) {
   try {
     await connectDB();
 
-    const decoded = await verifyToken(req);
+    const decoded = verifyToken(req.headers.get('authorization') || '');
     if (!decoded?.userId || !decoded?.isAdmin) {
       return apiError('Unauthorized', 403);
     }

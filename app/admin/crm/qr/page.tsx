@@ -132,6 +132,7 @@ type MessageItem = {
   hasMedia?: boolean;
   mediaUrl?: string | null;
   mediaMimetype?: string | null;
+  mediaFileName?: string | null;
 };
 
 type ChatFilter = 'all' | 'unread' | 'read' | 'groups';
@@ -185,6 +186,8 @@ export default function QRWhatsAppPage() {
   const [groupInfo, setGroupInfo] = useState<GroupInfo | null>(null);
   const [loadingGroupInfo, setLoadingGroupInfo] = useState(false);
   const [profilePics, setProfilePics] = useState<Record<string, string | null>>({});
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [downloadingMedia, setDownloadingMedia] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
   const profilePicLoadedRef = useRef<Set<string>>(new Set());
@@ -531,6 +534,32 @@ export default function QRWhatsAppPage() {
       setSending(false);
     }
   }, [composerText, mediaPreview, selectedChat, sending, bridgeCall, fetchMessages, token]);
+
+  // ── Download media from bridge (fallback for messages without Bunny URL) ──
+  const downloadMediaFromBridge = useCallback(async (messageId: string, fileName?: string) => {
+    try {
+      setDownloadingMedia(messageId);
+      // Use the bridge URL from environment (localhost:3333 for dev, EC2 for production)
+      const bridgeUrl = process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL || 'http://localhost:3333';
+      const response = await fetch(`${bridgeUrl}/media/${messageId}`, {
+        headers: { 'x-bridge-secret': process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_SECRET || 'swar-bridge-secret-2024' }
+      });
+      if (!response.ok) throw new Error(`Failed to download: ${response.status}`);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName || `media_${messageId}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      setError(`Failed to download media: ${e.message}`);
+    } finally {
+      setDownloadingMedia(null);
+    }
+  }, []);
 
   // ── Reconnect (with debounce to prevent spam) ──
   const reconnectingRef = useRef(false);
@@ -1292,7 +1321,7 @@ export default function QRWhatsAppPage() {
 
                         {/* Media preview */}
                         {hasMediaPreview && proxyUrl && isImage && (
-                          <div className="mb-1.5 rounded-lg overflow-hidden cursor-pointer" onClick={() => window.open(proxyUrl, '_blank')}>
+                          <div className="mb-1.5 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition" onClick={() => setLightboxImage(proxyUrl)}>
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img 
                               src={proxyUrl} 
@@ -1320,14 +1349,36 @@ export default function QRWhatsAppPage() {
                           </div>
                         )}
                         {hasMediaPreview && proxyUrl && isDocument && (
-                          <a href={proxyUrl} target="_blank" rel="noopener noreferrer" className="mb-1.5 flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition group">
+                          <div className="mb-1.5 flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition group">
                             <FileText className="w-5 h-5 text-orange-500 flex-shrink-0" />
-                            <span className="text-xs text-blue-600 group-hover:underline truncate">Download document</span>
-                          </a>
+                            <div className="flex-1 min-w-0">
+                              {msg.mediaFileName && <p className="text-xs font-semibold text-gray-700 truncate">{msg.mediaFileName}</p>}
+                              <a href={proxyUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 group-hover:underline">
+                                Download {msg.mediaFileName ? '' : 'document'}
+                              </a>
+                            </div>
+                          </div>
                         )}
 
-                        {/* Type indicator for media without preview URL */}
-                        {msg.type !== 'text' && !hasMediaPreview && (
+                        {/* Fallback for media without Bunny URL (download from bridge) */}
+                        {!hasMediaPreview && msg.hasMedia && (msg.type === 'image' || msg.type === 'video' || msg.type === 'audio' || msg.type === 'document') && (
+                          <div className="mb-1.5 flex items-center gap-2 px-3 py-2 bg-blue-50 hover:bg-blue-100 rounded-lg transition cursor-pointer"
+                               onClick={() => downloadMediaFromBridge(msg.id, msg.mediaFileName)}>
+                            {msg.type === 'image' && <ImageIcon className="w-4 h-4 text-blue-600 flex-shrink-0" />}
+                            {msg.type === 'video' && <Video className="w-4 h-4 text-blue-600 flex-shrink-0" />}
+                            {msg.type === 'audio' && <Mic className="w-4 h-4 text-blue-600 flex-shrink-0" />}
+                            {msg.type === 'document' && <FileText className="w-4 h-4 text-blue-600 flex-shrink-0" />}
+                            <span className="text-xs text-blue-600 font-medium flex-1">
+                              {downloadingMedia === msg.id ? (
+                                <Loader2 className="w-3 h-3 animate-spin inline-block mr-1" />
+                              ) : null}
+                              {downloadingMedia === msg.id ? 'Downloading...' : `Download ${msg.mediaFileName ? '' : msg.type}`}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Type indicator for media without preview URL and no binary (stickers, etc.) */}
+                        {msg.type !== 'text' && !hasMediaPreview && !(msg.hasMedia && (msg.type === 'image' || msg.type === 'video' || msg.type === 'audio' || msg.type === 'document')) && (
                           <div className="text-xs text-gray-500 mb-1 flex items-center gap-1">
                             {msg.type === 'image' && <ImageIcon className="w-3 h-3" />}
                             {msg.type === 'video' && <Video className="w-3 h-3" />}
@@ -1919,6 +1970,27 @@ export default function QRWhatsAppPage() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Lightbox */}
+      {lightboxImage && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setLightboxImage(null)}>
+          <div className="relative max-w-4xl max-h-screen flex items-center justify-center" onClick={e => e.stopPropagation()}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img 
+              src={lightboxImage} 
+              alt="Full-screen" 
+              className="max-w-full max-h-screen object-contain rounded-lg"
+            />
+            <button 
+              onClick={() => setLightboxImage(null)}
+              className="absolute top-4 right-4 bg-white/10 hover:bg-white/20 text-white p-2 rounded-full transition"
+              title="Close"
+            >
+              <X className="w-6 h-6" />
+            </button>
           </div>
         </div>
       )}

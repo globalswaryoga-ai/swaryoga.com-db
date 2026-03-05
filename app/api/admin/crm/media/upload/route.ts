@@ -21,7 +21,7 @@ const MAX_FILE_SIZE = 25 * 1024 * 1024;
  */
 export async function POST(req: NextRequest) {
   try {
-    const decoded = await verifyToken(req);
+    const decoded = verifyToken(req.headers.get('authorization') || '');
     if (!decoded?.userId || !decoded?.isAdmin) {
       return apiError('Unauthorized', 403);
     }
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
  */
 export async function GET(req: NextRequest) {
   try {
-    const decoded = await verifyToken(req);
+    const decoded = verifyToken(req.headers.get('authorization') || '');
     if (!decoded?.userId || !decoded?.isAdmin) {
       return apiError('Unauthorized', 403);
     }
