@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
-import { QrCode, Wifi, WifiOff, RefreshCw, LogOut, Phone, PhoneCall, Send, Image as ImageIcon, FileText, Mic, ArrowLeft, Loader2, AlertTriangle, CheckCircle2, Unplug, Funnel, Plus, Tag, CheckSquare, Square, X, Paperclip, Video, File, Pencil, Trash2, Users, Mail, MailOpen, Radio, Info, Shield, Crown, Calendar, MessageSquare, Hash, UserCircle, PhoneOff, Search } from 'lucide-react';
+import { QrCode, Wifi, WifiOff, RefreshCw, LogOut, Phone, PhoneCall, Send, Image as ImageIcon, FileText, Mic, ArrowLeft, Loader2, AlertTriangle, CheckCircle2, Unplug, Funnel, Plus, Tag, CheckSquare, Square, X, Paperclip, Video, File, Pencil, Trash2, Users, Mail, MailOpen, Radio, Info, Shield, Crown, Calendar, MessageSquare, Hash, UserCircle, PhoneOff, Search, Star, Bold, Italic, Strikethrough, Smile, Zap, Type } from 'lucide-react';
 
 type ConnectionStatus = 'disconnected' | 'connecting' | 'connected';
 
@@ -82,6 +82,37 @@ const LABEL_COLORS = [
   'bg-rose-100 text-rose-800',
   'bg-lime-100 text-lime-800',
   'bg-sky-100 text-sky-800',
+];
+
+// Common emoji grid for quick picker
+const EMOJI_LIST = [
+  '😀','😃','😄','😁','😆','😅','🤣','😂','🙂','😊',
+  '😇','🥰','😍','🤩','😘','😗','😚','😙','🥲','😋',
+  '🤔','🤫','🤭','😏','😌','😔','😪','🤤','😴','🤧',
+  '🙏','👍','👎','👏','🤝','✌️','🤞','❤️','🔥','⭐',
+  '💯','✅','❌','⚠️','📌','🎯','💪','🏆','🎉','🙌',
+  '👋','🤙','📞','📱','💬','📝','📅','🕐','💰','🧘',
+];
+
+// Quick reply presets
+const QUICK_REPLIES = [
+  'Thank you for your interest! 🙏',
+  'Please share your details.',
+  'Our classes start at 6 AM and 7 PM.',
+  'Visit swaryoga.com for more info.',
+  'I will get back to you shortly.',
+  'Namaste! How can I help you? 🙏',
+  'Would you like to join a free demo class?',
+  'Payment received. Thank you! ✅',
+];
+
+// Template presets
+const TEMPLATES = [
+  { name: '🙏 Welcome', text: 'Welcome to Swar Yoga! 🙏 We are glad to have you. Our classes are available online and offline. Visit swaryoga.com for details.' },
+  { name: '📞 Follow Up', text: 'Hi! Just checking in. Would you like to know more about our yoga programs? Feel free to ask any questions.' },
+  { name: '💰 Payment Reminder', text: 'Gentle reminder: Your payment is due. Please complete it at your earliest convenience. Thank you! 🙏' },
+  { name: '📅 Class Schedule', text: 'Our class schedule:\n🌅 Morning: 6:00 AM - 7:00 AM\n🌙 Evening: 7:00 PM - 8:00 PM\n\nJoin us! 🧘' },
+  { name: '🎉 Special Offer', text: 'Special offer! Enroll now and get 20% off on our annual yoga program. Limited time only! 🎯' },
 ];
 
 type FunnelStage = { key: string; label: string; color: string };
@@ -188,10 +219,22 @@ export default function QRWhatsAppPage() {
   const [profilePics, setProfilePics] = useState<Record<string, string | null>>({});
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [downloadingMedia, setDownloadingMedia] = useState<string | null>(null);
+  // Chat toolbar state
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showFormatBar, setShowFormatBar] = useState(false);
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
+  // Star popup state
+  const [showStarPopup, setShowStarPopup] = useState(false);
+  const [starTab, setStarTab] = useState<'quick' | 'template' | 'broadcast'>('quick');
+  const [broadcastChats, setBroadcastChats] = useState<Set<string>>(new Set());
+  const [broadcastText, setBroadcastText] = useState('');
+  const [broadcastSending, setBroadcastSending] = useState(false);
+  const [broadcastSearch, setBroadcastSearch] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
   const profilePicLoadedRef = useRef<Set<string>>(new Set());
   const messengerRef = useRef<HTMLDivElement>(null);
+  const composerInputRef = useRef<HTMLInputElement>(null);
   const tabRef = useRef(tab);
   tabRef.current = tab;
 
@@ -759,6 +802,54 @@ export default function QRWhatsAppPage() {
     }
     return true;
   });
+
+  // ── Text formatting helper ──
+  const applyFormat = useCallback((prefix: string, suffix: string) => {
+    const input = composerInputRef.current;
+    if (!input) { setComposerText(prev => prev + prefix + suffix); setShowFormatBar(false); return; }
+    const start = input.selectionStart || 0;
+    const end = input.selectionEnd || 0;
+    const text = composerText;
+    if (start !== end) {
+      const selected = text.substring(start, end);
+      setComposerText(text.substring(0, start) + prefix + selected + suffix + text.substring(end));
+    } else {
+      setComposerText(text.substring(0, start) + prefix + suffix + text.substring(start));
+      setTimeout(() => { input.focus(); input.setSelectionRange(start + prefix.length, start + prefix.length); }, 0);
+    }
+    setShowFormatBar(false);
+  }, [composerText]);
+
+  // ── Broadcast send (send to multiple contacts at once) ──
+  const handleBroadcastSend = useCallback(async () => {
+    if (!broadcastText.trim() || broadcastChats.size === 0 || broadcastSending) return;
+    setBroadcastSending(true);
+    const chatIds = Array.from(broadcastChats);
+    let sent = 0;
+    for (const chatId of chatIds) {
+      try {
+        const isGroupChat = chatId.endsWith('@g.us') || chatId.endsWith('@lid');
+        const to = isGroupChat ? chatId : chatId.replace('@s.whatsapp.net', '');
+        await bridgeCall('/send', 'POST', { to, message: broadcastText.trim(), type: 'text' });
+        sent++;
+        if (sent < chatIds.length) await new Promise(r => setTimeout(r, 1000));
+      } catch (e) {
+        console.error('Broadcast send failed for', chatId, e);
+      }
+    }
+    setBroadcastSending(false);
+    setBroadcastText('');
+    setBroadcastChats(new Set());
+    setShowStarPopup(false);
+    alert(`✅ Message sent to ${sent}/${chatIds.length} contacts`);
+  }, [broadcastText, broadcastChats, broadcastSending, bridgeCall]);
+
+  // ── Close all composer popups ──
+  const closeComposerPopups = useCallback(() => {
+    setShowEmojiPicker(false);
+    setShowAttachMenu(false);
+    setShowFormatBar(false);
+  }, []);
 
   // ── Render ──
   const connState = status?.status || 'disconnected';
@@ -1430,50 +1521,99 @@ export default function QRWhatsAppPage() {
                 )}
 
                 {/* Composer */}
-                <div className="bg-white border-t px-3 py-2 flex items-center gap-2">
-                  {/* Media buttons */}
-                  <div className="flex items-center gap-0.5">
+                <div className="bg-white border-t relative">
+                  {/* Emoji Picker Popup */}
+                  {showEmojiPicker && (
+                    <div className="absolute bottom-full left-12 mb-1 bg-white border rounded-xl shadow-xl p-3 w-80 z-30">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-semibold text-gray-500">Emoji</span>
+                        <button onClick={() => setShowEmojiPicker(false)} className="p-0.5 hover:bg-gray-100 rounded"><X className="w-3.5 h-3.5 text-gray-400" /></button>
+                      </div>
+                      <div className="grid grid-cols-10 gap-1 max-h-40 overflow-y-auto">
+                        {EMOJI_LIST.map((emoji, i) => (
+                          <button key={i} onClick={() => { setComposerText(prev => prev + emoji); setShowEmojiPicker(false); }} className="w-7 h-7 flex items-center justify-center hover:bg-gray-100 rounded text-lg transition">{emoji}</button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Attach Menu Popup */}
+                  {showAttachMenu && (
+                    <div className="absolute bottom-full left-0 mb-1 ml-2 bg-white border rounded-xl shadow-xl py-2 w-44 z-30">
+                      <button onClick={() => { handleFileSelect('image/*'); setShowAttachMenu(false); }} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2 text-gray-700"><ImageIcon className="w-4 h-4 text-green-600" /> Image</button>
+                      <button onClick={() => { handleFileSelect('video/*'); setShowAttachMenu(false); }} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2 text-gray-700"><Video className="w-4 h-4 text-blue-600" /> Video</button>
+                      <button onClick={() => { handleFileSelect('.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar'); setShowAttachMenu(false); }} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2 text-gray-700"><FileText className="w-4 h-4 text-orange-500" /> Document</button>
+                      <button onClick={() => { handleFileSelect('audio/*'); setShowAttachMenu(false); }} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2 text-gray-700"><Mic className="w-4 h-4 text-purple-500" /> Audio</button>
+                    </div>
+                  )}
+
+                  {/* Format Bar Popup */}
+                  {showFormatBar && (
+                    <div className="absolute bottom-full left-24 mb-1 bg-white border rounded-xl shadow-xl py-1.5 w-48 z-30">
+                      <button onClick={() => applyFormat('*', '*')} className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 flex items-center gap-2"><Bold className="w-4 h-4 text-gray-600" /> <span>Bold</span> <span className="ml-auto text-[10px] text-gray-400">*text*</span></button>
+                      <button onClick={() => applyFormat('_', '_')} className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 flex items-center gap-2"><Italic className="w-4 h-4 text-gray-600" /> <span>Italic</span> <span className="ml-auto text-[10px] text-gray-400">_text_</span></button>
+                      <button onClick={() => applyFormat('~', '~')} className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 flex items-center gap-2"><Strikethrough className="w-4 h-4 text-gray-600" /> <span>Strike</span> <span className="ml-auto text-[10px] text-gray-400">~text~</span></button>
+                      <button onClick={() => applyFormat('```', '```')} className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 flex items-center gap-2"><Type className="w-4 h-4 text-gray-600" /> <span>Code</span> <span className="ml-auto text-[10px] text-gray-400">{'{`code`}'}</span></button>
+                    </div>
+                  )}
+
+                  {/* Input Row */}
+                  <div className="px-3 py-2 flex items-center gap-1.5">
+                    {/* Attach button */}
                     <button
-                      onClick={() => handleFileSelect('image/*')}
+                      onClick={() => { setShowAttachMenu(!showAttachMenu); setShowEmojiPicker(false); setShowFormatBar(false); }}
                       disabled={!isConnected}
                       className="p-2 rounded-full hover:bg-gray-100 text-gray-500 hover:text-green-600 disabled:opacity-40 transition"
-                      title="Send Image"
+                      title="Attach"
                     >
-                      <ImageIcon className="w-4 h-4" />
+                      <Paperclip className="w-4 h-4" />
                     </button>
+                    {/* Emoji button */}
                     <button
-                      onClick={() => handleFileSelect('video/*')}
-                      disabled={!isConnected}
-                      className="p-2 rounded-full hover:bg-gray-100 text-gray-500 hover:text-blue-600 disabled:opacity-40 transition"
-                      title="Send Video"
+                      onClick={() => { setShowEmojiPicker(!showEmojiPicker); setShowAttachMenu(false); setShowFormatBar(false); }}
+                      className="p-2 rounded-full hover:bg-gray-100 text-gray-500 hover:text-yellow-600 transition"
+                      title="Emoji"
                     >
-                      <Video className="w-4 h-4" />
+                      <Smile className="w-4 h-4" />
                     </button>
+                    {/* Format button */}
                     <button
-                      onClick={() => handleFileSelect('.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar')}
-                      disabled={!isConnected}
-                      className="p-2 rounded-full hover:bg-gray-100 text-gray-500 hover:text-orange-600 disabled:opacity-40 transition"
-                      title="Send Document"
+                      onClick={() => { setShowFormatBar(!showFormatBar); setShowEmojiPicker(false); setShowAttachMenu(false); }}
+                      className="p-2 rounded-full hover:bg-gray-100 text-gray-500 hover:text-blue-600 transition"
+                      title="Format text"
                     >
-                      <FileText className="w-4 h-4" />
+                      <Type className="w-4 h-4" />
+                    </button>
+                    {/* Text Input */}
+                    <input
+                      ref={composerInputRef}
+                      type="text"
+                      value={composerText}
+                      onChange={e => setComposerText(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) handleSend(); }}
+                      onFocus={closeComposerPopups}
+                      placeholder={mediaPreview ? 'Add caption...' : 'Type a message...'}
+                      className="flex-1 px-4 py-2 border rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
+                      disabled={!isConnected || sending}
+                    />
+                    {/* Star button — Quick Actions */}
+                    <button
+                      onClick={() => { setShowStarPopup(true); closeComposerPopups(); }}
+                      disabled={!isConnected}
+                      className="p-2 rounded-full hover:bg-yellow-50 text-gray-500 hover:text-yellow-600 disabled:opacity-40 transition"
+                      title="Quick Actions"
+                    >
+                      <Star className="w-4 h-4" />
+                    </button>
+                    {/* Send button */}
+                    <button
+                      onClick={handleSend}
+                      disabled={(!composerText.trim() && !mediaPreview) || !isConnected || sending}
+                      className="p-2.5 bg-green-600 text-white rounded-full hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    >
+                      {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                     </button>
                   </div>
-                  <input
-                    type="text"
-                    value={composerText}
-                    onChange={e => setComposerText(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
-                    placeholder={mediaPreview ? 'Add caption...' : 'Type a message...'}
-                    className="flex-1 px-4 py-2 border rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
-                    disabled={!isConnected || sending}
-                  />
-                  <button
-                    onClick={handleSend}
-                    disabled={(!composerText.trim() && !mediaPreview) || !isConnected || sending}
-                    className="p-2.5 bg-green-600 text-white rounded-full hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                  >
-                    {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                  </button>
                 </div>
               </>
             )}
@@ -1969,6 +2109,147 @@ export default function QRWhatsAppPage() {
                   {editModal.mode === 'add' ? 'Add' : 'Save'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Star Popup — Quick Actions */}
+      {showStarPopup && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowStarPopup(false)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="px-4 py-3 border-b flex items-center justify-between bg-gradient-to-r from-yellow-500 to-orange-500 rounded-t-xl">
+              <div className="flex items-center gap-2 text-white">
+                <Star className="w-5 h-5" />
+                <h3 className="font-semibold">Quick Actions</h3>
+              </div>
+              <button onClick={() => setShowStarPopup(false)} className="text-white/80 hover:text-white"><X className="w-5 h-5" /></button>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex border-b">
+              {(['quick', 'template', 'broadcast'] as const).map(t => (
+                <button key={t} onClick={() => setStarTab(t)} className={`flex-1 px-4 py-2.5 text-sm font-medium transition ${
+                  starTab === t ? 'text-yellow-600 border-b-2 border-yellow-500 bg-yellow-50' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                }`}>
+                  {t === 'quick' && '⚡ Quick Reply'}
+                  {t === 'template' && '📋 Templates'}
+                  {t === 'broadcast' && '📢 Broadcast'}
+                </button>
+              ))}
+            </div>
+
+            {/* Tab Content */}
+            <div className="flex-1 overflow-y-auto p-4">
+              {/* Quick Reply Tab */}
+              {starTab === 'quick' && (
+                <div className="space-y-2">
+                  <p className="text-xs text-gray-500 mb-3">Click to insert into message box</p>
+                  {QUICK_REPLIES.map((reply, i) => (
+                    <button key={i} onClick={() => { setComposerText(prev => prev ? prev + ' ' + reply : reply); setShowStarPopup(false); }} className="w-full text-left px-3 py-2.5 bg-gray-50 hover:bg-green-50 border rounded-lg text-sm text-gray-700 hover:text-green-700 hover:border-green-300 transition">
+                      {reply}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Template Tab */}
+              {starTab === 'template' && (
+                <div className="space-y-3">
+                  <p className="text-xs text-gray-500 mb-3">Click to load template into message box</p>
+                  {TEMPLATES.map((tpl, i) => (
+                    <button key={i} onClick={() => { setComposerText(tpl.text); setShowStarPopup(false); }} className="w-full text-left px-4 py-3 bg-gray-50 hover:bg-blue-50 border rounded-lg hover:border-blue-300 transition">
+                      <p className="text-sm font-semibold text-gray-800 mb-1">{tpl.name}</p>
+                      <p className="text-xs text-gray-500 line-clamp-2">{tpl.text}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Broadcast Tab */}
+              {starTab === 'broadcast' && (
+                <div className="space-y-3">
+                  <p className="text-xs text-gray-500">Send one message to up to 10 contacts at once</p>
+
+                  {/* Message */}
+                  <textarea
+                    value={broadcastText}
+                    onChange={e => setBroadcastText(e.target.value)}
+                    placeholder="Type your broadcast message..."
+                    className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-yellow-300 resize-none"
+                    rows={3}
+                  />
+
+                  {/* Contact Search */}
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                    <input
+                      type="text"
+                      value={broadcastSearch}
+                      onChange={e => setBroadcastSearch(e.target.value)}
+                      placeholder="Search contacts..."
+                      className="w-full pl-8 pr-3 py-2 text-xs bg-gray-100 rounded-lg border-0 focus:ring-1 focus:ring-yellow-400 outline-none"
+                    />
+                  </div>
+
+                  {/* Selected count */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-500">{broadcastChats.size}/10 selected</span>
+                    {broadcastChats.size > 0 && (
+                      <button onClick={() => setBroadcastChats(new Set())} className="text-xs text-red-500 hover:text-red-700">Clear all</button>
+                    )}
+                  </div>
+
+                  {/* Contact list */}
+                  <div className="max-h-40 overflow-y-auto border rounded-lg divide-y">
+                    {chats
+                      .filter(c => !c.isGroup)
+                      .filter(c => {
+                        if (!broadcastSearch.trim()) return true;
+                        const q = broadcastSearch.toLowerCase();
+                        return (c.name || '').toLowerCase().includes(q) || (c.resolvedPhone || c.id).toLowerCase().includes(q);
+                      })
+                      .slice(0, 50)
+                      .map(c => {
+                        const checked = broadcastChats.has(c.id);
+                        return (
+                          <div
+                            key={c.id}
+                            onClick={() => {
+                              setBroadcastChats(prev => {
+                                const next = new Set(prev);
+                                if (next.has(c.id)) { next.delete(c.id); }
+                                else if (next.size < 10) { next.add(c.id); }
+                                return next;
+                              });
+                            }}
+                            className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 transition ${checked ? 'bg-yellow-50' : ''}`}
+                          >
+                            {checked ? <CheckSquare className="w-4 h-4 text-yellow-600 flex-shrink-0" /> : <Square className="w-4 h-4 text-gray-300 flex-shrink-0" />}
+                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-semibold flex-shrink-0 ${getAvatarColor(c.name)}`}>
+                              {getInitials(c.name)}
+                            </div>
+                            <span className="text-xs text-gray-700 truncate">{c.resolvedPhone ? formatPhoneNumber(c.resolvedPhone) : c.name}</span>
+                          </div>
+                        );
+                      })}
+                  </div>
+
+                  {/* Send Button */}
+                  <button
+                    onClick={handleBroadcastSend}
+                    disabled={broadcastChats.size === 0 || !broadcastText.trim() || broadcastSending}
+                    className="w-full py-2.5 bg-yellow-500 text-white rounded-lg font-medium hover:bg-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2"
+                  >
+                    {broadcastSending ? (
+                      <><Loader2 className="w-4 h-4 animate-spin" /> Sending...</>
+                    ) : (
+                      <><Send className="w-4 h-4" /> Send to {broadcastChats.size} contacts</>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
