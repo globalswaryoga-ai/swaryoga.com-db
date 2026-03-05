@@ -247,6 +247,24 @@ export async function resubscribeWABAWebhooks(): Promise<{ success: boolean; err
     const appSecretProof = generateAppSecretProof(accessToken, appSecret);
     const proofParam = appSecretProof ? `?appsecret_proof=${appSecretProof}` : '';
 
+    // Determine production webhook URL.
+    // override_callback_uri forces Meta to deliver webhooks to our URL
+    // even if the app-level webhook config is missing or misconfigured.
+    const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://swaryoga.com').replace(/\/+$/, '');
+    const callbackUrl = `${siteUrl}/api/whatsapp/webhook`;
+    const verifyToken = (process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || '').trim();
+
+    const body: Record<string, string> = {};
+    // Always set override_callback_uri to ensure delivery goes to our endpoint
+    if (callbackUrl) {
+      body.override_callback_uri = callbackUrl;
+    }
+    if (verifyToken) {
+      body.verify_token = verifyToken;
+    }
+
+    console.log(`[WABA] Re-subscribing WABA ${wabaId} with override_callback_uri=${callbackUrl}`);
+
     const res = await fetch(
       `https://graph.facebook.com/v24.0/${wabaId}/subscribed_apps${proofParam}`,
       {
@@ -255,13 +273,14 @@ export async function resubscribeWABAWebhooks(): Promise<{ success: boolean; err
           Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify(body),
         cache: 'no-store',
       }
     );
 
     const data = await res.json().catch(() => ({}));
     if (res.ok && data?.success) {
-      console.log('[WABA] ✅ Re-subscribed to WABA webhooks successfully');
+      console.log('[WABA] ✅ Re-subscribed to WABA webhooks successfully (callback:', callbackUrl, ')');
       return { success: true };
     }
 
