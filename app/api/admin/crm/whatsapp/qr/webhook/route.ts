@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { getWhatsAppMessage, getLead, getBroadcastRunMessage } from '@/lib/schemas/enterpriseSchemas';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
-import { uploadToS3 } from '@/lib/aws-s3';
+import { uploadToS3 } from '@/lib/bunny-storage';
 
 /**
  * QR Bridge Webhook - receives incoming messages from the WhatsApp Web bridge
