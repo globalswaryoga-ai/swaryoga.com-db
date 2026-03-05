@@ -225,11 +225,9 @@ export async function downloadWhatsAppMedia(tempUrl: string): Promise<{ buffer: 
   return { buffer, contentType };
 }
 
-function isWebBridgeDisabled(): boolean {
-  return String(process.env.WHATSAPP_DISABLE_WEB_BRIDGE || '')
-    .trim()
-    .toLowerCase() === 'true';
-}
+// NOTE: Bridge fallback removed. Meta and QR are completely separate pipelines.
+// Meta CRM functions (sendWhatsAppText, sendWhatsAppMedia, sendWhatsAppTemplate)
+// should NEVER fall back to the QR bridge. QR page uses bridgeCall() directly.
 
 export function generateAppSecretProof(accessToken: string, appSecret?: string): string | undefined {
   if (!appSecret) return undefined;
@@ -249,10 +247,8 @@ export function buildGraphMessagesUrl(phoneNumberId: string, appSecretProof?: st
 export async function sendWhatsAppText(toRaw: string, body: string): Promise<WhatsAppSendTextResult> {
   const env = getWhatsAppEnv();
   const to = normalizePhone(toRaw);
-  const bridgeUrl = (process.env.WHATSAPP_BRIDGE_HTTP_URL || '').trim();
-  const bridgeSecret = (process.env.WHATSAPP_WEB_BRIDGE_SECRET || process.env.WHATSAPP_BRIDGE_SECRET || '').trim();
 
-  // Try Meta Cloud API first (with circuit breaker)
+  // Meta Cloud API ONLY — no QR bridge fallback (separate pipelines)
   if (env && !isCircuitOpen('meta')) {
     try {
       const result = await withRetry(async () => {
@@ -303,55 +299,15 @@ export async function sendWhatsAppText(toRaw: string, body: string): Promise<Wha
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       recordFailure('meta', msg);
-      console.warn('[WHATSAPP] Meta Cloud API failed:', msg);
-      // Fall through to try bridge
+      // IMPORTANT: Do NOT fall back to QR bridge. Meta and QR are separate pipelines.
+      throw new Error(`WhatsApp sending failed via Meta Cloud API: ${msg}`);
     }
   } else if (isCircuitOpen('meta')) {
-    console.warn('[WHATSAPP] Meta circuit breaker OPEN - skipping to bridge');
+    console.warn('[WHATSAPP] Meta circuit breaker OPEN');
+    throw new Error('WhatsApp sending failed: Meta API circuit breaker is open (too many recent failures). Try again later.');
   }
 
-  // Fallback to WhatsApp Web Bridge (with circuit breaker)
-  if (isWebBridgeDisabled()) {
-    throw new Error(
-      'WhatsApp sending failed: Web Bridge is disabled (WHATSAPP_DISABLE_WEB_BRIDGE=true) and Meta Cloud API did not send'
-    );
-  }
-
-  if (bridgeUrl && bridgeSecret && !isCircuitOpen('qr_bridge')) {
-    try {
-      const result = await withRetry(async () => {
-        const res = await fetch(`${bridgeUrl}/send`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-bridge-secret': bridgeSecret,
-          },
-          body: JSON.stringify({
-            chatId: `${to}@${to.includes('@') ? '' : 'c.us'}`,
-            message: body,
-          }),
-          cache: 'no-store',
-        });
-
-        const data = await res.json().catch(() => ({}));
-
-        if (res.ok) {
-          return { waMessageId: data?.messageId || 'bridge-queued', raw: { ...data, provider: 'whatsapp_web_bridge' } };
-        }
-
-        throw new Error(data?.error || data?.message || 'Bridge send failed');
-      }, { maxRetries: 2 });
-      
-      recordSuccess('qr_bridge');
-      return result;
-    } catch (err) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      recordFailure('qr_bridge', errMsg);
-      throw new Error(`WhatsApp sending failed: Meta Cloud API error and Web Bridge failed (${errMsg})`);
-    }
-  }
-
-  throw new Error('WhatsApp sending failed: All providers unavailable (Meta not configured or circuit open, Bridge not configured or circuit open)');
+  throw new Error('WhatsApp sending failed: Meta Cloud API is not configured (WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID required)');
 }
 
 /**
@@ -584,52 +540,12 @@ export async function sendWhatsAppMedia(
       console.error('[WHATSAPP] ❌ Meta Cloud API failed (Media):', JSON.stringify(errorDetails, null, 2));
     } catch (err) {
       console.error('[WHATSAPP] ❌ Meta Cloud API error (Media):', err instanceof Error ? err.message : String(err));
+      // IMPORTANT: Do NOT fall back to QR bridge. Meta and QR are separate pipelines.
+      throw new Error(`WhatsApp media sending failed via Meta Cloud API: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
-  // Fallback to WhatsApp Web Bridge
-  // (Deprecated) — can be disabled globally via WHATSAPP_DISABLE_WEB_BRIDGE=true
-  if (isWebBridgeDisabled()) {
-    throw new Error(
-      'WhatsApp media sending failed: Web Bridge is disabled (WHATSAPP_DISABLE_WEB_BRIDGE=true) and Meta Cloud API did not send'
-    );
-  }
-
-  const bridgeUrl = (process.env.WHATSAPP_BRIDGE_HTTP_URL || '').trim();
-  const bridgeSecret = (process.env.WHATSAPP_WEB_BRIDGE_SECRET || process.env.WHATSAPP_BRIDGE_SECRET || '').trim();
-
-  if (bridgeUrl && bridgeSecret) {
-    try {
-      // Send media via Web Bridge
-      const res = await fetch(`${bridgeUrl}/send`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-bridge-secret': bridgeSecret,
-        },
-        body: JSON.stringify({
-          chatId: `${to}@${to.includes('@') ? '' : 'c.us'}`,
-          media: mediaUrl,
-          message: caption || null,
-          mediaType: mediaType
-        }),
-        cache: 'no-store',
-      });
-
-      const data = await res.json().catch(() => ({}));
-
-      if (res.ok) {
-        return { waMessageId: data?.messageId || 'bridge-queued', raw: { ...data, provider: 'whatsapp_web_bridge' } };
-      }
-
-      throw new Error(data?.error || data?.message || 'Bridge send failed');
-    } catch (err) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      throw new Error(`WhatsApp media sending failed: Meta Cloud API error and Web Bridge unavailable (${errMsg})`);
-    }
-  }
-
-  throw new Error('WhatsApp media sending failed: Meta Cloud API is not configured and no Web Bridge URL set (WHATSAPP_BRIDGE_HTTP_URL)');
+  throw new Error('WhatsApp media sending failed: Meta Cloud API is not configured (WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID required)');
 }
 
 function extractTemplateVariablesFromText(text: string): string[] {
