@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { getFunnelConfig, getFunnelStageMapping, getLead, getFunnelStageHistory } from '@/lib/schemas/enterpriseSchemas';
 import { apiError, apiSuccess } from '@/lib/api-error';
-import { verifyToken, isSuperAdmin } from '@/lib/auth';
+import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 
 const CRM_DB_NAME = process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm';
 
@@ -92,7 +93,7 @@ export async function POST(req: NextRequest) {
       });
 
       await config.save();
-      return apiSuccess(config, 'Funnel config created', 201);
+      return apiSuccess(config, 201);
     }
 
     if (body.action === 'move-lead') {
@@ -135,11 +136,11 @@ export async function POST(req: NextRequest) {
         fromStage: mapping.stageKey,
         toStage: body.stageKey,
         changedByUserId: decoded.userId,
-        changedByName: decoded.userName || 'Admin',
+        changedByName: decoded.username || 'Admin',
         note: body.moveNote,
       });
 
-      return apiSuccess(mapping, 'Lead moved', 200);
+      return apiSuccess(mapping);
     }
 
     return apiError('Invalid action', 400);
@@ -183,7 +184,7 @@ export async function PUT(req: NextRequest) {
       return apiError('Funnel config not found', 404);
     }
 
-    return apiSuccess(config, 'Funnel updated');
+    return apiSuccess(config);
   } catch (err) {
     console.error('[funnel PUT]', err);
     return apiError('Failed to update funnel', 500);
@@ -196,7 +197,7 @@ export async function DELETE(req: NextRequest) {
     await connectDB();
 
     const decoded = verifyToken(req.headers.get('authorization') || '');
-    if (!isSuperAdmin(decoded)) {
+    if (!decoded || !isSuperAdmin(decoded)) {
       return apiError('Only superadmin can delete', 403);
     }
 
@@ -218,7 +219,7 @@ export async function DELETE(req: NextRequest) {
       return apiError('Funnel config not found', 404);
     }
 
-    return apiSuccess(config, 'Stage deleted');
+    return apiSuccess(config);
   } catch (err) {
     console.error('[funnel DELETE]', err);
     return apiError('Failed to delete stage', 500);

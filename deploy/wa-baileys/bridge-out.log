@@ -1,0 +1,427 @@
+
+╔══════════════════════════════════════════════════╗
+║  Swar Yoga WhatsApp Bridge (Baileys)             ║
+║  Port: 3333                                    ║
+║  Webhook: https://swaryoga.com                  ║
+╚══════════════════════════════════════════════════╝
+
+[MONGO] Connected (singleton)
+[DB-LOAD] ✅ Hydrated 133 chats, 991 messages from DB
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772729255369,"pid":1774,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772729287004,"pid":1774,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+
+[SHUTDOWN] SIGINT received
+
+╔══════════════════════════════════════════════════╗
+║  Swar Yoga WhatsApp Bridge (Baileys)             ║
+║  Port: 3333                                    ║
+║  Webhook: https://swaryoga.com                  ║
+╚══════════════════════════════════════════════════╝
+
+[MONGO] Connected (singleton)
+[DB-LOAD] ✅ Hydrated 133 chats, 991 messages from DB
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772729319409,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772729352217,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772729384170,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772729416121,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772729448174,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772729472455,"pid":3735,"hostname":"Mohans-iMac.local","key":{"remoteJid":"258038028099636@lid","fromMe":true,"id":"A567A993E26D7578DE184DB1CBA77F2B"},"err":{"type":"SessionError","message":"No session record","stack":"SessionError: No session record\n    at 1606351380725.0 [as awaitable] (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:169:23)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async _asyncQueueExecutor (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/queue_job.js:20:29)","name":"SessionError"},"msg":"failed to decrypt message"}
+[MSG] Skipping unhandled message type from 258038028099636@lid: 
+{"level":50,"time":1772729478302,"pid":3735,"hostname":"Mohans-iMac.local","key":{"remoteJid":"258038028099636@lid","fromMe":true,"id":"A567A993E26D7578DE184DB1CBA77F2B"},"err":{"type":"SessionError","message":"No session record","stack":"SessionError: No session record\n    at 1606351380725.0 [as awaitable] (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:169:23)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async _asyncQueueExecutor (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/queue_job.js:20:29)","name":"SessionError"},"msg":"failed to decrypt message"}
+[MSG] Skipping unhandled message type from 258038028099636@lid: 
+[MSG] → 919075358557@s.whatsapp.net: Hi
+[MSG] → 258038028099636@lid: Hi
+{"level":50,"time":1772729480104,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[WEBHOOK] ✅ Forwarded message to CRM
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772729512590,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772729544927,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772729577078,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772729609063,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772729640945,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772729673262,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772729705275,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772729737347,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772729769227,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772729801308,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772729833155,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772729865640,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772729897645,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772729929944,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772729961896,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772729993913,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772730025893,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772730057540,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772730089563,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772730122051,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772730154250,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772730186194,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772730218491,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772730251563,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772730283512,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772730315689,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772730347357,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772730379493,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772730411426,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772730443408,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+[LID-MAP] 36799380504678 → 919423526104
+[MSG] ← 36799380504678@lid: Pahun sang
+[WEBHOOK] ✅ Forwarded message to CRM
+{"level":50,"time":1772730475383,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772730507889,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772730539686,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772730571900,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772730603168,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772730635157,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772730667125,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772730698959,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772730731238,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772730763550,"pid":3735,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+
+╔══════════════════════════════════════════════════╗
+║  Swar Yoga WhatsApp Bridge (Baileys)             ║
+║  Port: 3333                                    ║
+║  Webhook: https://swaryoga.com                  ║
+╚══════════════════════════════════════════════════╝
+
+[MONGO] Connected (singleton)
+[DB-LOAD] ✅ Hydrated 134 chats, 994 messages from DB
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772730795478,"pid":18897,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772730827718,"pid":18897,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772730859852,"pid":18897,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772730891678,"pid":18897,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+
+╔══════════════════════════════════════════════════╗
+║  Swar Yoga WhatsApp Bridge (Baileys)             ║
+║  Port: 3333                                    ║
+║  Webhook: https://swaryoga.com                  ║
+╚══════════════════════════════════════════════════╝
+
+[MONGO] Connected (singleton)
+[DB-LOAD] ✅ Hydrated 134 chats, 994 messages from DB
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:76@s.whatsapp.net Swar Yoga
+{"level":50,"time":1772730920330,"pid":20816,"hostname":"Mohans-iMac.local","node":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+[DISCONNECTED] Status: 440 (Stream Errored (conflict)), intentional: false
+[RECONNECT] Session conflict detected — waiting 15000ms for WhatsApp to stabilize
+[RECONNECT] Conflict in 15000ms
+
+[SHUTDOWN] SIGINT received

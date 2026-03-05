@@ -13,7 +13,7 @@ import {
   MapPin, Filter, ChevronDown, ChevronRight, X, Send, Mail, FileText,
   Clock, ArrowRight, MoreHorizontal, Search, RefreshCw, Calendar,
   Activity, Eye, Edit3, ArrowLeftRight, ChevronUp, Zap,
-  PauseCircle, Repeat, Flower2, Megaphone,
+  PauseCircle, Repeat, Flower2, Megaphone, Plus,
 } from 'lucide-react';
 import LeadDetailModal from '@/components/admin/crm/LeadDetailModal';
 import { AddToBroadcastModal } from '@/components/admin/crm';
@@ -482,6 +482,7 @@ export default function FunnelDashboardPage() {
   // Edit stages
   const [editingStages, setEditingStages] = useState(false);
   const [editStages, setEditStages] = useState<FunnelStage[]>([]);
+  const [editFunnelName, setEditFunnelName] = useState('Default Funnel');
 
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
@@ -503,6 +504,7 @@ export default function FunnelDashboardPage() {
         const json = await res.json();
         const sorted = (json.data.stages || []).sort((a: FunnelStage, b: FunnelStage) => a.order - b.order);
         setStages(sorted);
+        if (json.data.name) setEditFunnelName(json.data.name);
       }
     } catch (e) { console.error('Config fetch error', e); }
   }, [token]);
@@ -583,17 +585,52 @@ export default function FunnelDashboardPage() {
   // Save stage config
   const saveStageConfig = async () => {
     if (!token) return;
+    // Validate: each stage needs a key and name
+    for (const s of editStages) {
+      if (!s.name.trim()) { alert('Each stage must have a name'); return; }
+      if (!s.key.trim()) { alert('Each stage must have a key'); return; }
+    }
     try {
       const res = await fetch('/api/admin/crm/funnel/config', {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stages: editStages }),
+        body: JSON.stringify({ stages: editStages, name: editFunnelName }),
       });
       if (res.ok) {
         setEditingStages(false);
         fetchConfig();
+        fetchLeads();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Failed to save funnel config');
       }
     } catch (e) { console.error('Save config error', e); }
+  };
+
+  // Add a new stage to the edit list
+  const addNewStage = () => {
+    const newKey = `stage_${Date.now()}`;
+    const colorIdx = editStages.length % STAGE_COLORS.length;
+    const color = STAGE_COLORS[colorIdx];
+    setEditStages(prev => [
+      ...prev,
+      {
+        key: newKey,
+        name: '',
+        color: color.main,
+        colorGradient: color.light,
+        order: prev.length,
+        icon: 'sparkles',
+        isDefault: false,
+        description: '',
+      },
+    ]);
+  };
+
+  // Remove a stage from the edit list
+  const removeEditStage = (idx: number) => {
+    if (editStages.length <= 2) { alert('Minimum 2 stages required'); return; }
+    setEditStages(prev => prev.filter((_, i) => i !== idx).map((s, i) => ({ ...s, order: i })));
   };
 
   const totalLeads = Object.values(stageCounts).reduce((s, c) => s + c, 0);
@@ -642,7 +679,7 @@ export default function FunnelDashboardPage() {
             </button>
             {isSuperAdmin && (
               <button
-                onClick={() => { setEditStages(stages.map(s => ({ ...s }))); setEditingStages(true); }}
+                onClick={() => { setEditStages(stages.map(s => ({ ...s }))); setEditFunnelName(editFunnelName || 'Default Funnel'); setEditingStages(true); }}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 transition shadow-sm"
               >
                 <Edit3 className="h-4 w-4" /> Edit Stages
@@ -1183,24 +1220,44 @@ export default function FunnelDashboardPage() {
         {/* ── Edit Stages Modal ── */}
         {editingStages && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setEditingStages(false)}>
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl p-6" onClick={e => e.stopPropagation()}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-6" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-bold text-gray-900">Edit Funnel Stages</h2>
                 <button onClick={() => setEditingStages(false)} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
               </div>
-              <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+
+              {/* Funnel Name */}
+              <div className="mb-4">
+                <label className="text-xs font-medium text-gray-500 mb-1 block">Funnel Name</label>
+                <input
+                  type="text"
+                  value={editFunnelName}
+                  onChange={e => setEditFunnelName(e.target.value)}
+                  placeholder="Enter funnel name"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm font-medium focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none"
+                />
+              </div>
+
+              {/* Stages */}
+              <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
                 {editStages.map((stage, idx) => (
-                  <div key={idx} className="flex items-center gap-3 p-3 rounded-xl border border-gray-200">
-                    <span className="text-sm font-bold text-gray-400 w-6">{idx + 1}</span>
+                  <div key={stage.key || idx} className="flex items-center gap-2 p-3 rounded-xl border border-gray-200 group">
+                    <span className="text-xs font-bold text-gray-400 w-5 flex-shrink-0">{idx + 1}</span>
                     <input
                       type="text"
                       value={stage.name}
                       onChange={e => {
                         const updated = [...editStages];
-                        updated[idx] = { ...updated[idx], name: e.target.value };
+                        const newName = e.target.value;
+                        // Auto-generate key from name for new stages (key starts with 'stage_')
+                        const newKey = stage.key.startsWith('stage_')
+                          ? newName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || stage.key
+                          : stage.key;
+                        updated[idx] = { ...updated[idx], name: newName, key: newKey };
                         setEditStages(updated);
                       }}
-                      className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none"
+                      placeholder="Stage name"
+                      className="flex-1 min-w-0 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none"
                     />
                     <input
                       type="color"
@@ -1210,7 +1267,7 @@ export default function FunnelDashboardPage() {
                         updated[idx] = { ...updated[idx], color: e.target.value };
                         setEditStages(updated);
                       }}
-                      className="w-8 h-8 rounded-lg cursor-pointer border-0"
+                      className="w-8 h-8 rounded-lg cursor-pointer border-0 flex-shrink-0"
                     />
                     <input
                       type="text"
@@ -1221,11 +1278,27 @@ export default function FunnelDashboardPage() {
                         setEditStages(updated);
                       }}
                       placeholder="Description"
-                      className="w-32 px-2 py-2 rounded-lg border border-gray-200 text-xs text-gray-500 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none"
+                      className="w-40 px-2 py-2 rounded-lg border border-gray-200 text-xs text-gray-500 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none"
                     />
+                    <button
+                      onClick={() => removeEditStage(idx)}
+                      title="Remove stage"
+                      className="opacity-0 group-hover:opacity-100 w-7 h-7 rounded-lg flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 transition flex-shrink-0"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
                   </div>
                 ))}
               </div>
+
+              {/* Add New Stage Button */}
+              <button
+                onClick={addNewStage}
+                className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 text-sm font-medium text-gray-500 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50/50 transition"
+              >
+                <Plus className="h-4 w-4" /> Add New Stage
+              </button>
+
               <div className="flex justify-end gap-2 mt-4">
                 <button onClick={() => setEditingStages(false)} className="px-4 py-2 rounded-xl text-sm text-gray-600 hover:bg-gray-100 transition">Cancel</button>
                 <button
