@@ -1,0 +1,352 @@
+
+╔══════════════════════════════════════════════════╗
+║  Swar Yoga WhatsApp Bridge (Baileys)             ║
+║  Port: 3333                                    ║
+║  Webhook: http://localhost:3001                 ║
+╚══════════════════════════════════════════════════╝
+
+[MONGO] Connected (singleton)
+[DB-LOAD] ✅ Hydrated 45 chats, 489 messages from DB
+[AUTH] Using MongoDB-backed auth state
+[BAILEYS] Starting v2.3000.1033846690
+[CONNECTED] WhatsApp connected as: 919309986820:74@s.whatsapp.net Swar Yoga
+{"level":40,"time":1772719297401,"pid":45016,"hostname":"Mohans-iMac.local","node":{"tag":"notification","attrs":{"from":"919309986820@s.whatsapp.net","type":"mex","id":"1313955526","offline":"0","t":"1772719281"},"content":[{"tag":"update","attrs":{"op_name":"NotificationLinkedProfilesUpdatesSideSub"},"content":{"type":"Buffer","data":[123,34,100,97,116,97,34,58,123,34,120,119,97,50,95,110,111,116,105,102,121,95,108,105,110,107,101,100,95,112,114,111,102,105,108,101,115,95,115,105,100,101,95,115,117,98,34,58,123,34,104,97,115,104,34,58,34,116,105,53,113,34,125,125,125]}}]},"msg":"Invalid mex newsletter notification"}
+[GROUPS] Prefetched 273 group names
+[LID-RESOLVE-DB] Found 18 unresolved LID contacts, querying DB...
+[LID-RESOLVE-DB] Found 27 unique phone numbers in DB
+[LID-MAP] 258038028099636 → 919075358557
+[LID-MAP] 165244655648775 → 918767574117
+[LID-MAP] 111867070537746 → 918765432100
+[LID-MAP] 17811330060419 → 918668771411
+[LID-MAP] 158355611992084 → 918275281029
+[LID-MAP] 190202660306996 → 918180898066
+[LID-MAP] 190185832714267 → 918149549354
+[LID-MAP] 186689410596935 → 918149238319
+[LID-MAP] 145994545103008 → 917738093173
+[LID-MAP] 275449221521484 → 917588040535
+[LID-MAP] 186896156205308 → 919876543210
+[LID-MAP] 222393977061438 → 919779006820
+[LID-MAP] 20272312770769 → 919561694725
+[LID-MAP] 104032781742301 → 919423784888
+[LID-MAP] 128729380597926 → 919410838239
+[LID-MAP] 57599990968399 → 919322331757
+[LID-MAP] 1606351380725 → 919309986820
+[LID-RESOLVE-DB] ✅ Resolved 17 phone→LID mappings (total map: 34)
+[LID-RESOLVE-DB] ✅ Updated 6 chat entries with phone numbers
+{"level":40,"time":1772719316566,"pid":45016,"hostname":"Mohans-iMac.local","msg":"Timeout in AwaitingInitialSync, forcing state to Online and flushing buffer"}
+{"level":50,"time":1772719898487,"pid":45016,"hostname":"Mohans-iMac.local","key":{"remoteJid":"status@broadcast","fromMe":false,"id":"3A3A4DF6892F8A580247","participant":"917744073709@s.whatsapp.net","participantLid":"66267251790059@lid"},"err":{"type":"PreKeyError","message":"Invalid PreKey ID","stack":"PreKeyError: Invalid PreKey ID\n    at SessionBuilder.initIncoming (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_builder.js:66:19)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async 917744073709.0 [as awaitable] (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:205:30)\n    at async _asyncQueueExecutor (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/queue_job.js:20:29)","name":"PreKeyError"},"msg":"failed to decrypt message"}
+{"level":50,"time":1772719898502,"pid":45016,"hostname":"Mohans-iMac.local","key":{"remoteJid":"status@broadcast","fromMe":false,"id":"3A3A4DF6892F8A580247","participant":"917744073709@s.whatsapp.net","participantLid":"66267251790059@lid"},"err":{"type":"Error","message":"No session found to decrypt message","stack":"Error: No session found to decrypt message\n    at Object.awaitable (file:///Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/@whiskeysockets/baileys/lib/Signal/Group/group_cipher.js:43:23)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async _asyncQueueExecutor (file:///Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/@whiskeysockets/baileys/lib/Signal/Group/queue-job.js:10:29)"},"msg":"failed to decrypt message"}
+{"level":50,"time":1772719904176,"pid":45016,"hostname":"Mohans-iMac.local","key":{"remoteJid":"status@broadcast","fromMe":false,"id":"3A3A4DF6892F8A580247","participant":"917744073709@s.whatsapp.net","participantLid":"66267251790059@lid"},"err":{"type":"PreKeyError","message":"Invalid PreKey ID","stack":"PreKeyError: Invalid PreKey ID\n    at SessionBuilder.initIncoming (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_builder.js:66:19)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async 917744073709.0 [as awaitable] (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:205:30)\n    at async _asyncQueueExecutor (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/queue_job.js:20:29)","name":"PreKeyError"},"msg":"failed to decrypt message"}
+{"level":50,"time":1772719904927,"pid":45016,"hostname":"Mohans-iMac.local","key":{"remoteJid":"status@broadcast","fromMe":false,"id":"3A3A4DF6892F8A580247","participant":"917744073709@s.whatsapp.net","participantLid":"66267251790059@lid"},"err":{"type":"PreKeyError","message":"Invalid PreKey ID","stack":"PreKeyError: Invalid PreKey ID\n    at SessionBuilder.initIncoming (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_builder.js:66:19)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async 917744073709.0 [as awaitable] (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:205:30)\n    at async _asyncQueueExecutor (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/queue_job.js:20:29)","name":"PreKeyError"},"msg":"failed to decrypt message"}
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 34 entries
+[LID-MAP] 158381297897656 → 9779857048500
+[MSG] ← 158381297897656@lid: Hello! I filled out your form and would like to know more ab
+[WEBHOOK] ✅ Forwarded message to CRM
+[MSG] → 918767574117@s.whatsapp.net: nice ai ti ka
+[WEBHOOK] ✅ Forwarded message to CRM
+Failed to decrypt message with any known session...
+Session error:Error: Bad MAC Error: Bad MAC
+    at Object.verifyMAC (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/crypto.js:87:15)
+    at SessionCipher.doDecryptWhisperMessage (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:250:16)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async SessionCipher.decryptWithSessions (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:147:29)
+    at async 1606351380725.65 [as awaitable] (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:171:28)
+    at async _asyncQueueExecutor (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/queue_job.js:20:29)
+Session error:Error: Bad MAC Error: Bad MAC
+    at Object.verifyMAC (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/crypto.js:87:15)
+    at SessionCipher.doDecryptWhisperMessage (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:250:16)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async SessionCipher.decryptWithSessions (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:147:29)
+    at async 1606351380725.65 [as awaitable] (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:171:28)
+    at async _asyncQueueExecutor (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/queue_job.js:20:29)
+Session error:Error: Bad MAC Error: Bad MAC
+    at Object.verifyMAC (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/crypto.js:87:15)
+    at SessionCipher.doDecryptWhisperMessage (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:250:16)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async SessionCipher.decryptWithSessions (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:147:29)
+    at async 1606351380725.65 [as awaitable] (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:171:28)
+    at async _asyncQueueExecutor (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/queue_job.js:20:29)
+Session error:Error: Bad MAC Error: Bad MAC
+    at Object.verifyMAC (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/crypto.js:87:15)
+    at SessionCipher.doDecryptWhisperMessage (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:250:16)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async SessionCipher.decryptWithSessions (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:147:29)
+    at async 1606351380725.65 [as awaitable] (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:171:28)
+    at async _asyncQueueExecutor (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/queue_job.js:20:29)
+Session error:Error: Bad MAC Error: Bad MAC
+    at Object.verifyMAC (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/crypto.js:87:15)
+    at SessionCipher.doDecryptWhisperMessage (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:250:16)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async SessionCipher.decryptWithSessions (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:147:29)
+    at async 1606351380725.65 [as awaitable] (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:171:28)
+    at async _asyncQueueExecutor (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/queue_job.js:20:29)
+Session error:Error: Bad MAC Error: Bad MAC
+    at Object.verifyMAC (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/crypto.js:87:15)
+    at SessionCipher.doDecryptWhisperMessage (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:250:16)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async SessionCipher.decryptWithSessions (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:147:29)
+    at async 1606351380725.65 [as awaitable] (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:171:28)
+    at async _asyncQueueExecutor (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/queue_job.js:20:29)
+{"level":50,"time":1772720161112,"pid":45016,"hostname":"Mohans-iMac.local","key":{"remoteJid":"158381297897656@lid","fromMe":true,"id":"3EB082549265E29418C1AB"},"err":{"type":"SessionError","message":"No matching sessions found for message","stack":"SessionError: No matching sessions found for message\n    at SessionCipher.decryptWithSessions (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:161:15)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async 1606351380725.65 [as awaitable] (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:171:28)\n    at async _asyncQueueExecutor (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/queue_job.js:20:29)","name":"SessionError"},"msg":"failed to decrypt message"}
+[MSG] Skipping unhandled message type from 158381297897656@lid: 
+Failed to decrypt message with any known session...
+Session error:Error: Bad MAC Error: Bad MAC
+    at Object.verifyMAC (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/crypto.js:87:15)
+    at SessionCipher.doDecryptWhisperMessage (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:250:16)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async SessionCipher.decryptWithSessions (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:147:29)
+    at async 1606351380725.65 [as awaitable] (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:171:28)
+    at async _asyncQueueExecutor (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/queue_job.js:20:29)
+Session error:Error: Bad MAC Error: Bad MAC
+    at Object.verifyMAC (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/crypto.js:87:15)
+    at SessionCipher.doDecryptWhisperMessage (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:250:16)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async SessionCipher.decryptWithSessions (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:147:29)
+    at async 1606351380725.65 [as awaitable] (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:171:28)
+    at async _asyncQueueExecutor (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/queue_job.js:20:29)
+Session error:Error: Bad MAC Error: Bad MAC
+    at Object.verifyMAC (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/crypto.js:87:15)
+    at SessionCipher.doDecryptWhisperMessage (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:250:16)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async SessionCipher.decryptWithSessions (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:147:29)
+    at async 1606351380725.65 [as awaitable] (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:171:28)
+    at async _asyncQueueExecutor (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/queue_job.js:20:29)
+Session error:Error: Bad MAC Error: Bad MAC
+    at Object.verifyMAC (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/crypto.js:87:15)
+    at SessionCipher.doDecryptWhisperMessage (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:250:16)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async SessionCipher.decryptWithSessions (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:147:29)
+    at async 1606351380725.65 [as awaitable] (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:171:28)
+    at async _asyncQueueExecutor (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/queue_job.js:20:29)
+Session error:Error: Bad MAC Error: Bad MAC
+    at Object.verifyMAC (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/crypto.js:87:15)
+    at SessionCipher.doDecryptWhisperMessage (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:250:16)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async SessionCipher.decryptWithSessions (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:147:29)
+    at async 1606351380725.65 [as awaitable] (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:171:28)
+    at async _asyncQueueExecutor (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/queue_job.js:20:29)
+Session error:Error: Bad MAC Error: Bad MAC
+    at Object.verifyMAC (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/crypto.js:87:15)
+    at SessionCipher.doDecryptWhisperMessage (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:250:16)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async SessionCipher.decryptWithSessions (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:147:29)
+    at async 1606351380725.65 [as awaitable] (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:171:28)
+    at async _asyncQueueExecutor (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/queue_job.js:20:29)
+{"level":50,"time":1772720166701,"pid":45016,"hostname":"Mohans-iMac.local","key":{"remoteJid":"158381297897656@lid","fromMe":true,"id":"3EB082549265E29418C1AB"},"err":{"type":"SessionError","message":"No matching sessions found for message","stack":"SessionError: No matching sessions found for message\n    at SessionCipher.decryptWithSessions (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:161:15)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async 1606351380725.65 [as awaitable] (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:171:28)\n    at async _asyncQueueExecutor (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/queue_job.js:20:29)","name":"SessionError"},"msg":"failed to decrypt message"}
+[MSG] Skipping unhandled message type from 158381297897656@lid: 
+Closing open session in favor of incoming prekey bundle
+Closing session: SessionEntry {
+  _chains: {
+    BddmyF8FonNV0Qsu9jTMIANJbXsS1rsUv6G0y39jpZlZ: { chainKey: [Object], chainType: 2, messageKeys: {} },
+    'BZrU3L/xtDIJ5pByOGJiZbGDOouWTcckMMWug7A5Pcd2': { chainKey: [Object], chainType: 1, messageKeys: {} }
+  },
+  registrationId: 2919,
+  currentRatchet: {
+    ephemeralKeyPair: {
+      pubKey: <Buffer 05 9a d4 dc bf f1 b4 32 09 e6 90 72 38 62 62 65 b1 83 3a 8b 96 4d c7 24 30 c5 ae 83 b0 39 3d c7 76>,
+      privKey: <Buffer f0 83 71 05 ff 50 eb 8a 57 fd 83 30 20 6f 47 83 94 4a e1 be 4d 4f d9 4a d5 0b 53 06 fe 5b ce 4e>
+    },
+    lastRemoteEphemeralKey: <Buffer 05 d7 66 c8 5f 05 a2 73 55 d1 0b 2e f6 34 cc 20 03 49 6d 7b 12 d6 bb 14 bf a1 b4 cb 7f 63 a5 99 59>,
+    previousCounter: 0,
+    rootKey: <Buffer e6 26 52 b6 13 fe b7 b7 52 9a 96 ca ac 9c 60 eb 0f fb 03 46 97 dd 75 65 3d d9 2c ea fb dc ff c5>
+  },
+  indexInfo: {
+    baseKey: <Buffer 05 5b 3b 8f f1 23 75 7f aa 34 56 0a a3 bf a2 44 66 af eb f4 c8 35 e0 1d 30 16 a7 11 a5 4f 47 dc 15>,
+    baseKeyType: 2,
+    closed: -1,
+    used: 1772713936680,
+    created: 1772713936680,
+    remoteIdentityKey: <Buffer 05 40 54 a5 05 5c 3e 21 ff 57 f6 f9 fa c5 89 45 dc 15 30 13 18 cd c8 bd eb 33 9a e4 02 75 93 bb 38>
+  }
+}
+[MSG] → 158381297897656@lid: thank you sending some videos
+[WEBHOOK] ✅ Forwarded message to CRM
+[MSG] → 158381297897656@lid: https://youtu.be/_sVjfPam0SM
+[MSG] → 158381297897656@lid: https://youtu.be/fxA5CjzgHQA
+[MSG] → 158381297897656@lid: https://youtu.be/_EWOgcAc8GA
+[WEBHOOK] ✅ Forwarded message to CRM
+[WEBHOOK] ✅ Forwarded message to CRM
+[WEBHOOK] ✅ Forwarded message to CRM
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 36 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 36 entries
+[MSG] → 158381297897656@lid: thank you sending some videos
+[WEBHOOK] ✅ Forwarded message to CRM
+[LID-MAP] 158381297897656 → 9779857048500
+[MSG] ← 158381297897656@lid: Hello! I filled out your form and would like to know more ab
+[WEBHOOK] ✅ Forwarded message to CRM
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 36 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 36 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 36 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 36 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 36 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 36 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 36 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 36 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 36 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 36 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 36 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 36 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 36 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 36 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 36 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 36 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 36 entries
+{"level":50,"time":1772720818734,"pid":45016,"hostname":"Mohans-iMac.local","key":{"remoteJid":"918767574117@s.whatsapp.net","fromMe":false,"id":"3A1D82951D9EA93C8272","senderLid":"165244655648775@lid"},"err":{"type":"PreKeyError","message":"Invalid PreKey ID","stack":"PreKeyError: Invalid PreKey ID\n    at SessionBuilder.initIncoming (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_builder.js:66:19)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async 918767574117.0 [as awaitable] (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:205:30)\n    at async _asyncQueueExecutor (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/queue_job.js:20:29)","name":"PreKeyError"},"msg":"failed to decrypt message"}
+[MSG] Skipping unhandled message type from 918767574117@s.whatsapp.net: 
+{"level":50,"time":1772720824288,"pid":45016,"hostname":"Mohans-iMac.local","key":{"remoteJid":"918767574117@s.whatsapp.net","fromMe":false,"id":"3A1D82951D9EA93C8272","senderLid":"165244655648775@lid"},"err":{"type":"PreKeyError","message":"Invalid PreKey ID","stack":"PreKeyError: Invalid PreKey ID\n    at SessionBuilder.initIncoming (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_builder.js:66:19)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async 918767574117.0 [as awaitable] (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:205:30)\n    at async _asyncQueueExecutor (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/queue_job.js:20:29)","name":"PreKeyError"},"msg":"failed to decrypt message"}
+[MSG] Skipping unhandled message type from 918767574117@s.whatsapp.net: 
+{"level":50,"time":1772720824810,"pid":45016,"hostname":"Mohans-iMac.local","key":{"remoteJid":"918767574117@s.whatsapp.net","fromMe":false,"id":"3A1D82951D9EA93C8272","senderLid":"165244655648775@lid"},"err":{"type":"PreKeyError","message":"Invalid PreKey ID","stack":"PreKeyError: Invalid PreKey ID\n    at SessionBuilder.initIncoming (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_builder.js:66:19)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async 918767574117.0 [as awaitable] (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/session_cipher.js:205:30)\n    at async _asyncQueueExecutor (/Users/mohankalburgi/swaryoga.com-db/swaryoga.com-db/deploy/wa-baileys/node_modules/libsignal/src/queue_job.js:20:29)","name":"PreKeyError"},"msg":"failed to decrypt message"}
+[MSG] Skipping unhandled message type from 918767574117@s.whatsapp.net: 
+[MSG] ← 918767574117@s.whatsapp.net: Haan Pinterest
+[WEBHOOK] Failed (500): {
+  success: false,
+  error: 'WhatsAppMessage validation failed: sentAt: Cast to date failed for value "Invalid Date" (type Date) at path "sentAt"',
+  code: 'SERVER_ERROR',
+  timestamp: '2026-03-05T14:27:05.591Z'
+}
+[MSG] ← 918767574117@s.whatsapp.net: Haan Pinterest
+[WEBHOOK] ✅ Forwarded message to CRM
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 36 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 36 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 36 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 36 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 36 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 36 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 36 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 36 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 36 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 36 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 36 entries
+[LID-MAP] 183670015017156 → 919717858590
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 38 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 38 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 38 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 38 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 38 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 38 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 38 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 38 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 38 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 38 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 38 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 38 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 38 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 38 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 38 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 38 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 38 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 38 entries
+[LID-MAP] 156169389789388 → 919511295679
+[MSG] ← 919511295679-1607956481@g.us: [image]
+[WEBHOOK] ✅ Forwarded message to CRM
+[LID-MAP] 156169389789388 → 919511295679
+[MSG] ← 919511295679-1607956481@g.us: [image]
+[WEBHOOK] ✅ Forwarded message to CRM
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 40 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 40 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 40 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 40 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 40 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 40 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 40 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 40 entries
+[SEND] ✅ Media sent to 918767574117@s.whatsapp.net
+Closing session: SessionEntry {
+  _chains: {
+    'BVy/QqkJ1EZ7Vif+gz/s4UiJdzDT2F1wTBQXMlL4WbVq': { chainKey: [Object], chainType: 2, messageKeys: {} },
+    'BRp/TbDt+Bui5r0NkrxmBgUXkUjmePpgUKkRNzJBF/wp': { chainKey: [Object], chainType: 1, messageKeys: {} }
+  },
+  registrationId: 2919,
+  currentRatchet: {
+    ephemeralKeyPair: {
+      pubKey: <Buffer 05 1a 7f 4d b0 ed f8 1b a2 e6 bd 0d 92 bc 66 06 05 17 91 48 e6 78 fa 60 50 a9 11 37 32 41 17 fc 29>,
+      privKey: <Buffer b0 30 2a ce fa 8e 7a 44 e0 34 e5 e2 16 a0 b7 ff 56 f7 d1 b0 8d 25 a4 56 c0 98 04 7a 7f ca 61 78>
+    },
+    lastRemoteEphemeralKey: <Buffer 05 5c bf 42 a9 09 d4 46 7b 56 27 fe 83 3f ec e1 48 89 77 30 d3 d8 5d 70 4c 14 17 32 52 f8 59 b5 6a>,
+    previousCounter: 1,
+    rootKey: <Buffer f4 00 8a 18 d8 77 2a 96 e3 ec a0 ae 58 9b 4f 18 d8 50 e2 d0 45 68 77 f7 f0 49 95 53 14 44 1f 8e>
+  },
+  indexInfo: {
+    baseKey: <Buffer 05 a6 61 3a e3 77 dc a0 24 48 88 c3 92 15 e2 76 23 cb 8a 37 c5 b0 46 00 79 6c 94 29 1a 29 59 44 2c>,
+    baseKeyType: 1,
+    closed: -1,
+    used: 1772720140865,
+    created: 1772717878608,
+    remoteIdentityKey: <Buffer 05 40 54 a5 05 5c 3e 21 ff 57 f6 f9 fa c5 89 45 dc 15 30 13 18 cd c8 bd eb 33 9a e4 02 75 93 bb 38>
+  }
+}
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 40 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 40 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 40 entries
+[LID-MAP] 156169389789388 → 919511295679
+[MSG] ← 919511295679-1607956481@g.us: [video]
+[WEBHOOK] ✅ Forwarded message to CRM
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 40 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 40 entries
+[LID-MAP] 56925563703541 → 919003273391
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 42 entries
+[LID-RESOLVE] Attempting to resolve 12 LID contacts...
+[LID-RESOLVE] Map now has 42 entries

@@ -4,6 +4,7 @@ import { Lead, WhatsAppAutomationRule, WhatsAppMessage, ChatbotFlow, getChatbotS
 import { normalizePhone, sendWhatsAppText, sendWhatsAppPresence, sendWhatsAppInteractiveButtons, getWhatsAppEnv, extractYouTubeVideoId, sendWhatsAppTemplate as sendWhatsAppTemplateFn, buildCloudTemplateSendInput } from '@/lib/whatsapp';
 import { getWhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
 import { getBotResponse, searchKnowledgeBase, isAdminAvailable } from '@/lib/chatbot/knowledge-bot';
+import { loadAutoConfig, isWithinWorkingHours } from '@/lib/autoConfig';
 
 type InboundContext = {
   leadId: string;
@@ -38,12 +39,15 @@ function isQuestion(text: string): boolean {
 }
 
 async function maybeAIReply(lead: any, ctx: InboundContext): Promise<string | null> {
+  // Load runtime config from DB
+  const autoCfg = await loadAutoConfig();
+
   // First, try knowledge base
-  const kbEnabled = getEnvFlag('WHATSAPP_KNOWLEDGE_BASE_ENABLED', true);
+  const kbEnabled = autoCfg.kbAutoReplyEnabled;
   if (kbEnabled) {
     try {
       const kbResult = await searchKnowledgeBase(ctx.body, { preferShortAnswer: true });
-      if (kbResult.found && kbResult.confidence >= 0.6) {
+      if (kbResult.found && kbResult.confidence >= autoCfg.kbMinConfidence) {
         console.log(`[AI Reply] Using knowledge base answer (confidence: ${kbResult.confidence})`);
         return kbResult.answer;
       }
@@ -53,9 +57,9 @@ async function maybeAIReply(lead: any, ctx: InboundContext): Promise<string | nu
   }
 
   // Fall back to OpenAI if enabled
-  const enabled = getEnvFlag('WHATSAPP_AI_AGENT_ENABLED', false);
+  const enabled = autoCfg.aiAgentEnabled || getEnvFlag('WHATSAPP_AI_AGENT_ENABLED', false);
   const apiKey = process.env.OPENAI_API_KEY;
-  const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+  const model = autoCfg.aiModel || process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
   if (!enabled || !apiKey) return null;
   if (!isQuestion(ctx.body)) return null;
@@ -75,7 +79,7 @@ async function maybeAIReply(lead: any, ctx: InboundContext): Promise<string | nu
     })
     .filter((m: any) => m.content);
 
-  const system =
+  const system = autoCfg.aiSystemPrompt ||
     'You are Swar Yoga CRM assistant on WhatsApp. Reply in a friendly, concise, professional tone. ' +
     'Answer questions about yoga workshops/courses and booking. If information is missing, ask 1-2 short follow-up questions. ' +
     'Do not ask for sensitive data like passwords or OTPs.';
@@ -84,7 +88,7 @@ async function maybeAIReply(lead: any, ctx: InboundContext): Promise<string | nu
     model,
     messages: [{ role: 'system', content: system }, ...history, { role: 'user', content: ctx.body }],
     temperature: 0.4,
-    max_tokens: 250,
+    max_tokens: autoCfg.aiMaxTokens || 250,
   };
 
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -1070,6 +1074,14 @@ export async function handleInboundWhatsAppAutomations(input: {
 }): Promise<void> {
   await connectDB();
 
+  // ===== AUTO CONFIG — Read runtime settings from DB =====
+  const autoCfg = await loadAutoConfig();
+  if (!autoCfg.chatbotEnabled) {
+    console.log('[Automation] Master switch OFF (chatbotEnabled=false). Skipping all automations.');
+    return;
+  }
+  // ===== END AUTO CONFIG =====
+
   const now = new Date();
   const fromPhone = normalizePhone(input.phoneNumber);
   const body = String(input.messageBody || '').trim();
@@ -1189,11 +1201,13 @@ export async function handleInboundWhatsAppAutomations(input: {
   }
   // ===== END CHATBOT FLOW =====
 
-  // Check if knowledge base auto-reply is enabled (when admin unavailable)
-  const kbAutoReplyEnabled = getEnvFlag('WHATSAPP_KB_AUTO_REPLY', true);
+  // Check if knowledge base auto-reply is enabled (from AutoConfig, fallback to env)
+  const kbAutoReplyEnabled = autoCfg.kbAutoReplyEnabled;
   if (kbAutoReplyEnabled) {
     try {
-      const adminStatus = await isAdminAvailable();
+      // Use AutoConfig working hours first, then fall back to chatbot_settings
+      const wh = await isWithinWorkingHours();
+      const adminStatus = wh.withinHours ? await isAdminAvailable() : { available: false, reason: 'outside_working_hours (auto-config)' };
       if (!adminStatus.available) {
         console.log(`[Automation] Admin unavailable (${adminStatus.reason}), checking knowledge base...`);
         const botResponse = await getBotResponse(body, {

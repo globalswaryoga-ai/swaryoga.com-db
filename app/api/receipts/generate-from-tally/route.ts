@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
     );
 
     // 2. Optionally send via WhatsApp
-    let whatsappResult = null;
+    let whatsappResult: any = null;
     if (sendWhatsApp) {
       whatsappResult = await sendReceiptViaWhatsApp(
         receipt._id.toString(),

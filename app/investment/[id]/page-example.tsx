@@ -145,7 +145,7 @@ export default function InvestmentDetailExample() {
                 <div>
                   <p className="text-sm text-gray-600 font-medium mb-2">Duration</p>
                   <p className="text-lg font-semibold text-gray-900">
-                    {calculateYears(investment.startDate, investment.endDate)} years
+                    {calculateYears(new Date(investment.startDate), new Date(investment.endDate))} years
                   </p>
                 </div>
 
@@ -229,7 +229,7 @@ export default function InvestmentDetailExample() {
                   <div>
                     <p className="font-semibold">Current Status</p>
                     <p className="text-sm text-gray-600">
-                      Active - {calculateYears(investment.startDate, new Date().toISOString())} year(s) in
+                      Active - {calculateYears(new Date(investment.startDate), new Date())} year(s) in
                     </p>
                   </div>
                 </div>

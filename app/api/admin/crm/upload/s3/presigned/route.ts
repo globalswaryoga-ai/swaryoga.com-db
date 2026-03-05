@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateUploadUrl } from '@/lib/aws-s3';
+import { generateUploadUrl } from '@/lib/bunny-storage';
 import { verifyToken } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
@@ -23,18 +23,18 @@ export async function POST(req: NextRequest) {
 
     const uploadUrl = await generateUploadUrl(key, contentType);
 
-    // Using indirect proxy link: /api/media/view/[key]
-    const indirectUrl = `/api/media/view/${key}`;
-    const region = process.env.AWS_REGION || 'ap-south-1';
-    const bucket = process.env.AWS_S3_BUCKET || 'swarygoal1hindi';
+    const cdnHost = process.env.BUNNY_STORAGE_CDN_HOST || '';
+    const publicUrl = `https://${cdnHost}/${key}`;
 
     return NextResponse.json({ 
       success: true, 
       data: {
         uploadUrl,
         key,
-        indirectUrl,
-        publicUrl: `https://${bucket}.s3.${region}.amazonaws.com/${key}`
+        indirectUrl: `/api/admin/crm/media/proxy?url=${encodeURIComponent(publicUrl)}`,
+        publicUrl,
+        // API key needed for direct client uploads to Bunny Storage
+        storageApiKey: process.env.BUNNY_STORAGE_API_KEY || '',
       }
     });
 

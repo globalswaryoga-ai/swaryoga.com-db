@@ -723,7 +723,7 @@ const SwarCalendar: React.FC = () => {
       };
       
       // Optionally try the API for more detailed data (but don't fail if it errors)
-      let apiPanchang = null;
+      let apiPanchang: any = null;
       try {
         const panchangResponse = await fetch('/api/panchang/calculate', {
           method: 'POST',

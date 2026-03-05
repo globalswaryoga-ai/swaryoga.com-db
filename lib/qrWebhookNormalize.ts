@@ -37,9 +37,9 @@ function extractMediaInfo(m: any): NormalizedQRMedia | undefined {
     
     return {
       kind: kind as NormalizedQRMedia['kind'],
-      mimetype: asString(m.mimetype || m.mimeType || m._data?.mimetype),
-      filename: asString(m.filename || m.fileName || m._data?.filename),
-      base64: asString(m._data?.data || m.mediaData?.data || m.base64 || m.data),
+      mimetype: asString(m.mimetype || m.mimeType || m.mediaMimeType || m._data?.mimetype || m.media?.mimetype),
+      filename: asString(m.filename || m.fileName || m._data?.filename || m.media?.filename),
+      base64: asString(m._data?.data || m.mediaData?.data || m.base64 || m.mediaBase64 || m.media?.data || m.data),
       url: asString(m.mediaUrl || m.media?.url || m.url),
     };
   }

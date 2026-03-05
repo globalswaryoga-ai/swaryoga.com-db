@@ -9,7 +9,7 @@ import { connectDB } from '@/lib/db';
 export async function GET(request: NextRequest) {
   try {
     const db = await connectDB();
-    const crmDb = db.getDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+    const crmDb = db.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
     const leadsCollection = crmDb.collection('leads');
 
     // Get time range filter

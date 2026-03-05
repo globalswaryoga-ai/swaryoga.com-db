@@ -9,6 +9,8 @@ import { IInvestment } from '@/lib/schemas/investmentSchemas';
 import { ENTITIES, ENTITY_NAMES, SHARE_TYPES, THEME_COLORS } from '@/lib/investment-constants';
 import { formatCurrency, formatDate, calculateYears } from '@/lib/investment-utils';
 
+type PDFDoc = InstanceType<typeof PDFDocument>;
+
 interface CertificateData {
   investment: IInvestment & { userId?: any };
   user: { name: string; email: string; phone: string; address?: string };
@@ -30,7 +32,7 @@ interface CertificateData {
 /**
  * Generate A4 PDF with 2 pages: Certificate (Page 1) + Receipt (Page 2)
  */
-export function generateInvestmentCertificate(data: CertificateData): PDFDocument {
+export function generateInvestmentCertificate(data: CertificateData): PDFDoc {
   const doc = new PDFDocument({
     size: 'A4',
     margin: 40,
@@ -54,7 +56,7 @@ export function generateInvestmentCertificate(data: CertificateData): PDFDocumen
  * Generate Certificate Page (Page 1)
  */
 function generateCertificatePage(
-  doc: PDFDocument,
+  doc: PDFDoc,
   data: CertificateData
 ): void {
   const { investment, user, kyc, adminSettings } = data;
@@ -240,7 +242,7 @@ function generateCertificatePage(
  * Generate Receipt & Payment Statement Page (Page 2)
  */
 function generateReceiptPage(
-  doc: PDFDocument,
+  doc: PDFDoc,
   data: CertificateData
 ): void {
   const { investment, user, adminSettings } = data;
@@ -385,7 +387,7 @@ function generateReceiptPage(
  * Draw a colored box with title
  */
 function drawBox(
-  doc: PDFDocument,
+  doc: PDFDoc,
   x: number,
   y: number,
   width: number,

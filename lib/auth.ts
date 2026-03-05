@@ -4,6 +4,9 @@ import jwt from 'jsonwebtoken';
 const JWT_SECRET = (process.env.JWT_SECRET || 'your-secret-key-change-in-production').trim();
 
 export interface TokenPayload {
+  _id?: string;
+  id?: string;
+  name?: string;
   userId?: string;
   email?: string;
   // Admin JWTs use a different payload shape.

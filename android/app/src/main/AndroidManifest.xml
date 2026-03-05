@@ -39,6 +39,7 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="app.swaryoga.com" />
                 <data android:scheme="https" android:host="swaryoga.com" />
                 <data android:scheme="https" android:host="www.swaryoga.com" />
             </intent-filter>

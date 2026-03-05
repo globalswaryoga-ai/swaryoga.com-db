@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
       if (!deviceId) {
         return apiError('Device ID is required', 400);
       }
-      const device = await blockDevice(deviceId, reason || 'Blocked by admin', decoded.userId);
+      const device = await blockDevice(deviceId, reason || 'Blocked by admin', decoded.userId || '');
       return apiSuccess({ message: 'Device blocked', device });
       
     } else if (action === 'unblock') {

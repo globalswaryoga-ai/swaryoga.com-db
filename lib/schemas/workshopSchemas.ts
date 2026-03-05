@@ -50,6 +50,7 @@ const WorkshopSchema = new Schema<IWorkshop>({
  */
 export interface IBatch extends Document {
   workshopId: mongoose.Types.ObjectId;
+  name?: string; // Alias used in API responses
   batchNumber: number;
   batchName?: string; // e.g., "January 2026 Batch"
   startDate: Date;
@@ -82,6 +83,8 @@ export interface IWorkshopVideo extends Document {
   description?: string;
   thumbnail?: string;
   videoUrl: string; // S3 URL
+  s3Key?: string; // S3 object key for streaming
+  accessType?: 'free' | 'paid' | 'preview' | 'enrolled' | 'purchased';
   duration?: number; // In seconds
   dayNumber?: number; // Day 1, Day 2, etc.
   order: number;
@@ -143,12 +146,15 @@ VideoAccessLogSchema.index({ userId: 1, deviceId: 1 });
 export interface IUserDevice extends Document {
   userId: mongoose.Types.ObjectId;
   deviceId: string;
+  fingerprint?: string; // Browser fingerprint
   deviceName?: string;
   deviceInfo?: string;
   ipAddress?: string;
   lastUsedAt: Date;
   isActive: boolean;
   registeredAt: Date;
+  createdAt: Date;
+  updatedAt?: Date;
 }
 
 const UserDeviceSchema = new Schema<IUserDevice>({

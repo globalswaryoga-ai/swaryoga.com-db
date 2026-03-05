@@ -2089,7 +2089,7 @@ function LeadsFollowupPageContent() {
                       <div className="border-t-2 border-cyan-200 pt-4 bg-gradient-to-r from-cyan-50 to-blue-50 -mx-8 px-8 pb-4 -mb-8 rounded-b-xl">
                         <button
                           type="button"
-                          onClick={() => sendWhatsAppMessage('meta')}
+                          onClick={() => sendWhatsAppMessage()}
                           disabled={!message.trim() || sendingWhatsApp}
                           className="w-full px-4 py-3 rounded-lg font-bold transition-all text-sm shadow-md disabled:opacity-50 disabled:cursor-not-allowed bg-cyan-600 hover:bg-cyan-700 text-white"
                         >
@@ -2368,7 +2368,6 @@ function LeadsFollowupPageContent() {
                         disabled={
                           loading ||
                           (actionMode === 'notes' && !message.trim()) ||
-                          (actionMode === 'email' && !message.trim()) ||
                           (actionMode === 'sms' && !message.trim()) ||
                           (actionMode === 'todos' && !todos.trim()) ||
                           (actionMode === 'reminder' && (!reminder.trim() || !reminderDate)) ||

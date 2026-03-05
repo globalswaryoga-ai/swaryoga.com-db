@@ -383,7 +383,7 @@ export default function AdminCommunityPage() {
 
   // Generic insert function that works with any textarea
   const insertTextToActiveTextarea = (textBefore: string, textAfter: string = '') => {
-    let ref: React.RefObject<HTMLTextAreaElement> = textAreaRef;
+    let ref: React.RefObject<HTMLTextAreaElement | null> = textAreaRef;
     let content = postContent;
     let setContent = setPostContent;
     
@@ -3131,8 +3131,8 @@ export default function AdminCommunityPage() {
                 <label className="text-sm font-bold text-slate-700 mb-2 block">Tags (Optional)</label>
                 <input 
                   type="text" 
-                  value={editVideoTags} 
-                  onChange={e => setEditVideoTags(e.target.value)}
+                  value={editVideoTags.join(', ')} 
+                  onChange={e => setEditVideoTags(e.target.value.split(',').map(t => t.trim()))}
                   placeholder="tag1, tag2, tag3..."
                   className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 transition-all"
                 />

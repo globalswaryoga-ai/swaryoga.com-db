@@ -132,7 +132,7 @@ export default function ChatbotPage() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<'general' | 'keywords' | 'templates' | 'messages' | 'assign' | 'forms' | 'autoclose' | 'ai' | 'hours'>('general');
-  const [newKeyword, setNewKeyword] = useState({ keyword: '', response: '', action: 'reply' as const, templateName: '' });
+  const [newKeyword, setNewKeyword] = useState<{ keyword: string; response: string; action: 'reply' | 'forward_to_agent' | 'send_template'; templateName: string }>({ keyword: '', response: '', action: 'reply', templateName: '' });
   const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);

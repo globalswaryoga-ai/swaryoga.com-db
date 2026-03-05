@@ -18,8 +18,8 @@ export async function GET(request: NextRequest) {
       return apiError('UNAUTHORIZED');
     }
 
-    // Check permission
-    if (!hasPermission(decoded?.permissionsV2, 'email', 'manageTemplates')) {
+    // Check granular permission (skip if permissionsV2 not configured – admin pass-through)
+    if (decoded.permissionsV2 && !hasPermission(decoded.permissionsV2, 'email', 'manageTemplates')) {
       return apiError('FORBIDDEN', 'You do not have permission to manage email templates');
     }
 
@@ -58,8 +58,8 @@ export async function POST(request: NextRequest) {
       return apiError('UNAUTHORIZED');
     }
 
-    // Check permission
-    if (!hasPermission(decoded?.permissionsV2, 'email', 'manageTemplates')) {
+    // Check granular permission (skip if permissionsV2 not configured – admin pass-through)
+    if (decoded.permissionsV2 && !hasPermission(decoded.permissionsV2, 'email', 'manageTemplates')) {
       return apiError('FORBIDDEN', 'You do not have permission to manage email templates');
     }
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
-import { getProtectedUrl } from '@/lib/aws-s3';
+import { getProtectedUrl } from '@/lib/bunny-storage';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     // Generate signed URLs for S3 videos
     const recordings = await Promise.all(
       videos.map(async (v: any) => {
-        let videoUrl = null;
+        let videoUrl: string | null = null;
 
         // Generate signed URL for S3 videos
         if (v.s3Key) {

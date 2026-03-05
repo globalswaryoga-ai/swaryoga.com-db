@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
-import { generatePresignedUrl } from '@/lib/aws-s3';
+import { generatePresignedUrl, fetchFromStorage } from '@/lib/bunny-storage';
 
 /**
  * GET /api/admin/crm/media/proxy?url=<S3_URL>&token=<AUTH_TOKEN>
@@ -37,14 +37,26 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Missing url parameter' }, { status: 400 });
     }
 
-    // Parse S3 URL to extract key
-    // Expected format: https://<bucket>.s3.<region>.amazonaws.com/<key>
+    // Parse URL to extract storage key
+    // Support both old S3 format and new Bunny CDN format
     const s3UrlPattern = /https?:\/\/([^.]+)\.s3\.([^.]+)\.amazonaws\.com\/(.+)/;
-    const match = originalUrl.match(s3UrlPattern);
-    
-    if (!match) {
-      // If it's not an S3 URL, try to fetch directly
-      console.log('[Media Proxy] Non-S3 URL, fetching directly:', originalUrl);
+    const bunnyCdnPattern = /https?:\/\/[^/]*b-cdn\.net\/(.+)/;
+    const s3Match = originalUrl.match(s3UrlPattern);
+    const bunnyMatch = originalUrl.match(bunnyCdnPattern);
+
+    let storageKey: string | null = null;
+
+    if (s3Match) {
+      storageKey = decodeURIComponent(s3Match[3]);
+      console.log('[Media Proxy] Extracted key from S3 URL:', storageKey);
+    } else if (bunnyMatch) {
+      storageKey = decodeURIComponent(bunnyMatch[1]);
+      console.log('[Media Proxy] Extracted key from Bunny CDN URL:', storageKey);
+    }
+
+    if (!storageKey) {
+      // Unknown URL format, try to fetch directly
+      console.log('[Media Proxy] Unknown URL format, fetching directly:', originalUrl);
       const response = await fetch(originalUrl);
       if (!response.ok) {
         return NextResponse.json({ error: 'Failed to fetch media' }, { status: response.status });
@@ -54,27 +66,37 @@ export async function GET(request: NextRequest) {
       return new NextResponse(buffer, {
         headers: {
           'Content-Type': contentType,
-          'Cache-Control': 'public, max-age=86400', // Cache for 24 hours
+          'Cache-Control': 'public, max-age=86400',
         },
       });
     }
 
-    const [, bucket, , key] = match;
-    const decodedKey = decodeURIComponent(key);
-
-    console.log('[Media Proxy] Generating signed URL for:', { bucket, key: decodedKey });
-
-    // Generate a pre-signed URL (valid for 1 hour)
-    const signedUrl = await generatePresignedUrl(decodedKey, { 
-      bucket,
+    // Generate a CDN URL (with optional token auth)
+    const signedUrl = await generatePresignedUrl(storageKey, {
       expiresIn: 3600 
     });
 
-    // Fetch the content using the signed URL
-    const response = await fetch(signedUrl);
+    // Fetch from CDN first, fall back to direct Storage API if CDN returns 403
+    let response = await fetch(signedUrl);
+    if (response.status === 403) {
+      console.log('[Media Proxy] CDN returned 403, falling back to direct storage API');
+      try {
+        const { buffer: storageBuf, contentType: storageCT } = await fetchFromStorage(storageKey);
+        return new NextResponse(new Uint8Array(storageBuf), {
+          headers: {
+            'Content-Type': storageCT,
+            'Cache-Control': 'public, max-age=86400',
+            'Content-Length': storageBuf.byteLength.toString(),
+          },
+        });
+      } catch (storageErr: any) {
+        console.error('[Media Proxy] Direct storage fetch also failed:', storageErr.message);
+        return NextResponse.json({ error: 'Failed to fetch from storage' }, { status: 500 });
+      }
+    }
     if (!response.ok) {
-      console.error('[Media Proxy] S3 fetch failed:', response.status, response.statusText);
-      return NextResponse.json({ error: 'Failed to fetch from S3' }, { status: response.status });
+      console.error('[Media Proxy] Storage fetch failed:', response.status, response.statusText);
+      return NextResponse.json({ error: 'Failed to fetch from storage' }, { status: response.status });
     }
 
     // Get content type from S3 response

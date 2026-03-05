@@ -25,7 +25,7 @@ function verifyWebhookSignature(
 // Parse Meta form data and create CRM lead
 async function createLeadFromMetaForm(formData: any) {
   const db = await connectDB();
-  const crmDb = db.getDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+  const crmDb = db.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
 
   // Extract form fields
   const {

@@ -17,7 +17,9 @@ export type ApiErrorCode =
   | 'RATE_LIMIT_EXCEEDED'
   | 'INVALID_REQUEST'
   | 'AUTHENTICATION_FAILED'
-  | 'SERVICE_UNAVAILABLE';
+  | 'SERVICE_UNAVAILABLE'
+  | 'BAD_REQUEST'
+  | 'INTERNAL_ERROR';
 
 export interface ApiErrorResponse {
   success: false;
@@ -85,20 +87,56 @@ const errorMap: Record<ApiErrorCode, Omit<ErrorConfig, 'details'>> = {
     code: 'SERVICE_UNAVAILABLE',
     status: 503,
   },
+  BAD_REQUEST: {
+    message: 'Bad request',
+    code: 'BAD_REQUEST',
+    status: 400,
+  },
+  INTERNAL_ERROR: {
+    message: 'Internal server error',
+    code: 'INTERNAL_ERROR',
+    status: 500,
+  },
 };
 
 /**
- * Create standardized error response
+ * Create standardized error response.
+ * Supports two call patterns:
+ *  1. apiError('SERVER_ERROR', 'custom message', 'details')  — enum code first
+ *  2. apiError('Something went wrong', 500)                  — legacy: message + HTTP status
  */
 export function apiError(
-  code: ApiErrorCode,
-  customMessage?: string,
+  codeOrMessage: ApiErrorCode | string,
+  customMessageOrStatus?: string | number,
   details?: string
 ) {
+  // Legacy pattern: apiError('message', httpStatus)
+  if (typeof customMessageOrStatus === 'number') {
+    const status = customMessageOrStatus;
+    const errorResponse: ApiErrorResponse = {
+      success: false,
+      error: codeOrMessage,
+      timestamp: new Date().toISOString(),
+    };
+    return NextResponse.json(errorResponse, { status });
+  }
+
+  // Enum code pattern: apiError('SERVER_ERROR', 'custom message', 'details')
+  const code = codeOrMessage as ApiErrorCode;
   const config = errorMap[code];
+  if (!config) {
+    // Fallback for unknown codes — treat first arg as message
+    const errorResponse: ApiErrorResponse = {
+      success: false,
+      error: codeOrMessage,
+      timestamp: new Date().toISOString(),
+    };
+    return NextResponse.json(errorResponse, { status: 500 });
+  }
+
   const errorResponse: ApiErrorResponse = {
     success: false,
-    error: customMessage || config.message,
+    error: customMessageOrStatus || config.message,
     code,
     timestamp: new Date().toISOString(),
   };

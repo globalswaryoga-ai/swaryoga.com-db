@@ -52,24 +52,17 @@ export async function GET(request: NextRequest) {
 
     const providerParam = url.searchParams.get('provider');
 
-    // Provider filtering - STRICT SEPARATION:
-    // - Default (no param): Meta API messages only (main CRM inbox)
-    // - provider=meta: Meta API messages only
-    // - provider=qr: QR bridge messages only (separate pipeline)
-    // - provider=all: All messages (admin analytics only)
+    // Provider filtering — STRICT SEPARATION:
+    // - Default (no param) & provider=meta: Meta Cloud API messages ONLY
+    // - provider=qr: QR bridge messages ONLY (no overlap with Meta)
+    // - provider=all: everything (admin analytics/reports)
     if (providerParam === 'qr') {
-      // QR inbox: All QR-related messages (bridge, webhook, legacy)
-      filter.$or = [
-        { provider: 'whatsapp_web_bridge' },
-        { provider: 'whatsapp_qr' },
-        { provider: { $in: [null, undefined] } },
-        { provider: { $exists: false } }
-      ];
+      // QR inbox: only QR-related providers — NO null/missing included
+      filter.provider = { $in: ['whatsapp_web_bridge', 'whatsapp_qr', 'qr'] };
     } else if (providerParam === 'all') {
-      // All messages (for admin analytics/reports only)
-      // No provider filter - include everything
+      // No provider filter – include everything
     } else {
-      // Default & 'meta': Meta API messages only (main CRM inbox)
+      // Default & 'meta': strictly Meta Cloud API messages only
       filter.provider = 'meta';
     }
 

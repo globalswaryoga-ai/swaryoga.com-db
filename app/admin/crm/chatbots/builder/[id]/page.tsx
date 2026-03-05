@@ -626,7 +626,7 @@ export default function ChatbotBuilder() {
           waitTimeoutMinutes: b.data?.waitTimeoutMinutes,
           replyDelayMinutes: b.data?.replyDelayMinutes,
           timeoutNodeId: timeoutConn?.toId || b.data?.timeoutNodeId,
-          fallbackNodeId: fallbackConn?.toId || b.data?.fallbackNodeId,
+          fallbackNodeId: fallbackConn?.toId || (b.data as any)?.fallbackNodeId,
           options: b.data?.options?.map((o, i) => ({
             label: typeof o === 'string' ? o : o.label,
             value: typeof o === 'string' ? o : o.value,

@@ -3,7 +3,9 @@ import { connectDB } from '@/lib/db';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { normalizePhone } from '@/lib/whatsapp';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
-import { handleInboundWhatsAppAutomations } from '@/lib/whatsappAutomation';
+// NOTE: handleInboundWhatsAppAutomations intentionally NOT imported here.
+// QR inbound messages must NOT trigger Meta Cloud API automations/auto-replies
+// to prevent QR contacts from appearing in the Meta inbox.
 import { normalizeQRIncomingMessages } from '@/lib/qrWebhookNormalize';
 
 /**
@@ -48,7 +50,7 @@ export async function POST(req: NextRequest) {
     // We keep this intentionally tolerant because QR providers differ in payload shape.
     const ingested = await ingestQRPayload(payload);
 
-    return apiSuccess({ ok: true, ingested });
+    return apiSuccess({ ok: true, ...ingested, ...(ingested.mediaUrl && { mediaUrl: ingested.mediaUrl }) });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return apiError('SERVER_ERROR', message);
@@ -65,13 +67,14 @@ async function ingestQRPayload(payload: any) {
 
   const { getWhatsAppMessage, getLead } = await import('@/lib/schemas/enterpriseSchemas');
   const { isValidPhoneNumber } = await import('@/lib/whatsapp');
-  const { uploadToS3 } = await import('@/lib/aws-s3');
+  const { uploadToS3 } = await import('@/lib/bunny-storage');
   const WhatsAppMessage = getWhatsAppMessage();
   const Lead = getLead();
 
   let created = 0;
   let skippedInvalidPhone = 0;
   let mediaProcessed = 0;
+  let lastMediaUrl: string | undefined;
   
   for (const m of messages) {
     const text = (m.text || '').trim();
@@ -139,10 +142,12 @@ async function ingestQRPayload(payload: any) {
             }
           });
           console.log(`[QR WEBHOOK] ✅ Uploaded to S3: ${s3MediaUrl}`);
+          lastMediaUrl = s3MediaUrl;
           mediaProcessed++;
         } else if (m.media.url) {
           // Use existing URL directly (may need to re-upload for permanence)
           s3MediaUrl = m.media.url;
+          lastMediaUrl = s3MediaUrl;
           console.log(`[QR WEBHOOK] Using existing media URL: ${s3MediaUrl}`);
         }
       } catch (uploadErr: any) {
@@ -196,29 +201,17 @@ async function ingestQRPayload(payload: any) {
     const newMessage = await WhatsAppMessage.create(doc);
     created++;
 
-    // TRIGGER AUTOMATIONS (Chatbot, Auto-replies, etc.)
-    if ((text || hasMedia) && doc.direction === 'inbound') {
-      try {
-        // Check if this is the first inbound message in recent history (e.g. 24h)
-        const count = await WhatsAppMessage.countDocuments({
-          leadId: lead._id,
-          direction: 'inbound',
-          sentAt: { $gt: new Date(Date.now() - 24 * 60 * 60 * 1000) }
-        });
-
-        await handleInboundWhatsAppAutomations({
-          leadId: lead._id,
-          phoneNumber: normalizedPhone,
-          messageBody: text || `[${m.media?.kind || 'media'} message]`,
-          wasFirstInbound: count <= 1 // Including current one
-        });
-      } catch (autoErr) {
-        console.error('[QR WEBHOOK AUTOMATION ERROR]:', autoErr);
-      }
-    }
+    // SKIP automations for QR inbound messages.
+    // The automation system sends replies via Meta Cloud API, which creates
+    // provider:'meta' messages and pollutes the Meta inbox with QR contacts.
+    // QR bridge messages must stay completely separate from the Meta pipeline.
+    // If QR-specific automations are needed in the future, implement a
+    // separate handler that sends via the QR bridge (Baileys) instead.
+    // ──────────────────────────────────────────────────────────────────
+    // (previously: handleInboundWhatsAppAutomations was called here)
   }
 
-  return { count: created, skippedInvalidPhone, mediaProcessed };
+  return { count: created, skippedInvalidPhone, mediaProcessed, mediaUrl: lastMediaUrl };
 }
 
 async function logQREvent(event: {

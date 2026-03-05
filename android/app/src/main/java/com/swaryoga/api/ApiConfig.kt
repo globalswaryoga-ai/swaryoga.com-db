@@ -11,7 +11,7 @@ object ApiConfig {
 
     // Base URLs
     val API_BASE_URL = BuildConfig.API_BASE_URL
-    val BASE_URL = API_BASE_URL.replace("/api", "")
+    val BASE_URL = BuildConfig.WEB_BASE_URL
 
     // API Endpoints - Public (No Auth)
     object Public {

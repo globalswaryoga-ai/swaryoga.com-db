@@ -12,7 +12,7 @@ import { getViewerUserId } from '@/lib/crm-handlers';
  */
 export async function POST(req: NextRequest) {
   try {
-    const decoded = await verifyToken(req);
+    const decoded = verifyToken(req.headers.get('authorization') || '');
     if (!decoded?.isAdmin) return apiError('Unauthorized', 401);
 
     const { leadId } = await req.json();

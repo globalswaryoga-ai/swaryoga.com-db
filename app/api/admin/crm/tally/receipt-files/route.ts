@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { getTallyReceiptFile } from '@/lib/schemas/enterpriseSchemas';
-import { uploadToS3, buildS3Path, generatePresignedUrl } from '@/lib/aws-s3';
+import { uploadToS3, buildS3Path, generatePresignedUrl } from '@/lib/bunny-storage';
 
 function unauthorized() {
   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -39,10 +39,11 @@ export async function GET(request: NextRequest) {
     const filesWithUrls = await Promise.all(
       files.map(async (f: any) => {
         let previewUrl = f.fileUrl;
-        // If the URL is an S3 path (contains s3.amazonaws.com), generate a presigned URL
-        if (f.fileUrl?.includes('s3.') && f.fileUrl?.includes('amazonaws.com')) {
+        // Generate presigned URLs for both S3 and Bunny CDN stored files
+        const isBunnyUrl = f.fileUrl?.includes('b-cdn.net');
+        const isS3Url = f.fileUrl?.includes('s3.') && f.fileUrl?.includes('amazonaws.com');
+        if (isBunnyUrl || isS3Url) {
           try {
-            // Extract key from S3 URL
             const urlObj = new URL(f.fileUrl);
             const key = decodeURIComponent(urlObj.pathname.slice(1)); // Remove leading /
             previewUrl = await generatePresignedUrl(key, { expiresIn: 3600 });

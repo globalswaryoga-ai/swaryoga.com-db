@@ -173,7 +173,7 @@ async function processNode(lead: any, node: any, flow: any): Promise<{
   if (node.type === 'end') {
     return {
       text: applySpintax(node.messageText || 'Thank you!'),
-      nextNodeId: null,
+      nextNodeId: undefined,
       presenceType: 'composing',
       presenceDelay: 1
     };

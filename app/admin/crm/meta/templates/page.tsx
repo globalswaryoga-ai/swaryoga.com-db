@@ -63,6 +63,7 @@ type Template = {
   headerFormat?: string;
   headerContent?: string;
   footerText?: string;
+  metaTemplateId?: string;
   buttons?: Array<{ title: string }>;
   imageFile?: {
     url: string;

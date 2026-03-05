@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import AdminSidebar from '@/components/AdminSidebar';
 import {
   Video, CheckCircle, Loader, Save, AlertCircle, ChevronRight,
   Globe, Music, Heart, Baby, Sparkles, Activity, Sun, Leaf,
@@ -54,7 +53,6 @@ export default function RecordingManagementPage() {
   const router = useRouter();
   const token = useAuth();
 
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedCommunity, setSelectedCommunity] = useState(COMMUNITIES[0]);
   const [members, setMembers] = useState<Member[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
@@ -306,16 +304,11 @@ export default function RecordingManagementPage() {
   const grantedCount = modalUserAccess?.allAccess ? modalPlaylists.length : (modalUserAccess?.playlistIds || []).length;
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
-      <AdminSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-
-      <div className="flex-1 flex flex-col overflow-hidden">
+    <>
+      <div className="flex flex-col h-full overflow-hidden">
         {/* Header */}
         <header className="bg-white border-b border-gray-200 px-4 lg:px-6 py-3 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-3">
-            <button onClick={() => setSidebarOpen(true)} className="md:hidden p-2 rounded-lg hover:bg-gray-100">
-              <Menu className="h-5 w-5 text-gray-600" />
-            </button>
             <div className="flex items-center gap-2">
               <Video className="h-5 w-5 text-indigo-600" />
               <h1 className="text-lg font-bold text-gray-900">Community Recording Management</h1>
@@ -778,6 +771,6 @@ export default function RecordingManagementPage() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

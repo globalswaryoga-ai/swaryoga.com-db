@@ -31,7 +31,7 @@ export async function GET(
     const user = investment.userId;
 
     // Get KYC data
-    let kyc = null;
+    let kyc: any = null;
     if (investment.kycId) {
       const KYC = require('@/lib/schemas/enterpriseSchemas').getKYC();
       kyc = await KYC.findById(investment.kycId);
@@ -88,7 +88,7 @@ export async function GET(
     // Return PDF as downloadable file
     const filename = `Certificate_${investment.certificateNumber || investmentId}.pdf`;
 
-    return new NextResponse(pdfBuffer, {
+    return new NextResponse(pdfBuffer as unknown as BodyInit, {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',

@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Create workshop-active community (will merge into Old Sadhak on completion)
-    let community = null;
+    let community: any = null;
     try {
       community = await createWorkshopCommunity(
         workshop._id.toString(),

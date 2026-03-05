@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { getWhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
-import { deleteTemplateFilesFromS3 } from '@/lib/aws-s3';
+import { deleteTemplateFilesFromS3 } from '@/lib/bunny-storage';
 import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';

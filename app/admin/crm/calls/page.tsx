@@ -498,16 +498,16 @@ export default function CallWorkflowPage() {
       <main className="flex-1 min-w-0 flex flex-col">
         {/* Header */}
         <div className="bg-white border-b border-gray-100 px-4 sm:px-6 py-3">
-          <div className="flex items-center justify-between gap-3 mb-3">
-            <div className="flex items-center gap-3">
-              <button onClick={() => router.back()} className="w-9 h-9 rounded-xl flex items-center justify-center bg-gray-100 hover:bg-gray-200 transition text-gray-500" title="Go Back">
+          <div className="flex items-center justify-between gap-3 mb-3 flex-nowrap">
+            <div className="flex items-center gap-3 min-w-0 flex-shrink-0">
+              <button onClick={() => router.back()} className="w-9 h-9 rounded-xl flex items-center justify-center bg-gray-100 hover:bg-gray-200 transition text-gray-500 flex-shrink-0" title="Go Back">
                 <ChevronLeft className="h-5 w-5" />
               </button>
-              <Link href="/admin/crm" className="w-9 h-9 rounded-xl flex items-center justify-center bg-gray-100 hover:bg-gray-200 transition text-gray-500" title="Home — CRM Dashboard">
+              <Link href="/admin/crm" className="w-9 h-9 rounded-xl flex items-center justify-center bg-gray-100 hover:bg-gray-200 transition text-gray-500 flex-shrink-0" title="Home — CRM Dashboard">
                 <Home className="h-4.5 w-4.5" />
               </Link>
-              <div>
-                <h1 className="text-lg font-bold text-gray-900">
+              <div className="whitespace-nowrap">
+                <h1 className="text-lg font-bold text-gray-900 whitespace-nowrap">
                   {activeStage ? stages.find(s => s.key === activeStage)?.name || 'Leads' : 'All Pipeline Leads'} &mdash; Call Manager
                 </h1>
                 <p className="text-xs text-gray-400">{totalLeads} leads{activeStage ? ' in this stage' : ''}</p>

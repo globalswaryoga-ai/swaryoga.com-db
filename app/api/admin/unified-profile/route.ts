@@ -241,7 +241,7 @@ export async function POST(req: NextRequest) {
         return apiError('Lead ID is required', 400);
       }
       
-      let user = null;
+      let user: any = null;
       if (userId) {
         user = await User.findById(userId);
       } else if (profileId) {

@@ -622,7 +622,6 @@ export default function CreateTemplatePage() {
                           size: doc.sizeBytes,
                         }))}
                         size="sm"
-                        layout="list"
                         onRemove={(index) => setDocumentFiles((prev) => prev.filter((_, i) => i !== index))}
                       />
                       <label className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-dashed border-gray-300 hover:bg-gray-50 cursor-pointer">

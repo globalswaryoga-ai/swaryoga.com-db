@@ -42,8 +42,8 @@ export async function GET(req: NextRequest) {
       }).lean();
 
       // Check if user is enrolled
-      let userEnrollment = null;
-      let enrolledBatchId = null;
+      let userEnrollment: any = null;
+      let enrolledBatchId: any = null;
       if (decoded?.id) {
         const userId = new mongoose.Types.ObjectId(decoded.id);
         const enrolledBatch = await Batch.findOne({

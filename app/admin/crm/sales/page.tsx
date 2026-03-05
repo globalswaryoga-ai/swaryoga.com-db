@@ -175,6 +175,7 @@ export default function SalesPage() {
     status: 'completed',
     labelsText: '',
     targetAchieved: false,
+    superAdminApproved: false,
   });
 
   const [draftFilters, setDraftFilters] = useState({

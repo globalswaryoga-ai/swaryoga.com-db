@@ -51,28 +51,18 @@ export async function GET(request: NextRequest) {
 
     const pipeline: any[] = [];
 
-    // Provider filtering:
-    // - Default (no provider param): current behavior (Meta + legacy web bridge + older records)
-    // - provider=meta: Meta only
-    // - provider=qr: QR inbox only (no overlap)
-    if (providerParam === 'meta') {
-      pipeline.push({ $match: { provider: 'meta' } });
-    } else if (providerParam === 'qr') {
-      // IMPORTANT: QR pipeline must be completely separate from Meta.
-      // QR messages use provider: 'whatsapp_web_bridge' or 'whatsapp_qr'
-      pipeline.push({ $match: { provider: { $in: ['whatsapp_qr', 'whatsapp_web_bridge'] } } });
+    // Provider filtering — STRICT SEPARATION:
+    // - provider=meta (or default): Meta Cloud API messages ONLY
+    // - provider=qr: QR bridge messages ONLY (no overlap with Meta)
+    // - provider=all: everything (admin analytics)
+    if (providerParam === 'qr') {
+      // QR inbox: all QR-related provider values
+      pipeline.push({ $match: { provider: { $in: ['whatsapp_web_bridge', 'whatsapp_qr', 'qr'] } } });
+    } else if (providerParam === 'all') {
+      // No filter – include everything (for diagnostics/analytics)
     } else {
-      // Default: Meta messages only (exclude QR bridge messages)
-      pipeline.push({
-        $match: {
-          $or: [
-            { provider: 'meta' },
-            { provider: { $exists: false } },
-            { provider: null },
-            { provider: 'pending' },
-          ],
-        },
-      });
+      // Default & 'meta': strictly Meta Cloud API messages only
+      pipeline.push({ $match: { provider: 'meta' } });
     }
 
     // Normalize the timestamp used for ordering.

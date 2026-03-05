@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
 
     // Validation
     if (!entity || !amount || !startDate || !endDate) {
-      const missing = [];
+      const missing: string[] = [];
       if (!entity) missing.push('entity');
       if (!amount) missing.push('amount');
       if (!startDate) missing.push('startDate');

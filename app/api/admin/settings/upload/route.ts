@@ -18,7 +18,7 @@ const s3Client = new S3Client({
 export async function POST(request: NextRequest) {
   try {
     // Verify admin access
-    const decoded = await verifyToken(request);
+    const decoded = verifyToken(request.headers.get('authorization') || '');
     if (!decoded) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

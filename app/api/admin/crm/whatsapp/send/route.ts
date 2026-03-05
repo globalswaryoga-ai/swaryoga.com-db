@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
 
       if (providerScope === 'qr') {
         console.log(`[SEND:${requestId}] 🌉 Sending via QR Bridge to ${normalizedPhone}`);
-        const bridgeUrl = (process.env.WHATSAPP_BRIDGE_HTTP_URL || process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL || 'http://52.91.198.23:3333').trim();
+        const bridgeUrl = (process.env.WHATSAPP_BRIDGE_HTTP_URL || process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL || 'http://localhost:3333').trim();
         const bridgeSecret = (process.env.WHATSAPP_WEB_BRIDGE_SECRET || process.env.WHATSAPP_BRIDGE_SECRET || 'swar-bridge-secret-2024').trim();
 
         if (!bridgeUrl) {

@@ -7,7 +7,7 @@ import {
   getProtectedUrl,
   deleteFromS3,
   extractS3Key
-} from '@/lib/aws-s3';
+} from '@/lib/bunny-storage';
 
 export const dynamic = 'force-dynamic';
 

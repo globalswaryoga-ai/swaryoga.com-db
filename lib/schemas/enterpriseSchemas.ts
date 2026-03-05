@@ -2224,6 +2224,14 @@ const EmailSettingsSchema = new mongoose.Schema(
   {
     senderEmail: { type: String, required: true, trim: true },
     senderName: { type: String, default: 'Swar Yoga', trim: true },
+    connectionType: { type: String, enum: ['smtp', 'resend'], default: 'smtp' },
+    // SMTP fields
+    smtpHost: { type: String, default: '', trim: true },
+    smtpPort: { type: Number, default: 465 },
+    smtpUser: { type: String, default: '', trim: true },
+    smtpPass: { type: String, default: '', trim: true },
+    smtpSecure: { type: Boolean, default: true },
+    // Resend fields
     resendApiKey: { type: String, default: '', trim: true },
     isDefault: { type: Boolean, default: false },
     isVerified: { type: Boolean, default: false },
@@ -2506,6 +2514,97 @@ CallWorkflowSchema.index({ leadId: 1, direction: 1 });
 
 
 // ============================================================================
+// FUNNEL & LABELS & SCHEDULED MESSAGES - CRM Feature Schemas
+// ============================================================================
+
+// ─── FUNNEL STAGE MAPPING - Link leads to specific funnel stages ───
+const FunnelStageMappingSchema = new mongoose.Schema(
+  {
+    leadId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lead', required: true, index: true },
+    funnelConfigId: { type: mongoose.Schema.Types.ObjectId, ref: 'FunnelConfig', required: true, index: true },
+    stageKey: { type: String, required: true, trim: true, index: true }, // e.g. 'new_lead', 'contacted'
+    stageName: { type: String, trim: true }, // Denormalized for quick display
+    color: { type: String, default: '#6366F1' }, // Color at assignment time
+    movedByUserId: { type: String, trim: true, index: true }, // Who moved the lead
+    moveNote: { type: String, trim: true }, // Reason/note for move
+    daysInStage: { type: Number, default: 0 }, // Auto-updated periodically
+    metadata: mongoose.Schema.Types.Mixed,
+  },
+  { timestamps: true, collection: 'funnel_stage_mappings' }
+);
+FunnelStageMappingSchema.index({ leadId: 1, funnelConfigId: 1 }, { unique: true });
+
+// ─── SCHEDULED MESSAGE - WhatsApp messages scheduled for future delivery ───
+const ScheduledMessageSchema = new mongoose.Schema(
+  {
+    // Target(s)
+    leadId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lead', required: false, index: true }, // Single lead OR
+    leadIds: { type: [mongoose.Schema.Types.ObjectId], default: [], index: true }, // Multiple leads
+    phoneNumbers: { type: [String], default: [], index: true }, // Direct phone numbers if no leads
+
+    // Message content
+    messageType: {
+      type: String,
+      enum: ['text', 'template', 'media'],
+      default: 'text',
+      index: true,
+    },
+    messageText: { type: String }, // For text messages
+    templateId: { type: mongoose.Schema.Types.ObjectId, ref: 'WhatsAppTemplate' }, // For templates
+    templateVariables: mongoose.Schema.Types.Mixed, // Variables for template
+    
+    // Media (for media type)
+    mediaUrl: { type: String }, // URL to media file
+    mediaCaption: { type: String }, // Caption for media
+    mediaType: { type: String, enum: ['image', 'document', 'video', 'audio'] }, // Type of media
+
+    // Scheduling
+    scheduledFor: { type: Date, required: true, index: true }, // When to send
+    timezone: { type: String, default: 'Asia/Kolkata' },
+    
+    // Status tracking
+    status: {
+      type: String,
+      enum: ['scheduled', 'processing', 'sent', 'failed', 'cancelled'],
+      default: 'scheduled',
+      index: true,
+    },
+    
+    // Delivery tracking
+    sentCount: { type: Number, default: 0 }, // How many actually sent
+    failedCount: { type: Number, default: 0 }, // How many failed
+    deliveredCount: { type: Number, default: 0 }, // How many delivered
+    failureReasons: [{ type: String }], // List of failure reasons
+    
+    // Retries
+    retryCount: { type: Number, default: 0 },
+    maxRetries: { type: Number, default: 2 },
+    nextRetryAt: { type: Date },
+    
+    // Admin info
+    createdByUserId: { type: String, trim: true, index: true },
+    createdByName: { type: String, trim: true },
+    cancelledByUserId: { type: String, trim: true },
+    cancelledAt: { type: Date },
+    
+    // Execution
+    processedAt: { type: Date },
+    startedAt: { type: Date },
+    completedAt: { type: Date },
+    
+    // Tracking
+    campaignName: { type: String, trim: true }, // Optional: part of a campaign
+    tags: { type: [String], default: [] },
+    
+    metadata: mongoose.Schema.Types.Mixed,
+  },
+  { timestamps: true, collection: 'scheduled_messages' }
+);
+ScheduledMessageSchema.index({ status: 1, scheduledFor: 1 });
+ScheduledMessageSchema.index({ createdByUserId: 1, createdAt: -1 });
+ScheduledMessageSchema.index({ processedAt: 1 });
+
+// ============================================================================
 // MODEL INITIALIZATION (LAZY - DEFERRED TO FIRST USE)
 // ============================================================================
 // CRITICAL: We DO NOT call getCrmDb() at module load time!
@@ -2559,10 +2658,86 @@ function createModelProxy(modelName: string, schema: any) {
   });
 }
 
+// ============================================================================
+// AUTO CONFIG SETTINGS — Unified runtime configuration (stored in DB, not env)
+// ============================================================================
+const AutoConfigSchema = new mongoose.Schema(
+  {
+    key: { type: String, default: 'auto_config', unique: true, index: true },
+
+    // ---- Chatbot / Auto-Reply Master Switch ----
+    chatbotEnabled: { type: Boolean, default: true },
+
+    // ---- Welcome Message ----
+    welcomeEnabled: { type: Boolean, default: true },
+    welcomeMessage: {
+      type: String,
+      default: 'नमस्ते 🙏 Swar Yoga में आपका स्वागत है!\n\nHow can I help you today?',
+    },
+
+    // ---- Working Hours ----
+    workingHoursEnabled: { type: Boolean, default: false },
+    workingHoursStart: { type: String, default: '09:00' },
+    workingHoursEnd: { type: String, default: '18:00' },
+    workingHoursTimezone: { type: String, default: 'Asia/Kolkata' },
+    offHoursMessage: {
+      type: String,
+      default: 'We are currently offline. Our team will respond during business hours (9 AM - 6 PM IST). 🙏',
+    },
+
+    // ---- Knowledge Base Auto-Reply ----
+    kbAutoReplyEnabled: { type: Boolean, default: true },
+    kbMinConfidence: { type: Number, default: 0.6, min: 0, max: 1 },
+
+    // ---- AI Agent ----
+    aiAgentEnabled: { type: Boolean, default: false },
+    aiModel: { type: String, default: 'gpt-4o-mini' },
+    aiSystemPrompt: {
+      type: String,
+      default: 'You are a helpful assistant for Swar Yoga. Be friendly, concise, and professional.',
+    },
+    aiMaxTokens: { type: Number, default: 250 },
+
+    // ---- Auto Lead Assignment ----
+    autoAssignEnabled: { type: Boolean, default: true },
+    autoAssignStrategy: {
+      type: String,
+      enum: ['round-robin', 'least-active', 'manual'],
+      default: 'round-robin',
+    },
+
+    // ---- Auto Add to Broadcast ----
+    autoBroadcastEnabled: { type: Boolean, default: true },
+
+    // ---- Inactivity Auto-Close ----
+    autoCloseEnabled: { type: Boolean, default: false },
+    autoCloseMinutes: { type: Number, default: 1440 },
+    autoCloseMessage: {
+      type: String,
+      default: 'This chat has been closed due to inactivity. Feel free to message us again! 🙏',
+    },
+
+    // ---- Notification Settings ----
+    notifyOnNewLead: { type: Boolean, default: true },
+    notifyOnOffHoursMessage: { type: Boolean, default: true },
+    notifyEmail: { type: String, trim: true },
+
+    // ---- Rate Limiting ----
+    rateLimitEnabled: { type: Boolean, default: false },
+    rateLimitMaxPerMinute: { type: Number, default: 30 },
+
+    // ---- Misc ----
+    updatedBy: { type: String },
+    metadata: mongoose.Schema.Types.Mixed,
+  },
+  { timestamps: true, collection: 'auto_config' }
+);
+
 // Export getter functions instead of Proxies for clarity and reliability
 // Usage: const Lead = (await import('@/lib/schemas/enterpriseSchemas')).getLead();
 // Or simply: const { getLead } = await import('@/lib/schemas/enterpriseSchemas'); const lead = getLead();
 
+export function getAutoConfig() { return getModel('AutoConfig', AutoConfigSchema); }
 export function getLead() { return getModel('Lead', LeadSchema); }
 export function getCrmCounter() { return getModel('CrmCounter', CrmCounterSchema); }
 export function getDeletedLead() { return getModel('DeletedLead', DeletedLeadSchema); }
@@ -2664,6 +2839,8 @@ const AgentLanguageMappingSchema = new mongoose.Schema(
 );
 
 export function getAgentLanguageMapping() { return getModel('AgentLanguageMapping', AgentLanguageMappingSchema); }
+export function getFunnelStageMapping() { return getModel('FunnelStageMapping', FunnelStageMappingSchema); }
+export function getScheduledMessage() { return getModel('ScheduledMessage', ScheduledMessageSchema); }
 
 // LEGACY PROXY EXPORTS - For backward compatibility with existing code
 // These use Proxies to defer initialization
@@ -2727,3 +2904,218 @@ export function getAccTdsEntry() { return getModel('AccTdsEntry', AccTdsEntrySch
 export function getAccStockGroup() { return getModel('AccStockGroup', AccStockGroupSchema); }
 export function getAccStockItem() { return getModel('AccStockItem', AccStockItemSchema); }
 export function getAccStockTxn() { return getModel('AccStockTxn', AccStockTxnSchema); }
+
+// ============================================================================
+// TALLY INTEGRATION SCHEMAS
+// ============================================================================
+
+// ----- Tally Manual Balance -----
+const TallyManualBalanceSchema = new mongoose.Schema(
+  {
+    ledgerName: { type: String, required: true, trim: true },
+    parentGroup: { type: String, required: true, trim: true },
+    category: { type: String, required: true, enum: ['asset', 'liability', 'income', 'expense'] },
+    amount: { type: Number, required: true, default: 0 },
+    drCr: { type: String, required: true, enum: ['Dr', 'Cr'] },
+    financialYear: { type: String, required: true },
+    asOnDate: { type: String, default: '' },
+    notes: { type: String, default: '' },
+    createdBy: { type: String },
+  },
+  { timestamps: true, collection: 'tally_manual_balances' }
+);
+TallyManualBalanceSchema.index({ financialYear: 1 });
+TallyManualBalanceSchema.index({ category: 1, parentGroup: 1, ledgerName: 1 });
+
+// ----- Tally Manual Voucher -----
+const TallyManualVoucherSchema = new mongoose.Schema(
+  {
+    voucherType: { type: String, required: true, enum: ['Receipt', 'Payment', 'Journal', 'Contra', 'Sales', 'Purchase'] },
+    voucherNumber: { type: String, default: '' },
+    date: { type: String, required: true },
+    partyName: { type: String, required: true, trim: true },
+    ledgerName: { type: String, default: '', trim: true },
+    amount: { type: Number, required: true },
+    narration: { type: String, default: '', trim: true },
+    paymentMode: { type: String, default: '', trim: true },
+    financialYear: { type: String, required: true },
+    createdBy: { type: String },
+    entries: [
+      {
+        ledgerName: { type: String },
+        drCr: { type: String, enum: ['Dr', 'Cr'] },
+        amount: { type: Number },
+      },
+    ],
+  },
+  { timestamps: true, collection: 'tally_manual_vouchers' }
+);
+TallyManualVoucherSchema.index({ financialYear: 1 });
+TallyManualVoucherSchema.index({ financialYear: 1, voucherType: 1 });
+
+// ----- Tally Receipt File -----
+const TallyReceiptFileSchema = new mongoose.Schema(
+  {
+    financialYear: { type: String, required: true },
+    voucherId: { type: String },
+    voucherType: { type: String, default: '' },
+    voucherNumber: { type: String, default: '' },
+    fileName: { type: String, required: true },
+    fileUrl: { type: String, required: true },
+    fileType: { type: String, required: true },
+    fileSize: { type: Number, required: true },
+    category: { type: String, default: 'other', enum: ['income', 'expense', 'other'] },
+    partyName: { type: String, default: '' },
+    amount: { type: Number },
+    date: { type: String, default: '' },
+    notes: { type: String, default: '' },
+    uploadedBy: { type: String },
+  },
+  { timestamps: true, collection: 'tally_receipt_files' }
+);
+TallyReceiptFileSchema.index({ financialYear: 1 });
+TallyReceiptFileSchema.index({ category: 1 });
+
+// ----- Tally Invoice -----
+const TallyInvoiceSchema = new mongoose.Schema(
+  {
+    tallyId: { type: String, required: true, unique: true },
+    tallyInvoiceNumber: { type: String },
+    tallyCustomerId: { type: String },
+    linkedCustomerId: { type: mongoose.Schema.Types.ObjectId },
+    date: { type: Date },
+    dueDate: { type: Date },
+    lineItems: [
+      {
+        description: { type: String },
+        quantity: { type: Number },
+        rate: { type: Number },
+        amount: { type: Number },
+      },
+    ],
+    subtotal: { type: Number, default: 0 },
+    gst: { type: Number, default: 0 },
+    total: { type: Number, default: 0 },
+    paymentStatus: { type: String, enum: ['unpaid', 'partial', 'paid'], default: 'unpaid' },
+    paidAmount: { type: Number, default: 0 },
+    pendingAmount: { type: Number, default: 0 },
+    notes: { type: String },
+    lastSyncedAt: { type: Date },
+    syncStatus: { type: String },
+    tallyRawData: { type: mongoose.Schema.Types.Mixed },
+  },
+  { timestamps: true, collection: 'tally_invoices' }
+);
+TallyInvoiceSchema.index({ tallyId: 1 }, { unique: true });
+TallyInvoiceSchema.index({ tallyCustomerId: 1 });
+TallyInvoiceSchema.index({ date: 1 });
+
+// ----- Tally Customer -----
+const TallyCustomerSchema = new mongoose.Schema(
+  {
+    tallyId: { type: String, required: true, unique: true },
+    tallyName: { type: String },
+    email: { type: String },
+    phone: { type: String },
+    address: { type: String },
+    state: { type: String },
+    gstin: { type: String },
+    totalAmount: { type: Number, default: 0 },
+    totalPaid: { type: Number, default: 0 },
+    totalPending: { type: Number, default: 0 },
+    totalInvoices: { type: Number, default: 0 },
+    lastSyncedAt: { type: Date },
+    syncStatus: { type: String },
+    tallyRawData: { type: mongoose.Schema.Types.Mixed },
+  },
+  { timestamps: true, collection: 'tally_customers' }
+);
+TallyCustomerSchema.index({ tallyId: 1 }, { unique: true });
+
+// ----- Tally Payment -----
+const TallyPaymentSchema = new mongoose.Schema(
+  {
+    tallyId: { type: String, required: true, unique: true },
+    tallyPaymentVoucher: { type: String },
+    tallyCustomerId: { type: String },
+    tallyInvoiceIds: [{ type: String }],
+    linkedInvoiceIds: [{ type: String }],
+    paymentDate: { type: Date },
+    paymentMethod: { type: String, enum: ['cash', 'bank_transfer', 'cheque', 'online', 'other'] },
+    amount: { type: Number, default: 0 },
+    referenceNumber: { type: String },
+    notes: { type: String },
+    lastSyncedAt: { type: Date },
+    syncStatus: { type: String },
+    tallyRawData: { type: mongoose.Schema.Types.Mixed },
+  },
+  { timestamps: true, collection: 'tally_payments' }
+);
+TallyPaymentSchema.index({ tallyId: 1 }, { unique: true });
+TallyPaymentSchema.index({ tallyCustomerId: 1 });
+
+// ----- Tally Sync Log -----
+const TallySyncLogSchema = new mongoose.Schema(
+  {
+    syncType: { type: String, required: true, enum: ['customers', 'invoices', 'payments', 'all', 'auto'] },
+    status: { type: String, required: true, enum: ['success', 'failed', 'partial'] },
+    totalProcessed: { type: Number },
+    totalSucceeded: { type: Number },
+    totalFailed: { type: Number },
+    errors: { type: [mongoose.Schema.Types.Mixed], default: [] },
+    endTime: { type: Date },
+    details: { type: mongoose.Schema.Types.Mixed },
+    ledgerCount: { type: Number },
+    voucherCount: { type: Number },
+    durationMs: { type: Number },
+    from: { type: String },
+    to: { type: String },
+    error: { type: String },
+    syncedAt: { type: Date, default: Date.now },
+  },
+  { timestamps: true, collection: 'tally_sync_logs' }
+);
+TallySyncLogSchema.index({ syncedAt: -1 });
+TallySyncLogSchema.index({ createdAt: -1 });
+
+// Tally getter functions
+export function getTallyManualBalance() { return getModel('TallyManualBalance', TallyManualBalanceSchema); }
+export function getTallyManualVoucher() { return getModel('TallyManualVoucher', TallyManualVoucherSchema); }
+export function getTallyReceiptFile() { return getModel('TallyReceiptFile', TallyReceiptFileSchema); }
+export function getTallyInvoice() { return getModel('TallyInvoice', TallyInvoiceSchema); }
+export function getTallyCustomer() { return getModel('TallyCustomer', TallyCustomerSchema); }
+export function getTallyPayment() { return getModel('TallyPayment', TallyPaymentSchema); }
+export function getTallySyncLog() { return getModel('TallySyncLog', TallySyncLogSchema); }
+
+export const AutoConfig = createModelProxy('AutoConfig', AutoConfigSchema);
+
+// ============================================================================
+// CRM USER SETTINGS - Per-user funnel mappings, labels, preferences
+// ============================================================================
+const CRMUserSettingsSchema = new mongoose.Schema(
+  {
+    userId: { type: String, required: true, unique: true, index: true },
+    chatFunnels: { type: mongoose.Schema.Types.Mixed, default: {} },   // { chatJid: stageKey }
+    chatLabels: { type: mongoose.Schema.Types.Mixed, default: {} },    // { chatJid: [label1, label2] }
+    labelPresets: [
+      {
+        key: { type: String, required: true },
+        label: { type: String, required: true },
+        color: { type: String, default: '' },
+      },
+    ],
+    // QR-specific funnel stages (independent from leads/manage funnel)
+    qrFunnelStages: [
+      {
+        key: { type: String, required: true },
+        label: { type: String, required: true },
+        color: { type: String, default: '' },
+      },
+    ],
+    metadata: mongoose.Schema.Types.Mixed,
+  },
+  { timestamps: true, collection: 'crm_user_settings' }
+);
+
+export function getCRMUserSettings() { return getModel('CRMUserSettings', CRMUserSettingsSchema); }
+export const CRMUserSettings = createModelProxy('CRMUserSettings', CRMUserSettingsSchema);

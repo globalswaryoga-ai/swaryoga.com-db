@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
 
     // 3. Test S3 connection
     let s3Status = 'NOT TESTED';
-    let s3Error = null;
+    let s3Error: { message: string; code: string; statusCode: number } | null = null;
 
     if (config.hasAccessKey && config.hasSecretKey) {
       try {

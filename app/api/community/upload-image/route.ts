@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { uploadToS3 } from '@/lib/aws-s3';
+import { uploadToS3 } from '@/lib/bunny-storage';
 
 export const runtime = 'nodejs';
 

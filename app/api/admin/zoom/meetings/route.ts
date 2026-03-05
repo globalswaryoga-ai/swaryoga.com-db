@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     // Optionally link to workshop in database
     if (workshopId) {
       await connectDB();
-      const { getWorkshop } = await import('@/lib/schemas/enterpriseSchemas');
+      const { getWorkshop } = await import('@/lib/schemas/workshopSchemas');
       const Workshop = getWorkshop();
       await Workshop.findByIdAndUpdate(workshopId, {
         zoomMeetingId: meeting.id,

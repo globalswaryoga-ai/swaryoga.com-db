@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateUploadUrl } from '@/lib/aws-s3';
+import { generateUploadUrl } from '@/lib/bunny-storage';
 import { verifyToken } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -48,16 +48,17 @@ export async function POST(req: NextRequest) {
       expiresIn: 3600, // 1 hour
     });
 
-    const region = process.env.AWS_REGION || 'us-east-1';
-    const bucket = process.env.AWS_S3_BUCKET || 'swarygoal1hindi';
+    const cdnHost = process.env.BUNNY_STORAGE_CDN_HOST || '';
 
     return NextResponse.json({
       success: true,
       data: {
         uploadUrl,
         key,
-        publicUrl: `https://${bucket}.s3.${region}.amazonaws.com/${key}`,
-        proxyUrl: `/api/media/view/${key}`,
+        publicUrl: `https://${cdnHost}/${key}`,
+        proxyUrl: `/api/admin/crm/media/proxy?url=${encodeURIComponent(`https://${cdnHost}/${key}`)}`,
+        // API key needed for direct client uploads to Bunny Storage
+        storageApiKey: process.env.BUNNY_STORAGE_API_KEY || '',
       },
     });
   } catch (error) {

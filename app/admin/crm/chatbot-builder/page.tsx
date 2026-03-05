@@ -118,11 +118,6 @@ export default function ChatbotBuilderPage() {
       <PageHeader 
         title="Chatbot Flow Builder" 
         subtitle={`${flows.length} flows`}
-        breadcrumbs={[
-          { label: 'CRM', href: '/admin/crm' },
-          { label: 'Chatbots', href: '/admin/crm/chatbots' },
-          { label: 'Flow Builder' },
-        ]}
       />
 
       <div className="max-w-6xl mx-auto px-6 py-8">

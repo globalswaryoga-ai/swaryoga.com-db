@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
       return apiError('Violation ID is required', 400);
     }
     
-    const violation = await markViolationReviewed(violationId, decoded.userId, notes);
+    const violation = await markViolationReviewed(violationId, decoded.userId || '', notes);
     
     return apiSuccess({ message: 'Violation marked as reviewed', violation });
     

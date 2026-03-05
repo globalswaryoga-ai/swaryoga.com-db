@@ -1249,6 +1249,7 @@ export const calculateSwarYogaDominance = (
  */
 export const calculateCompletePanchang = (date: Date): {
   nakshatra: ReturnType<typeof calculateNakshatra>;
+  sunNakshatra: ReturnType<typeof calculateSunNakshatra>;
   yoga: ReturnType<typeof calculateYoga>;
   karana: ReturnType<typeof calculateKarana>;
   moonRashi: ReturnType<typeof calculateMoonRashi>;

@@ -170,12 +170,11 @@ const PHONE_PREFIX_TO_STATE: Record<string, string> = {
   '9864': 'Assam', '8011': 'Assam', '8134': 'Assam', '7002': 'Assam',
   '7086': 'Assam', '7399': 'Assam', '7577': 'Assam', '6000': 'Assam',
 
-  // Jharkhand
-  '9431': 'Jharkhand', '9470': 'Jharkhand', '9835': 'Jharkhand',
-  '7209': 'Jharkhand', '7488': 'Jharkhand', '7631': 'Jharkhand',
+  // Jharkhand (shared prefixes with Bihar removed: 9431, 9470, 9835, 7488)
+  '7209': 'Jharkhand', '7631': 'Jharkhand',
 
-  // Goa
-  '9422': 'Goa', '9823': 'Goa', '8380': 'Goa', '7083': 'Goa',
+  // Goa (shared prefix with Maharashtra removed: 9823)
+  '9422': 'Goa', '8380': 'Goa', '7083': 'Goa',
 
   // Uttarakhand
   '9410': 'Uttarakhand', '9411': 'Uttarakhand', '9412': 'Uttarakhand',
@@ -187,9 +186,8 @@ const PHONE_PREFIX_TO_STATE: Record<string, string> = {
   '9817': 'Himachal Pradesh', '8091': 'Himachal Pradesh', '7018': 'Himachal Pradesh',
   '7307': 'Himachal Pradesh', '7590': 'Himachal Pradesh',
 
-  // Chhattisgarh
-  '9424': 'Chhattisgarh', '9425': 'Chhattisgarh', '9826': 'Chhattisgarh',
-  '9827': 'Chhattisgarh', '7049': 'Chhattisgarh', '7587': 'Chhattisgarh',
+  // Chhattisgarh (shared prefixes with Madhya Pradesh removed: 9424, 9425, 9826, 9827, 7049)
+  '7587': 'Chhattisgarh',
 
   // J&K
   '9419': 'Jammu and Kashmir', '9469': 'Jammu and Kashmir', '9858': 'Jammu and Kashmir',

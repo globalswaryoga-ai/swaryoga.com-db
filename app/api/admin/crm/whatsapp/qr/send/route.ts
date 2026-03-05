@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
       const Lead = getLead();
       
       // Find lead by leadId or phone number
-      let lead = null;
+      let lead: any = null;
       if (leadId) {
         lead = await Lead.findById(leadId);
       } else if (phoneForCheck && phoneForCheck.length >= 10) {

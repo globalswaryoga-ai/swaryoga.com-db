@@ -13,9 +13,10 @@ interface Template {
   templateContent: string;
   headerFormat?: string;
   headerMedia?: { kind: string; url: string };
-  buttons?: { kind: string; title: string; url?: string }[];
+  buttons?: { kind: string; title: string; text?: string; url?: string }[];
   language?: string;
   status?: string;
+  footerText?: string;
 }
 
 interface RecentSend {

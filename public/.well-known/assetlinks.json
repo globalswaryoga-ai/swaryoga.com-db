@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.swaryoga",
+      "sha256_cert_fingerprints": [
+        "39:AB:30:CA:88:F0:AD:F2:E2:74:58:6F:3F:64:77:C1:DF:67:F7:A2:08:93:14:A4:6F:F2:CD:38:20:67:3F:E2"
+      ]
+    }
+  }
+]

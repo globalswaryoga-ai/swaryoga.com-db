@@ -25,7 +25,7 @@ export function calculateSimpleInterest(
   const total = amount + interest;
 
   // Calculate yearly breakdown
-  const yearly = [];
+  const yearly: { year: number; principalPaid: number; interest: number; total: number }[] = [];
   for (let year = 1; year <= years; year++) {
     const yearlyInterest = (amount * ratePercentage * 1) / 100;
     yearly.push({
@@ -60,7 +60,7 @@ export function calculateCompoundInterest(
   const compoundInterest = finalAmount - amount;
 
   // Calculate yearly breakdown
-  const yearly = [];
+  const yearly: { year: number; amount: number; interest: number }[] = [];
   let previousAmount = amount;
   for (let year = 1; year <= years; year++) {
     const currentAmount = amount * Math.pow(1 + ratePercentage / 100, year);
@@ -95,7 +95,7 @@ export function calculatePreferenceDividend(
   const yearlyDividend = amount * CALCULATION.PREFERENCE_DIVIDEND_RATE;
   const totalDividend = yearlyDividend * years;
 
-  const yearly = [];
+  const yearly: { year: number; dividend: number; totalReceived: number }[] = [];
   for (let year = 1; year <= years; year++) {
     yearly.push({
       year,
@@ -131,7 +131,7 @@ export function calculateEquityReturns(
   const finalValue = amount * Math.pow(capitalGainRate, years);
   const totalCapitalGain = finalValue - amount;
 
-  const yearly = [];
+  const yearly: { year: number; dividend: number; capitalGain: number; totalValue: number }[] = [];
   for (let year = 1; year <= years; year++) {
     const annualDividend = annualReturn;
     const currentValue = amount * Math.pow(capitalGainRate, year);

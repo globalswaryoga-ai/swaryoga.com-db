@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { LoadingSpinner, AlertBox } from '@/components/admin/crm';
-import AdminSidebar from '@/components/AdminSidebar';
 
 export default function WhatsAppSetupPage() {
   const token = useAuth();
@@ -47,8 +46,6 @@ export default function WhatsAppSetupPage() {
   const webhooks = waDiagnostics?.webhooks;
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
-      <AdminSidebar />
       <main className="flex-1 p-8">
         <div className="max-w-4xl mx-auto">
           <div className="flex justify-between items-center mb-8">
@@ -178,6 +175,5 @@ export default function WhatsAppSetupPage() {
           </div>
         </div>
       </main>
-    </div>
   );
 }

@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import AdminSidebar from '@/components/AdminSidebar';
 import { useRouter } from 'next/navigation';
 import { 
   Settings, 
@@ -245,10 +244,7 @@ export default function LeadAssignmentSettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-      <AdminSidebar />
-      
-      <main className="flex-1 p-6 md:ml-64">
+      <main className="flex-1 p-6">
         <div className="max-w-4xl mx-auto">
           {/* Header */}
           <div className="mb-8">
@@ -499,6 +495,5 @@ export default function LeadAssignmentSettingsPage() {
           </div>
         </div>
       </main>
-    </div>
   );
 }

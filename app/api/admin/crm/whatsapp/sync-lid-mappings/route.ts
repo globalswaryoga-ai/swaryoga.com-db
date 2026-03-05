@@ -53,7 +53,7 @@ async function extractMappingsFromCRM(): Promise<Record<string, string>> {
  */
 export async function GET(req: NextRequest) {
   try {
-    const decoded = await verifyToken(req);
+    const decoded = verifyToken(req.headers.get('authorization') || '');
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
@@ -92,7 +92,7 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   try {
-    const decoded = await verifyToken(req);
+    const decoded = verifyToken(req.headers.get('authorization') || '');
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }

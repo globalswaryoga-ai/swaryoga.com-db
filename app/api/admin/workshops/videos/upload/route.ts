@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
 
     // If title is provided, create the video record immediately
     // (will be marked as pending until upload completes)
-    let videoRecord = null;
+    let videoRecord: any = null;
     if (title) {
       await connectDB();
       const WorkshopVideo = getWorkshopVideo();

@@ -4,13 +4,9 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import AdminSidebar from '@/components/AdminSidebar';
 import {
-  Menu,
   X,
   UserPlus,
-  Home,
-  LogOut,
   Users,
   TrendingUp,
   DollarSign,
@@ -20,6 +16,7 @@ import {
   FileText,
   ArrowUpRight,
   AlertCircle,
+  Settings,
 } from 'lucide-react';
 
 interface CRMStats {
@@ -49,7 +46,6 @@ export default function CRMDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Add User Modal State
   const [showAddUser, setShowAddUser] = useState(false);
@@ -216,63 +212,10 @@ export default function CRMDashboard() {
     fetchDashboardData();
   }, [token, isSuperAdmin]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('adminToken');
-    localStorage.removeItem('adminUser');
-    localStorage.removeItem('admin_token');
-    localStorage.removeItem('admin_user');
-    router.push('/admin/login');
-  };
-
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-      <AdminSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-
-      <div className="flex-1 flex flex-col min-h-screen md:ml-0">
-        {/* Header */}
-        <header className="bg-white border-b border-gray-200 px-4 md:px-6 py-4 flex items-center justify-between sticky top-0 z-30">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="md:hidden p-2 rounded-lg hover:bg-gray-100"
-            >
-              <Menu className="h-6 w-6" />
-            </button>
-            <div>
-              <h1 className="text-xl md:text-2xl font-bold text-gray-900">Dashboard</h1>
-              <p className="text-sm text-gray-500">Welcome to Swar Yoga CRM</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {isSuperAdmin && (
-              <button
-                onClick={() => setShowAddUser(true)}
-                className="hidden sm:flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-              >
-                <UserPlus className="h-4 w-4" />
-                <span className="hidden md:inline">Add User</span>
-              </button>
-            )}
-            <Link
-              href="/"
-              className="p-2 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
-              title="Go to Home"
-            >
-              <Home className="h-5 w-5" />
-            </Link>
-            <button
-              onClick={handleLogout}
-              className="p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
-              title="Logout"
-            >
-              <LogOut className="h-5 w-5" />
-            </button>
-          </div>
-        </header>
-
-        {/* Add User Modal */}
-        {showAddUser && (
+    <>
+      {/* Add User Modal */}
+      {showAddUser && (
           <div className="fixed inset-0 z-50 flex items-center justify-center">
             <div className="absolute inset-0 bg-black/50" onClick={() => setShowAddUser(false)} />
             <div className="relative w-full max-w-lg mx-4 bg-white rounded-2xl shadow-2xl">
@@ -383,7 +326,20 @@ export default function CRMDashboard() {
         )}
 
         {/* Dashboard Content */}
-        <main className="flex-1 p-4 md:p-6 space-y-6">
+        <div className="p-4 md:p-6 space-y-6">
+          {/* Add User for super admins */}
+          {isSuperAdmin && (
+            <div className="flex justify-end">
+              <button
+                onClick={() => setShowAddUser(true)}
+                className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+              >
+                <UserPlus className="h-4 w-4" />
+                <span>Add User</span>
+              </button>
+            </div>
+          )}
+
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center gap-3">
               <AlertCircle className="h-5 w-5 flex-shrink-0" />
@@ -467,6 +423,7 @@ export default function CRMDashboard() {
                 <QuickActionCard href="/admin/crm/calls" icon={UserPlus} label="Call Workflows" color="emerald" />
                 <QuickActionCard href="/admin/crm/templates" icon={FileText} label="Templates" color="orange" />
                 <QuickActionCard href="/admin/crm/analytics" icon={BarChart3} label="Analytics" color="purple" />
+                <QuickActionCard href="/admin/crm/settings" icon={Settings} label="Auto Config" color="gray" />
               </div>
 
               {/* Footer */}
@@ -475,9 +432,8 @@ export default function CRMDashboard() {
               </div>
             </>
           )}
-        </main>
-      </div>
-    </div>
+        </div>
+    </>
   );
 }
 

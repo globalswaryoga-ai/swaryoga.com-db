@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import AdminSidebar from '@/components/AdminSidebar';
 import {
   BarChart3,
   RefreshCw,
@@ -226,7 +225,6 @@ export default function TallyPage() {
   const [fy, setFy] = useState('2024-25');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [showGateway, setShowGateway] = useState(true);
   const [gatewayActive, setGatewayActive] = useState<string>('');
@@ -4413,6 +4411,12 @@ ${contentHtml}
     if (tab === 'comparative') loadComparative();
   }, [tab, fy, compType, compPrevFY]);
 
+  const fyList = [
+    { year: '2025-26' },
+    { year: '2024-25' },
+    { year: '2023-24' },
+  ];
+
   const ComparativeView = () => (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -7996,16 +8000,12 @@ ${contentHtml}
         }
       ` }} />
     )}
-    <div className={`flex min-h-screen ${isTally ? 'tally-classic bg-[#B8CCE4] text-black' : 'bg-gray-950 text-white'}`}>
-      <AdminSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+    <div className={`min-h-full ${isTally ? 'tally-classic bg-[#B8CCE4] text-black' : 'bg-gray-950 text-white'}`}>
 
       <main className={`flex-1 p-4 lg:p-6 overflow-auto ${isTally ? 'pb-16 lg:pb-14' : ''}`}>
         {/* Header — Tally Prime Navy Bar */}
         <div className={`flex items-center justify-between mb-4 ${isTally ? 'tally-header-bar bg-[#003366] rounded-md px-4 py-3 -mx-4 lg:-mx-6 -mt-4 lg:-mt-6 mb-4' : ''}`}>
           <div className="flex items-center gap-3">
-            <button onClick={() => setSidebarOpen(!sidebarOpen)} className={`lg:hidden p-2 rounded-lg ${isTally ? 'hover:bg-[#004488] text-white' : 'hover:bg-gray-800'}`}>
-              <Menu className="w-5 h-5" />
-            </button>
             <button onClick={() => router.push('/admin/crm')} className={`p-2 rounded-lg ${isTally ? 'hover:bg-[#004488] text-white' : 'hover:bg-gray-800'}`}>
               <ArrowLeft className="w-5 h-5" />
             </button>

@@ -48,7 +48,7 @@ export async function PUT(req: NextRequest) {
     
     const body = await req.json();
     
-    const settings = await updateDeviceSettings(body, decoded.userId);
+    const settings = await updateDeviceSettings(body, decoded.userId || '');
     
     return apiSuccess({ message: 'Settings updated', settings });
     

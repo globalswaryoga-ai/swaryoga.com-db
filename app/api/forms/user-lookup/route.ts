@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
     // Search by profileId (the 6-digit numeric ID)
     const user = await User.findOne({ profileId: { $in: searchTerms } })
       .select('name email phone countryCode country state gender age profession profileId')
-      .lean();
+      .lean() as any;
     
     if (!user) {
       return NextResponse.json({ found: false });

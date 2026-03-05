@@ -1733,7 +1733,7 @@ export default function BroadcastPage() {
                         </p>
                         
                         {/* QR shows buttons as text */}
-                        {provider === 'qr' && selectedTemplate.buttons?.length ? (
+                        {(provider as string) === 'qr' && selectedTemplate.buttons?.length ? (
                           <div className="mt-3 pt-3 border-t border-white/20">
                             {selectedTemplate.buttons.map((btn, i) => (
                               <p key={i} className="text-white/90 text-sm py-1">

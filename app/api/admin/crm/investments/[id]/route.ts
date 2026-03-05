@@ -32,7 +32,7 @@ export async function PUT(
     }
 
     // Check permissions - CS, CA, Admin can edit
-    if (!['admin', 'CS', 'CA'].includes(decoded.role)) {
+    if (!decoded.role || !['admin', 'CS', 'CA'].includes(decoded.role)) {
       return NextResponse.json(
         { error: 'You do not have permission to edit investments' },
         { status: 403 }

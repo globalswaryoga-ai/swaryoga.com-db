@@ -17,7 +17,7 @@ export async function importHistoricalMetaForms(
 ) {
   try {
     const db = await connectDB();
-    const crmDb = db.getDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+    const crmDb = db.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
     const leadsCollection = crmDb.collection('leads');
 
     console.log('📥 Fetching historical Meta forms...');
@@ -58,7 +58,7 @@ export async function importHistoricalMetaForms(
         }
 
         // Map workshop
-        let workshopId = null;
+        let workshopId: string | null = null;
         let workshopName = fieldData['workshop'] || fieldData['Which workshop are you interested in?'] || 'Unknown';
 
         if (workshopMappings) {
@@ -110,7 +110,7 @@ export async function importHistoricalMetaForms(
 export async function getMetaLeadsForWorkshop(workshopId: string) {
   try {
     const db = await connectDB();
-    const crmDb = db.getDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+    const crmDb = db.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
     const leadsCollection = crmDb.collection('leads');
 
     const leads = await leadsCollection
@@ -134,7 +134,7 @@ export async function getMetaLeadsForWorkshop(workshopId: string) {
 export async function getAllMetaFormLeads(limit = 100, skip = 0) {
   try {
     const db = await connectDB();
-    const crmDb = db.getDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+    const crmDb = db.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
     const leadsCollection = crmDb.collection('leads');
 
     const [leads, total] = await Promise.all([
@@ -160,7 +160,7 @@ export async function getAllMetaFormLeads(limit = 100, skip = 0) {
 export async function getMetaFormStats() {
   try {
     const db = await connectDB();
-    const crmDb = db.getDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+    const crmDb = db.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
     const leadsCollection = crmDb.collection('leads');
 
     // Total Meta leads
@@ -219,7 +219,7 @@ export async function autoAssignMetaLeads(workshopAssignments: Record<string, st
   // workshopAssignments = { "507f1f77bcf86cd...": "salesperson_id_1" }
   try {
     const db = await connectDB();
-    const crmDb = db.getDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+    const crmDb = db.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
     const leadsCollection = crmDb.collection('leads');
 
     let assigned = 0;
@@ -251,7 +251,7 @@ export async function autoAssignMetaLeads(workshopAssignments: Record<string, st
 export async function sendWelcomeToMetaLeads() {
   try {
     const db = await connectDB();
-    const crmDb = db.getDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+    const crmDb = db.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
     const leadsCollection = crmDb.collection('leads');
 
     // Get uncontacted Meta leads

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { getWhatsAppMessage, getLead, getBroadcastRunMessage } from '@/lib/schemas/enterpriseSchemas';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
-import { uploadToS3 } from '@/lib/aws-s3';
+import { uploadToS3 } from '@/lib/bunny-storage';
 
 /**
  * QR Bridge Webhook - receives incoming messages from the WhatsApp Web bridge
@@ -164,9 +164,9 @@ export async function POST(req: NextRequest) {
     const messageId = body.messageId;
     const contactName = body.contactName || body.pushName;
     const mediaUrl = body.mediaUrl;
-    // New: media sent directly as base64 from bridge
-    const mediaBase64 = body.mediaBase64;
-    const mediaMimeType = body.mediaMimeType;
+    // Media sent directly as base64 from bridge - check both top-level and nested formats
+    const mediaBase64 = body.mediaBase64 || body.media?.data;
+    const mediaMimeType = body.mediaMimeType || body.media?.mimetype;
 
     // Skip if no sender - but allow empty body for media messages
     if (!from) {
@@ -313,7 +313,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ 
       success: true, 
       messageId: savedMessage._id,
-      leadId: lead._id 
+      leadId: lead._id,
+      // Return media URL so bridge can store it for /messages endpoint previews
+      ...(savedMediaUrl && { mediaUrl: savedMediaUrl }),
     });
   } catch (err: any) {
     console.error('[QR WEBHOOK ERROR]:', err);

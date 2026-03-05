@@ -41,7 +41,7 @@ export default function SwarSakshiPage() {
     name: '',
     countryCode: '+91',
     phone: '',
-    amount: '',
+    investmentAmount: '',
     paymentMode: 'INR',
     startYear: new Date().getFullYear().toString(),
     startMonth: String(new Date().getMonth() + 1).padStart(2, '0'),

@@ -50,7 +50,7 @@ export default function MetaFormLeadsDashboard() {
         setLeads(data.leads);
         
         // Extract unique workshops
-        const uniqueWorkshops = [...new Set(data.leads.map((l: MetaLead) => l.workshopName))];
+        const uniqueWorkshops = [...new Set<string>(data.leads.map((l: MetaLead) => l.workshopName))];
         setWorkshops(uniqueWorkshops);
         
         // Initialize all workshops as selected

@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     }
 
     const db = await connectDB();
-    const crmDb = db.getDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+    const crmDb = db.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
     const leadsCollection = crmDb.collection('leads');
 
     // Get pagination params
@@ -91,7 +91,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const db = await connectDB();
-    const crmDb = db.getDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+    const crmDb = db.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
     const leadsCollection = crmDb.collection('leads');
 
     const updateData: any = { updatedAt: new Date() };
@@ -103,7 +103,7 @@ export async function PUT(request: NextRequest) {
     if (tags) updateData.tags = tags;
 
     const result = await leadsCollection.updateOne(
-      { _id: new ObjectId(leadId) },
+      { _id: new ObjectId(leadId) } as any,
       { $set: updateData }
     );
 

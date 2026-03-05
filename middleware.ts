@@ -1,12 +1,64 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+// ---------------------------------------------------------------------------
+// Multi-Tenant: lightweight slug extraction (Edge-safe, no DB)
+// ---------------------------------------------------------------------------
+const TENANT_APP_DOMAIN = process.env.TENANT_APP_DOMAIN || 'app.swaryoga.com';
+const CRM_SITE_DOMAIN = process.env.CRM_SITE_DOMAIN || 'crm.swaryoga.com';
+const TENANT_HEADER = 'x-tenant-id';
+const TENANT_RESPONSE_HEADER = 'x-tenant-slug';
+
+function extractTenantSlugEdge(headers: Headers, hostname: string): string | null {
+  // 1. Explicit header
+  const h = headers.get(TENANT_HEADER);
+  if (h) return h.trim().toLowerCase();
+  // 2. Subdomain: e.g. acme.app.swaryoga.com → "acme"
+  const lower = hostname.toLowerCase();
+  if (lower.endsWith(`.${TENANT_APP_DOMAIN}`)) {
+    const sub = lower.slice(0, -(TENANT_APP_DOMAIN.length + 1));
+    if (sub && sub !== 'www') return sub;
+  }
+  return null;
+}
+
 // Simple in-memory rate limiting for Edge Middleware
 // Note: This is per-edge-instance, which is fine for basic "hiker" protection
 const rateLimitMap = new Map();
 
 export function middleware(request: NextRequest) {
-  // 1. Rate Limiting Check
+  // 0. Tenant Detection (Edge-safe — no DB call)
+  const hostname = request.nextUrl.hostname || request.headers.get('host') || '';
+  const tenantSlug = extractTenantSlugEdge(request.headers, hostname);
+
+  // 0b. CRM Site Subdomain Rewrite
+  // crm.swaryoga.com → serve /crm-site/* pages (does NOT affect main site or admin CRM)
+  const lowerHost = hostname.toLowerCase().split(':')[0]; // strip port for localhost
+  if (lowerHost === CRM_SITE_DOMAIN || lowerHost === 'crm.localhost') {
+    const path = request.nextUrl.pathname;
+    // Skip if already on /crm-site or accessing /api/crm-site or static assets
+    if (!path.startsWith('/crm-site') && !path.startsWith('/_next') && !path.startsWith('/favicon') && !path.startsWith('/logo')) {
+      // Rewrite / → /crm-site, /pricing → /crm-site/pricing, etc.
+      const rewriteUrl = request.nextUrl.clone();
+      rewriteUrl.pathname = `/crm-site${path === '/' ? '' : path}`;
+      return NextResponse.rewrite(rewriteUrl);
+    }
+  }
+
+  // 1. Rate Limiting Check — ONLY for API routes (skip page requests)
+  const path = request.nextUrl.pathname;
+  if (!path.startsWith('/api/')) {
+    // Non-API request: just add security headers and return
+    const response = NextResponse.next();
+    if (tenantSlug) {
+      response.headers.set(TENANT_HEADER, tenantSlug);
+      response.headers.set(TENANT_RESPONSE_HEADER, tenantSlug);
+    }
+    response.headers.set('X-Frame-Options', 'DENY');
+    response.headers.set('X-Content-Type-Options', 'nosniff');
+    return response;
+  }
+
   // IMPORTANT: On Vercel/Edge, request.ip can be undefined.
   // If we fall back to a constant like 127.0.0.1, all users share the same bucket
   // and will get rate-limited quickly. Prefer forwarded headers.
@@ -19,7 +71,6 @@ export function middleware(request: NextRequest) {
     'unknown';
   const now = Date.now();
   const windowMs = 60 * 1000; // 1 minute window
-  const path = request.nextUrl.pathname;
 
   // Default: conservative limit for most APIs.
   // NOTE: Some admin/CRM pages (WhatsApp QR inbox) poll endpoints frequently
@@ -85,6 +136,8 @@ export function middleware(request: NextRequest) {
   const allowedOrigins = [
     'https://swaryoga.com',
     'https://www.swaryoga.com',
+    'https://crm.swaryoga.com',
+    'https://app.swaryoga.com',
     'http://localhost:3000',
     'http://localhost:3001',
     'http://127.0.0.1:3000',
@@ -113,6 +166,12 @@ export function middleware(request: NextRequest) {
 
   // 3. Prepare response with common security headers
   const response = NextResponse.next();
+
+  // Inject tenant slug for downstream API routes (so they don't re-parse)
+  if (tenantSlug) {
+    response.headers.set(TENANT_HEADER, tenantSlug);
+    response.headers.set(TENANT_RESPONSE_HEADER, tenantSlug);
+  }
   
   // Add Security Headers (Simplified for Edge compatibility)
   response.headers.set('X-Frame-Options', 'DENY');
@@ -131,7 +190,11 @@ export function middleware(request: NextRequest) {
   return response;
 }
 
-// Apply middleware only to API routes (and optionally specific sensitive pages)
+// Apply middleware to API routes + all page routes (for subdomain rewriting)
 export const config = {
-  matcher: ['/api/:path*'],
+  matcher: [
+    '/api/:path*',
+    // CRM subdomain rewriting — match all page routes except static files
+    '/((?!_next/static|_next/image|favicon.ico).*)',
+  ],
 };

@@ -3,13 +3,11 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import AdminSidebar from '@/components/AdminSidebar';
-import { Menu, Trash2, Clock, AlertTriangle } from 'lucide-react';
+import { Trash2, Clock, AlertTriangle } from 'lucide-react';
 
 export default function OrderMaintenancePage() {
   const router = useRouter();
   const token = useAuth();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
   // Purge state
@@ -147,14 +145,8 @@ export default function OrderMaintenancePage() {
   }
 
   return (
-    <div className="min-h-screen bg-swar-bg flex">
-      <AdminSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-
-      <div className="flex-1 flex flex-col min-h-screen">
+      <div className="flex flex-col min-h-full">
         <header className="bg-white border-b border-swar-border px-4 md:px-6 py-4 flex items-center gap-4 sticky top-0 z-30">
-          <button onClick={() => setSidebarOpen(true)} className="md:hidden p-2 rounded-lg hover:bg-swar-primary-light">
-            <Menu className="h-6 w-6" />
-          </button>
           <div>
             <h1 className="text-xl md:text-2xl font-bold text-swar-text">Order Maintenance</h1>
             <p className="text-sm text-swar-text-secondary">Manage failed and pending orders</p>
@@ -281,6 +273,5 @@ export default function OrderMaintenancePage() {
           </div>
         </main>
       </div>
-    </div>
   );
 }

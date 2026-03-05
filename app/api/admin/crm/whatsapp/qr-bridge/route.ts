@@ -2,12 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 
 /**
  * WhatsApp QR Bridge Proxy Endpoint
- * Proxies requests to the WhatsApp bridge service at 52.91.198.23:3333
- * Supports dynamic path routing for QR code retrieval, status checks, and messaging
+ * Proxies requests to the WhatsApp bridge service (Baileys on Railway or local).
+ * Supports dynamic path routing for QR code retrieval, status checks, and messaging.
+ * 
+ * Set WHATSAPP_BRIDGE_HTTP_URL env var to point to your Baileys bridge instance.
+ * e.g. https://your-app.up.railway.app or http://localhost:3333
  */
 
-// Use EC2 bridge URL by default (works for both dev and prod)
-const DEFAULT_BRIDGE_URL = 'http://52.91.198.23:3333';
+// Fallback: local dev or Railway URL
+const DEFAULT_BRIDGE_URL = 'http://localhost:3333';
 
 // Prefer server-only vars, but also allow NEXT_PUBLIC_* (often configured first in Vercel/env files).
 // This route runs server-side, so either works.
@@ -118,15 +121,16 @@ export async function POST(req: NextRequest) {
       console.warn('[QR Bridge Proxy] Response is not JSON, returning as text');
       const text = await res.text();
       return NextResponse.json(
-        { data: text, note: 'Response was not JSON' },
+        { success: true, data: text, note: 'Response was not JSON' },
         { status: res.status }
       );
     }
-    return NextResponse.json(data, { status: res.status });
+    // Wrap in { success, data } so useCRM hook accepts the response
+    return NextResponse.json({ success: true, data }, { status: res.status });
   } catch (err) {
     console.error('[QR Bridge Proxy] Error:', err);
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Bridge proxy error' },
+      { success: false, error: err instanceof Error ? err.message : 'Bridge proxy error' },
       { status: 500 }
     );
   }
@@ -229,21 +233,22 @@ export async function GET(req: NextRequest) {
       try {
         const text = await res.text();
         return NextResponse.json(
-          { data: text, note: 'Response was not JSON' },
+          { success: true, data: text, note: 'Response was not JSON' },
           { status: res.status }
         );
       } catch (textErr) {
         return NextResponse.json(
-          { data: 'Unable to read response', note: 'Response body unavailable' },
+          { success: true, data: 'Unable to read response', note: 'Response body unavailable' },
           { status: res.status }
         );
       }
     }
-    return NextResponse.json(data, { status: res.status });
+    // Wrap in { success, data } so useCRM hook accepts the response
+    return NextResponse.json({ success: true, data }, { status: res.status });
   } catch (err) {
     console.error('[QR Bridge Proxy] Error:', err);
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Bridge proxy error' },
+      { success: false, error: err instanceof Error ? err.message : 'Bridge proxy error' },
       { status: 500 }
     );
   }

@@ -103,9 +103,9 @@ export async function GET(request: NextRequest) {
           const MB = getTallyManualBalance();
           const balEntries = await MB.find({ financialYear: fy }).lean();
 
-          const incomeItems: { name: string; amount: number }[] = [];
+          const incomeItems: { name: string; amount: number; _id?: string }[] = [];
           let totalIncome = 0;
-          const expenseItems: { name: string; amount: number }[] = [];
+          const expenseItems: { name: string; amount: number; _id?: string }[] = [];
           let totalExpenses = 0;
 
           for (const entry of balEntries) {

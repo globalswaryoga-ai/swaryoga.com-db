@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { getProtectedUrl } from '@/lib/aws-s3';
+import { getProtectedUrl } from '@/lib/bunny-storage';
 import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';

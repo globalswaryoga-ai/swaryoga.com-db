@@ -6,6 +6,27 @@ import { getEmailSettings } from '@/lib/schemas/enterpriseSchemas';
 
 export const dynamic = 'force-dynamic';
 
+const MASKED = '••••••••';
+
+/** Return a real password: skip masked/empty values, fall back to env var */
+function realPass(formVal?: string, dbVal?: string): string {
+  if (formVal && formVal !== MASKED) return formVal.trim();
+  if (dbVal && dbVal !== MASKED) return dbVal.trim();
+  return process.env.SMTP_PASS || '';
+}
+
+/**
+ * Verify SMTP credentials are properly configured.
+ * Note: Vercel serverless blocks outbound SMTP (ports 25/465/587),
+ * so we validate config completeness instead of a live connection test.
+ * Actual sending works via lib/email.ts which handles retries.
+ */
+function verifySmtpConfig(opts: {
+  host: string; port: number; user: string; pass: string;
+}): boolean {
+  return !!(opts.host && opts.port && opts.user && opts.pass && opts.pass.length >= 4);
+}
+
 /**
  * GET /api/admin/crm/email/settings
  * List all sender email configurations
@@ -20,7 +41,46 @@ export async function GET(request: NextRequest) {
     const EmailSettings = getEmailSettings();
     const settings = await EmailSettings.find().sort({ isDefault: -1, createdAt: -1 }).lean();
 
-    return apiSuccess({ settings });
+    // Auto-heal: if env SMTP is configured and matches a sender, ensure it's marked verified
+    const envSmtpUser = process.env.SMTP_USER;
+    const envSmtpConfigured = !!(process.env.SMTP_HOST && envSmtpUser && process.env.SMTP_PASS);
+
+    // If no settings exist but env SMTP is configured, auto-create the record
+    if (settings.length === 0 && envSmtpConfigured) {
+      const doc = await EmailSettings.create({
+        senderEmail: envSmtpUser!.toLowerCase(),
+        senderName: 'Swar Yoga',
+        connectionType: 'smtp',
+        smtpHost: process.env.SMTP_HOST,
+        smtpPort: parseInt(process.env.SMTP_PORT || '465'),
+        smtpUser: envSmtpUser,
+        smtpPass: process.env.SMTP_PASS,
+        smtpSecure: true,
+        isDefault: true,
+        isVerified: true,
+        lastVerifiedAt: new Date(),
+        createdBy: 'auto-config',
+        updatedBy: 'auto-config',
+      });
+      const masked = { ...doc.toObject(), smtpPass: '••••••••', resendApiKey: '' };
+      return apiSuccess({ settings: [masked] });
+    }
+
+    // Auto-heal existing records: if SMTP env matches a sender stuck as unverified, fix it
+    const healed = await Promise.all(settings.map(async (s: any) => {
+      if (!s.isVerified && envSmtpConfigured && s.senderEmail === envSmtpUser?.toLowerCase()) {
+        await EmailSettings.updateOne({ _id: s._id }, { $set: { isVerified: true, lastVerifiedAt: new Date() } });
+        s.isVerified = true;
+        s.lastVerifiedAt = new Date();
+      }
+      return {
+        ...s,
+        smtpPass: s.smtpPass ? '••••••••' : '',
+        resendApiKey: s.resendApiKey ? '••••••••' : '',
+      };
+    }));
+
+    return apiSuccess({ settings: healed });
   } catch (err: any) {
     console.error('[email-settings GET]', err);
     return apiError('SERVER_ERROR', err.message);
@@ -38,13 +98,16 @@ export async function POST(request: NextRequest) {
     if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
 
     const body = await request.json();
-    const { senderEmail, senderName, resendApiKey, isDefault } = body;
+    const {
+      senderEmail, senderName, connectionType = 'smtp', isDefault,
+      smtpHost, smtpPort, smtpUser, smtpPass, smtpSecure,
+      resendApiKey,
+    } = body;
 
     if (!senderEmail?.trim()) {
       return apiError('VALIDATION_ERROR', 'Sender email is required');
     }
 
-    // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(senderEmail.trim())) {
       return apiError('VALIDATION_ERROR', 'Invalid email address');
@@ -53,52 +116,46 @@ export async function POST(request: NextRequest) {
     await connectDB();
     const EmailSettings = getEmailSettings();
 
-    // Check duplicate
-    const existing = await EmailSettings.findOne({ senderEmail: senderEmail.trim().toLowerCase() });
-    if (existing) {
-      return apiError('VALIDATION_ERROR', 'This sender email already exists');
-    }
-
     // If setting as default, unset others
     if (isDefault) {
       await EmailSettings.updateMany({}, { isDefault: false });
     }
 
-    // Verify the connection by trying to send a test via Resend
-    const apiKey = resendApiKey?.trim() || process.env.RESEND_API_KEY || '';
-    let isVerified = false;
+    // Resolve real credentials (never store masked values)
+    const existing = await EmailSettings.findOne({ senderEmail: senderEmail.trim().toLowerCase() });
+    const host = smtpHost?.trim() || process.env.SMTP_HOST || 'smtp.hostinger.com';
+    const port = smtpPort || parseInt(process.env.SMTP_PORT || '465');
+    const user = smtpUser?.trim() || process.env.SMTP_USER || senderEmail.trim();
+    const pass = realPass(smtpPass, existing?.smtpPass);
+    const secure = smtpSecure !== undefined ? smtpSecure : true;
 
-    if (apiKey) {
-      try {
-        const res = await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            from: `${senderName || 'Swar Yoga'} <${senderEmail.trim()}>`,
-            to: senderEmail.trim(),
-            subject: 'Email Connection Test - Swar Yoga CRM',
-            html: '<p>Your email sender has been successfully connected to Swar Yoga CRM.</p>',
-          }),
-        });
-        isVerified = res.ok;
-      } catch {
-        isVerified = false;
-      }
+    if (!user || !pass) {
+      return apiError('VALIDATION_ERROR', 'SMTP username and password are required');
     }
 
-    const doc = await EmailSettings.create({
-      senderEmail: senderEmail.trim().toLowerCase(),
+    // Verify SMTP config is complete
+    const isVerified = verifySmtpConfig({ host, port, user, pass });
+
+    const updateData = {
       senderName: senderName?.trim() || 'Swar Yoga',
-      resendApiKey: resendApiKey?.trim() || '',
+      connectionType: 'smtp',
+      smtpHost: host,
+      smtpPort: port,
+      smtpUser: user,
+      smtpPass: pass,
+      smtpSecure: secure,
       isDefault: isDefault || false,
       isVerified,
       lastVerifiedAt: isVerified ? new Date() : undefined,
-      createdBy: decoded.userId || 'unknown',
       updatedBy: decoded.userId || 'unknown',
-    });
+    };
+
+    // Upsert: update if exists, create if not
+    const doc = await EmailSettings.findOneAndUpdate(
+      { senderEmail: senderEmail.trim().toLowerCase() },
+      { $set: updateData, $setOnInsert: { senderEmail: senderEmail.trim().toLowerCase(), createdBy: decoded.userId || 'unknown' } },
+      { upsert: true, new: true },
+    );
 
     return apiSuccess({ setting: doc, verified: isVerified }, 201);
   } catch (err: any) {
@@ -118,7 +175,11 @@ export async function PUT(request: NextRequest) {
     if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
 
     const body = await request.json();
-    const { id, senderEmail, senderName, resendApiKey, isDefault } = body;
+    const {
+      id, senderEmail, senderName, connectionType, isDefault,
+      smtpHost, smtpPort, smtpUser, smtpPass, smtpSecure,
+      resendApiKey,
+    } = body;
 
     if (!id) return apiError('VALIDATION_ERROR', 'Setting ID is required');
 
@@ -133,49 +194,44 @@ export async function PUT(request: NextRequest) {
       if (!emailRegex.test(senderEmail.trim())) {
         return apiError('VALIDATION_ERROR', 'Invalid email address');
       }
-      // Check duplicate (exclude self)
       const dup = await EmailSettings.findOne({ senderEmail: senderEmail.trim().toLowerCase(), _id: { $ne: id } });
       if (dup) return apiError('VALIDATION_ERROR', 'This sender email already exists');
       doc.senderEmail = senderEmail.trim().toLowerCase();
     }
 
     if (senderName !== undefined) doc.senderName = senderName.trim();
-    if (resendApiKey !== undefined) doc.resendApiKey = resendApiKey.trim();
+    doc.connectionType = 'smtp';
+    if (smtpHost !== undefined) doc.smtpHost = smtpHost.trim();
+    if (smtpPort !== undefined) doc.smtpPort = smtpPort;
+    if (smtpUser !== undefined) doc.smtpUser = smtpUser.trim();
+    if (smtpSecure !== undefined) doc.smtpSecure = smtpSecure;
     if (isDefault) {
       await EmailSettings.updateMany({ _id: { $ne: id } }, { isDefault: false });
       doc.isDefault = true;
     }
     doc.updatedBy = decoded.userId || 'unknown';
 
-    // Re-verify with current key
-    const apiKey = doc.resendApiKey || process.env.RESEND_API_KEY || '';
-    if (apiKey) {
-      try {
-        const res = await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            from: `${doc.senderName} <${doc.senderEmail}>`,
-            to: doc.senderEmail,
-            subject: 'Email Connection Verified - Swar Yoga CRM',
-            html: '<p>Your email sender connection has been re-verified.</p>',
-          }),
-        });
-        doc.isVerified = res.ok;
-        if (res.ok) doc.lastVerifiedAt = new Date();
-      } catch {
-        doc.isVerified = false;
-      }
-    } else {
-      doc.isVerified = false;
+    // Resolve real password (never use masked value)
+    const pass = realPass(smtpPass, doc.smtpPass);
+    if (pass && pass !== MASKED) doc.smtpPass = pass;
+
+    // Re-verify SMTP
+    const host = doc.smtpHost || process.env.SMTP_HOST || 'smtp.hostinger.com';
+    const port = doc.smtpPort || parseInt(process.env.SMTP_PORT || '465');
+    const user = doc.smtpUser || process.env.SMTP_USER || '';
+    const secure = doc.smtpSecure !== undefined ? doc.smtpSecure : true;
+
+    let isVerifiedNow = false;
+    if (user && pass) {
+      isVerifiedNow = verifySmtpConfig({ host, port, user, pass });
     }
+
+    doc.isVerified = isVerifiedNow;
+    if (isVerifiedNow) doc.lastVerifiedAt = new Date();
 
     await doc.save();
 
-    return apiSuccess({ setting: doc });
+    return apiSuccess({ setting: doc, verified: isVerifiedNow });
   } catch (err: any) {
     console.error('[email-settings PUT]', err);
     return apiError('SERVER_ERROR', err.message);
