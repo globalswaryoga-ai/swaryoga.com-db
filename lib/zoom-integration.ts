@@ -1,6 +1,6 @@
 // Zoom Integration for Swar Yoga Live Workshops
 import axios from 'axios';
-import { uploadToS3, buildS3Path } from './aws-s3';
+import { uploadToS3, buildS3Path } from './bunny-storage';
 
 interface ZoomMeetingConfig {
   clientId: string;

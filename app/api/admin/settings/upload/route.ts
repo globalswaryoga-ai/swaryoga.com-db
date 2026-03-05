@@ -4,16 +4,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { uploadToS3 } from '@/lib/bunny-storage';
 import { verifyToken } from '@/lib/auth';
-
-const s3Client = new S3Client({
-  region: process.env.AWS_REGION || 'ap-south-1',
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
-  },
-});
 
 export async function POST(request: NextRequest) {
   try {
@@ -34,21 +26,24 @@ export async function POST(request: NextRequest) {
     // Process logo
     const logoFile = formData.get('logo') as File;
     if (logoFile) {
-      const logoUrl = await uploadToS3(logoFile, 'admin-settings/logo');
+      const buffer = Buffer.from(await logoFile.arrayBuffer());
+      const logoUrl = await uploadToS3(buffer, `admin-settings/logo-${logoFile.name}`, { contentType: logoFile.type });
       uploadedUrls.logoUrl = logoUrl;
     }
 
     // Process signature
     const signatureFile = formData.get('signature') as File;
     if (signatureFile) {
-      const signatureUrl = await uploadToS3(signatureFile, 'admin-settings/signature');
+      const buffer = Buffer.from(await signatureFile.arrayBuffer());
+      const signatureUrl = await uploadToS3(buffer, `admin-settings/signature-${signatureFile.name}`, { contentType: signatureFile.type });
       uploadedUrls.signatureUrl = signatureUrl;
     }
 
     // Process seal
     const sealFile = formData.get('seal') as File;
     if (sealFile) {
-      const sealUrl = await uploadToS3(sealFile, 'admin-settings/seal');
+      const buffer = Buffer.from(await sealFile.arrayBuffer());
+      const sealUrl = await uploadToS3(buffer, `admin-settings/seal-${sealFile.name}`, { contentType: sealFile.type });
       uploadedUrls.sealUrl = sealUrl;
     }
 
@@ -60,24 +55,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
-
-async function uploadToS3(file: File, folder: string): Promise<string> {
-  const buffer = await file.arrayBuffer();
-  const timestamp = Date.now();
-  const filename = `${folder}/${timestamp}-${file.name}`;
-
-  const command = new PutObjectCommand({
-    Bucket: process.env.AWS_S3_BUCKET_NAME || 'swar-yoga-assets',
-    Key: filename,
-    Body: Buffer.from(buffer),
-    ContentType: file.type,
-    ACL: 'public-read',
-  });
-
-  await s3Client.send(command);
-
-  // Construct S3 URL
-  const s3Url = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION || 'ap-south-1'}.amazonaws.com/${filename}`;
-  return s3Url;
 }

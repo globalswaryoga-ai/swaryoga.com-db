@@ -9,7 +9,7 @@
  */
 
 import crypto from 'crypto';
-import { generatePresignedUrl } from './aws-s3';
+import { generatePresignedUrl } from './bunny-storage';
 import { 
   recordSuccess, 
   recordFailure, 

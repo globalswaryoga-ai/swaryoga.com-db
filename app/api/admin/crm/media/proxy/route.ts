@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
-import { generatePresignedUrl } from '@/lib/aws-s3';
+import { generatePresignedUrl } from '@/lib/bunny-storage';
 
 /**
  * GET /api/admin/crm/media/proxy?url=<S3_URL>&token=<AUTH_TOKEN>

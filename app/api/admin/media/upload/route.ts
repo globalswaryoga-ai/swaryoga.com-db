@@ -5,7 +5,7 @@ import {
   uploadAdminFile, 
   uploadCommunityFile,
   uploadCommunityVideo 
-} from '@/lib/aws-s3';
+} from '@/lib/bunny-storage';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';

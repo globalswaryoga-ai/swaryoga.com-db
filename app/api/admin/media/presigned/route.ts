@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateUploadUrl } from '@/lib/aws-s3';
+import { generateUploadUrl } from '@/lib/bunny-storage';
 import { verifyToken } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
