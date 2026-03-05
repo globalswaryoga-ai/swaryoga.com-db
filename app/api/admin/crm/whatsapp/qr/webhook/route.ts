@@ -281,11 +281,15 @@ export async function POST(req: NextRequest) {
     const mediaLabel = type === 'image' ? '📷 Image' : type === 'video' ? '🎬 Video' : type === 'audio' ? '🎵 Audio' : type === 'document' ? '📄 Document' : type === 'sticker' ? '🎨 Sticker' : '📎 Media';
     const contentToStore = messageBody || (hasMedia ? mediaLabel : '');
     
-    // Save the incoming message
+    // Determine direction: bridge sends fromMe=true for outbound messages
+    const isOutbound = body.fromMe === true;
+    const direction: 'inbound' | 'outbound' = isOutbound ? 'outbound' : 'inbound';
+
+    // Save the message
     const savedMessage = await WhatsAppMessage.create({
       phoneNumber,
       leadId: lead._id,
-      direction: 'inbound',
+      direction,
       messageContent: contentToStore,
       messageType: mappedType,
       hasMedia: hasMedia || false,
@@ -298,7 +302,7 @@ export async function POST(req: NextRequest) {
         }
       }),
       waMessageId: messageId,
-      status: 'received',
+      status: isOutbound ? 'sent' : 'received',
       provider: 'whatsapp_web_bridge',
       sentAt: timestamp ? new Date(typeof timestamp === 'number' && timestamp > 1e12 ? timestamp : timestamp * 1000) : new Date(),
     });
@@ -308,7 +312,7 @@ export async function POST(req: NextRequest) {
       await Lead.updateOne({ _id: lead._id }, { name: contactName });
     }
 
-    console.log('[QR WEBHOOK] Saved inbound message:', savedMessage._id, 'From:', phoneNumber);
+    console.log(`[QR WEBHOOK] Saved ${direction} message:`, savedMessage._id, 'Phone:', phoneNumber);
 
     return NextResponse.json({ 
       success: true, 

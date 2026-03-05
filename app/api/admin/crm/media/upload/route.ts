@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { verifyToken } from '@/lib/auth';
-import { uploadToS3, buildS3Path } from '@/lib/aws-s3';
+import { uploadToS3, buildS3Path } from '@/lib/bunny-storage';
 
 export const runtime = 'nodejs';
 
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
       fileSize: file.size,
       contentType: file.type,
       storagePath: s3Key,
-    }, 'File uploaded');
+    });
   } catch (err: any) {
     console.error('[media-upload POST]', err);
     return apiError(err.message || 'Upload failed', 500);
@@ -63,7 +63,7 @@ export async function GET(req: NextRequest) {
       return apiError('Unauthorized', 403);
     }
 
-    const configured = !!(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY && process.env.AWS_S3_BUCKET);
+    const configured = !!(process.env.BUNNY_STORAGE_API_KEY && process.env.BUNNY_STORAGE_ZONE_NAME);
     return apiSuccess({
       configured,
       hasStream: false,
