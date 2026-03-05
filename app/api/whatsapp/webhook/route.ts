@@ -9,7 +9,7 @@ import { handleInboundWhatsAppAutomations } from '@/lib/whatsappAutomation';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 import { assignLeadToNextAdmin } from '@/lib/crm/leadAssignment';
 
-import { normalizePhone as normalizePhoneDigits } from '@/lib/whatsapp';
+import { normalizePhone as normalizePhoneDigits, resubscribeWABAWebhooks } from '@/lib/whatsapp';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 
 // Import media helpers
@@ -103,6 +103,13 @@ export async function GET(request: NextRequest) {
   if (mode === 'subscribe' && token === expectedToken && challenge) {
     // Meta expects the raw challenge string as plain text.
     console.log('[WEBHOOK GET] VERIFICATION SUCCESSFUL');
+
+    // Auto re-subscribe WABA webhooks to prevent delivery pauses after deployments.
+    // Fire-and-forget — don't block the verification response.
+    resubscribeWABAWebhooks().catch((err) => {
+      console.error('[WEBHOOK GET] Auto-resubscribe failed:', err);
+    });
+
     return new Response(challenge, { 
       status: 200,
       headers: {

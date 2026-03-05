@@ -229,6 +229,52 @@ export async function downloadWhatsAppMedia(tempUrl: string): Promise<{ buffer: 
 // Meta CRM functions (sendWhatsAppText, sendWhatsAppMedia, sendWhatsAppTemplate)
 // should NEVER fall back to the QR bridge. QR page uses bridgeCall() directly.
 
+/**
+ * Re-subscribe the app to WABA webhooks via Meta Graph API.
+ * This ensures Meta continues delivering webhook events after deployments
+ * or temporary server errors. Call this after webhook GET verification
+ * succeeds, or as a periodic health check.
+ */
+export async function resubscribeWABAWebhooks(): Promise<{ success: boolean; error?: string }> {
+  try {
+    const env = getWhatsAppEnv();
+    if (!env) return { success: false, error: 'WhatsApp env not configured' };
+
+    const wabaId = (process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '').trim();
+    if (!wabaId) return { success: false, error: 'WHATSAPP_BUSINESS_ACCOUNT_ID not set' };
+
+    const { accessToken, appSecret } = env;
+    const appSecretProof = generateAppSecretProof(accessToken, appSecret);
+    const proofParam = appSecretProof ? `?appsecret_proof=${appSecretProof}` : '';
+
+    const res = await fetch(
+      `https://graph.facebook.com/v24.0/${wabaId}/subscribed_apps${proofParam}`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        cache: 'no-store',
+      }
+    );
+
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data?.success) {
+      console.log('[WABA] ✅ Re-subscribed to WABA webhooks successfully');
+      return { success: true };
+    }
+
+    const errMsg = data?.error?.message || `HTTP ${res.status}`;
+    console.error('[WABA] ❌ Re-subscribe failed:', errMsg);
+    return { success: false, error: errMsg };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[WABA] ❌ Re-subscribe error:', msg);
+    return { success: false, error: msg };
+  }
+}
+
 export function generateAppSecretProof(accessToken: string, appSecret?: string): string | undefined {
   if (!appSecret) return undefined;
   return crypto.createHmac('sha256', appSecret).update(accessToken).digest('hex');
