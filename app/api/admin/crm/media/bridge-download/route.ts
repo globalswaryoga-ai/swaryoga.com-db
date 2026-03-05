@@ -81,14 +81,15 @@ export async function GET(req: NextRequest) {
     const contentDisposition = res.headers.get('content-disposition') || '';
     const buffer = await res.arrayBuffer();
 
-    // Stream through to client
+    // Stream through to client — use 'inline' for browser display (img/video src)
     const headers: Record<string, string> = {
       'Content-Type': contentType,
       'Cache-Control': 'public, max-age=86400',
       'Content-Length': buffer.byteLength.toString(),
     };
+    // Force inline disposition for media display (overrides bridge's attachment setting)
     if (contentDisposition) {
-      headers['Content-Disposition'] = contentDisposition;
+      headers['Content-Disposition'] = contentDisposition.replace('attachment', 'inline');
     }
 
     return new NextResponse(buffer, { status: 200, headers });

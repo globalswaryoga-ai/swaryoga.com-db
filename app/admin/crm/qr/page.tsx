@@ -442,7 +442,7 @@ export default function QRWhatsAppPage() {
     }
   }, [bridgeCall, fetchProfilePic]);
 
-  // ── Auto-refresh chat list every 5s when connected & on inbox tab ──
+  // ── Auto-refresh chat list every 15s when connected & on inbox tab ──
   const chatPollRef = useRef<NodeJS.Timeout | null>(null);
   useEffect(() => {
     if (tab === 'inbox' && status?.connected) {
@@ -467,6 +467,17 @@ export default function QRWhatsAppPage() {
       console.error('Failed to fetch messages:', e);
     }
   }, [bridgeCall]);
+
+  // ── Auto-refresh messages every 8s for active conversation ──
+  const msgPollRef = useRef<NodeJS.Timeout | null>(null);
+  useEffect(() => {
+    if (selectedChat && status?.connected) {
+      msgPollRef.current = setInterval(() => fetchMessages(selectedChat), 8000);
+    } else {
+      if (msgPollRef.current) { clearInterval(msgPollRef.current); msgPollRef.current = null; }
+    }
+    return () => { if (msgPollRef.current) { clearInterval(msgPollRef.current); msgPollRef.current = null; } };
+  }, [selectedChat, status?.connected, fetchMessages]);
 
   // ── Fetch group info ──
   const fetchGroupInfo = useCallback(async (jid: string) => {
@@ -530,7 +541,8 @@ export default function QRWhatsAppPage() {
       const isGroupChat = selectedChat.endsWith('@g.us') || selectedChat.endsWith('@lid');
       const to = isGroupChat ? selectedChat : selectedChat.replace('@s.whatsapp.net', '');
       if (mediaPreview) {
-        // Try uploading to Bunny Storage first for archival
+        // Upload to Bunny Storage first (CDN URL approach, like Meta API)
+        // This avoids sending huge base64 payloads through Vercel's body size limit
         let bunnyUrl: string | null = null;
         try {
           const formData = new FormData();
@@ -546,20 +558,33 @@ export default function QRWhatsAppPage() {
             bunnyUrl = uploadData?.data?.url || null;
           }
         } catch (e) {
-          // Bunny upload failed — fallback to base64 through bridge
           console.warn('[QR] Bunny upload skipped:', e);
         }
 
-        // Send media through bridge (always use base64 for WhatsApp delivery)
-        await bridgeCall('/send', 'POST', {
-          to,
-          type: 'media',
-          media: mediaPreview.base64,
-          mimetype: mediaPreview.type,
-          caption: composerText.trim() || '',
-          fileName: mediaPreview.file.name,
-          ...(bunnyUrl ? { cdnUrl: bunnyUrl } : {}),
-        });
+        if (bunnyUrl) {
+          // Send CDN URL to bridge — bridge downloads and sends to WhatsApp
+          // This is the Meta API approach: upload first, send URL
+          // Avoids Vercel's ~4.5MB body limit for serverless functions
+          await bridgeCall('/send', 'POST', {
+            to,
+            type: 'media',
+            media: bunnyUrl,
+            mimetype: mediaPreview.type,
+            caption: composerText.trim() || '',
+            fileName: mediaPreview.file.name,
+            cdnUrl: bunnyUrl,
+          });
+        } else {
+          // Fallback: send base64 directly (only works for files < ~3MB)
+          await bridgeCall('/send', 'POST', {
+            to,
+            type: 'media',
+            media: mediaPreview.base64,
+            mimetype: mediaPreview.type,
+            caption: composerText.trim() || '',
+            fileName: mediaPreview.file.name,
+          });
+        }
         setMediaPreview(null);
       } else {
         // Send text
@@ -569,8 +594,12 @@ export default function QRWhatsAppPage() {
           type: 'text',
         });
       }
+      const hadMedia = !!mediaPreview;
       setComposerText('');
-      setTimeout(() => fetchMessages(selectedChat), 500);
+      // Refresh messages — longer delay for media (webhook needs time to upload & set CDN URL)
+      setTimeout(() => fetchMessages(selectedChat), hadMedia ? 1500 : 500);
+      // Double-refresh for media to catch async CDN URL updates from webhook
+      if (hadMedia) setTimeout(() => fetchMessages(selectedChat), 4000);
     } catch (e: any) {
       setError(e.message || 'Failed to send message');
     } finally {
@@ -1398,8 +1427,8 @@ export default function QRWhatsAppPage() {
                     // Primary URL: Bunny CDN via media proxy
                     const proxyUrl = msg.mediaUrl ? `/api/admin/crm/media/proxy?url=${encodeURIComponent(msg.mediaUrl)}&token=${encodeURIComponent(token || '')}` : null;
                     // Fallback URL: download directly from bridge via server-side proxy (no CORS issues)
-                    const bridgeProxyUrl = (!proxyUrl && msg.hasMedia && msg.id) ? `/api/admin/crm/media/bridge-download?messageId=${encodeURIComponent(msg.id)}&token=${encodeURIComponent(token || '')}` : null;
-                    // Use whichever URL is available
+                    const bridgeProxyUrl = (msg.hasMedia && msg.id) ? `/api/admin/crm/media/bridge-download?messageId=${encodeURIComponent(msg.id)}&token=${encodeURIComponent(token || '')}` : null;
+                    // Use Bunny CDN first, bridge-download as fallback
                     const mediaDisplayUrl = proxyUrl || bridgeProxyUrl;
                     const hasMediaPreview = mediaDisplayUrl && (isImage || isVideo || isAudio || isDocument);
                     return (
@@ -1425,7 +1454,15 @@ export default function QRWhatsAppPage() {
                               alt="Image" 
                               className="max-w-full max-h-[240px] object-cover rounded-lg"
                               loading="lazy"
-                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                              onError={(e) => {
+                                const img = e.target as HTMLImageElement;
+                                // Try bridge-download fallback if Bunny proxy failed
+                                if (bridgeProxyUrl && img.src !== bridgeProxyUrl) {
+                                  img.src = bridgeProxyUrl;
+                                } else {
+                                  img.style.display = 'none';
+                                }
+                              }}
                             />
                           </div>
                         )}
@@ -1436,7 +1473,14 @@ export default function QRWhatsAppPage() {
                               className="max-w-full max-h-[200px] rounded-lg" 
                               preload="metadata" 
                               controls
-                              onError={(e) => { (e.target as HTMLVideoElement).style.display = 'none'; }}
+                              onError={(e) => {
+                                const vid = e.target as HTMLVideoElement;
+                                if (bridgeProxyUrl && vid.src !== bridgeProxyUrl) {
+                                  vid.src = bridgeProxyUrl;
+                                } else {
+                                  vid.style.display = 'none';
+                                }
+                              }}
                             />
                           </div>
                         )}

@@ -1068,8 +1068,19 @@ async function startSocket() {
       };
       if (!messageMap.has(from)) messageMap.set(from, []);
       const chatMsgs = messageMap.get(from);
-      chatMsgs.push(msgEntry);
-      if (chatMsgs.length > MAX_MSGS_PER_CHAT) chatMsgs.shift();
+      // De-duplicate: if message already exists (e.g., from /send handler), update it
+      // but preserve the existing mediaUrl (CDN URL set by /send handler)
+      const existingIdx = chatMsgs.findIndex(m => m.id === messageId);
+      if (existingIdx !== -1) {
+        const existing = chatMsgs[existingIdx];
+        // Preserve existing mediaUrl if it was already set (from /send cdnUrl)
+        msgEntry.mediaUrl = existing.mediaUrl || msgEntry.mediaUrl;
+        chatMsgs[existingIdx] = msgEntry;
+        console.log(`[MSG] Updated existing message ${messageId} (mediaUrl: ${msgEntry.mediaUrl || 'none'})`);
+      } else {
+        chatMsgs.push(msgEntry);
+        if (chatMsgs.length > MAX_MSGS_PER_CHAT) chatMsgs.shift();
+      }
 
       // Forward to CRM webhook and capture the saved media URL
       forwardToWebhook(webhookPayload).then(mediaUrl => {
@@ -1672,7 +1683,7 @@ app.get('/media/:messageId', async (req, res) => {
     }
 
     res.setHeader('Content-Type', mimetype);
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
     res.setHeader('Content-Length', buffer.length);
     res.setHeader('Cache-Control', 'public, max-age=86400');
 
