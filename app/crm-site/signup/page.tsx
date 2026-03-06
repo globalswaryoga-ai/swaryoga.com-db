@@ -12,7 +12,6 @@ import {
   ArrowRight,
   ArrowLeft,
   Loader2,
-  Info,
   X,
 } from 'lucide-react';
 
@@ -25,13 +24,7 @@ interface SignupForm {
   phone: string;
   password: string;
   confirmPassword: string;
-  // Step 2 — Configuration (auto-connect)
-  whatsappPhoneId: string;
-  whatsappAccessToken: string;
-  cashfreeClientId: string;
-  cashfreeClientSecret: string;
-  retellApiKey: string;
-  // Step 3 — Plan
+  // Step 2 — Plan
   plan: string;
 }
 
@@ -48,19 +41,6 @@ const PLANS_QUICK = [
   { id: 'enterprise', name: 'Enterprise', price: '₹24,999/mo', desc: '100K leads, API access', highlight: false },
 ];
 
-const GUIDE_TEXT: Record<string, string> = {
-  whatsappPhoneId:
-    'Go to Meta Business Suite → WhatsApp → API Setup → Copy your Phone Number ID. This connects your WhatsApp Business number to the CRM.',
-  whatsappAccessToken:
-    'In Meta Business Suite → WhatsApp → API Setup → Generate a permanent access token. This authorizes the CRM to send/receive messages on your behalf.',
-  cashfreeClientId:
-    'Log in to Cashfree Dashboard → Developers → API Keys → Copy your App ID (Client ID). Use sandbox keys for testing.',
-  cashfreeClientSecret:
-    'In the same Cashfree API Keys page, copy the Secret Key. Keep this secure — it authorizes payment creation.',
-  retellApiKey:
-    'Go to retellai.com → Dashboard → Settings → API Keys → Copy your key. This enables AI voice calling in 19 languages.',
-};
-
 export default function CrmSignupPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
@@ -71,18 +51,12 @@ export default function CrmSignupPage() {
     phone: '',
     password: '',
     confirmPassword: '',
-    whatsappPhoneId: '',
-    whatsappAccessToken: '',
-    cashfreeClientId: '',
-    cashfreeClientSecret: '',
-    retellApiKey: '',
     plan: 'free',
   });
   const [showPw, setShowPw] = useState(false);
   const [errors, setErrors] = useState<FieldError[]>([]);
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [apiError, setApiError] = useState('');
-  const [guideField, setGuideField] = useState<string | null>(null);
 
   /* helpers */
   const fieldError = (field: string) => errors.find((e) => e.field === field)?.message;
@@ -168,7 +142,7 @@ export default function CrmSignupPage() {
   };
 
   /* Step UI */
-  const stepNames = ['Account', 'Connect', 'Plan'];
+  const stepNames = ['Account', 'Choose Plan'];
 
   return (
     <section className="py-16">
@@ -193,7 +167,7 @@ export default function CrmSignupPage() {
                   {s}
                 </span>
               </div>
-              {i < 2 && <div className={`w-8 h-0.5 ${step > i + 1 ? 'bg-swar-primary' : 'bg-gray-200'}`} />}
+              {i < stepNames.length - 1 && <div className={`w-8 h-0.5 ${step > i + 1 ? 'bg-swar-primary' : 'bg-gray-200'}`} />}
             </React.Fragment>
           ))}
         </div>
@@ -205,7 +179,7 @@ export default function CrmSignupPage() {
               <CheckCircle2 className="h-16 w-16 text-swar-primary mx-auto mb-4" />
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Account Created!</h2>
               <p className="text-gray-600 text-sm mb-2">
-                Your CRM is being configured. Redirecting to your dashboard...
+                Your CRM is ready. Explore all features and connect services from Settings when you&apos;re ready.
               </p>
               <Loader2 className="h-6 w-6 animate-spin text-swar-primary mx-auto mt-4" />
             </div>
@@ -335,165 +309,13 @@ export default function CrmSignupPage() {
                     onClick={nextStep}
                     className="w-full mt-6 flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold text-white bg-swar-primary hover:bg-swar-primary-hover rounded-xl shadow transition-all"
                   >
-                    Next: Connect Services <ArrowRight className="h-4 w-4" />
+                    Next: Choose Plan <ArrowRight className="h-4 w-4" />
                   </button>
                 </>
               )}
 
-              {/* ─── STEP 2: Auto-Connect Services ─── */}
+              {/* ─── STEP 2: Choose Plan ─── */}
               {step === 2 && (
-                <>
-                  <div className="text-center mb-6">
-                    <h2 className="text-xl font-bold text-gray-900">Connect Your Services</h2>
-                    <p className="text-sm text-gray-500 mt-1">
-                      Optional — add these now or later from Settings. Click the <Info className="inline h-3.5 w-3.5 text-swar-primary" /> icon for setup guides.
-                    </p>
-                  </div>
-
-                  {/* Guide Popup */}
-                  {guideField && GUIDE_TEXT[guideField] && (
-                    <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-xl relative">
-                      <button onClick={() => setGuideField(null)} className="absolute top-2 right-2 text-blue-400 hover:text-blue-600">
-                        <X className="h-4 w-4" />
-                      </button>
-                      <p className="text-sm text-blue-800 leading-relaxed pr-6">
-                        <strong className="block mb-1">How to find this:</strong>
-                        {GUIDE_TEXT[guideField]}
-                      </p>
-                    </div>
-                  )}
-
-                  <div className="space-y-5">
-                    {/* WhatsApp */}
-                    <div className="p-4 bg-gray-50 rounded-xl">
-                      <h4 className="font-semibold text-gray-900 text-sm mb-3 flex items-center gap-2">
-                        WhatsApp Business API
-                        <span className="text-xs text-gray-400 font-normal">(Optional)</span>
-                      </h4>
-                      <div className="space-y-3">
-                        <div>
-                          <div className="flex items-center justify-between mb-1">
-                            <label className="text-xs font-medium text-gray-600">Phone Number ID</label>
-                            <button onClick={() => setGuideField('whatsappPhoneId')} className="text-swar-primary hover:text-swar-primary-hover">
-                              <Info className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                          <input
-                            name="whatsappPhoneId"
-                            value={form.whatsappPhoneId}
-                            onChange={handleChange}
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-swar-primary/30 focus:border-swar-primary transition"
-                            placeholder="e.g. 123456789012345"
-                          />
-                        </div>
-                        <div>
-                          <div className="flex items-center justify-between mb-1">
-                            <label className="text-xs font-medium text-gray-600">Access Token</label>
-                            <button onClick={() => setGuideField('whatsappAccessToken')} className="text-swar-primary hover:text-swar-primary-hover">
-                              <Info className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                          <input
-                            name="whatsappAccessToken"
-                            type="password"
-                            value={form.whatsappAccessToken}
-                            onChange={handleChange}
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-swar-primary/30 focus:border-swar-primary transition"
-                            placeholder="Paste your token"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Cashfree */}
-                    <div className="p-4 bg-gray-50 rounded-xl">
-                      <h4 className="font-semibold text-gray-900 text-sm mb-3 flex items-center gap-2">
-                        Cashfree Payments
-                        <span className="text-xs text-gray-400 font-normal">(Optional)</span>
-                      </h4>
-                      <div className="space-y-3">
-                        <div>
-                          <div className="flex items-center justify-between mb-1">
-                            <label className="text-xs font-medium text-gray-600">Client ID (App ID)</label>
-                            <button onClick={() => setGuideField('cashfreeClientId')} className="text-swar-primary hover:text-swar-primary-hover">
-                              <Info className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                          <input
-                            name="cashfreeClientId"
-                            value={form.cashfreeClientId}
-                            onChange={handleChange}
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-swar-primary/30 focus:border-swar-primary transition"
-                            placeholder="e.g. 12345abc"
-                          />
-                        </div>
-                        <div>
-                          <div className="flex items-center justify-between mb-1">
-                            <label className="text-xs font-medium text-gray-600">Client Secret</label>
-                            <button onClick={() => setGuideField('cashfreeClientSecret')} className="text-swar-primary hover:text-swar-primary-hover">
-                              <Info className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                          <input
-                            name="cashfreeClientSecret"
-                            type="password"
-                            value={form.cashfreeClientSecret}
-                            onChange={handleChange}
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-swar-primary/30 focus:border-swar-primary transition"
-                            placeholder="Paste your secret key"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Retell AI */}
-                    <div className="p-4 bg-gray-50 rounded-xl">
-                      <h4 className="font-semibold text-gray-900 text-sm mb-3 flex items-center gap-2">
-                        Retell AI (Voice Calls)
-                        <span className="text-xs text-gray-400 font-normal">(Optional)</span>
-                      </h4>
-                      <div>
-                        <div className="flex items-center justify-between mb-1">
-                          <label className="text-xs font-medium text-gray-600">API Key</label>
-                          <button onClick={() => setGuideField('retellApiKey')} className="text-swar-primary hover:text-swar-primary-hover">
-                            <Info className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                        <input
-                          name="retellApiKey"
-                          type="password"
-                          value={form.retellApiKey}
-                          onChange={handleChange}
-                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-swar-primary/30 focus:border-swar-primary transition"
-                          placeholder="Paste your Retell API key"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-3 mt-6">
-                    <button
-                      onClick={prevStep}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition"
-                    >
-                      <ArrowLeft className="h-4 w-4" /> Back
-                    </button>
-                    <button
-                      onClick={nextStep}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold text-white bg-swar-primary hover:bg-swar-primary-hover rounded-xl shadow transition-all"
-                    >
-                      Next: Choose Plan <ArrowRight className="h-4 w-4" />
-                    </button>
-                  </div>
-
-                  <p className="text-xs text-gray-400 text-center mt-3">
-                    You can skip this step and configure services later from Settings.
-                  </p>
-                </>
-              )}
-
-              {/* ─── STEP 3: Choose Plan ─── */}
-              {step === 3 && (
                 <>
                   <div className="text-center mb-6">
                     <h2 className="text-xl font-bold text-gray-900">Choose Your Plan</h2>
@@ -561,6 +383,12 @@ export default function CrmSignupPage() {
                         </>
                       )}
                     </button>
+                  </div>
+
+                  <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-xl">
+                    <p className="text-xs text-blue-700 text-center leading-relaxed">
+                      After signup, explore all CRM features freely. Connect WhatsApp, Payments, AI Calls &amp; more anytime from <strong>Settings</strong>.
+                    </p>
                   </div>
 
                   {form.plan !== 'free' && (
