@@ -450,13 +450,44 @@ export default function QRWhatsAppPage() {
     } catch {}
   }, [bridgeCall]);
 
-  // ── Fetch chats ──
+  // ── Fetch chats (bridge + CRM leads merge) ──
   const fetchChats = useCallback(async () => {
     try {
-      const data = await bridgeCall('/chats');
+      // Fetch bridge chats and CRM leads in parallel
+      const [data, leadsRes] = await Promise.all([
+        bridgeCall('/chats'),
+        crmFetch('/api/admin/crm/leads?selectAll=true&limit=5000', { silent: true }).catch(() => null),
+      ]);
+
+      // Build CRM leads phone→name map
+      const crmLeadMap = new Map<string, { name: string; phone: string; funnelStage?: string; labels?: string[] }>();
+      if (leadsRes?.data?.leads) {
+        for (const lead of leadsRes.data.leads) {
+          if (lead.phoneNumber) {
+            // Normalize: strip non-digits, remove leading 91 for 12-digit Indian numbers
+            let p = lead.phoneNumber.replace(/[^0-9]/g, '');
+            if (p.length === 12 && p.startsWith('91')) p = p; // keep as-is for matching
+            crmLeadMap.set(p, {
+              name: lead.name || lead.phoneNumber,
+              phone: p,
+              funnelStage: lead.funnelStage,
+              labels: lead.labels,
+            });
+            // Also store 10-digit version for Indian numbers
+            if (p.length === 12 && p.startsWith('91')) {
+              crmLeadMap.set(p.slice(2), { name: lead.name || lead.phoneNumber, phone: p, funnelStage: lead.funnelStage, labels: lead.labels });
+            }
+            if (p.length === 10) {
+              crmLeadMap.set('91' + p, { name: lead.name || lead.phoneNumber, phone: '91' + p, funnelStage: lead.funnelStage, labels: lead.labels });
+            }
+          }
+        }
+      }
+
       if (data?.chats) {
         // Deduplicate: merge LID and phone JIDs for the same contact
         const phoneMap = new Map<string, ChatItem>();
+        const matchedCrmPhones = new Set<string>();
         const deduped: ChatItem[] = [];
         for (const c of data.chats as ChatItem[]) {
           if (c.isGroup) {
@@ -467,6 +498,24 @@ export default function QRWhatsAppPage() {
           const phone = c.resolvedPhone
             || (c.id.endsWith('@s.whatsapp.net') ? c.id.split('@')[0] : null)
             || (/^\d{10,13}$/.test(c.name) ? c.name : null);
+
+          // Enrich name from CRM lead if available
+          if (phone) {
+            const crmLead = crmLeadMap.get(phone);
+            if (crmLead) {
+              // Use CRM lead name if chat name is just a number or 'Swar Yoga'
+              if (/^\d+$/.test(c.name) || c.name === 'Swar Yoga' || !c.name) {
+                c.name = crmLead.name;
+              }
+              if (crmLead.funnelStage) c.funnelStage = crmLead.funnelStage;
+              if (crmLead.labels?.length) c.labels = crmLead.labels;
+              matchedCrmPhones.add(phone);
+              // Mark other phone variants as matched
+              if (phone.length === 12 && phone.startsWith('91')) matchedCrmPhones.add(phone.slice(2));
+              if (phone.length === 10) matchedCrmPhones.add('91' + phone);
+            }
+          }
+
           if (phone && phoneMap.has(phone)) {
             // Merge: keep the entry with more recent message, combine unread counts
             const existing = phoneMap.get(phone)!;
@@ -486,6 +535,34 @@ export default function QRWhatsAppPage() {
             deduped.push(c);
           }
         }
+
+        // Add CRM leads that don't have a matching QR chat
+        for (const [phone, lead] of crmLeadMap) {
+          if (matchedCrmPhones.has(phone)) continue;
+          // Skip variant keys (10-digit/12-digit duplicates we added)
+          if (phone.length === 10 && matchedCrmPhones.has('91' + phone)) continue;
+          if (phone.length === 12 && phone.startsWith('91') && matchedCrmPhones.has(phone.slice(2))) continue;
+          // Only add each unique lead once (prefer 12-digit version)
+          if (phone.length === 10 && crmLeadMap.has('91' + phone)) continue;
+          
+          matchedCrmPhones.add(phone);
+          if (phone.length === 12 && phone.startsWith('91')) matchedCrmPhones.add(phone.slice(2));
+          if (phone.length === 10) matchedCrmPhones.add('91' + phone);
+          
+          const jid = (phone.length === 10 ? '91' + phone : phone) + '@s.whatsapp.net';
+          deduped.push({
+            id: jid,
+            name: lead.name,
+            isGroup: false,
+            resolvedPhone: lead.phone,
+            unreadCount: 0,
+            lastMessageTime: null,
+            lastMessage: '',
+            funnelStage: lead.funnelStage,
+            labels: lead.labels,
+          });
+        }
+
         const sorted = deduped.sort((a, b) => {
           const ta = a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0;
           const tb = b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0;
@@ -500,7 +577,7 @@ export default function QRWhatsAppPage() {
       console.error('Failed to fetch chats:', e);
       setError(e?.message || 'Failed to fetch chats');
     }
-  }, [bridgeCall, fetchProfilePic]);
+  }, [bridgeCall, crmFetch, fetchProfilePic]);
 
   // ── Auto-refresh chat list every 15s when connected & on inbox tab ──
   const chatPollRef = useRef<NodeJS.Timeout | null>(null);
