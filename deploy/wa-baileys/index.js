@@ -1523,6 +1523,29 @@ app.get('/lid-map', (req, res) => {
   });
 });
 
+// Mark chat as read — reset unreadCount in chatMap
+app.post('/read/:jid', async (req, res) => {
+  try {
+    const jid = req.params.jid.includes('@') ? req.params.jid : `${req.params.jid}@s.whatsapp.net`;
+    const chat = chatMap.get(jid);
+    if (chat) {
+      chat.unreadCount = 0;
+      chatMap.set(jid, chat);
+    }
+    // Also try to mark as read on WhatsApp via Baileys
+    if (sock && connectionState === 'connected') {
+      try {
+        await sock.readMessages([{ remoteJid: jid, id: undefined }]);
+      } catch (e) {
+        // readMessages may fail for some JIDs — ignore silently
+      }
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Get chats list
 app.get('/chats', async (req, res) => {
   // If we have unresolved LIDs, try batch resolution in background

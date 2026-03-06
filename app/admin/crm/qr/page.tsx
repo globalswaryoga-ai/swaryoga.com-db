@@ -262,6 +262,7 @@ export default function QRWhatsAppPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
   const profilePicLoadedRef = useRef<Set<string>>(new Set());
+  const readChatsRef = useRef<Set<string>>(new Set());
   const messengerRef = useRef<HTMLDivElement>(null);
   const composerInputRef = useRef<HTMLInputElement>(null);
   const tabRef = useRef(tab);
@@ -563,6 +564,13 @@ export default function QRWhatsAppPage() {
           });
         }
 
+        // Preserve unreadCount=0 for chats the user has already read locally
+        for (const c of deduped) {
+          if (readChatsRef.current.has(c.id)) {
+            c.unreadCount = 0;
+          }
+        }
+
         const sorted = deduped.sort((a, b) => {
           // Unread chats always float to top
           const ua = (a.unreadCount || 0) > 0 ? 1 : 0;
@@ -733,6 +741,12 @@ export default function QRWhatsAppPage() {
     setGroupInfo(null);
     fetchMessages(jid);
     fetchProfilePic(jid);
+    // Only suppress unread for the currently-viewed chat;
+    // clear previous entries so new messages to other chats show badges
+    readChatsRef.current.clear();
+    readChatsRef.current.add(jid);
+    // Tell the bridge to reset unread count on its side too
+    bridgeCall(`/read/${encodeURIComponent(jid)}`, 'POST').catch(() => {});
     // Clear unread count and re-sort so read chat moves below unread ones
     setChats(prev => {
       const updated = prev.map(c => c.id === jid ? { ...c, unreadCount: 0 } : c);
@@ -745,7 +759,7 @@ export default function QRWhatsAppPage() {
         return tb - ta;
       });
     });
-  }, [fetchMessages, fetchProfilePic]);
+  }, [fetchMessages, fetchProfilePic, bridgeCall]);
 
   // ── Handle file selection for media ──
   const handleFileSelect = useCallback((accept: string) => {

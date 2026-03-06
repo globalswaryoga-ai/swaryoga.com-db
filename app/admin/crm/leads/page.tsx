@@ -95,6 +95,8 @@ export default function LeadsPage() {
   const [bulkStatus, setBulkStatus] = useState<string>('');
   const [bulkLabels, setBulkLabels] = useState<string>('');
   const [bulkActionBusy, setBulkActionBusy] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
 
   const [backfillBusy, setBackfillBusy] = useState(false);
 
@@ -613,6 +615,29 @@ export default function LeadsPage() {
 
   const clearSelection = () => setSelectedLeadIds(new Set());
 
+  const bulkDeleteLeads = async () => {
+    if (!token || selectedLeadIds.size === 0) return;
+    setBulkDeleting(true);
+    try {
+      await Promise.all(
+        Array.from(selectedLeadIds).map(id =>
+          fetch(`/api/admin/crm/leads/${id}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` },
+          })
+        )
+      );
+      clearSelection();
+      setShowBulkDeleteConfirm(false);
+      fetchLeads();
+      fetchMetadata();
+    } catch (e: any) {
+      setError(e?.message || 'Bulk delete failed');
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
   const runBulkUpdate = async () => {
     if (!token) {
       setError('Please login again.');
@@ -931,6 +956,14 @@ export default function LeadsPage() {
                     title="Select/deselect all on this page"
                   >
                     Actions All
+                  </button>
+
+                  <button
+                    onClick={() => setShowBulkDeleteConfirm(true)}
+                    className="px-3 py-1.5 bg-red-500/20 border border-red-500/50 text-red-400 rounded-xl font-semibold hover:bg-red-500/30 transition-all duration-300 flex items-center gap-1"
+                    title="Delete selected leads"
+                  >
+                    🗑️ Delete ({selectedLeadIds.size})
                   </button>
                 </div>
 
@@ -1607,6 +1640,41 @@ export default function LeadsPage() {
           }, 100);
         }}
       />
+
+      {/* Bulk Delete Confirmation Modal */}
+      {showBulkDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
+            <div className="px-5 py-4 bg-red-50 border-b border-red-100 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600 text-lg">🗑️</div>
+              <div>
+                <h3 className="text-sm font-bold text-red-800">Bulk Delete</h3>
+                <p className="text-[11px] text-red-500">This action cannot be undone</p>
+              </div>
+            </div>
+            <div className="px-5 py-4">
+              <p className="text-sm text-gray-700">
+                Are you sure you want to delete <strong>{selectedLeadIds.size} leads</strong>? All data will be permanently removed.
+              </p>
+            </div>
+            <div className="px-5 py-3 bg-gray-50 flex items-center justify-end gap-2">
+              <button
+                onClick={() => setShowBulkDeleteConfirm(false)}
+                className="px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={bulkDeleteLeads}
+                disabled={bulkDeleting}
+                className="px-4 py-2 rounded-xl text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 transition flex items-center gap-1.5"
+              >
+                {bulkDeleting ? '⏳ Deleting…' : `🗑️ Delete ${selectedLeadIds.size} Leads`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
