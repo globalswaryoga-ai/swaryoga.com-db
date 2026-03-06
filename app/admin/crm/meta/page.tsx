@@ -1690,11 +1690,11 @@ export default function MetaInboxPage() {
               <i className="ph-fill ph-whatsapp-logo text-sm"></i>
               <span className="hidden lg:inline">WhatsApp</span>
             </button>
-            <button className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg text-white/60 hover:text-white hover:bg-white/15 transition-all duration-200" title="Messenger" onClick={() => {}}>
+            <button className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg text-white/60 hover:text-white hover:bg-white/15 transition-all duration-200" title="Messenger" onClick={() => router.push('/admin/crm/messenger')}>
               <i className="ph-fill ph-messenger-logo text-sm"></i>
               <span className="hidden lg:inline">Messenger</span>
             </button>
-            <button className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg text-white/60 hover:text-white hover:bg-white/15 transition-all duration-200" title="Instagram" onClick={() => {}}>
+            <button className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg text-white/60 hover:text-white hover:bg-white/15 transition-all duration-200" title="Instagram" onClick={() => router.push('/admin/crm/instagram')}>
               <i className="ph-fill ph-instagram-logo text-sm"></i>
               <span className="hidden lg:inline">Instagram</span>
             </button>
