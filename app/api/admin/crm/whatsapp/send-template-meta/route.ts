@@ -187,7 +187,7 @@ export async function POST(request: NextRequest) {
         const errorMsg = data?.error?.message || data?.error?.error_user_msg || 'Meta API error';
         await WhatsAppMessage.findByIdAndUpdate(messageRecord._id, {
           status: 'failed',
-          errorMessage: errorMsg,
+          failureReason: String(errorMsg).substring(0, 500),
         });
         return NextResponse.json({ 
           success: false, 
@@ -218,7 +218,7 @@ export async function POST(request: NextRequest) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       await WhatsAppMessage.findByIdAndUpdate(messageRecord._id, {
         status: 'failed',
-        errorMessage: errorMsg,
+        failureReason: String(errorMsg).substring(0, 500),
       });
       return NextResponse.json({ success: false, error: errorMsg }, { status: 500 });
     }
