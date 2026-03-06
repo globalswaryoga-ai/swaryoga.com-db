@@ -115,6 +115,8 @@ const groupMembersCache = new Map(); // groupJid -> Set of participant JIDs (bui
 const contactsCache = new Map();     // jid -> { name, notify, lid, jid } from Baileys contacts events
 const lidToPhoneMap = new Map();     // lidJid (e.g. '123@lid' or '123@s.whatsapp.net') -> phoneJid (e.g. '919075358557@s.whatsapp.net')
 const phoneToLidMap = new Map();     // phoneJid -> lidJid (reverse)
+const statusStore = [];              // Recent status/story updates from contacts (max 50)
+const MAX_STATUS_STORE = 50;
 
 // Helper: detect if a JID's numeric part is a WhatsApp LID (internal ID, not a phone number)
 // LID numbers are typically 14-16 digits, while real phone numbers are 10-13 digits
@@ -813,8 +815,36 @@ async function startSocket() {
 
     for (const msg of messages) {
       try {
-      // Skip status broadcasts
-      if (msg.key.remoteJid === 'status@broadcast') continue;
+      // Capture status broadcasts for preview
+      if (msg.key.remoteJid === 'status@broadcast') {
+        try {
+          const senderJid = msg.key.participant || msg.key.remoteJid;
+          const senderPhone = senderJid.replace('@s.whatsapp.net', '').replace('@lid', '');
+          const contact = contactsCache.get(senderJid);
+          const statusEntry = {
+            id: msg.key.id,
+            senderJid,
+            senderPhone,
+            senderName: contact?.notify || contact?.name || senderPhone,
+            timestamp: msg.messageTimestamp ? (typeof msg.messageTimestamp === 'number' ? msg.messageTimestamp : Number(msg.messageTimestamp)) : Math.floor(Date.now() / 1000),
+            type: msg.message?.imageMessage ? 'image' : msg.message?.videoMessage ? 'video' : msg.message?.extendedTextMessage ? 'text' : 'unknown',
+            text: msg.message?.extendedTextMessage?.text || msg.message?.imageMessage?.caption || msg.message?.videoMessage?.caption || '',
+            hasMedia: !!(msg.message?.imageMessage || msg.message?.videoMessage),
+            mediaMessageId: msg.key.id,
+          };
+          statusStore.unshift(statusEntry);
+          if (statusStore.length > MAX_STATUS_STORE) statusStore.length = MAX_STATUS_STORE;
+          // Also cache raw message for media download
+          if (statusEntry.hasMedia) {
+            rawMessageCache.set(msg.key.id, msg);
+            if (rawMessageCache.size > MAX_RAW_CACHE) {
+              const oldest = rawMessageCache.keys().next().value;
+              rawMessageCache.delete(oldest);
+            }
+          }
+        } catch (e) { console.error('[STATUS] Error capturing status:', e.message); }
+        continue;
+      }
 
       const from = msg.key.remoteJid;
 
@@ -1691,6 +1721,130 @@ app.get('/media/:messageId', async (req, res) => {
   } catch (e) {
     console.error('[MEDIA] Download error:', e.message);
     res.status(500).json({ error: 'Failed to download media' });
+  }
+});
+
+// ── Group Admin Endpoints ────────────────────────────────────────────────
+
+// Update group description
+app.post('/group-update-desc/:jid', async (req, res) => {
+  try {
+    if (!sock || connectionState !== 'connected') return res.status(503).json({ error: 'Not connected' });
+    const jid = req.params.jid;
+    if (!jid.endsWith('@g.us')) return res.status(400).json({ error: 'Not a group JID' });
+    const { description } = req.body || {};
+    if (typeof description !== 'string') return res.status(400).json({ error: 'description required' });
+    await sock.groupUpdateDescription(jid, description);
+    res.json({ success: true });
+  } catch (e) {
+    console.error('[GROUP-DESC] Error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Update group subject (name)
+app.post('/group-update-subject/:jid', async (req, res) => {
+  try {
+    if (!sock || connectionState !== 'connected') return res.status(503).json({ error: 'Not connected' });
+    const jid = req.params.jid;
+    if (!jid.endsWith('@g.us')) return res.status(400).json({ error: 'Not a group JID' });
+    const { subject } = req.body || {};
+    if (!subject?.trim()) return res.status(400).json({ error: 'subject required' });
+    await sock.groupUpdateSubject(jid, subject.trim());
+    res.json({ success: true });
+  } catch (e) {
+    console.error('[GROUP-SUBJECT] Error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Get group invite link
+app.get('/group-invite/:jid', async (req, res) => {
+  try {
+    if (!sock || connectionState !== 'connected') return res.status(503).json({ error: 'Not connected' });
+    const jid = req.params.jid;
+    if (!jid.endsWith('@g.us')) return res.status(400).json({ error: 'Not a group JID' });
+    const code = await sock.groupInviteCode(jid);
+    res.json({ code, link: `https://chat.whatsapp.com/${code}` });
+  } catch (e) {
+    console.error('[GROUP-INVITE] Error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Revoke group invite link
+app.post('/group-revoke-invite/:jid', async (req, res) => {
+  try {
+    if (!sock || connectionState !== 'connected') return res.status(503).json({ error: 'Not connected' });
+    const jid = req.params.jid;
+    if (!jid.endsWith('@g.us')) return res.status(400).json({ error: 'Not a group JID' });
+    const code = await sock.groupRevokeInvite(jid);
+    res.json({ code, link: `https://chat.whatsapp.com/${code}` });
+  } catch (e) {
+    console.error('[GROUP-REVOKE] Error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Update group settings (announce = only admins can send, not_announce = everyone)
+app.post('/group-settings/:jid', async (req, res) => {
+  try {
+    if (!sock || connectionState !== 'connected') return res.status(503).json({ error: 'Not connected' });
+    const jid = req.params.jid;
+    if (!jid.endsWith('@g.us')) return res.status(400).json({ error: 'Not a group JID' });
+    const { setting } = req.body || {};
+    // setting: 'announcement' (only admins send), 'not_announcement' (all members send),
+    //          'locked' (only admins edit info), 'unlocked' (members edit info)
+    if (!setting) return res.status(400).json({ error: 'setting required' });
+    await sock.groupSettingUpdate(jid, setting);
+    res.json({ success: true, setting });
+  } catch (e) {
+    console.error('[GROUP-SETTINGS] Error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Promote/demote/remove participants
+app.post('/group-participants/:jid', async (req, res) => {
+  try {
+    if (!sock || connectionState !== 'connected') return res.status(503).json({ error: 'Not connected' });
+    const jid = req.params.jid;
+    if (!jid.endsWith('@g.us')) return res.status(400).json({ error: 'Not a group JID' });
+    const { action, participants } = req.body || {};
+    if (!action || !participants?.length) return res.status(400).json({ error: 'action and participants[] required' });
+    // action: 'promote', 'demote', 'remove'
+    switch (action) {
+      case 'promote': await sock.groupParticipantsUpdate(jid, participants, 'promote'); break;
+      case 'demote': await sock.groupParticipantsUpdate(jid, participants, 'demote'); break;
+      case 'remove': await sock.groupParticipantsUpdate(jid, participants, 'remove'); break;
+      default: return res.status(400).json({ error: 'Invalid action. Use promote/demote/remove' });
+    }
+    res.json({ success: true, action, participants });
+  } catch (e) {
+    console.error('[GROUP-PARTICIPANTS] Error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Status/Stories ──────────────────────────────────────────────────────
+app.get('/statuses', (req, res) => {
+  try {
+    // Group statuses by sender
+    const grouped = {};
+    for (const s of statusStore) {
+      if (!grouped[s.senderJid]) {
+        grouped[s.senderJid] = {
+          senderJid: s.senderJid,
+          senderPhone: s.senderPhone,
+          senderName: s.senderName,
+          statuses: [],
+        };
+      }
+      grouped[s.senderJid].statuses.push(s);
+    }
+    res.json({ statuses: Object.values(grouped), total: statusStore.length });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 });
 

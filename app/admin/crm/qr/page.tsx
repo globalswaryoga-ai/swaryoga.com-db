@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
-import { QrCode, Wifi, WifiOff, RefreshCw, LogOut, Phone, PhoneCall, Send, Image as ImageIcon, FileText, Mic, ArrowLeft, Loader2, AlertTriangle, CheckCircle2, Unplug, Funnel, Plus, Tag, CheckSquare, Square, X, Paperclip, Video, File, Pencil, Trash2, Users, Mail, MailOpen, Radio, Info, Shield, Crown, Calendar, MessageSquare, Hash, UserCircle, PhoneOff, Search, Star, Bold, Italic, Strikethrough, Smile, Zap, Type } from 'lucide-react';
+import { QrCode, Wifi, WifiOff, RefreshCw, LogOut, Phone, PhoneCall, Send, Image as ImageIcon, FileText, Mic, ArrowLeft, Loader2, AlertTriangle, CheckCircle2, Unplug, Funnel, Plus, Tag, CheckSquare, Square, X, Paperclip, Video, File, Pencil, Trash2, Users, Mail, MailOpen, Radio, Info, Shield, Crown, Calendar, MessageSquare, Hash, UserCircle, PhoneOff, Search, Star, Bold, Italic, Strikethrough, Smile, Zap, Type, Link2, Copy, RotateCcw, Lock, Unlock, UserMinus, ChevronUp, ChevronDown, Save, Settings, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
 
 type ConnectionStatus = 'disconnected' | 'connecting' | 'connected';
 
@@ -177,6 +177,7 @@ type GroupInfo = {
   id: string; subject: string; subjectOwner?: string;
   desc: string; owner?: string; creation?: number;
   size: number; participants: GroupParticipant[];
+  announce?: boolean; restrict?: boolean;
 };
 
 export default function QRWhatsAppPage() {
@@ -223,6 +224,19 @@ export default function QRWhatsAppPage() {
   const [profilePics, setProfilePics] = useState<Record<string, string | null>>({});
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [downloadingMedia, setDownloadingMedia] = useState<string | null>(null);
+  // Group management state
+  const [editingDesc, setEditingDesc] = useState(false);
+  const [editDescText, setEditDescText] = useState('');
+  const [savingDesc, setSavingDesc] = useState(false);
+  const [groupInviteLink, setGroupInviteLink] = useState<string | null>(null);
+  const [loadingInvite, setLoadingInvite] = useState(false);
+  const [groupSettingsLoading, setGroupSettingsLoading] = useState<string | null>(null);
+  // Status/stories state
+  const [showStatusPanel, setShowStatusPanel] = useState(false);
+  const [statusData, setStatusData] = useState<any[]>([]);
+  const [loadingStatuses, setLoadingStatuses] = useState(false);
+  const [selectedStatusUser, setSelectedStatusUser] = useState<any>(null);
+  const [currentStatusIndex, setCurrentStatusIndex] = useState(0);
   // Chat toolbar state
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showFormatBar, setShowFormatBar] = useState(false);
@@ -430,7 +444,38 @@ export default function QRWhatsAppPage() {
     try {
       const data = await bridgeCall('/chats');
       if (data?.chats) {
-        const sorted = [...data.chats].sort((a: ChatItem, b: ChatItem) => {
+        // Deduplicate: merge LID and phone JIDs for the same contact
+        const phoneMap = new Map<string, ChatItem>();
+        const deduped: ChatItem[] = [];
+        for (const c of data.chats as ChatItem[]) {
+          if (c.isGroup) {
+            deduped.push(c);
+            continue;
+          }
+          // Extract phone from resolvedPhone, name, or JID
+          const phone = c.resolvedPhone
+            || (c.id.endsWith('@s.whatsapp.net') ? c.id.split('@')[0] : null)
+            || (/^\d{10,13}$/.test(c.name) ? c.name : null);
+          if (phone && phoneMap.has(phone)) {
+            // Merge: keep the entry with more recent message, combine unread counts
+            const existing = phoneMap.get(phone)!;
+            const eTime = existing.lastMessageTime ? new Date(existing.lastMessageTime).getTime() : 0;
+            const cTime = c.lastMessageTime ? new Date(c.lastMessageTime).getTime() : 0;
+            if (cTime > eTime) {
+              // current chat is newer — replace but merge unread
+              c.unreadCount = (c.unreadCount || 0) + (existing.unreadCount || 0);
+              phoneMap.set(phone, c);
+              const idx = deduped.indexOf(existing);
+              if (idx >= 0) deduped[idx] = c;
+            } else {
+              existing.unreadCount = (existing.unreadCount || 0) + (c.unreadCount || 0);
+            }
+          } else {
+            if (phone) phoneMap.set(phone, c);
+            deduped.push(c);
+          }
+        }
+        const sorted = deduped.sort((a, b) => {
           const ta = a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0;
           const tb = b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0;
           return tb - ta;
@@ -500,6 +545,8 @@ export default function QRWhatsAppPage() {
   // ── Open details panel ──
   const openDetailsPanel = useCallback((jid: string) => {
     setDetailsPanel(true);
+    setGroupInviteLink(null);
+    setEditingDesc(false);
     const isGroup = jid.endsWith('@g.us') || jid.endsWith('@lid');
     if (isGroup) {
       fetchGroupInfo(jid);
@@ -507,6 +554,85 @@ export default function QRWhatsAppPage() {
       setGroupInfo(null);
     }
   }, [fetchGroupInfo]);
+
+  // ── Group admin helpers ──
+  const updateGroupDesc = useCallback(async () => {
+    if (!selectedChat || savingDesc) return;
+    setSavingDesc(true);
+    try {
+      await bridgeCall(`/group-update-desc/${encodeURIComponent(selectedChat)}`, 'POST', { description: editDescText });
+      // Refresh group info
+      await fetchGroupInfo(selectedChat);
+      setEditingDesc(false);
+    } catch (e: any) {
+      setError(e.message || 'Failed to update description');
+    } finally {
+      setSavingDesc(false);
+    }
+  }, [selectedChat, editDescText, savingDesc, bridgeCall, fetchGroupInfo]);
+
+  const fetchGroupInvite = useCallback(async () => {
+    if (!selectedChat || loadingInvite) return;
+    setLoadingInvite(true);
+    try {
+      const data = await bridgeCall(`/group-invite/${encodeURIComponent(selectedChat)}`);
+      setGroupInviteLink(data?.link || null);
+    } catch (e: any) {
+      setError(e.message || 'Failed to get invite link');
+    } finally {
+      setLoadingInvite(false);
+    }
+  }, [selectedChat, loadingInvite, bridgeCall]);
+
+  const revokeGroupInvite = useCallback(async () => {
+    if (!selectedChat) return;
+    if (!confirm('Revoke the current invite link? Anyone with the old link won\u2019t be able to join.')) return;
+    try {
+      const data = await bridgeCall(`/group-revoke-invite/${encodeURIComponent(selectedChat)}`, 'POST');
+      setGroupInviteLink(data?.link || null);
+    } catch (e: any) {
+      setError(e.message || 'Failed to revoke');
+    }
+  }, [selectedChat, bridgeCall]);
+
+  const updateGroupSetting = useCallback(async (setting: string) => {
+    if (!selectedChat || groupSettingsLoading) return;
+    setGroupSettingsLoading(setting);
+    try {
+      await bridgeCall(`/group-settings/${encodeURIComponent(selectedChat)}`, 'POST', { setting });
+      await fetchGroupInfo(selectedChat);
+    } catch (e: any) {
+      setError(e.message || 'Failed to update settings');
+    } finally {
+      setGroupSettingsLoading(null);
+    }
+  }, [selectedChat, groupSettingsLoading, bridgeCall, fetchGroupInfo]);
+
+  const updateGroupParticipant = useCallback(async (participantJid: string, action: 'promote' | 'demote' | 'remove') => {
+    if (!selectedChat) return;
+    const actionLabel = action === 'remove' ? 'Remove this member?' : action === 'promote' ? 'Make admin?' : 'Remove admin?';
+    if (!confirm(actionLabel)) return;
+    try {
+      await bridgeCall(`/group-participants/${encodeURIComponent(selectedChat)}`, 'POST', { action, participants: [participantJid] });
+      await fetchGroupInfo(selectedChat);
+    } catch (e: any) {
+      setError(e.message || `Failed to ${action}`);
+    }
+  }, [selectedChat, bridgeCall, fetchGroupInfo]);
+
+  // ── Fetch statuses/stories ──
+  const fetchStatuses = useCallback(async () => {
+    setLoadingStatuses(true);
+    try {
+      const data = await bridgeCall('/statuses');
+      setStatusData(data.statuses || []);
+    } catch (e: any) {
+      console.error('Failed to fetch statuses:', e);
+      setStatusData([]);
+    } finally {
+      setLoadingStatuses(false);
+    }
+  }, [bridgeCall]);
 
   // ── Select chat ──
   const selectChat = useCallback((jid: string) => {
@@ -939,6 +1065,9 @@ export default function QRWhatsAppPage() {
           </div>
         )}
         <div className="flex items-center gap-1 flex-shrink-0">
+          <button onClick={() => { setShowStatusPanel(true); fetchStatuses(); }} className="px-1.5 py-0.5 text-[10px] font-medium bg-green-50 text-green-700 rounded hover:bg-green-100 border border-green-200 flex items-center gap-0.5" title="View Statuses">
+            <Eye className="w-3 h-3" /> Status
+          </button>
           <button onClick={() => setShowExtensionModal(true)} className="px-1.5 py-0.5 text-[10px] font-medium bg-blue-50 text-blue-700 rounded hover:bg-blue-100 border border-blue-200" title="Download">📥</button>
           {isConnected && (
             <>
@@ -1262,7 +1391,7 @@ export default function QRWhatsAppPage() {
                               ? formatPhoneNumber(chat.resolvedPhone)
                               : (/^\d{14,}$/.test(chat.name)
                                 ? `~ Contact ${chat.name.slice(-4)}`
-                                : (/^\d+$/.test(chat.name) ? formatPhoneNumber(chat.name) : (chat.name.includes('@') ? formatPhoneNumber(chat.name.split('@')[0]) : chat.name))))
+                                : (/^\d+$/.test(chat.name) ? formatPhoneNumber(chat.name) : (chat.name.includes('@') ? formatPhoneNumber(chat.name.split('@')[0]) : (/^[A-Za-z]/.test(chat.name) && chat.name !== 'Swar Yoga' ? chat.name : formatPhoneNumber(chat.id.split('@')[0]))))))
                           }
                         </span>
                         <div className="flex items-center gap-1 flex-shrink-0">
@@ -1435,12 +1564,13 @@ export default function QRWhatsAppPage() {
                     // Use Bunny CDN first, bridge-download as fallback
                     const mediaDisplayUrl = proxyUrl || bridgeProxyUrl;
                     const hasMediaPreview = mediaDisplayUrl && (isImage || isVideo || isAudio || isDocument);
+                    const hasOnlyMedia = hasMediaPreview && !msg.text;
                     return (
                     <div key={msg.id} className={`flex ${msg.fromMe ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[70%] px-3 py-2 rounded-lg text-sm ${
+                      <div className={`${hasOnlyMedia && isImage ? 'max-w-[320px]' : 'max-w-[65%] min-w-[120px]'} px-2.5 py-1.5 rounded-2xl text-sm shadow-sm ${
                         msg.fromMe
-                          ? 'bg-green-100 text-green-900'
-                          : 'bg-white text-gray-900 shadow-sm'
+                          ? 'bg-[#d9fdd3] text-gray-900 rounded-br-md'
+                          : 'bg-white text-gray-900 rounded-bl-md'
                       }`}>
                         {/* Group sender name */}
                         {isGroupChat && !msg.fromMe && senderName && (
@@ -1451,12 +1581,12 @@ export default function QRWhatsAppPage() {
 
                         {/* Media preview */}
                         {hasMediaPreview && mediaDisplayUrl && isImage && (
-                          <div className="mb-1.5 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition" onClick={() => setLightboxImage(mediaDisplayUrl)}>
+                          <div className="mb-1 rounded-xl overflow-hidden cursor-pointer hover:opacity-90 transition -mx-1 -mt-0.5" onClick={() => setLightboxImage(mediaDisplayUrl)}>
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img 
                               src={mediaDisplayUrl} 
                               alt="Image" 
-                              className="max-w-full max-h-[240px] object-cover rounded-lg"
+                              className="w-full max-h-[300px] object-cover rounded-xl"
                               loading="lazy"
                               onError={(e) => {
                                 const img = e.target as HTMLImageElement;
@@ -1700,20 +1830,32 @@ export default function QRWhatsAppPage() {
                 {/* Profile Section */}
                 <div className="flex flex-col items-center py-6 px-4 border-b">
                   {isGroupChat ? (
-                    <div className={`w-20 h-20 rounded-full flex items-center justify-center text-white ${avatarColor}`}>
-                      <Users className="w-10 h-10" />
-                    </div>
+                    <>
+                      {profilePics[selectedChat] ? (
+                        <img
+                          src={profilePics[selectedChat]!}
+                          alt={chatName}
+                          className="w-24 h-24 rounded-full object-cover cursor-pointer hover:opacity-80 transition ring-2 ring-white shadow-lg"
+                          onClick={() => setLightboxImage(profilePics[selectedChat]!)}
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }}
+                        />
+                      ) : null}
+                      <div className={`w-24 h-24 rounded-full flex items-center justify-center text-white ${avatarColor} ${profilePics[selectedChat] ? 'hidden' : ''}`}>
+                        <Users className="w-10 h-10" />
+                      </div>
+                    </>
                   ) : (
                     <>
                       {profilePics[selectedChat] ? (
                         <img
                           src={profilePics[selectedChat]!}
                           alt={chatName}
-                          className="w-20 h-20 rounded-full object-cover"
+                          className="w-24 h-24 rounded-full object-cover cursor-pointer hover:opacity-80 transition ring-2 ring-white shadow-lg"
+                          onClick={() => setLightboxImage(profilePics[selectedChat]!)}
                           onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }}
                         />
                       ) : null}
-                      <div className={`w-20 h-20 rounded-full flex items-center justify-center text-white font-bold text-2xl ${avatarColor} ${profilePics[selectedChat] ? 'hidden' : ''}`}>
+                      <div className={`w-24 h-24 rounded-full flex items-center justify-center text-white font-bold text-2xl ${avatarColor} ${profilePics[selectedChat] ? 'hidden' : ''}`}>
                         {initials || '👤'}
                       </div>
                     </>
@@ -1790,15 +1932,52 @@ export default function QRWhatsAppPage() {
                   )}
                   {isGroupChat && groupInfo && (
                     <>
-                      {groupInfo.desc && (
-                        <div className="flex items-start gap-3">
-                          <Info className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
-                          <div>
+                      {/* Editable Group Description */}
+                      <div className="flex items-start gap-3">
+                        <Info className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
                             <p className="text-xs text-gray-500">Description</p>
-                            <p className="text-sm text-gray-700 whitespace-pre-wrap">{groupInfo.desc}</p>
+                            {!editingDesc && (
+                              <button
+                                onClick={() => { setEditingDesc(true); setEditDescText(groupInfo.desc || ''); }}
+                                className="text-[10px] text-blue-600 hover:text-blue-700 font-medium"
+                              >
+                                Edit
+                              </button>
+                            )}
                           </div>
+                          {editingDesc ? (
+                            <div className="mt-1 space-y-1.5">
+                              <textarea
+                                value={editDescText}
+                                onChange={(e) => setEditDescText(e.target.value)}
+                                rows={3}
+                                className="w-full text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none"
+                                placeholder="Group description..."
+                              />
+                              <div className="flex gap-1.5">
+                                <button
+                                  onClick={() => updateGroupDesc()}
+                                  disabled={savingDesc}
+                                  className="flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+                                >
+                                  {savingDesc ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                                  Save
+                                </button>
+                                <button
+                                  onClick={() => setEditingDesc(false)}
+                                  className="text-[10px] px-2.5 py-1 rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-sm text-gray-700 whitespace-pre-wrap mt-0.5">{groupInfo.desc || <span className="italic text-gray-400">No description</span>}</p>
+                          )}
                         </div>
-                      )}
+                      </div>
                       {groupInfo.creation && (
                         <div className="flex items-center gap-3">
                           <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0" />
@@ -1818,6 +1997,79 @@ export default function QRWhatsAppPage() {
                     </>
                   )}
                 </div>
+
+                {/* Group Invite Link */}
+                {isGroupChat && (
+                  <div className="px-4 py-3 border-b space-y-2">
+                    <h5 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Invite Link</h5>
+                    {groupInviteLink ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-2.5 py-2">
+                          <Link2 className="w-3.5 h-3.5 text-green-600 flex-shrink-0" />
+                          <p className="text-[11px] text-gray-700 font-mono truncate flex-1">{groupInviteLink}</p>
+                        </div>
+                        <div className="flex gap-1.5">
+                          <button
+                            onClick={() => { navigator.clipboard.writeText(groupInviteLink); }}
+                            className="flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100"
+                          >
+                            <Copy className="w-3 h-3" /> Copy
+                          </button>
+                          <button
+                            onClick={() => revokeGroupInvite()}
+                            className="flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-md bg-red-50 text-red-600 hover:bg-red-100"
+                          >
+                            <RotateCcw className="w-3 h-3" /> Revoke
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => fetchGroupInvite()}
+                        disabled={loadingInvite}
+                        className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md bg-green-50 text-green-700 hover:bg-green-100 disabled:opacity-50"
+                      >
+                        {loadingInvite ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />}
+                        Get Invite Link
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Group Settings */}
+                {isGroupChat && (
+                  <div className="px-4 py-3 border-b space-y-2">
+                    <h5 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Group Settings</h5>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <MessageSquare className="w-3.5 h-3.5 text-gray-400" />
+                          <span className="text-xs text-gray-700">Only admins can send messages</span>
+                        </div>
+                        <button
+                          onClick={() => updateGroupSetting(groupInfo?.announce ? 'not_announcement' : 'announcement')}
+                          disabled={!!groupSettingsLoading}
+                          className={`relative w-9 h-5 rounded-full transition-colors ${groupInfo?.announce ? 'bg-green-500' : 'bg-gray-300'} ${groupSettingsLoading ? 'opacity-50' : ''}`}
+                        >
+                          <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${groupInfo?.announce ? 'translate-x-4' : 'translate-x-0'}`} />
+                        </button>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Lock className="w-3.5 h-3.5 text-gray-400" />
+                          <span className="text-xs text-gray-700">Only admins can edit group info</span>
+                        </div>
+                        <button
+                          onClick={() => updateGroupSetting(groupInfo?.restrict ? 'not_locked' : 'locked')}
+                          disabled={!!groupSettingsLoading}
+                          className={`relative w-9 h-5 rounded-full transition-colors ${groupInfo?.restrict ? 'bg-green-500' : 'bg-gray-300'} ${groupSettingsLoading ? 'opacity-50' : ''}`}
+                        >
+                          <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${groupInfo?.restrict ? 'translate-x-4' : 'translate-x-0'}`} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Funnel & Labels */}
                 <div className="px-4 py-3 border-b space-y-2">
@@ -1885,23 +2137,51 @@ export default function QRWhatsAppPage() {
                             const pPhone = pId.replace('@s.whatsapp.net', '').replace('@lid', '');
                             const pColor = getAvatarColor(pPhone);
                             const displayName = isLidId ? `Member ${pPhone.slice(-4)}` : formatPhoneNumber(pPhone);
+                            const isSuperAdmin = p.admin === 'superadmin';
+                            const isAdmin = p.admin === 'admin';
                             return (
-                              <div key={p.id} className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-gray-50">
+                              <div key={p.id} className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-gray-50 group/participant">
                                 <div className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-semibold ${pColor}`}>
                                   {pPhone.slice(-2)}
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <p className="text-xs text-gray-800 truncate">{displayName}</p>
                                 </div>
-                                {p.admin === 'superadmin' && (
+                                {isSuperAdmin && (
                                   <span className="text-[9px] px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 flex items-center gap-0.5">
                                     <Crown className="w-2.5 h-2.5" /> Owner
                                   </span>
                                 )}
-                                {p.admin === 'admin' && (
+                                {isAdmin && (
                                   <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 flex items-center gap-0.5">
                                     <Shield className="w-2.5 h-2.5" /> Admin
                                   </span>
+                                )}
+                                {/* Admin actions - visible on hover */}
+                                {!isSuperAdmin && (
+                                  <div className="hidden group-hover/participant:flex items-center gap-0.5">
+                                    {isAdmin ? (
+                                      <button
+                                        onClick={() => updateGroupParticipant(pId, 'demote')}
+                                        className="p-1 rounded hover:bg-orange-100 text-gray-400 hover:text-orange-600" title="Demote from admin"
+                                      >
+                                        <ChevronDown className="w-3 h-3" />
+                                      </button>
+                                    ) : (
+                                      <button
+                                        onClick={() => updateGroupParticipant(pId, 'promote')}
+                                        className="p-1 rounded hover:bg-blue-100 text-gray-400 hover:text-blue-600" title="Make admin"
+                                      >
+                                        <ChevronUp className="w-3 h-3" />
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={() => updateGroupParticipant(pId, 'remove')}
+                                      className="p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-600" title="Remove from group"
+                                    >
+                                      <UserMinus className="w-3 h-3" />
+                                    </button>
+                                  </div>
                                 )}
                               </div>
                             );
@@ -1915,6 +2195,163 @@ export default function QRWhatsAppPage() {
               </div>
             );
           })()}
+        </div>
+      )}
+
+      {/* Status/Stories Panel */}
+      {showStatusPanel && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-green-600 to-green-700 text-white px-5 py-3 flex items-center justify-between flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <Eye className="w-5 h-5" />
+                <h2 className="text-base font-semibold">Status Updates</h2>
+                {statusData.length > 0 && (
+                  <span className="text-[10px] bg-white bg-opacity-20 px-1.5 py-0.5 rounded-full">{statusData.length} contacts</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={fetchStatuses} className="p-1 rounded hover:bg-white hover:bg-opacity-20" title="Refresh">
+                  <RefreshCw className={`w-4 h-4 ${loadingStatuses ? 'animate-spin' : ''}`} />
+                </button>
+                <button onClick={() => { setShowStatusPanel(false); setSelectedStatusUser(null); }} className="p-1 rounded hover:bg-white hover:bg-opacity-20">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto">
+              {loadingStatuses ? (
+                <div className="flex flex-col items-center justify-center py-16">
+                  <Loader2 className="w-8 h-8 animate-spin text-green-500 mb-3" />
+                  <p className="text-sm text-gray-500">Loading statuses...</p>
+                </div>
+              ) : selectedStatusUser ? (
+                /* Status Viewer */
+                <div className="flex flex-col h-full">
+                  {/* Viewer Header */}
+                  <div className="flex items-center gap-3 px-4 py-3 border-b bg-gray-50">
+                    <button onClick={() => { setSelectedStatusUser(null); setCurrentStatusIndex(0); }} className="p-1 rounded hover:bg-gray-200">
+                      <ArrowLeft className="w-4 h-4 text-gray-600" />
+                    </button>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold ${getAvatarColor(selectedStatusUser.senderPhone)}`}>
+                      {selectedStatusUser.senderPhone.slice(-2)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">{selectedStatusUser.senderName}</p>
+                      <p className="text-[10px] text-gray-500">{selectedStatusUser.statuses.length} status{selectedStatusUser.statuses.length > 1 ? 'es' : ''}</p>
+                    </div>
+                    {selectedStatusUser.statuses.length > 1 && (
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => setCurrentStatusIndex(Math.max(0, currentStatusIndex - 1))}
+                          disabled={currentStatusIndex === 0}
+                          className="p-1 rounded hover:bg-gray-200 disabled:opacity-30"
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        <span className="text-[10px] text-gray-500">{currentStatusIndex + 1}/{selectedStatusUser.statuses.length}</span>
+                        <button
+                          onClick={() => setCurrentStatusIndex(Math.min(selectedStatusUser.statuses.length - 1, currentStatusIndex + 1))}
+                          disabled={currentStatusIndex >= selectedStatusUser.statuses.length - 1}
+                          className="p-1 rounded hover:bg-gray-200 disabled:opacity-30"
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {/* Status Content */}
+                  {(() => {
+                    const status = selectedStatusUser.statuses[currentStatusIndex];
+                    if (!status) return null;
+                    return (
+                      <div className="flex-1 flex flex-col items-center justify-center p-6 min-h-[300px]">
+                        {/* Progress dots */}
+                        {selectedStatusUser.statuses.length > 1 && (
+                          <div className="flex gap-1 mb-4">
+                            {selectedStatusUser.statuses.map((_: any, i: number) => (
+                              <div
+                                key={i}
+                                className={`h-0.5 rounded-full transition-all ${i === currentStatusIndex ? 'w-6 bg-green-500' : 'w-3 bg-gray-300'}`}
+                              />
+                            ))}
+                          </div>
+                        )}
+                        {status.hasMedia ? (
+                          <div className="w-full max-w-sm">
+                            <img
+                              src={`/api/admin/crm/whatsapp/qr-bridge?path=${encodeURIComponent(`/media/${status.mediaMessageId}`)}`}
+                              alt="Status"
+                              className="w-full rounded-xl shadow-lg object-contain max-h-[400px]"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).style.display = 'none';
+                                (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+                              }}
+                            />
+                            <div className="hidden text-center py-8">
+                              <ImageIcon className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                              <p className="text-xs text-gray-400">Media not available</p>
+                            </div>
+                            {status.text && (
+                              <p className="text-sm text-gray-700 text-center mt-3">{status.text}</p>
+                            )}
+                          </div>
+                        ) : status.type === 'text' ? (
+                          <div className="w-full max-w-sm bg-gradient-to-br from-green-500 to-teal-600 rounded-xl p-8 shadow-lg">
+                            <p className="text-white text-lg text-center font-medium leading-relaxed">{status.text}</p>
+                          </div>
+                        ) : (
+                          <div className="text-center py-8">
+                            <Eye className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                            <p className="text-xs text-gray-400">Status type: {status.type}</p>
+                          </div>
+                        )}
+                        <p className="text-[10px] text-gray-400 mt-4">
+                          {new Date(status.timestamp * 1000).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                    );
+                  })()}
+                </div>
+              ) : statusData.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16">
+                  <Eye className="w-12 h-12 text-gray-300 mb-3" />
+                  <p className="text-sm text-gray-500">No recent statuses</p>
+                  <p className="text-[10px] text-gray-400 mt-1">Statuses from contacts will appear here as they are posted</p>
+                </div>
+              ) : (
+                /* Status List */
+                <div className="divide-y">
+                  {statusData.map((user: any) => (
+                    <button
+                      key={user.senderJid}
+                      onClick={() => { setSelectedStatusUser(user); setCurrentStatusIndex(0); }}
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-left transition"
+                    >
+                      <div className="relative">
+                        <div className={`w-11 h-11 rounded-full flex items-center justify-center text-white text-sm font-semibold ${getAvatarColor(user.senderPhone)} ring-2 ring-green-500 ring-offset-2`}>
+                          {user.senderPhone.slice(-2)}
+                        </div>
+                        <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
+                          <span className="text-white text-[8px] font-bold">{user.statuses.length}</span>
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{user.senderName}</p>
+                        <p className="text-[10px] text-gray-500">
+                          {user.statuses.length} status{user.statuses.length > 1 ? 'es' : ''} · {new Date(user.statuses[0].timestamp * 1000).toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-gray-400" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
