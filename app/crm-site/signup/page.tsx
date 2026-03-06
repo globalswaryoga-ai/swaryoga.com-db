@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -14,6 +14,16 @@ import {
   Loader2,
   X,
 } from 'lucide-react';
+
+/* ─── Auto-detect India by timezone ─── */
+function detectIsIndia(): boolean {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return tz === 'Asia/Kolkata' || tz === 'Asia/Calcutta';
+  } catch {
+    return false;
+  }
+}
 
 /* ─── Types ─── */
 interface SignupForm {
@@ -34,12 +44,12 @@ interface FieldError {
 }
 
 const PLANS_QUICK = [
-  { id: 'free', name: 'Free', price: '₹0/mo', desc: '250 leads, 1 user', highlight: false },
-  { id: 'basic', name: 'Basic', price: '₹999/mo', desc: '2K leads, Funnel + Export', highlight: false },
-  { id: 'starter', name: 'Starter', price: '₹1,999/mo', desc: '5K leads, WhatsApp', highlight: false },
-  { id: 'growth', name: 'Growth', price: '₹4,999/mo', desc: '25K leads, AI + Payments', highlight: true },
-  { id: 'professional', name: 'Professional', price: '₹9,999/mo', desc: '50K leads, Full suite', highlight: false },
-  { id: 'enterprise', name: 'Enterprise', price: '₹24,999/mo', desc: '100K leads, API access', highlight: false },
+  { id: 'free', name: 'Free', priceINR: '₹0/mo', priceUSD: '$0/mo', desc: '250 leads, 1 user', highlight: false },
+  { id: 'basic', name: 'Basic', priceINR: '₹999/mo', priceUSD: '$12/mo', desc: '2K leads, Funnel + Export', highlight: false },
+  { id: 'starter', name: 'Starter', priceINR: '₹1,999/mo', priceUSD: '$25/mo', desc: '5K leads, WhatsApp', highlight: false },
+  { id: 'growth', name: 'Growth', priceINR: '₹4,999/mo', priceUSD: '$59/mo', desc: '25K leads, AI + Payments', highlight: true },
+  { id: 'professional', name: 'Professional', priceINR: '₹9,999/mo', priceUSD: '$119/mo', desc: '50K leads, Full suite', highlight: false },
+  { id: 'enterprise', name: 'Enterprise', priceINR: '₹24,999/mo', priceUSD: '$299/mo', desc: '100K leads, API access', highlight: false },
 ];
 
 export default function CrmSignupPage() {
@@ -55,7 +65,10 @@ export default function CrmSignupPage() {
     plan: 'free',
   });
   const [showPw, setShowPw] = useState(false);
+  const [isINR, setIsINR] = useState(true);
   const [errors, setErrors] = useState<FieldError[]>([]);
+
+  useEffect(() => { setIsINR(detectIsIndia()); }, []);
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [apiError, setApiError] = useState('');
 
@@ -321,11 +334,14 @@ export default function CrmSignupPage() {
                   <div className="text-center mb-6">
                     <h2 className="text-xl font-bold text-gray-900">Choose Your Plan</h2>
                     <p className="text-sm text-gray-500 mt-1">
-                      Start free and upgrade anytime.{' '}
+                      15-day free trial on all plans.{' '}
                       <Link href="/crm-site/pricing" className="text-swar-primary hover:underline">
                         Compare plans in detail
                       </Link>
                     </p>
+                    {!isINR && (
+                      <p className="text-xs text-amber-600 mt-1">USD prices include 3% payment processing fee</p>
+                    )}
                   </div>
 
                   <div className="space-y-3">
@@ -357,7 +373,7 @@ export default function CrmSignupPage() {
                           </div>
                           <p className="text-xs text-gray-500 mt-0.5">{p.desc}</p>
                         </div>
-                        <span className="text-sm font-semibold text-gray-700 whitespace-nowrap">{p.price}</span>
+                        <span className="text-sm font-semibold text-gray-700 whitespace-nowrap">{isINR ? p.priceINR : p.priceUSD}</span>
                       </label>
                     ))}
                   </div>
@@ -388,7 +404,7 @@ export default function CrmSignupPage() {
 
                   <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-xl">
                     <p className="text-xs text-blue-700 text-center leading-relaxed">
-                      After signup, explore all CRM features freely. Connect WhatsApp, Payments, AI Calls &amp; more anytime from <strong>Settings</strong>.
+                      15-day free trial included. After signup, explore all CRM features freely. Connect WhatsApp, Payments, AI Calls &amp; more from <strong>Settings</strong>. Storage billed separately per use.
                     </p>
                   </div>
 
