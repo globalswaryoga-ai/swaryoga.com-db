@@ -37,16 +37,20 @@
   },
   "include": [
     "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
+    "middleware.ts",
+    "app/**/*.ts",
+    "app/**/*.tsx",
+    "lib/**/*.ts",
+    "lib/**/*.tsx",
+    "components/**/*.ts",
+    "components/**/*.tsx",
+    "hooks/**/*.ts",
+    "hooks/**/*.tsx",
+    "types/**/*.ts",
+    "__tests__/**/*.ts",
     ".next/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules",
-    "server/**/*",
-    "server",
-    "src/**/*",
-    "tests/**/*",
-    "deploy/**/*"
+    "node_modules"
   ]
 }

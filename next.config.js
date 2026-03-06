@@ -67,39 +67,18 @@ const nextConfig = {
     // Keep @distube/ytdl-core out of webpack bundle (modern syntax Terser can't parse)
     serverComponentsExternalPackages: ['@distube/ytdl-core'],
   },
+  // CORS & security headers are handled by middleware.ts (Edge runtime)
+  // with a strict origin allowlist. Do NOT add Access-Control-Allow-Origin: *
+  // here — it would override the middleware's restrictions.
   async headers() {
     return [
       {
+        // Security-only headers for API routes (CORS is in middleware.ts)
         source: '/api/:path*',
         headers: [
-          {
-            key: 'Access-Control-Allow-Origin',
-            value: '*',
-          },
-          {
-            key: 'Access-Control-Allow-Methods',
-            value: 'GET,POST,PUT,DELETE,OPTIONS,PATCH',
-          },
-          {
-            key: 'Access-Control-Allow-Headers',
-            value: 'Content-Type,Authorization,X-Requested-With',
-          },
-          {
-            key: 'Access-Control-Allow-Credentials',
-            value: 'true',
-          },
-          {
-            key: 'X-Content-Type-Options',
-            value: 'nosniff',
-          },
-          {
-            key: 'X-Frame-Options',
-            value: 'SAMEORIGIN',
-          },
-          {
-            key: 'X-XSS-Protection',
-            value: '1; mode=block',
-          },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'X-XSS-Protection', value: '1; mode=block' },
         ],
       },
     ];
