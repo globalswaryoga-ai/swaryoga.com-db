@@ -34,12 +34,36 @@ export interface Vision {
   updatedAt: string;
 }
 
+export type MiniReminder = {
+  id: string;
+  title: string;
+  date?: string;
+  time?: string;
+  completed: boolean;
+};
+
 export type MiniTodo = {
   id: string;
   title: string;
   dueDate?: string;
   dueTime?: string;
   completed: boolean;
+  reminders?: MiniReminder[];
+};
+
+export type MiniTask = {
+  id: string;
+  title: string;
+  description?: string;
+  startDate?: string;
+  dueDate?: string;
+  timeStart?: string;
+  timeEnd?: string;
+  place?: string;
+  status?: 'not-started' | 'in-progress' | 'completed' | 'on-hold';
+  priority?: 'low' | 'medium' | 'high';
+  completed: boolean;
+  todos?: MiniTodo[];
 };
 
 export interface Milestone {
@@ -69,6 +93,7 @@ export interface ActionPlanGoal {
   status?: 'not-started' | 'in-progress' | 'completed' | 'on-hold';
   priority?: 'low' | 'medium' | 'high';
   progress?: number;
+  tasks?: MiniTask[];
   createdAt: string;
   updatedAt: string;
 }
@@ -125,6 +150,8 @@ export interface Reminder {
   // Linkage (optional)
   visionId?: string;
   goalId?: string;
+  taskId?: string;
+  todoId?: string;
   eventId?: string;
   // Vision Head (10 heads)
   visionHead?: VisionCategory;

@@ -167,9 +167,7 @@ export default function ActionPlanPage() {
   const handleSavePlan = (planData: ActionPlan) => {
     if (editingPlan) {
       setActionPlans(prev =>
-        prev.map(p =>
-          p.id === editingPlan.id ? planData : p
-        )
+        prev.map(p => p.id === editingPlan.id ? planData : p)
       );
     } else {
       setActionPlans(prev => [...prev, planData]);
@@ -501,6 +499,20 @@ export default function ActionPlanPage() {
                                 )}
                                 {goal.description?.trim() && (
                                   <p className="text-swar-text-secondary mt-1 line-clamp-2">{goal.description}</p>
+                                )}
+                                {/* Nested Tasks */}
+                                {goal.tasks && goal.tasks.length > 0 && (
+                                  <div className="mt-1.5 ml-2 border-l-2 border-blue-200 pl-2 space-y-1">
+                                    <p className="text-[10px] font-bold text-blue-600">Tasks ({goal.tasks.length})</p>
+                                    {goal.tasks.map(task => (
+                                      <div key={task.id} className="text-[11px] bg-white rounded px-2 py-1 border border-blue-100">
+                                        <span className={task.completed ? 'line-through text-gray-400' : 'text-swar-text'}>{task.title}</span>
+                                        {task.todos && task.todos.length > 0 && (
+                                          <span className="ml-1 text-[9px] text-emerald-600 font-bold">({task.todos.length} todos)</span>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
                                 )}
                               </div>
                             ))}

@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { AlertCircle, Plus } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
-import { VISION_CATEGORIES, type Reminder as DbReminder, type VisionCategory } from '@/lib/types/lifePlanner';
+import { VISION_CATEGORIES, type Reminder as DbReminder, type VisionCategory, type Vision, type ActionPlan, type Task as DbTask } from '@/lib/types/lifePlanner';
 
 const DEFAULT_IMAGE = 'https://i.postimg.cc/Y0zjsTd2/image.jpg';
 
@@ -14,6 +14,10 @@ type UiReminder = {
   date: string;
   time: string;
   visionHead?: VisionCategory;
+  visionId?: string;
+  goalId?: string;
+  taskId?: string;
+  todoId?: string;
   frequency: 'once' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
   customDays?: number;
   completed?: boolean;
@@ -27,6 +31,10 @@ function dbToUiReminder(r: DbReminder): UiReminder {
     date: r.dueDate || r.startDate || '',
     time: r.dueTime || '11:00',
     visionHead: (r.visionHead || (r.category as any)) as VisionCategory | undefined,
+    visionId: r.visionId,
+    goalId: r.goalId,
+    taskId: r.taskId,
+    todoId: r.todoId,
     frequency: (r.frequency as UiReminder['frequency']) || 'once',
     completed: Boolean(r.completed),
     imageUrl: r.imageUrl,
@@ -38,13 +46,14 @@ function uiToDbReminder(r: UiReminder): DbReminder {
     id: r.id,
     title: r.text,
     description: '',
-    // Persist Vision Head in a dedicated field, but also mirror into `category`
-    // because some older dashboards only read `category`.
     visionHead: r.visionHead,
     category: r.visionHead,
+    visionId: r.visionId,
+    goalId: r.goalId,
+    taskId: r.taskId,
+    todoId: r.todoId,
     startDate: r.date,
     dueDate: r.date,
-    // Keep both fields for back-compat across screens
     time: r.time,
     dueTime: r.time,
     frequency: (r.frequency as DbReminder['frequency']) || 'once',
@@ -63,6 +72,9 @@ export default function RemindersPage() {
   const [mounted, setMounted] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [reminders, setReminders] = useState<UiReminder[]>([]);
+  const [visions, setVisions] = useState<Vision[]>([]);
+  const [actionPlans, setActionPlans] = useState<ActionPlan[]>([]);
+  const [tasks, setTasks] = useState<DbTask[]>([]);
   const [showForm, setShowForm] = useState(false);
   const today = useMemo(() => new Date().toISOString().split('T')[0], []);
   const [formData, setFormData] = useState({
@@ -70,6 +82,10 @@ export default function RemindersPage() {
     date: '',
     time: '11:00',
     visionHead: '' as '' | VisionCategory,
+    visionId: '',
+    goalId: '',
+    taskId: '',
+    todoId: '',
     frequency: 'once' as 'once' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom',
     customDays: 1,
     imageUrl: DEFAULT_IMAGE,
@@ -88,8 +104,16 @@ export default function RemindersPage() {
     const load = async () => {
       setMounted(true);
       try {
-        const saved = await lifePlannerStorage.getReminders();
+        const [saved, savedVisions, savedPlans, savedTasks] = await Promise.all([
+          lifePlannerStorage.getReminders(),
+          lifePlannerStorage.getVisions(),
+          lifePlannerStorage.getActionPlans(),
+          lifePlannerStorage.getTasks(),
+        ]);
         setReminders((Array.isArray(saved) ? saved : []).map(dbToUiReminder));
+        setVisions(Array.isArray(savedVisions) ? savedVisions : []);
+        setActionPlans(Array.isArray(savedPlans) ? savedPlans : []);
+        setTasks(Array.isArray(savedTasks) ? savedTasks : []);
       } finally {
         setHasLoaded(true);
       }
@@ -142,6 +166,10 @@ export default function RemindersPage() {
       date: formData.date,
       time: formData.time,
       visionHead: formData.visionHead || undefined,
+      visionId: formData.visionId || undefined,
+      goalId: formData.goalId || undefined,
+      taskId: formData.taskId || undefined,
+      todoId: formData.todoId || undefined,
       frequency: formData.frequency,
       customDays: formData.frequency === 'custom' ? formData.customDays : undefined,
       imageUrl: formData.imageUrl || DEFAULT_IMAGE,
@@ -153,6 +181,10 @@ export default function RemindersPage() {
       date: '',
       time: '11:00',
       visionHead: '',
+      visionId: '',
+      goalId: '',
+      taskId: '',
+      todoId: '',
       frequency: 'once',
       customDays: 1,
       imageUrl: DEFAULT_IMAGE,
@@ -322,7 +354,7 @@ export default function RemindersPage() {
                 <label className="block text-sm font-medium text-swar-text mb-2">Vision Head *</label>
                 <select
                   value={formData.visionHead}
-                  onChange={(e) => setFormData({ ...formData, visionHead: e.target.value as any })}
+                  onChange={(e) => setFormData({ ...formData, visionHead: e.target.value as any, visionId: '', goalId: '', taskId: '', todoId: '' })}
                   className="w-full rounded-lg border border-swar-border px-4 py-3 text-swar-text outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200 bg-white"
                 >
                   <option value="">Select Vision Head</option>
@@ -331,6 +363,102 @@ export default function RemindersPage() {
                   ))}
                 </select>
               </div>
+
+              {/* Vision selector */}
+              {formData.visionHead && (() => {
+                const visionsForHead = visions.filter(v => v.category === formData.visionHead);
+                return visionsForHead.length > 0 ? (
+                  <div>
+                    <label className="block text-sm font-medium text-swar-text mb-2">Vision</label>
+                    <select
+                      value={formData.visionId}
+                      onChange={(e) => setFormData({ ...formData, visionId: e.target.value, goalId: '', taskId: '', todoId: '' })}
+                      className="w-full rounded-lg border border-swar-border px-4 py-3 text-swar-text outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200 bg-white"
+                    >
+                      <option value="">Select Vision (optional)</option>
+                      {visionsForHead.map(v => <option key={v.id} value={v.id}>{v.title}</option>)}
+                    </select>
+                  </div>
+                ) : null;
+              })()}
+
+              {/* Goal selector */}
+              {formData.visionId && (() => {
+                const goalsForVision = actionPlans
+                  .filter(p => p.visionId === formData.visionId)
+                  .flatMap(p => (p.goals || []).map(g => ({ ...g, planTitle: p.title })));
+                return goalsForVision.length > 0 ? (
+                  <div>
+                    <label className="block text-sm font-medium text-swar-text mb-2">Goal</label>
+                    <select
+                      value={formData.goalId}
+                      onChange={(e) => setFormData({ ...formData, goalId: e.target.value, taskId: '', todoId: '' })}
+                      className="w-full rounded-lg border border-swar-border px-4 py-3 text-swar-text outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200 bg-white"
+                    >
+                      <option value="">Select Goal (optional)</option>
+                      {goalsForVision.map(g => <option key={g.id} value={g.id}>{g.title}</option>)}
+                    </select>
+                  </div>
+                ) : null;
+              })()}
+
+              {/* Task selector */}
+              {formData.goalId && (() => {
+                // Tasks both from action plan goals (embedded) and standalone tasks
+                const embeddedTasks = actionPlans
+                  .filter(p => p.visionId === formData.visionId)
+                  .flatMap(p => (p.goals || []))
+                  .filter(g => g.id === formData.goalId)
+                  .flatMap(g => (g.tasks || []));
+                const standaloneTasks = tasks.filter(t => t.goalId === formData.goalId);
+                const allTasks = [...embeddedTasks, ...standaloneTasks];
+                const seen = new Set<string>();
+                const uniqueTasks = allTasks.filter(t => { if (seen.has(t.id)) return false; seen.add(t.id); return true; });
+                return uniqueTasks.length > 0 ? (
+                  <div>
+                    <label className="block text-sm font-medium text-swar-text mb-2">Task</label>
+                    <select
+                      value={formData.taskId}
+                      onChange={(e) => setFormData({ ...formData, taskId: e.target.value, todoId: '' })}
+                      className="w-full rounded-lg border border-swar-border px-4 py-3 text-swar-text outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200 bg-white"
+                    >
+                      <option value="">Select Task (optional)</option>
+                      {uniqueTasks.map(t => <option key={t.id} value={t.id}>{t.title}</option>)}
+                    </select>
+                  </div>
+                ) : null;
+              })()}
+
+              {/* Todo selector */}
+              {formData.taskId && (() => {
+                // Todos from embedded tasks in goals or standalone tasks
+                const embeddedTodos = actionPlans
+                  .filter(p => p.visionId === formData.visionId)
+                  .flatMap(p => (p.goals || []))
+                  .filter(g => g.id === formData.goalId)
+                  .flatMap(g => (g.tasks || []))
+                  .filter(t => t.id === formData.taskId)
+                  .flatMap(t => (t.todos || []));
+                const standaloneTodos = tasks
+                  .filter(t => t.id === formData.taskId)
+                  .flatMap(t => (t.todos || []));
+                const allTodos = [...embeddedTodos, ...standaloneTodos];
+                const seen = new Set<string>();
+                const uniqueTodos = allTodos.filter(td => { if (seen.has(td.id)) return false; seen.add(td.id); return true; });
+                return uniqueTodos.length > 0 ? (
+                  <div>
+                    <label className="block text-sm font-medium text-swar-text mb-2">Todo</label>
+                    <select
+                      value={formData.todoId}
+                      onChange={(e) => setFormData({ ...formData, todoId: e.target.value })}
+                      className="w-full rounded-lg border border-swar-border px-4 py-3 text-swar-text outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200 bg-white"
+                    >
+                      <option value="">Select Todo (optional)</option>
+                      {uniqueTodos.map(td => <option key={td.id} value={td.id}>{td.title}</option>)}
+                    </select>
+                  </div>
+                ) : null;
+              })()}
 
               <div>
                 <label className="block text-sm font-medium text-swar-text mb-2">Image URL</label>
@@ -418,6 +546,10 @@ export default function RemindersPage() {
                       date: today,
                       time: '11:00',
                       visionHead: '',
+                      visionId: '',
+                      goalId: '',
+                      taskId: '',
+                      todoId: '',
                       frequency: 'once',
                       customDays: 1,
                       imageUrl: DEFAULT_IMAGE,

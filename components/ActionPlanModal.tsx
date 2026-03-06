@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { VISION_CATEGORIES } from '@/lib/types/lifePlanner';
-import type { ActionPlan, ActionPlanGoal, Milestone, Vision, MiniTodo } from '@/lib/types/lifePlanner';
+import type { ActionPlan, ActionPlanGoal, Milestone, Vision, MiniTodo, MiniReminder } from '@/lib/types/lifePlanner';
 import GoalSection from '@/components/GoalSection';
 
 interface ActionPlanModalProps {
@@ -167,8 +167,23 @@ export default function ActionPlanModal({
     setTodos(prev => prev.map(t => (t.id === id ? { ...t, completed: !t.completed } : t)));
   };
 
-  const updateTodo = (id: string, patch: Partial<Pick<MiniTodo, 'title' | 'dueDate' | 'dueTime'>>) => {
+  const updateTodo = (id: string, patch: Partial<MiniTodo>) => {
     setTodos(prev => prev.map(t => (t.id === id ? { ...t, ...patch } : t)));
+  };
+
+  const addReminderToActionTodo = (todoId: string, title: string) => {
+    setTodos(prev => prev.map(t => {
+      if (t.id !== todoId) return t;
+      const newRem: MiniReminder = { id: `rem-${Date.now()}`, title, date: t.dueDate, time: t.dueTime || '11:00', completed: false };
+      return { ...t, reminders: [...(t.reminders || []), newRem] };
+    }));
+  };
+
+  const deleteReminderFromActionTodo = (todoId: string, remId: string) => {
+    setTodos(prev => prev.map(t => {
+      if (t.id !== todoId) return t;
+      return { ...t, reminders: (t.reminders || []).filter(r => r.id !== remId) };
+    }));
   };
 
   const deleteTodo = (id: string) => {
@@ -520,51 +535,15 @@ export default function ActionPlanModal({
                 ) : (
                   <div className="space-y-2">
                     {todos.map((todo) => (
-                      <div key={todo.id} className="bg-white border border-blue-200 rounded-xl px-3 py-3">
-                        {/* Line 1: title */}
-                        <input
-                          type="text"
-                          value={todo.title}
-                          onChange={(e) => updateTodo(todo.id, { title: e.target.value })}
-                          className={`w-full bg-transparent outline-none text-sm px-1 ${todo.completed ? 'text-swar-text-secondary line-through' : 'text-swar-text'}`}
-                        />
-
-                        {/* Line 2: date + time + checkbox + remove */}
-                        <div className="mt-2 flex flex-col md:flex-row md:items-center gap-2">
-                          <label className="inline-flex items-center gap-2 text-sm text-swar-text md:mr-1">
-                            <input
-                              type="checkbox"
-                              checked={!!todo.completed}
-                              onChange={() => toggleTodo(todo.id)}
-                              className="rounded border-swar-border"
-                            />
-                            <span className="text-xs">Done</span>
-                          </label>
-
-                          <input
-                            type="date"
-                            value={todo.dueDate || ''}
-                            onChange={(e) => updateTodo(todo.id, { dueDate: e.target.value })}
-                            className="w-full md:w-auto md:flex-1 px-3 py-2 text-sm border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          />
-
-                          <input
-                            type="time"
-                            value={todo.dueTime || '11:00'}
-                            onChange={(e) => updateTodo(todo.id, { dueTime: e.target.value })}
-                            className="w-full md:w-44 px-3 py-2 text-sm border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          />
-
-                          <button
-                            type="button"
-                            onClick={() => deleteTodo(todo.id)}
-                            className="w-full md:w-auto px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition inline-flex items-center justify-center gap-2"
-                            title="Remove"
-                          >
-                            <span className="text-sm font-medium">Remove</span>
-                          </button>
-                        </div>
-                      </div>
+                      <ActionTodoCard
+                        key={todo.id}
+                        todo={todo}
+                        onToggle={toggleTodo}
+                        onUpdate={updateTodo}
+                        onDelete={deleteTodo}
+                        onAddReminder={addReminderToActionTodo}
+                        onDeleteReminder={deleteReminderFromActionTodo}
+                      />
                     ))}
                   </div>
                 )}
@@ -719,6 +698,113 @@ function MilestoneCard({
           />
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ────────── Action Plan Todo Card (with Reminders) ────────── */
+function ActionTodoCard({
+  todo, onToggle, onUpdate, onDelete, onAddReminder, onDeleteReminder,
+}: {
+  todo: MiniTodo;
+  onToggle: (id: string) => void;
+  onUpdate: (id: string, patch: Partial<MiniTodo>) => void;
+  onDelete: (id: string) => void;
+  onAddReminder: (todoId: string, title: string) => void;
+  onDeleteReminder: (todoId: string, remId: string) => void;
+}) {
+  const [showRem, setShowRem] = useState(false);
+  const [newRemTitle, setNewRemTitle] = useState('');
+  const reminders = todo.reminders || [];
+
+  return (
+    <div className="bg-white border border-blue-200 rounded-xl px-3 py-3">
+      {/* Line 1: title */}
+      <input
+        type="text"
+        value={todo.title}
+        onChange={(e) => onUpdate(todo.id, { title: e.target.value })}
+        className={`w-full bg-transparent outline-none text-sm px-1 ${todo.completed ? 'text-swar-text-secondary line-through' : 'text-swar-text'}`}
+      />
+
+      {/* Line 2: date + time + checkbox + reminders toggle + remove */}
+      <div className="mt-2 flex flex-col md:flex-row md:items-center gap-2">
+        <label className="inline-flex items-center gap-2 text-sm text-swar-text md:mr-1">
+          <input
+            type="checkbox"
+            checked={!!todo.completed}
+            onChange={() => onToggle(todo.id)}
+            className="rounded border-swar-border"
+          />
+          <span className="text-xs">Done</span>
+        </label>
+
+        <input
+          type="date"
+          value={todo.dueDate || ''}
+          onChange={(e) => onUpdate(todo.id, { dueDate: e.target.value })}
+          className="w-full md:w-auto md:flex-1 px-3 py-2 text-sm border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
+
+        <input
+          type="time"
+          value={todo.dueTime || '11:00'}
+          onChange={(e) => onUpdate(todo.id, { dueTime: e.target.value })}
+          className="w-full md:w-44 px-3 py-2 text-sm border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
+
+        <button
+          type="button"
+          onClick={() => setShowRem(v => !v)}
+          className="px-2 py-2 text-amber-600 hover:bg-amber-50 rounded-lg transition text-sm font-medium"
+          title="Reminders"
+        >
+          🔔 {reminders.length}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onDelete(todo.id)}
+          className="w-full md:w-auto px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition inline-flex items-center justify-center gap-2"
+          title="Remove"
+        >
+          <span className="text-sm font-medium">Remove</span>
+        </button>
+      </div>
+
+      {/* Reminders inside this todo */}
+      {showRem && (
+        <div className="mt-2 ml-6 space-y-1">
+          <div className="flex gap-1">
+            <input
+              type="text"
+              value={newRemTitle}
+              onChange={e => setNewRemTitle(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (newRemTitle.trim()) { onAddReminder(todo.id, newRemTitle.trim()); setNewRemTitle(''); } } }}
+              placeholder="Reminder title"
+              className="flex-1 px-3 py-1.5 border border-amber-200 rounded-lg text-xs focus:ring-2 focus:ring-amber-400 focus:border-transparent bg-white"
+            />
+            <button type="button" onClick={() => { if (newRemTitle.trim()) { onAddReminder(todo.id, newRemTitle.trim()); setNewRemTitle(''); } }}
+              className="px-3 py-1.5 bg-amber-500 text-white text-xs rounded-lg hover:bg-amber-600 transition">
+              Add
+            </button>
+          </div>
+          {reminders.map(rem => (
+            <div key={rem.id} className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+              <span className="text-xs">🔔</span>
+              <span className="flex-1 text-xs text-swar-text">{rem.title}</span>
+              <input type="date" value={rem.date || ''} onChange={e => {
+                onUpdate(todo.id, { reminders: reminders.map(r => r.id === rem.id ? { ...r, date: e.target.value } : r) });
+              }} className="px-2 py-0.5 border border-amber-200 rounded text-xs w-28" />
+              <input type="time" value={rem.time || '11:00'} onChange={e => {
+                onUpdate(todo.id, { reminders: reminders.map(r => r.id === rem.id ? { ...r, time: e.target.value } : r) });
+              }} className="px-2 py-0.5 border border-amber-200 rounded text-xs w-20" />
+              <button type="button" onClick={() => onDeleteReminder(todo.id, rem.id)}
+                className="text-red-400 text-xs hover:text-red-600">✕</button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
