@@ -564,6 +564,10 @@ export default function QRWhatsAppPage() {
         }
 
         const sorted = deduped.sort((a, b) => {
+          // Unread chats always float to top
+          const ua = (a.unreadCount || 0) > 0 ? 1 : 0;
+          const ub = (b.unreadCount || 0) > 0 ? 1 : 0;
+          if (ua !== ub) return ub - ua;
           const ta = a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0;
           const tb = b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0;
           return tb - ta;
@@ -729,8 +733,18 @@ export default function QRWhatsAppPage() {
     setGroupInfo(null);
     fetchMessages(jid);
     fetchProfilePic(jid);
-    // Clear unread count for the opened chat
-    setChats(prev => prev.map(c => c.id === jid ? { ...c, unreadCount: 0 } : c));
+    // Clear unread count and re-sort so read chat moves below unread ones
+    setChats(prev => {
+      const updated = prev.map(c => c.id === jid ? { ...c, unreadCount: 0 } : c);
+      return updated.sort((a, b) => {
+        const ua = (a.unreadCount || 0) > 0 ? 1 : 0;
+        const ub = (b.unreadCount || 0) > 0 ? 1 : 0;
+        if (ua !== ub) return ub - ua;
+        const ta = a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0;
+        const tb = b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0;
+        return tb - ta;
+      });
+    });
   }, [fetchMessages, fetchProfilePic]);
 
   // ── Handle file selection for media ──
