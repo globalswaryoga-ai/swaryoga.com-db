@@ -46,6 +46,7 @@ const PLANS = [
     monthlyINR: 0, monthlyUSD: 0,
     leads: '250',
     users: '1',
+    chatbots: '1',
     cta: 'Start Free Trial',
     highlight: false,
   },
@@ -56,6 +57,7 @@ const PLANS = [
     monthlyINR: 999, monthlyUSD: 12,
     leads: '2,000',
     users: '2',
+    chatbots: '5',
     cta: 'Start Free Trial',
     highlight: false,
   },
@@ -66,6 +68,7 @@ const PLANS = [
     monthlyINR: 1999, monthlyUSD: 25,
     leads: '5,000',
     users: '3',
+    chatbots: '10',
     cta: 'Start Free Trial',
     highlight: false,
   },
@@ -76,6 +79,7 @@ const PLANS = [
     monthlyINR: 4999, monthlyUSD: 59,
     leads: '25,000',
     users: '10',
+    chatbots: 'Unlimited',
     cta: 'Start Free Trial',
     highlight: true,
   },
@@ -86,6 +90,7 @@ const PLANS = [
     monthlyINR: 9999, monthlyUSD: 119,
     leads: 'Unlimited',
     users: 'Unlimited',
+    chatbots: 'Unlimited',
     cta: 'Start Free Trial',
     highlight: false,
   },
@@ -262,6 +267,16 @@ export default function PricingPage() {
                         </span>
                       ) : (
                         <span className="font-semibold text-gray-900">{plan.users}</span>
+                      )}
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">Chatbot Flows</span>
+                      {plan.chatbots === 'Unlimited' ? (
+                        <span className="flex items-center gap-1 font-semibold text-swar-primary">
+                          <Infinity className="h-4 w-4" /> Unlimited
+                        </span>
+                      ) : (
+                        <span className="font-semibold text-gray-900">{plan.chatbots}</span>
                       )}
                     </div>
                   </div>
