@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Trash2, CheckCircle2, Circle, Heart } from 'lucide-react';
 import { HealthRoutine } from '@/lib/types/lifePlanner';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
@@ -60,8 +60,10 @@ export default function HealthRoutinesPage() {
     })();
   }, []);
 
+  const skipNextSave = useRef(true);
   useEffect(() => {
     if (!mounted || !hasLoaded) return;
+    if (skipNextSave.current) { skipNextSave.current = false; return; }
     (async () => {
       await lifePlannerStorage.saveHealthRoutines(routines);
     })();

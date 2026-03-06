@@ -132,8 +132,10 @@ export default function WordsPage() {
     })();
   }, []);
 
+  const skipNextSave = useRef(true);
   useEffect(() => {
     if (!mounted || !hasLoaded) return;
+    if (skipNextSave.current) { skipNextSave.current = false; return; }
     (async () => {
       try {
         await lifePlannerStorage.saveWords(words);

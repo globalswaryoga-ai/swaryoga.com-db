@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Edit, Trash2, Calendar, CheckCircle2 } from 'lucide-react';
 import { Vision } from '@/lib/types/lifePlanner';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
@@ -21,8 +21,10 @@ export default function EnhancedVisionDashboard() {
     })();
   }, []);
 
+  const skipNextSave = useRef(true);
   useEffect(() => {
     if (!mounted) return;
+    if (skipNextSave.current) { skipNextSave.current = false; return; }
     (async () => {
       await lifePlannerStorage.saveVisions(visions);
     })();

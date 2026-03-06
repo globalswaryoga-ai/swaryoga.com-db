@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Clock, AlertCircle, Plus, X } from 'lucide-react';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 
@@ -43,8 +43,10 @@ export default function RoutinesPage() {
   }, []);
 
   // Save to MongoDB when routines change
+  const skipNextSave = useRef(true);
   useEffect(() => {
     if (!mounted || !hasLoaded) return;
+    if (skipNextSave.current) { skipNextSave.current = false; return; }
     (async () => {
       await lifePlannerStorage.saveRoutines(routines);
     })();

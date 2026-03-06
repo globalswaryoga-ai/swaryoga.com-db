@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Download, Plus } from 'lucide-react';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 import EventModal, { type EventSubtype, type PlannerEvent } from './EventModal';
@@ -140,8 +140,10 @@ export default function LifePlannerEventsPage() {
     })();
   }, []);
 
+  const skipNextSave = useRef(true);
   useEffect(() => {
     if (!mounted || !hasLoaded) return;
+    if (skipNextSave.current) { skipNextSave.current = false; return; }
     // Save to both MongoDB and localStorage (localStorage as offline fallback)
     writeArray(EVENTS_STORAGE_KEY, events);
     (async () => {

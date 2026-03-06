@@ -121,9 +121,11 @@ export default function RemindersPage() {
     load();
   }, []);
 
+  const skipNextSave = useRef(true);
   useEffect(() => {
     const save = async () => {
       if (!mounted || !hasLoaded) return;
+      if (skipNextSave.current) { skipNextSave.current = false; return; }
       await lifePlannerStorage.saveReminders(reminders.map(uiToDbReminder));
     };
     save();

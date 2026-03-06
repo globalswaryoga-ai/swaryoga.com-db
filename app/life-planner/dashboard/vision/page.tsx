@@ -75,8 +75,10 @@ export default function VisionPage() {
     })();
   }, []);
 
+  const skipNextSave = useRef(true);
   useEffect(() => {
     if (!mounted || !hasLoaded) return;
+    if (skipNextSave.current) { skipNextSave.current = false; return; }
     (async () => {
       await lifePlannerStorage.saveVisions(visions);
     })();

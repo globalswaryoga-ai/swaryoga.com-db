@@ -110,8 +110,10 @@ export default function TasksPage() {
   }, []);
 
   // Save tasks
+  const skipNextSave = useRef(true);
   useEffect(() => {
     if (!mounted || !hasLoaded) return;
+    if (skipNextSave.current) { skipNextSave.current = false; return; }
     lifePlannerStorage.saveTasks(tasks).catch((err: any) =>
       console.error('Error saving tasks:', err)
     );

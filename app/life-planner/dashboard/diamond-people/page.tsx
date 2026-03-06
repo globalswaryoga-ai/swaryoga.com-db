@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Download } from 'lucide-react';
 import { DiamondPerson } from '@/lib/types/lifePlanner';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
@@ -38,8 +38,10 @@ const DiamondPeoplePage = () => {
   }, []);
 
   // Save to localStorage whenever people changes
+  const skipNextSave = useRef(true);
   useEffect(() => {
     if (!mounted || !hasLoaded) return;
+    if (skipNextSave.current) { skipNextSave.current = false; return; }
     (async () => {
       await lifePlannerStorage.saveDiamondPeople(people);
     })();
