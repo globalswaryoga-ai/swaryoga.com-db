@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { CheckCircle2, ArrowRight, Database, Unlock } from 'lucide-react';
+import { CheckCircle2, ArrowRight, Database, Unlock, Infinity } from 'lucide-react';
 
 /* ─── Auto-detect India by timezone ─── */
 function detectIsIndia(): boolean {
@@ -14,7 +14,7 @@ function detectIsIndia(): boolean {
   }
 }
 
-/* ─── ALL features included on every plan. Only limit = leads + storage ─── */
+/* ─── ALL features included on every plan ─── */
 const ALL_FEATURES = [
   'CRM & Lead Management',
   'Funnel & Pipeline',
@@ -35,13 +35,15 @@ const ALL_FEATURES = [
   'API Access & Tally Integration',
 ];
 
+/* ─── Plans — only leads & users differ. Professional = unlimited ─── */
+type BillingCycle = '3mo' | '6mo' | '12mo';
+
 const PLANS = [
   {
     tier: 'free',
     name: 'Free',
-    desc: 'Explore everything — 250 leads to start.',
-    monthlyINR: 0, annualINR: 0,
-    monthlyUSD: 0, annualUSD: 0,
+    desc: 'Explore everything — 250 leads.',
+    monthlyINR: 0, monthlyUSD: 0,
     leads: '250',
     users: '1',
     cta: 'Start Free Trial',
@@ -50,9 +52,8 @@ const PLANS = [
   {
     tier: 'basic',
     name: 'Basic',
-    desc: 'Full CRM power for early-stage businesses.',
-    monthlyINR: 999, annualINR: 9990,
-    monthlyUSD: 12, annualUSD: 120,
+    desc: 'Full CRM power for early-stage.',
+    monthlyINR: 999, monthlyUSD: 12,
     leads: '2,000',
     users: '2',
     cta: 'Start Free Trial',
@@ -62,8 +63,7 @@ const PLANS = [
     tier: 'starter',
     name: 'Starter',
     desc: 'Scale your outreach — 5K leads.',
-    monthlyINR: 1999, annualINR: 19990,
-    monthlyUSD: 25, annualUSD: 240,
+    monthlyINR: 1999, monthlyUSD: 25,
     leads: '5,000',
     users: '3',
     cta: 'Start Free Trial',
@@ -73,8 +73,7 @@ const PLANS = [
     tier: 'growth',
     name: 'Growth',
     desc: 'For growing teams — 25K leads.',
-    monthlyINR: 4999, annualINR: 49990,
-    monthlyUSD: 59, annualUSD: 590,
+    monthlyINR: 4999, monthlyUSD: 59,
     leads: '25,000',
     users: '10',
     cta: 'Start Free Trial',
@@ -83,25 +82,20 @@ const PLANS = [
   {
     tier: 'professional',
     name: 'Professional',
-    desc: 'High-volume — 50K leads.',
-    monthlyINR: 9999, annualINR: 99990,
-    monthlyUSD: 119, annualUSD: 1190,
-    leads: '50,000',
-    users: '25',
+    desc: 'Unlimited leads. No limits.',
+    monthlyINR: 9999, monthlyUSD: 119,
+    leads: 'Unlimited',
+    users: 'Unlimited',
     cta: 'Start Free Trial',
     highlight: false,
   },
-  {
-    tier: 'enterprise',
-    name: 'Enterprise',
-    desc: 'Unlimited scale — 100K+ leads.',
-    monthlyINR: 24999, annualINR: 249990,
-    monthlyUSD: 299, annualUSD: 2990,
-    leads: '100,000',
-    users: 'Unlimited',
-    cta: 'Contact Sales',
-    highlight: false,
-  },
+];
+
+/* Billing cycles */
+const CYCLES: { id: BillingCycle; label: string; months: number; discount: number }[] = [
+  { id: '3mo', label: '3 Months', months: 3, discount: 0 },
+  { id: '6mo', label: '6 Months', months: 6, discount: 10 },
+  { id: '12mo', label: '1 Year', months: 12, discount: 20 },
 ];
 
 /* Storage */
@@ -117,13 +111,14 @@ function fmtUSD(n: number) {
 }
 
 export default function PricingPage() {
-  const [annual, setAnnual] = useState(false);
+  const [cycle, setCycle] = useState<BillingCycle>('3mo');
   const [isINR, setIsINR] = useState(true);
 
   useEffect(() => { setIsINR(detectIsIndia()); }, []);
 
   const sym = isINR ? '₹' : '$';
   const fmt = isINR ? fmtINR : fmtUSD;
+  const activeCycle = CYCLES.find((c) => c.id === cycle)!;
 
   return (
     <>
@@ -139,29 +134,27 @@ export default function PricingPage() {
             <span className="text-swar-primary font-semibold">15-day free trial</span> on every plan — no credit card required.
           </p>
           <p className="mt-2 text-sm text-gray-400">
-            Min. 3-month subscription &bull; Storage billed per use &bull; Prices exclude GST
+            All paid plans are non-refundable &bull; Storage billed per use &bull; Prices exclude GST
           </p>
 
           {/* Toggles row */}
           <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
             {/* Billing cycle */}
             <div className="inline-flex items-center gap-1 bg-gray-100 rounded-xl p-1">
-              <button
-                onClick={() => setAnnual(false)}
-                className={`px-5 py-2 rounded-lg text-sm font-medium transition ${
-                  !annual ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
-                }`}
-              >
-                Monthly
-              </button>
-              <button
-                onClick={() => setAnnual(true)}
-                className={`px-5 py-2 rounded-lg text-sm font-medium transition ${
-                  annual ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
-                }`}
-              >
-                Annual <span className="text-swar-primary text-xs font-semibold ml-1">Save 17%</span>
-              </button>
+              {CYCLES.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => setCycle(c.id)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                    cycle === c.id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
+                  }`}
+                >
+                  {c.label}
+                  {c.discount > 0 && (
+                    <span className="text-swar-primary text-xs font-semibold ml-1">-{c.discount}%</span>
+                  )}
+                </button>
+              ))}
             </div>
 
             {/* Currency */}
@@ -195,13 +188,12 @@ export default function PricingPage() {
 
       {/* Plans grid */}
       <section className="pb-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-5">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5">
             {PLANS.map((plan) => {
-              const price = isINR
-                ? annual ? Math.round(plan.annualINR / 12) : plan.monthlyINR
-                : annual ? Math.round(plan.annualUSD / 12) : plan.monthlyUSD;
-              const annualTotal = isINR ? plan.annualINR : plan.annualUSD;
+              const baseMonthly = isINR ? plan.monthlyINR : plan.monthlyUSD;
+              const discounted = Math.round(baseMonthly * (1 - activeCycle.discount / 100));
+              const totalBill = discounted * activeCycle.months;
 
               return (
                 <div
@@ -229,32 +221,48 @@ export default function PricingPage() {
                   <p className="text-sm text-gray-500 mt-1 min-h-[40px]">{plan.desc}</p>
 
                   <div className="mt-4 mb-4">
-                    {price === 0 ? (
+                    {baseMonthly === 0 ? (
                       <span className="text-3xl font-bold text-gray-900">Free</span>
                     ) : (
                       <>
                         <span className="text-3xl font-bold text-gray-900">
-                          {sym}{fmt(price)}
+                          {sym}{fmt(discounted)}
                         </span>
                         <span className="text-sm text-gray-500 ml-1">/mo</span>
-                        {annual && (
+                        {activeCycle.discount > 0 && (
                           <p className="text-xs text-gray-400 mt-1">
-                            {sym}{fmt(annualTotal)} billed annually
+                            <span className="line-through">{sym}{fmt(baseMonthly)}</span>
+                            <span className="text-green-600 font-semibold ml-1">Save {activeCycle.discount}%</span>
                           </p>
                         )}
+                        <p className="text-xs text-gray-500 mt-1">
+                          {sym}{fmt(totalBill)} billed for {activeCycle.months} months
+                        </p>
                       </>
                     )}
                   </div>
 
-                  {/* Limits — the ONLY differentiator */}
+                  {/* Limits */}
                   <div className="flex flex-col gap-1 mb-4 p-3 bg-gray-50 rounded-xl">
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500">Leads</span>
-                      <span className="font-semibold text-gray-900">{plan.leads}</span>
+                      {plan.leads === 'Unlimited' ? (
+                        <span className="flex items-center gap-1 font-semibold text-swar-primary">
+                          <Infinity className="h-4 w-4" /> Unlimited
+                        </span>
+                      ) : (
+                        <span className="font-semibold text-gray-900">{plan.leads}</span>
+                      )}
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500">Users</span>
-                      <span className="font-semibold text-gray-900">{plan.users}</span>
+                      {plan.users === 'Unlimited' ? (
+                        <span className="flex items-center gap-1 font-semibold text-swar-primary">
+                          <Infinity className="h-4 w-4" /> Unlimited
+                        </span>
+                      ) : (
+                        <span className="font-semibold text-gray-900">{plan.users}</span>
+                      )}
                     </div>
                   </div>
 
@@ -266,7 +274,7 @@ export default function PricingPage() {
 
                   {/* CTA */}
                   <Link
-                    href={plan.tier === 'enterprise' ? '/crm-site/contact' : '/crm-site/signup'}
+                    href="/crm-site/signup"
                     className={`mt-auto w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
                       plan.highlight
                         ? 'bg-swar-primary text-white hover:bg-swar-primary-hover shadow'
@@ -357,6 +365,18 @@ export default function PricingPage() {
                 a: 'Every plan includes a 15-day free trial with full access. After 15 days your subscription billing begins automatically. No credit card needed to start.',
               },
               {
+                q: 'What billing cycles are available?',
+                a: 'All paid plans must be purchased for a minimum of 3 months. You can also choose 6 months (10% discount) or 1 year (20% discount). All subscriptions are non-refundable.',
+              },
+              {
+                q: 'Are subscriptions refundable?',
+                a: 'No. All paid plans are non-refundable once purchased. We encourage you to use the 15-day free trial to evaluate the platform before committing.',
+              },
+              {
+                q: 'What does Professional include?',
+                a: 'Professional gives you unlimited leads and unlimited users at ₹9,999/mo (or $119/mo). All features are included, same as every other plan — you just never hit a lead limit.',
+              },
+              {
                 q: 'When do I need to upgrade?',
                 a: 'When you reach your plan\'s lead limit (e.g. 2,000 on Basic), you\'ll be prompted to upgrade. All your data, keys, and settings carry over seamlessly.',
               },
@@ -367,14 +387,6 @@ export default function PricingPage() {
               {
                 q: 'Why are there two currencies?',
                 a: 'Users in India are billed in INR via UPI, cards, and net banking. Users outside India are billed in USD. USD prices include a 3% international payment processing fee.',
-              },
-              {
-                q: 'What is the minimum subscription?',
-                a: 'All paid plans require a minimum 3-month commitment. After that you can cancel or change plans at any time.',
-              },
-              {
-                q: 'How does upgrade proration work?',
-                a: 'When you upgrade mid-cycle, the remaining value of your current plan (calculated by days left) is credited toward the new plan. You only pay the difference.',
               },
               {
                 q: 'Is GST included in the pricing?',

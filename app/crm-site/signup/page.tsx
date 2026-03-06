@@ -48,8 +48,7 @@ const PLANS_QUICK = [
   { id: 'basic', name: 'Basic', priceINR: '₹999/mo', priceUSD: '$12/mo', desc: '2,000 leads · All features', highlight: false },
   { id: 'starter', name: 'Starter', priceINR: '₹1,999/mo', priceUSD: '$25/mo', desc: '5,000 leads · All features', highlight: false },
   { id: 'growth', name: 'Growth', priceINR: '₹4,999/mo', priceUSD: '$59/mo', desc: '25,000 leads · All features', highlight: true },
-  { id: 'professional', name: 'Professional', priceINR: '₹9,999/mo', priceUSD: '$119/mo', desc: '50,000 leads · All features', highlight: false },
-  { id: 'enterprise', name: 'Enterprise', priceINR: '₹24,999/mo', priceUSD: '$299/mo', desc: '100,000 leads · All features', highlight: false },
+  { id: 'professional', name: 'Professional', priceINR: '₹9,999/mo', priceUSD: '$119/mo', desc: 'Unlimited leads · All features', highlight: false },
 ];
 
 export default function CrmSignupPage() {
