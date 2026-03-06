@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
     });
 
     /* ─── Create tenant record ─── */
-    const validPlans = ['free', 'starter', 'growth', 'professional', 'enterprise'];
+    const validPlans = ['free', 'basic', 'starter', 'growth', 'professional', 'enterprise'];
     const selectedPlan = validPlans.includes(plan) ? plan : 'free';
 
     await mainDb.collection('tenants').insertOne({

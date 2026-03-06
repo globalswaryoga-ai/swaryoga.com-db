@@ -35,6 +35,7 @@ interface FieldError {
 
 const PLANS_QUICK = [
   { id: 'free', name: 'Free', price: '₹0/mo', desc: '250 leads, 1 user', highlight: false },
+  { id: 'basic', name: 'Basic', price: '₹999/mo', desc: '2K leads, Funnel + Export', highlight: false },
   { id: 'starter', name: 'Starter', price: '₹1,999/mo', desc: '5K leads, WhatsApp', highlight: false },
   { id: 'growth', name: 'Growth', price: '₹4,999/mo', desc: '25K leads, AI + Payments', highlight: true },
   { id: 'professional', name: 'Professional', price: '₹9,999/mo', desc: '50K leads, Full suite', highlight: false },

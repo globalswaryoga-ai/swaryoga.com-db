@@ -23,6 +23,25 @@ const PLANS = [
     highlight: false,
   },
   {
+    tier: 'basic',
+    name: 'Basic',
+    desc: 'Affordable CRM for growing businesses.',
+    monthlyPrice: 999,
+    annualPrice: 9990,
+    limits: { leads: '2,000', users: '2', storage: '250 MB' },
+    features: [
+      'Everything in Free',
+      'Lead labels & filters',
+      'Excel export',
+      'Funnel management',
+      'Bulk lead import',
+      'Email & SMS actions',
+    ],
+    notIncluded: ['WhatsApp API', 'AI Voice', 'Chatbot', 'Payments', 'Custom domain'],
+    cta: 'Start Basic',
+    highlight: false,
+  },
+  {
     tier: 'starter',
     name: 'Starter',
     desc: 'WhatsApp messaging for small teams.',
@@ -30,7 +49,7 @@ const PLANS = [
     annualPrice: 19990,
     limits: { leads: '5,000', users: '3', storage: '500 MB' },
     features: [
-      'Everything in Free',
+      'Everything in Basic',
       'WhatsApp Business API',
       'Broadcast messaging',
       'Meta Forms integration',
@@ -121,6 +140,9 @@ export default function PricingPage() {
           <p className="mt-4 text-lg text-gray-600 max-w-2xl mx-auto">
             Start free. Upgrade as you grow. No hidden fees.
           </p>
+          <p className="mt-2 text-sm text-gray-400">
+            Min. 3-month subscription on paid plans &bull; Storage billed in 5 MB slots &bull; Prices exclude GST (applied when applicable)
+          </p>
 
           {/* Toggle */}
           <div className="mt-8 inline-flex items-center gap-3 bg-gray-100 rounded-xl p-1">
@@ -147,7 +169,7 @@ export default function PricingPage() {
       {/* Plans grid */}
       <section className="pb-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-5">
             {PLANS.map((plan) => {
               const price = annual
                 ? Math.round(plan.annualPrice / 12)
@@ -243,8 +265,24 @@ export default function PricingPage() {
                 a: 'Yes! The Free plan gives you 250 leads with core CRM features. No credit card required.',
               },
               {
+                q: 'What is the minimum subscription?',
+                a: 'All paid plans require a minimum 3-month commitment. After that you can cancel or change plans at any time.',
+              },
+              {
+                q: 'How does upgrade proration work?',
+                a: 'When you upgrade mid-cycle, the remaining value of your current plan (calculated by days left) is credited toward the new plan. You only pay the difference.',
+              },
+              {
+                q: 'How is storage billed?',
+                a: 'Storage is tracked in 5 MB slots. Each slot you use is accountable — you pay only for what you use beyond your plan\'s included storage.',
+              },
+              {
+                q: 'Is GST included in the pricing?',
+                a: 'Currently, listed prices are exclusive of GST. GST will be added as applicable once we obtain our GST registration.',
+              },
+              {
                 q: 'Can I upgrade or downgrade anytime?',
-                a: 'Absolutely. Upgrade or downgrade from your billing dashboard at any time. Changes take effect immediately.',
+                a: 'Yes! After the initial 3-month period, upgrade or downgrade from your billing dashboard. Upgrades take effect immediately with prorated credit.',
               },
               {
                 q: 'What payment methods do you accept?',
