@@ -39,9 +39,14 @@ export async function GET(request: NextRequest) {
 
     const url = new URL(request.url);
     const userIdParam = url.searchParams.get('userId');
+    const sourceParam = url.searchParams.get('source');
     const superAdmin = isSuperAdmin(decoded);
 
     const baseFilter: any = {};
+    // Source filter (e.g. qr_whatsapp)
+    if (sourceParam && String(sourceParam).trim()) {
+      baseFilter.source = String(sourceParam).trim();
+    }
     if (superAdmin) {
       if (userIdParam && String(userIdParam).trim()) {
         const uid = String(userIdParam).trim();

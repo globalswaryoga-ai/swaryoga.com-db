@@ -10,7 +10,7 @@ import {
   Calendar, Globe, Languages, MapPin, MoreHorizontal, ChevronLeft, Link2, Check,
   PauseCircle, Repeat, Flower2, Megaphone,
   Pencil, Receipt, MessageSquare, PhoneCall, Bot, Clock, History, Star, User, Tag, Plus, ExternalLink,
-  MessageCircle, ArrowDown, ArrowUp,
+  MessageCircle, ArrowDown, ArrowUp, AlertTriangle,
 } from 'lucide-react';
 import LeadDetailModal from '@/components/admin/crm/LeadDetailModal';
 import ReceiptPreviewModal from '@/components/admin/crm/ReceiptPreviewModal';
@@ -155,6 +155,12 @@ export default function FunnelManagePage() {
   const [callsLoading, setCallsLoading] = useState(false);
   const [windowStatus, setWindowStatus] = useState<Record<string, { lastInboundAt: string | null; expiresAt: string | null; isOpen: boolean }>>({});
   const [now, setNow] = useState(Date.now());
+
+  // Delete confirmation
+  const [deleteLeadId, setDeleteLeadId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
 
   // Tick every second for countdown timers
   const windowTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -339,6 +345,44 @@ export default function FunnelManagePage() {
       setLeads(prev => prev.map(l => l._id === leadId ? { ...l, firstTouchedAt: new Date().toISOString() } : l));
     } catch (e) { console.error(e); }
   }, [leads, token]);
+
+  // Delete lead
+  const deleteLead = async (leadId: string) => {
+    if (!token) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/admin/crm/leads/${leadId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setLeads(prev => prev.filter(l => l._id !== leadId));
+        setTotalLeads(prev => prev - 1);
+        setDeleteLeadId(null);
+      }
+    } catch (e) { console.error(e); }
+    setDeleting(false);
+  };
+
+  // Bulk delete
+  const bulkDeleteLeads = async () => {
+    if (!token || selectedLeadIds.size === 0) return;
+    setBulkDeleting(true);
+    try {
+      await Promise.all(
+        Array.from(selectedLeadIds).map(id =>
+          fetch(`/api/admin/crm/leads/${id}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` },
+          })
+        )
+      );
+      setSelectedLeadIds(new Set());
+      setShowBulkDeleteConfirm(false);
+      fetchLeads();
+    } catch (e) { console.error(e); }
+    setBulkDeleting(false);
+  };
 
   // Bulk move
   const bulkMoveLeads = async (toStage: string) => {
@@ -713,6 +757,14 @@ export default function FunnelManagePage() {
                       </div>
                     )}
                   </div>
+                  {/* Bulk Delete */}
+                  <button
+                    onClick={() => setShowBulkDeleteConfirm(true)}
+                    title="Delete selected"
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium bg-red-50 text-red-600 hover:bg-red-100 transition"
+                  >
+                    <Trash2 className="h-3 w-3" /> Delete
+                  </button>
                   {/* Clear */}
                   <button
                     onClick={() => setSelectedLeadIds(new Set())}
@@ -1148,13 +1200,12 @@ export default function FunnelManagePage() {
                       Edit
                     </button>
                     <button
-                      onClick={() => { touchLead(lead._id); router.push(`/admin/crm/meta?phone=${encodeURIComponent(lead.phoneNumber?.replace(/\D/g, '') || '')}`); }}
-                      title="WhatsApp (Meta)"
-                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium text-white transition hover:opacity-90 whitespace-nowrap"
-                      style={{ background: '#25D366' }}
+                      onClick={() => setDeleteLeadId(lead._id)}
+                      title="Delete lead"
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium bg-red-50 text-red-600 hover:bg-red-100 transition whitespace-nowrap"
                     >
-                      <Send className="h-3 w-3" />
-                      WA
+                      <Trash2 className="h-3 w-3" />
+                      Delete
                     </button>
                     <div className="relative group">
                       <button
@@ -1181,15 +1232,16 @@ export default function FunnelManagePage() {
                       </div>
                     </div>
                   </div>
-                  {/* Row 2 */}
+                  {/* Row 2: Meta WA, Email, SMS, Call, Chatbot */}
                   <div className="flex items-center gap-1">
                     <button
-                      onClick={() => { touchLead(lead._id); setReceiptLeadId(lead._id); }}
-                      title="Receipts"
-                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition whitespace-nowrap"
+                      onClick={() => { touchLead(lead._id); router.push(`/admin/crm/meta?phone=${encodeURIComponent(lead.phoneNumber?.replace(/\D/g, '') || '')}`); }}
+                      title="WhatsApp (Meta)"
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium text-white transition hover:opacity-90 whitespace-nowrap"
+                      style={{ background: '#128C7E' }}
                     >
-                      <Receipt className="h-3 w-3" />
-                      Receipts
+                      <Send className="h-3 w-3" />
+                      Meta WA
                     </button>
                     <a
                       href={`mailto:${lead.email || ''}`}
@@ -1273,12 +1325,20 @@ export default function FunnelManagePage() {
                       })()}
                     </button>
                   </div>
-                  {/* Row 3: Updates (centered) */}
-                  <div className="flex items-center justify-center">
+                  {/* Row 3: Receipts + Updates */}
+                  <div className="flex items-center gap-1 justify-center">
+                    <button
+                      onClick={() => { touchLead(lead._id); setReceiptLeadId(lead._id); }}
+                      title="Receipts"
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition whitespace-nowrap"
+                    >
+                      <Receipt className="h-3 w-3" />
+                      Receipts
+                    </button>
                     <button
                       onClick={() => fetchStageHistory(lead._id)}
                       title="Stage change updates"
-                      className="flex items-center gap-1 px-3 py-1 rounded-lg text-[11px] font-semibold text-green-800 transition hover:opacity-90 whitespace-nowrap bg-lavender"
+                      className="flex items-center gap-1 px-3 py-1 rounded-lg text-[11px] font-semibold text-green-800 transition hover:opacity-90 whitespace-nowrap"
                       style={{ background: '#E8E0F0' }}
                     >
                       <History className="h-3 w-3" />
@@ -1405,6 +1465,66 @@ export default function FunnelManagePage() {
           />
         );
       })()}
+
+      {/* ── Delete Confirmation Modal ── */}
+      {deleteLeadId && (() => {
+        const dl = leads.find(l => l._id === deleteLeadId);
+        return (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40" onClick={() => setDeleteLeadId(null)}>
+            <div className="bg-white rounded-2xl shadow-2xl w-[380px] overflow-hidden" onClick={e => e.stopPropagation()}>
+              <div className="px-5 py-4 bg-red-50 border-b border-red-100 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center">
+                  <AlertTriangle className="h-5 w-5 text-red-600" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-red-800">Delete Lead</h3>
+                  <p className="text-[11px] text-red-500">This action cannot be undone</p>
+                </div>
+              </div>
+              <div className="px-5 py-4">
+                <p className="text-sm text-gray-700">
+                  Are you sure you want to delete <strong>{dl?.name || dl?.displayName || 'this lead'}</strong>
+                  {dl?.phoneNumber && <span className="text-gray-500"> ({dl.phoneNumber})</span>}?
+                </p>
+              </div>
+              <div className="px-5 py-3 bg-gray-50 flex items-center justify-end gap-2">
+                <button onClick={() => setDeleteLeadId(null)} className="px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100 transition">Cancel</button>
+                <button onClick={() => deleteLead(deleteLeadId)} disabled={deleting} className="px-4 py-2 rounded-xl text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 transition flex items-center gap-1.5">
+                  {deleting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />} Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Bulk Delete Confirmation Modal ── */}
+      {showBulkDeleteConfirm && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40" onClick={() => setShowBulkDeleteConfirm(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-[380px] overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="px-5 py-4 bg-red-50 border-b border-red-100 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center">
+                <AlertTriangle className="h-5 w-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-red-800">Bulk Delete</h3>
+                <p className="text-[11px] text-red-500">This action cannot be undone</p>
+              </div>
+            </div>
+            <div className="px-5 py-4">
+              <p className="text-sm text-gray-700">
+                Are you sure you want to delete <strong>{selectedLeadIds.size} leads</strong>? All data will be permanently removed.
+              </p>
+            </div>
+            <div className="px-5 py-3 bg-gray-50 flex items-center justify-end gap-2">
+              <button onClick={() => setShowBulkDeleteConfirm(false)} className="px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100 transition">Cancel</button>
+              <button onClick={bulkDeleteLeads} disabled={bulkDeleting} className="px-4 py-2 rounded-xl text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 transition flex items-center gap-1.5">
+                {bulkDeleting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />} Delete {selectedLeadIds.size} Leads
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── AI Call Modal ── */}
       {aiCallLeadId && token && (() => {
