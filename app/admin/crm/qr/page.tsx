@@ -652,6 +652,8 @@ export default function QRWhatsAppPage() {
     setGroupInfo(null);
     fetchMessages(jid);
     fetchProfilePic(jid);
+    // Clear unread count for the opened chat
+    setChats(prev => prev.map(c => c.id === jid ? { ...c, unreadCount: 0 } : c));
   }, [fetchMessages, fetchProfilePic]);
 
   // ── Handle file selection for media ──
