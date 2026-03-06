@@ -86,8 +86,10 @@ export async function GET(request: NextRequest) {
       accessControlConditions = [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }];
     }
 
+    const source = url.searchParams.get('source');
     if (status) filter.status = status;
     if (workshop) filter.workshopName = workshop;
+    if (source) filter.source = source;
     
     // Build search conditions
     let searchConditions: any[] | null = null;

@@ -181,8 +181,8 @@ async function ingestQRPayload(payload: any) {
         lead = await Lead.create({
             phoneNumber: normalizedPhone,
             name: `QR Lead ${normalizedPhone}`,
-            source: 'whatsapp',
-            labels: ['whatsapp'],
+            source: 'qr_whatsapp',
+            labels: ['whatsapp', 'qr'],
             status: 'lead',
             leadNumber
         });

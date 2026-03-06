@@ -288,7 +288,10 @@ export const sectionConfigs: SectionConfig[] = [
     title: 'QR WhatsApp',
     icon: QrCode,
     items: [
-      { label: 'QR WhatsApp', href: '/admin/crm/qr', icon: QrCode },
+      { label: 'QR Inbox', href: '/admin/crm/qr', icon: QrCode },
+      { label: 'Funnel Report', href: '/admin/crm/qr/funnel-report', icon: BarChart3 },
+      { label: 'Manage Funnel', href: '/admin/crm/qr/manage', icon: Filter },
+      { label: 'Leads', href: '/admin/crm/qr/leads', icon: Users },
     ],
     moreItems: [],
     prefixes: ['/admin/crm/qr'],
