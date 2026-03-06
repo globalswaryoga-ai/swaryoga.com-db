@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import CrmNavbar from '@/components/crm-site/CrmNavbar';
 import CrmFooter from '@/components/crm-site/CrmFooter';
+import AiGuideChat from '@/components/crm-site/AiGuideChat';
 
 export const metadata: Metadata = {
   title: {
@@ -21,6 +22,7 @@ export default function CrmSiteLayout({
       <CrmNavbar />
       <main className="flex-1">{children}</main>
       <CrmFooter />
+      <AiGuideChat />
     </div>
   );
 }

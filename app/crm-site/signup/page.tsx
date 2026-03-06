@@ -120,7 +120,13 @@ export default function CrmSignupPage() {
         body: JSON.stringify(form),
       });
 
-      const data = await res.json();
+      let data: any;
+      try {
+        const text = await res.text();
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        throw new Error('Server returned an invalid response. Please try again.');
+      }
 
       if (!res.ok) {
         // Show field-level errors if the API returns them
