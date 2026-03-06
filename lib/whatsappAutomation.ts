@@ -1,7 +1,7 @@
 import { connectDB } from '@/lib/db';
 import { ConsentManager } from '@/lib/consentManager';
 import { Lead, WhatsAppAutomationRule, WhatsAppMessage, ChatbotFlow, getChatbotScheduledAction } from '@/lib/schemas/enterpriseSchemas';
-import { normalizePhone, sendWhatsAppText, sendWhatsAppPresence, sendWhatsAppInteractiveButtons, getWhatsAppEnv, extractYouTubeVideoId, sendWhatsAppTemplate as sendWhatsAppTemplateFn, buildCloudTemplateSendInput } from '@/lib/whatsapp';
+import { normalizePhone, sendWhatsAppText, sendWhatsAppPresence, sendWhatsAppInteractiveButtons, getWhatsAppEnv, extractYouTubeVideoId, buildCloudTemplateSendInput, generateAppSecretProof, buildGraphMessagesUrl, getPublicMediaUrl } from '@/lib/whatsapp';
 import { getWhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
 import { getBotResponse, searchKnowledgeBase, isAdminAvailable } from '@/lib/chatbot/knowledge-bot';
 import { loadAutoConfig, isWithinWorkingHours } from '@/lib/autoConfig';
@@ -345,25 +345,103 @@ async function sendOutboundTemplate(lead: any, to: string, templateId: string, t
   });
 
   try {
-    // Use buildCloudTemplateSendInput to properly include headerMedia, buttons, bodyParams
+    // Call Meta Graph API DIRECTLY — bypass circuit breaker to prevent cascading failures
+    if (!env?.accessToken || !env?.phoneNumberId) {
+      throw new Error('Meta API not configured (WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID required)');
+    }
+
+    // Build the template send input (handles headerMedia, buttons, bodyParams)
     const cloudInput = buildCloudTemplateSendInput(template, to);
-    const apiResult = await sendWhatsAppTemplateFn(cloudInput);
+
+    // Process header media URL (convert S3/Bunny URLs to publicly accessible URLs)
+    let processedHeaderMedia = cloudInput.headerMedia;
+    if (cloudInput.headerMedia?.url) {
+      const publicUrl = await getPublicMediaUrl(cloudInput.headerMedia.url);
+      processedHeaderMedia = { ...cloudInput.headerMedia, url: publicUrl };
+      console.log(`[Chatbot Template] Header media: ${cloudInput.headerMedia.kind} -> ${publicUrl.substring(0, 80)}...`);
+    }
+
+    // Build components with processed media URL
+    const processedInput = { ...cloudInput, headerMedia: processedHeaderMedia || cloudInput.headerMedia };
+
+    // Build template components (header, body params, buttons)
+    const components: any[] = [];
+    if (processedInput.headerMedia?.url) {
+      const format = processedInput.headerMedia.kind === 'video' ? 'VIDEO' : 'IMAGE';
+      components.push({
+        type: 'header',
+        parameters: [{ type: format.toLowerCase(), [format.toLowerCase()]: { link: processedInput.headerMedia.url } }],
+      });
+    }
+    if (Array.isArray(processedInput.bodyParams) && processedInput.bodyParams.length > 0) {
+      components.push({
+        type: 'body',
+        parameters: processedInput.bodyParams.map((p: string) => ({ type: 'text', text: String(p ?? '') })),
+      });
+    }
+    if (Array.isArray(processedInput.buttons)) {
+      processedInput.buttons.forEach((b: any, index: number) => {
+        if (!b) return;
+        if (b.kind === 'quick_reply') return; // Pre-defined in Meta template
+        if (b.kind === 'catalog') {
+          components.push({ type: 'button', sub_type: 'CATALOG', index, parameters: [] });
+          return;
+        }
+        if (b.kind === 'url') {
+          const url = String(b.url || '');
+          const needsParam = url.includes('{{') && url.includes('}}');
+          const param = needsParam ? url.replace(/.*\{\{\s*([^}]+)\s*\}\}.*/, '$1') : '';
+          const parameters = param ? [{ type: 'text', text: param }] : [];
+          components.push({ type: 'button', sub_type: 'url', index: String(index), ...(parameters.length ? { parameters } : {}) });
+        }
+      });
+    }
+
+    const language = String(processedInput.language || 'en').trim() || 'en';
+    const appSecretProof = generateAppSecretProof(env.accessToken, env.appSecret);
+    const url = buildGraphMessagesUrl(env.phoneNumberId, appSecretProof || undefined);
+
+    const payload = {
+      messaging_product: 'whatsapp',
+      to,
+      type: 'template',
+      template: {
+        name: processedInput.templateName,
+        language: { code: language },
+        ...(components.length ? { components } : {}),
+      },
+    };
+
+    console.log(`[Chatbot Template] Sending directly to Meta API: ${processedInput.templateName} -> ${to}`);
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${env.accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      cache: 'no-store',
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      const errMsg = data?.error?.message || data?.error?.error_user_msg || JSON.stringify(data?.error) || 'Meta API error';
+      throw new Error(`Meta API ${res.status}: ${errMsg}`);
+    }
+
+    const waMessageId = Array.isArray(data?.messages) && data.messages[0]?.id ? String(data.messages[0].id) : undefined;
+    if (!waMessageId) {
+      throw new Error('Meta API returned 200 but no message ID');
+    }
 
     await WhatsAppMessage.updateOne(
       { _id: message._id },
-      { 
-        $set: { 
-          status: 'sent', 
-          waMessageId: apiResult.waMessageId, 
-          provider: apiResult.raw?.provider || 'meta',
-          senderNumber,
-          updatedAt: new Date() 
-        }, 
-        $unset: { failureReason: 1 } 
-      }
+      { $set: { status: 'sent', waMessageId, provider: 'meta', senderNumber, updatedAt: new Date() }, $unset: { failureReason: 1 } }
     );
+
+    console.log(`[Chatbot Template] Sent OK: ${processedInput.templateName} waId=${waMessageId}`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'WhatsApp template send failed';
+    console.error(`[Chatbot Template] FAILED: ${msg}`);
     await WhatsAppMessage.updateOne(
       { _id: message._id },
       { $set: { status: 'failed', failureReason: String(msg), updatedAt: new Date() } }
