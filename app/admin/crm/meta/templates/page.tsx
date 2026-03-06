@@ -1460,7 +1460,7 @@ function TemplatesContent() {
                           <button
                             key={idx}
                             type="button"
-                            className="w-full bg-white text-[#00a884] font-semibold text-sm py-2.5 rounded-xl shadow-sm hover:bg-gray-50 transition-colors"
+                            className="w-full bg-white text-[#0078FF] font-semibold text-sm py-2.5 rounded-xl shadow-sm hover:bg-gray-50 transition-colors"
                           >
                             {btn}
                           </button>

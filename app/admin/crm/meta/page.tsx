@@ -2888,7 +2888,7 @@ export default function MetaInboxPage() {
                                 {templateButtons.map((btn: any, idx: number) => (
                                   <div 
                                     key={idx} 
-                                    className="px-3 py-2 text-center text-[#00a884] font-medium text-[13px] border-b border-gray-200/50 last:border-b-0 hover:bg-gray-50/50"
+                                    className="px-3 py-2 text-center text-[#0078FF] font-medium text-[13px] border-b border-gray-200/50 last:border-b-0 hover:bg-gray-50/50"
                                   >
                                     {btn.title || btn.text || 'Button'}
                                   </div>

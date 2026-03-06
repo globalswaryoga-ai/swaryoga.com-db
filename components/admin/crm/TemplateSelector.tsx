@@ -533,7 +533,7 @@ export default function TemplateSelector({
               <button
                 type="button"
                 onClick={fetchTemplates}
-                className="text-sm text-[#00A884] font-semibold hover:underline"
+                className="text-sm text-[#0078FF] font-semibold hover:underline"
               >
                 Try again
               </button>
