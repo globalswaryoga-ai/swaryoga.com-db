@@ -76,6 +76,7 @@ export async function GET(request: NextRequest) {
     }
 
     const source = url.searchParams.get('source') || '';
+    const excludeSource = url.searchParams.get('excludeSource') || '';
     if (country) query.country = country;
     if (languageCode) query.language = languageCode; // filter by language name (e.g., "Hindi"), not code
     if (region) query.region = region;
@@ -83,6 +84,10 @@ export async function GET(request: NextRequest) {
     if (label) query.labels = label;
     if (workshopName) query.workshopName = workshopName;
     if (source) query.source = source;
+    if (excludeSource) {
+      const excluded = excludeSource.split(',').map(s => s.trim()).filter(Boolean);
+      query.source = { ...(typeof query.source === 'object' ? query.source : {}), $nin: excluded };
+    }
     if (month) {
       const [y, m] = month.split('-').map(Number);
       if (y && m) {
