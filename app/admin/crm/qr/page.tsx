@@ -46,6 +46,17 @@ const getAvatarColor = (name: string): string => {
   return colors[Math.abs(hash) % colors.length];
 };
 
+// Convert URLs in text to clickable links
+const URL_REGEX = /(https?:\/\/[^\s<>"']+)/gi;
+const linkifyText = (text: string): React.ReactNode[] => {
+  const parts = text.split(URL_REGEX);
+  return parts.map((part, i) =>
+    URL_REGEX.test(part)
+      ? <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 underline break-all">{part}</a>
+      : <React.Fragment key={i}>{part}</React.Fragment>
+  );
+};
+
 // Get initials from name
 const getInitials = (name: string): string => {
   return name
@@ -1666,7 +1677,7 @@ export default function QRWhatsAppPage() {
 
                         {/* Message text (skip generic media labels when we have a preview) */}
                         {msg.text && !(hasMediaPreview && /^\[(image|video|document|audio|sticker)\]$/i.test(msg.text)) && (
-                          <p className="whitespace-pre-wrap break-words">{msg.text}</p>
+                          <p className="whitespace-pre-wrap break-words">{linkifyText(msg.text)}</p>
                         )}
                         {!msg.text && !hasMediaPreview && (
                           <p className="whitespace-pre-wrap break-words">[{msg.type}]</p>
