@@ -1513,7 +1513,7 @@ export default function QRWhatsAppPage() {
                           }
                         </span>
                         <div className="flex items-center gap-1 flex-shrink-0">
-                          {chat.unreadCount > 0 && (
+                          {chat.unreadCount > 0 && chat.id !== selectedChat && (
                             <span className="bg-green-500 text-white text-[9px] rounded-full px-1.5 py-0.5 min-w-[18px] text-center font-medium">
                               {chat.unreadCount}
                             </span>
@@ -2218,13 +2218,7 @@ export default function QRWhatsAppPage() {
                     <span className="text-xs text-gray-500">Messages:</span>
                     <span className="text-xs text-gray-700 font-medium">{messages.length}</span>
                   </div>
-                  {selectedChatInfo && selectedChatInfo.unreadCount > 0 && (
-                    <div className="flex items-center gap-2">
-                      <Mail className="w-3.5 h-3.5 text-gray-400" />
-                      <span className="text-xs text-gray-500">Unread:</span>
-                      <span className="text-xs font-medium bg-green-100 text-green-700 px-1.5 rounded-full">{selectedChatInfo.unreadCount}</span>
-                    </div>
-                  )}
+                  {/* Unread badge hidden for selected chat - already viewing it */}
                 </div>
 
                 {/* Group Participants */}
