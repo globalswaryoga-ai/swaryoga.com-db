@@ -47,6 +47,11 @@ export async function GET(request: NextRequest) {
     if (sourceParam && String(sourceParam).trim()) {
       baseFilter.source = String(sourceParam).trim();
     }
+    const excludeSourceParam = url.searchParams.get('excludeSource');
+    if (excludeSourceParam) {
+      const excluded = excludeSourceParam.split(',').map((s: string) => s.trim()).filter(Boolean);
+      if (excluded.length) baseFilter.source = { ...(typeof baseFilter.source === 'object' ? baseFilter.source : {}), $nin: excluded };
+    }
     if (superAdmin) {
       if (userIdParam && String(userIdParam).trim()) {
         const uid = String(userIdParam).trim();

@@ -180,6 +180,7 @@ export default function LeadsPage() {
       setLoadingMetadata(true);
       const params: Record<string, any> = {};
       if (isSuperAdmin && userFilter) params.userId = userFilter;
+      params.excludeSource = 'qr_whatsapp';
       const response = await fetch('/api/admin/crm/leads/metadata' + (Object.keys(params).length ? `?${new URLSearchParams(params)}` : ''), {
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -214,6 +215,7 @@ export default function LeadsPage() {
       if (filterWorkshop) params.workshop = filterWorkshop;
       if (search.query) params.q = search.query;
       if (isSuperAdmin && userFilter) params.userId = userFilter;
+      params.excludeSource = 'qr_whatsapp';
 
       const response = await fetch(
         '/api/admin/crm/leads?' + new URLSearchParams(params),

@@ -91,9 +91,14 @@ export async function GET(request: NextRequest) {
     }
 
     const source = url.searchParams.get('source');
+    const excludeSource = url.searchParams.get('excludeSource');
     if (status) filter.status = status;
     if (workshop) filter.workshopName = workshop;
     if (source) filter.source = source;
+    if (excludeSource) {
+      const excluded = excludeSource.split(',').map(s => s.trim()).filter(Boolean);
+      if (excluded.length) filter.source = { ...(typeof filter.source === 'object' ? filter.source : {}), $nin: excluded };
+    }
     
     // Build search conditions
     let searchConditions: any[] | null = null;
