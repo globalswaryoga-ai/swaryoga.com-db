@@ -157,6 +157,8 @@ export default function MetaInboxPage() {
   const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false); // Added for attachment popup
   const [showEmojiPicker, setShowEmojiPicker] = useState(false); // State for emoji picker
   const [toolsDropdownOpen, setToolsDropdownOpen] = useState(false); // Dropdown for header
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null); // Lightbox for media zoom
+  const [avatarZoom, setAvatarZoom] = useState(false); // Avatar zoom modal
 
   // Diagnostics UI state
   const [diagPhone, setDiagPhone] = useState('');
@@ -2687,7 +2689,7 @@ export default function MetaInboxPage() {
                               // Determine filename for download
                               const dlName = msg.media?.fileName || getFilenameFromUrl(rawMediaUrl) || `media-${Date.now()}`;
                               return (
-                                <div className="w-full relative group/media">
+                                <div className="w-full relative group/media cursor-pointer" onClick={() => { if (mediaKind === 'image' || mediaKind === 'sticker') setLightboxImage(mediaUrl); }}>
                                   <InlineMediaPreview 
                                     url={mediaUrl} 
                                     type={mediaKind === 'sticker' ? 'image' : mediaKind}
@@ -3613,7 +3615,12 @@ export default function MetaInboxPage() {
               <>
               <div className="mb-4 p-1 pb-3" style={{ borderBottom: '1px solid rgba(30,127,67,0.1)' }}>
                 <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white font-extrabold text-xl shrink-0" style={{ background: 'linear-gradient(135deg, #1E7F43 0%, #28964F 50%, #1E7F43 100%)', boxShadow: '0 4px 12px rgba(30,127,67,0.3), inset 0 1px 1px rgba(255,255,255,0.2)' }}>
+                <div 
+                  className="w-12 h-12 rounded-2xl flex items-center justify-center text-white font-extrabold text-xl shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                  style={{ background: 'linear-gradient(135deg, #1E7F43 0%, #28964F 50%, #1E7F43 100%)', boxShadow: '0 4px 12px rgba(30,127,67,0.3), inset 0 1px 1px rgba(255,255,255,0.2)' }}
+                  onClick={() => setAvatarZoom(true)}
+                  title="Click to zoom"
+                >
                   {selected.name ? selected.name[0].toUpperCase() : 'U'}
                 </div>
                 <div className="min-w-0 flex-1">
@@ -3934,6 +3941,49 @@ export default function MetaInboxPage() {
                 <p className="text-center text-sm text-slate-400 py-8">No contacts found</p>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Avatar Zoom Modal */}
+      {avatarZoom && selected && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setAvatarZoom(false)}>
+          <div className="relative flex flex-col items-center gap-4" onClick={e => e.stopPropagation()}>
+            <div className="w-48 h-48 rounded-3xl flex items-center justify-center text-white font-extrabold text-8xl" style={{ background: 'linear-gradient(135deg, #1E7F43 0%, #28964F 50%, #1E7F43 100%)', boxShadow: '0 16px 48px rgba(30,127,67,0.4), inset 0 2px 4px rgba(255,255,255,0.2)' }}>
+              {selected.name ? selected.name[0].toUpperCase() : 'U'}
+            </div>
+            <div className="text-center">
+              <h2 className="text-white text-xl font-bold">{selected.name || 'Unknown'}</h2>
+              <p className="text-white/70 text-sm">{selected.phoneNumber}</p>
+            </div>
+            <button 
+              onClick={() => setAvatarZoom(false)}
+              className="absolute -top-2 -right-2 bg-white/10 hover:bg-white/20 text-white p-2 rounded-full transition"
+              title="Close"
+            >
+              <i className="ph ph-x text-xl"></i>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Image Lightbox */}
+      {lightboxImage && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setLightboxImage(null)}>
+          <div className="relative max-w-4xl max-h-screen flex items-center justify-center" onClick={e => e.stopPropagation()}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img 
+              src={lightboxImage} 
+              alt="Full-screen" 
+              className="max-w-full max-h-screen object-contain rounded-lg"
+            />
+            <button 
+              onClick={() => setLightboxImage(null)}
+              className="absolute top-4 right-4 bg-white/10 hover:bg-white/20 text-white p-2 rounded-full transition"
+              title="Close"
+            >
+              <i className="ph ph-x text-xl"></i>
+            </button>
           </div>
         </div>
       )}
