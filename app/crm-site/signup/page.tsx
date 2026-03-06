@@ -44,12 +44,12 @@ interface FieldError {
 }
 
 const PLANS_QUICK = [
-  { id: 'free', name: 'Free', priceINR: '₹0/mo', priceUSD: '$0/mo', desc: '250 leads, 1 user', highlight: false },
-  { id: 'basic', name: 'Basic', priceINR: '₹999/mo', priceUSD: '$12/mo', desc: '2K leads, Funnel + Export', highlight: false },
-  { id: 'starter', name: 'Starter', priceINR: '₹1,999/mo', priceUSD: '$25/mo', desc: '5K leads, WhatsApp', highlight: false },
-  { id: 'growth', name: 'Growth', priceINR: '₹4,999/mo', priceUSD: '$59/mo', desc: '25K leads, AI + Payments', highlight: true },
-  { id: 'professional', name: 'Professional', priceINR: '₹9,999/mo', priceUSD: '$119/mo', desc: '50K leads, Full suite', highlight: false },
-  { id: 'enterprise', name: 'Enterprise', priceINR: '₹24,999/mo', priceUSD: '$299/mo', desc: '100K leads, API access', highlight: false },
+  { id: 'free', name: 'Free', priceINR: '₹0/mo', priceUSD: '$0/mo', desc: '250 leads · All features', highlight: false },
+  { id: 'basic', name: 'Basic', priceINR: '₹999/mo', priceUSD: '$12/mo', desc: '2,000 leads · All features', highlight: false },
+  { id: 'starter', name: 'Starter', priceINR: '₹1,999/mo', priceUSD: '$25/mo', desc: '5,000 leads · All features', highlight: false },
+  { id: 'growth', name: 'Growth', priceINR: '₹4,999/mo', priceUSD: '$59/mo', desc: '25,000 leads · All features', highlight: true },
+  { id: 'professional', name: 'Professional', priceINR: '₹9,999/mo', priceUSD: '$119/mo', desc: '50,000 leads · All features', highlight: false },
+  { id: 'enterprise', name: 'Enterprise', priceINR: '₹24,999/mo', priceUSD: '$299/mo', desc: '100,000 leads · All features', highlight: false },
 ];
 
 export default function CrmSignupPage() {
@@ -404,7 +404,7 @@ export default function CrmSignupPage() {
 
                   <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-xl">
                     <p className="text-xs text-blue-700 text-center leading-relaxed">
-                      15-day free trial included. After signup, explore all CRM features freely. Connect WhatsApp, Payments, AI Calls &amp; more from <strong>Settings</strong>. Storage billed separately per use.
+                      Every feature unlocked on every plan — WhatsApp, AI Voice, Payments, Community &amp; more. You only choose your lead limit. Storage billed separately per use.
                     </p>
                   </div>
 

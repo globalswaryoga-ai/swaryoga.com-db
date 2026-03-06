@@ -1,133 +1,129 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { CheckCircle2, ArrowRight, X } from 'lucide-react';
+import { CheckCircle2, ArrowRight, Database, Unlock } from 'lucide-react';
+
+/* ─── Auto-detect India by timezone ─── */
+function detectIsIndia(): boolean {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return tz === 'Asia/Kolkata' || tz === 'Asia/Calcutta';
+  } catch {
+    return false;
+  }
+}
+
+/* ─── ALL features included on every plan. Only limit = leads + storage ─── */
+const ALL_FEATURES = [
+  'CRM & Lead Management',
+  'Funnel & Pipeline',
+  'WhatsApp Business API',
+  'QR WhatsApp',
+  'Broadcast Messaging',
+  'AI Voice Calls (19 languages)',
+  'Chatbot Builder',
+  'Community Module',
+  'Workshops & Events',
+  'Certificate Generator',
+  'Cashfree & PayU Payments',
+  'Meta Forms Integration',
+  'Life Planner',
+  'CSV / Excel Import & Export',
+  'SMS & Email Actions',
+  'Custom Domain (CNAME)',
+  'API Access & Tally Integration',
+];
 
 const PLANS = [
   {
     tier: 'free',
     name: 'Free',
-    desc: 'Get started with basic CRM — no cost.',
-    monthlyPrice: 0,
-    annualPrice: 0,
-    limits: { leads: '250', users: '1', storage: '100 MB' },
-    features: [
-      'Lead management',
-      'Basic funnel view',
-      'Manual lead entry',
-      'CSV import/export',
-    ],
-    notIncluded: ['WhatsApp', 'AI Voice', 'Chatbot', 'Payments', 'Custom domain'],
-    cta: 'Start Free',
+    desc: 'Explore everything — 250 leads to start.',
+    monthlyINR: 0, annualINR: 0,
+    monthlyUSD: 0, annualUSD: 0,
+    leads: '250',
+    users: '1',
+    cta: 'Start Free Trial',
     highlight: false,
   },
   {
     tier: 'basic',
     name: 'Basic',
-    desc: 'Affordable CRM for growing businesses.',
-    monthlyPrice: 999,
-    annualPrice: 9990,
-    limits: { leads: '2,000', users: '2', storage: '250 MB' },
-    features: [
-      'Everything in Free',
-      'Lead labels & filters',
-      'Excel export',
-      'Funnel management',
-      'Bulk lead import',
-      'Email & SMS actions',
-    ],
-    notIncluded: ['WhatsApp API', 'AI Voice', 'Chatbot', 'Payments', 'Custom domain'],
-    cta: 'Start Basic',
+    desc: 'Full CRM power for early-stage businesses.',
+    monthlyINR: 999, annualINR: 9990,
+    monthlyUSD: 12, annualUSD: 120,
+    leads: '2,000',
+    users: '2',
+    cta: 'Start Free Trial',
     highlight: false,
   },
   {
     tier: 'starter',
     name: 'Starter',
-    desc: 'WhatsApp messaging for small teams.',
-    monthlyPrice: 1999,
-    annualPrice: 19990,
-    limits: { leads: '5,000', users: '3', storage: '500 MB' },
-    features: [
-      'Everything in Basic',
-      'WhatsApp Business API',
-      'Broadcast messaging',
-      'Meta Forms integration',
-      '10 WhatsApp templates',
-      '5 broadcasts / day',
-    ],
-    notIncluded: ['AI Voice', 'Chatbot', 'Payments', 'Custom domain'],
-    cta: 'Start Starter',
+    desc: 'Scale your outreach — 5K leads.',
+    monthlyINR: 1999, annualINR: 19990,
+    monthlyUSD: 25, annualUSD: 240,
+    leads: '5,000',
+    users: '3',
+    cta: 'Start Free Trial',
     highlight: false,
   },
   {
     tier: 'growth',
     name: 'Growth',
-    desc: 'Voice AI, payments, and automation.',
-    monthlyPrice: 4999,
-    annualPrice: 49990,
-    limits: { leads: '25,000', users: '10', storage: '2 GB' },
-    features: [
-      'Everything in Starter',
-      'AI Voice Calls (19 languages)',
-      'Cashfree & PayU payments',
-      'Chatbot builder',
-      'Certificate generator',
-      '50 templates / 20 broadcasts per day',
-    ],
-    notIncluded: ['Workshops', 'Custom domain', 'Advanced analytics'],
-    cta: 'Start Growth',
+    desc: 'For growing teams — 25K leads.',
+    monthlyINR: 4999, annualINR: 49990,
+    monthlyUSD: 59, annualUSD: 590,
+    leads: '25,000',
+    users: '10',
+    cta: 'Start Free Trial',
     highlight: true,
   },
   {
     tier: 'professional',
     name: 'Professional',
-    desc: 'Full-featured with workshops & analytics.',
-    monthlyPrice: 9999,
-    annualPrice: 99990,
-    limits: { leads: '50,000', users: '25', storage: '10 GB' },
-    features: [
-      'Everything in Growth',
-      'Workshops & events',
-      'Community module',
-      'Life Planner',
-      'Advanced analytics',
-      'Custom domain (CNAME)',
-      '200 templates / 50 broadcasts per day',
-    ],
-    notIncluded: ['API access', 'Tally integration'],
-    cta: 'Start Professional',
+    desc: 'High-volume — 50K leads.',
+    monthlyINR: 9999, annualINR: 99990,
+    monthlyUSD: 119, annualUSD: 1190,
+    leads: '50,000',
+    users: '25',
+    cta: 'Start Free Trial',
     highlight: false,
   },
   {
     tier: 'enterprise',
     name: 'Enterprise',
-    desc: 'Unlimited scale with API access.',
-    monthlyPrice: 24999,
-    annualPrice: 249990,
-    limits: { leads: '100,000', users: 'Unlimited', storage: '50 GB' },
-    features: [
-      'Everything in Professional',
-      'API access for integrations',
-      'Tally integration',
-      '1,000 templates / 500 broadcasts per day',
-      'Priority support',
-      'Dedicated account manager',
-      'Custom onboarding',
-    ],
-    notIncluded: [],
+    desc: 'Unlimited scale — 100K+ leads.',
+    monthlyINR: 24999, annualINR: 249990,
+    monthlyUSD: 299, annualUSD: 2990,
+    leads: '100,000',
+    users: 'Unlimited',
     cta: 'Contact Sales',
     highlight: false,
   },
 ];
 
-function formatPrice(price: number) {
-  if (price === 0) return 'Free';
-  return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(price);
+/* Storage */
+const STORAGE_RATE = { inr: 35, usd: 0.45 };
+
+function fmtINR(n: number) {
+  if (n === 0) return 'Free';
+  return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(n);
+}
+function fmtUSD(n: number) {
+  if (n === 0) return 'Free';
+  return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(n);
 }
 
 export default function PricingPage() {
   const [annual, setAnnual] = useState(false);
+  const [isINR, setIsINR] = useState(true);
+
+  useEffect(() => { setIsINR(detectIsIndia()); }, []);
+
+  const sym = isINR ? '₹' : '$';
+  const fmt = isINR ? fmtINR : fmtUSD;
 
   return (
     <>
@@ -135,45 +131,77 @@ export default function PricingPage() {
       <section className="pt-20 pb-12 bg-gradient-to-b from-gray-50 to-white">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h1 className="text-4xl sm:text-5xl font-bold text-gray-900">
-            Simple, Transparent Pricing
+            Every Feature. Every Plan.
           </h1>
           <p className="mt-4 text-lg text-gray-600 max-w-2xl mx-auto">
-            Start free. Upgrade as you grow. No hidden fees.
+            All features unlocked from day one. You only choose your lead limit.
+            <br />
+            <span className="text-swar-primary font-semibold">15-day free trial</span> on every plan — no credit card required.
           </p>
           <p className="mt-2 text-sm text-gray-400">
-            Min. 3-month subscription on paid plans &bull; Storage billed in 5 MB slots &bull; Prices exclude GST (applied when applicable)
+            Min. 3-month subscription &bull; Storage billed per use &bull; Prices exclude GST
           </p>
 
-          {/* Toggle */}
-          <div className="mt-8 inline-flex items-center gap-3 bg-gray-100 rounded-xl p-1">
-            <button
-              onClick={() => setAnnual(false)}
-              className={`px-5 py-2 rounded-lg text-sm font-medium transition ${
-                !annual ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
-              }`}
-            >
-              Monthly
-            </button>
-            <button
-              onClick={() => setAnnual(true)}
-              className={`px-5 py-2 rounded-lg text-sm font-medium transition ${
-                annual ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
-              }`}
-            >
-              Annual <span className="text-swar-primary text-xs font-semibold ml-1">Save 17%</span>
-            </button>
+          {/* Toggles row */}
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
+            {/* Billing cycle */}
+            <div className="inline-flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+              <button
+                onClick={() => setAnnual(false)}
+                className={`px-5 py-2 rounded-lg text-sm font-medium transition ${
+                  !annual ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
+                }`}
+              >
+                Monthly
+              </button>
+              <button
+                onClick={() => setAnnual(true)}
+                className={`px-5 py-2 rounded-lg text-sm font-medium transition ${
+                  annual ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
+                }`}
+              >
+                Annual <span className="text-swar-primary text-xs font-semibold ml-1">Save 17%</span>
+              </button>
+            </div>
+
+            {/* Currency */}
+            <div className="inline-flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+              <button
+                onClick={() => setIsINR(true)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                  isINR ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
+                }`}
+              >
+                🇮🇳 INR
+              </button>
+              <button
+                onClick={() => setIsINR(false)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                  !isINR ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
+                }`}
+              >
+                🌐 USD
+              </button>
+            </div>
           </div>
+
+          {!isINR && (
+            <p className="mt-3 text-xs text-amber-600">
+              USD prices include 3% international payment processing fee
+            </p>
+          )}
         </div>
       </section>
 
       {/* Plans grid */}
-      <section className="pb-24">
+      <section className="pb-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-5">
             {PLANS.map((plan) => {
-              const price = annual
-                ? Math.round(plan.annualPrice / 12)
-                : plan.monthlyPrice;
+              const price = isINR
+                ? annual ? Math.round(plan.annualINR / 12) : plan.monthlyINR
+                : annual ? Math.round(plan.annualUSD / 12) : plan.monthlyUSD;
+              const annualTotal = isINR ? plan.annualINR : plan.annualUSD;
 
               return (
                 <div
@@ -189,54 +217,57 @@ export default function PricingPage() {
                       Most Popular
                     </div>
                   )}
+
+                  {/* 15-day trial badge */}
+                  <div className="mb-2">
+                    <span className="inline-block px-2 py-0.5 bg-green-50 text-green-700 text-[10px] font-semibold rounded-full border border-green-200">
+                      15-DAY FREE TRIAL
+                    </span>
+                  </div>
+
                   <h3 className="text-lg font-bold text-gray-900">{plan.name}</h3>
                   <p className="text-sm text-gray-500 mt-1 min-h-[40px]">{plan.desc}</p>
 
-                  <div className="mt-4 mb-6">
+                  <div className="mt-4 mb-4">
                     {price === 0 ? (
                       <span className="text-3xl font-bold text-gray-900">Free</span>
                     ) : (
                       <>
                         <span className="text-3xl font-bold text-gray-900">
-                          &#8377;{formatPrice(price)}
+                          {sym}{fmt(price)}
                         </span>
                         <span className="text-sm text-gray-500 ml-1">/mo</span>
                         {annual && (
                           <p className="text-xs text-gray-400 mt-1">
-                            &#8377;{formatPrice(plan.annualPrice)} billed annually
+                            {sym}{fmt(annualTotal)} billed annually
                           </p>
                         )}
                       </>
                     )}
                   </div>
 
-                  {/* Limits */}
-                  <div className="flex gap-4 mb-6 text-xs text-gray-500">
-                    <span>{plan.limits.leads} leads</span>
-                    <span>{plan.limits.users} users</span>
-                    <span>{plan.limits.storage}</span>
+                  {/* Limits — the ONLY differentiator */}
+                  <div className="flex flex-col gap-1 mb-4 p-3 bg-gray-50 rounded-xl">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">Leads</span>
+                      <span className="font-semibold text-gray-900">{plan.leads}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">Users</span>
+                      <span className="font-semibold text-gray-900">{plan.users}</span>
+                    </div>
                   </div>
 
-                  {/* Features */}
-                  <ul className="space-y-2 mb-6 flex-1">
-                    {plan.features.map((f) => (
-                      <li key={f} className="flex items-start gap-2 text-sm text-gray-700">
-                        <CheckCircle2 className="h-4 w-4 text-swar-primary flex-shrink-0 mt-0.5" />
-                        <span>{f}</span>
-                      </li>
-                    ))}
-                    {plan.notIncluded.map((f) => (
-                      <li key={f} className="flex items-start gap-2 text-sm text-gray-400">
-                        <X className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                        <span>{f}</span>
-                      </li>
-                    ))}
-                  </ul>
+                  {/* All features included */}
+                  <div className="flex items-center gap-1.5 mb-3">
+                    <Unlock className="h-3.5 w-3.5 text-swar-primary" />
+                    <span className="text-xs font-semibold text-swar-primary">All features included</span>
+                  </div>
 
                   {/* CTA */}
                   <Link
                     href={plan.tier === 'enterprise' ? '/crm-site/contact' : '/crm-site/signup'}
-                    className={`w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                    className={`mt-auto w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
                       plan.highlight
                         ? 'bg-swar-primary text-white hover:bg-swar-primary-hover shadow'
                         : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
@@ -252,6 +283,63 @@ export default function PricingPage() {
         </div>
       </section>
 
+      {/* All features banner */}
+      <section className="pb-16">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="bg-gradient-to-r from-swar-primary/5 to-blue-50 rounded-2xl border border-swar-primary/10 p-8">
+            <div className="flex items-center gap-3 mb-6">
+              <Unlock className="h-6 w-6 text-swar-primary" />
+              <h3 className="text-xl font-bold text-gray-900">Every Feature on Every Plan</h3>
+            </div>
+            <p className="text-sm text-gray-600 mb-6">
+              No feature gating. Pick your plan, get full access. As you cross your lead limit, simply upgrade — your data and settings carry over.
+            </p>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {ALL_FEATURES.map((f) => (
+                <div key={f} className="flex items-center gap-2 text-sm text-gray-700">
+                  <CheckCircle2 className="h-4 w-4 text-swar-primary flex-shrink-0" />
+                  <span>{f}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Storage — pay per use */}
+      <section className="pb-16">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-100 p-8">
+            <div className="flex items-center gap-3 mb-4">
+              <Database className="h-6 w-6 text-blue-600" />
+              <h3 className="text-xl font-bold text-gray-900">Storage — Pay Per Use</h3>
+            </div>
+            <p className="text-sm text-gray-600 mb-6">
+              No free storage on any plan. You pay only for what you use, billed in 5 MB slots.
+              Minimum purchase: 100 MB.
+            </p>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="bg-white rounded-xl p-5 border border-blue-100">
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Rate per GB / month</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {isINR ? `₹${STORAGE_RATE.inr}` : `$${STORAGE_RATE.usd}`}
+                  <span className="text-sm font-normal text-gray-500 ml-1">/ GB</span>
+                </p>
+              </div>
+              <div className="bg-white rounded-xl p-5 border border-blue-100">
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Billing granularity</p>
+                <p className="text-lg font-semibold text-gray-900">5 MB slots</p>
+                <p className="text-xs text-gray-500 mt-1">Min. 100 MB purchase required</p>
+              </div>
+            </div>
+            <p className="text-xs text-gray-400 mt-4">
+              Infrastructure: MongoDB Atlas + Bunny Edge Storage + CDN. Price includes 20% service margin.
+              {!isINR && ' USD rate includes 3% payment processing fee.'}
+            </p>
+          </div>
+        </div>
+      </section>
+
       {/* FAQ */}
       <section className="py-16 bg-gray-50 border-t border-gray-100">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -261,8 +349,24 @@ export default function PricingPage() {
           <div className="space-y-6">
             {[
               {
-                q: 'Can I start for free?',
-                a: 'Yes! The Free plan gives you 250 leads with core CRM features. No credit card required.',
+                q: 'Do I get all features on the Free plan too?',
+                a: 'Yes! Every feature — WhatsApp, AI Voice, Chatbot, Payments, Community, Workshops — is unlocked on every plan, including Free. The only limit is the number of leads and storage.',
+              },
+              {
+                q: 'How does the 15-day free trial work?',
+                a: 'Every plan includes a 15-day free trial with full access. After 15 days your subscription billing begins automatically. No credit card needed to start.',
+              },
+              {
+                q: 'When do I need to upgrade?',
+                a: 'When you reach your plan\'s lead limit (e.g. 2,000 on Basic), you\'ll be prompted to upgrade. All your data, keys, and settings carry over seamlessly.',
+              },
+              {
+                q: 'Do I get any free storage?',
+                a: 'No. Storage is always billed per use on every plan. You must purchase a minimum of 100 MB. This keeps subscription prices low and fair.',
+              },
+              {
+                q: 'Why are there two currencies?',
+                a: 'Users in India are billed in INR via UPI, cards, and net banking. Users outside India are billed in USD. USD prices include a 3% international payment processing fee.',
               },
               {
                 q: 'What is the minimum subscription?',
@@ -273,28 +377,16 @@ export default function PricingPage() {
                 a: 'When you upgrade mid-cycle, the remaining value of your current plan (calculated by days left) is credited toward the new plan. You only pay the difference.',
               },
               {
-                q: 'How is storage billed?',
-                a: 'Storage is tracked in 5 MB slots. Each slot you use is accountable — you pay only for what you use beyond your plan\'s included storage.',
-              },
-              {
                 q: 'Is GST included in the pricing?',
-                a: 'Currently, listed prices are exclusive of GST. GST will be added as applicable once we obtain our GST registration.',
-              },
-              {
-                q: 'Can I upgrade or downgrade anytime?',
-                a: 'Yes! After the initial 3-month period, upgrade or downgrade from your billing dashboard. Upgrades take effect immediately with prorated credit.',
+                a: 'Listed prices are exclusive of GST. GST will be added as applicable once we obtain our GST registration.',
               },
               {
                 q: 'What payment methods do you accept?',
-                a: 'We accept all major credit/debit cards, UPI, Net Banking, and wallets via Cashfree.',
+                a: 'India: UPI, debit/credit cards, net banking, wallets via Cashfree. International: Visa, Mastercard, and other major cards.',
               },
               {
                 q: 'Is my data secure?',
-                a: 'Yes. Each tenant has isolated database. API keys are encrypted with AES-256-GCM, and all traffic is HTTPS with HSTS.',
-              },
-              {
-                q: 'Do you offer custom plans?',
-                a: 'Yes, for businesses with unique needs. Contact our sales team for a tailored quote.',
+                a: 'Yes. Each tenant has an isolated database. API keys are encrypted with AES-256-GCM, and all traffic is HTTPS with HSTS.',
               },
             ].map((faq) => (
               <div key={faq.q} className="bg-white rounded-xl p-5 border border-gray-100">
