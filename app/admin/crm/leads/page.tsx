@@ -836,6 +836,7 @@ export default function LeadsPage() {
                   className="w-full bg-white/5 border border-white/20 rounded-xl px-4 py-2.5 text-white font-medium focus:outline-none focus:border-green-400 focus:ring-1 focus:ring-green-400 transition-all hover:border-white/40"
                 >
                   <option value="" className="bg-[#1a1a1a] text-white">All Users</option>
+                  <option value="__unassigned__" className="bg-[#1a1a1a] text-white">Unassigned</option>
                   {userOptions.map((u) => (
                     <option key={u.userId} value={u.userId} className="bg-[#1a1a1a] text-white">
                       {u.name || u.email || u.userId}

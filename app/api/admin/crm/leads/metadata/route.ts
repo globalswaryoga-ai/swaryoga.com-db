@@ -50,7 +50,11 @@ export async function GET(request: NextRequest) {
     if (superAdmin) {
       if (userIdParam && String(userIdParam).trim()) {
         const uid = String(userIdParam).trim();
-        baseFilter.$or = [{ assignedToUserId: uid }, { createdByUserId: uid }];
+        if (uid === '__unassigned__') {
+          baseFilter.$or = [{ assignedToUserId: { $in: [null, ''] } }, { assignedToUserId: { $exists: false } }];
+        } else {
+          baseFilter.$or = [{ assignedToUserId: uid }, { createdByUserId: uid }];
+        }
       }
     } else {
       baseFilter.$or = [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }];

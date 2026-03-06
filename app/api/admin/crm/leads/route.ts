@@ -65,7 +65,11 @@ export async function GET(request: NextRequest) {
       // Super admin: optionally filter by specific user, otherwise show ALL
       if (userIdParam && String(userIdParam).trim()) {
         const uid = String(userIdParam).trim();
-        accessControlConditions = [{ assignedToUserId: uid }, { createdByUserId: uid }];
+        if (uid === '__unassigned__') {
+          accessControlConditions = [{ assignedToUserId: { $in: [null, ''] } }, { assignedToUserId: { $exists: false } }];
+        } else {
+          accessControlConditions = [{ assignedToUserId: uid }, { createdByUserId: uid }];
+        }
       }
       // Otherwise no filter - show ALL leads
     } else if (visibleUserIds.length > 1) {
