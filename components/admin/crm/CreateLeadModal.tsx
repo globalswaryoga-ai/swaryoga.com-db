@@ -19,7 +19,7 @@ type AdminUserOption = {
   permissions?: string[];
 };
 
-type LeadStatus = 'lead' | 'hot' | 'prospect' | 'customer' | 'inactive';
+type LeadStatus = 'new_lead' | 'contacted' | 'interested' | 'demo_trial' | 'negotiation' | 'enrolled' | 'completed' | 'inactive' | 'repeater' | 'old_sadhak' | 'only_for_post' | 'lead' | 'hot' | 'prospect' | 'customer';
 
 export default function CreateLeadModal({ isOpen, token, onClose, initialPhone }: Props) {
   const router = useRouter();
@@ -266,11 +266,17 @@ export default function CreateLeadModal({ isOpen, token, onClose, initialPhone }
             onChange={(e) => setStatus(e.target.value as LeadStatus)}
             className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2 text-slate-900 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400"
           >
-            <option value="lead">Lead</option>
-            <option value="hot">🔥 Hot</option>
-            <option value="prospect">Prospect</option>
-            <option value="customer">Customer</option>
+            <option value="new_lead">New Lead</option>
+            <option value="contacted">Contacted</option>
+            <option value="interested">Interested</option>
+            <option value="demo_trial">Demo / Trial</option>
+            <option value="negotiation">Negotiation</option>
+            <option value="enrolled">Enrolled</option>
+            <option value="completed">Completed</option>
             <option value="inactive">Inactive</option>
+            <option value="repeater">Repeater</option>
+            <option value="old_sadhak">Old Sadhak</option>
+            <option value="only_for_post">Only for Post</option>
           </select>
         </div>
 

@@ -15,7 +15,7 @@ interface Lead {
   name: string;
   email: string;
   phoneNumber: string;
-  status: 'lead' | 'hot' | 'prospect' | 'customer' | 'inactive';
+  status: 'new_lead' | 'contacted' | 'interested' | 'demo_trial' | 'negotiation' | 'enrolled' | 'completed' | 'inactive' | 'repeater' | 'old_sadhak' | 'only_for_post' | 'lead' | 'hot' | 'prospect' | 'customer';
   source: string;
   labels: string[];
   workshopId?: string;
@@ -429,17 +429,17 @@ export default function LeadDetailPage() {
               <div className="mt-6 lead-print-hide">
                 <div className="text-sm font-bold text-slate-900 mb-3">Quick status</div>
                 <div className="flex flex-wrap gap-3">
-                  {(['lead', 'hot', 'prospect', 'customer', 'inactive'] as const).map((status) => (
+                  {(['new_lead', 'contacted', 'interested', 'demo_trial', 'negotiation', 'enrolled', 'completed', 'inactive', 'repeater', 'old_sadhak', 'only_for_post'] as const).map((status) => (
                     <button
                       key={status}
                       onClick={() => handleStatusChange(status)}
-                      className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
+                      className={`px-4 py-2 rounded-lg font-semibold transition-colors text-xs ${
                         lead.status === status
                           ? 'bg-emerald-600 text-white'
                           : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
                       }`}
                     >
-                      {status.charAt(0).toUpperCase() + status.slice(1)}
+                      {status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
                     </button>
                   ))}
                 </div>

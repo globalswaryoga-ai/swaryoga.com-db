@@ -13,7 +13,7 @@ interface Message {
 interface ChatWindowProps {
   contactName: string;
   contactPhone?: string;
-  status: 'lead' | 'hot' | 'prospect' | 'customer' | 'inactive';
+  status: 'new_lead' | 'contacted' | 'interested' | 'demo_trial' | 'negotiation' | 'enrolled' | 'completed' | 'inactive' | 'repeater' | 'old_sadhak' | 'only_for_post' | 'lead' | 'hot' | 'prospect' | 'customer';
   onSendMessage?: (message: string, templates?: string[]) => void;
   onStatusChange?: (newStatus: string) => void;
 }
@@ -71,10 +71,20 @@ export default function ChatWindow({
   }
 
   const statusColor: Record<string, string> = {
+    new_lead: 'bg-blue-100 text-blue-700',
+    contacted: 'bg-sky-100 text-sky-700',
+    interested: 'bg-cyan-100 text-cyan-700',
+    demo_trial: 'bg-purple-100 text-purple-700',
+    negotiation: 'bg-amber-100 text-amber-700',
+    enrolled: 'bg-emerald-100 text-emerald-700',
+    completed: 'bg-rose-100 text-rose-700',
+    inactive: 'bg-gray-100 text-gray-700',
+    repeater: 'bg-orange-100 text-orange-700',
+    old_sadhak: 'bg-teal-100 text-teal-700',
+    only_for_post: 'bg-indigo-100 text-indigo-700',
     lead: 'bg-blue-100 text-blue-700',
     prospect: 'bg-yellow-100 text-yellow-700',
     customer: 'bg-green-100 text-green-700',
-    inactive: 'bg-gray-100 text-gray-700',
   };
 
   return (
@@ -97,10 +107,17 @@ export default function ChatWindow({
             onChange={(e) => onStatusChange?.(e.target.value)}
             className={`text-xs px-3 py-1 rounded-full font-semibold cursor-pointer ${statusColor[status]}`}
           >
-            <option value="lead">🎯 Lead</option>
-            <option value="prospect">💼 Prospect</option>
-            <option value="customer">✅ Customer</option>
-            <option value="inactive">❌ Inactive</option>
+            <option value="new_lead">New Lead</option>
+            <option value="contacted">Contacted</option>
+            <option value="interested">Interested</option>
+            <option value="demo_trial">Demo / Trial</option>
+            <option value="negotiation">Negotiation</option>
+            <option value="enrolled">Enrolled</option>
+            <option value="completed">Completed</option>
+            <option value="inactive">Inactive</option>
+            <option value="repeater">Repeater</option>
+            <option value="old_sadhak">Old Sadhak</option>
+            <option value="only_for_post">Only for Post</option>
           </select>
         </div>
       </div>

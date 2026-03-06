@@ -1221,7 +1221,7 @@ export default function FunnelManagePage() {
                         // Auto-open Meta Business inbox for this number
                         const phone = (lead.phoneNumber || '').replace(/\D/g, '');
                         if (phone) {
-                          window.open(`https://wa.me/${phone}`, '_blank');
+                          router.push(`/admin/crm/meta?phone=${phone}`);
                         }
                         // Open chatbot flow modal
                         setChatbotFlowLeadId(lead._id);

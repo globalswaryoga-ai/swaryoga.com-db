@@ -66,21 +66,35 @@ interface LeadDetailModalProps {
 
 // Color mappings
 const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  lead:     { bg: 'bg-blue-50',   text: 'text-blue-700',   border: 'border-blue-200' },
-  hot:      { bg: 'bg-red-50',    text: 'text-red-700',    border: 'border-red-200' },
-  prospect: { bg: 'bg-amber-50',  text: 'text-amber-700',  border: 'border-amber-200' },
-  customer: { bg: 'bg-green-50',  text: 'text-green-700',  border: 'border-green-200' },
-  inactive: { bg: 'bg-gray-50',   text: 'text-gray-600',   border: 'border-gray-200' },
+  new_lead:      { bg: 'bg-blue-50',    text: 'text-blue-700',    border: 'border-blue-200' },
+  contacted:     { bg: 'bg-sky-50',     text: 'text-sky-700',     border: 'border-sky-200' },
+  interested:    { bg: 'bg-cyan-50',    text: 'text-cyan-700',    border: 'border-cyan-200' },
+  demo_trial:    { bg: 'bg-purple-50',  text: 'text-purple-700',  border: 'border-purple-200' },
+  negotiation:   { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200' },
+  enrolled:      { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
+  completed:     { bg: 'bg-rose-50',    text: 'text-rose-700',    border: 'border-rose-200' },
+  inactive:      { bg: 'bg-gray-50',    text: 'text-gray-600',    border: 'border-gray-200' },
+  repeater:      { bg: 'bg-orange-50',  text: 'text-orange-700',  border: 'border-orange-200' },
+  old_sadhak:    { bg: 'bg-teal-50',    text: 'text-teal-700',    border: 'border-teal-200' },
+  only_for_post: { bg: 'bg-indigo-50',  text: 'text-indigo-700',  border: 'border-indigo-200' },
+  lead:          { bg: 'bg-blue-50',    text: 'text-blue-700',    border: 'border-blue-200' },
+  hot:           { bg: 'bg-red-50',     text: 'text-red-700',     border: 'border-red-200' },
+  prospect:      { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200' },
+  customer:      { bg: 'bg-green-50',   text: 'text-green-700',   border: 'border-green-200' },
 };
 
 const STAGE_COLORS: Record<string, string> = {
-  new_lead:    '#6366F1',
-  contacted:   '#3B82F6',
-  interested:  '#06B6D4',
-  demo_trial:  '#8B5CF6',
-  negotiation: '#F59E0B',
-  enrolled:    '#10B981',
-  completed:   '#EC4899',
+  new_lead:      '#6366F1',
+  contacted:     '#3B82F6',
+  interested:    '#06B6D4',
+  demo_trial:    '#8B5CF6',
+  negotiation:   '#F59E0B',
+  enrolled:      '#10B981',
+  completed:     '#EC4899',
+  inactive:      '#6B7280',
+  repeater:      '#F97316',
+  old_sadhak:    '#14B8A6',
+  only_for_post: '#818CF8',
 };
 
 const CHAT_STATUS_COLORS: Record<string, { bg: string; text: string }> = {
@@ -772,11 +786,17 @@ export default function LeadDetailModal({
                         onChange={e => setEditData({ ...editData, status: e.target.value })}
                         className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none"
                       >
-                        <option value="lead">Lead</option>
-                        <option value="hot">🔥 Hot</option>
-                        <option value="prospect">Prospect</option>
-                        <option value="customer">Customer</option>
+                        <option value="new_lead">New Lead</option>
+                        <option value="contacted">Contacted</option>
+                        <option value="interested">Interested</option>
+                        <option value="demo_trial">Demo / Trial</option>
+                        <option value="negotiation">Negotiation</option>
+                        <option value="enrolled">Enrolled</option>
+                        <option value="completed">Completed</option>
                         <option value="inactive">Inactive</option>
+                        <option value="repeater">Repeater</option>
+                        <option value="old_sadhak">Old Sadhak</option>
+                        <option value="only_for_post">Only for Post</option>
                       </select>
                     ) : (
                       <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(lead.status).bg} ${getStatusColor(lead.status).text}`}>

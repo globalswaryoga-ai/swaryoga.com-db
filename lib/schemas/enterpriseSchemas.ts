@@ -80,8 +80,8 @@ const LeadSchema = new mongoose.Schema(
     email: { type: String, trim: true, lowercase: true },
     status: {
       type: String,
-      enum: ['lead', 'hot', 'prospect', 'customer', 'inactive'],
-      default: 'lead',
+      enum: ['new_lead', 'contacted', 'interested', 'demo_trial', 'negotiation', 'enrolled', 'completed', 'inactive', 'repeater', 'old_sadhak', 'only_for_post', 'lead', 'hot', 'prospect', 'customer'],
+      default: 'new_lead',
       index: true,
     },
     labels: { type: [String], default: [] },

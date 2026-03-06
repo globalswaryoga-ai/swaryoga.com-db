@@ -339,15 +339,16 @@ function LeadDetailPopup({ leadId, token, onClose }: { leadId: string; token: st
 
         {/* Action buttons */}
         <div className="px-6 py-4 border-t border-gray-100 flex gap-2 flex-wrap">
-          <a
-            href={`https://wa.me/${lead.phoneNumber?.replace(/\D/g, '')}`}
-            target="_blank"
-            rel="noopener"
+          <button
+            onClick={() => {
+              const phone = (lead.phoneNumber || '').replace(/\D/g, '');
+              if (phone) router.push(`/admin/crm/meta?phone=${phone}`);
+            }}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium text-white transition hover:opacity-90"
             style={{ background: 'linear-gradient(135deg, #25D366, #128C7E)' }}
           >
             <Send className="h-3.5 w-3.5" /> WhatsApp
-          </a>
+          </button>
           <button className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium bg-blue-50 text-blue-600 hover:bg-blue-100 transition">
             <Mail className="h-3.5 w-3.5" /> Email
           </button>

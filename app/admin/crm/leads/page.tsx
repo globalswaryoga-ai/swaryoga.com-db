@@ -30,7 +30,7 @@ interface Lead {
   name: string;
   email: string;
   phoneNumber: string;
-  status: 'lead' | 'hot' | 'prospect' | 'customer' | 'inactive';
+  status: 'new_lead' | 'contacted' | 'interested' | 'demo_trial' | 'negotiation' | 'enrolled' | 'completed' | 'inactive' | 'repeater' | 'old_sadhak' | 'only_for_post' | 'lead' | 'hot' | 'prospect' | 'customer';
   source: string;
   labels: string[];
   workshopId?: string;
@@ -490,11 +490,17 @@ export default function LeadsPage() {
           onChange={(e) => handleStatusChange(lead._id, e.target.value)}
           className="px-3 py-1.5 bg-green-500/90 border border-green-400/50 rounded-full text-sm text-white font-bold focus:outline-none focus:ring-2 focus:ring-green-400 cursor-pointer hover:bg-green-400 transition-all duration-300 shadow-lg shadow-green-500/20"
         >
-          <option value="lead" className="bg-[#1a1a1a] text-white">Lead</option>
-          <option value="hot" className="bg-[#1a1a1a] text-white">🔥 Hot</option>
-          <option value="prospect" className="bg-[#1a1a1a] text-white">Prospect</option>
-          <option value="customer" className="bg-[#1a1a1a] text-white">Customer</option>
+          <option value="new_lead" className="bg-[#1a1a1a] text-white">New Lead</option>
+          <option value="contacted" className="bg-[#1a1a1a] text-white">Contacted</option>
+          <option value="interested" className="bg-[#1a1a1a] text-white">Interested</option>
+          <option value="demo_trial" className="bg-[#1a1a1a] text-white">Demo / Trial</option>
+          <option value="negotiation" className="bg-[#1a1a1a] text-white">Negotiation</option>
+          <option value="enrolled" className="bg-[#1a1a1a] text-white">Enrolled</option>
+          <option value="completed" className="bg-[#1a1a1a] text-white">Completed</option>
           <option value="inactive" className="bg-[#1a1a1a] text-white">Inactive</option>
+          <option value="repeater" className="bg-[#1a1a1a] text-white">Repeater</option>
+          <option value="old_sadhak" className="bg-[#1a1a1a] text-white">Old Sadhak</option>
+          <option value="only_for_post" className="bg-[#1a1a1a] text-white">Only for Post</option>
         </select>
       ),
     },
@@ -779,11 +785,17 @@ export default function LeadsPage() {
                 className="w-full bg-white/5 border border-white/20 rounded-xl px-4 py-2.5 text-white font-medium focus:outline-none focus:border-green-400 focus:ring-1 focus:ring-green-400 transition-all hover:border-white/40"
               >
                 <option value="" className="bg-[#1a1a1a] text-white">All Status ({total})</option>
-                <option value="lead" className="bg-[#1a1a1a] text-white">Lead ({statusCounts.lead || 0})</option>
-                <option value="hot" className="bg-[#1a1a1a] text-white">🔥 Hot ({statusCounts.hot || 0})</option>
-                <option value="prospect" className="bg-[#1a1a1a] text-white">Prospect ({statusCounts.prospect || 0})</option>
-                <option value="customer" className="bg-[#1a1a1a] text-white">Customer ({statusCounts.customer || 0})</option>
+                <option value="new_lead" className="bg-[#1a1a1a] text-white">New Lead ({statusCounts.new_lead || 0})</option>
+                <option value="contacted" className="bg-[#1a1a1a] text-white">Contacted ({statusCounts.contacted || 0})</option>
+                <option value="interested" className="bg-[#1a1a1a] text-white">Interested ({statusCounts.interested || 0})</option>
+                <option value="demo_trial" className="bg-[#1a1a1a] text-white">Demo / Trial ({statusCounts.demo_trial || 0})</option>
+                <option value="negotiation" className="bg-[#1a1a1a] text-white">Negotiation ({statusCounts.negotiation || 0})</option>
+                <option value="enrolled" className="bg-[#1a1a1a] text-white">Enrolled ({statusCounts.enrolled || 0})</option>
+                <option value="completed" className="bg-[#1a1a1a] text-white">Completed ({statusCounts.completed || 0})</option>
                 <option value="inactive" className="bg-[#1a1a1a] text-white">Inactive ({statusCounts.inactive || 0})</option>
+                <option value="repeater" className="bg-[#1a1a1a] text-white">Repeater ({statusCounts.repeater || 0})</option>
+                <option value="old_sadhak" className="bg-[#1a1a1a] text-white">Old Sadhak ({statusCounts.old_sadhak || 0})</option>
+                <option value="only_for_post" className="bg-[#1a1a1a] text-white">Only for Post ({statusCounts.only_for_post || 0})</option>
               </select>
             </div>
 
@@ -949,11 +961,17 @@ export default function LeadsPage() {
                     className="bg-white/5 border border-white/20 rounded-xl px-3 py-2 text-white font-semibold focus:border-green-400 transition-all"
                   >
                     <option value="" className="bg-[#1a1a1a]">Set Status (optional)</option>
-                    <option value="lead" className="bg-[#1a1a1a]">Lead</option>
-                    <option value="hot" className="bg-[#1a1a1a]">🔥 Hot</option>
-                    <option value="prospect" className="bg-[#1a1a1a]">Prospect</option>
-                    <option value="customer" className="bg-[#1a1a1a]">Customer</option>
+                    <option value="new_lead" className="bg-[#1a1a1a]">New Lead</option>
+                    <option value="contacted" className="bg-[#1a1a1a]">Contacted</option>
+                    <option value="interested" className="bg-[#1a1a1a]">Interested</option>
+                    <option value="demo_trial" className="bg-[#1a1a1a]">Demo / Trial</option>
+                    <option value="negotiation" className="bg-[#1a1a1a]">Negotiation</option>
+                    <option value="enrolled" className="bg-[#1a1a1a]">Enrolled</option>
+                    <option value="completed" className="bg-[#1a1a1a]">Completed</option>
                     <option value="inactive" className="bg-[#1a1a1a]">Inactive</option>
+                    <option value="repeater" className="bg-[#1a1a1a]">Repeater</option>
+                    <option value="old_sadhak" className="bg-[#1a1a1a]">Old Sadhak</option>
+                    <option value="only_for_post" className="bg-[#1a1a1a]">Only for Post</option>
                   </select>
 
                   <input
@@ -1185,10 +1203,17 @@ export default function LeadsPage() {
                 onChange={form.handleChange}
                 className="w-full bg-white border border-[#E8DFD5] rounded-lg px-4 py-2 text-[#0f3a4d] focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645]"
               >
-                <option value="lead">Lead</option>
-                <option value="prospect">Prospect</option>
-                <option value="customer">Customer</option>
+                <option value="new_lead">New Lead</option>
+                <option value="contacted">Contacted</option>
+                <option value="interested">Interested</option>
+                <option value="demo_trial">Demo / Trial</option>
+                <option value="negotiation">Negotiation</option>
+                <option value="enrolled">Enrolled</option>
+                <option value="completed">Completed</option>
                 <option value="inactive">Inactive</option>
+                <option value="repeater">Repeater</option>
+                <option value="old_sadhak">Old Sadhak</option>
+                <option value="only_for_post">Only for Post</option>
               </select>
             </div>
             <div>

@@ -64,6 +64,7 @@ type ConversationRow = {
   status?: string;
   labels?: string[];
   assignedToUserId?: string;
+  source?: string;
   chatStatus?: ChatStatus; // Manual override status
   isBlocked?: boolean;
   blockedReason?: string;
@@ -574,6 +575,12 @@ export default function MetaInboxPage() {
           if (match) {
             handleSelectConversation(match);
           }
+        } else if (!silent && data.conversations.length > 0) {
+          // Auto-select topmost conversation on initial load (not on silent refresh)
+          const first = data.conversations[0] as ConversationRow;
+          if (!selected) {
+            handleSelectConversation(first);
+          }
         }
       }
     } catch (err) {
@@ -948,9 +955,16 @@ export default function MetaInboxPage() {
     setMessageLimit(5);
     loadMessages(conv.leadId || conv._id || conv.phoneNumber);
     
+    // Map legacy status values to new funnel stages
+    const legacyStatusMap: Record<string, string> = {
+      'lead': 'new_lead', 'hot': 'interested', 'prospect': 'contacted', 'customer': 'enrolled',
+    };
+    const rawStatus = (conv.status || 'new_lead').toLowerCase();
+    const mappedStatus = legacyStatusMap[rawStatus] || rawStatus;
+
     // Reset sidebar data based on selected conversation
     setSidebarData({
-      status: conv.status || 'lead',
+      status: mappedStatus,
       labels: conv.labels || [],
       notes: '', // Notes need a separate fetch usually
       followUpDate: '', // Follow-ups need a separate fetch usually
@@ -1630,7 +1644,7 @@ export default function MetaInboxPage() {
   };
 
   return (
-    <div className="bg-white text-slate-900 h-screen flex flex-col font-sans overflow-hidden">
+    <div className="bg-[#F9FAF9] text-slate-900 h-screen flex flex-col font-sans overflow-hidden">
       
       {/* Spell suggestions popup */}
       {spellSuggestions && (
@@ -1663,29 +1677,41 @@ export default function MetaInboxPage() {
       )}
 
       {/* HEADER */}
-      <header className="border-b border-slate-200/80 px-4 py-3 flex items-center justify-between bg-white shadow-[0_1px_3px_0_rgba(0,0,0,0.02),0_1px_2px_0_rgba(0,0,0,0.06)] shrink-0 z-20">
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-3.5 group cursor-pointer" onClick={() => router.push('/admin/crm')}>
-            <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-blue-600 via-emerald-500 to-indigo-600 p-[1.5px] shadow-lg transition-transform hover:scale-105 active:scale-95 duration-200">
-              <div className="h-full w-full rounded-[14px] bg-white flex items-center justify-center">
-                <img src="/logo.png" alt="Swar Yoga" className="h-7 w-7" />
-              </div>
-            </div>
-            <div className="leading-tight">
-              <h1 className="text-[17px] font-[900] tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-700">Meta Inbox</h1>
-              <p className="text-[11px] font-[700] text-slate-400 group-hover:text-blue-600 transition-colors uppercase tracking-wider">WhatsApp Portal</p>
+      <header className="px-3 py-1.5 flex items-center shrink-0 z-20" style={{ background: 'linear-gradient(135deg, #28964F 0%, #34A85A 40%, #45B96B 100%)', borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
+        {/* Left: Logo + Platform Tabs */}
+        <div className="flex items-center gap-2.5 shrink-0">
+          <div className="h-8 w-8 rounded-xl bg-white/20 backdrop-blur-sm p-[2px] cursor-pointer hover:bg-white/30 transition-all hover:scale-105 shadow-lg shadow-black/10" onClick={() => router.push('/admin/crm')}>
+            <div className="h-full w-full rounded-[10px] bg-white flex items-center justify-center">
+              <img src="/logo.png" alt="Swar Yoga" className="h-4.5 w-4.5" />
             </div>
           </div>
+          <nav className="flex gap-0.5 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-0.5">
+            <button className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg bg-white text-[#1E7F43] shadow-md" title="WhatsApp">
+              <i className="ph-fill ph-whatsapp-logo text-sm"></i>
+              <span className="hidden lg:inline">WhatsApp</span>
+            </button>
+            <button className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg text-white/60 hover:text-white hover:bg-white/15 transition-all duration-200" title="Messenger" onClick={() => {}}>
+              <i className="ph-fill ph-messenger-logo text-sm"></i>
+              <span className="hidden lg:inline">Messenger</span>
+            </button>
+            <button className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg text-white/60 hover:text-white hover:bg-white/15 transition-all duration-200" title="Instagram" onClick={() => {}}>
+              <i className="ph-fill ph-instagram-logo text-sm"></i>
+              <span className="hidden lg:inline">Instagram</span>
+            </button>
+          </nav>
+        </div>
 
-          <nav className="flex gap-1 bg-slate-100/80 border border-slate-200/60 rounded-2xl p-1.5 shadow-inner">
+        {/* Center: Nav Tabs */}
+        <div className="flex-1 flex justify-center">
+          <nav className="flex gap-0.5 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-0.5">
             {['Leads', 'Followup', 'Sales', 'Messages', 'Analytics', 'Home'].map((tab) => (
               <button 
                 key={tab}
                 onClick={() => goToTab(tab)}
-                className={`px-4 py-2 text-[12px] font-extrabold rounded-xl transition-all duration-300 ${
+                className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all duration-200 ${
                   activeTab === tab
-                    ? 'bg-white text-blue-700 shadow-[0_2px_8px_rgba(37,99,235,0.12)] ring-1 ring-blue-100/50 scale-[1.02]'
-                    : 'text-slate-500 hover:text-slate-800 hover:bg-white/60'
+                    ? 'bg-white text-[#1E7F43] shadow-md'
+                    : 'text-white/70 hover:text-white hover:bg-white/15'
                 }`}
               >
                 {tab}
@@ -1694,24 +1720,25 @@ export default function MetaInboxPage() {
           </nav>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        {/* Right: Tools + Expense + AI + Quick icons */}
+        <div className="flex items-center gap-1.5 shrink-0">
           {/* CRM Tools Dropdown */}
           <div className="relative">
              <button
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl border transition-all active:scale-95 ${
+                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-[10px] font-bold transition-all duration-200 ${
                   toolsDropdownOpen 
-                    ? 'bg-blue-600 text-white border-blue-600 shadow-lg ring-2 ring-blue-500/20' 
-                    : 'bg-white text-slate-500 border-slate-200/60 hover:border-blue-200 hover:text-blue-600'
+                    ? 'bg-white text-[#1E7F43] border-white shadow-md' 
+                    : 'bg-white/10 text-white/80 border-white/20 hover:bg-white/20 hover:text-white'
                 }`}
                 onClick={() => setToolsDropdownOpen(!toolsDropdownOpen)}
              >
-                <i className="ph-bold ph-wrench text-lg"></i>
-                <span className="text-[10px] font-black uppercase tracking-widest hidden lg:inline">Tools</span>
-                <i className={`ph ph-caret-down text-[10px] transition-transform ${toolsDropdownOpen ? 'rotate-180' : ''}`}></i>
+                <i className="ph-bold ph-wrench text-xs"></i>
+                <span className="hidden lg:inline uppercase tracking-wider">Tools</span>
+                <i className={`ph ph-caret-down text-[8px] transition-transform ${toolsDropdownOpen ? 'rotate-180' : ''}`}></i>
              </button>
 
              {toolsDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-100 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.15)] z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 p-2">
+                <div className="absolute right-0 mt-1.5 w-48 bg-white border border-slate-100 rounded-xl shadow-xl z-50 overflow-hidden p-1">
                    {[
                       { label: 'Dashboard', icon: 'ph-chart-bar', href: '/admin/crm/meta-dashboard', color: 'text-indigo-600', bg: 'bg-indigo-50' },
                       { label: 'Chatbots', icon: 'ph-robot', href: '/admin/crm/chatbots', color: 'text-blue-600', bg: 'bg-blue-50' },
@@ -1725,12 +1752,12 @@ export default function MetaInboxPage() {
                           setToolsDropdownOpen(false);
                           router.push(tool.href);
                         }}
-                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 rounded-2xl transition-all group text-left"
+                        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-slate-50 rounded-lg transition-all group text-left"
                       >
-                        <div className={`h-9 w-9 rounded-xl ${tool.bg} flex items-center justify-center`}>
-                           <i className={`ph-bold ${tool.icon} text-lg ${tool.color}`}></i>
+                        <div className={`h-6 w-6 rounded-md ${tool.bg} flex items-center justify-center`}>
+                           <i className={`ph-bold ${tool.icon} text-sm ${tool.color}`}></i>
                         </div>
-                        <span className="text-sm font-[800] text-slate-700 group-hover:text-blue-700">{tool.label}</span>
+                        <span className="text-xs font-[700] text-slate-700 group-hover:text-[#1E7F43]">{tool.label}</span>
                       </button>
                    ))}
                 </div>
@@ -1740,89 +1767,77 @@ export default function MetaInboxPage() {
           {/* Monthly Expense Widget */}
           {monthlyExpenseSummary && (
             <div 
-              className="flex items-center gap-3 px-4 py-2 rounded-2xl bg-gradient-to-r from-rose-50 to-orange-50 border border-rose-200/60 cursor-pointer hover:shadow-md transition-all"
+              className="flex items-center gap-2 px-2 py-0.5 rounded-lg bg-rose-50 border border-rose-200/60 cursor-pointer hover:bg-rose-100 transition-all"
               onClick={() => router.push('/admin/crm/whatsapp-analytics')}
               title="Click to view full analytics"
             >
               <div className="text-center">
-                <div className="text-[9px] font-bold text-rose-500 uppercase tracking-wider">This Month</div>
-                <div className="text-[15px] font-black text-rose-700">₹{monthlyExpenseSummary.total.toLocaleString()}</div>
+                <div className="text-[8px] font-bold text-rose-400 uppercase">Month</div>
+                <div className="text-[12px] font-black text-rose-700 leading-tight">₹{monthlyExpenseSummary.total.toLocaleString()}</div>
               </div>
-              <div className="h-8 w-px bg-rose-200/60"></div>
-              <div className="flex flex-col gap-0.5 text-[9px]">
-                <div className="flex justify-between gap-3">
-                  <span className="text-slate-500">Msgs:</span>
-                  <span className="font-bold text-slate-700">{monthlyExpenseSummary.messagesSent.toLocaleString()}</span>
+              <div className="h-5 w-px bg-rose-200/60"></div>
+              <div className="flex flex-col text-[8px] leading-tight">
+                <div className="flex gap-1">
+                  <span className="text-slate-400">Msgs:</span>
+                  <span className="font-bold text-slate-600">{monthlyExpenseSummary.messagesSent.toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between gap-3">
-                  <span className="text-slate-500">Mktg:</span>
-                  <span className="font-bold text-rose-600">₹{monthlyExpenseSummary.marketing.toLocaleString()}</span>
+                <div className="flex gap-1">
+                  <span className="text-slate-400">Mktg:</span>
+                  <span className="font-bold text-rose-500">₹{monthlyExpenseSummary.marketing.toLocaleString()}</span>
                 </div>
               </div>
             </div>
           )}
 
           <button
-            className={`flex items-center gap-2 px-3 py-2.5 rounded-2xl border transition-all active:scale-95 ${
+            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-[10px] font-bold transition-all duration-200 ${
               isBotMode 
-                ? 'bg-violet-600 text-white border-violet-600 shadow-lg shadow-violet-500/30 ring-2 ring-violet-500/20' 
-                : 'bg-white text-slate-500 border-slate-200/60 hover:border-violet-200 hover:text-violet-600'
+                ? 'bg-white text-violet-700 border-white shadow-md' 
+                : 'bg-white/10 text-white/70 border-white/20 hover:bg-white/20 hover:text-white'
             }`}
             onClick={() => setIsBotMode(!isBotMode)}
             title="Toggle AI Auto-Reply"
           >
-             <i className={`ph-fill ph-robot text-lg ${isBotMode ? 'animate-pulse' : ''}`}></i>
-             <span className="text-[10px] font-black uppercase tracking-widest hidden xl:inline">{isBotMode ? 'AI Active' : 'AI Offline'}</span>
+             <i className={`ph-fill ph-robot text-sm ${isBotMode ? 'animate-pulse' : ''}`}></i>
+             <span className="hidden xl:inline uppercase tracking-wider">{isBotMode ? 'AI On' : 'AI Off'}</span>
           </button>
 
-          <button
-            className="p-2.5 text-slate-500 hover:text-blue-700 hover:bg-white rounded-2xl border border-slate-200/60 hover:border-blue-200 transition-all hover:shadow-md active:scale-90"
-            title="Chatbot Config"
-            onClick={() => router.push('/admin/crm/chatbots')}
-          >
-            <i className="ph-fill ph-gear text-xl"></i>
+          <button className={`p-1.5 rounded-lg transition-all duration-200 ${showDiagnostics ? 'text-amber-300 bg-white/20' : 'text-white/50 hover:text-white hover:bg-white/15'}`} title="Diagnostics" onClick={() => setShowDiagnostics(!showDiagnostics)}>
+            <i className="ph-bold ph-wrench text-sm"></i>
           </button>
-          <button
-            className="p-2.5 text-slate-500 hover:text-emerald-700 hover:bg-white rounded-2xl border border-slate-200/60 hover:border-emerald-200 transition-all hover:shadow-md active:scale-90"
-            title="Automation"
-            onClick={() => router.push('/admin/crm/automation')}
-          >
-            <i className="ph-fill ph-lightning text-xl"></i>
+          <button className="p-1.5 text-white/50 hover:text-white rounded-lg hover:bg-white/15 transition-all duration-200" title="Settings" onClick={() => router.push('/admin/crm/chatbots')}>
+            <i className="ph-fill ph-gear text-sm"></i>
           </button>
-          <button
-            className="p-2.5 text-slate-500 hover:text-indigo-700 hover:bg-white rounded-2xl border border-slate-200/60 hover:border-indigo-200 transition-all hover:shadow-md active:scale-90"
-            title="Templates"
-            onClick={() => router.push('/admin/crm/templates')}
-          >
-            <i className="ph-fill ph-note text-xl"></i>
+          <button className="p-1.5 text-white/50 hover:text-white rounded-lg hover:bg-white/15 transition-all duration-200" title="Automation" onClick={() => router.push('/admin/crm/automation')}>
+            <i className="ph-fill ph-lightning text-sm"></i>
           </button>
-          <button
-            className="p-2.5 text-slate-500 hover:text-red-700 hover:bg-white rounded-2xl border border-slate-200/60 hover:border-red-200 transition-all hover:shadow-md active:scale-90"
-            title="Broadcast"
-            onClick={() => router.push('/admin/crm/broadcast')}
-          >
-            <i className="ph-fill ph-megaphone text-xl"></i>
+          <button className="p-1.5 text-white/50 hover:text-white rounded-lg hover:bg-white/15 transition-all duration-200" title="Templates" onClick={() => router.push('/admin/crm/templates')}>
+            <i className="ph-fill ph-note text-sm"></i>
+          </button>
+          <button className="p-1.5 text-white/50 hover:text-white rounded-lg hover:bg-white/15 transition-all duration-200" title="Broadcast" onClick={() => router.push('/admin/crm/broadcast')}>
+            <i className="ph-fill ph-megaphone text-sm"></i>
           </button>
         </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden bg-white">
+      <div className="flex flex-1 overflow-hidden bg-[#F9FAF9]">
 
         {/* LEFT CHAT LIST */}
-        <aside className="w-80 border-r border-slate-200/70 flex flex-col bg-white overflow-hidden">
+        <aside className="w-[27rem] border-r border-[#E0EDE6] flex flex-col overflow-hidden" style={{ background: 'linear-gradient(180deg, #F0F7F2 0%, #FAFCFB 100%)' }}>
 
-          <div className="px-3 py-2 border-b border-slate-200/70 flex gap-2 items-center shrink-0 bg-white">
+          <div className="px-3 py-2.5 border-b border-[#E0EDE6] flex gap-2 items-center shrink-0" style={{ background: 'linear-gradient(180deg, #F0F7F2 0%, #F5FAF7 100%)' }}>
             <div className="relative flex-1 group">
-              <i className="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors text-[12px]"></i>
+              <i className="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#1E7F43] transition-colors text-[12px]"></i>
               <input 
-                className="w-full border border-slate-200/80 rounded-xl pl-8 pr-3 py-2 text-[12px] focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-400 transition-all bg-slate-50/50 placeholder:text-slate-400 font-medium" 
+                className="w-full border border-[#E0EDE6] rounded-xl pl-8 pr-3 py-2.5 text-[12px] focus:outline-none focus:ring-2 focus:ring-[#1E7F43]/20 focus:border-[#1E7F43] transition-all bg-white/80 backdrop-blur-sm placeholder:text-slate-400 font-medium shadow-sm" 
                 placeholder="Search name or phone..." 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
             <button
-              className="h-9 w-9 flex items-center justify-center bg-blue-600 text-white rounded-xl shadow-md hover:bg-blue-700 transition-all active:scale-90"
+              className="h-9 w-9 flex items-center justify-center rounded-xl shadow-lg transition-all duration-200 active:scale-90 hover:scale-105 hover:shadow-xl"
+              style={{ background: 'linear-gradient(135deg, #1E7F43, #28964F)', color: 'white' }}
               title="Add New Lead"
               onClick={modal.open}
               type="button"
@@ -1831,187 +1846,156 @@ export default function MetaInboxPage() {
             </button>
           </div>
 
-          {/* Chat Status Filter Tabs */}
-          <div className="px-2 py-1.5 border-b border-slate-200/70 bg-slate-50/30 shrink-0">
-            <div className="flex gap-1 overflow-x-auto no-scrollbar">
-              <button
-                onClick={() => setChatStatusFilter('all')}
-                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all whitespace-nowrap ${
-                  chatStatusFilter === 'all'
-                    ? 'bg-slate-800 text-white shadow-md'
-                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-                }`}
-              >
-                All
-              </button>
-              <button
-                onClick={() => setChatStatusFilter('new')}
-                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all whitespace-nowrap flex items-center gap-1 ${
-                  chatStatusFilter === 'new'
-                    ? 'bg-emerald-600 text-white shadow-md'
-                    : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
-                }`}
-              >
-                <i className="ph ph-sparkle"></i>
-                New
-              </button>
-              <button
-                onClick={() => setChatStatusFilter('open')}
-                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all whitespace-nowrap flex items-center gap-1 ${
-                  chatStatusFilter === 'open'
-                    ? 'bg-blue-600 text-white shadow-md'
-                    : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'
-                }`}
-              >
-                <i className="ph ph-envelope-open"></i>
-                Open
-              </button>
-              <button
-                onClick={() => setChatStatusFilter('pending')}
-                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all whitespace-nowrap flex items-center gap-1 ${
-                  chatStatusFilter === 'pending'
-                    ? 'bg-amber-600 text-white shadow-md'
-                    : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200'
-                }`}
-              >
-                <i className="ph ph-clock"></i>
-                Pending
-              </button>
-              <button
-                onClick={() => setChatStatusFilter('overdue')}
-                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all whitespace-nowrap flex items-center gap-1 ${
-                  chatStatusFilter === 'overdue'
-                    ? 'bg-red-600 text-white shadow-md animate-pulse'
-                    : 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'
-                }`}
-              >
-                <i className="ph ph-warning"></i>
-                Overdue
-              </button>
-              <button
-                onClick={() => setChatStatusFilter('closed')}
-                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all whitespace-nowrap flex items-center gap-1 ${
-                  chatStatusFilter === 'closed'
-                    ? 'bg-slate-600 text-white shadow-md'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-300'
-                }`}
-              >
-                <i className="ph ph-check-circle"></i>
-                Closed
-              </button>
-            </div>
-          </div>
-
-          {/* Date Filter + Archive Toggle Row */}
-          <div className="px-2 py-1.5 border-b border-slate-200/70 bg-white shrink-0">
-            <div className="flex gap-1 items-center">
-              {/* Date filters */}
-              <button
-                onClick={() => { setDateFilter('all'); setShowArchived(false); }}
-                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all whitespace-nowrap flex items-center gap-1 ${
-                  dateFilter === 'all' && !showArchived
-                    ? 'bg-slate-800 text-white shadow-md'
-                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-                }`}
-              >
-                <i className="ph ph-chat-dots"></i>
-                All
-              </button>
-              <button
-                onClick={() => { setDateFilter('today'); setShowArchived(false); }}
-                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all whitespace-nowrap flex items-center gap-1 ${
-                  dateFilter === 'today'
-                    ? 'bg-blue-600 text-white shadow-md'
-                    : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'
-                }`}
-              >
-                <i className="ph ph-calendar-blank"></i>
-                Today
-              </button>
-              <button
-                onClick={() => { setDateFilter('yesterday'); setShowArchived(false); }}
-                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all whitespace-nowrap flex items-center gap-1 ${
-                  dateFilter === 'yesterday'
-                    ? 'bg-violet-600 text-white shadow-md'
-                    : 'bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200'
-                }`}
-              >
-                <i className="ph ph-clock-counter-clockwise"></i>
-                Yesterday
-              </button>
-              <button
-                onClick={() => { setDateFilter('last_week'); setShowArchived(false); }}
-                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all whitespace-nowrap flex items-center gap-1 ${
-                  dateFilter === 'last_week'
-                    ? 'bg-teal-600 text-white shadow-md'
-                    : 'bg-teal-50 text-teal-700 hover:bg-teal-100 border border-teal-200'
-                }`}
-              >
-                <i className="ph ph-calendar-dots"></i>
-                Last 7 Days
-              </button>
-
-              {/* Separator */}
-              <div className="w-px h-5 bg-slate-200 mx-0.5"></div>
-
-              {/* Archived toggle */}
-              <button
-                onClick={() => { setShowArchived(!showArchived); setShowBlocked(false); if (!showArchived) setDateFilter('all'); }}
-                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all whitespace-nowrap flex items-center gap-1 ${
-                  showArchived
-                    ? 'bg-amber-600 text-white shadow-md'
-                    : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200'
-                }`}
-                title="View archived conversations"
-              >
-                <i className="ph ph-archive"></i>
-                Archived
-                {archivedPhones.size > 0 && (
-                  <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${
-                    showArchived ? 'bg-amber-500 text-white' : 'bg-amber-200 text-amber-800'
-                  }`}>
-                    {archivedPhones.size}
-                  </span>
-                )}
-              </button>
-
-              {/* Blocked toggle */}
-              <button
-                onClick={() => { setShowBlocked(!showBlocked); setShowArchived(false); if (!showBlocked) setDateFilter('all'); }}
-                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all whitespace-nowrap flex items-center gap-1 ${
-                  showBlocked
-                    ? 'bg-red-600 text-white shadow-md'
-                    : 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'
-                }`}
-                title="View blocked conversations"
-              >
-                <i className="ph ph-prohibit"></i>
-                Blocked
-                {(() => { const blockedCount = conversations.filter(c => c.isBlocked).length; return blockedCount > 0 ? (
-                  <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${
-                    showBlocked ? 'bg-red-500 text-white' : 'bg-red-200 text-red-800'
-                  }`}>
-                    {blockedCount}
-                  </span>
-                ) : null; })()}
-              </button>
-            </div>
-          </div>
-
-          {/* Diagnostics panel (collapsible) */}
-          <div className="px-3 py-1.5 border-b border-slate-200/70 bg-slate-50/50 shrink-0">
-            <button
-              onClick={() => setShowDiagnostics(!showDiagnostics)}
-              className="w-full flex items-center justify-between text-[10px] font-extrabold text-slate-500 hover:text-slate-700 transition-colors"
+          {/* Filters Row - Compact Dropdowns */}
+          <div className="px-3 py-1.5 border-b border-[#E0EDE6] shrink-0 flex items-center gap-2" style={{ background: 'linear-gradient(180deg, #F5FAF7 0%, #FAFCFB 100%)' }}>
+            {/* Status Dropdown */}
+            <select
+              value={chatStatusFilter}
+              onChange={(e) => setChatStatusFilter(e.target.value)}
+              className="text-[11px] font-bold border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#1E7F43] focus:border-[#1E7F43] cursor-pointer"
             >
-              <span className="flex items-center gap-1">
-                <i className="ph ph-wrench text-[11px]"></i>
-                Diagnostics
-              </span>
-              <i className={`ph ph-caret-${showDiagnostics ? 'up' : 'down'} text-[10px]`}></i>
-            </button>
+              <option value="all">All Status</option>
+              <option value="new">✦ New</option>
+              <option value="open">✉ Open</option>
+              <option value="pending">⏱ Pending</option>
+              <option value="overdue">⚠ Overdue</option>
+              <option value="closed">✓ Closed</option>
+            </select>
 
-            {showDiagnostics && (<div className="mt-1.5">
+            {/* Date Dropdown */}
+            <select
+              value={showArchived ? 'archived' : showBlocked ? 'blocked' : dateFilter}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === 'archived') { setShowArchived(true); setShowBlocked(false); setDateFilter('all'); }
+                else if (v === 'blocked') { setShowBlocked(true); setShowArchived(false); setDateFilter('all'); }
+                else { setShowArchived(false); setShowBlocked(false); setDateFilter(v); }
+              }}
+              className="text-[11px] font-bold border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#1E7F43] focus:border-[#1E7F43] cursor-pointer"
+            >
+              <option value="all">All Time</option>
+              <option value="today">Today</option>
+              <option value="yesterday">Yesterday</option>
+              <option value="last_week">Last 7 Days</option>
+              <option value="archived">Archived{archivedPhones.size > 0 ? ` (${archivedPhones.size})` : ''}</option>
+              <option value="blocked">Blocked</option>
+            </select>
+
+            {/* Check all + Bulk Actions inline */}
+            <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 select-none ml-1">
+              <input
+                type="checkbox"
+                className="h-3 w-3 rounded border-slate-300 text-[#1E7F43] focus:ring-[#1E7F43]"
+                checked={allChecked}
+                onChange={(e) => setAllChecked(e.target.checked)}
+              />
+              All
+            </label>
+
+            {anyChecked && (
+              <div className="relative">
+                <select
+                  className="text-[10px] font-bold border border-[#1E7F43]/30 rounded-lg px-1.5 py-1 bg-[#E6F4EC] text-[#1E7F43] focus:outline-none focus:ring-1 focus:ring-[#1E7F43] cursor-pointer appearance-none pr-5"
+                  value=""
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === 'read') handleBulkMarkRead();
+                    else if (v === 'assign') { setBulkAssignOpen(!bulkAssignOpen); setBulkLabelsOpen(false); }
+                    else if (v === 'labels') { setBulkLabelsOpen(!bulkLabelsOpen); setBulkAssignOpen(false); }
+                    else if (v === 'archive') {
+                      const toArchive = filteredConversations.filter((c) => bulkSelected[c._id]);
+                      setArchivedPhones(prev => {
+                        const next = new Set(prev);
+                        toArchive.forEach(c => {
+                          if (showArchived) next.delete(c.phoneNumber);
+                          else next.add(c.phoneNumber);
+                        });
+                        return next;
+                      });
+                      bulkClear();
+                    }
+                    else if (v === 'block') { showBlocked ? handleBulkUnblock() : handleBulkBlock(); }
+                  }}
+                  disabled={bulkActionLoading}
+                >
+                  <option value="">{selectedIds.length} sel ▸</option>
+                  <option value="read">✓ Mark read</option>
+                  <option value="assign">👤 Assign</option>
+                  <option value="labels">🏷 Labels</option>
+                  <option value="archive">{showArchived ? '↩ Unarchive' : '📦 Archive'}</option>
+                  <option value="block">{showBlocked ? '🔓 Unblock' : '🚫 Block'}</option>
+                </select>
+                <i className="ph ph-caret-down text-[7px] text-[#1E7F43] absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+              </div>
+            )}
+
+            <span className="ml-auto text-[10px] font-semibold text-slate-400">
+              {conversationsTotal > filteredConversations.length ? `${filteredConversations.length}/${conversationsTotal}` : `${filteredConversations.length}`}
+            </span>
+          </div>
+
+          {/* Bulk Assign sub-panel */}
+          {anyChecked && bulkAssignOpen && (
+            <div className="px-3 py-1.5 border-b border-slate-200/70 bg-emerald-50/50 shrink-0 flex items-center gap-2">
+              <select
+                className="flex-1 border border-emerald-200 rounded-lg p-1.5 text-[11px] font-semibold bg-white focus:ring-1 focus:ring-emerald-400 outline-none"
+                value={bulkAssignValue}
+                onChange={(e) => setBulkAssignValue(e.target.value)}
+              >
+                <option value="">Select agent...</option>
+                {adminUsers.map(u => (
+                  <option key={u.userId} value={u.userId}>
+                    {u.name} {u.email ? `(${u.email})` : ''}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                disabled={!bulkAssignValue || bulkActionLoading}
+                className="px-3 py-1.5 rounded-lg text-[10px] font-bold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+                onClick={handleBulkAssign}
+              >
+                {bulkActionLoading ? '...' : `Assign ${selectedIds.length}`}
+              </button>
+            </div>
+          )}
+
+          {/* Bulk Labels sub-panel */}
+          {anyChecked && bulkLabelsOpen && (
+            <div className="px-3 py-1.5 border-b border-slate-200/70 bg-indigo-50/50 shrink-0">
+              <div className="flex flex-wrap gap-1.5 mb-1.5">
+                {labelOptions.map(label => (
+                  <label key={label} className="flex items-center gap-1 text-[10px] font-semibold cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      className="h-3 w-3 rounded border-indigo-300 text-indigo-600 focus:ring-indigo-500"
+                      checked={bulkLabelsSelected.includes(label)}
+                      onChange={(e) => {
+                        setBulkLabelsSelected(prev =>
+                          e.target.checked
+                            ? [...prev, label]
+                            : prev.filter(l => l !== label)
+                        );
+                      }}
+                    />
+                    <span className="text-indigo-800">{label}</span>
+                  </label>
+                ))}
+              </div>
+              <button
+                type="button"
+                disabled={bulkLabelsSelected.length === 0 || bulkActionLoading}
+                className="px-3 py-1.5 rounded-lg text-[10px] font-bold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
+                onClick={handleBulkLabels}
+              >
+                {bulkActionLoading ? '...' : `Apply ${bulkLabelsSelected.length} label(s)`}
+              </button>
+            </div>
+          )}
+
+          {showDiagnostics && (
+          <div className="px-3 py-1.5 border-b border-slate-200/70 bg-slate-50/50 shrink-0">
+            <div>
             {crmError ? (
               <div className="mt-1 text-[11px] font-semibold text-red-700">
                 {crmError}
@@ -2229,157 +2213,9 @@ export default function MetaInboxPage() {
                 </div>
               </div>
             )}
-            </div>)}
-          </div>
-
-          {/* Bulk select + actions */}
-          <div className="px-3 py-1.5 border-b border-slate-200/70 bg-white flex items-center gap-2 shrink-0">
-            <label className="flex items-center gap-2 text-[11px] font-bold text-slate-600 select-none">
-              <input
-                type="checkbox"
-                className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                checked={allChecked}
-                onChange={(e) => setAllChecked(e.target.checked)}
-              />
-              Check all
-            </label>
-            <span className="ml-auto text-[10px] font-semibold text-slate-500">
-              {anyChecked ? `${selectedIds.length} selected` : conversationsTotal > filteredConversations.length ? `${filteredConversations.length} shown / ${conversationsTotal} total` : `${filteredConversations.length} total`}
-            </span>
-          </div>
-
-          {anyChecked ? (
-            <div className="px-3 py-1.5 border-b border-slate-200/70 bg-white flex flex-col gap-1.5 shrink-0">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <button
-                  type="button"
-                  disabled={bulkActionLoading}
-                  className="px-3 py-1.5 rounded-xl text-xs font-extrabold bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-100 disabled:opacity-50"
-                  onClick={handleBulkMarkRead}
-                >
-                  {bulkActionLoading ? '...' : 'Mark read'}
-                </button>
-                <button
-                  type="button"
-                  className={`px-3 py-1.5 rounded-xl text-xs font-extrabold border ${bulkAssignOpen ? 'bg-emerald-200 text-emerald-800 border-emerald-300' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-100'}`}
-                  onClick={() => { setBulkAssignOpen(!bulkAssignOpen); setBulkLabelsOpen(false); }}
-                >
-                  Bulk assign
-                </button>
-                <button
-                  type="button"
-                  className={`px-3 py-1.5 rounded-xl text-xs font-extrabold border ${bulkLabelsOpen ? 'bg-indigo-200 text-indigo-800 border-indigo-300' : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border-indigo-100'}`}
-                  onClick={() => { setBulkLabelsOpen(!bulkLabelsOpen); setBulkAssignOpen(false); }}
-                >
-                  Bulk labels
-                </button>
-                <button
-                  type="button"
-                  className="px-3 py-1.5 rounded-xl text-xs font-extrabold bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-100"
-                  onClick={() => {
-                    const toArchive = filteredConversations.filter((c) => bulkSelected[c._id]);
-                    setArchivedPhones(prev => {
-                      const next = new Set(prev);
-                      toArchive.forEach(c => {
-                        if (showArchived) next.delete(c.phoneNumber);
-                        else next.add(c.phoneNumber);
-                      });
-                      return next;
-                    });
-                    bulkClear();
-                  }}
-                >
-                  <i className={`ph ${showArchived ? 'ph-arrow-counter-clockwise' : 'ph-archive'} mr-1`}></i>
-                  {showArchived ? 'Unarchive' : 'Archive'}
-                </button>
-                {showBlocked ? (
-                  <button
-                    type="button"
-                    disabled={bulkActionLoading}
-                    className="px-3 py-1.5 rounded-xl text-xs font-extrabold bg-green-50 text-green-700 hover:bg-green-100 border border-green-100 disabled:opacity-50"
-                    onClick={handleBulkUnblock}
-                  >
-                    <i className="ph ph-lock-key-open mr-1"></i>Unblock
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={bulkActionLoading}
-                    className="px-3 py-1.5 rounded-xl text-xs font-extrabold bg-red-50 text-red-700 hover:bg-red-100 border border-red-100 disabled:opacity-50"
-                    onClick={handleBulkBlock}
-                  >
-                    <i className="ph ph-prohibit mr-1"></i>Block
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className="ml-auto px-3 py-1.5 rounded-xl text-xs font-extrabold bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200"
-                  onClick={() => { bulkClear(); setBulkAssignOpen(false); setBulkLabelsOpen(false); }}
-                >
-                  Clear
-                </button>
-              </div>
-
-              {/* Bulk Assign Dropdown */}
-              {bulkAssignOpen && (
-                <div className="flex items-center gap-2 p-2 bg-emerald-50/50 rounded-xl border border-emerald-100">
-                  <select
-                    className="flex-1 border border-emerald-200 rounded-lg p-2 text-xs font-semibold bg-white focus:ring-2 focus:ring-emerald-400/30 outline-none"
-                    value={bulkAssignValue}
-                    onChange={(e) => setBulkAssignValue(e.target.value)}
-                  >
-                    <option value="">Select agent...</option>
-                    {adminUsers.map(u => (
-                      <option key={u.userId} value={u.userId}>
-                        {u.name} {u.email ? `(${u.email})` : ''}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    disabled={!bulkAssignValue || bulkActionLoading}
-                    className="px-4 py-2 rounded-lg text-xs font-extrabold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    onClick={handleBulkAssign}
-                  >
-                    {bulkActionLoading ? 'Assigning...' : `Assign ${selectedIds.length}`}
-                  </button>
-                </div>
-              )}
-
-              {/* Bulk Labels Checkboxes */}
-              {bulkLabelsOpen && (
-                <div className="p-2 bg-indigo-50/50 rounded-xl border border-indigo-100">
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {labelOptions.map(label => (
-                      <label key={label} className="flex items-center gap-1.5 text-xs font-semibold cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          className="h-3.5 w-3.5 rounded border-indigo-300 text-indigo-600 focus:ring-indigo-500"
-                          checked={bulkLabelsSelected.includes(label)}
-                          onChange={(e) => {
-                            setBulkLabelsSelected(prev =>
-                              e.target.checked
-                                ? [...prev, label]
-                                : prev.filter(l => l !== label)
-                            );
-                          }}
-                        />
-                        <span className="text-indigo-800">{label}</span>
-                      </label>
-                    ))}
-                  </div>
-                  <button
-                    type="button"
-                    disabled={bulkLabelsSelected.length === 0 || bulkActionLoading}
-                    className="px-4 py-2 rounded-lg text-xs font-extrabold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    onClick={handleBulkLabels}
-                  >
-                    {bulkActionLoading ? 'Applying...' : `Apply ${bulkLabelsSelected.length} label(s) to ${selectedIds.length}`}
-                  </button>
-                </div>
-              )}
             </div>
-          ) : null}
+          </div>
+          )}
 
           <div className="flex-1 overflow-y-auto">
             {crmLoading && conversations.length === 0 ? (
@@ -2408,8 +2244,8 @@ export default function MetaInboxPage() {
               groupedConversations.map((group) => (
                 <div key={group.label}>
                   {/* Date Section Header */}
-                  <div className="sticky top-0 z-10 px-4 py-1.5 bg-gradient-to-r from-slate-100 to-slate-50 border-b border-slate-200/60 flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                  <div className="sticky top-0 z-10 px-4 py-1.5 border-b border-[#E0EDE6]/60 flex items-center gap-2" style={{ background: 'linear-gradient(90deg, #E6F4EC 0%, #F0F7F2 50%, transparent 100%)' }}>
+                    <span className="w-2 h-2 rounded-full" style={{ background: 'linear-gradient(135deg, #1E7F43, #28964F)' }}></span>
                     <span className="text-[11px] font-[800] text-slate-500 uppercase tracking-wider">{group.label}</span>
                     <span className="text-[10px] font-medium text-slate-400">({group.conversations.length})</span>
                   </div>
@@ -2419,19 +2255,19 @@ export default function MetaInboxPage() {
                 <div 
                   key={conv._id} 
                   onClick={() => handleSelectConversation(conv)}
-                  className={`px-3 py-2.5 border-b border-slate-100/60 flex gap-2.5 items-start cursor-pointer transition-all duration-200 group relative ${
+                  className={`px-3 py-2.5 flex gap-2.5 items-start cursor-pointer transition-all duration-300 group relative ${
                     selected?._id === conv._id
-                      ? 'bg-blue-50/60 border-l-[5px] border-l-blue-600 shadow-[inset_0_0_15px_rgba(59,130,246,0.08)]'
-                      : 'hover:bg-slate-50/80 border-l-[5px] border-l-transparent'
+                      ? 'bg-[#E6F4EC] border border-[#1E7F43]/30 rounded-lg shadow-[0_2px_12px_rgba(30,127,67,0.10)] mx-1 my-0.5'
+                      : 'bg-white border border-[#E0EDE6] rounded-lg mx-1 my-0.5 hover:border-[#1E7F43]/30 hover:shadow-sm hover:translate-x-[2px]'
                   }`}
                 >
                   {/* Read/Unread Dot */}
                   <div className="flex flex-col items-center gap-1 pt-1">
                     <span
-                      className={`w-[10px] h-[10px] rounded-full shrink-0 ${
+                      className={`w-[10px] h-[10px] rounded-full shrink-0 transition-all duration-300 ${
                         isUnread
-                          ? 'bg-blue-500 shadow-[0_0_6px_rgba(59,130,246,0.5)]'
-                          : 'bg-emerald-400'
+                          ? 'bg-[#1E7F43] shadow-[0_0_8px_rgba(30,127,67,0.6),0_0_3px_rgba(30,127,67,0.8)]'
+                          : 'bg-emerald-300'
                       }`}
                       title={isUnread ? 'Unread' : 'Read'}
                     />
@@ -2439,97 +2275,88 @@ export default function MetaInboxPage() {
                   <div className="pt-0.5" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="checkbox"
-                      className="h-4.5 w-4.5 rounded-lg border-slate-300 text-blue-600 focus:ring-offset-0 focus:ring-blue-500 transition-all transform group-hover:scale-110"
+                      className="h-4.5 w-4.5 rounded-lg border-slate-300 text-[#1E7F43] focus:ring-offset-0 focus:ring-[#1E7F43] transition-all transform group-hover:scale-110"
                       checked={!!bulkSelected[conv._id]}
                       onChange={(e) => toggleBulk(conv._id, e.target.checked)}
                     />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="flex justify-between items-start mb-1">
+                    {/* Row 1: Name + Source icon + Date */}
+                    <div className="flex justify-between items-center mb-0.5">
                       <div className="min-w-0 flex-1">
-                        {/* Name or Phone Number */}
                         {conv.name && conv.hasLead ? (
-                          <>
-                            <div className="font-[800] text-slate-900 truncate tracking-tight text-[14px]">
-                              {conv.name}
-                            </div>
-                            <div className="text-[11px] font-medium text-slate-500 flex items-center gap-1 mt-0.5">
-                              <i className="ph ph-whatsapp-logo text-green-600 text-[12px]"></i>
-                              <span>{conv.phoneNumber}</span>
-                            </div>
-                          </>
+                          <div className="font-[800] text-slate-900 truncate tracking-tight text-[14px]">
+                            {conv.name}
+                          </div>
                         ) : (
-                          <div className="font-[700] text-slate-700 truncate tracking-tight text-[14px] flex items-center gap-2">
-                            <i className="ph ph-whatsapp-logo text-green-600 text-[14px]"></i>
+                          <div className="font-[700] text-slate-700 truncate tracking-tight text-[14px] flex items-center gap-1.5">
                             <span>{conv.phoneNumber}</span>
                             {!conv.hasLead && (
-                              <span className="text-[9px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200">
-                                NEW
-                              </span>
+                              <span className="text-[8px] font-bold bg-amber-100 text-amber-700 px-1 py-0.5 rounded border border-amber-200">NEW</span>
                             )}
                           </div>
                         )}
                       </div>
-                      <div className="text-[10px] font-bold text-slate-400 uppercase bg-slate-100/50 px-2 py-0.5 rounded-lg shrink-0 ml-2 flex items-center gap-1.5">
-                        <span>{conv.lastMessageAt ? new Date(conv.lastMessageAt).toLocaleDateString([], { day: '2-digit', month: 'short' }) : 'Jan 10'}</span>
+                      <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                        {/* Channel Icon — based on messaging platform, not lead source */}
+                        <span className="text-[13px] text-green-600" title="WhatsApp">
+                          <i className="ph-fill ph-whatsapp-logo"></i>
+                        </span>
+                        {/* Date */}
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">
+                          {conv.lastMessageAt ? new Date(conv.lastMessageAt).toLocaleDateString([], { day: '2-digit', month: 'short' }) : ''}
+                        </span>
                         {conv.isBlocked && (
-                          <span className="text-[9px] font-black bg-red-100 text-red-700 px-1.5 py-0.5 rounded border border-red-200" title={`Blocked: ${conv.blockedReason || 'manual'}`}>
-                            <i className="ph ph-prohibit"></i>
+                          <span className="text-[10px] text-red-600" title={`Blocked: ${conv.blockedReason || 'manual'}`}>
+                            <i className="ph-fill ph-prohibit"></i>
                           </span>
                         )}
+                        {/* Archive / Block - show on hover */}
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); toggleArchive(conv.phoneNumber); }}
-                          className={`p-1 rounded-lg transition-all ${
+                          className={`p-0.5 rounded transition-all ${
                             showArchived 
-                              ? 'text-amber-600 hover:bg-amber-100 hover:text-amber-800'
-                              : 'text-slate-400 hover:bg-amber-100 hover:text-amber-700 opacity-0 group-hover:opacity-100'
+                              ? 'text-amber-600 hover:bg-amber-100'
+                              : 'text-slate-300 hover:text-amber-600 opacity-0 group-hover:opacity-100'
                           }`}
-                          title={showArchived ? 'Unarchive conversation' : 'Archive conversation'}
+                          title={showArchived ? 'Unarchive' : 'Archive'}
                         >
-                          <i className={`ph ${showArchived ? 'ph-arrow-counter-clockwise' : 'ph-archive'} text-[12px]`}></i>
+                          <i className={`ph ${showArchived ? 'ph-arrow-counter-clockwise' : 'ph-archive'} text-[11px]`}></i>
                         </button>
-                        {/* Block/Unblock per conversation */}
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); handleBlockSingle(conv.leadId, !conv.isBlocked, 'manual'); }}
-                          className={`p-1 rounded-lg transition-all ${
+                          className={`p-0.5 rounded transition-all ${
                             conv.isBlocked
-                              ? 'text-green-600 hover:bg-green-100 hover:text-green-800'
-                              : 'text-slate-400 hover:bg-red-100 hover:text-red-700 opacity-0 group-hover:opacity-100'
+                              ? 'text-green-600 hover:bg-green-100'
+                              : 'text-slate-300 hover:text-red-600 opacity-0 group-hover:opacity-100'
                           }`}
-                          title={conv.isBlocked ? 'Unblock conversation' : 'Block conversation'}
+                          title={conv.isBlocked ? 'Unblock' : 'Block'}
                         >
-                          <i className={`ph ${conv.isBlocked ? 'ph-lock-key-open' : 'ph-prohibit'} text-[12px]`}></i>
+                          <i className={`ph ${conv.isBlocked ? 'ph-lock-key-open' : 'ph-prohibit'} text-[11px]`}></i>
                         </button>
                       </div>
                     </div>
-                    
-                    <div className="text-[11px] font-semibold text-slate-500 truncate opacity-70 mb-1.5 flex flex-wrap items-center gap-2">
-                       {/* Lead ID Display */}
-                       {conv.leadNumber && (
-                         <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded text-[10px] font-mono border border-slate-200">
-                           #{conv.leadNumber}
-                         </span>
-                       )}
-                    </div>
 
-                    {/* Labels Display */}
-                    {conv.labels && conv.labels.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mb-1.5">
-                        {conv.labels.slice(0, 3).map((label, idx) => (
-                          <span key={idx} className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-orange-50 text-orange-700 border border-orange-100 truncate max-w-[80px]">
-                            {label}
-                          </span>
-                        ))}
-                        {conv.labels.length > 3 && (
-                          <span className="text-[9px] text-slate-400 px-1">+ {conv.labels.length - 3}</span>
-                        )}
+                    {/* Row 2: Phone number (if name exists) */}
+                    {conv.name && conv.hasLead && (
+                      <div className="text-[11px] font-medium text-slate-500 flex items-center gap-1 mb-0.5">
+                        <i className="ph ph-phone text-[10px]"></i>
+                        <span>{conv.phoneNumber}</span>
                       </div>
                     )}
 
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      {/* Chat Status Badge - Interactive */}
+                    {/* Row 3: Compact info strip — ID, Status, Stage, Assigned */}
+                    <div className="flex items-center gap-1 flex-wrap">
+                      {/* Lead ID (red) */}
+                      <span className="text-[9px] font-[900] font-mono px-1.5 py-0.5 rounded bg-red-50 text-red-700 border border-red-200" title="Lead ID">
+                        {conv.leadNumber ? String(conv.leadNumber).padStart(6, '0') : 'N/A'}
+                      </span>
+
+                      <span className="text-slate-300 text-[8px]">·</span>
+
+                      {/* Chat Status (interactive) */}
                       <ChatStatusBadge
                         lastMessageAt={conv.lastMessageAt}
                         manualStatus={conv.chatStatus}
@@ -2540,31 +2367,51 @@ export default function MetaInboxPage() {
                         onStatusChange={(newStatus) => handleChatStatusChange(newStatus, conv.leadId)}
                       />
 
-                      {/* User ID Button */}
-                      <span className={`text-[9px] font-[900] px-2 py-1 rounded-lg bg-pink-50 text-pink-700 border border-pink-200 uppercase tracking-wide`} title="User ID">
-                        ID: {conv.leadNumber || 'N/A'}
-                      </span>
+                      <span className="text-slate-300 text-[8px]">·</span>
 
-                      {/* Lead Status Button */}
-                      <span className={`text-[9px] font-[900] px-2.5 py-1 rounded-lg uppercase tracking-[0.05em] border ${
-                        (conv.status || 'lead').toLowerCase() === 'customer' 
-                          ? 'text-indigo-700 bg-indigo-50 border-indigo-100'
-                          : (conv.status || 'lead').toLowerCase() === 'prospect'
-                            ? 'text-amber-700 bg-amber-50 border-amber-100'
-                            : (conv.status || 'lead').toLowerCase() === 'inactive'
-                              ? 'text-slate-500 bg-slate-100 border-slate-200'
-                              : 'text-emerald-700 bg-emerald-50 border-emerald-100'
-                      }`}>
-                        {conv.status || 'Lead'}
-                      </span>
+                      {/* Lead Stage */}
+                      {(() => {
+                        // Map legacy status values to new funnel names
+                        const statusMap: Record<string, string> = {
+                          'lead': 'new_lead', 'hot': 'interested', 'prospect': 'contacted', 'customer': 'enrolled',
+                        };
+                        const raw = (conv.status || 'new_lead').toLowerCase();
+                        const mapped = statusMap[raw] || raw;
+                        const colorMap: Record<string, string> = {
+                          'new_lead': 'text-blue-700 bg-blue-50 border border-blue-100',
+                          'contacted': 'text-sky-700 bg-sky-50 border border-sky-100',
+                          'interested': 'text-cyan-700 bg-cyan-50 border border-cyan-100',
+                          'demo_trial': 'text-purple-700 bg-purple-50 border border-purple-100',
+                          'negotiation': 'text-amber-700 bg-amber-50 border border-amber-100',
+                          'enrolled': 'text-emerald-700 bg-emerald-50 border border-emerald-100',
+                          'completed': 'text-rose-700 bg-rose-50 border border-rose-100',
+                          'inactive': 'text-slate-500 bg-slate-100 border border-slate-200',
+                          'repeater': 'text-orange-700 bg-orange-50 border border-orange-100',
+                          'old_sadhak': 'text-teal-700 bg-teal-50 border border-teal-100',
+                          'only_for_post': 'text-indigo-700 bg-indigo-50 border border-indigo-100',
+                        };
+                        const labelMap: Record<string, string> = {
+                          'new_lead': 'New Lead', 'contacted': 'Contacted', 'interested': 'Interested',
+                          'demo_trial': 'Demo/Trial', 'negotiation': 'Negotiation', 'enrolled': 'Enrolled',
+                          'completed': 'Completed', 'inactive': 'Inactive', 'repeater': 'Repeater',
+                          'old_sadhak': 'Old Sadhak', 'only_for_post': 'Only for Post',
+                        };
+                        return (
+                          <span className={`text-[9px] font-[800] px-1.5 py-0.5 rounded uppercase ${colorMap[mapped] || 'text-blue-700 bg-blue-50 border border-blue-100'}`}>
+                            {labelMap[mapped] || mapped.replace(/_/g, ' ')}
+                          </span>
+                        );
+                      })()}
 
-                      {/* Labels Count/First Label Button */}
-                      <span className="text-[9px] font-[900] px-2 py-1 rounded-lg bg-cyan-50 text-cyan-700 border border-cyan-200 uppercase tracking-wide truncate max-w-[80px]" title="Main Label">
-                        {conv.labels?.[0] || 'No Label'}
+                      <span className="text-slate-300 text-[8px]">·</span>
+
+                      {/* Assigned To (single name) */}
+                      <span className="text-[9px] font-[700] px-1.5 py-0.5 rounded bg-slate-50 text-slate-600 border border-slate-200 truncate max-w-[70px]" title={conv.assignedToUserId ? (adminUsers.find(u => u.userId === conv.assignedToUserId)?.name || 'Assigned') : 'Unassigned'}>
+                        {conv.assignedToUserId ? (adminUsers.find(u => u.userId === conv.assignedToUserId)?.name?.split(' ')[0] || '—') : '—'}
                       </span>
 
                       {conv.unreadCount ? (
-                        <span className="ml-auto bg-gradient-to-r from-blue-600 to-blue-500 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full shadow-[0_4px_10px_rgba(37,99,235,0.3)] animate-pulse">
+                        <span className="ml-auto bg-gradient-to-r from-[#1E7F43] to-[#25A55A] text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm">
                           {conv.unreadCount}
                         </span>
                       ) : null}
@@ -2580,28 +2427,28 @@ export default function MetaInboxPage() {
         </aside>
 
     {/* CHAT AREA */}
-    <main className="flex-1 flex flex-col bg-white overflow-hidden shadow-2xl relative z-10">
+    <main className="flex-1 flex flex-col overflow-hidden relative z-10" style={{ background: 'linear-gradient(180deg, #FAFCFB 0%, #F5F8F6 100%)', boxShadow: '0 8px 32px rgba(30,127,67,0.08), 0 2px 8px rgba(0,0,0,0.04)' }}>
 
           {selected ? (
             <>
-              <div className="border-b border-slate-200/70 px-6 py-4 flex gap-4 items-center bg-white/95 backdrop-blur-md sticky top-0 z-30 shrink-0 shadow-sm">
-                <div className="flex items-center gap-3 mr-4">
-                   <div className="h-10 w-10 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-500 border border-slate-200 shadow-sm">
-                      <i className="ph ph-user text-xl"></i>
+              <div className="px-3 py-1.5 flex gap-2 items-center sticky top-0 z-30 shrink-0 backdrop-blur-md" style={{ background: 'linear-gradient(90deg, rgba(255,255,255,0.95) 0%, rgba(230,244,236,0.4) 100%)', borderBottom: '1px solid rgba(30,127,67,0.1)', boxShadow: '0 2px 12px rgba(30,127,67,0.06)' }}>
+                <div className="flex items-center gap-2 mr-2">
+                   <div className="h-7 w-7 rounded-lg flex items-center justify-center text-white shadow-sm" style={{ background: 'linear-gradient(135deg, #1E7F43, #28964F)' }}>
+                      <i className="ph ph-user text-sm"></i>
                    </div>
                    <div>
-                     <div className="text-[15px] font-[900] text-slate-900 leading-none">{selected.name || "Unknown User"}</div>
-                     <div className="text-[11px] font-bold text-slate-400 mt-1 uppercase tracking-wider">{selected.phoneNumber}</div>
+                     <div className="text-[13px] font-bold text-slate-900 leading-none">{selected.name || "Unknown User"}</div>
+                     <div className="text-[10px] font-semibold text-slate-400 mt-0.5 tracking-wide">{selected.phoneNumber}</div>
                    </div>
                 </div>
 
                 <div className="relative">
                   <button
                     type="button"
-                    className={`p-2 rounded-xl border transition-all ${
+                    className={`p-1.5 rounded-md transition-colors ${
                       assignOpen
-                        ? 'text-blue-700 bg-blue-50 border-blue-200'
-                        : 'text-slate-600 hover:text-blue-700 hover:bg-blue-50 border-slate-200/70'
+                        ? 'text-[#1E7F43] bg-[#E6F4EC]'
+                        : 'text-slate-500 hover:text-[#1E7F43] hover:bg-[#E6F4EC]'
                     }`}
                     title="Assign User"
                     onClick={() => {
@@ -2609,23 +2456,22 @@ export default function MetaInboxPage() {
                       setLabelOpen(false);
                     }}
                   >
-                    <i className="ph ph-user-plus text-lg"></i>
+                    <i className="ph ph-user-plus text-sm"></i>
                   </button>
 
                   {assignOpen ? (
-                    <div className="absolute top-full mt-2 left-0 w-[220px] bg-white border border-slate-200 rounded-2xl shadow-xl p-2 z-50">
-                      <div className="text-[10px] font-extrabold tracking-widest uppercase text-slate-400 px-2 py-1">
+                    <div className="absolute top-full mt-1 left-0 w-[200px] bg-white border border-slate-200 rounded-lg shadow-lg p-1.5 z-50">
+                      <div className="text-[9px] font-bold tracking-widest uppercase text-slate-400 px-2 py-0.5">
                         Assign to
                       </div>
-                      <div className="space-y-1">
+                      <div className="space-y-0.5">
                         {assignOptions.map((u) => (
                           <button
                             key={u.id}
                             type="button"
-                            className="w-full px-3 py-2 text-sm text-left rounded-xl hover:bg-blue-50 hover:text-blue-700 text-slate-700 transition-colors"
+                            className="w-full px-2 py-1.5 text-xs text-left rounded-md hover:bg-[#E6F4EC] hover:text-[#1E7F43] text-slate-700 transition-colors"
                             onClick={() => {
                               setSidebarData((prev) => ({ ...prev }));
-                              // Save assignment via existing lead update (if leadId exists)
                               if (selected?.leadId) {
                                 crmFetch(`/api/admin/crm/leads/${selected.leadId}`, {
                                   method: 'PUT',
@@ -2640,7 +2486,7 @@ export default function MetaInboxPage() {
                         ))}
                         <button
                           type="button"
-                          className="w-full px-3 py-2 text-sm text-left rounded-xl hover:bg-slate-50 text-slate-700 transition-colors"
+                          className="w-full px-2 py-1.5 text-xs text-left rounded-md hover:bg-slate-50 text-slate-700 transition-colors"
                           onClick={() => {
                             router.push('/admin/crm/permissions');
                             setAssignOpen(false);
@@ -2656,10 +2502,10 @@ export default function MetaInboxPage() {
                 <div className="relative">
                   <button
                     type="button"
-                    className={`p-2 rounded-xl border transition-all ${
+                    className={`p-1.5 rounded-md transition-colors ${
                       labelOpen
-                        ? 'text-indigo-700 bg-indigo-50 border-indigo-200'
-                        : 'text-slate-600 hover:text-indigo-700 hover:bg-indigo-50 border-slate-200/70'
+                        ? 'text-[#1E7F43] bg-[#E6F4EC]'
+                        : 'text-slate-500 hover:text-[#1E7F43] hover:bg-[#E6F4EC]'
                     }`}
                     title="Label"
                     onClick={() => {
@@ -2667,20 +2513,20 @@ export default function MetaInboxPage() {
                       setAssignOpen(false);
                     }}
                   >
-                    <i className="ph ph-tag text-lg"></i>
+                    <i className="ph ph-tag text-sm"></i>
                   </button>
 
                   {labelOpen ? (
-                    <div className="absolute top-full mt-2 left-0 w-[260px] bg-white border border-slate-200 rounded-2xl shadow-xl p-2 z-50">
-                      <div className="text-[10px] font-extrabold tracking-widest uppercase text-slate-400 px-2 py-1">
+                    <div className="absolute top-full mt-1 left-0 w-[240px] bg-white border border-slate-200 rounded-lg shadow-lg p-1.5 z-50">
+                      <div className="text-[9px] font-bold tracking-widest uppercase text-slate-400 px-2 py-0.5">
                         Labels
                       </div>
-                      <div className="flex flex-wrap gap-1 px-1 py-1">
+                      <div className="flex flex-wrap gap-1 px-1 py-0.5">
                         {(sidebarData.labels || []).map((l) => (
                           <button
                             key={l}
                             type="button"
-                            className="px-2 py-1 rounded-full text-[11px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-100 hover:bg-red-50 hover:text-red-700 hover:border-red-100 transition-colors"
+                            className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-[#E6F4EC] text-[#1E7F43] border border-[#1E7F43]/20 hover:bg-red-50 hover:text-red-700 hover:border-red-100 transition-colors"
                             title="Remove"
                             onClick={() =>
                               setSidebarData((prev) => ({
@@ -2693,12 +2539,12 @@ export default function MetaInboxPage() {
                           </button>
                         ))}
                       </div>
-                      <div className="mt-1 space-y-1">
+                      <div className="mt-0.5 space-y-0.5">
                         {labelOptions.map((l) => (
                           <button
                             key={l}
                             type="button"
-                            className="w-full px-3 py-2 text-sm text-left rounded-xl hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 transition-colors"
+                            className="w-full px-2 py-1.5 text-xs text-left rounded-md hover:bg-[#E6F4EC] hover:text-[#1E7F43] text-slate-700 transition-colors"
                             onClick={() => {
                               setSidebarData((prev) => ({
                                 ...prev,
@@ -2712,7 +2558,7 @@ export default function MetaInboxPage() {
                         ))}
                         <button
                           type="button"
-                          className="w-full px-3 py-2 text-sm text-left rounded-xl hover:bg-slate-50 text-slate-700 transition-colors"
+                          className="w-full px-2 py-1.5 text-xs text-left rounded-md hover:bg-slate-50 text-slate-700 transition-colors"
                           onClick={() => {
                             router.push('/admin/crm/labels');
                             setLabelOpen(false);
@@ -2725,71 +2571,75 @@ export default function MetaInboxPage() {
                   ) : null}
                 </div>
                 <button 
-                  className="p-2 text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-xl border border-slate-200/70 transition-all" 
+                  className="p-1.5 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-md transition-colors" 
                   title="Read or Unread"
                   onClick={() => markThreadAsRead(selected.leadId, selected.phoneNumber)}
                 >
-                  <i className="ph ph-check text-lg"></i>
+                  <i className="ph ph-check text-sm"></i>
                 </button>
                 
-                {/* Chat Status Badge - Interactive */}
-                <ChatStatusBadge
-                  lastMessageAt={selected.lastMessageAt}
-                  manualStatus={selected.chatStatus}
-                  lastInboundAt={selected.lastInboundAt}
-                  lastDirection={selected.lastDirection}
-                  size="sm"
-                  interactive={true}
-                  onStatusChange={handleChatStatusChange}
-                />
-                
-                {/* Quick Close/Reopen Button */}
-                {calculateChatStatus(selected.lastMessageAt, selected.chatStatus, selected.lastInboundAt, selected.lastDirection) !== 'closed' ? (
-                  <button
-                    className="p-2 text-slate-600 hover:text-slate-700 hover:bg-slate-100 rounded-xl border border-slate-200/70 transition-all"
-                    title="Mark as Closed (Completed)"
-                    onClick={() => handleChatStatusChange('closed')}
-                  >
-                    <i className="ph ph-check-circle text-lg"></i>
-                  </button>
-                ) : (
-                  <button
-                    className="p-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-xl border border-emerald-200 transition-all"
-                    title="Reopen Chat"
-                    onClick={() => handleChatStatusChange('new')}
-                  >
-                    <i className="ph ph-arrow-counter-clockwise text-lg"></i>
-                  </button>
-                )}
-                
                 <button
-                  className={`p-2 rounded-xl border transition-all ${showSidebar ? 'bg-blue-50 text-blue-700 border-blue-200' : 'text-slate-600 hover:bg-slate-50 border-slate-200/70'}`}
+                  className={`p-1.5 rounded-md transition-colors ${showSidebar ? 'bg-[#E6F4EC] text-[#1E7F43]' : 'text-slate-500 hover:bg-slate-50'}`}
                   title={showSidebar ? "Hide Sidebar" : "Show Sidebar"}
                   onClick={() => setShowSidebar(!showSidebar)}
                 >
-                  <i className={`ph ${showSidebar ? 'ph-sidebar-simple' : 'ph-sidebar'} text-lg`}></i>
+                  <i className={`ph ${showSidebar ? 'ph-sidebar-simple' : 'ph-sidebar'} text-sm`}></i>
                 </button>
-                <div className="ml-auto flex items-center gap-2">
-                  <span className="flex h-2 w-2 relative">
+              </div>
+
+              {/* Sticky top bar: Chat Stage + 24H Window Timer */}
+              <div className="flex items-center justify-between px-4 py-1.5 shrink-0 z-20" style={{ background: 'linear-gradient(90deg, #E6F4EC 0%, #F0F7F2 50%, #FEF2F2 100%)', borderBottom: '1px solid rgba(30,127,67,0.08)' }}>
+                <div className="flex items-center gap-2">
+                  <ChatStatusBadge
+                    lastMessageAt={selected.lastMessageAt}
+                    manualStatus={selected.chatStatus}
+                    lastInboundAt={selected.lastInboundAt}
+                    lastDirection={selected.lastDirection}
+                    size="sm"
+                    interactive={true}
+                    onStatusChange={handleChatStatusChange}
+                  />
+                  {calculateChatStatus(selected.lastMessageAt, selected.chatStatus, selected.lastInboundAt, selected.lastDirection) !== 'closed' ? (
+                    <button
+                      className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition-colors"
+                      title="Mark as Closed"
+                      onClick={() => handleChatStatusChange('closed')}
+                    >
+                      <i className="ph ph-check-circle text-xs"></i>
+                    </button>
+                  ) : (
+                    <button
+                      className="p-1 text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors"
+                      title="Reopen Chat"
+                      onClick={() => handleChatStatusChange('new')}
+                    >
+                      <i className="ph ph-arrow-counter-clockwise text-xs"></i>
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="flex h-1.5 w-1.5 relative">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-70"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500"></span>
                   </span>
-                  <span className="text-[11px] font-extrabold text-red-700 uppercase tracking-widest bg-red-50 px-2.5 py-1 rounded-full border border-red-200">
+                  <span className="text-[10px] font-bold text-red-700 uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: 'linear-gradient(135deg, #FEF2F2, #FEE2E2)', border: '1px solid rgba(239,68,68,0.2)', boxShadow: '0 1px 4px rgba(239,68,68,0.1)' }}>
                     {windowRemaining
-                      ? `24h window • ${String(windowRemaining.hh).padStart(2, '0')}:${String(windowRemaining.mm).padStart(2, '0')}:${String(windowRemaining.ss).padStart(2, '0')}`
-                      : '24h window'}
+                      ? `24H WINDOW • ${String(windowRemaining.hh).padStart(2, '0')}:${String(windowRemaining.mm).padStart(2, '0')}:${String(windowRemaining.ss).padStart(2, '0')}`
+                      : '24H WINDOW'}
                   </span>
                 </div>
               </div>
 
-              <div className="flex-1 p-6 overflow-y-auto flex flex-col gap-3" style={{ backgroundColor: '#e5ddd5', backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23d4cec4\' fill-opacity=\'0.4\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")' }}>
+              <div className="flex-1 p-6 overflow-y-auto flex flex-col gap-3" style={{ backgroundColor: '#EEF1F0', backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.7) 1px, transparent 1px)', backgroundSize: '20px 20px' }}>
                 {loadingMessages ? (
                   <div className="flex-1 flex items-center justify-center"><LoadingSpinner /></div>
                 ) : messages.length === 0 ? (
-                  <div className="flex-1 flex flex-col items-center justify-center text-slate-500 gap-2">
-                    <i className="ph ph-chat-circle-dots text-5xl opacity-30"></i>
-                    <p className="text-sm font-semibold">No messages yet</p>
-                    <p className="text-xs text-slate-500">Send a hello to start the conversation.</p>
+                  <div className="flex-1 flex flex-col items-center justify-center text-slate-400 gap-3">
+                    <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, rgba(30,127,67,0.08), rgba(30,127,67,0.15))' }}>
+                      <i className="ph ph-chat-circle-dots text-3xl text-[#1E7F43]/50"></i>
+                    </div>
+                    <p className="text-sm font-bold text-slate-500">No messages yet</p>
+                    <p className="text-xs text-slate-400">Send a hello to start the conversation.</p>
                   </div>
                 ) : (
                   <>
@@ -2797,7 +2647,10 @@ export default function MetaInboxPage() {
                       <div className="flex justify-center pb-4">
                         <button 
                            onClick={() => setMessageLimit(prev => prev + 20)}
-                           className="px-5 py-2.5 bg-slate-50 border border-slate-200 rounded-full text-[11px] font-black uppercase tracking-widest text-slate-500 hover:text-blue-600 hover:border-blue-300 hover:bg-white shadow-sm transition-all duration-200"
+                           className="px-5 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest text-[#1E7F43] hover:text-white transition-all duration-300 hover:scale-105"
+                           style={{ background: 'linear-gradient(135deg, rgba(230,244,236,0.8), rgba(255,255,255,0.9))', border: '1px solid rgba(30,127,67,0.15)', boxShadow: '0 2px 8px rgba(30,127,67,0.08)' }}
+                           onMouseEnter={(e) => { e.currentTarget.style.background = 'linear-gradient(135deg, #1E7F43, #28964F)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(30,127,67,0.3)'; }}
+                           onMouseLeave={(e) => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(230,244,236,0.8), rgba(255,255,255,0.9))'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(30,127,67,0.08)'; }}
                         >
                            View Earlier Conversations
                         </button>
@@ -2810,9 +2663,9 @@ export default function MetaInboxPage() {
                       >
                         <div className={`max-w-[330px] sm:max-w-[360px] rounded-lg text-[14px] relative group transition-all duration-200 overflow-hidden ${
                           msg.direction === 'outbound'
-                            ? 'bg-[#d9fdd3] text-gray-900 rounded-tr-sm shadow-sm border border-[#c5e1a5]'
-                            : 'bg-[#075E54] text-white rounded-tl-sm shadow-sm'
-                        }`}>
+                            ? 'text-gray-900 rounded-tr-sm shadow-sm'
+                            : 'text-white rounded-tl-sm shadow-sm'
+                        }`} style={msg.direction === 'outbound' ? { background: 'linear-gradient(135deg, #dcfce7 0%, #d1fae5 100%)', border: '1px solid rgba(30,127,67,0.12)' } : { background: 'linear-gradient(135deg, #075E54 0%, #0a7e6f 100%)' }}>
                           {/* Media Rendering - Using unified InlineMediaPreview component */}
                           {(() => {
                             // Check for media in various places including template header media
@@ -3051,26 +2904,29 @@ export default function MetaInboxPage() {
                 )}
               </div>
 
-              <div className="border-t border-slate-200/80 p-6 bg-white/95 backdrop-blur-md shrink-0 z-30">
-                <div className="flex items-end gap-3 max-w-6xl mx-auto">
+              <div className="px-3 pt-2 pb-6 shrink-0 z-30 backdrop-blur-md" style={{ background: 'linear-gradient(0deg, rgba(255,255,255,0.98) 0%, rgba(240,247,242,0.9) 100%)', borderTop: '1px solid rgba(30,127,67,0.1)', boxShadow: '0 -4px 16px rgba(30,127,67,0.04)' }}>
+                <div className="flex items-end gap-2 max-w-6xl mx-auto">
                   
                   {/* Quick Actions (Plus Button) */}
-                  <div className="relative group self-end mb-1">
+                  <div className="relative group self-end">
                     <button
                       type="button"
                       onClick={() => setQuickActionsOpen((v) => !v)}
-                      className={`h-10 w-10 flex items-center justify-center bg-white border border-slate-200 rounded-xl shadow-sm transition-all duration-300 active:scale-95 ${
+                      className={`h-8 w-8 flex items-center justify-center rounded-md transition-all active:scale-95 ${
                         quickActionsOpen
-                          ? 'border-blue-500 text-blue-700 ring-2 ring-blue-500/10'
-                          : 'text-slate-400 hover:text-blue-600 hover:border-blue-300'
+                          ? 'text-white shadow-lg'
+                          : 'text-slate-400 hover:text-white hover:shadow-lg'
                       }`}
+                      style={{ background: quickActionsOpen ? 'linear-gradient(135deg, #1E7F43, #28964F)' : undefined }}
+                      onMouseEnter={(e) => { if (!quickActionsOpen) e.currentTarget.style.background = 'linear-gradient(135deg, #1E7F43, #28964F)'; }}
+                      onMouseLeave={(e) => { if (!quickActionsOpen) e.currentTarget.style.background = ''; }}
                       title="Quick actions"
                     >
-                      <i className="ph-bold ph-lightning text-[20px]"></i>
+                      <i className="ph-bold ph-lightning text-[16px]"></i>
                     </button>
 
                     {quickActionsOpen ? (
-                      <div className="absolute bottom-full mb-3 left-0 bg-white border border-slate-200 rounded-2xl shadow-xl flex-col p-2 min-w-[260px] animate-in fade-in slide-in-from-bottom-2 duration-200 z-50">
+                      <div className="absolute bottom-full mb-3 left-0 backdrop-blur-xl rounded-2xl flex-col p-2 min-w-[260px] animate-in fade-in slide-in-from-bottom-2 duration-200 z-50" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(240,247,242,0.95) 100%)', border: '1px solid rgba(30,127,67,0.15)', boxShadow: '0 8px 32px rgba(30,127,67,0.12), 0 2px 8px rgba(0,0,0,0.06)' }}>
                         <div className="px-2 py-1.5 flex items-center justify-between">
                           <div className="text-xs font-extrabold tracking-widest uppercase text-slate-400">Actions</div>
                           <button
@@ -3095,7 +2951,7 @@ export default function MetaInboxPage() {
                           <button
                             type="button"
                             onClick={() => openAction('schedule')}
-                            className="w-full px-3 py-2 text-sm text-left text-slate-700 hover:bg-blue-50 hover:text-blue-700 rounded-xl flex items-center gap-3 transition-colors"
+                            className="w-full px-3 py-2 text-sm text-left text-slate-700 hover:bg-[#E6F4EC] hover:text-[#1E7F43] rounded-xl flex items-center gap-3 transition-colors"
                           >
                             <i className="ph ph-calendar-plus text-lg"></i>
                             Schedule message
@@ -3139,127 +2995,101 @@ export default function MetaInboxPage() {
 
                   {/* Main Input Box with Top Toolbar */}
                   {selected?.isBlocked ? (
-                    <div className="flex-1 border-2 border-red-200 rounded-3xl bg-red-50/50 p-6 flex flex-col items-center justify-center gap-2 text-center">
-                      <i className="ph ph-prohibit text-3xl text-red-400"></i>
-                      <p className="text-sm font-extrabold text-red-600">This user is blocked</p>
-                      <p className="text-xs text-red-500">
-                        {selected.blockedReason === 'stop_keyword' 
-                          ? 'User sent "stop" — messages are paused' 
-                          : 'You cannot send messages to blocked users'}
-                      </p>
+                    <div className="flex-1 border border-red-200 rounded-md bg-red-50/50 px-4 py-3 flex items-center gap-3">
+                      <i className="ph ph-prohibit text-xl text-red-400"></i>
+                      <div className="flex-1">
+                        <p className="text-xs font-bold text-red-600">Blocked {selected.blockedReason === 'stop_keyword' ? '— user sent "stop"' : ''}</p>
+                      </div>
                       <button
                         onClick={() => selected.leadId && handleBlockSingle(selected.leadId, false)}
-                        className="mt-2 px-4 py-2 rounded-xl text-xs font-extrabold bg-green-600 text-white hover:bg-green-700 transition-colors"
+                        className="px-3 py-1.5 rounded-md text-[11px] font-bold bg-green-600 text-white hover:bg-green-700 transition-colors"
                       >
-                        <i className="ph ph-lock-key-open mr-1"></i> Unblock to send messages
+                        <i className="ph ph-lock-key-open mr-1"></i> Unblock
                       </button>
                     </div>
                   ) : (
-                  <div className="flex-1 border-2 border-slate-100 rounded-3xl bg-slate-50/50 focus-within:ring-4 focus-within:ring-blue-500/10 focus-within:border-blue-500 transition-all shadow-sm relative z-20">
+                  <div className="flex-1 rounded-lg bg-white/80 backdrop-blur-sm focus-within:ring-2 focus-within:ring-[#1E7F43]/20 focus-within:border-[#1E7F43] transition-all relative z-20" style={{ border: '1px solid rgba(30,127,67,0.15)', boxShadow: '0 2px 8px rgba(30,127,67,0.06)' }}>
                       
                       {/* Top Toolbar */}
-                      <div className="flex items-center gap-1 px-3 py-2 border-b border-slate-200/50 bg-white/50 rounded-t-3xl relative">
-                          <button onClick={() => handleToolAction('bold')} title="Bold" className="h-8 w-8 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200/50 rounded-lg transition-colors"><i className="ph ph-text-bolder text-lg"></i></button>
-                          <button onClick={() => handleToolAction('italic')} title="Italic" className="h-8 w-8 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200/50 rounded-lg transition-colors"><i className="ph ph-text-italic text-lg"></i></button>
-                          
-                          {/* Emoji Toggle */}
-                          <button 
-                            onClick={() => handleToolAction('emoji')} 
-                            title="Emoji Picker" 
-                            className={`h-8 w-8 flex items-center justify-center rounded-lg transition-colors ${showEmojiPicker ? 'text-amber-500 bg-amber-50' : 'text-slate-400 hover:text-amber-500 hover:bg-amber-50'}`}
-                          >
-                            <i className="ph ph-smiley text-lg"></i>
-                          </button>
+                      <div className="flex items-center gap-0.5 px-2 py-1 border-b border-[#E0EDE6]/60 rounded-t-lg relative" style={{ background: 'linear-gradient(90deg, rgba(230,244,236,0.5) 0%, rgba(250,252,251,0.8) 100%)' }}>
+                          <button onClick={() => handleToolAction('bold')} title="Bold" className="h-6 w-6 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded transition-colors"><i className="ph ph-text-bolder text-sm"></i></button>
+                          <button onClick={() => handleToolAction('italic')} title="Italic" className="h-6 w-6 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded transition-colors"><i className="ph ph-text-italic text-sm"></i></button>
+                          <button onClick={() => handleToolAction('emoji')} title="Emoji" className={`h-6 w-6 flex items-center justify-center rounded transition-colors ${showEmojiPicker ? 'text-amber-500 bg-amber-50' : 'text-slate-400 hover:text-amber-500 hover:bg-amber-50'}`}><i className="ph ph-smiley text-sm"></i></button>
+                          <button onClick={() => handleToolAction('symbols')} title="Symbols" className="h-6 w-6 flex items-center justify-center text-slate-400 hover:text-[#1E7F43] hover:bg-[#E6F4EC] rounded transition-colors"><i className="ph ph-hash text-sm"></i></button>
 
-                          {/* Quick Symbols */}
-                          <button 
-                            onClick={() => handleToolAction('symbols')} 
-                            title="Quick Yoga Symbols" 
-                            className="h-8 w-8 flex items-center justify-center text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
-                          >
-                            <i className="ph ph-hash text-lg"></i>
-                          </button>
+                           <div className="w-px h-3.5 bg-slate-200 mx-1"></div>
 
                            {/* AI Tools */}
-                           <div className="flex items-center gap-1 mx-1 pl-2 border-l border-slate-200/60">
-                             {/* Auto-Correct Toggle */}
-                             <button
-                               onClick={() => setAutoCorrectEnabled(!autoCorrectEnabled)}
-                               className={`h-8 px-2.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${autoCorrectEnabled ? 'bg-emerald-100 text-emerald-700' : 'text-slate-400 hover:bg-slate-100'}`}
-                               title={autoCorrectEnabled ? 'Auto-correct ON (click to disable)' : 'Auto-correct OFF (click to enable)'}
-                             >
-                               <i className={`ph-fill ${autoCorrectEnabled ? 'ph-check-circle' : 'ph-circle'} text-lg`}></i>
-                               <span className="hidden xl:inline">Auto</span>
-                             </button>
+                           <button
+                             onClick={() => setAutoCorrectEnabled(!autoCorrectEnabled)}
+                             className={`h-6 px-1.5 rounded text-[10px] font-bold transition-all flex items-center gap-1 ${autoCorrectEnabled ? 'bg-emerald-100 text-emerald-700' : 'text-slate-400 hover:bg-slate-100'}`}
+                             title={autoCorrectEnabled ? 'Auto-correct ON' : 'Auto-correct OFF'}
+                           >
+                             <i className={`ph-fill ${autoCorrectEnabled ? 'ph-check-circle' : 'ph-circle'} text-xs`}></i>
+                             <span className="hidden xl:inline">Auto</span>
+                           </button>
+                           <button
+                             onClick={handleAIFix}
+                             disabled={isFixing || !composerText}
+                             className={`h-6 px-1.5 rounded text-[10px] font-bold transition-all flex items-center gap-1 ${isFixing ? 'bg-violet-100 text-violet-700' : 'text-violet-600 hover:bg-violet-50'}`}
+                             title="Fix Spelling"
+                           >
+                             {isFixing ? <LoadingSpinner size="sm"/> : <i className="ph-fill ph-magic-wand text-xs"></i>}
+                             <span className="hidden xl:inline">Fix</span>
+                           </button>
+                           <button
+                             onClick={handleAIReply}
+                             disabled={isReplying}
+                             className={`h-6 px-1.5 rounded text-[10px] font-bold transition-all flex items-center gap-1 ${isReplying ? 'bg-fuchsia-100 text-fuchsia-700' : 'text-fuchsia-600 hover:bg-fuchsia-50'}`}
+                             title="AI Suggest Reply"
+                           >
+                             {isReplying ? <LoadingSpinner size="sm"/> : <i className="ph-fill ph-sparkle text-xs"></i>}
+                             <span className="hidden xl:inline">AI</span>
+                           </button>
 
-                             <button
-                               onClick={handleAIFix}
-                               disabled={isFixing || !composerText}
-                               className={`h-8 px-2.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${isFixing ? 'bg-violet-100 text-violet-700' : 'text-violet-600 hover:bg-violet-50'}`}
-                               title="AI Spell Check"
-                             >
-                               {isFixing ? <LoadingSpinner size="sm"/> : <i className="ph-fill ph-magic-wand text-lg"></i>}
-                               <span className="hidden xl:inline">Fix Spelling</span>
-                             </button>
-
-                             <button
-                               onClick={handleAIReply}
-                               disabled={isReplying}
-                               className={`h-8 px-2.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${isReplying ? 'bg-fuchsia-100 text-fuchsia-700' : 'text-fuchsia-600 hover:bg-fuchsia-50'}`}
-                               title="Generate AI Reply"
-                             >
-                               {isReplying ? <LoadingSpinner size="sm"/> : <i className="ph-fill ph-sparkle text-lg"></i>}
-                               <span className="hidden xl:inline">AI Suggest</span>
-                             </button>
-                           </div>
-
-                           {/* Translator Button Component */}
                            <LanguageSelector 
                               currentText={composerText} 
                               onTextTranslated={(t) => setComposerText(t)}
                               onTranslate={handleTranslationCall}
                            />
                           
-                          <div className="w-px h-4 bg-slate-300/50 mx-2"></div>
+                          <div className="w-px h-3.5 bg-slate-200 mx-1"></div>
 
-                          {/* Attachment Button */}
+                          {/* Attachment */}
                           <div className="relative">
                             <button 
                                 onClick={() => setAttachmentMenuOpen(!attachmentMenuOpen)} 
                                 title="Attach" 
-                                className={`h-8 px-2 rounded-lg transition-colors flex items-center gap-1.5 text-sm font-semibold ${attachmentMenuOpen ? 'text-blue-600 bg-blue-50' : 'text-slate-500 hover:text-blue-600 hover:bg-blue-50'}`}
+                                className={`h-6 w-6 flex items-center justify-center rounded transition-colors ${attachmentMenuOpen ? 'text-[#1E7F43] bg-[#E6F4EC]' : 'text-slate-400 hover:text-[#1E7F43] hover:bg-[#E6F4EC]'}`}
                             >
-                                <i className="ph ph-paperclip text-lg"></i>
-                                <span className="hidden sm:inline">Attach</span>
+                                <i className="ph ph-paperclip text-sm"></i>
                             </button>
-                            {/* Attachment Popup */}
                             {attachmentMenuOpen && (
-                                <div className="absolute bottom-full mb-3 left-0 bg-white border border-slate-200 rounded-2xl shadow-xl flex flex-col p-2 min-w-[180px] z-50 animate-in fade-in slide-in-from-bottom-2">
-                                    <div className="text-[10px] font-extrabold uppercase text-slate-400 px-3 py-1.5 tracking-wider">Add Attachment</div>
-                                    <button className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 font-medium hover:bg-slate-50 rounded-xl text-left transition-colors" onClick={() => { handleToolAction('image'); setAttachmentMenuOpen(false); }}>
-                                        <div className="h-6 w-6 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600"><i className="ph-fill ph-image"></i></div> Image
+                                <div className="absolute bottom-full mb-2 left-0 bg-white border border-slate-200 rounded-md shadow-lg flex flex-col p-1.5 min-w-[150px] z-50">
+                                    <div className="text-[9px] font-bold uppercase text-slate-400 px-2 py-1 tracking-wider">Attach</div>
+                                    <button className="flex items-center gap-2 px-2 py-1.5 text-xs text-slate-700 font-medium hover:bg-slate-50 rounded text-left" onClick={() => { handleToolAction('image'); setAttachmentMenuOpen(false); }}>
+                                        <i className="ph-fill ph-image text-emerald-600"></i> Image
                                     </button>
-                                    <button className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 font-medium hover:bg-slate-50 rounded-xl text-left transition-colors" onClick={() => { handleToolAction('video'); setAttachmentMenuOpen(false); }}>
-                                        <div className="h-6 w-6 rounded-lg bg-rose-100 flex items-center justify-center text-rose-600"><i className="ph-fill ph-video-camera"></i></div> Video
+                                    <button className="flex items-center gap-2 px-2 py-1.5 text-xs text-slate-700 font-medium hover:bg-slate-50 rounded text-left" onClick={() => { handleToolAction('video'); setAttachmentMenuOpen(false); }}>
+                                        <i className="ph-fill ph-video-camera text-rose-600"></i> Video
                                     </button>
-                                    <button className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 font-medium hover:bg-slate-50 rounded-xl text-left transition-colors" onClick={() => { handleToolAction('document'); setAttachmentMenuOpen(false); }}>
-                                        <div className="h-6 w-6 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600"><i className="ph-fill ph-file-text"></i></div> Document
+                                    <button className="flex items-center gap-2 px-2 py-1.5 text-xs text-slate-700 font-medium hover:bg-slate-50 rounded text-left" onClick={() => { handleToolAction('document'); setAttachmentMenuOpen(false); }}>
+                                        <i className="ph-fill ph-file-text text-blue-600"></i> Document
                                     </button>
                                 </div>
                             )}
                           </div>
 
-                          {/* Emoji Picker Popover */}
                           {showEmojiPicker && (
-                            <div className="absolute bottom-full mb-2 left-0 z-50 shadow-2xl rounded-2xl border border-slate-200">
+                            <div className="absolute bottom-full mb-2 left-0 z-50 shadow-lg rounded-md border border-slate-200">
                               <EmojiPicker 
                                 theme={Theme.LIGHT} 
                                 onEmojiClick={(e) => {
                                   appendToComposer(e.emoji);
                                   setShowEmojiPicker(false);
                                 }}
-                                width={300}
-                                height={350}
+                                width={280}
+                                height={320}
                               />
                             </div>
                           )}
@@ -3276,25 +3106,18 @@ export default function MetaInboxPage() {
 
                       {/* Upload Progress Bar */}
                       {uploadProgress !== null && (
-                        <div className="flex items-center gap-3 px-5 py-3 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border border-blue-200 mb-2">
-                          <div className="flex-1">
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-xs font-bold text-blue-700 uppercase tracking-wider">Uploading...</span>
-                              <span className="text-xs font-medium text-blue-600">{uploadProgress}%</span>
-                            </div>
-                            <div className="w-full bg-blue-200 rounded-full h-2">
-                              <div 
-                                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                                style={{ width: `${uploadProgress}%` }}
-                              />
-                            </div>
+                        <div className="flex items-center gap-2 px-3 py-2 bg-[#E6F4EC] border-b border-[#1E7F43]/20">
+                          <span className="text-[10px] font-bold text-[#1E7F43]">Uploading</span>
+                          <div className="flex-1 bg-[#1E7F43]/20 rounded-full h-1.5">
+                            <div className="bg-[#1E7F43] h-1.5 rounded-full transition-all" style={{ width: `${uploadProgress}%` }} />
                           </div>
+                          <span className="text-[10px] font-medium text-[#1E7F43]">{uploadProgress}%</span>
                         </div>
                       )}
 
                       {/* Media Preview - Using unified MediaPreview component */}
                       {attachedMedia && (
-                        <div className="flex items-center gap-3 px-5 py-3 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border border-blue-200 mb-2">
+                        <div className="flex items-center gap-2 px-3 py-1.5 bg-[#E6F4EC] border-b border-[#1E7F43]/20">
                           <MediaPreview 
                             media={{ 
                               url: attachedMedia.url, 
@@ -3305,18 +3128,15 @@ export default function MetaInboxPage() {
                             showDownload={false}
                             showExpand
                           />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">
-                              {attachedMedia.type} attached
-                            </p>
-                            <p className="text-xs text-slate-500 truncate mt-1">{getFilenameFromUrl(attachedMedia.url)}</p>
-                          </div>
+                          <span className="text-[10px] font-bold text-slate-600 truncate flex-1">
+                            {getFilenameFromUrl(attachedMedia.url)}
+                          </span>
                           <button
                             onClick={() => setAttachedMedia(null)}
-                            className="h-8 w-8 rounded-lg hover:bg-red-100 flex items-center justify-center text-red-600 transition-colors flex-shrink-0"
+                            className="h-5 w-5 rounded flex items-center justify-center text-red-500 hover:bg-red-100 transition-colors"
                             title="Remove"
                           >
-                            <i className="ph-bold ph-x text-lg"></i>
+                            <i className="ph-bold ph-x text-xs"></i>
                           </button>
                         </div>
                       )}
@@ -3330,8 +3150,8 @@ export default function MetaInboxPage() {
                             handleSendMessage();
                           }
                         }}
-                        placeholder={autoCorrectEnabled ? "Type your message... (Auto-correct ON)" : "Type your message..."}
-                        className="px-5 py-3 border-none focus:ring-0 max-h-40 min-h-[52px] placeholder:text-slate-400 font-medium text-slate-700 text-[15px]"
+                        placeholder={autoCorrectEnabled ? "Type message... (Auto ON)" : "Type message..."}
+                        className="px-3 py-2 border-none focus:ring-0 max-h-28 min-h-[36px] placeholder:text-slate-400 font-medium text-slate-700 text-[13px]"
                         token={token || ''}
                       />
                   </div>
@@ -3340,10 +3160,11 @@ export default function MetaInboxPage() {
                   <button 
                     onClick={handleSendMessage}
                     disabled={(!composerText.trim() && !attachedMedia) || sending || selected?.isBlocked}
-                    className="bg-green-700 hover:bg-green-800 text-white h-12 px-6 rounded-2xl font-[900] text-sm shadow-[0_8px_25px_rgba(34,197,94,0.25)] hover:shadow-[0_12px_30px_rgba(34,197,94,0.35)] transition-all transform hover:-translate-y-0.5 active:translate-y-0 active:scale-95 disabled:opacity-50 disabled:shadow-none disabled:transform-none flex items-center gap-2 mb-1"
+                    className="text-white h-8 px-4 rounded-lg font-bold text-xs transition-all active:scale-95 disabled:opacity-40 disabled:transform-none flex items-center gap-1.5 self-end hover:shadow-lg hover:scale-105"
+                    style={{ background: 'linear-gradient(135deg, #1E7F43 0%, #28964F 100%)', boxShadow: '0 2px 8px rgba(30,127,67,0.3)' }}
                   >
-                    {sending ? <LoadingSpinner size="sm" /> : <i className="ph-bold ph-paper-plane-right text-lg"></i>}
-                    <span className="uppercase tracking-wider hidden xl:inline">Send</span>
+                    {sending ? <LoadingSpinner size="sm" /> : <i className="ph-bold ph-paper-plane-right text-sm"></i>}
+                    <span className="hidden xl:inline">Send</span>
                   </button>
                 </div>
               </div>
@@ -3573,7 +3394,7 @@ export default function MetaInboxPage() {
                         {/* List */}
                         <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
                           {quickReplies.map(qr => (
-                            <div key={qr.id} className="group flex items-start justify-between gap-3 p-3 rounded-xl border border-slate-100 bg-slate-50 hover:border-blue-200 hover:bg-blue-50/50 transition-all">
+                            <div key={qr.id} className="group flex items-start justify-between gap-3 p-3 rounded-xl border border-slate-100 bg-slate-50 hover:border-[#1E7F43]/30 hover:bg-[#E6F4EC]/50 transition-all">
                               <p 
                                 className="text-sm text-slate-700 font-medium cursor-pointer flex-1 whitespace-pre-wrap line-clamp-4"
                                 onClick={() => {
@@ -3729,7 +3550,7 @@ export default function MetaInboxPage() {
                               <label className="text-xs font-semibold text-slate-600">
                                 <span className="block mb-1">Message</span>
                                 <textarea
-                                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none"
+                                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-[#1E7F43]/20 focus:border-[#1E7F43] resize-none"
                                   rows={3}
                                   placeholder="Type your message..."
                                   value={scheduleMessage || composerText}
@@ -3740,7 +3561,7 @@ export default function MetaInboxPage() {
                                 <span className="block mb-1">Send at</span>
                                 <input
                                   type="datetime-local"
-                                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-[#1E7F43]/20 focus:border-[#1E7F43]"
                                   value={scheduleAt}
                                   onChange={(e) => setScheduleAt(e.target.value)}
                                   min={new Date().toISOString().slice(0, 16)}
@@ -3750,7 +3571,7 @@ export default function MetaInboxPage() {
                             <div className="text-right">
                               <button
                                 type="button"
-                                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-extrabold text-sm shadow-sm disabled:opacity-50"
+                                className="bg-[#1E7F43] hover:bg-[#166235] text-white px-4 py-2 rounded-xl font-extrabold text-sm shadow-sm disabled:opacity-50"
                                 onClick={() => createScheduledMessage('schedule')}
                                 disabled={scheduleBusy || !selected}
                               >
@@ -3775,11 +3596,11 @@ export default function MetaInboxPage() {
               ) : null}
             </>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center bg-white text-slate-300 gap-4">
-              <div className="w-24 h-24 rounded-full bg-white shadow-sm flex items-center justify-center border border-slate-200/70">
-                <i className="ph ph-whatsapp-logo text-6xl text-slate-200"></i>
+            <div className="flex-1 flex flex-col items-center justify-center text-slate-300 gap-4" style={{ background: 'linear-gradient(180deg, #FAFCFB 0%, #F0F7F2 100%)' }}>
+              <div className="w-24 h-24 rounded-2xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, rgba(30,127,67,0.08) 0%, rgba(30,127,67,0.18) 100%)', boxShadow: '0 8px 24px rgba(30,127,67,0.1), inset 0 1px 2px rgba(255,255,255,0.5)' }}>
+                <i className="ph ph-whatsapp-logo text-6xl text-[#1E7F43]/40"></i>
               </div>
-              <p className="font-semibold text-lg text-slate-500">Select a conversation to start chatting</p>
+              <p className="font-bold text-lg text-slate-500">Select a conversation to start chatting</p>
               <p className="text-xs text-slate-400">Your chats will appear here.</p>
             </div>
           )}
@@ -3787,17 +3608,42 @@ export default function MetaInboxPage() {
 
         {/* RIGHT SIDEBAR */}
         {showSidebar && (
-          <aside className="w-72 border-l border-slate-200/70 p-4 overflow-y-auto bg-white shrink-0">
+          <aside className="w-72 p-4 overflow-y-auto shrink-0 backdrop-blur-sm" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.95) 0%, rgba(240,247,242,0.9) 100%)', borderLeft: '1px solid rgba(30,127,67,0.1)' }}>
             {selected ? (
               <>
-              <div className="flex items-center gap-3 mb-6 p-1 border-b border-slate-200/70 pb-4">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-600 to-emerald-500 flex items-center justify-center text-white font-extrabold text-xl shadow-sm">
+              <div className="mb-4 p-1 pb-3" style={{ borderBottom: '1px solid rgba(30,127,67,0.1)' }}>
+                <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white font-extrabold text-xl shrink-0" style={{ background: 'linear-gradient(135deg, #1E7F43 0%, #28964F 50%, #1E7F43 100%)', boxShadow: '0 4px 12px rgba(30,127,67,0.3), inset 0 1px 1px rgba(255,255,255,0.2)' }}>
                   {selected.name ? selected.name[0].toUpperCase() : 'U'}
                 </div>
-                <div>
+                <div className="min-w-0 flex-1">
                   <h3 className="font-extrabold text-slate-900 leading-tight">{selected.name || selected.phoneNumber}</h3>
                   <p className="text-xs text-slate-500">{selected.phoneNumber}</p>
                 </div>
+                </div>
+                  {/* Labels in a single row */}
+                  {sidebarData.labels && sidebarData.labels.length > 0 && (
+                    <div className="flex flex-nowrap items-center gap-1.5 mt-2 overflow-x-auto">
+                      {sidebarData.labels.map((label, idx) => {
+                        const l = label.toLowerCase();
+                        const color = l.includes('whatsapp') ? 'text-green-600'
+                          : l.includes('community') ? 'text-purple-600'
+                          : l.includes('facebook') || l.includes('meta') ? 'text-blue-600'
+                          : l.includes('instagram') ? 'text-pink-600'
+                          : l.includes('website') || l.includes('web') ? 'text-cyan-600'
+                          : l.includes('referral') ? 'text-amber-600'
+                          : l.includes('interested') || l.includes('intrested') ? 'text-rose-600'
+                          : l.includes('customer') ? 'text-indigo-600'
+                          : l.includes('paid') || l.includes('payment') ? 'text-emerald-600'
+                          : ['text-orange-600', 'text-teal-600', 'text-violet-600'][idx % 3];
+                        return (
+                          <span key={idx} className={`text-[11px] font-bold whitespace-nowrap ${color}`}>
+                            {label}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
               </div>
 
               <div className="space-y-6">
@@ -3807,7 +3653,7 @@ export default function MetaInboxPage() {
                     <div className="flex flex-col gap-1 text-sm py-1.5 border-b border-gray-50">
                       <span className="text-slate-500 text-[10px] uppercase font-extrabold opacity-70">Assign To</span>
                       <select 
-                        className="w-full border border-slate-200 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-slate-50 font-semibold text-blue-700"
+                        className="w-full border rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#1E7F43]/20 focus:border-[#1E7F43] outline-none font-semibold text-[#1E7F43]" style={{ background: 'rgba(249,250,249,0.8)', borderColor: 'rgba(30,127,67,0.15)' }}
                         value={sidebarData.assignedTo}
                         onChange={(e) => setSidebarData({ ...sidebarData, assignedTo: e.target.value })}
                       >
@@ -3826,24 +3672,35 @@ export default function MetaInboxPage() {
                         value={sidebarData.status}
                         onChange={(e) => setSidebarData({ ...sidebarData, status: e.target.value })}
                       >
-                        <option value="lead">Lead</option>
-                        <option value="prospect">Prospect</option>
-                        <option value="customer">Customer</option>
+                        <option value="new_lead">New Lead</option>
+                        <option value="contacted">Contacted</option>
+                        <option value="interested">Interested</option>
+                        <option value="demo_trial">Demo / Trial</option>
+                        <option value="negotiation">Negotiation</option>
+                        <option value="enrolled">Enrolled</option>
+                        <option value="completed">Completed</option>
                         <option value="inactive">Inactive</option>
+                        <option value="repeater">Repeater</option>
+                        <option value="old_sadhak">Old Sadhak</option>
+                        <option value="only_for_post">Only for Post</option>
                       </select>
                     </div>
                   </div>
                 </section>
 
                 <section>
-                  <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-2 block">Labels</label>
+                  <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1.5 block">Labels</label>
                   <select 
-                    className="w-full border border-slate-200 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none bg-slate-50"
-                    value={sidebarData.labels[0] || ''}
-                    onChange={(e) => setSidebarData({ ...sidebarData, labels: [e.target.value] })}
+                    className="w-full border border-slate-200 rounded-md p-1.5 text-xs focus:ring-2 focus:ring-[#1E7F43]/20 focus:border-[#1E7F43] outline-none bg-slate-50"
+                    value=""
+                    onChange={(e) => {
+                      if (e.target.value && !sidebarData.labels.includes(e.target.value)) {
+                        setSidebarData(prev => ({ ...prev, labels: [...prev.labels, e.target.value] }));
+                      }
+                    }}
                   >
-                    <option value="">Select label...</option>
-                    {labelOptions.map(opt => (
+                    <option value="">+ Add label...</option>
+                    {labelOptions.filter(opt => !sidebarData.labels.includes(opt)).map(opt => (
                         <option key={opt} value={opt}>{opt}</option>
                     ))}
                   </select>
@@ -3852,7 +3709,7 @@ export default function MetaInboxPage() {
                 <section>
                   <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-2 block">Internal Notes</label>
                   <textarea 
-                    className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none min-h-[110px] bg-slate-50 placeholder:text-slate-400"
+                    className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#1E7F43]/20 focus:border-[#1E7F43] outline-none min-h-[110px] bg-slate-50 placeholder:text-slate-400"
                     placeholder="Add a remark about this customer..."
                     spellCheck={true}
                     autoComplete="on"
@@ -3881,7 +3738,7 @@ export default function MetaInboxPage() {
                 <button 
                   onClick={handleSaveSidebar}
                   disabled={savingSidebar}
-                  className="w-full bg-blue-600 text-white flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-extrabold hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50"
+                  className="w-full bg-[#1E7F43] text-white flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-extrabold hover:bg-[#166235] transition-colors shadow-sm disabled:opacity-50"
                 >
                   {savingSidebar ? <LoadingSpinner size="sm" /> : <i className="ph ph-floppy-disk text-lg"></i>}
                   <span>Save Changes</span>
@@ -3936,7 +3793,7 @@ export default function MetaInboxPage() {
                 name="name"
                 value={form.values.name}
                 onChange={form.handleChange}
-                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2 text-slate-900 placeholder-slate-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400"
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2 text-slate-900 placeholder-slate-500 focus:outline-none focus:border-[#1E7F43] focus:ring-1 focus:ring-[#1E7F43]"
                 placeholder="Lead name"
               />
             </div>
@@ -3948,7 +3805,7 @@ export default function MetaInboxPage() {
                 name="email"
                 value={form.values.email}
                 onChange={form.handleChange}
-                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2 text-slate-900 placeholder-slate-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400"
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2 text-slate-900 placeholder-slate-500 focus:outline-none focus:border-[#1E7F43] focus:ring-1 focus:ring-[#1E7F43]"
                 placeholder="email@example.com"
               />
             </div>
@@ -3964,7 +3821,7 @@ export default function MetaInboxPage() {
                   const normalized = normalizePhoneForMeta(e.target.value);
                   if (normalized) form.setFieldValue('phoneNumber', normalized);
                 }}
-                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2 text-slate-900 placeholder-slate-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400"
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2 text-slate-900 placeholder-slate-500 focus:outline-none focus:border-[#1E7F43] focus:ring-1 focus:ring-[#1E7F43]"
                 placeholder="+919876543210"
               />
             </div>
@@ -3974,7 +3831,7 @@ export default function MetaInboxPage() {
                 name="source"
                 value={form.values.source}
                 onChange={form.handleChange}
-                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2 text-slate-900 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400"
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2 text-slate-900 focus:outline-none focus:border-[#1E7F43] focus:ring-1 focus:ring-[#1E7F43]"
               >
                 <option value="website">Website</option>
                 <option value="referral">Referral</option>
@@ -3988,12 +3845,19 @@ export default function MetaInboxPage() {
                 name="status"
                 value={form.values.status}
                 onChange={form.handleChange}
-                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2 text-slate-900 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400"
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2 text-slate-900 focus:outline-none focus:border-[#1E7F43] focus:ring-1 focus:ring-[#1E7F43]"
               >
-                <option value="lead">Lead</option>
-                <option value="prospect">Prospect</option>
-                <option value="customer">Customer</option>
+                <option value="new_lead">New Lead</option>
+                <option value="contacted">Contacted</option>
+                <option value="interested">Interested</option>
+                <option value="demo_trial">Demo / Trial</option>
+                <option value="negotiation">Negotiation</option>
+                <option value="enrolled">Enrolled</option>
+                <option value="completed">Completed</option>
                 <option value="inactive">Inactive</option>
+                <option value="repeater">Repeater</option>
+                <option value="old_sadhak">Old Sadhak</option>
+                <option value="only_for_post">Only for Post</option>
               </select>
             </div>
           </div>
@@ -4035,7 +3899,7 @@ export default function MetaInboxPage() {
                 value={forwardSearch}
                 onChange={(e) => setForwardSearch(e.target.value)}
                 placeholder="Search contacts to forward..."
-                className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-[#1E7F43]/20 focus:border-[#1E7F43] outline-none"
                 autoFocus
               />
             </div>
@@ -4056,7 +3920,7 @@ export default function MetaInboxPage() {
                     onClick={() => handleForwardMedia(c.leadId, c.phoneNumber)}
                     className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50 transition-colors text-left disabled:opacity-50"
                   >
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-emerald-500 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#1E7F43] to-[#25A55A] flex items-center justify-center text-white font-bold text-sm shrink-0">
                       {c.name ? c.name[0].toUpperCase() : '#'}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -4079,7 +3943,7 @@ export default function MetaInboxPage() {
         
         body {
           font-family: 'Plus Jakarta Sans', sans-serif;
-          background-color: #fff;
+          background-color: #F0F4F1;
         }
         ::-webkit-scrollbar {
           width: 5px;
@@ -4089,26 +3953,39 @@ export default function MetaInboxPage() {
           background: transparent;
         }
         ::-webkit-scrollbar-thumb {
-          background: #e5e7eb;
+          background: linear-gradient(180deg, #1E7F43 0%, #28964F 100%);
           border-radius: 10px;
         }
         ::-webkit-scrollbar-thumb:hover {
-          background: #d1d5db;
+          background: linear-gradient(180deg, #166235 0%, #1E7F43 100%);
         }
 
         .animate-in {
-          animation: animate-in 0.2s ease-out;
+          animation: animate-in 0.25s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
         @keyframes animate-in {
           from {
             opacity: 0;
-            transform: translateY(10px);
+            transform: translateY(8px) scale(0.98);
           }
           to {
             opacity: 1;
-            transform: translateY(0);
+            transform: translateY(0) scale(1);
           }
+        }
+
+        /* Glossy selection highlight */
+        ::selection {
+          background: rgba(30, 127, 67, 0.2);
+          color: inherit;
+        }
+
+        /* Smooth focus transitions */
+        *:focus-visible {
+          outline: 2px solid rgba(30, 127, 67, 0.4);
+          outline-offset: 2px;
+          border-radius: 4px;
         }
       `}</style>
     </div>

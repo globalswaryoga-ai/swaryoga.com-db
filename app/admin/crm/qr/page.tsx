@@ -120,13 +120,17 @@ type LabelPreset = { key: string; label: string; color: string };
 
 const DEFAULT_FUNNEL_STAGES: FunnelStage[] = [
   { key: 'all', label: 'All', color: 'bg-gray-100 text-gray-700 border-gray-300' },
-  { key: 'lead', label: 'Lead', color: 'bg-blue-50 text-blue-700 border-blue-300' },
-  { key: 'interested', label: 'Interested', color: 'bg-green-50 text-green-700 border-green-300' },
-  { key: 'hot', label: 'Hot', color: 'bg-red-50 text-red-700 border-red-300' },
-  { key: 'customer', label: 'Customer', color: 'bg-purple-50 text-purple-700 border-purple-300' },
+  { key: 'new_lead', label: 'New Lead', color: 'bg-blue-50 text-blue-700 border-blue-300' },
+  { key: 'contacted', label: 'Contacted', color: 'bg-sky-50 text-sky-700 border-sky-300' },
+  { key: 'interested', label: 'Interested', color: 'bg-cyan-50 text-cyan-700 border-cyan-300' },
+  { key: 'demo_trial', label: 'Demo / Trial', color: 'bg-purple-50 text-purple-700 border-purple-300' },
+  { key: 'negotiation', label: 'Negotiation', color: 'bg-amber-50 text-amber-700 border-amber-300' },
+  { key: 'enrolled', label: 'Enrolled', color: 'bg-emerald-50 text-emerald-700 border-emerald-300' },
+  { key: 'completed', label: 'Completed', color: 'bg-rose-50 text-rose-700 border-rose-300' },
   { key: 'inactive', label: 'Inactive', color: 'bg-gray-50 text-gray-600 border-gray-300' },
-  { key: 'only_video', label: 'Only Video', color: 'bg-yellow-50 text-yellow-700 border-yellow-300' },
-  { key: 'old_sadhak', label: 'Old Sadhak', color: 'bg-orange-50 text-orange-700 border-orange-300' },
+  { key: 'repeater', label: 'Repeater', color: 'bg-orange-50 text-orange-700 border-orange-300' },
+  { key: 'old_sadhak', label: 'Old Sadhak', color: 'bg-teal-50 text-teal-700 border-teal-300' },
+  { key: 'only_for_post', label: 'Only for Post', color: 'bg-indigo-50 text-indigo-700 border-indigo-300' },
 ];
 
 const DEFAULT_LABEL_PRESETS: LabelPreset[] = [

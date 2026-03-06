@@ -1,122 +1,125 @@
 /**
- * Test template sending via Meta Cloud API
- * Run: node scripts/test-template-send.js
+ * Test script replicating the EXACT inbox send-template flow to find the real error.
  */
-
-require('dotenv').config({ path: '.env.local' });
 const mongoose = require('mongoose');
 const crypto = require('crypto');
+require('dotenv').config({ path: '.env.local' });
 
-const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
-const ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
-const APP_SECRET = process.env.META_APP_SECRET || process.env.WHATSAPP_APP_SECRET;
-
-// Test recipient phone number (your own number for testing)
-const TEST_PHONE = '919309986820'; // Change to your number
-
-function generateAppSecretProof(accessToken, appSecret) {
-  if (!appSecret) return '';
-  return crypto.createHmac('sha256', appSecret).update(accessToken).digest('hex');
+function generateAppSecretProof(at, as) {
+  return crypto.createHmac('sha256', as).update(at).digest('hex');
 }
 
-async function testTemplateSend() {
-  console.log('=== Testing Template Send ===');
-  console.log('Phone Number ID:', PHONE_NUMBER_ID);
-  console.log('Access Token:', ACCESS_TOKEN ? '✅ SET' : '❌ MISSING');
-  console.log('App Secret:', APP_SECRET ? '✅ SET' : '❌ MISSING');
+function extractVars(text) {
+  const vars = new Set();
+  const re = /\{\{\s*([^}]+?)\s*\}\}/g;
+  let m;
+  while ((m = re.exec(String(text || ''))) !== null) vars.add(String(m[1]).trim());
+  return Array.from(vars);
+}
+
+function toBodyParams(opts) {
+  if (Array.isArray(opts.bodyParams)) return opts.bodyParams.map(v => String(v || ''));
+  if (Array.isArray(opts.variables) && opts.variables.length > 0)
+    return opts.variables.map(v => String(v && v.name ? v.name : '')).filter(Boolean);
+  return extractVars(String(opts.templateContent || ''));
+}
+
+function buildComponents(input) {
+  var c = [];
+  if (input.headerMedia && input.headerMedia.url) {
+    var f = input.headerMedia.kind === 'video' ? 'video' : 'image';
+    c.push({ type: 'header', parameters: [{ type: f, [f]: { link: input.headerMedia.url } }] });
+  }
+  if (Array.isArray(input.bodyParams) && input.bodyParams.length > 0)
+    c.push({ type: 'body', parameters: input.bodyParams.map(function(p) { return { type: 'text', text: String(p || '') }; }) });
+  if (Array.isArray(input.buttons)) {
+    input.buttons.forEach(function(b, i) {
+      if (!b || b.kind === 'quick_reply') return;
+      if (b.kind === 'catalog') { c.push({ type: 'button', sub_type: 'CATALOG', index: i, parameters: [] }); return; }
+      if (b.kind === 'url') {
+        var url = String(b.url || '');
+        var np = url.includes('{{') && url.includes('}}');
+        var param = np ? url.replace(/.*\{\{\s*([^}]+)\s*\}\}.*/, '$1') : '';
+        c.push({ type: 'button', sub_type: 'url', index: String(i), ...(param ? { parameters: [{ type: 'text', text: param }] } : {}) });
+      }
+    });
+  }
+  return c;
+}
+
+async function run() {
+  var AT = (process.env.WHATSAPP_ACCESS_TOKEN || '').trim();
+  var PID = (process.env.WHATSAPP_PHONE_NUMBER_ID || '').trim();
+  var AS = (process.env.META_APP_SECRET || '').trim();
+
+  console.log('Token:', AT ? 'SET (' + AT.length + ' chars)' : 'MISSING');
+  console.log('PhoneNumberId:', PID || 'MISSING');
+  console.log('AppSecret:', AS ? 'SET' : 'MISSING');
+
+  await mongoose.connect(process.env.MONGODB_URI_MAIN, { dbName: 'swaryoga_admin_crm' });
+
+  // Use hello_world - simplest template
+  var t = await mongoose.connection.db.collection('whatsapp_templates').findOne({ templateName: 'hello_world' });
+  if (!t) { console.log('hello_world template not found'); process.exit(1); }
+
+  var testPhone = '919309986820';
   
-  if (!PHONE_NUMBER_ID || !ACCESS_TOKEN) {
-    console.error('❌ Missing WHATSAPP_PHONE_NUMBER_ID or WHATSAPP_ACCESS_TOKEN');
-    return;
+  // Build input same as inbox route
+  var hUrl = String((t.headerMedia && t.headerMedia.url) || '').trim();
+  var hKind = String((t.headerMedia && t.headerMedia.kind) || '').trim();
+  if (!hUrl && t.imageFile && t.imageFile.url) { hUrl = t.imageFile.url; hKind = 'image'; }
+  var hm = (hUrl && (hKind === 'image' || hKind === 'video')) ? { kind: hKind, url: hUrl } : null;
+
+  var buttons = [];
+  if (Array.isArray(t.buttons)) {
+    t.buttons.forEach(function(b) {
+      var title = String(b.title || '').trim();
+      if (!title) return;
+      var kind = String(b.kind || '').trim();
+      var bt = String(b.type || '').trim().toUpperCase();
+      var url = String(b.url || '').trim();
+      if (kind === 'catalog' || bt === 'CATALOG') buttons.push({ kind: 'catalog', title: title });
+      else if (kind === 'url' || bt === 'URL' || (url && url.startsWith('http'))) buttons.push({ kind: 'url', title: title, url: url });
+      else buttons.push({ kind: 'quick_reply', title: title });
+    });
   }
 
-  // Connect to DB to get template details
-  await mongoose.connect(process.env.MONGODB_URI_MAIN, { dbName: 'swaryoga_admin_crm' });
-  
-  const template = await mongoose.connection.collection('whatsapp_templates')
-    .findOne({ templateName: 'feb_hindi_mor' });
-  
-  if (!template) {
-    console.error('❌ Template not found');
-    await mongoose.disconnect();
-    return;
-  }
-  
-  console.log('\n=== Template Details ===');
-  console.log('Name:', template.templateName);
-  console.log('Language:', template.language);
-  console.log('Status:', template.status);
-  console.log('Header Format:', template.headerFormat);
-  console.log('Image URL:', template.imageFile?.url || template.headerMedia?.url || 'NONE');
-  console.log('Buttons:', JSON.stringify(template.buttons));
-  
-  // Build components array for IMAGE header
-  const components = [];
-  const imageUrl = template.headerMedia?.url || template.imageFile?.url || template.headerContent;
-  
-  if (template.headerFormat === 'IMAGE' && imageUrl) {
-    // Use public S3 URL directly (bucket is already public)
-    console.log('\n=== Adding Image Header ===');
-    console.log('Using image URL:', imageUrl);
-    
-    components.push({
-      type: 'header',
-      parameters: [
-        {
-          type: 'image',
-          image: { link: imageUrl }
-        }
-      ]
-    });
-    console.log('Header component added with image');
-  }
-  
-  // Build payload WITH components
-  const appSecretProof = generateAppSecretProof(ACCESS_TOKEN, APP_SECRET);
-  const url = `https://graph.facebook.com/v21.0/${PHONE_NUMBER_ID}/messages?appsecret_proof=${appSecretProof}`;
-  
-  const payload = {
+  var bp = toBodyParams({ templateContent: t.templateContent, variables: t.variables });
+
+  var input = { to: testPhone, templateName: t.templateName, language: t.language || 'en', bodyParams: bp, headerMedia: hm, buttons: buttons };
+  var components = buildComponents(input);
+
+  var proof = AS ? generateAppSecretProof(AT, AS) : '';
+  var url = 'https://graph.facebook.com/v24.0/' + PID + '/messages' + (proof ? '?appsecret_proof=' + proof : '');
+
+  var payload = {
     messaging_product: 'whatsapp',
-    to: TEST_PHONE,
+    to: testPhone,
     type: 'template',
     template: {
-      name: template.templateName,
-      language: { code: template.language || 'en_US' },
-      ...(components.length > 0 ? { components } : {}),
+      name: input.templateName,
+      language: { code: input.language },
+      ...(components.length ? { components: components } : {}),
     },
   };
+
+  console.log('\nPayload:', JSON.stringify(payload, null, 2));
+  console.log('Sending to:', url.substring(0, 80) + '...');
+
+  var res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + AT, 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  var data = await res.json().catch(function() { return {}; });
+  console.log('\nStatus:', res.status);
+  console.log('Response:', JSON.stringify(data, null, 2));
   
-  console.log('\n=== Sending Template ===');
-  console.log('URL:', url.replace(ACCESS_TOKEN, 'TOKEN_HIDDEN'));
-  console.log('Payload:', JSON.stringify(payload, null, 2));
-  
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${ACCESS_TOKEN}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
-    
-    const data = await res.json();
-    console.log('\n=== Response ===');
-    console.log('Status:', res.status);
-    console.log('Data:', JSON.stringify(data, null, 2));
-    
-    if (data.messages && data.messages[0]?.id) {
-      console.log('\n✅ SUCCESS! Message ID:', data.messages[0].id);
-    } else if (data.error) {
-      console.log('\n❌ ERROR:', data.error.message || data.error);
-      console.log('Error code:', data.error.code);
-      console.log('Error details:', JSON.stringify(data.error, null, 2));
-    }
-  } catch (err) {
-    console.error('\n❌ Fetch Error:', err.message);
-  }
-  
-  await mongoose.disconnect();
+  if (res.ok) console.log('SUCCESS: waId =', data.messages && data.messages[0] && data.messages[0].id);
+  else console.log('FAILED:', data.error && data.error.message);
+
+  process.exit(0);
 }
 
-testTemplateSend().catch(console.error);
+run().catch(function(e) { console.error(e); process.exit(1); });

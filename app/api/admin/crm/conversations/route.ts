@@ -312,6 +312,7 @@ export async function GET(request: NextRequest) {
         status: '$lead.status',
         labels: '$lead.labels',
         assignedToUserId: '$lead.assignedToUserId',
+        source: { $ifNull: ['$lead.source', 'whatsapp'] },
         phoneNumber: 1,
         phoneNumberNormalized: {
           $replaceAll: {

@@ -788,7 +788,7 @@ export default function SalesPage() {
               if (phone) params.set('phone', phone);
               if (sale.customerName) params.set('name', sale.customerName);
 
-              router.push(`/admin/crm/leads-followup?${params.toString()}`);
+              router.push(`/admin/crm/meta?phone=${phone}`);
             }}
             className="px-3 py-1.5 bg-black border border-emerald-500 text-emerald-400 rounded-lg text-sm font-medium transition-colors hover:bg-emerald-600 hover:text-white"
             title="Meta WhatsApp"

@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'No lead IDs provided' }, { status: 400 });
       }
 
-      if (!['lead', 'hot', 'prospect', 'customer', 'inactive'].includes(newStatus)) {
+      if (!['new_lead', 'contacted', 'interested', 'demo_trial', 'negotiation', 'enrolled', 'completed', 'inactive', 'repeater', 'old_sadhak', 'only_for_post', 'lead', 'hot', 'prospect', 'customer'].includes(newStatus)) {
         return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
       }
 

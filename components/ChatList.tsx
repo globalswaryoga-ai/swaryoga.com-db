@@ -9,7 +9,7 @@ interface Conversation {
   lastMessageTime: string;
   unreadCount: number;
   labels: string[];
-  status: 'lead' | 'hot' | 'prospect' | 'customer' | 'inactive';
+  status: 'new_lead' | 'contacted' | 'interested' | 'demo_trial' | 'negotiation' | 'enrolled' | 'completed' | 'inactive' | 'repeater' | 'old_sadhak' | 'only_for_post' | 'lead' | 'hot' | 'prospect' | 'customer';
   avatar?: string;
 }
 
@@ -73,17 +73,37 @@ export default function ChatList({
     });
 
   const statusColor: Record<string, string> = {
+    new_lead: 'bg-blue-100 text-blue-700',
+    contacted: 'bg-sky-100 text-sky-700',
+    interested: 'bg-cyan-100 text-cyan-700',
+    demo_trial: 'bg-purple-100 text-purple-700',
+    negotiation: 'bg-amber-100 text-amber-700',
+    enrolled: 'bg-emerald-100 text-emerald-700',
+    completed: 'bg-rose-100 text-rose-700',
+    inactive: 'bg-gray-100 text-gray-700',
+    repeater: 'bg-orange-100 text-orange-700',
+    old_sadhak: 'bg-teal-100 text-teal-700',
+    only_for_post: 'bg-indigo-100 text-indigo-700',
     lead: 'bg-blue-100 text-blue-700',
     prospect: 'bg-yellow-100 text-yellow-700',
     customer: 'bg-green-100 text-green-700',
-    inactive: 'bg-gray-100 text-gray-700',
   };
 
   const statusEmoji: Record<string, string> = {
+    new_lead: '⭐',
+    contacted: '📞',
+    interested: '💛',
+    demo_trial: '▶️',
+    negotiation: '🤝',
+    enrolled: '✅',
+    completed: '🏆',
+    inactive: '⏸️',
+    repeater: '🔄',
+    old_sadhak: '🧘',
+    only_for_post: '📢',
     lead: '🎯',
     prospect: '💼',
     customer: '✅',
-    inactive: '❌',
   };
 
   return (

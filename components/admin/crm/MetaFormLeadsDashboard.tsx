@@ -6,6 +6,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 
 interface MetaLead {
@@ -26,6 +27,7 @@ interface WorkshopFilter {
 }
 
 export default function MetaFormLeadsDashboard() {
+  const router = useRouter();
   const [leads, setLeads] = useState<MetaLead[]>([]);
   const [filteredLeads, setFilteredLeads] = useState<MetaLead[]>([]);
   const [loading, setLoading] = useState(true);
@@ -197,14 +199,12 @@ export default function MetaFormLeadsDashboard() {
                 <tr key={lead._id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 text-sm text-gray-900 font-medium">{lead.name}</td>
                   <td className="px-6 py-4 text-sm text-gray-600">
-                    <a 
-                      href={`https://wa.me/${lead.phone}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <button 
+                      onClick={() => router.push(`/admin/crm/meta?phone=${(lead.phone || '').replace(/\D/g, '')}`)}
                       className="text-green-600 hover:underline"
                     >
                       {lead.phone}
-                    </a>
+                    </button>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600">{lead.email || '-'}</td>
                   <td className="px-6 py-4 text-sm text-gray-600">{lead.workshopName}</td>
@@ -219,9 +219,9 @@ export default function MetaFormLeadsDashboard() {
                   </td>
                   <td className="px-6 py-4 text-sm">
                     <button
-                      onClick={() => window.open(`https://wa.me/${lead.phone}`, '_blank')}
+                      onClick={() => router.push(`/admin/crm/meta?phone=${(lead.phone || '').replace(/\D/g, '')}`)}
                       className="text-green-600 hover:text-green-800 font-medium"
-                      title="Send WhatsApp message"
+                      title="Open in CRM WhatsApp inbox"
                     >
                       💬 WhatsApp
                     </button>
