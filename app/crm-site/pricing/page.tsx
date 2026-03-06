@@ -69,7 +69,7 @@ const PLANS = [
     leads: '5,000',
     users: '3',
     chatbots: '10',
-    cta: 'Start Free Trial',
+    cta: 'Get Started',
     highlight: false,
   },
   {
@@ -80,7 +80,7 @@ const PLANS = [
     leads: '25,000',
     users: '10',
     chatbots: 'Unlimited',
-    cta: 'Start Free Trial',
+    cta: 'Get Started',
     highlight: true,
   },
   {
@@ -91,7 +91,7 @@ const PLANS = [
     leads: 'Unlimited',
     users: 'Unlimited',
     chatbots: 'Unlimited',
-    cta: 'Start Free Trial',
+    cta: 'Get Started',
     highlight: false,
   },
 ];
@@ -136,7 +136,7 @@ export default function PricingPage() {
           <p className="mt-4 text-lg text-gray-600 max-w-2xl mx-auto">
             All features unlocked from day one. You only choose your lead limit.
             <br />
-            <span className="text-swar-primary font-semibold">15-day free trial</span> on every plan — no credit card required.
+            <span className="text-swar-primary font-semibold">15-day free trial</span> on Free &amp; Basic plans — no credit card required.
           </p>
           <p className="mt-2 text-sm text-gray-400">
             All paid plans are non-refundable &bull; Storage billed per use &bull; Prices exclude GST
@@ -215,12 +215,14 @@ export default function PricingPage() {
                     </div>
                   )}
 
-                  {/* 15-day trial badge */}
-                  <div className="mb-2">
-                    <span className="inline-block px-2 py-0.5 bg-green-50 text-green-700 text-[10px] font-semibold rounded-full border border-green-200">
-                      15-DAY FREE TRIAL
-                    </span>
-                  </div>
+                  {/* 15-day trial badge — only for Free & Basic */}
+                  {(plan.tier === 'free' || plan.tier === 'basic') && (
+                    <div className="mb-2">
+                      <span className="inline-block px-2 py-0.5 bg-green-50 text-green-700 text-[10px] font-semibold rounded-full border border-green-200">
+                        15-DAY FREE TRIAL
+                      </span>
+                    </div>
+                  )}
 
                   <h3 className="text-lg font-bold text-gray-900">{plan.name}</h3>
                   <p className="text-sm text-gray-500 mt-1 min-h-[40px]">{plan.desc}</p>
