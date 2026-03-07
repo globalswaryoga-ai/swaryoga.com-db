@@ -193,7 +193,7 @@ export default function DeleteAccountPage() {
               <li>• If you have active workshop enrollments, you will lose access immediately.</li>
               <li>• Refund eligibility will be determined based on the workshop's refund policy at the time of deletion.</li>
               <li>• You will no longer receive any emails from Swar Yoga after account deletion.</li>
-              <li>• To contact support about account deletion, email: <strong>support@swaryoga.com</strong></li>
+              <li>• To contact support about account deletion, email: <strong>mohan@swaryoga.com</strong></li>
             </ul>
           </section>
 
@@ -234,7 +234,7 @@ export default function DeleteAccountPage() {
           <div className="mt-8 pt-8 border-t border-gray-200">
             <p className="text-sm text-gray-600">
               If you have any questions about the account deletion process or data retention, 
-              please contact us at <strong>support@swaryoga.com</strong>
+              please contact us at <strong>mohan@swaryoga.com</strong>
             </p>
           </div>
         </div>

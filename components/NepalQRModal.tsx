@@ -134,7 +134,7 @@ export default function NepalQRModal({ onClose, amount, currency }: NepalQRModal
 
           {/* Note */}
           <div className="text-xs text-swar-text-secondary text-center">
-            <p>If you have any issues, please contact support at support@swaryoga.com</p>
+            <p>If you have any issues, please contact support at <a href="mailto:mohan@swaryoga.com" className="text-blue-600 hover:text-blue-800 underline">mohan@swaryoga.com</a></p>
           </div>
 
           {/* Close Button */}

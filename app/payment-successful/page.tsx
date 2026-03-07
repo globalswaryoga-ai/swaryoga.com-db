@@ -230,8 +230,8 @@ function PaymentSuccessfulInner() {
 
               <p className="mt-6 text-sm text-swar-text-secondary">
                 Need help? Email{' '}
-                <a className="text-swar-accent font-semibold" href="mailto:support@swaryoga.com">
-                  support@swaryoga.com
+                <a className="text-swar-accent font-semibold" href="mailto:mohan@swaryoga.com">
+                  mohan@swaryoga.com
                 </a>
               </p>
             </div>

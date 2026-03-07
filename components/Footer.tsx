@@ -55,10 +55,10 @@ export default function Footer() {
   ];
 
   const socialLinks = [
-    { name: 'Facebook', icon: Facebook, href: 'https://www.facebook.com/swaryoga', color: 'hover:text-blue-500' },
+    { name: 'Facebook', icon: Facebook, href: 'https://www.facebook.com/people/Swar-Yoga-International/61559147565482/', color: 'hover:text-blue-500' },
     { name: 'Twitter', icon: Twitter, href: 'https://twitter.com/swaryoga', color: 'hover:text-sky-400' },
-    { name: 'Instagram', icon: Instagram, href: 'https://www.instagram.com/swaryoga', color: 'hover:text-pink-500' },
-    { name: 'YouTube', icon: Youtube, href: 'https://www.youtube.com/@swaryoga', color: 'hover:text-red-500' },
+    { name: 'Instagram', icon: Instagram, href: 'https://www.instagram.com/swar.yoga', color: 'hover:text-pink-500' },
+    { name: 'YouTube', icon: Youtube, href: 'https://www.youtube.com/@SwarYogaScience', color: 'hover:text-red-500' },
     { name: 'LinkedIn', icon: Linkedin, href: 'https://www.linkedin.com/in/swar-yoga-65b8081a5/', color: 'hover:text-blue-400' }
   ];
 
@@ -260,7 +260,7 @@ export default function Footer() {
             <div className="flex flex-col md:flex-row md:items-center md:space-x-8 space-y-4 md:space-y-0">
               <div className="flex items-center space-x-3">
                 <Mail className="h-5 w-5 text-green-400" />
-                <span>globalswaryoga@gmail.com</span>
+                <span>mohan@swaryoga.com</span>
               </div>
               <div className="flex items-center space-x-3">
                 <Phone className="h-5 w-5 text-green-400" />

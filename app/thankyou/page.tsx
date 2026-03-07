@@ -184,8 +184,8 @@ function ThankYouInner() {
               <div className="border-t border-green-300 pt-6">
                 <p className="text-swar-text">
                   If you have any questions, please contact our team at{' '}
-                  <a href="mailto:support@swaryoga.com" className="text-swar-primary font-bold hover:text-swar-primary">
-                    support@swaryoga.com
+                  <a href="mailto:mohan@swaryoga.com" className="text-swar-primary font-bold hover:text-swar-primary">
+                    mohan@swaryoga.com
                   </a>
                 </p>
               </div>
@@ -274,8 +274,8 @@ function ThankYouInner() {
                 </p>
                 <p className="text-swar-text">
                   If you have any questions, please contact our team at{' '}
-                  <a href="mailto:support@swaryoga.com" className="text-swar-primary font-bold hover:text-swar-primary">
-                    support@swaryoga.com
+                  <a href="mailto:mohan@swaryoga.com" className="text-swar-primary font-bold hover:text-swar-primary">
+                    mohan@swaryoga.com
                   </a>
                 </p>
               </div>

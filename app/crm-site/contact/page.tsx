@@ -58,7 +58,7 @@ export default function ContactPage() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-gray-900 text-sm">Email</h3>
-                  <p className="text-gray-600 text-sm">support@swaryoga.com</p>
+                  <p className="text-gray-600 text-sm">mohan@swaryoga.com</p>
                 </div>
               </div>
               <div className="flex items-start gap-4">
@@ -86,7 +86,7 @@ export default function ContactPage() {
                   Need a custom plan with dedicated support? Our team will prepare a tailored proposal.
                 </p>
                 <a
-                  href="mailto:support@swaryoga.com?subject=Enterprise%20Inquiry"
+                  href="mailto:mohan@swaryoga.com?subject=Enterprise%20Inquiry"
                   className="inline-flex items-center gap-2 text-sm font-semibold text-swar-primary hover:underline"
                 >
                   <Mail className="h-4 w-4" /> Email sales team
