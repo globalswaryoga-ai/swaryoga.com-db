@@ -41,7 +41,7 @@ const circuitStates: Map<ProviderType, CircuitState> = new Map();
 const CONFIG = {
   // Circuit Breaker
   failureThreshold: 5, // Number of failures before opening circuit
-  resetTimeout: 60000, // 60 seconds before trying again
+  resetTimeout: 30000, // 30 seconds before trying again (reduced for faster recovery)
   halfOpenMaxAttempts: 3, // Attempts in half-open state
   
   // Retry
@@ -84,6 +84,18 @@ export function isCircuitOpen(provider: ProviderType): boolean {
   }
   
   return true;
+}
+
+/**
+ * Manually reset the circuit breaker for a provider
+ */
+export function resetCircuit(provider: ProviderType): void {
+  const state = getCircuitState(provider);
+  state.failures = 0;
+  state.isOpen = false;
+  state.openUntil = null;
+  state.lastFailure = null;
+  console.log(`[Protection] 🔄 Circuit for ${provider} manually reset`);
 }
 
 /**

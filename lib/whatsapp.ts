@@ -13,9 +13,13 @@ import {
   recordSuccess, 
   recordFailure, 
   isCircuitOpen, 
+  resetCircuit,
   withRetry,
   type ProviderType 
 } from './whatsappProtection';
+
+// Re-export for convenience
+export { resetCircuit, isCircuitOpen } from './whatsappProtection';
 
 const OLD_CDN_HOST = 'swaryogadb.b-cdn.net';
 const NEW_CDN_HOST = process.env.BUNNY_STORAGE_CDN_HOST || 'swaryogacrm.b-cdn.net';
@@ -317,6 +321,8 @@ export async function sendWhatsAppText(toRaw: string, body: string): Promise<Wha
   const env = getWhatsAppEnv();
   const to = normalizePhone(toRaw);
 
+  console.log(`[sendWhatsAppText] to=${to}, envConfigured=${!!env}, circuitOpen=${isCircuitOpen('meta')}`);
+
   // Meta Cloud API ONLY — no QR bridge fallback (separate pipelines)
   if (env && !isCircuitOpen('meta')) {
     try {
@@ -357,10 +363,14 @@ export async function sendWhatsAppText(toRaw: string, body: string): Promise<Wha
             throw new Error('Meta API returned success but no message ID in response. Response: ' + JSON.stringify(data));
           }
           
+          console.log(`[sendWhatsAppText] ✅ Success: ${waMessageId}`);
           return { waMessageId, raw: { ...data, provider: 'meta' } };
         }
         
-        throw new Error(data?.error?.message || 'Meta API error');
+        // Log the full error for debugging
+        console.error(`[sendWhatsAppText] ❌ Meta API error (${res.status}):`, JSON.stringify(data));
+        const errorMsg = data?.error?.message || data?.error?.error_data?.details || 'Meta API error';
+        throw new Error(errorMsg);
       }, { maxRetries: 2 });
       
       recordSuccess('meta');
