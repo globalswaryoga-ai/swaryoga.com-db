@@ -95,10 +95,15 @@ export default function EnhancedCheckoutPage() {
   // Get item price based on pricing selection (1-month or 3-month)
   const getItemPrice = (item: CartItem) => {
     const selection = pricingSelection[item.id] || '1month';
-    const price3Month = item.metadata?.price3Month as number | undefined;
+    const storedPrice3Month = item.metadata?.price3Month as number | undefined;
     
-    if (selection === '3month' && price3Month && price3Month > 0) {
-      return price3Month;
+    if (selection === '3month') {
+      // Use stored 3-month price if set, otherwise calculate default (15% discount)
+      if (storedPrice3Month && storedPrice3Month > 0) {
+        return storedPrice3Month;
+      }
+      // Default: 3 months with 15% discount
+      return Math.round(item.price * 3 * 0.85);
     }
     return item.price;
   };
@@ -308,8 +313,13 @@ export default function EnhancedCheckoutPage() {
                 <h2 className="text-2xl font-bold text-gray-900 mb-6">📦 Your Items</h2>
                 <div className="space-y-4">
                   {cartItems.map((item) => {
-                    const price3Month = item.metadata?.price3Month as number | undefined;
-                    const has3MonthOption = price3Month && price3Month > 0;
+                    // Calculate 3-month price: use stored value or default to 15% discount
+                    const storedPrice3Month = item.metadata?.price3Month as number | undefined;
+                    const defaultPrice3Month = Math.round(item.price * 3 * 0.85); // 15% discount for 3 months
+                    const price3Month = (storedPrice3Month && storedPrice3Month > 0) ? storedPrice3Month : defaultPrice3Month;
+                    
+                    // Show pricing selector for all workshop items
+                    const isWorkshopItem = !!item.workshopSlug || !!item.scheduleId;
                     const selectedPricing = pricingSelection[item.id] || '1month';
                     const currentPrice = getItemPrice(item);
                     
@@ -379,8 +389,8 @@ export default function EnhancedCheckoutPage() {
                           </div>
                         </div>
                         
-                        {/* Pricing Selection (1-month vs 3-month) */}
-                        {has3MonthOption && (
+                        {/* Pricing Selection (1-month vs 3-month) - Always show for workshops */}
+                        {isWorkshopItem && (
                           <div className="mt-4 pt-4 border-t border-gray-100">
                             <p className="text-sm font-semibold text-gray-700 mb-2">Select Payment Plan:</p>
                             <div className="flex gap-3">
@@ -400,7 +410,7 @@ export default function EnhancedCheckoutPage() {
                                 />
                                 <div>
                                   <p className="font-bold text-gray-900">1 Month</p>
-                                  <p className="text-sm text-gray-600">₹{item.price.toLocaleString('en-IN')}/month</p>
+                                  <p className="text-sm text-gray-600">₹{item.price.toLocaleString('en-IN')}</p>
                                 </div>
                               </label>
                               <label 
