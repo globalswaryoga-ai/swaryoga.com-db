@@ -62,9 +62,15 @@ export const addCartItem = (item: CartItem) => {
   const existingIndex = current.findIndex((cartItem) => cartItem.id === item.id && cartItem.currency === item.currency);
 
   if (existingIndex !== -1) {
-    current[existingIndex].quantity += item.quantity;
+    // Item already exists - update metadata but keep quantity at 1 (don't auto-increment)
+    current[existingIndex] = {
+      ...current[existingIndex],
+      ...item,
+      quantity: current[existingIndex].quantity, // Keep existing quantity
+    };
   } else {
-    current.push(item);
+    // New item - always start with quantity 1
+    current.push({ ...item, quantity: 1 });
   }
 
   persistCart(current);
