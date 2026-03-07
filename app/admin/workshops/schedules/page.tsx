@@ -919,6 +919,7 @@ export default function AdminWorkshopSchedulesPage() {
                                 <tr>
                                   <th className="px-4 py-3 text-left font-bold text-swar-text">Start</th>
                                   <th className="px-4 py-3 text-left font-bold text-swar-text">End</th>
+                                  <th className="px-4 py-3 text-left font-bold text-swar-text">Admission Close</th>
                                   <th className="px-4 py-3 text-left font-bold text-swar-text">Batch</th>
                                   <th className="px-4 py-3 text-left font-bold text-swar-text">Language</th>
                                   <th className="px-4 py-3 text-left font-bold text-swar-text">Time</th>
@@ -945,6 +946,15 @@ export default function AdminWorkshopSchedulesPage() {
                                         value={createForm.endDate}
                                         onChange={(e) => setCreateForm((p) => ({ ...p, endDate: e.target.value }))}
                                         className="rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
+                                      />
+                                    </td>
+                                    <td className="px-4 py-3 whitespace-nowrap">
+                                      <input
+                                        type="date"
+                                        value={createForm.registrationCloseDate}
+                                        onChange={(e) => setCreateForm((p) => ({ ...p, registrationCloseDate: e.target.value }))}
+                                        className="rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
+                                        title="Registration closes at midnight on this date"
                                       />
                                     </td>
                                     <td className="px-4 py-3 whitespace-nowrap">
@@ -1055,7 +1065,7 @@ export default function AdminWorkshopSchedulesPage() {
 
                                 {filteredSchedules.length === 0 && !creating ? (
                                   <tr>
-                                    <td colSpan={9} className="px-4 py-8 text-center text-swar-text-secondary">
+                                    <td colSpan={10} className="px-4 py-8 text-center text-swar-text-secondary">
                                       No schedules found for this workshop + mode + language.
                                     </td>
                                   </tr>
@@ -1097,6 +1107,21 @@ export default function AdminWorkshopSchedulesPage() {
                                             formatDate(String(s.endDate))
                                           ) : (
                                             '—'
+                                          )}
+                                        </td>
+                                        <td className="px-4 py-3 whitespace-nowrap">
+                                          {editing ? (
+                                            <input
+                                              type="date"
+                                              value={editForm.registrationCloseDate}
+                                              onChange={(e) => setEditForm((p) => ({ ...p, registrationCloseDate: e.target.value }))}
+                                              className="rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
+                                              title="Registration closes at midnight on this date"
+                                            />
+                                          ) : s.registrationCloseDate ? (
+                                            <span className="text-red-600 font-semibold">{formatDate(String(s.registrationCloseDate))}</span>
+                                          ) : (
+                                            <span className="text-gray-400">—</span>
                                           )}
                                         </td>
                                         <td className="px-4 py-3 whitespace-nowrap">
