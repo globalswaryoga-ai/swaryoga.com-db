@@ -569,6 +569,16 @@ function WorkshopsPageInner() {
                           const isClosed = regCloseDate ? regCloseDate < todayIso : false;
                           const status = isClosed ? 'Closed' : isOpen ? 'Open' : 'Full';
                           const statusColor = isClosed ? 'bg-red-100 text-red-700' : isOpen ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700';
+                          
+                          // Calculate remaining days until registration closes
+                          let remainingDays = 0;
+                          if (regCloseDate && !isClosed) {
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            const closeDate = new Date(regCloseDate);
+                            closeDate.setHours(0, 0, 0, 0);
+                            remainingDays = Math.ceil((closeDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                          }
 
                           return (
                             <div key={`${workshop.slug}-${schedule.id}-${idx}`} className="hover:bg-gray-50 transition-colors">
@@ -588,10 +598,15 @@ function WorkshopsPageInner() {
                                   <div className="col-span-2 text-sm text-gray-700 flex items-center gap-1">
                                     <Users className="w-4 h-4" /> {schedule.slots} slots
                                   </div>
-                                  <div className="col-span-2">
+                                  <div className="col-span-2 flex items-center gap-2">
                                     <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold ${statusColor}`}>
                                       {status === 'Open' ? '🟢' : status === 'Closed' ? '🔴' : '🟡'} {status}
                                     </span>
+                                    {status === 'Open' && remainingDays > 0 && (
+                                      <span className="text-xs font-bold text-red-600">
+                                        {remainingDays} day{remainingDays !== 1 ? 's' : ''} left
+                                      </span>
+                                    )}
                                   </div>
                                 </div>
                                 {/* Row 2: Schedule Details + Actions */}
@@ -662,9 +677,16 @@ function WorkshopsPageInner() {
                                       <span><Users className="w-3 h-3 inline" /> {schedule.slots}</span>
                                     </div>
                                   </div>
-                                  <span className={`shrink-0 inline-flex items-center px-2 py-1 rounded-full text-xs font-bold ${statusColor}`}>
-                                    {status === 'Open' ? '🟢' : status === 'Closed' ? '🔴' : '🟡'} {status}
-                                  </span>
+                                  <div className="shrink-0 flex flex-col items-end gap-1">
+                                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-bold ${statusColor}`}>
+                                      {status === 'Open' ? '🟢' : status === 'Closed' ? '🔴' : '🟡'} {status}
+                                    </span>
+                                    {status === 'Open' && remainingDays > 0 && (
+                                      <span className="text-[10px] font-bold text-red-600">
+                                        {remainingDays}d left
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                                 
                                 {/* Row 2: Date, Time, Price */}
