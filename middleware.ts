@@ -446,9 +446,12 @@ export function middleware(request: NextRequest) {
 
   // ── Localhost bypass for development ──
   const isLocalDev = !IS_PRODUCTION && (ip === '127.0.0.1' || ip === '::1' || ip === 'unknown' || ip === 'localhost');
+  
+  // Admin routes should bypass security blocks (they have their own auth)
+  const isAdminPath = path.startsWith('/admin') || path.startsWith('/api/admin');
 
-  // ── LAYER 2: Auto-ban check ──
-  if (!isLocalDev && isBanned(ip)) {
+  // ── LAYER 2: Auto-ban check (skip for admin routes) ──
+  if (!isLocalDev && !isAdminPath && isBanned(ip)) {
     return new NextResponse(
       JSON.stringify({ error: 'Access temporarily blocked', code: 'IP_BANNED' }),
       { status: 403, headers: { 'Content-Type': 'application/json', 'X-Request-Id': requestId } }
@@ -457,9 +460,9 @@ export function middleware(request: NextRequest) {
 
   // ── LAYER 8: IP reputation check ──
   const rep = getReputation(ip);
-
-  // Block IPs with reputation score ≥ 90 (skip in local dev)
-  if (!isLocalDev && rep.score >= REPUTATION_BLOCK_THRESHOLD) {
+  
+  // Block IPs with reputation score ≥ 90 (skip in local dev and admin routes)
+  if (!isLocalDev && !isAdminPath && rep.score >= REPUTATION_BLOCK_THRESHOLD) {
     return new NextResponse(
       JSON.stringify({ error: 'Access denied', code: 'REPUTATION_BLOCKED' }),
       { status: 403, headers: { 'Content-Type': 'application/json', 'X-Request-Id': requestId } }
