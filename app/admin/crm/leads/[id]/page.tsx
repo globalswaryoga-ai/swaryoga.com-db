@@ -256,9 +256,19 @@ export default function LeadDetailPage() {
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <div className="text-xs font-semibold tracking-wider text-emerald-700 uppercase">Lead</div>
-                        <div className="mt-1 text-3xl font-extrabold text-slate-900">
-                          {lead.name || 'Unnamed Lead'}
-                        </div>
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={editForm.name || ''}
+                            onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                            className="mt-1 text-3xl font-extrabold text-slate-900 bg-white border-2 border-emerald-300 rounded-lg px-2 py-1 focus:border-emerald-500 focus:outline-none w-full"
+                            placeholder="Enter lead name"
+                          />
+                        ) : (
+                          <div className="mt-1 text-3xl font-extrabold text-slate-900">
+                            {lead.name || 'Unnamed Lead'}
+                          </div>
+                        )}
                         <div className="mt-1 text-slate-700 font-semibold">
                           {displayPhone || lead.phoneNumber || '-'}
                         </div>
