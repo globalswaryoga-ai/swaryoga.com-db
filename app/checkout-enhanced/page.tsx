@@ -38,7 +38,42 @@ export default function EnhancedCheckoutPage() {
   // Detect repeat purchases based on user's purchase history
   useEffect(() => {
     const loadCartAndDetectRepeatPurchases = async () => {
-      const items = getStoredCart();
+      let items = getStoredCart();
+      
+      // Fetch latest schedule prices from API to ensure price3Month is up to date
+      try {
+        const scheduleIds = items
+          .filter(item => item.scheduleId)
+          .map(item => item.scheduleId);
+        
+        if (scheduleIds.length > 0) {
+          const schedulesRes = await fetch('/api/workshops/schedules');
+          if (schedulesRes.ok) {
+            const schedulesData = await schedulesRes.json();
+            const schedules = schedulesData.data || [];
+            
+            // Update cart items with latest price3Month from API
+            items = items.map(item => {
+              const schedule = schedules.find((s: any) => s.id === item.scheduleId);
+              if (schedule && schedule.price3Month && schedule.price3Month > 0) {
+                return {
+                  ...item,
+                  metadata: {
+                    ...item.metadata,
+                    price3Month: schedule.price3Month,
+                  },
+                };
+              }
+              return item;
+            });
+            
+            // Persist updated items
+            persistCart(items);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch latest schedule prices:', error);
+      }
       
       try {
         // Try to fetch user's purchase history
