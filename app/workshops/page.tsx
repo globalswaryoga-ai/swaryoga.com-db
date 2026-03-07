@@ -281,6 +281,7 @@ function WorkshopsPageInner() {
                   location: s.location || null,
                   slots: typeof s.seatsTotal === 'number' ? s.seatsTotal : 0,
                   price: s.price,
+                  price3Month: s.price3Month,
                   currency: s.currency,
                 });
               });

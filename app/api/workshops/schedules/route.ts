@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
         registrationCloseDate: 1,
         location: 1,
         price: 1,
+        price3Month: 1,
         currency: 1,
         status: 1,
       })
@@ -81,6 +82,7 @@ export async function GET(request: NextRequest) {
       registrationCloseDate: doc.registrationCloseDate,
       location: doc.location,
       price: doc.price,
+      price3Month: doc.price3Month,
       currency: doc.currency,
       status: doc.status,
     }));
