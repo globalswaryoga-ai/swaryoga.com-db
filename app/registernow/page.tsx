@@ -428,7 +428,8 @@ function RegisterNowDashboardPageInner() {
                   >
                     <div className="text-[11px] font-bold uppercase tracking-wide">{b.label}</div>
                     <div className="mt-1 mb-2">{b.dateText}</div>
-                    {selectedWorkshopSlug && (
+                    {/* Only show Book your seat button when NO schedule available (Coming soon) */}
+                    {selectedWorkshopSlug && !b.available && (
                       <button
                         type="button"
                         onClick={() => setBookSeatModal({ isOpen: true, month: b.label })}
