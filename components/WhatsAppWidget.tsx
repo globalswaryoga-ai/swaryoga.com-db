@@ -1,6 +1,6 @@
 'use client';
 
-import { MessageCircle } from 'lucide-react';
+import { MessageCircle, Sparkles } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 
 export default function WhatsAppWidget() {
@@ -21,6 +21,12 @@ export default function WhatsAppWidget() {
       aria-label="Contact us on WhatsApp"
       title="Chat with us on WhatsApp"
     >
+      {/* Sparkle indicator on left */}
+      <span className="absolute -left-2 top-0 flex items-center justify-center">
+        <Sparkles size={16} className="text-green-400 animate-pulse" />
+        <span className="absolute w-2 h-2 bg-green-400 rounded-full animate-ping"></span>
+      </span>
+      
       {/* WhatsApp Icon */}
       <MessageCircle size={28} className="text-white relative z-10" />
       
