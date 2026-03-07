@@ -25,7 +25,7 @@ export type WorkshopOverview = {
 // Workshop metadata (displayed on main pages and catalog)
 const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
   'master-swar-yoga': {
-    name: 'Master Swar Yoga – 6 Month Masterclass (L1–L5)',
+    name: 'Master Swar Yoga - (6 Month)',
     slug: 'master-swar-yoga',
     image: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&q=80&w=800',
     description: 'A 6-month masterclass combining Swar Yoga Levels 1 to 5. New batch starts every month (3 days/week).',
