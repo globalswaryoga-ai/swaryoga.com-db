@@ -158,6 +158,12 @@ export async function PUT(request: NextRequest) {
         nextUpdates.language = normalizeLanguage(value);
       } else if (key === 'batch') {
         nextUpdates.batch = normalizeBatch(value);
+      } else if (key === 'price' || key === 'price3Month') {
+        // Ensure numeric prices are properly handled
+        const numValue = Number(value);
+        if (Number.isFinite(numValue)) {
+          nextUpdates[key] = numValue;
+        }
       } else {
         nextUpdates[key] = value;
       }
@@ -173,6 +179,8 @@ export async function PUT(request: NextRequest) {
         nextUpdates.publishedAt = undefined;
       }
     }
+
+    console.log('[PUT] Updating schedule:', id, 'with:', nextUpdates);
 
     const updated = await WorkshopSchedule.findByIdAndUpdate(String(id), { $set: nextUpdates }, { new: true });
     if (!updated) {
