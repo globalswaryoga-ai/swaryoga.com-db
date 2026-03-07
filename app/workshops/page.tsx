@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo, Suspense } from 'react';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
-import { ArrowRight, BookOpen, ChevronDown } from 'lucide-react';
+import { ArrowRight, BookOpen, ChevronDown, Calendar, Clock, Users, MapPin } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
@@ -142,6 +142,54 @@ function formatDate(isoDate: string): string {
   } catch {
     return 'TBA';
   }
+}
+
+function formatDateShort(isoDate: string): string {
+  const dateOnly = toDateOnlyIso(isoDate);
+  if (!dateOnly) return 'TBA';
+  try {
+    const date = new Date(dateOnly + 'T00:00:00Z');
+    return new Intl.DateTimeFormat('en-US', {
+      day: 'numeric',
+      month: 'short'
+    }).format(date);
+  } catch {
+    return 'TBA';
+  }
+}
+
+function getMonthYear(isoDate: string): string {
+  const dateOnly = toDateOnlyIso(isoDate);
+  if (!dateOnly) return 'TBA';
+  try {
+    const date = new Date(dateOnly + 'T00:00:00Z');
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'long',
+      year: 'numeric'
+    }).format(date);
+  } catch {
+    return 'TBA';
+  }
+}
+
+function getBatchIcon(time: string | undefined): string {
+  if (!time) return '⏰';
+  const hour = parseInt(time.split(':')[0] || '12', 10);
+  if (hour >= 4 && hour < 9) return '🌅'; // Early morning / Morning
+  if (hour >= 9 && hour < 12) return '☀️'; // Late morning
+  if (hour >= 12 && hour < 17) return '🌤️'; // Afternoon
+  if (hour >= 17 && hour < 21) return '🌙'; // Evening
+  return '🌃'; // Night
+}
+
+function getBatchLabel(time: string | undefined): string {
+  if (!time) return 'Batch';
+  const hour = parseInt(time.split(':')[0] || '12', 10);
+  if (hour >= 4 && hour < 9) return 'Morning';
+  if (hour >= 9 && hour < 12) return 'Morning';
+  if (hour >= 12 && hour < 17) return 'Afternoon';
+  if (hour >= 17 && hour < 21) return 'Evening';
+  return 'Night';
 }
 
 function WorkshopsPageInner() {
@@ -800,149 +848,212 @@ function WorkshopsPageInner() {
               )}
             </div>
 
-            {/* Workshop Cards Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-              {currentWorkshops.map((workshop) => {
+            {/* Workshop Schedules - Monthly Table View */}
+            {(() => {
+              // Gather all upcoming schedules across all workshops
+              const todayIso = now.toISOString().slice(0, 10);
+              const allSchedules: Array<{
+                workshop: WorkshopOverview;
+                schedule: ApiWorkshopSchedule;
+                monthKey: string;
+              }> = [];
+
+              workshopsForDisplay.forEach((workshop) => {
                 const schedules = schedulesByWorkshopId[workshop.slug] || [];
-                const nextSchedule = getNextUpcomingSchedule(schedules, now);
-                const nextStartIso = nextSchedule ? toDateOnlyIso(nextSchedule.startDate) : null;
-                const startingPrice = getStartingPrice(schedules);
-                const scheduleCurrency = (nextSchedule?.currency || schedules.find((s) => !!s.currency)?.currency || null) as string | null;
-                const currency = scheduleCurrency || (workshop.currency && workshop.currency[0]) || WORKSHOP_FEES[workshop.slug]?.currency || 'INR';
-                const displayPrice =
-                  (typeof startingPrice === 'number' && startingPrice > 0)
-                    ? formatPrice(startingPrice, currency)
-                    : (WORKSHOP_FEES[workshop.slug]
-                      ? formatPrice(WORKSHOP_FEES[workshop.slug].minPrice, WORKSHOP_FEES[workshop.slug].currency)
-                      : null);
+                schedules.forEach((schedule) => {
+                  const startDateOnly = toDateOnlyIso(schedule.startDate);
+                  if (startDateOnly && startDateOnly >= todayIso) {
+                    allSchedules.push({
+                      workshop,
+                      schedule,
+                      monthKey: getMonthYear(schedule.startDate),
+                    });
+                  }
+                });
+              });
 
+              // Sort by date
+              allSchedules.sort((a, b) => {
+                const aDate = toDateOnlyIso(a.schedule.startDate) || '';
+                const bDate = toDateOnlyIso(b.schedule.startDate) || '';
+                return aDate.localeCompare(bDate);
+              });
+
+              // Group by month
+              const byMonth: Record<string, typeof allSchedules> = {};
+              allSchedules.forEach((item) => {
+                if (!byMonth[item.monthKey]) byMonth[item.monthKey] = [];
+                byMonth[item.monthKey].push(item);
+              });
+
+              const monthKeys = Object.keys(byMonth);
+
+              if (monthKeys.length === 0) {
                 return (
-                  <div
-                    key={workshop.slug}
-                    className="group bg-white rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100"
-                  >
-                    <div className="relative h-48 overflow-hidden">
-                      <Image
-                        src={workshop.image}
-                        alt={workshop.name}
-                        fill
-                        className="object-cover group-hover:scale-105 transition-transform duration-500"
-                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/0 to-transparent" />
-                      <div className="absolute bottom-3 left-3 right-3">
-                        <span className="inline-flex items-center rounded-full bg-white/90 px-3 py-1 text-xs font-bold text-gray-800">
-                          {workshop.category}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="p-5 sm:p-6">
-                      <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2 line-clamp-2">
-                        {workshop.name}
-                      </h3>
-                      <p className="text-sm text-gray-600 mb-4 line-clamp-2">
-                        {workshop.description}
-                      </p>
-
-                      <div className="grid grid-cols-2 gap-3 text-xs sm:text-sm mb-4">
-                        <div className="rounded-lg bg-gray-50 px-3 py-2">
-                          <div className="text-gray-500 font-semibold">Duration</div>
-                          <div className="text-gray-900 font-bold">{workshop.duration}</div>
-                        </div>
-                        <div className="rounded-lg bg-gray-50 px-3 py-2">
-                          <div className="text-gray-500 font-semibold">Level</div>
-                          <div className="text-gray-900 font-bold">{workshop.level}</div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between gap-3 mb-5">
-                        <div className="min-w-0">
-                          <div className="text-xs text-gray-500 font-semibold">Next batch</div>
-                          <div className="text-sm font-bold text-gray-900">
-                            {nextStartIso ? formatDate(nextStartIso) : 'TBA'}
-                          </div>
-                          {nextSchedule ? (
-                            <div className="mt-1 text-xs text-gray-600 font-semibold truncate">
-                              {nextSchedule.time ? `${nextSchedule.time}` : null}
-                              {typeof nextSchedule.slots === 'number' && nextSchedule.slots > 0 ? (
-                                <span className="ml-2 text-gray-500 font-semibold">• Seats: {nextSchedule.slots}</span>
-                              ) : null}
-                            </div>
-                          ) : null}
-                        </div>
-                        <div className="text-right">
-                          <div className="text-xs text-gray-500 font-semibold">From</div>
-                          <div className="text-sm font-bold text-primary-700">
-                            {displayPrice || '—'}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex gap-3">
-                        {/* Learn More Button - Goes to Landing Page */}
-                        <Link
-                          href={`/workshops/${workshop.slug}/landing`}
-                          className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white px-4 py-3 font-bold transition"
-                        >
-                          Learn More
-                          <ArrowRight className="w-4 h-4" />
-                        </Link>
-
-                        {/* Register Now Button - Go directly to payment */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const paymentLink = getWorkshopPaymentLink(workshop.slug, 'online', 'hindi');
-                            if (paymentLink) {
-                              window.open(paymentLink, '_blank');
-                            } else {
-                              router.push(`/registration/online/hindi/${workshop.slug}`);
-                            }
-                          }}
-                          className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 hover:bg-green-700 active:scale-95 text-white px-4 py-3 font-bold transition"
-                        >
-                          📝 Register Now
-                        </button>
-                      </div>
-                    </div>
+                  <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
+                    <div className="text-4xl mb-4">📅</div>
+                    <h3 className="text-xl font-bold text-gray-800 mb-2">No Upcoming Schedules</h3>
+                    <p className="text-gray-600">New batches will be announced soon. Stay tuned!</p>
                   </div>
                 );
-              })}
-            </div>
+              }
 
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="mt-10 flex items-center justify-center gap-2 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                  className={`px-4 py-2 rounded-lg font-semibold text-sm border transition active:scale-95 ${
-                    currentPage === 1
-                      ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
-                      : 'bg-white text-gray-700 border-gray-300 hover:border-primary-400'
-                  }`}
-                >
-                  Prev
-                </button>
-                <div className="px-3 py-2 text-sm text-gray-600 font-semibold">
-                  Page {currentPage} of {totalPages}
+              return (
+                <div className="space-y-8">
+                  {monthKeys.map((monthKey) => (
+                    <div key={monthKey} className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100">
+                      {/* Month Header */}
+                      <div className="bg-gradient-to-r from-green-600 to-green-700 px-4 sm:px-6 py-4">
+                        <h3 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
+                          <Calendar className="w-5 h-5" />
+                          {monthKey} Updates
+                        </h3>
+                      </div>
+
+                      {/* Schedule Rows */}
+                      <div className="divide-y divide-gray-100">
+                        {byMonth[monthKey].map((item, idx) => {
+                          const { workshop, schedule } = item;
+                          const isOpen = schedule.slots > 0;
+                          const regCloseDate = toDateOnlyIso(schedule.registrationCloseDate);
+                          const isClosed = regCloseDate ? regCloseDate < todayIso : false;
+                          const status = isClosed ? 'Closed' : isOpen ? 'Open' : 'Full';
+                          const statusColor = isClosed ? 'bg-red-100 text-red-700' : isOpen ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700';
+
+                          return (
+                            <div key={`${workshop.slug}-${schedule.id}-${idx}`} className="hover:bg-gray-50 transition-colors">
+                              {/* Desktop View - 2 Rows */}
+                              <div className="hidden md:block">
+                                {/* Row 1: Workshop Info */}
+                                <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-gray-50/50 border-b border-gray-100">
+                                  <div className="col-span-2 text-sm font-semibold text-gray-600">
+                                    {getMonthYear(schedule.startDate).split(' ')[0]}
+                                  </div>
+                                  <div className="col-span-4 text-sm font-bold text-gray-900">
+                                    {workshop.name}
+                                  </div>
+                                  <div className="col-span-2 text-sm text-gray-700 flex items-center gap-1">
+                                    🗣️ {schedule.language || 'Hindi'}
+                                  </div>
+                                  <div className="col-span-2 text-sm text-gray-700 flex items-center gap-1">
+                                    <Users className="w-4 h-4" /> {schedule.slots} slots
+                                  </div>
+                                  <div className="col-span-2">
+                                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold ${statusColor}`}>
+                                      {status === 'Open' ? '🟢' : status === 'Closed' ? '🔴' : '🟡'} {status}
+                                    </span>
+                                  </div>
+                                </div>
+                                {/* Row 2: Schedule Details + Actions */}
+                                <div className="grid grid-cols-12 gap-4 px-6 py-4 items-center">
+                                  <div className="col-span-2 text-sm font-bold text-primary-700">
+                                    📅 {formatDateShort(schedule.startDate)}
+                                  </div>
+                                  <div className="col-span-2 text-sm text-gray-700">
+                                    {getBatchIcon(schedule.time)} {getBatchLabel(schedule.time)}
+                                  </div>
+                                  <div className="col-span-2 text-sm text-gray-700 flex items-center gap-1">
+                                    <Clock className="w-4 h-4" /> {schedule.time || 'TBA'}
+                                  </div>
+                                  <div className="col-span-2 text-sm font-bold text-gray-900">
+                                    {formatPrice(schedule.price, schedule.currency || 'INR')}
+                                  </div>
+                                  <div className="col-span-4 flex gap-2 justify-end">
+                                    <Link
+                                      href={`/workshops/${workshop.slug}/landing`}
+                                      className="inline-flex items-center gap-1 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold transition"
+                                    >
+                                      Learn More <ArrowRight className="w-4 h-4" />
+                                    </Link>
+                                    <button
+                                      type="button"
+                                      disabled={status !== 'Open'}
+                                      onClick={() => {
+                                        const paymentLink = getWorkshopPaymentLink(workshop.slug, 'online', 'hindi');
+                                        if (paymentLink) {
+                                          window.open(paymentLink, '_blank');
+                                        } else {
+                                          router.push(`/registration/online/hindi/${workshop.slug}`);
+                                        }
+                                      }}
+                                      className={`inline-flex items-center gap-1 px-4 py-2 rounded-lg text-sm font-bold transition ${
+                                        status === 'Open'
+                                          ? 'bg-green-600 hover:bg-green-700 text-white'
+                                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                      }`}
+                                    >
+                                      📝 Register Now
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Mobile View - 3 Rows (Stacked) */}
+                              <div className="md:hidden p-4 space-y-3">
+                                {/* Row 1: Workshop Name + Status */}
+                                <div className="flex items-start justify-between gap-2">
+                                  <div>
+                                    <h4 className="font-bold text-gray-900 text-sm">{workshop.name}</h4>
+                                    <div className="flex items-center gap-2 mt-1 text-xs text-gray-600">
+                                      <span>🗣️ {schedule.language || 'Hindi'}</span>
+                                      <span>•</span>
+                                      <span><Users className="w-3 h-3 inline" /> {schedule.slots}</span>
+                                    </div>
+                                  </div>
+                                  <span className={`shrink-0 inline-flex items-center px-2 py-1 rounded-full text-xs font-bold ${statusColor}`}>
+                                    {status === 'Open' ? '🟢' : status === 'Closed' ? '🔴' : '🟡'} {status}
+                                  </span>
+                                </div>
+                                
+                                {/* Row 2: Date, Time, Price */}
+                                <div className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                                  <div className="flex items-center gap-3 text-sm">
+                                    <span className="font-bold text-primary-700">📅 {formatDateShort(schedule.startDate)}</span>
+                                    <span className="text-gray-600">{getBatchIcon(schedule.time)} {getBatchLabel(schedule.time)}</span>
+                                  </div>
+                                  <div className="text-sm font-bold text-gray-900">
+                                    {formatPrice(schedule.price, schedule.currency || 'INR')}
+                                  </div>
+                                </div>
+
+                                {/* Row 3: Action Buttons */}
+                                <div className="flex gap-2">
+                                  <Link
+                                    href={`/workshops/${workshop.slug}/landing`}
+                                    className="flex-1 inline-flex items-center justify-center gap-1 px-3 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold transition"
+                                  >
+                                    Learn More <ArrowRight className="w-4 h-4" />
+                                  </Link>
+                                  <button
+                                    type="button"
+                                    disabled={status !== 'Open'}
+                                    onClick={() => {
+                                      const paymentLink = getWorkshopPaymentLink(workshop.slug, 'online', 'hindi');
+                                      if (paymentLink) {
+                                        window.open(paymentLink, '_blank');
+                                      } else {
+                                        router.push(`/registration/online/hindi/${workshop.slug}`);
+                                      }
+                                    }}
+                                    className={`flex-1 inline-flex items-center justify-center gap-1 px-3 py-2.5 rounded-lg text-sm font-bold transition ${
+                                      status === 'Open'
+                                        ? 'bg-green-600 hover:bg-green-700 text-white'
+                                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                    }`}
+                                  >
+                                    📝 Register
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                  className={`px-4 py-2 rounded-lg font-semibold text-sm border transition active:scale-95 ${
-                    currentPage === totalPages
-                      ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
-                      : 'bg-white text-gray-700 border-gray-300 hover:border-primary-400'
-                  }`}
-                >
-                  Next
-                </button>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Additional Info */}
             <div className="mt-8 sm:mt-12 md:mt-16 pt-8 sm:pt-12 border-t border-gray-200">
