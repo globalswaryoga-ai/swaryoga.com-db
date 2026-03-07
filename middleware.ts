@@ -386,9 +386,13 @@ const CSP = [
   "form-action 'self'",
 ].join('; ');
 
-function applySecurityHeaders(res: NextResponse, requestId: string): void {
+function applySecurityHeaders(res: NextResponse, requestId: string, pathname: string, searchParams: URLSearchParams): void {
   res.headers.set('X-Request-Id', requestId);
-  res.headers.set('X-Frame-Options', 'DENY');
+  
+  // Allow same-origin iframe embedding for landing page previews in admin
+  const isLandingPagePreview = pathname.startsWith('/lp/') && searchParams.get('preview') === 'true';
+  res.headers.set('X-Frame-Options', isLandingPagePreview ? 'SAMEORIGIN' : 'DENY');
+  
   res.headers.set('X-Content-Type-Options', 'nosniff');
   res.headers.set('X-XSS-Protection', '1; mode=block');
   res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
@@ -499,7 +503,7 @@ export function middleware(request: NextRequest) {
       response.headers.set(TENANT_HEADER, tenantSlug);
       response.headers.set(TENANT_RESPONSE_HEADER, tenantSlug);
     }
-    applySecurityHeaders(response, requestId);
+    applySecurityHeaders(response, requestId, path, request.nextUrl.searchParams);
     return response;
   }
 
@@ -604,7 +608,7 @@ export function middleware(request: NextRequest) {
     response.headers.set(TENANT_RESPONSE_HEADER, tenantSlug);
   }
 
-  applySecurityHeaders(response, requestId);
+  applySecurityHeaders(response, requestId, path, request.nextUrl.searchParams);
 
   // CORS headers for API routes
   if (originOk && origin) {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
+import { connectDB, WorkshopSeatInventory } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { DeletedLead, Lead, LeadNote, getSalesReport } from '@/lib/schemas/enterpriseSchemas';
 import mongoose from 'mongoose';
@@ -136,6 +136,17 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
             pinned: false,
           });
         }
+
+        // DECREMENT WORKSHOP SLOT: When lead becomes customer, reduce available seats
+        const slotDecremented = await decrementWorkshopSlot(lead);
+        if (slotDecremented) {
+          notesToCreate.push({
+            leadId: existing._id,
+            note: `System: Workshop seat decremented (manual conversion)`,
+            createdByUserId: 'system',
+            pinned: false,
+          });
+        }
       }
     }
 
@@ -200,6 +211,36 @@ async function autoAddToSales(existing: any, lead: any, viewerUserId: string) {
     return false; // Sale already exists
   } catch (saleError) {
     console.error('Auto-add to sales failed:', saleError);
+    return false;
+  }
+}
+
+// Helper function to decrement workshop seat when lead becomes customer
+async function decrementWorkshopSlot(lead: any) {
+  try {
+    if (!lead.workshopId) {
+      console.log('[decrementWorkshopSlot] No workshopId on lead, skipping');
+      return false;
+    }
+
+    const scheduleId = lead.workshopId.toString();
+    
+    // Find and decrement seat inventory
+    const inventory = await WorkshopSeatInventory.findOneAndUpdate(
+      { scheduleId, seatsRemaining: { $gt: 0 } },
+      { $inc: { seatsRemaining: -1 }, $set: { updatedAt: new Date() } },
+      { new: true }
+    );
+
+    if (inventory) {
+      console.log(`[decrementWorkshopSlot] Decremented seat for schedule ${scheduleId}. Remaining: ${inventory.seatsRemaining}`);
+      return true;
+    } else {
+      console.log(`[decrementWorkshopSlot] No inventory found or no seats remaining for schedule ${scheduleId}`);
+      return false;
+    }
+  } catch (error) {
+    console.error('[decrementWorkshopSlot] Error:', error);
     return false;
   }
 }
@@ -281,6 +322,17 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
           notesToCreate.push({
             leadId: existing._id,
             note: `System: Auto-added to Sales as customer converted`,
+            createdByUserId: 'system',
+            pinned: false,
+          });
+        }
+
+        // DECREMENT WORKSHOP SLOT: When lead becomes customer, reduce available seats
+        const slotDecremented = await decrementWorkshopSlot(lead);
+        if (slotDecremented) {
+          notesToCreate.push({
+            leadId: existing._id,
+            note: `System: Workshop seat decremented (manual conversion)`,
             createdByUserId: 'system',
             pinned: false,
           });

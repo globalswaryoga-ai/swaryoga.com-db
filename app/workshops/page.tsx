@@ -10,6 +10,7 @@ import Image from 'next/image';
 import { workshopCatalog, WorkshopOverview, workshopDetails } from '@/lib/workshopsData';
 import { getWorkshopPaymentLink } from '@/lib/workshops/workshopPaymentConfig';
 import { addCartItem } from '@/lib/cart';
+import PaymentMethodPopup from '@/components/PaymentMethodPopup';
 
 export const dynamic = 'force-dynamic';
 
@@ -176,7 +177,11 @@ function getMonthYear(isoDate: string): string {
 
 function getBatchIcon(time: string | undefined): string {
   if (!time) return '⏰';
-  const hour = parseInt(time.split(':')[0] || '12', 10);
+  const timeLower = time.toLowerCase();
+  let hour = parseInt(time.split(':')[0] || '12', 10);
+  // Handle 12-hour format with AM/PM
+  if (timeLower.includes('pm') && hour !== 12) hour += 12;
+  if (timeLower.includes('am') && hour === 12) hour = 0;
   if (hour >= 4 && hour < 9) return '🌅'; // Early morning / Morning
   if (hour >= 9 && hour < 12) return '☀️'; // Late morning
   if (hour >= 12 && hour < 17) return '🌤️'; // Afternoon
@@ -186,7 +191,11 @@ function getBatchIcon(time: string | undefined): string {
 
 function getBatchLabel(time: string | undefined): string {
   if (!time) return 'Batch';
-  const hour = parseInt(time.split(':')[0] || '12', 10);
+  const timeLower = time.toLowerCase();
+  let hour = parseInt(time.split(':')[0] || '12', 10);
+  // Handle 12-hour format with AM/PM
+  if (timeLower.includes('pm') && hour !== 12) hour += 12;
+  if (timeLower.includes('am') && hour === 12) hour = 0;
   if (hour >= 4 && hour < 9) return 'Morning';
   if (hour >= 9 && hour < 12) return 'Morning';
   if (hour >= 12 && hour < 17) return 'Afternoon';
@@ -219,6 +228,17 @@ function WorkshopsPageInner() {
     workshopName: null,
   });
   const [enrollForm, setEnrollForm] = useState({ name: '', email: '', phone: '' });
+  
+  // Payment method selection popup state
+  const [paymentPopup, setPaymentPopup] = useState<{
+    isOpen: boolean;
+    workshop: any;
+    schedule: any;
+  }>({
+    isOpen: false,
+    workshop: null,
+    schedule: null,
+  });
   const searchParams = useSearchParams();
   const queryString = searchParams?.toString() ?? '';
   const activeWorkshopLabel = selectedWorkshop
@@ -384,6 +404,47 @@ function WorkshopsPageInner() {
   const startIndex = (currentPage - 1) * workshopsPerPage;
   const endIndex = startIndex + workshopsPerPage;
   const currentWorkshops = filteredWorkshops.slice(startIndex, endIndex);
+
+  // Handle payment method selection from popup
+  const handlePaymentMethodSelect = (method: 'india' | 'nepal' | 'usd') => {
+    const { workshop, schedule } = paymentPopup;
+    if (!workshop || !schedule) return;
+
+    if (method === 'nepal') {
+      // Redirect to Nepal QR payment page
+      const params = new URLSearchParams({
+        workshop: workshop.slug,
+        schedule: schedule.id,
+        name: workshop.name,
+        price: String(schedule.price),
+        startDate: schedule.startDate,
+        time: schedule.time || '',
+      });
+      router.push(`/pay-nepal?${params.toString()}`);
+    } else {
+      // India or USD - add to cart and go to checkout
+      const currency = method === 'usd' ? 'USD' : 'INR';
+      addCartItem({
+        id: `${workshop.slug}-${schedule.id}`,
+        name: workshop.name,
+        price: schedule.price,
+        quantity: 1,
+        currency: currency as 'INR' | 'USD' | 'NPR',
+        workshopSlug: workshop.slug,
+        scheduleId: schedule.id,
+        language: schedule.language,
+        mode: schedule.mode,
+        metadata: {
+          startDate: schedule.startDate,
+          time: schedule.time,
+          price3Month: schedule.price3Month,
+        },
+      });
+      router.push('/checkout-enhanced');
+    }
+    
+    setPaymentPopup({ isOpen: false, workshop: null, schedule: null });
+  };
 
   // Handle enrollment form submission
   const handleEnrollSubmit = async (e: React.FormEvent) => {
@@ -634,24 +695,12 @@ function WorkshopsPageInner() {
                                       type="button"
                                       disabled={status !== 'Open'}
                                       onClick={() => {
-                                        // Add to cart and redirect to checkout
-                                        addCartItem({
-                                          id: `${workshop.slug}-${schedule.id}`,
-                                          name: workshop.name,
-                                          price: schedule.price,
-                                          quantity: 1,
-                                          currency: (schedule.currency || 'INR') as 'INR' | 'USD' | 'NPR',
-                                          workshopSlug: workshop.slug,
-                                          scheduleId: schedule.id,
-                                          language: schedule.language,
-                                          mode: schedule.mode,
-                                          metadata: {
-                                            startDate: schedule.startDate,
-                                            time: schedule.time,
-                                            price3Month: schedule.price3Month,
-                                          },
+                                        // Show payment method popup
+                                        setPaymentPopup({
+                                          isOpen: true,
+                                          workshop,
+                                          schedule,
                                         });
-                                        router.push('/checkout-enhanced');
                                       }}
                                       className={`inline-flex items-center gap-1 px-4 py-2 rounded-lg text-sm font-bold transition ${
                                         status === 'Open'
@@ -712,24 +761,12 @@ function WorkshopsPageInner() {
                                     type="button"
                                     disabled={status !== 'Open'}
                                     onClick={() => {
-                                      // Add to cart and redirect to checkout
-                                      addCartItem({
-                                        id: `${workshop.slug}-${schedule.id}`,
-                                        name: workshop.name,
-                                        price: schedule.price,
-                                        quantity: 1,
-                                        currency: (schedule.currency || 'INR') as 'INR' | 'USD' | 'NPR',
-                                        workshopSlug: workshop.slug,
-                                        scheduleId: schedule.id,
-                                        language: schedule.language,
-                                        mode: schedule.mode,
-                                        metadata: {
-                                          startDate: schedule.startDate,
-                                          time: schedule.time,
-                                          price3Month: schedule.price3Month,
-                                        },
+                                      // Show payment method popup
+                                      setPaymentPopup({
+                                        isOpen: true,
+                                        workshop,
+                                        schedule,
                                       });
-                                      router.push('/checkout-enhanced');
                                     }}
                                     className={`flex-1 inline-flex items-center justify-center gap-1 px-3 py-2.5 rounded-lg text-sm font-bold transition ${
                                       status === 'Open'
@@ -771,6 +808,15 @@ function WorkshopsPageInner() {
           </div>
         </section>
       </main>
+      
+      {/* Payment Method Selection Popup */}
+      <PaymentMethodPopup
+        isOpen={paymentPopup.isOpen}
+        onClose={() => setPaymentPopup({ isOpen: false, workshop: null, schedule: null })}
+        onSelect={handlePaymentMethodSelect}
+        workshopName={paymentPopup.workshop?.name}
+      />
+      
       <Footer />
     </>
   );

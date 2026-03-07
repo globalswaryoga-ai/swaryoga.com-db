@@ -60,6 +60,8 @@ export async function GET(request: NextRequest) {
         location: 1,
         price: 1,
         price3Month: 1,
+        priceNPR: 1,
+        nepalQrCode: 1,
         currency: 1,
         status: 1,
       })
@@ -83,6 +85,8 @@ export async function GET(request: NextRequest) {
       location: doc.location,
       price: doc.price,
       price3Month: doc.price3Month,
+      priceNPR: doc.priceNPR,
+      nepalQrCode: doc.nepalQrCode,
       currency: doc.currency,
       status: doc.status,
     }));

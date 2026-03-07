@@ -89,6 +89,8 @@ export async function POST(request: NextRequest) {
       location: String(body.location || ''),
       price: Number.isFinite(Number(body.price)) ? Number(body.price) : 0,
       price3Month: Number.isFinite(Number(body.price3Month)) ? Number(body.price3Month) : 0,
+      priceNPR: Number.isFinite(Number(body.priceNPR)) ? Number(body.priceNPR) : 0,
+      nepalQrCode: String(body.nepalQrCode || ''),
       currency,
       status: body.status === 'published' ? 'published' : 'draft',
       publishedAt: body.status === 'published' ? new Date() : undefined,
@@ -158,12 +160,14 @@ export async function PUT(request: NextRequest) {
         nextUpdates.language = normalizeLanguage(value);
       } else if (key === 'batch') {
         nextUpdates.batch = normalizeBatch(value);
-      } else if (key === 'price' || key === 'price3Month') {
+      } else if (key === 'price' || key === 'price3Month' || key === 'priceNPR') {
         // Ensure numeric prices are properly handled
         const numValue = Number(value);
         if (Number.isFinite(numValue)) {
           nextUpdates[key] = numValue;
         }
+      } else if (key === 'nepalQrCode') {
+        nextUpdates.nepalQrCode = String(value || '');
       } else {
         nextUpdates[key] = value;
       }

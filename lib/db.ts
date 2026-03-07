@@ -914,6 +914,8 @@ const workshopScheduleSchema = new mongoose.Schema(
     location: { type: String, default: '' },
     price: { type: Number, default: 0 },
     price3Month: { type: Number, default: 0 },
+    priceNPR: { type: Number, default: 0 }, // Nepal price in NPR
+    nepalQrCode: { type: String, default: '' }, // Nepal payment QR code URL
     currency: { type: String, enum: ['INR', 'USD', 'NPR'], default: 'INR', index: true },
     status: { type: String, enum: ['draft', 'published'], default: 'draft', index: true },
     publishedAt: { type: Date, required: false },
@@ -1668,6 +1670,441 @@ export const UserPlaylistAccess = mongoose.models.UserPlaylistAccess || mongoose
 
 export function getUserPlaylistAccess() {
   return mongoose.models.UserPlaylistAccess || mongoose.model('UserPlaylistAccess', userPlaylistAccessSchema);
+}
+
+// ==================== LANDING PAGE BUILDER SCHEMA ====================
+// Comprehensive landing page builder for marketing campaigns
+
+const landingPageSchema = new mongoose.Schema({
+  // Basic Info
+  slug: { type: String, required: true, unique: true, index: true, trim: true, lowercase: true },
+  name: { type: String, required: true, trim: true }, // Internal name
+  status: { type: String, enum: ['draft', 'published', 'archived'], default: 'draft', index: true },
+
+  // Hero Section
+  heroHeading: { type: String, trim: true },
+  heroSubheading: { type: String, trim: true },
+  heroImage: { type: String, trim: true }, // URL
+  heroImageFit: { type: String, enum: ['cover', 'contain', 'fill', 'none'], default: 'cover' },
+  heroImagePosition: { type: String, default: 'center', trim: true }, // e.g. "center", "top", "bottom left"
+  heroVideo: { type: String, trim: true }, // YouTube/Vimeo URL
+  heroCTA: { type: String, default: 'Register Now', trim: true },
+  heroCtaLink: { type: String, trim: true },
+
+  // Event/Workshop Details
+  eventTitle: { type: String, trim: true },
+  eventDescription: { type: String, trim: true }, // Rich text/markdown
+  startDate: { type: Date },
+  endDate: { type: Date },
+  eventTime: { type: String, trim: true }, // e.g., "7:00 PM - 8:30 PM IST"
+  eventTimezone: { type: String, default: 'Asia/Kolkata', trim: true },
+  location: { type: String, default: 'Online (Zoom)', trim: true },
+  language: { type: String, default: 'Hindi', trim: true },
+
+  // Pricing Section
+  pricing: [{
+    name: { type: String, trim: true }, // e.g., "Early Bird", "Standard", "Premium"
+    price: { type: Number },
+    currency: { type: String, default: 'INR' },
+    originalPrice: { type: Number }, // For showing discount
+    features: [{ type: String }], // List of features
+    isPopular: { type: Boolean, default: false },
+    ctaText: { type: String, default: 'Enroll Now' },
+    paymentLink: { type: String, trim: true }, // Direct payment URL
+  }],
+
+  // About/Instructor Section
+  instructorName: { type: String, trim: true },
+  instructorTitle: { type: String, trim: true },
+  instructorImage: { type: String, trim: true },
+  instructorBio: { type: String, trim: true },
+
+  // Benefits/Features Section
+  benefits: [{
+    icon: { type: String, trim: true }, // Icon name or URL
+    title: { type: String, trim: true },
+    description: { type: String, trim: true },
+  }],
+
+  // What You'll Learn Section
+  curriculum: [{
+    title: { type: String, trim: true },
+    description: { type: String, trim: true },
+    duration: { type: String, trim: true },
+  }],
+
+  // Testimonials
+  testimonials: [{
+    name: { type: String, trim: true },
+    image: { type: String, trim: true },
+    location: { type: String, trim: true },
+    text: { type: String, trim: true },
+    videoUrl: { type: String, trim: true },
+    rating: { type: Number, min: 1, max: 5 },
+  }],
+
+  // Demo/Free Session
+  demoSession: {
+    enabled: { type: Boolean, default: false },
+    title: { type: String, trim: true },
+    description: { type: String, trim: true },
+    date: { type: Date },
+    time: { type: String, trim: true },
+    zoomLink: { type: String, trim: true },
+    zoomId: { type: String, trim: true },
+    zoomPassword: { type: String, trim: true },
+  },
+
+  // FAQ Section
+  faqs: [{
+    question: { type: String, trim: true },
+    answer: { type: String, trim: true },
+  }],
+
+  // Gallery
+  gallery: [{
+    type: { type: String, enum: ['image', 'video'], default: 'image' },
+    url: { type: String, trim: true },
+    caption: { type: String, trim: true },
+  }],
+
+  // Design/Theme Settings
+  theme: {
+    mode: { type: String, enum: ['light', 'dark', 'custom'], default: 'light' },
+    primaryColor: { type: String, default: '#FF6B35' },
+    secondaryColor: { type: String, default: '#1E3A5F' },
+    accentColor: { type: String, default: '#FFD700' },
+    backgroundColor: { type: String, default: '#FFFFFF' },
+    textColor: { type: String, default: '#333333' },
+    fontFamily: { type: String, default: 'Inter' },
+  },
+
+  // SEO Settings
+  seo: {
+    title: { type: String, trim: true },
+    description: { type: String, trim: true },
+    keywords: [{ type: String }],
+    ogImage: { type: String, trim: true },
+  },
+
+  // Integrations
+  integrations: {
+    whatsappNumber: { type: String, trim: true },
+    whatsappMessage: { type: String, trim: true },
+    googleAnalyticsId: { type: String, trim: true },
+    facebookPixelId: { type: String, trim: true },
+    paymentLink: { type: String, trim: true }, // Primary payment link
+  },
+
+  // Countdown Timer
+  countdown: {
+    enabled: { type: Boolean, default: false },
+    endDate: { type: Date },
+    message: { type: String, default: 'Registration closes in:', trim: true },
+  },
+
+  // Social Proof
+  socialProof: {
+    studentsCount: { type: Number },
+    reviewsCount: { type: Number },
+    avgRating: { type: Number },
+    yearsExperience: { type: Number },
+  },
+
+  // Trust Badges & Partner Logos
+  trustBadges: [{
+    image: { type: String, trim: true },
+    title: { type: String, trim: true },
+    link: { type: String, trim: true },
+  }],
+
+  // Money-Back Guarantee
+  guarantee: {
+    enabled: { type: Boolean, default: false },
+    days: { type: Number, default: 7 },
+    title: { type: String, default: '100% Money-Back Guarantee', trim: true },
+    description: { type: String, trim: true },
+  },
+
+  // Bonus Stack (Limited Time Offers)
+  bonuses: [{
+    title: { type: String, trim: true },
+    description: { type: String, trim: true },
+    value: { type: Number }, // Worth value
+    currency: { type: String, default: 'INR' },
+    image: { type: String, trim: true },
+  }],
+
+  // Urgency/Scarcity Settings
+  urgency: {
+    enabled: { type: Boolean, default: false },
+    limitedSeats: { type: Boolean, default: false },
+    totalSeats: { type: Number },
+    seatsRemaining: { type: Number },
+    earlyBirdDeadline: { type: Date },
+    earlyBirdMessage: { type: String, trim: true },
+    showLiveCount: { type: Boolean, default: false }, // Show "X people viewing now"
+  },
+
+  // Registration Form Settings
+  registrationForm: {
+    enabled: { type: Boolean, default: false },
+    title: { type: String, default: 'Register Now', trim: true },
+    subtitle: { type: String, trim: true },
+    fields: [{
+      name: { type: String, trim: true },
+      type: { type: String, enum: ['text', 'email', 'phone', 'select', 'textarea'], default: 'text' },
+      required: { type: Boolean, default: false },
+      placeholder: { type: String, trim: true },
+      options: [{ type: String }], // For select fields
+    }],
+    submitText: { type: String, default: 'Register Now', trim: true },
+    successMessage: { type: String, default: 'Thank you! We will contact you soon.', trim: true },
+  },
+
+  // Popup Settings
+  popup: {
+    enabled: { type: Boolean, default: false },
+    type: { type: String, enum: ['exit-intent', 'timer', 'scroll'], default: 'timer' },
+    delay: { type: Number, default: 5000 }, // ms for timer, % for scroll
+    title: { type: String, trim: true },
+    description: { type: String, trim: true },
+    ctaText: { type: String, default: 'Get Special Offer', trim: true },
+    ctaLink: { type: String, trim: true },
+    image: { type: String, trim: true },
+  },
+
+  // Sticky Header Settings
+  stickyHeader: {
+    enabled: { type: Boolean, default: true },
+    text: { type: String, trim: true },
+    ctaText: { type: String, default: 'Enroll Now', trim: true },
+    ctaLink: { type: String, trim: true },
+    showCountdown: { type: Boolean, default: false },
+  },
+
+  // Announcement Bar
+  announcementBar: {
+    enabled: { type: Boolean, default: false },
+    text: { type: String, trim: true },
+    link: { type: String, trim: true },
+    backgroundColor: { type: String, default: '#FF6B35' },
+    textColor: { type: String, default: '#FFFFFF' },
+  },
+
+  // Before/After Transformation
+  transformation: {
+    enabled: { type: Boolean, default: false },
+    title: { type: String, default: 'Your Transformation Journey', trim: true },
+    before: {
+      title: { type: String, default: 'Before', trim: true },
+      points: [{ type: String }],
+    },
+    after: {
+      title: { type: String, default: 'After', trim: true },
+      points: [{ type: String }],
+    },
+  },
+
+  // Video Section
+  videoSection: {
+    enabled: { type: Boolean, default: false },
+    title: { type: String, trim: true },
+    description: { type: String, trim: true },
+    videoUrl: { type: String, trim: true },
+    thumbnailUrl: { type: String, trim: true },
+  },
+
+  // Logo & Branding
+  logo: {
+    url: { type: String, trim: true },
+    altText: { type: String, default: 'Logo', trim: true },
+  },
+
+  // Navigation Menu
+  navigation: {
+    enabled: { type: Boolean, default: true },
+    showLogo: { type: Boolean, default: true },
+    showLogin: { type: Boolean, default: false },
+    loginLink: { type: String, trim: true },
+    links: [{
+      label: { type: String, trim: true },
+      href: { type: String, trim: true },
+    }],
+  },
+
+  // Problem Statement Section (Pain Points)
+  problemStatement: {
+    enabled: { type: Boolean, default: false },
+    title: { type: String, default: 'Are You Facing These Problems?', trim: true },
+    subtitle: { type: String, trim: true },
+    points: [{
+      icon: { type: String, trim: true },
+      title: { type: String, trim: true },
+      description: { type: String, trim: true },
+    }],
+  },
+
+  // Solution Section
+  solution: {
+    enabled: { type: Boolean, default: false },
+    title: { type: String, default: 'Here\'s Your Solution', trim: true },
+    subtitle: { type: String, trim: true },
+    description: { type: String, trim: true },
+    image: { type: String, trim: true },
+    videoUrl: { type: String, trim: true },
+    points: [{ type: String }],
+  },
+
+  // How It Works (Step-by-Step Process)
+  howItWorks: {
+    enabled: { type: Boolean, default: false },
+    title: { type: String, default: 'How It Works', trim: true },
+    subtitle: { type: String, trim: true },
+    steps: [{
+      number: { type: Number },
+      icon: { type: String, trim: true },
+      title: { type: String, trim: true },
+      description: { type: String, trim: true },
+    }],
+  },
+
+  // Lead Magnet / Free Resource
+  leadMagnet: {
+    enabled: { type: Boolean, default: false },
+    title: { type: String, default: 'Get Your Free Guide!', trim: true },
+    subtitle: { type: String, trim: true },
+    description: { type: String, trim: true },
+    image: { type: String, trim: true },
+    downloadUrl: { type: String, trim: true },
+    buttonText: { type: String, default: 'Download Free Guide', trim: true },
+  },
+
+  // Success Stories / Case Studies (Detailed)
+  successStories: [{
+    name: { type: String, trim: true },
+    title: { type: String, trim: true },
+    image: { type: String, trim: true },
+    videoUrl: { type: String, trim: true },
+    beforeStats: { type: String, trim: true },
+    afterStats: { type: String, trim: true },
+    testimonial: { type: String, trim: true },
+    duration: { type: String, trim: true }, // e.g., "3 months"
+  }],
+
+  // Hero Quick Benefits (Bullet Points in Hero)
+  heroQuickBenefits: [{
+    icon: { type: String, trim: true },
+    text: { type: String, trim: true },
+  }],
+
+  // Secondary CTA in Hero
+  heroSecondaryCTA: {
+    enabled: { type: Boolean, default: false },
+    text: { type: String, default: 'Watch Demo', trim: true },
+    link: { type: String, trim: true },
+    icon: { type: String, trim: true },
+  },
+
+  // Contact Information
+  contactInfo: {
+    email: { type: String, trim: true },
+    phone: { type: String, trim: true },
+    address: { type: String, trim: true },
+    mapEmbed: { type: String, trim: true },
+  },
+
+  // Footer Settings
+  footer: {
+    showAbout: { type: Boolean, default: true },
+    aboutText: { type: String, trim: true },
+    socialLinks: {
+      facebook: { type: String, trim: true },
+      instagram: { type: String, trim: true },
+      youtube: { type: String, trim: true },
+      twitter: { type: String, trim: true },
+      linkedin: { type: String, trim: true },
+    },
+    quickLinks: [{
+      label: { type: String, trim: true },
+      href: { type: String, trim: true },
+    }],
+    showPrivacyPolicy: { type: Boolean, default: true },
+    privacyPolicyLink: { type: String, trim: true },
+    showTerms: { type: Boolean, default: true },
+    termsLink: { type: String, trim: true },
+    showRefundPolicy: { type: Boolean, default: true },
+    refundPolicyLink: { type: String, trim: true },
+    copyrightText: { type: String, trim: true },
+  },
+
+  // Product Demo / Preview
+  productDemo: {
+    enabled: { type: Boolean, default: false },
+    title: { type: String, trim: true },
+    description: { type: String, trim: true },
+    demoType: { type: String, enum: ['video', 'gif', 'interactive'], default: 'video' },
+    mediaUrl: { type: String, trim: true },
+    screenshots: [{ type: String }],
+  },
+
+  // Newsletter Signup
+  newsletter: {
+    enabled: { type: Boolean, default: false },
+    title: { type: String, default: 'Stay Updated', trim: true },
+    subtitle: { type: String, trim: true },
+    buttonText: { type: String, default: 'Subscribe', trim: true },
+    placeholder: { type: String, default: 'Enter your email', trim: true },
+  },
+
+  // Comparison Table
+  comparisonTable: {
+    enabled: { type: Boolean, default: false },
+    title: { type: String, trim: true },
+    headers: [{ type: String }],
+    rows: [{
+      feature: { type: String, trim: true },
+      values: [{ type: String }], // Array matching headers
+    }],
+  },
+
+  // Live Notifications (Recent Sign-ups)
+  liveNotifications: {
+    enabled: { type: Boolean, default: false },
+    messages: [{ type: String }], // Pre-defined messages like "John from Delhi just enrolled!"
+  },
+
+  // Content Sections (Flexible)
+  sections: [{
+    type: { type: String, enum: ['hero', 'about', 'benefits', 'curriculum', 'pricing', 'testimonials', 'faq', 'cta', 'gallery', 'instructor', 'demo', 'custom'], required: true },
+    order: { type: Number, default: 0 },
+    enabled: { type: Boolean, default: true },
+    customTitle: { type: String, trim: true },
+    customContent: { type: String, trim: true }, // For custom sections
+  }],
+
+  // Linked Workshop (optional)
+  linkedWorkshopSlug: { type: String, trim: true, index: true },
+  linkedScheduleId: { type: String, trim: true },
+
+  // Analytics
+  views: { type: Number, default: 0 },
+  conversions: { type: Number, default: 0 },
+
+  // Metadata
+  createdBy: { type: String, trim: true },
+  updatedBy: { type: String, trim: true },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
+});
+
+landingPageSchema.index({ slug: 1 }, { unique: true });
+landingPageSchema.index({ status: 1, createdAt: -1 });
+
+export const LandingPage = mongoose.models.LandingPage || mongoose.model('LandingPage', landingPageSchema);
+
+export function getLandingPage() {
+  return mongoose.models.LandingPage || mongoose.model('LandingPage', landingPageSchema);
 }
 
 // Default export for backward compatibility

@@ -27,6 +27,10 @@ import {
   SmartphoneNfc,
   Calculator,
   Monitor,
+  FileText,
+  HardDrive,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 
 interface AdminSidebarProps {
@@ -45,6 +49,17 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
   const [userRole, setUserRole] = useState<string>('admin');
   const [permissionsV2, setPermissionsV2] = useState<any>(null);
   const [localCollapsed, setLocalCollapsed] = useState(false);
+  
+  // Storage usage state
+  const [storageUsage, setStorageUsage] = useState<{
+    display: string;
+    totalGB: number;
+    monthlyCostINR: number;
+    monthlyCostUSD: number;
+    percentage: number;
+  } | null>(null);
+  const [storageHidden, setStorageHidden] = useState(false);
+  const [isIndiaUser, setIsIndiaUser] = useState(true);
 
   const isCollapsed = onToggleCollapse ? collapsed : localCollapsed;
   const toggleCollapse = onToggleCollapse || (() => setLocalCollapsed(!localCollapsed));
@@ -124,6 +139,66 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
     };
   }, [token]);
 
+  // Fetch storage usage
+  useEffect(() => {
+    if (!token) return;
+    
+    // Check if hidden in this session
+    const hidden = sessionStorage.getItem('storageUsageHidden') === 'true';
+    setStorageHidden(hidden);
+    
+    // Detect if user is in India based on timezone
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const indiaTz = tz === 'Asia/Kolkata' || tz === 'Asia/Calcutta';
+      setIsIndiaUser(indiaTz);
+    } catch {
+      setIsIndiaUser(true); // Default to India
+    }
+    
+    if (hidden) return;
+
+    const fetchStorageUsage = async () => {
+      try {
+        const res = await window.fetch('/api/admin/crm/storage-usage', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const json = await res.json();
+        if (json.success && json.data) {
+          // Assume 5GB free tier, calculate percentage
+          const maxGB = 5;
+          const percentage = Math.min(100, (json.data.totalGB / maxGB) * 100);
+          setStorageUsage({
+            display: json.data.storageSize?.display || '0 MB',
+            totalGB: json.data.totalGB,
+            monthlyCostINR: json.data.monthlyCost || 0,
+            monthlyCostUSD: json.data.monthlyCostUSD || Math.ceil(json.data.totalGB * 0.42), // ~$0.42/GB
+            percentage,
+          });
+        }
+      } catch {
+        // Silently fail
+      }
+    };
+
+    // Fetch after a delay to not block initial render
+    const timeout = setTimeout(fetchStorageUsage, 2000);
+    return () => clearTimeout(timeout);
+  }, [token]);
+
+  // Hide storage usage for this session
+  const hideStorageUsage = () => {
+    setStorageHidden(true);
+    sessionStorage.setItem('storageUsageHidden', 'true');
+  };
+
+  // Show storage usage again
+  const showStorageUsage = () => {
+    setStorageHidden(false);
+    sessionStorage.removeItem('storageUsageHidden');
+  };
+
   const handleNavClick = () => {
     if (window.innerWidth < 768) {
       onClose();
@@ -160,6 +235,13 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       label: 'Web Admin',
       href: '/admin/crm/web-admin',
       color: 'text-orange-400',
+      module: 'dashboard',
+    },
+    {
+      icon: FileText,
+      label: 'Landing Pages',
+      href: '/admin/landing-pages',
+      color: 'text-rose-400',
       module: 'dashboard',
     },
     {
@@ -429,6 +511,84 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
 
         {/* Settings at bottom */}
         <div className={`border-t border-gray-800 flex-shrink-0 ${isCollapsed ? 'p-2' : 'p-3'}`}>
+          {/* Storage Usage Indicator */}
+          {storageUsage && !storageHidden && !isCollapsed && (
+            <Link
+              href="/admin/crm/settings?tab=storage"
+              onClick={handleNavClick}
+              className="mb-3 p-2.5 bg-gradient-to-r from-gray-800/80 to-gray-800/40 rounded-xl border border-gray-700/50 block hover:border-cyan-700/50 transition-colors"
+            >
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-1.5">
+                  <HardDrive className="h-3.5 w-3.5 text-cyan-400" />
+                  <span className="text-[11px] font-medium text-gray-300">Storage</span>
+                </div>
+                <button
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); hideStorageUsage(); }}
+                  className="p-0.5 hover:bg-gray-700 rounded transition-colors"
+                  title="Hide for this session"
+                >
+                  <X className="h-3 w-3 text-gray-500 hover:text-gray-300" />
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                  <div 
+                    className={`h-full rounded-full transition-all ${
+                      storageUsage.percentage > 80 ? 'bg-red-500' : 
+                      storageUsage.percentage > 50 ? 'bg-yellow-500' : 'bg-cyan-500'
+                    }`}
+                    style={{ width: `${storageUsage.percentage}%` }}
+                  />
+                </div>
+                <span className="text-[10px] font-mono text-gray-400 min-w-fit">
+                  {storageUsage.display}
+                </span>
+              </div>
+              <div className="flex items-center justify-between mt-1.5">
+                <span className="text-[9px] text-gray-500">
+                  {storageUsage.totalGB.toFixed(2)} GB used
+                </span>
+                <span className="text-[9px] text-amber-400 font-medium">
+                  {isIndiaUser ? `₹${storageUsage.monthlyCostINR}` : `$${storageUsage.monthlyCostUSD}`}/mo
+                </span>
+              </div>
+              <div className="text-[8px] text-gray-500 text-center mt-1.5 hover:text-cyan-400">
+                Click for details →
+              </div>
+            </Link>
+          )}
+          
+          {/* Collapsed storage indicator */}
+          {storageUsage && !storageHidden && isCollapsed && (
+            <Link
+              href="/admin/crm/settings?tab=storage"
+              onClick={handleNavClick}
+              className="mb-2 p-2 bg-gray-800/60 rounded-lg flex items-center justify-center relative group cursor-pointer hover:bg-gray-700/60 transition-colors"
+              title={`Storage: ${storageUsage.display} (${isIndiaUser ? `₹${storageUsage.monthlyCostINR}` : `$${storageUsage.monthlyCostUSD}`}/mo)`}
+            >
+              <HardDrive className={`h-4 w-4 ${
+                storageUsage.percentage > 80 ? 'text-red-400' : 
+                storageUsage.percentage > 50 ? 'text-yellow-400' : 'text-cyan-400'
+              }`} />
+              <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-lg border border-gray-700 transition-opacity">
+                <div className="font-medium">{storageUsage.display}</div>
+                <div className="text-amber-400 text-[10px]">{isIndiaUser ? `₹${storageUsage.monthlyCostINR}` : `$${storageUsage.monthlyCostUSD}`}/mo</div>
+              </div>
+            </Link>
+          )}
+          
+          {/* Show storage button when hidden */}
+          {storageHidden && !isCollapsed && (
+            <button
+              onClick={showStorageUsage}
+              className="w-full mb-2 flex items-center justify-center gap-1.5 px-2 py-1 text-[10px] text-gray-500 hover:text-gray-300 hover:bg-gray-800/40 rounded-lg transition-colors"
+            >
+              <Eye className="h-3 w-3" />
+              <span>Show storage</span>
+            </button>
+          )}
+          
           <Link
             href="/admin/crm/settings"
             onClick={handleNavClick}

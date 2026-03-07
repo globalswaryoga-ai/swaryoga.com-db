@@ -31,6 +31,8 @@ type AdminSchedule = {
   location?: string;
   price?: number;
   price3Month?: number;
+  priceNPR?: number;
+  nepalQrCode?: string;
   currency?: string;
   status?: ScheduleStatus;
 };
@@ -46,6 +48,8 @@ type EditForm = {
   seatsTotal: string;
   price: string;
   price3Month: string;
+  priceNPR: string;
+  nepalQrCode: string;
   currency: string;
   location: string;
   language: string;
@@ -149,6 +153,8 @@ const emptyEditForm = (s?: AdminSchedule): EditForm => ({
   seatsTotal: String(s?.seatsTotal ?? ''),
   price: String(s?.price ?? ''),
   price3Month: String(s?.price3Month ?? ''),
+  priceNPR: String(s?.priceNPR ?? ''),
+  nepalQrCode: String(s?.nepalQrCode || ''),
   currency: String(s?.currency || 'INR').toUpperCase(),
   location: String(s?.location || ''),
   language: String(s?.language || 'Hindi'),
@@ -183,6 +189,19 @@ export default function AdminWorkshopSchedulesPage() {
 
     const [creating, setCreating] = useState(false);
     const [createForm, setCreateForm] = useState<CreateForm>(emptyCreateForm());
+
+    // Nepal QR modal state
+    const [nepalQrModal, setNepalQrModal] = useState<{
+      isOpen: boolean;
+      scheduleId: string | null;
+      currentQrUrl: string;
+    }>({
+      isOpen: false,
+      scheduleId: null,
+      currentQrUrl: '',
+    });
+    const [nepalQrUrl, setNepalQrUrl] = useState('');
+    const [savingNepalQr, setSavingNepalQr] = useState(false);
 
     useEffect(() => {
       const token = localStorage.getItem('adminToken') || '';
@@ -375,6 +394,31 @@ export default function AdminWorkshopSchedulesPage() {
       setEditForm(emptyEditForm());
     };
 
+    const openNepalQrModal = (s: AdminSchedule) => {
+      setNepalQrModal({ isOpen: true, scheduleId: s.id, currentQrUrl: s.nepalQrCode || '' });
+      setNepalQrUrl(s.nepalQrCode || '');
+    };
+
+    const saveNepalQr = async () => {
+      if (!nepalQrModal.scheduleId) return;
+      setSavingNepalQr(true);
+      try {
+        const res = await fetch('/api/admin/workshops/schedules/crud', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: nepalQrModal.scheduleId, nepalQrCode: nepalQrUrl }),
+        });
+        if (!res.ok) throw new Error('Failed to save Nepal QR');
+        setSchedules(prev => prev.map(s => s.id === nepalQrModal.scheduleId ? { ...s, nepalQrCode: nepalQrUrl } : s));
+        setNepalQrModal({ isOpen: false, scheduleId: null, currentQrUrl: '' });
+        setNepalQrUrl('');
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Failed to save Nepal QR');
+      } finally {
+        setSavingNepalQr(false);
+      }
+    };
+
     const startCreate = () => {
       if (!selectedWorkshopSlug) {
         setError('Please select a workshop first');
@@ -441,6 +485,7 @@ export default function AdminWorkshopSchedulesPage() {
           seatsTotal: createForm.seatsTotal === '' ? undefined : Number(createForm.seatsTotal),
           price: createForm.price === '' ? undefined : Number(createForm.price),
           price3Month: createForm.price3Month === '' ? undefined : Number(createForm.price3Month),
+          priceNPR: createForm.priceNPR === '' ? undefined : Number(createForm.priceNPR),
           location: createForm.location,
           // Save creates a Draft (then Publish makes it visible on public pages).
           status: 'draft' as const,
@@ -516,6 +561,7 @@ export default function AdminWorkshopSchedulesPage() {
           seatsTotal: editForm.seatsTotal === '' ? undefined : Number(editForm.seatsTotal),
           price: editForm.price === '' ? undefined : Number(editForm.price),
           price3Month: editForm.price3Month === '' ? undefined : Number(editForm.price3Month),
+          priceNPR: editForm.priceNPR === '' ? undefined : Number(editForm.priceNPR),
           currency: String(editForm.currency || 'INR').toUpperCase(),
           location: editForm.location,
           language: editForm.language,
@@ -1016,6 +1062,16 @@ export default function AdminWorkshopSchedulesPage() {
                                               className="w-20 rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
                                             />
                                           </div>
+                                          <div className="flex flex-col gap-1">
+                                            <span className="text-xs text-purple-700">NPR Price</span>
+                                            <input
+                                              type="number"
+                                              value={createForm.priceNPR}
+                                              onChange={(e) => setCreateForm((p) => ({ ...p, priceNPR: e.target.value }))}
+                                              placeholder="0"
+                                              className="w-20 rounded-lg border border-purple-300 bg-white px-2 py-1 text-sm font-semibold"
+                                            />
+                                          </div>
                                           <select
                                             value={createForm.currency}
                                             onChange={(e) => setCreateForm((p) => ({ ...p, currency: e.target.value }))}
@@ -1207,6 +1263,16 @@ export default function AdminWorkshopSchedulesPage() {
                                                   className="w-20 rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
                                                 />
                                               </div>
+                                              <div className="flex flex-col gap-1">
+                                                <span className="text-xs text-purple-700">NPR</span>
+                                                <input
+                                                  type="number"
+                                                  value={editForm.priceNPR}
+                                                  onChange={(e) => setEditForm((p) => ({ ...p, priceNPR: e.target.value }))}
+                                                  placeholder="0"
+                                                  className="w-16 rounded-lg border border-purple-300 bg-white px-2 py-1 text-sm font-semibold"
+                                                />
+                                              </div>
                                               <select
                                                 value={editForm.currency}
                                                 onChange={(e) => setEditForm((p) => ({ ...p, currency: e.target.value }))}
@@ -1274,6 +1340,15 @@ export default function AdminWorkshopSchedulesPage() {
                                                 <button
                                                   type="button"
                                                   disabled={busy}
+                                                  onClick={() => openNepalQrModal(s)}
+                                                  className="rounded-lg bg-purple-600 px-3 py-2 text-xs font-bold text-white hover:bg-purple-700 disabled:opacity-60"
+                                                  title="Manage Nepal QR Code"
+                                                >
+                                                  Nepal QR
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  disabled={busy}
                                                   onClick={() => deleteSchedule(s.id)}
                                                   className="rounded-lg bg-red-600 px-3 py-2 text-xs font-bold text-white hover:bg-red-700 disabled:opacity-60"
                                                   title="Delete this workshop schedule"
@@ -1320,5 +1395,49 @@ export default function AdminWorkshopSchedulesPage() {
           </main>
         </div>
       </div>
+
+      {/* Nepal QR Modal */}
+      {nepalQrModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="mx-4 w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+            <h3 className="mb-4 text-lg font-semibold text-gray-900">Nepal QR Code</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">QR Code Image URL</label>
+                <input
+                  type="text"
+                  value={nepalQrUrl}
+                  onChange={(e) => setNepalQrUrl(e.target.value)}
+                  placeholder="https://example.com/qr-code.png"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                />
+              </div>
+              {nepalQrUrl && (
+                <div className="text-center">
+                  <p className="mb-2 text-xs text-gray-500">Preview:</p>
+                  <img src={nepalQrUrl} alt="Nepal QR Preview" className="mx-auto max-h-48 rounded border" />
+                </div>
+              )}
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setNepalQrModal({ isOpen: false, scheduleId: null, currentQrUrl: '' })}
+                  className="rounded-lg bg-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={saveNepalQr}
+                  disabled={savingNepalQr}
+                  className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-60"
+                >
+                  {savingNepalQr ? 'Saving…' : 'Save QR Code'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     );
   }

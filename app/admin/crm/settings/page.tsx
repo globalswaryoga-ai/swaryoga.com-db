@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
 interface AutoConfig {
@@ -60,15 +60,38 @@ const DEFAULTS: AutoConfig = {
   rateLimitMaxPerMinute: 30,
 };
 
-type Tab = 'general' | 'hours' | 'replies' | 'ai' | 'leads' | 'notifications';
+type Tab = 'general' | 'hours' | 'replies' | 'ai' | 'leads' | 'notifications' | 'storage';
 
 export default function AutoConfigSettingsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [config, setConfig] = useState<AutoConfig>(DEFAULTS);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('general');
+  
+  // Storage usage state
+  const [storageData, setStorageData] = useState<{
+    dataSize: { display: string };
+    storageSize: { display: string };
+    indexSize: { display: string };
+    totalGB: number;
+    monthlyCost: number;
+    monthlyCostUSD: number;
+    collectionCount: number;
+    topCollections: Array<{ name: string; size: { display: string }; count: number }>;
+    dbName: string;
+  } | null>(null);
+  const [loadingStorage, setLoadingStorage] = useState(false);
+  
+  // Read tab from URL query params
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab && ['general', 'hours', 'replies', 'ai', 'leads', 'notifications', 'storage'].includes(tab)) {
+      setActiveTab(tab as Tab);
+    }
+  }, [searchParams]);
 
   const getToken = () => {
     if (typeof window === 'undefined') return null;
@@ -144,7 +167,34 @@ export default function AutoConfigSettingsPage() {
     { id: 'ai', label: 'AI Agent', icon: '🤖' },
     { id: 'leads', label: 'Lead Mgmt', icon: '👥' },
     { id: 'notifications', label: 'Notifications', icon: '🔔' },
+    { id: 'storage', label: 'Storage', icon: '💾' },
   ];
+
+  // Fetch storage data when storage tab is active
+  useEffect(() => {
+    if (activeTab !== 'storage' || storageData) return;
+    const token = getToken();
+    if (!token) return;
+
+    setLoadingStorage(true);
+    (async () => {
+      try {
+        const res = await fetch('/api/admin/crm/storage-usage', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.data) {
+            setStorageData(data.data);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load storage data:', err);
+      } finally {
+        setLoadingStorage(false);
+      }
+    })();
+  }, [activeTab, storageData]);
 
   if (loading) {
     return (
@@ -467,6 +517,113 @@ export default function AutoConfigSettingsPage() {
                 onChange={v => update('notifyEmail', v)}
                 placeholder="admin@swaryoga.com"
               />
+            </div>
+          )}
+
+          {/* ---- STORAGE ---- */}
+          {activeTab === 'storage' && (
+            <div className="space-y-6">
+              <SectionHeader title="Database Storage Usage" desc="Monitor your MongoDB storage usage across collections." />
+
+              {loadingStorage ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
+                </div>
+              ) : storageData ? (
+                <>
+                  {/* Overview Cards */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-xl p-4">
+                      <div className="text-blue-600 text-xs font-medium uppercase tracking-wide">Data Size</div>
+                      <div className="text-2xl font-bold text-blue-900 mt-1">{storageData.dataSize.display}</div>
+                    </div>
+                    <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-xl p-4">
+                      <div className="text-purple-600 text-xs font-medium uppercase tracking-wide">Storage Size</div>
+                      <div className="text-2xl font-bold text-purple-900 mt-1">{storageData.storageSize.display}</div>
+                    </div>
+                    <div className="bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 rounded-xl p-4">
+                      <div className="text-amber-600 text-xs font-medium uppercase tracking-wide">Index Size</div>
+                      <div className="text-2xl font-bold text-amber-900 mt-1">{storageData.indexSize.display}</div>
+                    </div>
+                    <div className="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-xl p-4">
+                      <div className="text-green-600 text-xs font-medium uppercase tracking-wide">Collections</div>
+                      <div className="text-2xl font-bold text-green-900 mt-1">{storageData.collectionCount}</div>
+                    </div>
+                  </div>
+
+                  {/* Cost Information */}
+                  <div className="bg-gradient-to-r from-gray-50 to-gray-100 border border-gray-200 rounded-xl p-5">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-semibold text-gray-900">Total Usage: {storageData.totalGB.toFixed(3)} GB</h3>
+                        <p className="text-sm text-gray-500 mt-1">Database: {storageData.dbName}</p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm text-gray-500">Estimated Cost</div>
+                        <div className="flex items-center gap-3 mt-1">
+                          <span className="text-lg font-bold text-indigo-600">₹{storageData.monthlyCost}/mo</span>
+                          <span className="text-gray-400">|</span>
+                          <span className="text-lg font-bold text-green-600">${storageData.monthlyCostUSD}/mo</span>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1">₹35/GB • $0.42/GB</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Top Collections */}
+                  <div>
+                    <h3 className="font-semibold text-gray-900 mb-3">📊 Top Collections by Size</h3>
+                    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                      <table className="w-full">
+                        <thead className="bg-gray-50 border-b border-gray-200">
+                          <tr>
+                            <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wide">Collection</th>
+                            <th className="text-right px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wide">Size</th>
+                            <th className="text-right px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wide">Documents</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {storageData.topCollections.map((col, idx) => (
+                            <tr key={col.name} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-2">
+                                  <span className={`w-2 h-2 rounded-full ${
+                                    idx === 0 ? 'bg-red-500' : idx === 1 ? 'bg-orange-500' : idx === 2 ? 'bg-yellow-500' : 'bg-gray-300'
+                                  }`} />
+                                  <span className="font-mono text-sm text-gray-900">{col.name}</span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <span className="font-semibold text-gray-900">{col.size.display}</span>
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <span className="text-gray-600">{col.count.toLocaleString()}</span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Info Note */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-700">
+                    <strong>💡 Note:</strong> Storage costs are based on MongoDB Atlas pricing. Admins don&apos;t need to pay directly — this is for monitoring purposes. Large collections use more storage.
+                  </div>
+
+                  {/* Refresh Button */}
+                  <button
+                    onClick={() => { setStorageData(null); }}
+                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    🔄 Refresh Storage Data
+                  </button>
+                </>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  Failed to load storage data. <button onClick={() => setStorageData(null)} className="text-indigo-600 underline">Retry</button>
+                </div>
+              )}
             </div>
           )}
         </div>
