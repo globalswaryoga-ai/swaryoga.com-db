@@ -662,6 +662,7 @@ export default function AdminWorkshopSchedulesPage() {
     };
 
     return (
+      <>
       <div className="flex h-screen bg-swar-primary-light">
         <AdminSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
@@ -1439,5 +1440,6 @@ export default function AdminWorkshopSchedulesPage() {
           </div>
         </div>
       )}
+      </>
     );
   }

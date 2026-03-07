@@ -1,6 +1,0 @@
-[WEBHOOK] Failed (500): {
-  success: false,
-  error: 'WhatsAppMessage validation failed: sentAt: Cast to date failed for value "Invalid Date" (type Date) at path "sentAt"',
-  code: 'SERVER_ERROR',
-  timestamp: '2026-03-05T16:51:20.267Z'
-}

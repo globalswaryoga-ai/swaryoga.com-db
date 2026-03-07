@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -17,7 +17,7 @@ interface ScheduleData {
   nepalQrCode: string;
 }
 
-export default function PayNepalPage() {
+function PayNepalContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const scheduleId = searchParams.get('scheduleId');
@@ -232,5 +232,20 @@ export default function PayNepalPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function PayNepalPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-purple-50 to-white">
+        <div className="text-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-purple-600 border-t-transparent mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading payment page...</p>
+        </div>
+      </div>
+    }>
+      <PayNepalContent />
+    </Suspense>
   );
 }
