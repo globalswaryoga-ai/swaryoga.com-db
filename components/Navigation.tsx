@@ -101,7 +101,7 @@ export default function Navigation() {
       <div className="bg-gradient-to-r from-swar-primary to-green-700 text-white py-2 px-4 hidden lg:block">
         <div className="container mx-auto flex items-center justify-between text-sm">
           <div className="flex items-center space-x-2">
-            <span>Contact: globalswaryoga@gmail.com</span>
+            <span>Contact: mohan@swaryoga.com</span>
           </div>
           <div className="flex items-center space-x-4">
             <span>Transform Your Life Through Yoga</span>

@@ -100,8 +100,8 @@ export default function RefundsAndCancellationsPage() {
                   <h2 className="text-xl font-semibold text-gray-900">5. Contact</h2>
                   <p className="mt-2">
                     For cancellations and refunds, email{' '}
-                    <a className="text-primary-700 font-semibold hover:underline" href="mailto:globalswaryoga@gmail.com">
-                      globalswaryoga@gmail.com
+                    <a className="text-primary-700 font-semibold hover:underline" href="mailto:mohan@swaryoga.com">
+                      mohan@swaryoga.com
                     </a>{' '}
                     or call <span className="font-semibold">+91 9779006820</span>.
                   </p>
