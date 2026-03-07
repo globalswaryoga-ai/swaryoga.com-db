@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import CashfreePaymentButton from '@/components/CashfreePaymentButton';
-import { CartItem, getStoredCart, updateCartItemQuantity, removeCartItem } from '@/lib/cart';
+import { CartItem, getStoredCart, updateCartItemQuantity, removeCartItem, persistCart } from '@/lib/cart';
 import { BANK_ACCOUNT_DETAILS, getWhatsAppLink } from '@/lib/bankTransferConfig';
 
 export default function EnhancedCheckoutPage() {
@@ -14,6 +14,15 @@ export default function EnhancedCheckoutPage() {
   const [paymentMethod, setPaymentMethod] = useState<'cashfree' | 'bank'>('cashfree');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  
+  // Pricing selection: track which items use 3-month pricing
+  const [pricingSelection, setPricingSelection] = useState<Record<string, '1month' | '3month'>>({});
+  
+  // Promo code state
+  const [promoCode, setPromoCode] = useState('');
+  const [promoDiscount, setPromoDiscount] = useState(0);
+  const [promoError, setPromoError] = useState('');
+  const [promoApplied, setPromoApplied] = useState(false);
 
   const [formData, setFormData] = useState({
     firstName: '',
@@ -83,9 +92,20 @@ export default function EnhancedCheckoutPage() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Calculate subtotal with repeat purchase discount (40% off for repeat purchases)
+  // Get item price based on pricing selection (1-month or 3-month)
+  const getItemPrice = (item: CartItem) => {
+    const selection = pricingSelection[item.id] || '1month';
+    const price3Month = item.metadata?.price3Month as number | undefined;
+    
+    if (selection === '3month' && price3Month && price3Month > 0) {
+      return price3Month;
+    }
+    return item.price;
+  };
+
+  // Calculate subtotal with pricing selection and repeat purchase discount
   const subtotal = cartItems.reduce((sum, item) => {
-    let itemPrice = item.price;
+    let itemPrice = getItemPrice(item);
     
     // Apply 40% discount for repeat purchases
     if (item.isRepeatPurchase) {
@@ -95,8 +115,44 @@ export default function EnhancedCheckoutPage() {
     return sum + itemPrice * item.quantity;
   }, 0);
   
-  const tax = parseFloat((subtotal * 0.025).toFixed(2)); // 2.5% Service Charges
-  const total = parseFloat((subtotal + tax).toFixed(2));
+  // Apply promo discount
+  const subtotalAfterPromo = promoApplied ? subtotal * (1 - promoDiscount / 100) : subtotal;
+  const tax = parseFloat((subtotalAfterPromo * 0.025).toFixed(2)); // 2.5% Service Charges
+  const total = parseFloat((subtotalAfterPromo + tax).toFixed(2));
+
+  // Handle promo code application
+  const handleApplyPromo = async () => {
+    if (!promoCode.trim()) {
+      setPromoError('Please enter a promo code');
+      return;
+    }
+    
+    setPromoError('');
+    
+    // Simple promo codes - can be extended to fetch from API
+    const promoCodes: Record<string, number> = {
+      'SWAR10': 10,
+      'YOGA20': 20,
+      'WELCOME15': 15,
+      'NAMASTE25': 25,
+    };
+    
+    const discount = promoCodes[promoCode.toUpperCase()];
+    if (discount) {
+      setPromoDiscount(discount);
+      setPromoApplied(true);
+      setPromoError('');
+    } else {
+      setPromoError('Invalid promo code');
+      setPromoDiscount(0);
+      setPromoApplied(false);
+    }
+  };
+
+  // Handle pricing selection change
+  const handlePricingChange = (itemId: string, selection: '1month' | '3month') => {
+    setPricingSelection(prev => ({ ...prev, [itemId]: selection }));
+  };
 
   const isFormValid = 
     formData.firstName &&
@@ -251,74 +307,174 @@ export default function EnhancedCheckoutPage() {
               <div className="bg-white rounded-2xl shadow-lg p-8 mb-8 mt-8">
                 <h2 className="text-2xl font-bold text-gray-900 mb-6">📦 Your Items</h2>
                 <div className="space-y-4">
-                  {cartItems.map((item) => (
-                    <div key={item.id} className="flex items-center justify-between p-4 border-2 border-gray-200 rounded-lg hover:border-yoga-400 transition-colors">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="font-semibold text-gray-900">{item.name}</p>
-                          {item.isRepeatPurchase && (
-                            <span className="bg-green-100 text-green-800 text-xs font-bold px-2 py-1 rounded">
-                              40% OFF
+                  {cartItems.map((item) => {
+                    const price3Month = item.metadata?.price3Month as number | undefined;
+                    const has3MonthOption = price3Month && price3Month > 0;
+                    const selectedPricing = pricingSelection[item.id] || '1month';
+                    const currentPrice = getItemPrice(item);
+                    
+                    return (
+                      <div key={item.id} className="p-4 border-2 border-gray-200 rounded-lg hover:border-yoga-400 transition-colors">
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <p className="font-semibold text-gray-900">{item.name}</p>
+                              {item.isRepeatPurchase && (
+                                <span className="bg-green-100 text-green-800 text-xs font-bold px-2 py-1 rounded">
+                                  40% OFF
+                                </span>
+                              )}
+                            </div>
+                            {item.metadata?.startDate && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                📅 Starts: {new Date(item.metadata.startDate as string).toLocaleDateString('en-IN')}
+                                {item.metadata?.time && ` • ⏰ ${item.metadata.time}`}
+                              </p>
+                            )}
+                          </div>
+                          
+                          <div className="flex items-center gap-3">
+                            {/* Quantity Controls */}
+                            <div className="flex items-center border-2 border-gray-300 rounded-lg">
+                              <button
+                                onClick={() => {
+                                  if (item.quantity > 1) {
+                                    updateCartItemQuantity(item.id, item.quantity - 1);
+                                    setCartItems(getStoredCart());
+                                  }
+                                }}
+                                className="px-3 py-1 text-gray-600 hover:text-gray-900 transition-colors"
+                              >
+                                −
+                              </button>
+                              <span className="px-4 py-1 font-semibold text-gray-900">{item.quantity}</span>
+                              <button
+                                onClick={() => {
+                                  updateCartItemQuantity(item.id, item.quantity + 1);
+                                  setCartItems(getStoredCart());
+                                }}
+                                className="px-3 py-1 text-gray-600 hover:text-gray-900 transition-colors"
+                              >
+                                +
+                              </button>
+                            </div>
+
+                            {/* Subtotal */}
+                            <span className="font-bold text-yoga-600 w-28 text-right">
+                              {item.currency || 'INR'} {(
+                                (item.isRepeatPurchase ? currentPrice * 0.6 : currentPrice) * item.quantity
+                              ).toLocaleString('en-IN')}
                             </span>
-                          )}
-                        </div>
-                        <p className="text-sm text-gray-600">
-                          {item.currency} {item.price.toFixed(2)} each
-                          {item.isRepeatPurchase && (
-                            <span className="ml-2 text-green-600 font-semibold">
-                              → {item.currency} {(item.price * 0.6).toFixed(2)} (repeat)
-                            </span>
-                          )}
-                        </p>
-                      </div>
-                      
-                      <div className="flex items-center gap-3">
-                        {/* Quantity Controls */}
-                        <div className="flex items-center border-2 border-gray-300 rounded-lg">
-                          <button
-                            onClick={() => {
-                              if (item.quantity > 1) {
-                                updateCartItemQuantity(item.id, item.quantity - 1);
+
+                            {/* Remove Button */}
+                            <button
+                              onClick={() => {
+                                removeCartItem(item.id);
                                 setCartItems(getStoredCart());
-                              }
-                            }}
-                            className="px-3 py-1 text-gray-600 hover:text-gray-900 transition-colors"
-                          >
-                            −
-                          </button>
-                          <span className="px-4 py-1 font-semibold text-gray-900">{item.quantity}</span>
-                          <button
-                            onClick={() => {
-                              updateCartItemQuantity(item.id, item.quantity + 1);
-                              setCartItems(getStoredCart());
-                            }}
-                            className="px-3 py-1 text-gray-600 hover:text-gray-900 transition-colors"
-                          >
-                            +
-                          </button>
+                              }}
+                              className="px-3 py-1 text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
+                            >
+                              ✕
+                            </button>
+                          </div>
                         </div>
-
-                        {/* Subtotal */}
-                        <span className="font-bold text-yoga-600 w-24 text-right">
-                          {item.currency} {(
-                            (item.isRepeatPurchase ? item.price * 0.6 : item.price) * item.quantity
-                          ).toFixed(2)}
-                        </span>
-
-                        {/* Remove Button */}
-                        <button
-                          onClick={() => {
-                            removeCartItem(item.id);
-                            setCartItems(getStoredCart());
-                          }}
-                          className="px-3 py-1 text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
-                        >
-                          ✕
-                        </button>
+                        
+                        {/* Pricing Selection (1-month vs 3-month) */}
+                        {has3MonthOption && (
+                          <div className="mt-4 pt-4 border-t border-gray-100">
+                            <p className="text-sm font-semibold text-gray-700 mb-2">Select Payment Plan:</p>
+                            <div className="flex gap-3">
+                              <label 
+                                className={`flex-1 flex items-center gap-2 p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                                  selectedPricing === '1month' 
+                                    ? 'border-yoga-600 bg-yoga-50' 
+                                    : 'border-gray-200 hover:border-gray-300'
+                                }`}
+                              >
+                                <input
+                                  type="radio"
+                                  name={`pricing-${item.id}`}
+                                  checked={selectedPricing === '1month'}
+                                  onChange={() => handlePricingChange(item.id, '1month')}
+                                  className="w-4 h-4"
+                                />
+                                <div>
+                                  <p className="font-bold text-gray-900">1 Month</p>
+                                  <p className="text-sm text-gray-600">₹{item.price.toLocaleString('en-IN')}/month</p>
+                                </div>
+                              </label>
+                              <label 
+                                className={`flex-1 flex items-center gap-2 p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                                  selectedPricing === '3month' 
+                                    ? 'border-yoga-600 bg-yoga-50' 
+                                    : 'border-gray-200 hover:border-gray-300'
+                                }`}
+                              >
+                                <input
+                                  type="radio"
+                                  name={`pricing-${item.id}`}
+                                  checked={selectedPricing === '3month'}
+                                  onChange={() => handlePricingChange(item.id, '3month')}
+                                  className="w-4 h-4"
+                                />
+                                <div>
+                                  <p className="font-bold text-gray-900">3 Months</p>
+                                  <p className="text-sm text-green-600">₹{price3Month.toLocaleString('en-IN')} total</p>
+                                  <p className="text-xs text-green-700">Save ₹{((item.price * 3) - price3Month).toLocaleString('en-IN')}!</p>
+                                </div>
+                              </label>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
+              </div>
+
+              {/* Promo Code */}
+              <div className="bg-white rounded-2xl shadow-lg p-8">
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">🎁 Promo Code</h2>
+                <div className="flex gap-3">
+                  <input
+                    type="text"
+                    placeholder="Enter promo code"
+                    value={promoCode}
+                    onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                    disabled={promoApplied}
+                    className={`flex-1 px-4 py-3 border-2 rounded-lg focus:outline-none transition-colors ${
+                      promoApplied 
+                        ? 'border-green-300 bg-green-50' 
+                        : 'border-gray-300 focus:border-yoga-600'
+                    }`}
+                  />
+                  {promoApplied ? (
+                    <button
+                      onClick={() => {
+                        setPromoCode('');
+                        setPromoDiscount(0);
+                        setPromoApplied(false);
+                        setPromoError('');
+                      }}
+                      className="px-6 py-3 bg-red-100 text-red-700 font-bold rounded-lg hover:bg-red-200 transition-colors"
+                    >
+                      Remove
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleApplyPromo}
+                      className="px-6 py-3 bg-yoga-600 text-white font-bold rounded-lg hover:bg-yoga-700 transition-colors"
+                    >
+                      Apply
+                    </button>
+                  )}
+                </div>
+                {promoError && (
+                  <p className="text-red-600 text-sm mt-2">❌ {promoError}</p>
+                )}
+                {promoApplied && (
+                  <p className="text-green-600 text-sm mt-2 font-semibold">✅ Promo code applied! {promoDiscount}% off</p>
+                )}
               </div>
 
               {/* Payment Method */}
@@ -417,6 +573,15 @@ export default function EnhancedCheckoutPage() {
                     <span>Subtotal</span>
                     <span className="font-semibold">₹{subtotal.toLocaleString('en-IN')}</span>
                   </div>
+                  
+                  {/* Show promo discount if applied */}
+                  {promoApplied && promoDiscount > 0 && (
+                    <div className="flex justify-between text-green-600 font-semibold">
+                      <span>🎁 Promo Discount ({promoDiscount}%)</span>
+                      <span>-₹{(subtotal * promoDiscount / 100).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+                    </div>
+                  )}
+                  
                   <div className="flex justify-between text-gray-700">
                     <span>Service Charges (2.5%)</span>
                     <span className="font-semibold">₹{tax.toLocaleString('en-IN')}</span>
@@ -433,8 +598,8 @@ export default function EnhancedCheckoutPage() {
                       <span>-₹{(
                         cartItems
                           .filter(item => item.isRepeatPurchase)
-                          .reduce((sum, item) => sum + (item.price * 0.4 * item.quantity), 0)
-                      ).toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>
+                          .reduce((sum, item) => sum + (getItemPrice(item) * 0.4 * item.quantity), 0)
+                      ).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
                     </div>
                   )}
                 </div>

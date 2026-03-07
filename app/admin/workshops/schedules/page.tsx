@@ -30,6 +30,7 @@ type AdminSchedule = {
   registrationCloseDate?: string | null;
   location?: string;
   price?: number;
+  price3Month?: number;
   currency?: string;
   status?: ScheduleStatus;
 };
@@ -44,6 +45,7 @@ type EditForm = {
   endTime: string;
   seatsTotal: string;
   price: string;
+  price3Month: string;
   currency: string;
   location: string;
   language: string;
@@ -146,6 +148,7 @@ const emptyEditForm = (s?: AdminSchedule): EditForm => ({
   endTime: String(s?.endTime || ''),
   seatsTotal: String(s?.seatsTotal ?? ''),
   price: String(s?.price ?? ''),
+  price3Month: String(s?.price3Month ?? ''),
   currency: String(s?.currency || 'INR').toUpperCase(),
   location: String(s?.location || ''),
   language: String(s?.language || 'Hindi'),
@@ -437,6 +440,7 @@ export default function AdminWorkshopSchedulesPage() {
           endTime: createForm.endTime,
           seatsTotal: createForm.seatsTotal === '' ? undefined : Number(createForm.seatsTotal),
           price: createForm.price === '' ? undefined : Number(createForm.price),
+          price3Month: createForm.price3Month === '' ? undefined : Number(createForm.price3Month),
           location: createForm.location,
           // Save creates a Draft (then Publish makes it visible on public pages).
           status: 'draft' as const,
@@ -511,6 +515,7 @@ export default function AdminWorkshopSchedulesPage() {
           endTime: editForm.endTime,
           seatsTotal: editForm.seatsTotal === '' ? undefined : Number(editForm.seatsTotal),
           price: editForm.price === '' ? undefined : Number(editForm.price),
+          price3Month: editForm.price3Month === '' ? undefined : Number(editForm.price3Month),
           currency: String(editForm.currency || 'INR').toUpperCase(),
           location: editForm.location,
           language: editForm.language,
@@ -923,7 +928,7 @@ export default function AdminWorkshopSchedulesPage() {
                                   <th className="px-4 py-3 text-left font-bold text-swar-text">Batch</th>
                                   <th className="px-4 py-3 text-left font-bold text-swar-text">Language</th>
                                   <th className="px-4 py-3 text-left font-bold text-swar-text">Time</th>
-                                  <th className="px-4 py-3 text-left font-bold text-swar-text">Fees</th>
+                                  <th className="px-4 py-3 text-left font-bold text-swar-text">Fees (1M / 3M)</th>
                                   <th className="px-4 py-3 text-left font-bold text-swar-text">Seats</th>
                                   <th className="px-4 py-3 text-left font-bold text-swar-text">Status</th>
                                   <th className="px-4 py-3 text-left font-bold text-swar-text">Actions</th>
@@ -993,12 +998,24 @@ export default function AdminWorkshopSchedulesPage() {
                                     <td className="px-4 py-3 whitespace-nowrap font-semibold">
                                       <div className="flex flex-col gap-2">
                                         <div className="flex items-center gap-2">
-                                          <input
-                                            type="number"
-                                            value={createForm.price}
-                                            onChange={(e) => setCreateForm((p) => ({ ...p, price: e.target.value }))}
-                                            className="w-24 rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
-                                          />
+                                          <div className="flex flex-col gap-1">
+                                            <span className="text-xs text-swar-text">1 Month</span>
+                                            <input
+                                              type="number"
+                                              value={createForm.price}
+                                              onChange={(e) => setCreateForm((p) => ({ ...p, price: e.target.value }))}
+                                              className="w-20 rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
+                                            />
+                                          </div>
+                                          <div className="flex flex-col gap-1">
+                                            <span className="text-xs text-swar-text">3 Month</span>
+                                            <input
+                                              type="number"
+                                              value={createForm.price3Month}
+                                              onChange={(e) => setCreateForm((p) => ({ ...p, price3Month: e.target.value }))}
+                                              className="w-20 rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
+                                            />
+                                          </div>
                                           <select
                                             value={createForm.currency}
                                             onChange={(e) => setCreateForm((p) => ({ ...p, currency: e.target.value }))}
@@ -1073,7 +1090,7 @@ export default function AdminWorkshopSchedulesPage() {
                                   filteredSchedules.map((s) => {
                                     const published = (s.status || 'draft') === 'published';
                                     const timeText = s.time || [s.startTime, s.endTime].filter(Boolean).join(' - ') || '';
-                                    const feesText = `₹${Number(s.price || 0).toLocaleString('en-IN')} ${String(
+                                    const feesText = `₹${Number(s.price || 0).toLocaleString('en-IN')}${s.price3Month ? ' / ₹' + Number(s.price3Month).toLocaleString('en-IN') : ''} ${String(
                                       s.currency || 'INR'
                                     ).toUpperCase()}`;
                                     const editing = editingId === s.id;
@@ -1172,12 +1189,24 @@ export default function AdminWorkshopSchedulesPage() {
                                         <td className="px-4 py-3 whitespace-nowrap font-semibold">
                                           {editing ? (
                                             <div className="flex items-center gap-2">
-                                              <input
-                                                type="number"
-                                                value={editForm.price}
-                                                onChange={(e) => setEditForm((p) => ({ ...p, price: e.target.value }))}
-                                                className="w-24 rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
-                                              />
+                                              <div className="flex flex-col gap-1">
+                                                <span className="text-xs text-swar-text">1M</span>
+                                                <input
+                                                  type="number"
+                                                  value={editForm.price}
+                                                  onChange={(e) => setEditForm((p) => ({ ...p, price: e.target.value }))}
+                                                  className="w-20 rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
+                                                />
+                                              </div>
+                                              <div className="flex flex-col gap-1">
+                                                <span className="text-xs text-swar-text">3M</span>
+                                                <input
+                                                  type="number"
+                                                  value={editForm.price3Month}
+                                                  onChange={(e) => setEditForm((p) => ({ ...p, price3Month: e.target.value }))}
+                                                  className="w-20 rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
+                                                />
+                                              </div>
                                               <select
                                                 value={editForm.currency}
                                                 onChange={(e) => setEditForm((p) => ({ ...p, currency: e.target.value }))}

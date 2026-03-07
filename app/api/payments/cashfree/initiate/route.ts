@@ -189,6 +189,13 @@ export async function POST(request: NextRequest) {
         details: 'Server configuration error - Cashfree credentials missing'
       };
       console.error('🔴 CRITICAL: Cashfree credentials are missing or using placeholder values!');
+    } else if (message.includes('403') || message.includes('Forbidden')) {
+      statusCode = 403;
+      errorResponse = { 
+        error: 'Payment gateway access denied. Please contact support.',
+        details: message 
+      };
+      console.error('🔴 Cashfree 403 Forbidden: Check credentials and environment settings');
     } else if (message.includes('authentication') || message.includes('UNAUTHORIZED') || message.includes('401')) {
       statusCode = 401;
       errorResponse = { 

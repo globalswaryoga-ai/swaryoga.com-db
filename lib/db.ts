@@ -913,6 +913,7 @@ const workshopScheduleSchema = new mongoose.Schema(
     registrationCloseDate: { type: Date, required: false },
     location: { type: String, default: '' },
     price: { type: Number, default: 0 },
+    price3Month: { type: Number, default: 0 },
     currency: { type: String, enum: ['INR', 'USD', 'NPR'], default: 'INR', index: true },
     status: { type: String, enum: ['draft', 'published'], default: 'draft', index: true },
     publishedAt: { type: Date, required: false },

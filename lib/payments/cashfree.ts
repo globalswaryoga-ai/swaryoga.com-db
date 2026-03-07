@@ -152,6 +152,15 @@ export async function cashfreeCreateOrder(
     if (!res.ok) {
       const msg = (json as any)?.message || (json as any)?.error || text || 'Cashfree create order failed';
       console.error(`❌ Cashfree API Error (${res.status}):`, msg);
+      
+      // Provide more helpful error for common status codes
+      if (res.status === 403) {
+        throw new Error(`Cashfree 403 Forbidden: Check if credentials are correct for ${getCashfreeEnv()} environment, IP is whitelisted, and account is active.`);
+      }
+      if (res.status === 401) {
+        throw new Error(`Cashfree 401 UNAUTHORIZED: Invalid or expired credentials for ${getCashfreeEnv()} environment.`);
+      }
+      
       throw new Error(msg);
     }
 

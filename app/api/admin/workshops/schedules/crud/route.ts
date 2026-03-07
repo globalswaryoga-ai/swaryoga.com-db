@@ -88,6 +88,7 @@ export async function POST(request: NextRequest) {
       registrationCloseDate: toDateOrUndefined(body.registrationCloseDate || body.registration_close_date),
       location: String(body.location || ''),
       price: Number.isFinite(Number(body.price)) ? Number(body.price) : 0,
+      price3Month: Number.isFinite(Number(body.price3Month)) ? Number(body.price3Month) : 0,
       currency,
       status: body.status === 'published' ? 'published' : 'draft',
       publishedAt: body.status === 'published' ? new Date() : undefined,

@@ -9,6 +9,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { workshopCatalog, WorkshopOverview, workshopDetails } from '@/lib/workshopsData';
 import { getWorkshopPaymentLink } from '@/lib/workshops/workshopPaymentConfig';
+import { addCartItem } from '@/lib/cart';
 
 export const dynamic = 'force-dynamic';
 
@@ -67,6 +68,7 @@ type ApiWorkshopSchedule = {
   slots: number;
   duration?: string;
   price: number;
+  price3Month?: number;
   currency?: string;
 };
 
@@ -484,7 +486,7 @@ function WorkshopsPageInner() {
         </section>
 
         {/* Workshops Grid */}
-        <section className="py-8 sm:py-16 md:py-24 bg-gray-50">
+        <section className="py-8 sm:py-16 md:py-24 bg-gray-50 overflow-x-hidden">
           <div className="container mx-auto px-4 sm:px-6 max-w-6xl">
             <div className="text-center mb-8 sm:mb-12 md:mb-16">
               <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-800 mb-2 sm:mb-4">
@@ -558,7 +560,7 @@ function WorkshopsPageInner() {
                       </div>
 
                       {/* Schedule Rows */}
-                      <div className="divide-y divide-gray-100">
+                      <div className="divide-y divide-gray-100 overflow-x-auto">
                         {byMonth[monthKey].map((item, idx) => {
                           const { workshop, schedule } = item;
                           const isOpen = schedule.slots > 0;
@@ -570,13 +572,13 @@ function WorkshopsPageInner() {
                           return (
                             <div key={`${workshop.slug}-${schedule.id}-${idx}`} className="hover:bg-gray-50 transition-colors">
                               {/* Desktop View - 2 Rows */}
-                              <div className="hidden md:block">
+                              <div className="hidden md:block min-w-[800px]">
                                 {/* Row 1: Workshop Info */}
                                 <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-gray-50/50 border-b border-gray-100">
                                   <div className="col-span-2 text-sm font-semibold text-gray-600">
                                     {getMonthYear(schedule.startDate).split(' ')[0]}
                                   </div>
-                                  <div className="col-span-4 text-sm font-bold text-gray-900">
+                                  <div className="col-span-4 text-sm font-bold text-gray-900 truncate" title={workshop.name}>
                                     {workshop.name}
                                   </div>
                                   <div className="col-span-2 text-sm text-gray-700 flex items-center gap-1">
@@ -616,12 +618,24 @@ function WorkshopsPageInner() {
                                       type="button"
                                       disabled={status !== 'Open'}
                                       onClick={() => {
-                                        const paymentLink = getWorkshopPaymentLink(workshop.slug, 'online', 'hindi');
-                                        if (paymentLink) {
-                                          window.open(paymentLink, '_blank');
-                                        } else {
-                                          router.push(`/registration/online/hindi/${workshop.slug}`);
-                                        }
+                                        // Add to cart and redirect to checkout
+                                        addCartItem({
+                                          id: `${workshop.slug}-${schedule.id}`,
+                                          name: workshop.name,
+                                          price: schedule.price,
+                                          quantity: 1,
+                                          currency: (schedule.currency || 'INR') as 'INR' | 'USD' | 'NPR',
+                                          workshopSlug: workshop.slug,
+                                          scheduleId: schedule.id,
+                                          language: schedule.language,
+                                          mode: schedule.mode,
+                                          metadata: {
+                                            startDate: schedule.startDate,
+                                            time: schedule.time,
+                                            price3Month: schedule.price3Month,
+                                          },
+                                        });
+                                        router.push('/checkout-enhanced');
                                       }}
                                       className={`inline-flex items-center gap-1 px-4 py-2 rounded-lg text-sm font-bold transition ${
                                         status === 'Open'
@@ -675,12 +689,24 @@ function WorkshopsPageInner() {
                                     type="button"
                                     disabled={status !== 'Open'}
                                     onClick={() => {
-                                      const paymentLink = getWorkshopPaymentLink(workshop.slug, 'online', 'hindi');
-                                      if (paymentLink) {
-                                        window.open(paymentLink, '_blank');
-                                      } else {
-                                        router.push(`/registration/online/hindi/${workshop.slug}`);
-                                      }
+                                      // Add to cart and redirect to checkout
+                                      addCartItem({
+                                        id: `${workshop.slug}-${schedule.id}`,
+                                        name: workshop.name,
+                                        price: schedule.price,
+                                        quantity: 1,
+                                        currency: (schedule.currency || 'INR') as 'INR' | 'USD' | 'NPR',
+                                        workshopSlug: workshop.slug,
+                                        scheduleId: schedule.id,
+                                        language: schedule.language,
+                                        mode: schedule.mode,
+                                        metadata: {
+                                          startDate: schedule.startDate,
+                                          time: schedule.time,
+                                          price3Month: schedule.price3Month,
+                                        },
+                                      });
+                                      router.push('/checkout-enhanced');
                                     }}
                                     className={`flex-1 inline-flex items-center justify-center gap-1 px-3 py-2.5 rounded-lg text-sm font-bold transition ${
                                       status === 'Open'
