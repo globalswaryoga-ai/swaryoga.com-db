@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, Order } from '@/lib/db';
+import { connectDB, Order, WorkshopSchedule, WorkshopSeatInventory } from '@/lib/db';
 import { cashfreeGetOrder } from '@/lib/payments/cashfree';
 
 // Cashfree return handler.
@@ -57,6 +57,44 @@ export async function GET(request: NextRequest) {
         },
       }
     );
+
+    // ✅ Decrement slot count when payment is completed (only if not already adjusted)
+    if (paymentStatus === 'completed' && !(order as any).seatInventoryAdjusted) {
+      try {
+        const items = (order as any).items || [];
+        for (const item of items) {
+          if (item.scheduleId) {
+            const quantity = item.quantity || 1;
+            
+            // First try to update WorkshopSeatInventory
+            const inventoryResult = await WorkshopSeatInventory.findOneAndUpdate(
+              { scheduleId: item.scheduleId, seatsRemaining: { $gte: quantity } },
+              { $inc: { seatsRemaining: -quantity }, $set: { updatedAt: new Date() } },
+              { new: true }
+            );
+            
+            if (inventoryResult) {
+              console.log(`✅ Decremented ${quantity} seat(s) for schedule ${item.scheduleId}. Remaining: ${inventoryResult.seatsRemaining}`);
+            } else {
+              // Fallback: update seatsTotal directly on WorkshopSchedule
+              const scheduleResult = await WorkshopSchedule.findByIdAndUpdate(
+                item.scheduleId,
+                { $inc: { seatsTotal: -quantity } },
+                { new: true }
+              );
+              if (scheduleResult) {
+                console.log(`✅ Decremented ${quantity} seat(s) for schedule ${item.scheduleId}. Remaining: ${(scheduleResult as any).seatsTotal}`);
+              }
+            }
+          }
+        }
+        
+        // Mark order as adjusted
+        await Order.updateOne({ _id: order._id }, { $set: { seatInventoryAdjusted: true } });
+      } catch (seatError) {
+        console.error('⚠️ Failed to adjust seat inventory:', seatError);
+      }
+    }
 
     if (paymentStatus === 'completed') {
       const success = new URL('/payment-success', url.origin);

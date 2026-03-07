@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, Order } from '@/lib/db';
+import { connectDB, Order, WorkshopSchedule, WorkshopSeatInventory } from '@/lib/db';
 import { cashfreeGetOrder } from '@/lib/payments/cashfree';
 import { notifyPaymentConfirmation } from '@/lib/notifications';
 
@@ -81,6 +81,46 @@ export async function POST(request: NextRequest) {
 
     // ✅ If payment succeeded, create customer lead automatically
     if (paymentStatus === 'completed') {
+      // ✅ Decrement slot count for each workshop schedule in the order (only once)
+      if (!(order as any).seatInventoryAdjusted) {
+        try {
+          const items = (order as any).items || [];
+          for (const item of items) {
+            if (item.scheduleId) {
+              const quantity = item.quantity || 1;
+              
+              // First try to update WorkshopSeatInventory
+              const inventoryResult = await WorkshopSeatInventory.findOneAndUpdate(
+                { scheduleId: item.scheduleId, seatsRemaining: { $gte: quantity } },
+                { $inc: { seatsRemaining: -quantity }, $set: { updatedAt: new Date() } },
+                { new: true }
+              );
+              
+              if (inventoryResult) {
+                console.log(`✅ Decremented ${quantity} seat(s) for schedule ${item.scheduleId}. Remaining: ${inventoryResult.seatsRemaining}`);
+              } else {
+                // Fallback: update seatsTotal directly on WorkshopSchedule (treating it as remaining)
+                const scheduleResult = await WorkshopSchedule.findByIdAndUpdate(
+                  item.scheduleId,
+                  { $inc: { seatsTotal: -quantity } },
+                  { new: true }
+                );
+                if (scheduleResult) {
+                  console.log(`✅ Decremented ${quantity} seat(s) for schedule ${item.scheduleId}. Remaining: ${(scheduleResult as any).seatsTotal}`);
+                }
+              }
+            }
+          }
+          
+          // Mark order as adjusted to prevent double-counting
+          (order as any).seatInventoryAdjusted = true;
+          await order.save();
+        } catch (seatError) {
+          console.error('⚠️ Failed to adjust seat inventory:', seatError);
+          // Don't fail webhook if seat adjustment fails
+        }
+      }
+
       // Fire-and-forget: Send payment confirmation email
       try {
         const shippingAddress = (order as any).shippingAddress || {};
