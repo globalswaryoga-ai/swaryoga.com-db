@@ -27,6 +27,8 @@ export const dynamic = 'force-dynamic';
  *     address?: string;
  *   }>;
  *   assignedToUserId?: string;   // super-admin override
+ *   dryRun?: boolean;            // if true, just check duplicates without importing
+ *   updateDuplicates?: boolean;  // if true, update existing leads with new CSV data
  * }
  */
 export async function POST(request: NextRequest) {
@@ -43,6 +45,8 @@ export async function POST(request: NextRequest) {
     const superAdmin = isSuperAdmin(decoded);
     const body = await request.json();
     const contacts: any[] = Array.isArray(body?.contacts) ? body.contacts : [];
+    const dryRun = body?.dryRun === true;
+    const updateDuplicates = body?.updateDuplicates === true;
 
     if (contacts.length === 0) {
       return NextResponse.json({ error: 'No contacts provided' }, { status: 400 });
@@ -57,7 +61,15 @@ export async function POST(request: NextRequest) {
     await connectDB();
     const Lead = getLead();
 
-    const results = { imported: 0, skipped: 0, duplicates: 0, failed: 0, errors: [] as any[] };
+    const results = { 
+      imported: 0, 
+      skipped: 0, 
+      duplicates: 0, 
+      updated: 0,
+      failed: 0, 
+      errors: [] as any[],
+      duplicateDetails: [] as any[],  // Details of what can be updated
+    };
     const seenPhones = new Set<string>();
 
     for (const c of contacts) {
@@ -86,16 +98,66 @@ export async function POST(request: NextRequest) {
         // Check for existing lead - exact match only (no country code manipulation)
         const existing = await Lead.findOne({ phoneNumber });
         if (existing) {
-          // Update fields that are currently empty
-          let updated = false;
-          const name = String(c.name || '').trim();
-          const email = String(c.email || '').trim();
-          const workshopName = String(c.workshopName || '').trim();
-          if (name && !existing.name) { existing.name = name; updated = true; }
-          if (email && !existing.email) { existing.email = email; updated = true; }
-          if (workshopName && !existing.workshopName) { existing.workshopName = workshopName; updated = true; }
-          if (updated) await existing.save();
+          const csvName = String(c.name || '').trim();
+          const csvEmail = String(c.email || '').trim();
+          const csvWorkshop = String(c.workshopName || '').trim();
+          const csvSource = String(c.source || '').trim();
+          const csvAddress = String(c.address || '').trim();
+
+          // Check what fields can be updated (CSV has value, existing is empty or different)
+          const updatableFields: any = {};
+          if (csvName && csvName !== existing.name) {
+            updatableFields.name = { from: existing.name || '(empty)', to: csvName };
+          }
+          if (csvEmail && csvEmail !== existing.email) {
+            updatableFields.email = { from: existing.email || '(empty)', to: csvEmail };
+          }
+          if (csvWorkshop && csvWorkshop !== existing.workshopName) {
+            updatableFields.workshopName = { from: existing.workshopName || '(empty)', to: csvWorkshop };
+          }
+          if (csvSource && csvSource !== existing.source) {
+            updatableFields.source = { from: existing.source || '(empty)', to: csvSource };
+          }
+          if (csvAddress && csvAddress !== existing.address) {
+            updatableFields.address = { from: existing.address || '(empty)', to: csvAddress };
+          }
+
+          const hasUpdates = Object.keys(updatableFields).length > 0;
+
+          if (hasUpdates) {
+            results.duplicateDetails.push({
+              phoneNumber,
+              existingName: existing.name || '',
+              csvName,
+              updatableFields,
+            });
+          }
+
+          // If not dry run and updateDuplicates is true, perform the update
+          if (!dryRun && updateDuplicates && hasUpdates) {
+            if (csvName && csvName !== existing.name) existing.name = csvName;
+            if (csvEmail && csvEmail !== existing.email) existing.email = csvEmail;
+            if (csvWorkshop && csvWorkshop !== existing.workshopName) existing.workshopName = csvWorkshop;
+            if (csvSource && csvSource !== existing.source) existing.source = csvSource;
+            if (csvAddress && csvAddress !== existing.address) existing.address = csvAddress;
+            await existing.save();
+            results.updated++;
+          } else if (!dryRun && !updateDuplicates) {
+            // Old behavior: only update empty fields
+            let updated = false;
+            if (csvName && !existing.name) { existing.name = csvName; updated = true; }
+            if (csvEmail && !existing.email) { existing.email = csvEmail; updated = true; }
+            if (csvWorkshop && !existing.workshopName) { existing.workshopName = csvWorkshop; updated = true; }
+            if (updated) await existing.save();
+          }
+
           results.duplicates++;
+          continue;
+        }
+
+        // In dry run mode, don't create new leads
+        if (dryRun) {
+          results.imported++; // Count as would-be-imported
           continue;
         }
 
@@ -137,7 +199,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ success: true, data: results }, { status: 200 });
+    return NextResponse.json({ success: true, data: results, dryRun }, { status: 200 });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to bulk-import leads';
     return NextResponse.json({ error: message }, { status: 500 });

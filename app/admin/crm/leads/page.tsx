@@ -86,6 +86,10 @@ export default function LeadsPage() {
   const [adminUsersList, setAdminUsersList] = useState<Array<{ userId: string; name: string; email?: string; role?: string }>>([]);
   const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
   const [duplicateLead, setDuplicateLead] = useState<any>(null);
+  const [duplicatesForUpdate, setDuplicatesForUpdate] = useState<any[]>([]);
+  const [showDuplicateUpdateModal, setShowDuplicateUpdateModal] = useState(false);
+  const [pendingImportPayload, setPendingImportPayload] = useState<any>(null);
+  const [pendingImportNewCount, setPendingImportNewCount] = useState(0);
 
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
   // Determine if bulk actions should be visible
@@ -1316,6 +1320,172 @@ export default function LeadsPage() {
         </div>
       )}
 
+      {/* Duplicate Update Confirmation Modal */}
+      {showDuplicateUpdateModal && duplicatesForUpdate.length > 0 && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-xl flex items-center justify-center z-50">
+          <div className="bg-gradient-to-br from-[#1a1a1a] to-[#111] border border-yellow-500/30 rounded-2xl p-6 max-w-3xl w-full space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="text-center">
+              <div className="text-4xl mb-2">📋</div>
+              <h2 className="text-xl font-bold text-yellow-400">
+                {duplicatesForUpdate.length} Existing Lead{duplicatesForUpdate.length > 1 ? 's' : ''} Found with New Data
+              </h2>
+              {pendingImportNewCount > 0 && (
+                <p className="text-green-400 text-sm mt-1">
+                  + {pendingImportNewCount} new lead{pendingImportNewCount > 1 ? 's' : ''} will be imported
+                </p>
+              )}
+            </div>
+            
+            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 max-h-[40vh] overflow-y-auto space-y-3">
+              {duplicatesForUpdate.slice(0, 10).map((dup, idx) => (
+                <div key={idx} className="bg-white/5 rounded-lg p-3 border border-white/10">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-yellow-400 font-bold">📱 {dup.phoneNumber}</span>
+                    {dup.existingName && <span className="text-gray-400 text-sm">({dup.existingName})</span>}
+                  </div>
+                  <div className="space-y-1">
+                    {Object.entries(dup.updatableFields || {}).map(([field, change]: [string, any]) => (
+                      <div key={field} className="text-sm flex items-center gap-2">
+                        <span className="text-gray-500 capitalize w-24">{field}:</span>
+                        <span className="text-red-400/70 line-through">{change.from}</span>
+                        <span className="text-gray-500">→</span>
+                        <span className="text-green-400 font-medium">{change.to}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              {duplicatesForUpdate.length > 10 && (
+                <p className="text-gray-400 text-sm text-center">
+                  ... and {duplicatesForUpdate.length - 10} more
+                </p>
+              )}
+            </div>
+
+            <p className="text-gray-400 text-sm text-center">
+              Do you want to update these existing leads with the new data from your CSV?
+            </p>
+
+            <div className="flex gap-2">
+              <button
+                onClick={async () => {
+                  // Update existing + import new
+                  setCsvImporting(true);
+                  setShowDuplicateUpdateModal(false);
+                  try {
+                    const res = await fetch('/api/admin/crm/leads/bulk-import', {
+                      method: 'POST',
+                      headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify({
+                        contacts: pendingImportPayload,
+                        ...(csvAssignAdmin ? { assignedToUserId: csvAssignAdmin } : {}),
+                        updateDuplicates: true,
+                      }),
+                    });
+
+                    const data = await res.json();
+                    if (res.ok && data.success) {
+                      let msg = `✅ Imported ${data.data.imported} new leads!`;
+                      if (data.data.updated > 0) msg += `\n🔄 Updated ${data.data.updated} existing leads`;
+                      if (data.data.duplicates > 0 && data.data.duplicates !== data.data.updated) {
+                        msg += `\n📋 ${data.data.duplicates - (data.data.updated || 0)} duplicates (no changes)`;
+                      }
+                      if (data.data.skipped > 0) msg += `\n⚠️ ${data.data.skipped} invalid (phone errors)`;
+                      alert(msg);
+                      setBulkImportModalOpen(false);
+                      setCsvContacts([]);
+                      setCsvColumnMap(null);
+                      setCsvFileName('');
+                      setCsvWorkshopOverride('');
+                      setCsvSourceOverride('');
+                      setCsvAssignAdmin('');
+                      fetchMetadata();
+                      fetchLeads();
+                    } else {
+                      alert(`Error: ${data.error || 'Import failed'}`);
+                    }
+                  } catch (err) {
+                    alert(`Upload failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+                  } finally {
+                    setCsvImporting(false);
+                    setDuplicatesForUpdate([]);
+                    setPendingImportPayload(null);
+                    setPendingImportNewCount(0);
+                  }
+                }}
+                className="flex-1 bg-green-500 border border-green-400/50 text-white px-4 py-2.5 rounded-xl hover:bg-green-400 transition-all duration-300 font-bold shadow-lg"
+              >
+                ✅ Yes, Update Existing
+              </button>
+              <button
+                onClick={async () => {
+                  // Import new only, skip duplicates
+                  setCsvImporting(true);
+                  setShowDuplicateUpdateModal(false);
+                  try {
+                    const res = await fetch('/api/admin/crm/leads/bulk-import', {
+                      method: 'POST',
+                      headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify({
+                        contacts: pendingImportPayload,
+                        ...(csvAssignAdmin ? { assignedToUserId: csvAssignAdmin } : {}),
+                        updateDuplicates: false,
+                      }),
+                    });
+
+                    const data = await res.json();
+                    if (res.ok && data.success) {
+                      let msg = `✅ Imported ${data.data.imported} new leads!`;
+                      if (data.data.duplicates > 0) msg += `\n📋 ${data.data.duplicates} already exist (skipped)`;
+                      if (data.data.skipped > 0) msg += `\n⚠️ ${data.data.skipped} invalid (phone errors)`;
+                      alert(msg);
+                      setBulkImportModalOpen(false);
+                      setCsvContacts([]);
+                      setCsvColumnMap(null);
+                      setCsvFileName('');
+                      setCsvWorkshopOverride('');
+                      setCsvSourceOverride('');
+                      setCsvAssignAdmin('');
+                      fetchMetadata();
+                      fetchLeads();
+                    } else {
+                      alert(`Error: ${data.error || 'Import failed'}`);
+                    }
+                  } catch (err) {
+                    alert(`Upload failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+                  } finally {
+                    setCsvImporting(false);
+                    setDuplicatesForUpdate([]);
+                    setPendingImportPayload(null);
+                    setPendingImportNewCount(0);
+                  }
+                }}
+                className="flex-1 bg-gray-500/20 border border-gray-500/50 text-gray-300 px-4 py-2.5 rounded-xl hover:bg-gray-500/30 transition-all duration-300 font-medium"
+              >
+                ⏭️ Skip, Import New Only
+              </button>
+              <button
+                onClick={() => {
+                  setShowDuplicateUpdateModal(false);
+                  setDuplicatesForUpdate([]);
+                  setPendingImportPayload(null);
+                  setPendingImportNewCount(0);
+                }}
+                className="bg-white/5 border border-white/20 text-white px-4 py-2.5 rounded-xl hover:bg-white/10 transition-all duration-300 font-medium"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Bulk Import Modal */}
       {bulkImportModalOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-xl flex items-center justify-center z-50">
@@ -1496,7 +1666,7 @@ export default function LeadsPage() {
                     Ready to import {csvContacts.length} contacts as leads
                   </p>
                   <p className="text-gray-400 text-xs">
-                    Duplicate phone numbers will be skipped. Missing fields will be filled later.
+                    Existing leads with new data will be shown for review before updating.
                   </p>
                 </div>
               </>
@@ -1543,6 +1713,42 @@ export default function LeadsPage() {
                       return row;
                     });
 
+                    // First, do a dry-run to check for duplicates with updatable fields
+                    const dryRunRes = await fetch('/api/admin/crm/leads/bulk-import', {
+                      method: 'POST',
+                      headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify({
+                        contacts: payload,
+                        ...(csvAssignAdmin ? { assignedToUserId: csvAssignAdmin } : {}),
+                        dryRun: true,
+                      }),
+                    });
+
+                    const dryRunData = await dryRunRes.json();
+                    
+                    if (!dryRunRes.ok || !dryRunData.success) {
+                      alert(`Error: ${dryRunData.error || 'Dry run failed'}`);
+                      setCsvImporting(false);
+                      return;
+                    }
+
+                    const duplicateDetails = dryRunData.data?.duplicateDetails || [];
+                    const newLeadsCount = dryRunData.data?.imported || 0;
+
+                    // If there are duplicates with updatable fields, show confirmation modal
+                    if (duplicateDetails.length > 0) {
+                      setDuplicatesForUpdate(duplicateDetails);
+                      setPendingImportPayload(payload);
+                      setPendingImportNewCount(newLeadsCount);
+                      setShowDuplicateUpdateModal(true);
+                      setCsvImporting(false);
+                      return;
+                    }
+
+                    // No updatable duplicates, proceed with normal import
                     const res = await fetch('/api/admin/crm/leads/bulk-import', {
                       method: 'POST',
                       headers: {
@@ -1589,7 +1795,7 @@ export default function LeadsPage() {
                 }}
                 className="flex-1 bg-green-500 border border-green-400/50 text-white px-4 py-2.5 rounded-xl hover:bg-green-400 transition-all duration-300 font-bold disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-green-500/20"
               >
-                {csvImporting ? '⏳ Importing...' : `Import ${csvContacts.length} Leads`}
+                {csvImporting ? '⏳ Checking...' : `Import ${csvContacts.length} Leads`}
               </button>
               <button
                 onClick={() => {
