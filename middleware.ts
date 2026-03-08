@@ -373,8 +373,24 @@ function isOriginAllowed(origin: string | null): boolean {
 // ---------------------------------------------------------------------------
 // LAYER 6 — Security headers
 // ---------------------------------------------------------------------------
-// NOTE: CSP temporarily relaxed for development. Re-enable strict CSP after testing.
-const CSP = [
+// Toggle: Set STRICT_CSP=true in env to enable strict protection
+// For development: STRICT_CSP=false or not set
+const STRICT_CSP_ENABLED = process.env.STRICT_CSP === 'true';
+
+const STRICT_CSP_RULES = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.cashfree.com https://*.payu.in https://www.googletagmanager.com https://unpkg.com https://connect.facebook.net https://vercel.live https://*.vercel.live",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com",
+  "img-src 'self' data: https: blob:",
+  "font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com data:",
+  "connect-src 'self' https://*.cashfree.com https://*.payu.in https://*.googleapis.com https://*.awsapprunner.com https://vercel.live https://*.vercel.live wss://*.vercel.live",
+  "frame-src 'self' https://*.cashfree.com https://*.payu.in https://vercel.live",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join('; ');
+
+const RELAXED_CSP_RULES = [
   "default-src 'self' https: wss:",
   "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:",
   "style-src 'self' 'unsafe-inline' https:",
@@ -386,6 +402,8 @@ const CSP = [
   "base-uri 'self'",
   "form-action 'self' https:",
 ].join('; ');
+
+const CSP = STRICT_CSP_ENABLED ? STRICT_CSP_RULES : RELAXED_CSP_RULES;
 
 function applySecurityHeaders(res: NextResponse, requestId: string, pathname: string, searchParams: URLSearchParams): void {
   res.headers.set('X-Request-Id', requestId);
