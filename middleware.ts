@@ -135,11 +135,11 @@ interface IPReputation {
 }
 
 const reputationMap = new Map<string, IPReputation>();
-const REPUTATION_BLOCK_THRESHOLD = 90;
-const REPUTATION_HIGH_RISK = 60;
-const REPUTATION_SUSPICIOUS = 30;
-const REPUTATION_DECAY_PER_REQ = 1;       // how much score drops per clean req
-const REPUTATION_DECAY_INTERVAL_MS = 5 * 60 * 1000; // score decays 10 pts per 5min idle
+const REPUTATION_BLOCK_THRESHOLD = 150;  // Increased from 90 to reduce false positives
+const REPUTATION_HIGH_RISK = 100;
+const REPUTATION_SUSPICIOUS = 50;
+const REPUTATION_DECAY_PER_REQ = 2;      // how much score drops per clean req (faster decay)
+const REPUTATION_DECAY_INTERVAL_MS = 3 * 60 * 1000; // score decays 10 pts per 3min idle (more aggressive decay)
 
 function getReputation(ip: string): IPReputation {
   let rep = reputationMap.get(ip);
