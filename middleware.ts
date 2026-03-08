@@ -471,8 +471,9 @@ export function middleware(request: NextRequest) {
   // ── Localhost bypass for development ──
   const isLocalDev = !IS_PRODUCTION && (ip === '127.0.0.1' || ip === '::1' || ip === 'unknown' || ip === 'localhost');
   
-  // Admin routes should bypass security blocks (they have their own auth)
-  const isAdminPath = path.startsWith('/admin') || path.startsWith('/api/admin');
+  // Admin/CRM routes should bypass security blocks (they have their own auth)
+  const isAdminPath = path.startsWith('/admin') || path.startsWith('/api/admin') || 
+                      path.startsWith('/crm-site') || path.startsWith('/api/crm-site');
 
   // Skip ALL security layers for localhost development
   if (isLocalDev) {
