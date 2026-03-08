@@ -19,7 +19,8 @@ function jsonResponse(data: any, status = 200) {
 /**
  * POST /api/crm-site/setup-payment
  * 
- * Initiates the ₹30 setup payment for CRM activation
+ * Initiates the storage plan payment for CRM activation
+ * Accepts: planId, amount, storageMB (optional - defaults to ₹30/500MB starter plan)
  */
 export async function POST(request: NextRequest) {
   try {
@@ -39,10 +40,21 @@ export async function POST(request: NextRequest) {
       body = {};
     }
 
-    const { email, name, phone } = body;
+    const { email, name, phone, planId = 'starter', amount = 30, storageMB = 500 } = body;
     const userEmail = email || decoded.email || '';
     const userName = name || decoded.name || decoded.userId || 'User';
     const userPhone = phone || '';
+
+    // Plan configurations
+    const PLANS: Record<string, { name: string; storage: number; price: number }> = {
+      starter: { name: 'Starter', storage: 500, price: 30 },
+      growth: { name: 'Growth', storage: 2048, price: 99 },
+      pro: { name: 'Professional', storage: 10240, price: 349 },
+    };
+
+    const plan = PLANS[planId] || PLANS.starter;
+    const paymentAmount = plan.price;
+    const storageLimit = plan.storage;
 
     await connectDB();
 
@@ -73,8 +85,11 @@ export async function POST(request: NextRequest) {
       email: userEmail,
       name: userName,
       phone: userPhone,
-      amount: 30,
+      amount: paymentAmount,
       currency: 'INR',
+      planId: planId,
+      planName: plan.name,
+      storageMB: storageLimit,
       status: 'pending',
       createdAt: new Date(),
     });
@@ -95,16 +110,25 @@ export async function POST(request: NextRequest) {
           { $set: { status: 'completed', paidAt: new Date() } }
         );
         
-        // Update user's setup status
+        // Update user's setup status with plan info
         await crmDb.collection('admin_users').updateOne(
           { $or: [{ userId: decoded.userId }, { email: decoded.email }] },
-          { $set: { setupComplete: true, setupPaidAt: new Date() } }
+          { 
+            $set: { 
+              setupComplete: true, 
+              setupPaidAt: new Date(),
+              planId: planId,
+              planName: plan.name,
+              storageLimitMB: storageLimit,
+              storageUsedMB: 0,
+            } 
+          }
         );
 
         return jsonResponse({
           success: true,
           testMode: true,
-          message: 'Setup completed (test mode - no payment required)',
+          message: `Setup completed (test mode - ${plan.name} plan with ${storageLimit}MB storage)`,
         });
       }
 
@@ -116,7 +140,7 @@ export async function POST(request: NextRequest) {
     
     const orderPayload = {
       order_id: orderId,
-      order_amount: 30,
+      order_amount: paymentAmount,
       order_currency: 'INR',
       customer_details: {
         customer_id: (decoded.userId || decoded.email || '').substring(0, 50),

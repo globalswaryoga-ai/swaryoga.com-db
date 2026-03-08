@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
@@ -21,6 +22,9 @@ export async function GET(request: NextRequest) {
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!isSuperAdmin(decoded)) {
+      return NextResponse.json({ error: 'Forbidden: Superadmin access required for Meta status' }, { status: 403 });
     }
 
     const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;

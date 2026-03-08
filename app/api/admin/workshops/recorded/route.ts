@@ -109,6 +109,10 @@ export async function POST(request: NextRequest) {
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized - Admin access required' }, { status: 401 });
     }
+    // Creating recorded workshops - superadmin only
+    if (!isSuperAdmin(decoded)) {
+      return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
+    }
 
     await connectDB();
 

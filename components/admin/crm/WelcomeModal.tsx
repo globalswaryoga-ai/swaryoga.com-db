@@ -83,10 +83,10 @@ export default function WelcomeModal({
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
                 <div className="flex items-center gap-2 mb-2">
                   <CreditCard className="h-5 w-5 text-amber-600" />
-                  <p className="font-semibold text-amber-800">One-time Setup Fee: ₹30</p>
+                  <p className="font-semibold text-amber-800">Storage Required: ₹30 for 500MB</p>
                 </div>
                 <p className="text-sm text-amber-700">
-                  To activate your account and secure your data storage, a one-time setup fee of ₹30 is required.
+                  To use all features and pages of the CRM, you need to purchase minimum 500MB storage for just ₹30.
                 </p>
               </div>
 
@@ -94,7 +94,7 @@ export default function WelcomeModal({
                 onClick={() => setStep('payment')}
                 className="w-full bg-gradient-to-r from-swar-primary to-emerald-500 text-white py-3 px-6 rounded-xl font-semibold flex items-center justify-center gap-2 hover:shadow-lg transition-all"
               >
-                Continue to Setup
+                Buy Storage & Continue
                 <ArrowRight className="h-5 w-5" />
               </button>
 
@@ -163,18 +163,18 @@ function SetupPaymentStep({ onProceed }: { onProceed: () => void }) {
         <CreditCard className="h-10 w-10 text-swar-primary" />
       </div>
       
-      <h3 className="text-xl font-bold text-gray-900 mb-2">Complete Setup Payment</h3>
+      <h3 className="text-xl font-bold text-gray-900 mb-2">Purchase Storage</h3>
       <p className="text-gray-500 text-sm mb-6">
-        Pay ₹30 one-time fee to activate your CRM account
+        Buy 500MB storage for ₹30 to unlock all CRM features
       </p>
 
       <div className="bg-gray-50 rounded-xl p-4 mb-6">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-gray-600">CRM Setup Fee</span>
+          <span className="text-gray-600">500MB Cloud Storage</span>
           <span className="font-semibold text-gray-900">₹30.00</span>
         </div>
         <div className="flex items-center justify-between text-sm">
-          <span className="text-gray-500">Data storage activation</span>
+          <span className="text-gray-500">All features unlocked</span>
           <span className="text-green-600">Included</span>
         </div>
       </div>
@@ -197,7 +197,7 @@ function SetupPaymentStep({ onProceed }: { onProceed: () => void }) {
           </>
         ) : (
           <>
-            Pay ₹30 & Activate
+            Pay ₹30 & Get Storage
             <ArrowRight className="h-5 w-5" />
           </>
         )}

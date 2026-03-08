@@ -19,7 +19,7 @@ export const PAGE_SETUP_CONFIG: Record<string, PageSetupConfig> = {
   '/admin/crm': {
     title: 'Dashboard',
     requirements: [
-      { key: 'setupPaid', label: 'Complete setup payment (₹30)', required: true },
+      { key: 'setupPaid', label: 'Buy 500MB Storage (₹30)', required: true },
     ],
     tutorialVideo: 'https://www.youtube.com/embed/your-dashboard-video',
     tutorialPdf: '/tutorials/crm-dashboard-guide.pdf',
@@ -28,7 +28,7 @@ export const PAGE_SETUP_CONFIG: Record<string, PageSetupConfig> = {
   '/admin/crm/leads': {
     title: 'Lead Management',
     requirements: [
-      { key: 'setupPaid', label: 'Complete setup payment (₹30)', required: true },
+      { key: 'setupPaid', label: 'Buy 500MB Storage (₹30)', required: true },
     ],
     tutorialVideo: 'https://www.youtube.com/embed/your-leads-video',
     tutorialPdf: '/tutorials/lead-management-guide.pdf',
@@ -37,7 +37,7 @@ export const PAGE_SETUP_CONFIG: Record<string, PageSetupConfig> = {
   '/admin/crm/meta': {
     title: 'WhatsApp Inbox',
     requirements: [
-      { key: 'setupPaid', label: 'Complete setup payment (₹30)', required: true },
+      { key: 'setupPaid', label: 'Buy 500MB Storage (₹30)', required: true },
       { key: 'whatsappConnected', label: 'Connect WhatsApp Business API', required: true },
       { key: 'whatsappTemplates', label: 'Create message templates', required: false },
     ],
@@ -48,7 +48,7 @@ export const PAGE_SETUP_CONFIG: Record<string, PageSetupConfig> = {
   '/admin/crm/calls': {
     title: 'AI Voice Calls',
     requirements: [
-      { key: 'setupPaid', label: 'Complete setup payment (₹30)', required: true },
+      { key: 'setupPaid', label: 'Buy 500MB Storage (₹30)', required: true },
       { key: 'retellConnected', label: 'Connect Retell AI account', required: true },
     ],
     tutorialVideo: 'https://www.youtube.com/embed/your-calls-video',
@@ -58,7 +58,7 @@ export const PAGE_SETUP_CONFIG: Record<string, PageSetupConfig> = {
   '/admin/crm/settings': {
     title: 'Settings',
     requirements: [
-      { key: 'setupPaid', label: 'Complete setup payment (₹30)', required: true },
+      { key: 'setupPaid', label: 'Buy 500MB Storage (₹30)', required: true },
     ],
     tutorialVideo: 'https://www.youtube.com/embed/your-settings-video',
     tutorialPdf: '/tutorials/settings-guide.pdf',
@@ -67,7 +67,7 @@ export const PAGE_SETUP_CONFIG: Record<string, PageSetupConfig> = {
   '/admin/crm/broadcasts': {
     title: 'Broadcasts',
     requirements: [
-      { key: 'setupPaid', label: 'Complete setup payment (₹30)', required: true },
+      { key: 'setupPaid', label: 'Buy 500MB Storage (₹30)', required: true },
       { key: 'whatsappConnected', label: 'Connect WhatsApp Business API', required: true },
       { key: 'whatsappTemplates', label: 'Create approved templates', required: true },
     ],
@@ -113,6 +113,7 @@ export default function PageSetupChecklist({
 }: PageSetupChecklistProps) {
   const [expanded, setExpanded] = useState(true);
   const [showVideo, setShowVideo] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
   const [setupStatus, setSetupStatus] = useState<UserSetupStatus>({
     setupPaid: false,
     whatsappConnected: false,
@@ -295,23 +296,30 @@ export default function PageSetupChecklist({
       </div>
 
       {/* Locked Overlay - show when required setup not complete */}
-      {!loading && !setupStatus.setupPaid && (
+      {!loading && !setupStatus.setupPaid && !dismissed && (
         <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm flex items-center justify-center pointer-events-none">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md mx-4 text-center pointer-events-auto">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md mx-4 text-center pointer-events-auto relative">
+            <button
+              onClick={() => setDismissed(true)}
+              className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 transition"
+              title="Close"
+            >
+              <X className="h-6 w-6" />
+            </button>
             <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <Lock className="h-8 w-8 text-amber-600" />
             </div>
             <h3 className="text-xl font-bold text-gray-900 mb-2">
-              Complete Setup to Continue
+              Buy Storage to Continue
             </h3>
             <p className="text-gray-500 mb-6">
-              To access {pageConfig.title}, please complete the one-time setup payment of ₹30.
+              To access {pageConfig.title}, please purchase minimum 500MB storage for ₹30 to use all pages and features.
             </p>
             <button
               onClick={onPaymentClick}
               className="w-full bg-gradient-to-r from-swar-primary to-emerald-500 text-white py-3 px-6 rounded-xl font-semibold hover:shadow-lg transition-all"
             >
-              Pay ₹30 & Activate
+              Buy Storage (₹30)
             </button>
           </div>
         </div>

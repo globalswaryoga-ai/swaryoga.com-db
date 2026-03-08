@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 import { getTallyManualVoucher } from '@/lib/schemas/enterpriseSchemas';
 
 function unauthorized() {
@@ -29,6 +30,9 @@ export async function GET(request: NextRequest) {
     if (!authHeader?.startsWith('Bearer ')) return unauthorized();
     const decoded = verifyToken(authHeader.split(' ')[1]);
     if (!decoded || !decoded.isAdmin) return unauthorized();
+    if (!isSuperAdmin(decoded)) {
+      return NextResponse.json({ error: 'Forbidden: Superadmin access required for Tally data' }, { status: 403 });
+    }
 
     await connectDB();
     const ManualVoucher = getTallyManualVoucher();
@@ -64,6 +68,9 @@ export async function POST(request: NextRequest) {
     if (!authHeader?.startsWith('Bearer ')) return unauthorized();
     const decoded = verifyToken(authHeader.split(' ')[1]);
     if (!decoded || !decoded.isAdmin) return unauthorized();
+    if (!isSuperAdmin(decoded)) {
+      return NextResponse.json({ error: 'Forbidden: Superadmin access required for Tally data' }, { status: 403 });
+    }
 
     await connectDB();
     const ManualVoucher = getTallyManualVoucher();

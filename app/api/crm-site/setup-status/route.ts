@@ -142,6 +142,12 @@ export async function GET(request: NextRequest) {
       isFirstLogin: !user?.lastLoginAt || user?.loginCount <= 1,
       loginCount: user?.loginCount || 1,
       
+      // Storage info
+      storageUsedMB: user?.storageUsedMB || 0,
+      storageLimitMB: user?.storageLimitMB || 500, // Default 500MB
+      planName: user?.planName || 'Free Trial',
+      planId: user?.planId || '',
+
       // Overall progress
       overallProgress: calculateProgress({
         setupPaid: user?.setupComplete || !!paymentComplete,

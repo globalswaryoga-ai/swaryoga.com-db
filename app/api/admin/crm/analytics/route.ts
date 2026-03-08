@@ -97,18 +97,22 @@ export async function GET(request: NextRequest) {
                 ...( hasDateRange ? { sentAt: dateRange } : {}),
                 // Would need lead join for accurate count - use estimate for now
               }),
-          // Count Meta messages
-          WhatsAppMessage.countDocuments({
-            provider: 'meta',
-            direction: 'outbound',
-            ...(hasDateRange ? { sentAt: dateRange } : {}),
-          }),
-          // Count QR/Bridge messages
-          WhatsAppMessage.countDocuments({
-            provider: 'whatsapp_web_bridge',
-            direction: 'outbound',
-            ...(hasDateRange ? { sentAt: dateRange } : {}),
-          }),
+          // Count Meta messages - ONLY for superadmin (this is global business account data)
+          superAdmin
+            ? WhatsAppMessage.countDocuments({
+                provider: 'meta',
+                direction: 'outbound',
+                ...(hasDateRange ? { sentAt: dateRange } : {}),
+              })
+            : Promise.resolve(0), // Non-superadmin sees 0
+          // Count QR/Bridge messages - ONLY for superadmin
+          superAdmin
+            ? WhatsAppMessage.countDocuments({
+                provider: 'whatsapp_web_bridge',
+                direction: 'outbound',
+                ...(hasDateRange ? { sentAt: dateRange } : {}),
+              })
+            : Promise.resolve(0), // Non-superadmin sees 0
           // Broadcast diagnostics: overall delivery outcomes across run messages.
           // We aggregate by status + a normalized reason bucket derived from failureReason.
           BroadcastRunMessage.aggregate([

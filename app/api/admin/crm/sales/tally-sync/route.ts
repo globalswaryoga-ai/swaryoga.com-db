@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 import { getSalesReport, getCrmReceipt } from '@/lib/schemas/enterpriseSchemas';
 import mongoose from 'mongoose';
 
@@ -23,6 +24,9 @@ export async function POST(request: NextRequest) {
     const decoded = verifyToken(authHeader || '');
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!isSuperAdmin(decoded)) {
+      return NextResponse.json({ error: 'Forbidden: Superadmin access required for Tally sync' }, { status: 403 });
     }
 
     const body = await request.json().catch(() => ({} as any));
