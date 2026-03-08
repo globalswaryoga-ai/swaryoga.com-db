@@ -29,14 +29,18 @@ export async function GET(request: NextRequest) {
     const SalesReport = getSalesReport();
     const AdminSession = getAdminSession();
 
+    // Tenant isolation: scope to decoded user's tenant
+    const tenantId = decoded.tenantId || decoded.userId || 'admin';
+    const tf = { tenantId };
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Get all admin sessions
-    const sessions = await AdminSession.find({}).sort({ lastActiveAt: -1 }).lean();
+    // Get all admin sessions scoped to tenant
+    const sessions = await AdminSession.find(tf).sort({ lastActiveAt: -1 }).lean();
 
     // Get unique admin user IDs from leads
-    const adminIds = await Lead.distinct('assignedToUserId');
+    const adminIds = await Lead.distinct('assignedToUserId', tf);
     const allAdminIds = new Set<string>();
     for (const id of adminIds) {
       if (id) allAdminIds.add(String(id));
@@ -59,15 +63,16 @@ export async function GET(request: NextRequest) {
         todaySales,
         totalLeadsAssigned,
       ] = await Promise.all([
-        Lead.countDocuments({ createdByUserId: userId, createdAt: { $gte: today } }),
+        Lead.countDocuments({ ...tf, createdByUserId: userId, createdAt: { $gte: today } }),
         WhatsAppMessage.countDocuments({
+          ...tf,
           sentByLabel: userId,
           direction: 'outbound',
           sentAt: { $gte: today },
         }),
-        FunnelStageHistory.countDocuments({ changedByUserId: userId, createdAt: { $gte: today } }),
-        SalesReport.countDocuments({ reportedByUserId: userId, saleDate: { $gte: today } }),
-        Lead.countDocuments({ assignedToUserId: userId }),
+        FunnelStageHistory.countDocuments({ ...tf, changedByUserId: userId, createdAt: { $gte: today } }),
+        SalesReport.countDocuments({ ...tf, reportedByUserId: userId, saleDate: { $gte: today } }),
+        Lead.countDocuments({ ...tf, assignedToUserId: userId }),
       ]);
 
       adminActivities.push({

@@ -66,20 +66,24 @@ export interface PlanContextValue extends PlanState {
   refresh: () => Promise<void>;
 }
 
-const DEFAULT_STATE: PlanState = {
-  plan: 'free',
-  planName: 'Free',
-  display: getPlanDisplay('free'),
-  limits: getPlanLimits('free'),
-  isTrialActive: false,
-  trialDaysRemaining: 0,
-  trialStartDate: null,
-  usage: { leads: 0, users: 0, storageMB: 0, chatbotFlows: 0 },
-  isSuperAdmin: false,
-  upgradePlan: 'basic',
-  loading: true,
-  error: null,
-};
+// Lazy initializer — avoids calling cross-module functions at module scope
+// which can trigger TDZ errors when webpack concatenates modules.
+function getDefaultState(): PlanState {
+  return {
+    plan: 'free',
+    planName: 'Free',
+    display: getPlanDisplay('free'),
+    limits: getPlanLimits('free'),
+    isTrialActive: false,
+    trialDaysRemaining: 0,
+    trialStartDate: null,
+    usage: { leads: 0, users: 0, storageMB: 0, chatbotFlows: 0 },
+    isSuperAdmin: false,
+    upgradePlan: 'basic',
+    loading: true,
+    error: null,
+  };
+}
 
 const PlanContext = createContext<PlanContextValue | null>(null);
 
@@ -88,7 +92,7 @@ const PlanContext = createContext<PlanContextValue | null>(null);
 // ============================================================================
 
 export function PlanProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<PlanState>(DEFAULT_STATE);
+  const [state, setState] = useState<PlanState>(getDefaultState);
 
   const fetchPlan = useCallback(async () => {
     try {

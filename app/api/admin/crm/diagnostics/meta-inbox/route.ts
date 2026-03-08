@@ -37,10 +37,14 @@ export async function GET(request: NextRequest) {
     const WhatsAppMessage = getWhatsAppMessage();
     const WhatsAppWebhookEvent = getWhatsAppWebhookEvent();
 
-    // Fetch global events if requested
+    // Tenant isolation: scope to decoded user's tenant
+    const tenantId = decoded.tenantId || decoded.userId || 'admin';
+    const tf = { tenantId };
+
+    // Fetch global events if requested (scoped to tenant)
     let globalEvents: any[] = [];
     if (lastEventsLimit > 0) {
-      const gEvents = await WhatsAppWebhookEvent.find({})
+      const gEvents = await WhatsAppWebhookEvent.find(tf)
         .sort({ receivedAt: -1 })
         .limit(lastEventsLimit)
         .lean();
@@ -69,14 +73,14 @@ export async function GET(request: NextRequest) {
     }
 
     const phone = normalizePhone(rawPhone);
-    const lead = await Lead.findOne({ phoneNumber: phone }).lean();
+    const lead = await Lead.findOne({ ...tf, phoneNumber: phone }).lean();
 
-    const messages = await WhatsAppMessage.find({ phoneNumber: phone })
+    const messages = await WhatsAppMessage.find({ ...tf, phoneNumber: phone })
       .sort({ createdAt: -1 })
       .limit(25)
       .lean();
 
-    const webhookEvents = await WhatsAppWebhookEvent.find({ phoneNumber: phone })
+    const webhookEvents = await WhatsAppWebhookEvent.find({ ...tf, phoneNumber: phone })
       .sort({ receivedAt: -1 })
       .limit(25)
       .lean();

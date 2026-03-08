@@ -94,6 +94,9 @@ export {
 } from './PageSetupChecklist';
 
 // Plan & Subscription Components
+// NOTE: Import PlanProvider and usePlan directly from './hooks/usePlan'
+// to avoid webpack module concatenation ordering issues.
+export { PlanProvider, usePlan } from './hooks/usePlan';
 export {
   PlanGate,
   PlanBadge,
@@ -101,4 +104,3 @@ export {
   UsageMeter,
   SidebarLock,
 } from './PlanComponents';
-export { PlanProvider, usePlan } from './hooks/usePlan';
