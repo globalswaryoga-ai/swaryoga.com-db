@@ -144,7 +144,7 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   images: {
-    domains: ['images.unsplash.com', 'via.placeholder.com', 'images.pexels.com', 'i.postimg.cc'],
+    domains: ['images.unsplash.com', 'via.placeholder.com', 'images.pexels.com', 'i.postimg.cc', 'placehold.co', 'swaryogacrm.b-cdn.net'],
     remotePatterns: [
       {
         protocol: 'https',
@@ -154,6 +154,16 @@ const nextConfig = {
       {
         protocol: 'https',
         hostname: 'i.postimg.cc',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'placehold.co',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'swaryogacrm.b-cdn.net',
         pathname: '/**',
       },
     ],

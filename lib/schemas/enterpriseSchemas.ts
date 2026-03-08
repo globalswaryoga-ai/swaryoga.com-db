@@ -3119,3 +3119,57 @@ const CRMUserSettingsSchema = new mongoose.Schema(
 
 export function getCRMUserSettings() { return getModel('CRMUserSettings', CRMUserSettingsSchema); }
 export const CRMUserSettings = createModelProxy('CRMUserSettings', CRMUserSettingsSchema);
+
+// ============================================================================
+// PENDING PAYMENT SCHEMA - QR Code payments (Nepal/eSewa) awaiting admin approval
+// ============================================================================
+const PendingPaymentSchema = new mongoose.Schema(
+  {
+    // User info from form
+    name: { type: String, required: true, trim: true },
+    phone: { type: String, required: true, trim: true, index: true },
+    email: { type: String, trim: true, lowercase: true },
+
+    // Product info
+    productType: { type: String, required: true, enum: ['course', 'workshop'], index: true },
+    productId: { type: String, required: true }, // Course ID or Workshop slug
+    productName: { type: String, required: true },
+    scheduleId: { type: String }, // For workshops with specific schedules
+    scheduleDetails: { type: String }, // Batch, time, dates etc
+
+    // Payment info
+    amount: { type: Number, required: true },
+    currency: { type: String, required: true, default: 'NPR' },
+    paymentMethod: { type: String, default: 'esewa', enum: ['esewa', 'khalti', 'bank', 'other'] },
+
+    // Status
+    status: {
+      type: String,
+      required: true,
+      enum: ['pending', 'approved', 'rejected', 'expired'],
+      default: 'pending',
+      index: true,
+    },
+
+    // Admin tracking
+    approvedBy: { type: String },
+    approvedAt: { type: Date },
+    rejectedBy: { type: String },
+    rejectedAt: { type: Date },
+    rejectionReason: { type: String },
+    adminNotes: { type: String },
+
+    // Link to lead (auto-created or linked)
+    linkedLeadId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lead' },
+
+    // Metadata
+    userAgent: { type: String },
+    ipAddress: { type: String },
+  },
+  { timestamps: true, collection: 'pending_payments' }
+);
+PendingPaymentSchema.index({ status: 1, createdAt: -1 });
+PendingPaymentSchema.index({ phone: 1, productId: 1 });
+
+export function getPendingPayment() { return getModel('PendingPayment', PendingPaymentSchema); }
+export const PendingPayment = createModelProxy('PendingPayment', PendingPaymentSchema);

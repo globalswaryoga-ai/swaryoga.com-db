@@ -31,6 +31,8 @@ import {
   HardDrive,
   Eye,
   EyeOff,
+  GraduationCap,
+  Languages,
 } from 'lucide-react';
 
 interface AdminSidebarProps {
@@ -245,6 +247,13 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       module: 'dashboard',
     },
     {
+      icon: GraduationCap,
+      label: 'E-Learning',
+      href: '/admin/crm/e-learning',
+      color: 'text-lime-400',
+      module: 'dashboard',
+    },
+    {
       icon: Calculator,
       label: 'Tally',
       href: '/admin/crm/tally',
@@ -321,6 +330,13 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       href: '/admin/crm/analytics',
       color: 'text-purple-400',
       module: 'analytics',
+    },
+    {
+      icon: Languages,
+      label: 'Translator',
+      href: '/admin/crm/translate',
+      color: 'text-cyan-400',
+      module: 'translate',
     },
   ];
 

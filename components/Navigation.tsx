@@ -19,6 +19,7 @@ export default function Navigation() {
     { name: 'Home', href: '/' },
     { name: 'About', href: '/about' },
     { name: 'Workshops', href: '/workshop' },
+    { name: 'E-Learning', href: '/e-learning' },
     { name: 'Resort', href: '/resort' },
     { name: 'Blog', href: '/blog' },
     { name: 'Community', href: '/community' },

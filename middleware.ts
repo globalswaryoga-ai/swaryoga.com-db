@@ -375,8 +375,8 @@ function isOriginAllowed(origin: string | null): boolean {
 // ---------------------------------------------------------------------------
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.cashfree.com https://*.payu.in https://www.googletagmanager.com",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.cashfree.com https://*.payu.in https://www.googletagmanager.com https://unpkg.com https://connect.facebook.net",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com",
   "img-src 'self' data: https:",
   "font-src 'self' https://fonts.gstatic.com",
   "connect-src 'self' https://*.cashfree.com https://*.payu.in https://*.googleapis.com",
@@ -454,6 +454,18 @@ export function middleware(request: NextRequest) {
   // Admin routes should bypass security blocks (they have their own auth)
   const isAdminPath = path.startsWith('/admin') || path.startsWith('/api/admin');
 
+  // Skip ALL security layers for localhost development
+  if (isLocalDev) {
+    // Just add security headers and pass through
+    const response = NextResponse.next();
+    if (tenantSlug) {
+      response.headers.set(TENANT_HEADER, tenantSlug);
+      response.headers.set(TENANT_RESPONSE_HEADER, tenantSlug);
+    }
+    applySecurityHeaders(response, requestId, path, request.nextUrl.searchParams);
+    return response;
+  }
+
   // ── LAYER 2: Auto-ban check (skip for admin routes) ──
   if (!isLocalDev && !isAdminPath && isBanned(ip)) {
     return new NextResponse(
@@ -524,6 +536,12 @@ export function middleware(request: NextRequest) {
   } else if (path.startsWith('/api/admin/crm/')) {
     bucket = 'crm_admin';
     baseLimit = hasAuthHeader ? 180 : 60;
+  } else if (path.startsWith('/api/admin/recorded-courses')) {
+    bucket = 'admin_courses';
+    baseLimit = hasAuthHeader ? 120 : 30;
+  } else if (path.startsWith('/api/admin/')) {
+    bucket = 'admin_general';
+    baseLimit = hasAuthHeader ? 120 : 30;
   } else if (path.startsWith('/api/auth/admin-login')) {
     bucket = 'admin_login';
     baseLimit = 5;

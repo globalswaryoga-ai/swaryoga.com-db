@@ -1380,36 +1380,20 @@ function CommunityPageContent() {
                 </div>
               </div>
             ) : filteredPosts.length > 0 ? (
-              <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {filteredPosts.map((post) => (
                   <Link key={post._id} href={`/community/post/${post._id}`}>
-                    <div className="bg-white border-2 border-gray-100 rounded-[2rem] hover:border-emerald-400 hover:shadow-2xl hover:shadow-emerald-100/50 transition-all duration-500 transform hover:-translate-y-2 overflow-hidden cursor-pointer group shadow-lg p-6 sm:p-8 mb-6">
+                    <div className="bg-white border border-gray-100 rounded-xl hover:border-emerald-300 hover:shadow-md transition-all duration-300 overflow-hidden cursor-pointer group shadow-sm">
                       
-                      {/* WhatsApp Format 1: Header (Heading) */}
-                      <div className="mb-4">
-                        {(post as any).metadata?.originalHeader ? (
-                           <h3 className="text-2xl sm:text-3xl font-black text-gray-900 leading-tight tracking-tight group-hover:text-emerald-600 transition-colors duration-300">
-                             {(post as any).metadata.originalHeader}
-                           </h3>
-                        ) : post.title && (
-                          <h3 className="text-xl sm:text-2xl font-black text-gray-900 leading-tight mb-2 tracking-tight group-hover:text-emerald-600 transition-colors duration-300">
-                            {post.title}
-                          </h3>
-                        )}
-                        <p className="text-xs text-gray-400 mt-2">
-                          {new Date(post.createdAt).toLocaleDateString()}
-                        </p>
-                      </div>
-
-                      {/* WhatsApp Format 2: Image */}
+                      {/* Image - Full width at top */}
                       {post.images && post.images.length > 0 && (() => {
                         const imageUrl = signedUrls[post.images[0]] || (post.images[0].includes('X-Amz-Signature') ? post.images[0] : null);
                         return imageUrl ? (
-                          <div className="relative w-full aspect-video sm:aspect-[16/9] bg-gradient-to-br from-gray-50 to-gray-100 overflow-hidden rounded-2xl mb-6 border border-gray-100 shadow-inner group-hover:shadow-lg transition-shadow duration-300">
+                          <div className="relative w-full aspect-[16/9] bg-gray-100 overflow-hidden">
                             <img 
                               src={imageUrl} 
                               alt="" 
-                              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                               onError={(e) => { 
                                 const img = e.target as HTMLImageElement;
                                 const container = img.parentElement;
@@ -1418,172 +1402,60 @@ function CommunityPageContent() {
                                 }
                               }}
                             />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                             {post.images.length > 1 && (
-                              <div className="absolute bottom-4 right-4 bg-black/70 backdrop-blur-md text-white px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wide border border-white/20">
-                                +{post.images.length - 1} More
+                              <div className="absolute bottom-2 right-2 bg-black/60 text-white px-2 py-0.5 rounded text-xs">
+                                +{post.images.length - 1}
                               </div>
                             )}
                           </div>
-                        ) : (
-                          <div className="relative w-full aspect-video sm:aspect-[16/9] bg-gradient-to-br from-emerald-50 to-teal-50 overflow-hidden rounded-2xl mb-6 border border-gray-100 flex items-center justify-center">
-                            <div className="text-emerald-400 animate-pulse text-sm">Loading image...</div>
-                          </div>
-                        );
+                        ) : null;
                       })()}
 
-                      {/* WhatsApp Format 3: Body (Text) - With Formatting */}
-                      <div className="mb-6">
+                      {/* Content */}
+                      <div className="p-3">
+                        {/* Date */}
+                        <p className="text-[10px] text-gray-400 mb-1">
+                          {new Date(post.createdAt).toLocaleDateString()}
+                        </p>
+                        
+                        {/* Title */}
+                        {((post as any).metadata?.originalHeader || post.title) && (
+                          <h3 className="text-sm font-semibold text-gray-900 leading-snug mb-1 line-clamp-2 group-hover:text-emerald-600 transition-colors">
+                            {(post as any).metadata?.originalHeader || post.title}
+                          </h3>
+                        )}
+
+                        {/* Text Preview */}
                         <div 
-                          className="text-gray-600 text-base sm:text-lg leading-relaxed"
+                          className="text-gray-500 text-xs leading-relaxed line-clamp-2 mb-2"
                           dangerouslySetInnerHTML={{ __html: formatWhatsAppText(getPostBodyContent(post)) }}
                         />
-                      </div>
 
-                      {/* WhatsApp Format 4: Footer - By Mohan Sir */}
-                      <div className="mb-6 p-4 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl border-l-4 border-emerald-500">
-                        <p className="text-emerald-700 italic text-sm sm:text-base">
-                          By - Mohan Sir
-                        </p>
-                      </div>
-
-                      {/* WhatsApp Format 5: Blue Button */}
-                      {(post as any).metadata?.buttons && Array.isArray((post as any).metadata.buttons) && (post as any).metadata.buttons.length > 0 && (
-                        <div className="flex flex-wrap gap-3 mb-6">
-                          {(post as any).metadata.buttons.map((btn: any, idx: number) => (
-                            <button 
-                              key={idx}
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                if(btn.url) window.open(btn.url, '_blank');
-                              }}
-                              className="flex-1 min-w-[180px] py-3 px-6 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl font-bold text-sm uppercase tracking-wide shadow-lg shadow-blue-200/50 transition-all hover:-translate-y-0.5 hover:shadow-xl active:scale-95 text-center flex items-center justify-center gap-2"
-                            >
-                              {btn.label || btn.text} <ExternalLink className="w-4 h-4" />
-                            </button>
-                          ))}
+                        {/* Author & Engagement Row */}
+                        <div className="flex items-center justify-between pt-2 border-t border-gray-50">
+                          <span className="text-emerald-600 text-[10px] italic">By Mohan Sir</span>
+                          <div className="flex items-center gap-3 text-xs text-gray-400">
+                            {/* Like */}
+                            {(() => {
+                              const likeCount = Array.isArray(post.likes) ? post.likes.length : 0;
+                              const isLiked = Array.isArray(post.likes) && user && post.likes.includes(user._id);
+                              return (
+                                <span className={`flex items-center gap-1 ${isLiked ? 'text-red-500' : ''}`}>
+                                  {isLiked ? '❤️' : '🤍'} {likeCount}
+                                </span>
+                              );
+                            })()}
+                            {/* Comment */}
+                            {(() => {
+                              const commentCount = Array.isArray(post.comments) ? post.comments.length : (typeof post.comments === 'number' ? post.comments : 0);
+                              return (
+                                <span className="flex items-center gap-1">
+                                  💬 {commentCount}
+                                </span>
+                              );
+                            })()}
+                          </div>
                         </div>
-                      )}
-
-                      {/* Engagement Stats - Always at bottom */}
-                      <div className="flex gap-6 text-sm font-semibold border-t border-gray-100 pt-5 mt-2">
-                        {/* Like Button - interactive for members, read-only for non-members */}
-                        {(() => {
-                          const isMember = currentCommunity && (userMemberships.includes(currentCommunity.id) || currentCommunity.id === 'global');
-                          const isLiked = Array.isArray(post.likes) && user && post.likes.includes(user._id);
-                          const likeCount = Array.isArray(post.likes) ? post.likes.length : 0;
-                          return (
-                            <button 
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                e.preventDefault();
-                                if (!isMember || !user) {
-                                  // Non-member: prompt to join
-                                  if (currentCommunity && currentCommunity.id !== 'global') {
-                                    if (currentCommunity.isPublic) {
-                                      setJoiningCommunity(currentCommunity);
-                                      setShowJoinModal(true);
-                                    } else {
-                                      requestToJoin(currentCommunity);
-                                    }
-                                  }
-                                  return;
-                                }
-                                const token = localStorage.getItem('token');
-                                if (!token) return;
-                                try {
-                                  const res = await fetch('/api/community/post/like', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                                    body: JSON.stringify({ postId: post._id }),
-                                  });
-                                  if (res.ok) {
-                                    const json = await res.json();
-                                    setPosts(prev => prev.map(p => p._id === post._id ? { 
-                                      ...p, 
-                                      likes: Array.isArray(p.likes) 
-                                        ? (json.data.likedByMe 
-                                            ? (p.likes.includes(user._id) ? p.likes : [...p.likes, user._id])
-                                            : p.likes.filter((id: string) => id !== user._id))
-                                        : [user._id]
-                                    } : p));
-                                  }
-                                } catch (err) {}
-                              }}
-                              className={`flex items-center gap-2 transition-all hover:scale-105 ${isMember ? 'text-gray-400 hover:text-red-500' : 'text-gray-300 cursor-default'}`}
-                              title={isMember ? 'Like' : 'Join to like'}
-                            >
-                              <span className={`text-lg ${isLiked ? 'text-red-500' : ''}`}>
-                                {isLiked ? '❤️' : '🤍'}
-                              </span>
-                              <span className={isLiked ? 'text-red-600' : 'text-gray-500'}>
-                                {likeCount}
-                              </span>
-                            </button>
-                          );
-                        })()}
-                        {/* Comment Button - interactive for members, read-only count for non-members */}
-                        {(() => {
-                          const isMember = currentCommunity && (userMemberships.includes(currentCommunity.id) || currentCommunity.id === 'global');
-                          const commentCount = Array.isArray(post.comments) ? post.comments.length : (typeof post.comments === 'number' ? post.comments : 0);
-                          return (
-                            <button 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                e.preventDefault();
-                                if (!isMember || !user) {
-                                  if (currentCommunity && currentCommunity.id !== 'global') {
-                                    if (currentCommunity.isPublic) {
-                                      setJoiningCommunity(currentCommunity);
-                                      setShowJoinModal(true);
-                                    } else {
-                                      requestToJoin(currentCommunity);
-                                    }
-                                  }
-                                  return;
-                                }
-                                setActivePostForComment(post);
-                                setShowCommentModal(true);
-                              }}
-                              className={`flex items-center gap-2 transition-all hover:scale-105 ${isMember ? 'text-gray-400 hover:text-emerald-500' : 'text-gray-300 cursor-default'}`}
-                              title={isMember ? 'Comment' : 'Join to comment'}
-                            >
-                              <MessageCircle className="w-5 h-5" />
-                              <span className="text-gray-500">{commentCount}</span>
-                            </button>
-                          );
-                        })()}
-                        <button 
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            e.preventDefault();
-                            const shareUrl = `${window.location.origin}/community/post/${post._id}`;
-                            const shareText = post.content.substring(0, 100);
-                            
-                            if (navigator.share) {
-                              try {
-                                await navigator.share({
-                                  title: 'Swar Yoga Community',
-                                  text: shareText,
-                                  url: shareUrl
-                                });
-                              } catch (err) {
-                                // User cancelled or share failed
-                              }
-                            } else {
-                              try {
-                                await navigator.clipboard.writeText(`${shareText}...\n\n${shareUrl}`);
-                                alert('✅ Link copied to clipboard!');
-                              } catch (err) {
-                                prompt('Copy this link:', shareUrl);
-                              }
-                            }
-                          }}
-                          className="flex items-center gap-2 text-gray-400 hover:text-emerald-600 transition-all hover:scale-105 ml-auto">
-                          <Share2 className="w-5 h-5" />
-                          <span className="text-gray-500">Share</span>
-                        </button>
                       </div>
                     </div>
                   </Link>
