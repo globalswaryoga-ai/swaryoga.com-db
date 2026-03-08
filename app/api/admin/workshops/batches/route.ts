@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 import { connectDB } from '@/lib/db';
 import { getBatch, getWorkshopVideo } from '@/lib/schemas/workshopSchemas';
 import mongoose from 'mongoose';
 
 /**
- * GET /api/admin/workshops/batches
+ * GET /api/admin/workshops/batches (SUPERADMIN ONLY)
  * List batches for a workshop
  */
 export async function GET(req: NextRequest) {
@@ -14,6 +15,10 @@ export async function GET(req: NextRequest) {
     const decoded = verifyToken(authHeader);
     if (!decoded || !decoded.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    }
+    // Workshop batches are main website data - superadmin only
+    if (!isSuperAdmin(decoded)) {
+      return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
     }
 
     await connectDB();
@@ -47,7 +52,7 @@ export async function GET(req: NextRequest) {
 }
 
 /**
- * POST /api/admin/workshops/batches
+ * POST /api/admin/workshops/batches (SUPERADMIN ONLY)
  * Create a new batch for a workshop
  */
 export async function POST(req: NextRequest) {
@@ -56,6 +61,10 @@ export async function POST(req: NextRequest) {
     const decoded = verifyToken(authHeader);
     if (!decoded || !decoded.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    }
+    // Workshop batches are main website data - superadmin only
+    if (!isSuperAdmin(decoded)) {
+      return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
     }
 
     await connectDB();
@@ -92,7 +101,7 @@ export async function POST(req: NextRequest) {
 }
 
 /**
- * PUT /api/admin/workshops/batches
+ * PUT /api/admin/workshops/batches (SUPERADMIN ONLY)
  * Update a batch
  */
 export async function PUT(req: NextRequest) {
@@ -101,6 +110,10 @@ export async function PUT(req: NextRequest) {
     const decoded = verifyToken(authHeader);
     if (!decoded || !decoded.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    }
+    // Workshop batches are main website data - superadmin only
+    if (!isSuperAdmin(decoded)) {
+      return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
     }
 
     await connectDB();

@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { RecordedWorkshop } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 
 /**
- * GET /api/admin/workshops/recorded
+ * GET /api/admin/workshops/recorded (SUPERADMIN ONLY)
  * Fetch all recorded workshops (paginated)
  * Query params: limit (default 50), skip (default 0), language, status, search
  */
@@ -16,6 +17,10 @@ export async function GET(request: NextRequest) {
 
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized - Admin access required' }, { status: 401 });
+    }
+    // Recorded workshops are main website data - superadmin only
+    if (!isSuperAdmin(decoded)) {
+      return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
     }
 
     await connectDB();

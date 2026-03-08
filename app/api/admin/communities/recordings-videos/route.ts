@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 import { 
   uploadCommunityVideo, 
   deleteFromS3,
@@ -11,7 +12,7 @@ export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/admin/communities/recordings-videos
- * Get all recordings and videos (admin only)
+ * Get all recordings and videos (SUPERADMIN ONLY)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -25,6 +26,10 @@ export async function GET(request: NextRequest) {
     const decoded = await verifyToken(token);
     if (!decoded || !decoded.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    }
+    // Recordings and videos are main website data - superadmin only
+    if (!isSuperAdmin(decoded)) {
+      return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
     }
 
     await connectDB();

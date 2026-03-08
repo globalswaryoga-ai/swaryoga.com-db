@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 import { connectDB } from '@/lib/db';
 import { getWorkshopVideo, getVideoAccessLog } from '@/lib/schemas/workshopSchemas';
 import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
@@ -16,7 +17,7 @@ const s3 = new S3Client({
 const BUCKET_NAME = 'swarygoal1hindi';
 
 /**
- * GET /api/admin/workshops/videos
+ * GET /api/admin/workshops/videos (SUPERADMIN ONLY)
  * List videos for a workshop/batch
  */
 export async function GET(req: NextRequest) {
@@ -25,6 +26,10 @@ export async function GET(req: NextRequest) {
     const decoded = verifyToken(authHeader);
     if (!decoded || !decoded.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    }
+    // Workshop videos are main website data - superadmin only
+    if (!isSuperAdmin(decoded)) {
+      return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
     }
 
     await connectDB();
@@ -66,7 +71,7 @@ export async function GET(req: NextRequest) {
 }
 
 /**
- * POST /api/admin/workshops/videos
+ * POST /api/admin/workshops/videos (SUPERADMIN ONLY)
  * Add a new video to a workshop/batch
  */
 export async function POST(req: NextRequest) {
@@ -75,6 +80,10 @@ export async function POST(req: NextRequest) {
     const decoded = verifyToken(authHeader);
     if (!decoded || !decoded.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    }
+    // Workshop videos are main website data - superadmin only
+    if (!isSuperAdmin(decoded)) {
+      return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
     }
 
     await connectDB();
@@ -123,7 +132,7 @@ export async function POST(req: NextRequest) {
 }
 
 /**
- * PUT /api/admin/workshops/videos
+ * PUT /api/admin/workshops/videos (SUPERADMIN ONLY)
  * Update a video
  */
 export async function PUT(req: NextRequest) {
@@ -132,6 +141,10 @@ export async function PUT(req: NextRequest) {
     const decoded = verifyToken(authHeader);
     if (!decoded || !decoded.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    }
+    // Workshop videos are main website data - superadmin only
+    if (!isSuperAdmin(decoded)) {
+      return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
     }
 
     await connectDB();
@@ -173,7 +186,7 @@ export async function PUT(req: NextRequest) {
 }
 
 /**
- * DELETE /api/admin/workshops/videos
+ * DELETE /api/admin/workshops/videos (SUPERADMIN ONLY)
  * Delete a video
  */
 export async function DELETE(req: NextRequest) {
@@ -182,6 +195,10 @@ export async function DELETE(req: NextRequest) {
     const decoded = verifyToken(authHeader);
     if (!decoded || !decoded.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    }
+    // Workshop videos are main website data - superadmin only
+    if (!isSuperAdmin(decoded)) {
+      return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
     }
 
     await connectDB();

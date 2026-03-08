@@ -1,13 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, WorkshopSchedule } from '@/lib/db';
-import { isAdminAuthorized } from '@/lib/adminAuth';
+import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    if (!isAdminAuthorized(request)) {
+    const token = request.headers.get('authorization')?.slice('Bearer '.length);
+    const decoded = verifyToken(token);
+    if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    // Workshop schedules are main website data - superadmin only
+    if (!isSuperAdmin(decoded)) {
+      return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);

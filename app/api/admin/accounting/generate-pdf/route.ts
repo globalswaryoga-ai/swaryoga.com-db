@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateAccountingReportHtml } from '@/lib/accountingReportHtml';
-import { isAdminAuthorized } from '@/lib/adminAuth';
+import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 
 // Simple HTML to PDF using a library-free approach
 export async function POST(request: NextRequest) {
   try {
-    if (!isAdminAuthorized(request)) {
+    const token = request.headers.get('authorization')?.slice('Bearer '.length);
+    const decoded = verifyToken(token);
+    if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    // Accounting reports are main website data - superadmin only
+    if (!isSuperAdmin(decoded)) {
+      return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
     }
 
     const body = await request.json();

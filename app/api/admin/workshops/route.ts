@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 import { connectDB } from '@/lib/db';
 import { getWorkshop, getBatch, getWorkshopVideo } from '@/lib/schemas/workshopSchemas';
 import { createZoomMeeting } from '@/lib/zoom-meetings';
 import { createWorkshopCommunity, initializeSystemCommunities } from '@/lib/community-manager';
 
 /**
- * GET /api/admin/workshops
+ * GET /api/admin/workshops (SUPERADMIN ONLY)
  * List all workshops with their batches
  */
 export async function GET(req: NextRequest) {
@@ -15,6 +16,10 @@ export async function GET(req: NextRequest) {
     const decoded = verifyToken(authHeader);
     if (!decoded || !decoded.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    }
+    // Workshops are main website data - superadmin only
+    if (!isSuperAdmin(decoded)) {
+      return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
     }
 
     await connectDB();
@@ -51,7 +56,7 @@ export async function GET(req: NextRequest) {
 }
 
 /**
- * POST /api/admin/workshops
+ * POST /api/admin/workshops (SUPERADMIN ONLY)
  * Create a new workshop with auto Zoom meeting and community
  */
 export async function POST(req: NextRequest) {
@@ -60,6 +65,10 @@ export async function POST(req: NextRequest) {
     const decoded = verifyToken(authHeader);
     if (!decoded || !decoded.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    }
+    // Workshops are main website data - superadmin only
+    if (!isSuperAdmin(decoded)) {
+      return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
     }
 
     await connectDB();

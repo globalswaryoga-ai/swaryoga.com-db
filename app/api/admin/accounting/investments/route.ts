@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, Account, AccountingInvestment } from '@/lib/db';
-import { isAdminAuthorized } from '@/lib/adminAuth';
+import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 
 const getAdminOwner = (request: NextRequest) => {
-  if (!isAdminAuthorized(request)) return null;
+  const token = request.headers.get('authorization')?.slice('Bearer '.length);
+  const decoded = verifyToken(token);
+  if (!decoded?.isAdmin) return null;
+  // Investments are main website data - superadmin only
+  if (!isSuperAdmin(decoded)) return { forbidden: true };
   return { ownerType: 'admin' as const, ownerId: 'admin' };
 };
 
@@ -70,6 +75,9 @@ export async function GET(request: NextRequest) {
     if (!owner) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    if ('forbidden' in owner) {
+      return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
+    }
 
     await connectDB();
     const investments = await AccountingInvestment.find(owner).sort({ createdAt: -1 }).limit(100).lean();
@@ -89,6 +97,9 @@ export async function POST(request: NextRequest) {
     const owner = getAdminOwner(request);
     if (!owner) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if ('forbidden' in owner) {
+      return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
     }
 
     await connectDB();
@@ -131,6 +142,9 @@ export async function PUT(request: NextRequest) {
     const owner = getAdminOwner(request);
     if (!owner) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if ('forbidden' in owner) {
+      return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
     }
 
     await connectDB();
@@ -178,6 +192,9 @@ export async function DELETE(request: NextRequest) {
     const owner = getAdminOwner(request);
     if (!owner) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if ('forbidden' in owner) {
+      return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
     }
 
     await connectDB();

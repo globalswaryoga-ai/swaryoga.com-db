@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,7 +49,7 @@ function extractYouTubeId(input: string): string | null {
 }
 
 /**
- * GET /api/admin/communities/youtube-videos
+ * GET /api/admin/communities/youtube-videos (SUPERADMIN ONLY)
  * List all YouTube videos for a community
  */
 export async function GET(request: NextRequest) {
@@ -62,6 +63,10 @@ export async function GET(request: NextRequest) {
     const decoded = await verifyToken(token);
     if (!decoded || !decoded.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    }
+    // YouTube videos are main website data - superadmin only
+    if (!isSuperAdmin(decoded)) {
+      return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -105,7 +110,7 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST /api/admin/communities/youtube-videos
+ * POST /api/admin/communities/youtube-videos (SUPERADMIN ONLY)
  * Add a YouTube video link to community
  * 
  * Body:
@@ -127,6 +132,10 @@ export async function POST(request: NextRequest) {
     const decoded = await verifyToken(token);
     if (!decoded || !decoded.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    }
+    // YouTube videos are main website data - superadmin only
+    if (!isSuperAdmin(decoded)) {
+      return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
     }
 
     const body = await request.json();

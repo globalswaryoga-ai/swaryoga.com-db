@@ -1,15 +1,16 @@
 /**
  * Community API - Full CRUD for communities
  * 
- * GET - List communities (with type filter)
- * POST - Create a new community OR Initialize system communities
- * PUT - Update a community
- * DELETE - Archive a community
+ * GET - List communities (with type filter) - SUPERADMIN ONLY
+ * POST - Create a new community OR Initialize system communities - SUPERADMIN ONLY
+ * PUT - Update a community - SUPERADMIN ONLY
+ * DELETE - Archive a community - SUPERADMIN ONLY
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, Community, CommunityMembership } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 import { 
   initializeSystemCommunities, 
   COMMUNITY_TYPES 
@@ -21,6 +22,11 @@ export async function GET(request: NextRequest) {
     const decoded = verifyToken(authHeader);
     if (!decoded) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Communities management is main website data - superadmin only for admin access
+    if (decoded.isAdmin && !isSuperAdmin(decoded)) {
+      return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
     }
 
     await connectDB();
@@ -90,6 +96,10 @@ export async function POST(request: NextRequest) {
     const decoded = verifyToken(authHeader);
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    }
+    // Communities management is main website data - superadmin only
+    if (!isSuperAdmin(decoded)) {
+      return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
     }
 
     await connectDB();
@@ -171,6 +181,10 @@ export async function PUT(request: NextRequest) {
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
+    // Communities management is main website data - superadmin only
+    if (!isSuperAdmin(decoded)) {
+      return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
+    }
 
     await connectDB();
     const body = await request.json();
@@ -227,6 +241,10 @@ export async function DELETE(request: NextRequest) {
     const decoded = verifyToken(authHeader);
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    }
+    // Communities management is main website data - superadmin only
+    if (!isSuperAdmin(decoded)) {
+      return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
     }
 
     await connectDB();
