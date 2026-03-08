@@ -95,9 +95,9 @@ export async function POST(request: NextRequest) {
     });
 
     // Initiate Cashfree payment
-    const cashfreeAppId = process.env.CASHFREE_APP_ID;
-    const cashfreeSecretKey = process.env.CASHFREE_SECRET_KEY;
-    const isProduction = process.env.NODE_ENV === 'production';
+    const cashfreeAppId = process.env.CASHFREE_CLIENT_ID || process.env.CASHFREE_APP_ID;
+    const cashfreeSecretKey = process.env.CASHFREE_CLIENT_SECRET || process.env.CASHFREE_SECRET_KEY;
+    const isProduction = process.env.CASHFREE_ENV === 'production';
     const cashfreeBaseUrl = isProduction 
       ? 'https://api.cashfree.com/pg' 
       : 'https://sandbox.cashfree.com/pg';

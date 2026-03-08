@@ -17,9 +17,9 @@ function verifyCashfreeSignature(
   timestamp: string,
   rawBody: string
 ): boolean {
-  const secretKey = process.env.CASHFREE_SECRET_KEY;
+  const secretKey = process.env.CASHFREE_CLIENT_SECRET || process.env.CASHFREE_SECRET_KEY;
   if (!secretKey) {
-    console.error('CASHFREE_SECRET_KEY not configured');
+    console.error('CASHFREE_CLIENT_SECRET not configured');
     return false;
   }
   

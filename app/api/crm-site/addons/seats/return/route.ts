@@ -32,8 +32,8 @@ export async function GET(request: NextRequest) {
     const statusResponse = await fetch(`${cashfreeApiBase}/orders/${orderId}`, {
       headers: {
         'x-api-version': '2022-09-01',
-        'x-client-id': process.env.CASHFREE_APP_ID || '',
-        'x-client-secret': process.env.CASHFREE_SECRET_KEY || '',
+        'x-client-id': process.env.CASHFREE_CLIENT_ID || process.env.CASHFREE_APP_ID || '',
+        'x-client-secret': process.env.CASHFREE_CLIENT_SECRET || process.env.CASHFREE_SECRET_KEY || '',
       },
     });
 
