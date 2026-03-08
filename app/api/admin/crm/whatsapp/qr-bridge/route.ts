@@ -52,8 +52,8 @@ async function resolveUserBridge(authHeader: string | null): Promise<{ url: stri
           secret: settings.qrBridgeSecret || FALLBACK_BRIDGE_SECRET,
         };
       }
-      // User has no bridge configured — return null (don't fall back to admin's bridge)
-      return null;
+      // User has no per-user bridge — fall back to env var bridge
+      return { url: FALLBACK_BRIDGE_URL, secret: FALLBACK_BRIDGE_SECRET };
     }
   } catch (e) {
     console.warn('[QR Bridge Proxy] Failed to resolve user bridge:', (e as Error).message);
