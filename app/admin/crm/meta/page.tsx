@@ -978,9 +978,16 @@ export default function MetaInboxPage() {
       loadLeadDetails(conv.leadId);
     }
 
-    // Mark as read
+    // Mark as read - optimistically update local state immediately
     if (conv.unreadCount && conv.unreadCount > 0) {
-      markThreadAsRead(conv.leadId, conv.phoneNumber);
+      // Optimistically set unread count to 0 in local state
+      setConversations(prev => prev.map(c => 
+        c.leadId === conv.leadId ? { ...c, unreadCount: 0 } : c
+      ));
+      // Also update the selected conversation
+      setSelected(prev => prev ? { ...prev, unreadCount: 0 } : null);
+      // Then sync with server (without re-fetching conversations)
+      markThreadAsRead(conv.leadId, conv.phoneNumber, true);
     }
   };
 
@@ -1008,15 +1015,17 @@ export default function MetaInboxPage() {
     }
   };
 
-  const markThreadAsRead = async (leadId?: string, phoneNumber?: string) => {
+  const markThreadAsRead = async (leadId?: string, phoneNumber?: string, skipRefetch = false) => {
     if (!leadId && !phoneNumber) return;
     try {
       await crmFetch('/api/admin/crm/messages', {
         method: 'PUT',
         body: { leadId, phoneNumber, action: 'markThreadAsRead' }
       });
-      // Optionally refresh conversations to update unread counts
-      loadConversations(searchQuery);
+      // Only refresh conversations if not skipped (optimistic update already happened)
+      if (!skipRefetch) {
+        loadConversations(searchQuery);
+      }
     } catch (err) {
       console.error('Failed to mark thread as read:', err);
     }
@@ -1170,8 +1179,15 @@ export default function MetaInboxPage() {
     const toMark = filteredConversations.filter((c) => bulkSelected[c._id]);
     if (toMark.length === 0) return;
     setBulkActionLoading(true);
+    
+    // Optimistically update local state immediately
+    const toMarkIds = new Set(toMark.map(c => c.leadId));
+    setConversations(prev => prev.map(c => 
+      toMarkIds.has(c.leadId) ? { ...c, unreadCount: 0 } : c
+    ));
+    
     try {
-      // Batch all mark-read calls, then reload once
+      // Batch all mark-read calls
       await Promise.all(
         toMark.map((c) =>
           crmFetch('/api/admin/crm/messages', {
@@ -1180,10 +1196,11 @@ export default function MetaInboxPage() {
           })
         )
       );
-      loadConversations(searchQuery);
       bulkClear();
     } catch (err) {
       console.error('Bulk mark read failed:', err);
+      // On error, refetch to restore correct state
+      loadConversations(searchQuery);
     } finally {
       setBulkActionLoading(false);
     }
@@ -2574,8 +2591,17 @@ export default function MetaInboxPage() {
                 </div>
                 <button 
                   className="p-1.5 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-md transition-colors" 
-                  title="Read or Unread"
-                  onClick={() => markThreadAsRead(selected.leadId, selected.phoneNumber)}
+                  title="Mark as Read"
+                  onClick={() => {
+                    // Optimistically update local state
+                    if (selected?.unreadCount && selected.unreadCount > 0) {
+                      setConversations(prev => prev.map(c => 
+                        c.leadId === selected.leadId ? { ...c, unreadCount: 0 } : c
+                      ));
+                      setSelected(prev => prev ? { ...prev, unreadCount: 0 } : null);
+                    }
+                    markThreadAsRead(selected.leadId, selected.phoneNumber, true);
+                  }}
                 >
                   <i className="ph ph-check text-sm"></i>
                 </button>
@@ -2873,8 +2899,19 @@ export default function MetaInboxPage() {
                             )}
                             <span className="tracking-wide">{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                             {msg.direction === 'outbound' && (
-                              <div className="flex items-center">
-                                <i className={`ph ph-checks text-xs ${msg.status === 'read' ? 'text-blue-500' : 'text-gray-400'}`}></i>
+                              <div className="flex items-center ml-1" title={msg.status}>
+                                {msg.status === 'failed' ? (
+                                  <i className="ph ph-x text-xs text-red-500"></i>
+                                ) : msg.status === 'queued' || msg.status === 'sending' ? (
+                                  <i className="ph ph-clock text-xs text-gray-400"></i>
+                                ) : msg.status === 'sent' ? (
+                                  <i className="ph ph-check text-xs text-gray-400"></i>
+                                ) : msg.status === 'read' ? (
+                                  <i className="ph ph-checks text-xs text-blue-500"></i>
+                                ) : (
+                                  /* delivered or other */ 
+                                  <i className="ph ph-checks text-xs text-gray-400"></i>
+                                )}
                               </div>
                             )}
                           </div>
