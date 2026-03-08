@@ -179,7 +179,12 @@ type MessageItem = {
   mediaUrl?: string | null;
   mediaMimetype?: string | null;
   mediaFileName?: string | null;
+  quoted?: { id: string; participant?: string; text: string } | null;
+  reactions?: Record<string, string>; // jid → emoji
+  quotedId?: string;
 };
+
+const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 
 type ChatFilter = 'all' | 'unread' | 'read' | 'groups';
 
@@ -265,6 +270,17 @@ export default function QRWhatsAppPage() {
   const [bridgeConfigured, setBridgeConfigured] = useState<boolean | null>(null); // null = loading
   const [savingBridge, setSavingBridge] = useState(false);
   const [showBridgeSettings, setShowBridgeSettings] = useState(false);
+  // Reply / Reaction / Delete state
+  const [replyingTo, setReplyingTo] = useState<MessageItem | null>(null);
+  const [reactingToMsg, setReactingToMsg] = useState<string | null>(null); // message ID
+  const [showMsgActions, setShowMsgActions] = useState<string | null>(null); // message ID for context menu
+  // Group creation state
+  const [showGroupCreate, setShowGroupCreate] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newGroupMembers, setNewGroupMembers] = useState('');
+  const [creatingGroup, setCreatingGroup] = useState(false);
+  // Contact about/bio
+  const [contactAbout, setContactAbout] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
   const profilePicLoadedRef = useRef<Set<string>>(new Set());
@@ -807,8 +823,14 @@ export default function QRWhatsAppPage() {
     setSelectedChat(jid);
     setDetailsPanel(false);
     setGroupInfo(null);
+    setReplyingTo(null);
+    setReactingToMsg(null);
+    setShowMsgActions(null);
+    setContactAbout(null);
     fetchMessages(jid);
     fetchProfilePic(jid);
+    // Fetch contact about/bio for non-group chats
+    if (!jid.endsWith('@g.us')) fetchContactAbout(jid);
     // Track when the user read this chat so polling can distinguish new messages vs already-read
     readChatsRef.current.set(jid, Date.now());
     // Tell the bridge to reset unread count on its side too
@@ -825,7 +847,7 @@ export default function QRWhatsAppPage() {
         return tb - ta;
       });
     });
-  }, [fetchMessages, fetchProfilePic, bridgeCall]);
+  }, [fetchMessages, fetchProfilePic, fetchContactAbout, bridgeCall]);
 
   // ── Handle file selection for media ──
   const handleFileSelect = useCallback((accept: string) => {
@@ -901,15 +923,25 @@ export default function QRWhatsAppPage() {
         }
         setMediaPreview(null);
       } else {
-        // Send text
-        await bridgeCall('/send', 'POST', {
-          to,
-          message: composerText.trim(),
-          type: 'text',
-        });
+        // Send text (with optional reply)
+        if (replyingTo) {
+          await bridgeCall('/reply', 'POST', {
+            to,
+            message: composerText.trim(),
+            quotedId: replyingTo.id,
+            quotedParticipant: replyingTo.participant,
+          });
+        } else {
+          await bridgeCall('/send', 'POST', {
+            to,
+            message: composerText.trim(),
+            type: 'text',
+          });
+        }
       }
       const hadMedia = !!mediaPreview;
       setComposerText('');
+      setReplyingTo(null);
       // Refresh messages — longer delay for media (webhook needs time to upload & set CDN URL)
       setTimeout(() => fetchMessages(selectedChat), hadMedia ? 1500 : 500);
       // Double-refresh for media to catch async CDN URL updates from webhook
@@ -919,7 +951,116 @@ export default function QRWhatsAppPage() {
     } finally {
       setSending(false);
     }
-  }, [composerText, mediaPreview, selectedChat, sending, bridgeCall, fetchMessages, token]);
+  }, [composerText, mediaPreview, selectedChat, sending, bridgeCall, fetchMessages, token, replyingTo]);
+
+  // ── React to a message ──
+  const handleReaction = useCallback(async (messageId: string, emoji: string, participant?: string) => {
+    if (!selectedChat) return;
+    try {
+      await bridgeCall('/react', 'POST', { jid: selectedChat, messageId, emoji, participant });
+      setReactingToMsg(null);
+      // Update local message state immediately
+      setMessages(prev => prev.map(m => {
+        if (m.id === messageId) {
+          const reactions = { ...(m.reactions || {}) };
+          const myJid = 'me';
+          if (emoji) reactions[myJid] = emoji; else delete reactions[myJid];
+          return { ...m, reactions };
+        }
+        return m;
+      }));
+    } catch (e: any) {
+      setError(e.message || 'Failed to react');
+    }
+  }, [selectedChat, bridgeCall]);
+
+  // ── Delete a message ──
+  const handleDeleteMessage = useCallback(async (msg: MessageItem, forEveryone: boolean) => {
+    if (!selectedChat) return;
+    try {
+      await bridgeCall('/delete-message', 'POST', {
+        jid: selectedChat,
+        messageId: msg.id,
+        participant: msg.participant,
+        forEveryone,
+      });
+      setShowMsgActions(null);
+      setMessages(prev => prev.filter(m => m.id !== msg.id));
+    } catch (e: any) {
+      setError(e.message || 'Failed to delete message');
+    }
+  }, [selectedChat, bridgeCall]);
+
+  // ── Create a new group ──
+  const handleCreateGroup = useCallback(async () => {
+    if (!newGroupName.trim() || creatingGroup) return;
+    setCreatingGroup(true);
+    try {
+      const members = newGroupMembers.split(/[,;\n]+/).map(m => m.trim()).filter(Boolean);
+      if (members.length === 0) { setError('Add at least one member phone number'); setCreatingGroup(false); return; }
+      const result = await bridgeCall('/group-create', 'POST', { subject: newGroupName.trim(), participants: members });
+      setShowGroupCreate(false);
+      setNewGroupName('');
+      setNewGroupMembers('');
+      // Switch to the new group
+      if (result?.id) {
+        setTab('inbox');
+        fetchChats();
+        setTimeout(() => selectChat(result.id), 1000);
+      }
+    } catch (e: any) {
+      setError(e.message || 'Failed to create group');
+    } finally {
+      setCreatingGroup(false);
+    }
+  }, [newGroupName, newGroupMembers, creatingGroup, bridgeCall, fetchChats, selectChat]);
+
+  // ── Leave group ──
+  const handleLeaveGroup = useCallback(async () => {
+    if (!selectedChat?.endsWith('@g.us')) return;
+    if (!confirm('Are you sure you want to leave this group?')) return;
+    try {
+      await bridgeCall(`/group-leave/${encodeURIComponent(selectedChat)}`, 'POST');
+      setSelectedChat(null);
+      setMessages([]);
+      fetchChats();
+    } catch (e: any) {
+      setError(e.message || 'Failed to leave group');
+    }
+  }, [selectedChat, bridgeCall, fetchChats]);
+
+  // ── Rename group ──
+  const handleRenameGroup = useCallback(async (newName: string) => {
+    if (!selectedChat?.endsWith('@g.us') || !newName.trim()) return;
+    try {
+      await bridgeCall(`/group-update-subject/${encodeURIComponent(selectedChat)}`, 'POST', { subject: newName.trim() });
+      setGroupInfo(prev => prev ? { ...prev, subject: newName.trim() } : prev);
+      fetchChats();
+    } catch (e: any) {
+      setError(e.message || 'Failed to rename group');
+    }
+  }, [selectedChat, bridgeCall, fetchChats]);
+
+  // ── Send typing indicator ──
+  const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const handleTyping = useCallback(() => {
+    if (!selectedChat) return;
+    bridgeCall('/typing', 'POST', { jid: selectedChat, composing: true }).catch(() => {});
+    if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+    typingTimerRef.current = setTimeout(() => {
+      bridgeCall('/typing', 'POST', { jid: selectedChat, composing: false }).catch(() => {});
+    }, 3000);
+  }, [selectedChat, bridgeCall]);
+
+  // ── Fetch contact about/bio ──
+  const fetchContactAbout = useCallback(async (jid: string) => {
+    try {
+      const data = await bridgeCall(`/contact-about/${encodeURIComponent(jid)}`);
+      setContactAbout(data?.about || null);
+    } catch {
+      setContactAbout(null);
+    }
+  }, [bridgeCall]);
 
   // ── Download media from bridge via server-side proxy (avoids CORS) ──
   const downloadMediaFromBridge = useCallback(async (messageId: string, fileName?: string) => {
@@ -1321,6 +1462,11 @@ export default function QRWhatsAppPage() {
           </div>
         )}
         <div className="flex items-center gap-1 flex-shrink-0">
+          {isConnected && (
+            <button onClick={() => setShowGroupCreate(true)} className="px-1.5 py-0.5 text-[10px] font-medium bg-purple-50 text-purple-700 rounded hover:bg-purple-100 border border-purple-200 flex items-center gap-0.5" title="New Group">
+              <Users className="w-3 h-3" /> Group
+            </button>
+          )}
           <button onClick={() => { setShowStatusPanel(true); fetchStatuses(); }} className="px-1.5 py-0.5 text-[10px] font-medium bg-green-50 text-green-700 rounded hover:bg-green-100 border border-green-200 flex items-center gap-0.5" title="View Statuses">
             <Eye className="w-3 h-3" /> Status
           </button>
@@ -1895,13 +2041,46 @@ export default function QRWhatsAppPage() {
                     const mediaDisplayUrl = proxyUrl || bridgeProxyUrl;
                     const hasMediaPreview = mediaDisplayUrl && (isImage || isVideo || isAudio || isDocument);
                     const hasOnlyMedia = hasMediaPreview && !msg.text;
+                    const reactionEntries = msg.reactions ? Object.entries(msg.reactions).filter(([, v]) => v) : [];
                     return (
-                    <div key={msg.id} className={`flex ${msg.fromMe ? 'justify-end' : 'justify-start'}`}>
+                    <div key={msg.id} className={`flex ${msg.fromMe ? 'justify-end' : 'justify-start'} group/msg relative`}>
+                      {/* Message action buttons — visible on hover */}
+                      <div className={`absolute ${msg.fromMe ? 'left-0 -translate-x-full pr-1' : 'right-0 translate-x-full pl-1'} top-1 hidden group-hover/msg:flex items-center gap-0.5 z-10`}>
+                        <button onClick={() => setReplyingTo(msg)} className="p-1 rounded-full bg-white shadow hover:bg-gray-100" title="Reply">
+                          <RotateCcw className="w-3 h-3 text-gray-500" />
+                        </button>
+                        <button onClick={() => setReactingToMsg(reactingToMsg === msg.id ? null : msg.id)} className="p-1 rounded-full bg-white shadow hover:bg-gray-100" title="React">
+                          <Smile className="w-3 h-3 text-gray-500" />
+                        </button>
+                        {msg.fromMe && (
+                          <button onClick={() => handleDeleteMessage(msg, true)} className="p-1 rounded-full bg-white shadow hover:bg-red-50" title="Delete for everyone">
+                            <Trash2 className="w-3 h-3 text-red-400" />
+                          </button>
+                        )}
+                        <button onClick={() => { navigator.clipboard.writeText(msg.text || ''); }} className="p-1 rounded-full bg-white shadow hover:bg-gray-100" title="Copy text">
+                          <Copy className="w-3 h-3 text-gray-500" />
+                        </button>
+                      </div>
+                      {/* Reaction picker popup */}
+                      {reactingToMsg === msg.id && (
+                        <div className={`absolute ${msg.fromMe ? 'right-0' : 'left-0'} -top-8 bg-white rounded-full shadow-lg border px-1.5 py-1 flex items-center gap-0.5 z-20`}>
+                          {REACTION_EMOJIS.map(emoji => (
+                            <button key={emoji} onClick={() => handleReaction(msg.id, emoji, msg.participant)} className="w-7 h-7 rounded-full hover:bg-gray-100 flex items-center justify-center text-lg transition">{emoji}</button>
+                          ))}
+                        </div>
+                      )}
                       <div className={`${hasOnlyMedia && isImage ? 'max-w-[320px]' : 'max-w-[65%] min-w-[120px]'} px-2.5 py-1.5 rounded-2xl text-sm shadow-sm ${
                         msg.fromMe
                           ? 'bg-[#d9fdd3] text-gray-900 rounded-br-md'
                           : 'bg-white text-gray-900 rounded-bl-md'
                       }`}>
+                        {/* Quoted message (reply context) */}
+                        {msg.quoted && (
+                          <div className="mb-1.5 px-2 py-1 bg-black/5 rounded-lg border-l-2 border-green-500">
+                            <p className="text-[10px] font-semibold text-green-700">{msg.quoted.participant?.split('@')[0] || 'Reply'}</p>
+                            <p className="text-[11px] text-gray-600 line-clamp-2">{msg.quoted.text}</p>
+                          </div>
+                        )}
                         {/* Group sender name */}
                         {isGroupChat && !msg.fromMe && senderName && (
                           <p className={`text-[11px] font-semibold mb-0.5 ${senderColor.replace('bg-', 'text-')}`}>
@@ -2011,6 +2190,15 @@ export default function QRWhatsAppPage() {
                             : ''}
                         </div>
                       </div>
+                      {/* Reactions display */}
+                      {reactionEntries.length > 0 && (
+                        <div className={`absolute -bottom-3 ${msg.fromMe ? 'right-2' : 'left-2'} flex gap-0.5`}>
+                          <div className="bg-white rounded-full shadow border px-1 py-0.5 flex items-center gap-0.5 text-xs">
+                            {reactionEntries.slice(0, 5).map(([, emoji], i) => <span key={i}>{emoji}</span>)}
+                            {reactionEntries.length > 5 && <span className="text-[9px] text-gray-400 ml-0.5">+{reactionEntries.length - 5}</span>}
+                          </div>
+                        </div>
+                      )}
                     </div>
                     );
                   })}
@@ -2018,6 +2206,17 @@ export default function QRWhatsAppPage() {
 
                 {/* Hidden file input */}
                 <input ref={fileInputRef} type="file" className="hidden" onChange={onFileChosen} />
+
+                {/* Reply bar */}
+                {replyingTo && (
+                  <div className="bg-gray-50 border-t px-4 py-2 flex items-center gap-2">
+                    <div className="flex-1 min-w-0 border-l-2 border-green-500 pl-2">
+                      <p className="text-[10px] font-semibold text-green-700">{replyingTo.fromMe ? 'You' : (replyingTo.pushName || replyingTo.from)}</p>
+                      <p className="text-xs text-gray-600 truncate">{replyingTo.text || `[${replyingTo.type}]`}</p>
+                    </div>
+                    <button onClick={() => setReplyingTo(null)} className="p-1 hover:bg-gray-200 rounded"><X className="w-4 h-4 text-gray-500" /></button>
+                  </div>
+                )}
 
                 {/* Media preview bar */}
                 {mediaPreview && (
@@ -2103,10 +2302,10 @@ export default function QRWhatsAppPage() {
                       ref={composerInputRef}
                       type="text"
                       value={composerText}
-                      onChange={e => setComposerText(e.target.value)}
+                      onChange={e => { setComposerText(e.target.value); handleTyping(); }}
                       onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) handleSend(); }}
                       onFocus={closeComposerPopups}
-                      placeholder={mediaPreview ? 'Add caption...' : 'Type a message...'}
+                      placeholder={replyingTo ? `Reply to ${replyingTo.pushName || replyingTo.from}...` : mediaPreview ? 'Add caption...' : 'Type a message...'}
                       className="flex-1 px-4 py-2 border rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
                       disabled={!isConnected || sending}
                     />
@@ -2239,6 +2438,14 @@ export default function QRWhatsAppPage() {
                   </button>
                 </div>
 
+                {/* Contact About / Bio */}
+                {!isGroupChat && contactAbout && (
+                  <div className="px-4 py-3 border-b">
+                    <h5 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">About</h5>
+                    <p className="text-sm text-gray-700">{contactAbout}</p>
+                  </div>
+                )}
+
                 {/* Details Section */}
                 <div className="px-4 py-3 border-b space-y-3">
                   <h5 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Details</h5>
@@ -2323,6 +2530,29 @@ export default function QRWhatsAppPage() {
                           <p className="text-xs text-gray-500">Group JID</p>
                           <p className="text-[11px] text-gray-600 font-mono">{selectedChat}</p>
                         </div>
+                      </div>
+                      {/* Rename Group */}
+                      <div className="flex items-center gap-3">
+                        <Pencil className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                        <button
+                          onClick={() => {
+                            const newName = prompt('New group name:', groupInfo?.subject || '');
+                            if (newName && newName.trim()) handleRenameGroup(newName);
+                          }}
+                          className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                        >
+                          Rename Group
+                        </button>
+                      </div>
+                      {/* Leave Group */}
+                      <div className="flex items-center gap-3">
+                        <LogOut className="w-4 h-4 text-red-400 flex-shrink-0" />
+                        <button
+                          onClick={handleLeaveGroup}
+                          className="text-xs text-red-600 hover:text-red-800 hover:underline"
+                        >
+                          Leave Group
+                        </button>
                       </div>
                     </>
                   )}
@@ -3086,6 +3316,49 @@ export default function QRWhatsAppPage() {
               title="Close"
             >
               <X className="w-6 h-6" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Group Creation Modal */}
+      {showGroupCreate && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setShowGroupCreate(false)}>
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4 mx-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <Users className="w-5 h-5 text-purple-600" /> New Group
+              </h3>
+              <button onClick={() => setShowGroupCreate(false)} className="p-1 hover:bg-gray-100 rounded"><X className="w-5 h-5 text-gray-400" /></button>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Group Name</label>
+              <input
+                type="text"
+                value={newGroupName}
+                onChange={e => setNewGroupName(e.target.value)}
+                placeholder="Enter group name"
+                className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Members (phone numbers, one per line)</label>
+              <textarea
+                value={newGroupMembers}
+                onChange={e => setNewGroupMembers(e.target.value)}
+                placeholder={"919876543210\n919876543211\n919876543212"}
+                rows={4}
+                className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none resize-none"
+              />
+              <p className="text-[10px] text-gray-400 mt-1">Use full phone numbers with country code (e.g. 919876543210)</p>
+            </div>
+            <button
+              onClick={handleCreateGroup}
+              disabled={creatingGroup || !newGroupName.trim()}
+              className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {creatingGroup ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+              {creatingGroup ? 'Creating...' : 'Create Group'}
             </button>
           </div>
         </div>

@@ -934,10 +934,57 @@ async function startSocket() {
         mediaInfo = { kind: 'live_location' };
       }
 
-      // If no text and no media detected, skip (reaction, read receipt, etc.)
+      // Handle reactions — apply to existing messages in memory
+      if (innerMessage?.reactionMessage) {
+        const reactKey = innerMessage.reactionMessage.key;
+        const reactEmoji = innerMessage.reactionMessage.text || '';
+        if (reactKey?.id) {
+          // Find the target message and add/remove reaction
+          const targetJid = reactKey.remoteJid || from;
+          const targetMsgs = messageMap.get(targetJid);
+          if (targetMsgs) {
+            const targetMsg = targetMsgs.find(m => m.id === reactKey.id);
+            if (targetMsg) {
+              if (!targetMsg.reactions) targetMsg.reactions = {};
+              const reactorJid = msg.key?.participant || from;
+              if (reactEmoji) {
+                targetMsg.reactions[reactorJid] = reactEmoji;
+              } else {
+                delete targetMsg.reactions[reactorJid];
+              }
+            }
+          }
+        }
+        continue; // Reactions are metadata updates, not new messages
+      }
+
+      // If no text and no media detected, skip (read receipt, protocol messages, etc.)
       if (!text && !mediaInfo) {
         console.log(`[MSG] Skipping unhandled message type from ${from}: ${Object.keys(innerMessage || {}).join(', ')}`);
         continue;
+      }
+
+      // Extract quoted message context (reply-to)
+      const contextInfo = innerMessage?.extendedTextMessage?.contextInfo
+        || innerMessage?.imageMessage?.contextInfo
+        || innerMessage?.videoMessage?.contextInfo
+        || innerMessage?.documentMessage?.contextInfo
+        || innerMessage?.audioMessage?.contextInfo;
+      let quotedInfo = null;
+      if (contextInfo?.quotedMessage) {
+        const qm = contextInfo.quotedMessage;
+        const quotedText = qm.conversation
+          || qm.extendedTextMessage?.text
+          || (qm.imageMessage ? '[Image]' : '')
+          || (qm.videoMessage ? '[Video]' : '')
+          || (qm.documentMessage ? '[Document]' : '')
+          || (qm.audioMessage ? '[Audio]' : '')
+          || '[Message]';
+        quotedInfo = {
+          id: contextInfo.stanzaId,
+          participant: contextInfo.participant || '',
+          text: quotedText.substring(0, 200),
+        };
       }
 
       // Cache raw message proto for on-demand media download later
@@ -1099,6 +1146,8 @@ async function startSocket() {
         mediaMimetype: mediaInfo?.mimetype || null,
         mediaFileName: mediaInfo?.filename || null,
         mediaUrl: null, // Will be populated after webhook upload
+        ...(quotedInfo && { quoted: quotedInfo }),
+        reactions: {},
       };
       if (!messageMap.has(from)) messageMap.set(from, []);
       const chatMsgs = messageMap.get(from);
@@ -1875,6 +1924,191 @@ app.post('/group-participants/:jid', async (req, res) => {
   } catch (e) {
     console.error('[GROUP-PARTICIPANTS] Error:', e.message);
     res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Create new group ───────────────────────────────────────────────────
+app.post('/group-create', async (req, res) => {
+  try {
+    if (!sock || connectionState !== 'connected') return res.status(503).json({ error: 'Not connected' });
+    const { subject, participants } = req.body || {};
+    if (!subject) return res.status(400).json({ error: 'Group subject (name) is required' });
+    if (!participants?.length) return res.status(400).json({ error: 'At least one participant required' });
+    // Ensure participants are proper JIDs
+    const jids = participants.map(p => {
+      const cleaned = String(p).replace(/[^0-9]/g, '');
+      return p.includes('@') ? p : `${cleaned}@s.whatsapp.net`;
+    });
+    const result = await sock.groupCreate(subject, jids);
+    console.log(`[GROUP-CREATE] ✅ Created group "${subject}" with ${jids.length} members: ${result.id}`);
+    // Add to chatMap
+    chatMap.set(result.id, {
+      id: result.id,
+      name: subject,
+      isGroup: true,
+      isLid: false,
+      unreadCount: 0,
+      lastMessageTime: new Date().toISOString(),
+      lastMessage: '',
+    });
+    res.json({ success: true, id: result.id, gid: result.gid, subject: result.subject });
+  } catch (e) {
+    console.error('[GROUP-CREATE] Error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Leave group ────────────────────────────────────────────────────────
+app.post('/group-leave/:jid', async (req, res) => {
+  try {
+    if (!sock || connectionState !== 'connected') return res.status(503).json({ error: 'Not connected' });
+    const jid = req.params.jid;
+    if (!jid.endsWith('@g.us')) return res.status(400).json({ error: 'Not a group JID' });
+    await sock.groupLeave(jid);
+    chatMap.delete(jid);
+    messageMap.delete(jid);
+    console.log(`[GROUP-LEAVE] Left group ${jid}`);
+    res.json({ success: true });
+  } catch (e) {
+    console.error('[GROUP-LEAVE] Error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Reply to a specific message ────────────────────────────────────────
+app.post('/reply', async (req, res) => {
+  try {
+    if (connectionState !== 'connected') return res.status(503).json({ error: 'Not connected' });
+    const { to, message, quotedId, quotedParticipant } = req.body;
+    if (!to || !message) return res.status(400).json({ error: 'to and message required' });
+    if (!quotedId) return res.status(400).json({ error: 'quotedId required (message ID to reply to)' });
+    const toStr = String(to);
+    let jid;
+    if (toStr.includes('@')) {
+      jid = toStr;
+    } else {
+      jid = `${toStr.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
+    }
+    const quoted = {
+      key: {
+        remoteJid: jid,
+        id: quotedId,
+        ...(quotedParticipant && { participant: quotedParticipant }),
+      },
+    };
+    const result = await sock.sendMessage(jid, { text: message }, { quoted });
+    console.log(`[REPLY] ✅ Replied to ${quotedId} in ${jid}`);
+    // Store in message map
+    const sentMsgId = result?.key?.id;
+    if (sentMsgId) {
+      const entry = {
+        id: sentMsgId,
+        from: sock.user?.id?.split(':')[0] || '',
+        fromMe: true,
+        text: message,
+        type: 'text',
+        timestamp: Math.floor(Date.now() / 1000),
+        status: result?.status,
+        quotedId,
+      };
+      if (!messageMap.has(jid)) messageMap.set(jid, []);
+      const msgs = messageMap.get(jid);
+      if (!msgs.find(m => m.id === sentMsgId)) {
+        msgs.push(entry);
+        if (msgs.length > MAX_MSGS_PER_CHAT) msgs.shift();
+      }
+    }
+    res.json({ success: true, id: sentMsgId, key: result?.key });
+  } catch (e) {
+    console.error('[REPLY] Error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── React to a message ─────────────────────────────────────────────────
+app.post('/react', async (req, res) => {
+  try {
+    if (connectionState !== 'connected') return res.status(503).json({ error: 'Not connected' });
+    const { jid, messageId, emoji, participant } = req.body;
+    if (!jid || !messageId) return res.status(400).json({ error: 'jid and messageId required' });
+    // emoji = '' means remove reaction
+    const reactionMessage = {
+      react: {
+        text: emoji || '',
+        key: {
+          remoteJid: jid,
+          id: messageId,
+          ...(participant && { participant }),
+        },
+      },
+    };
+    await sock.sendMessage(jid, reactionMessage);
+    console.log(`[REACT] ${emoji || '(remove)'} on ${messageId} in ${jid}`);
+    res.json({ success: true });
+  } catch (e) {
+    console.error('[REACT] Error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Delete a message ───────────────────────────────────────────────────
+app.post('/delete-message', async (req, res) => {
+  try {
+    if (connectionState !== 'connected') return res.status(503).json({ error: 'Not connected' });
+    const { jid, messageId, participant, forEveryone } = req.body;
+    if (!jid || !messageId) return res.status(400).json({ error: 'jid and messageId required' });
+    if (forEveryone) {
+      // Delete for everyone
+      await sock.sendMessage(jid, {
+        delete: {
+          remoteJid: jid,
+          id: messageId,
+          ...(participant && { participant }),
+        },
+      });
+      console.log(`[DELETE] Deleted ${messageId} for everyone in ${jid}`);
+    } else {
+      // Clear for me (just remove from local messageMap)
+      console.log(`[DELETE] Cleared ${messageId} locally in ${jid}`);
+    }
+    // Remove from messageMap
+    const msgs = messageMap.get(jid);
+    if (msgs) {
+      const idx = msgs.findIndex(m => m.id === messageId);
+      if (idx >= 0) msgs.splice(idx, 1);
+    }
+    res.json({ success: true });
+  } catch (e) {
+    console.error('[DELETE] Error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Send typing indicator ──────────────────────────────────────────────
+app.post('/typing', async (req, res) => {
+  try {
+    if (connectionState !== 'connected') return res.status(503).json({ error: 'Not connected' });
+    const { jid, composing } = req.body;
+    if (!jid) return res.status(400).json({ error: 'jid required' });
+    await sock.sendPresenceUpdate(composing ? 'composing' : 'paused', jid);
+    res.json({ ok: true });
+  } catch (e) {
+    // Don't spam error logs for typing — just fail silently
+    res.json({ ok: true });
+  }
+});
+
+// ── Get contact about/bio ──────────────────────────────────────────────
+app.get('/contact-about/:jid', async (req, res) => {
+  try {
+    if (!sock || connectionState !== 'connected') return res.status(503).json({ error: 'Not connected' });
+    const raw = req.params.jid;
+    const jid = raw.includes('@') ? raw : `${raw}@s.whatsapp.net`;
+    const status = await sock.fetchStatus(jid);
+    res.json({ about: status?.status || '', setAt: status?.setAt || null });
+  } catch (e) {
+    // Many contacts don't expose their about — return empty
+    res.json({ about: '', setAt: null });
   }
 });
 
