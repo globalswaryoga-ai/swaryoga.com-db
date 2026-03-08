@@ -97,9 +97,9 @@ export default function TeamPage() {
 
   // Seat pricing
   const SEAT_PRICING = {
-    monthly: 299,
-    quarterly: 799,
-    annual: 2999,
+    monthly: 300,
+    quarterly: 810,
+    annual: 3000,
   };
   const GST_RATE = 0.18;
 
@@ -679,9 +679,9 @@ export default function TeamPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-3">Billing Period</label>
                 <div className="grid grid-cols-3 gap-2">
                   {[
-                    { value: 'monthly', label: 'Monthly', price: '₹299/seat' },
-                    { value: 'quarterly', label: '3 Months', price: '₹799/seat', badge: '10% off' },
-                    { value: 'annual', label: '1 Year', price: '₹2,999/seat', badge: '16% off' },
+                    { value: 'monthly', label: 'Monthly', price: '₹300/seat' },
+                    { value: 'quarterly', label: '3 Months', price: '₹810/seat', badge: '10% off' },
+                    { value: 'annual', label: '1 Year', price: '₹3,000/seat', badge: '17% off' },
                   ].map(option => (
                     <button
                       key={option.value}

@@ -13,9 +13,9 @@ import { cashfreeCreateOrder } from '@/lib/payments/cashfree';
 
 // Pricing per additional seat (monthly)
 const SEAT_PRICING = {
-  monthly: 299,    // ₹299/seat/month
-  quarterly: 799,  // ₹799/seat/quarter (10% discount)
-  annual: 2999,    // ₹2999/seat/year (16% discount)
+  monthly: 300,    // ₹300/seat/month
+  quarterly: 810,  // ₹810/seat/quarter (10% discount)
+  annual: 3000,    // ₹3000/seat/year (17% discount)
 };
 
 const GST_RATE = 0.18;
