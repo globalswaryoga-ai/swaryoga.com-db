@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { tenantOrFilter } from '@/lib/crm-handlers';
 import { getLead } from '@/lib/schemas/enterpriseSchemas';
 
 // Mark as dynamic since this route uses request.headers or request.url
@@ -26,6 +27,7 @@ export async function GET(
     if (!decoded || !decoded.userId) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
+    const tf = tenantOrFilter(decoded);
 
     // Connect to database
     await connectDB();
@@ -48,14 +50,17 @@ export async function GET(
 
     // Search for lead by phone number
     // We prioritize EXACT match on normalized phone first
-    let lead = await Lead.findOne({ phoneNumber: normalizedPhone }).lean();
+    let lead = await Lead.findOne({ phoneNumber: normalizedPhone, ...tf }).lean();
     
     if (!lead) {
       // Fallback: search for variants if exact match fails
       lead = await Lead.findOne({
-        $or: [
-          { phoneNumber: { $regex: normalizedPhone + '$' } },
-          { phoneNumber: { $regex: '^' + normalizedPhone } },
+        $and: [
+          { $or: [
+            { phoneNumber: { $regex: normalizedPhone + '$' } },
+            { phoneNumber: { $regex: '^' + normalizedPhone } },
+          ]},
+          tf,
         ],
       }).lean();
     }

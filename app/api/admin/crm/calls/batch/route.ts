@@ -8,6 +8,7 @@ import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { getLead, getAICallLog } from '@/lib/schemas/enterpriseSchemas';
 import { createBatchCall, checkRetellConfig } from '@/lib/retellAI';
+import { tenantFilter, isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,6 +21,7 @@ export async function POST(request: NextRequest) {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
+    const tf = tenantFilter(decoded, 'initiatedBy');
 
     const configStatus = checkRetellConfig();
     if (!configStatus.configured) {
@@ -110,7 +112,7 @@ export async function POST(request: NextRequest) {
     if (!result.success) {
       // Mark all logs as failed
       await AICallLog.updateMany(
-        { _id: { $in: createdLogs.map((l: any) => l._id) } },
+        { _id: { $in: createdLogs.map((l: any) => l._id) }, ...tf },
         { $set: { status: 'failed', callEndedReason: result.error } }
       );
       return apiError('SERVER_ERROR', result.error || 'Batch call failed');
@@ -118,7 +120,7 @@ export async function POST(request: NextRequest) {
 
     // Update logs with batch ID
     await AICallLog.updateMany(
-      { _id: { $in: createdLogs.map((l: any) => l._id) } },
+      { _id: { $in: createdLogs.map((l: any) => l._id) }, ...tf },
       { $set: { retellBatchId: result.batchId, status: 'ringing', startedAt: new Date() } }
     );
 

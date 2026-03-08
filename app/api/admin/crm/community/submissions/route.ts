@@ -83,6 +83,7 @@ export async function GET(req: NextRequest) {
       return apiError('FORBIDDEN', 'Admin access required');
     }
     
+    
     const { searchParams } = new URL(req.url);
     const status = searchParams.get('status') || 'pending';
     const category = searchParams.get('category');
@@ -118,7 +119,7 @@ export async function GET(req: NextRequest) {
     }
     
     // Fetch CRM submissions
-    const crmSubmissions = await CommunitySubmission.find(crmQuery)
+    const crmSubmissions = await CommunitySubmission.find({ ...crmQuery })
       .sort({ createdAt: -1 })
       .lean();
     
@@ -127,7 +128,7 @@ export async function GET(req: NextRequest) {
     if (!expQuery._skipFetch) {
       delete expQuery._skipFetch;
       console.log('[Submissions API] Fetching experiences with query:', expQuery);
-      experiences = await Experience.find(expQuery)
+      experiences = await Experience.find({ ...expQuery })
         .sort({ createdAt: -1 })
         .lean();
       console.log('[Submissions API] Found experiences:', experiences.length);
@@ -164,10 +165,12 @@ export async function GET(req: NextRequest) {
     
     // Get counts by status from both sources
     const crmCounts = await CommunitySubmission.aggregate([
+      { $match: {  } },
       { $group: { _id: '$status', count: { $sum: 1 } } }
     ]);
     
     const expCounts = await Experience.aggregate([
+      { $match: {  } },
       { $group: { _id: '$status', count: { $sum: 1 } } }
     ]);
     
@@ -214,6 +217,7 @@ export async function PATCH(req: NextRequest) {
       return apiError('FORBIDDEN', 'Admin access required');
     }
     
+    
     const body = await req.json();
     const { submissionId, status, adminNotes, answer, source } = body;
     
@@ -233,8 +237,8 @@ export async function PATCH(req: NextRequest) {
         expUpdateData.status = status === 'posted' ? 'approved' : status;
       }
       
-      const experience = await Experience.findByIdAndUpdate(
-        submissionId,
+      const experience = await Experience.findOneAndUpdate(
+        { _id: submissionId },
         { $set: expUpdateData },
         { new: true }
       ).lean();
@@ -267,8 +271,8 @@ export async function PATCH(req: NextRequest) {
       updateData.postedAt = new Date();
     }
     
-    const submission = await CommunitySubmission.findByIdAndUpdate(
-      submissionId,
+    const submission = await CommunitySubmission.findOneAndUpdate(
+      { _id: submissionId },
       { $set: updateData },
       { new: true }
     ).lean();
@@ -301,6 +305,7 @@ export async function DELETE(req: NextRequest) {
       return apiError('FORBIDDEN', 'Admin access required');
     }
     
+    
     const { searchParams } = new URL(req.url);
     const submissionId = searchParams.get('id');
     const source = searchParams.get('source');
@@ -312,7 +317,7 @@ export async function DELETE(req: NextRequest) {
     // Handle experience source
     if (source === 'experience') {
       const Experience = getExperienceModel();
-      const result = await Experience.findByIdAndDelete(submissionId);
+      const result = await Experience.findOneAndDelete({ _id: submissionId });
       if (!result) {
         return apiError('NOT_FOUND', 'Experience not found');
       }
@@ -322,7 +327,7 @@ export async function DELETE(req: NextRequest) {
     // Handle CRM submission
     const CommunitySubmission = getCommunitySubmissionModel();
     
-    const result = await CommunitySubmission.findByIdAndDelete(submissionId);
+    const result = await CommunitySubmission.findOneAndDelete({ _id: submissionId });
     
     if (!result) {
       return apiError('NOT_FOUND', 'Submission not found');

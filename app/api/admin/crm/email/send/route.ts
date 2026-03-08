@@ -6,6 +6,7 @@ import { apiError, apiSuccess } from '@/lib/api-error';
 import { getEmailCampaign, getEmailLog } from '@/lib/schemas/enterpriseSchemas';
 import { sendBulkEmails, sendEmailToLead } from '@/lib/email';
 import type { EmailRecipient, EmailAttachment } from '@/lib/email';
+import { getViewerUserId } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
@@ -86,6 +87,7 @@ export async function POST(request: NextRequest) {
         error: result.error,
         sentAt: result.sentAt,
         sentBy: decoded.userId || 'unknown',
+        createdByUserId: getViewerUserId(decoded),
         source: 'followup',
       });
 
@@ -119,6 +121,7 @@ export async function POST(request: NextRequest) {
         failed: 0,
       },
       createdBy: decoded.userId || 'unknown',
+      createdByUserId: getViewerUserId(decoded),
       createdAt: new Date(),
     });
 
@@ -153,6 +156,7 @@ export async function POST(request: NextRequest) {
           error: result.error,
           sentAt: result.sentAt,
           sentBy: decoded.userId || 'unknown',
+          createdByUserId: getViewerUserId(decoded),
           source: 'bulk' as const,
         }));
 

@@ -4,6 +4,7 @@ import { apiError, apiSuccess } from '@/lib/api-error';
 import { connectDB } from '@/lib/db';
 import { getFollowUpSequence } from '@/lib/schemas/enterpriseSchemas';
 import { hasPermission } from '@/lib/permissions';
+import { tenantFilter, getViewerUserId } from '@/lib/crm-handlers';
 
 // Mark as dynamic since this route uses request.headers and request.url
 export const dynamic = 'force-dynamic';
@@ -25,6 +26,7 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
     const FollowUpSequence = getFollowUpSequence();
+    const tf = tenantFilter(decoded, 'createdBy');
 
     const { searchParams } = new URL(request.url);
     const active = searchParams.get('active');
@@ -34,7 +36,7 @@ export async function GET(request: NextRequest) {
       filter.active = active === 'true';
     }
 
-    const sequences = await FollowUpSequence.find(filter)
+    const sequences = await FollowUpSequence.find({ ...filter, ...tf })
       .sort({ createdAt: -1 })
       .lean();
 
@@ -87,9 +89,10 @@ export async function POST(request: NextRequest) {
 
     await connectDB();
     const FollowUpSequence = getFollowUpSequence();
+    const tf = tenantFilter(decoded, 'createdBy');
 
     // Check for duplicate sequence name
-    const existing = await FollowUpSequence.findOne({ name });
+    const existing = await FollowUpSequence.findOne({ name, ...tf });
     if (existing) {
       return apiError('VALIDATION_ERROR', 'A follow-up sequence with this name already exists');
     }
@@ -100,6 +103,7 @@ export async function POST(request: NextRequest) {
       steps,
       active: active !== false, // Default to true
       createdBy: decoded.userId || decoded.username,
+      createdByUserId: getViewerUserId(decoded),
       stats: {
         totalExecutions: 0,
         completedExecutions: 0,

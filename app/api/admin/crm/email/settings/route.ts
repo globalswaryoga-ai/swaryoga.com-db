@@ -3,6 +3,7 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { getEmailSettings } from '@/lib/schemas/enterpriseSchemas';
+import { tenantFilter, getViewerUserId } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,7 +40,8 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
     const EmailSettings = getEmailSettings();
-    const settings = await EmailSettings.find().sort({ isDefault: -1, createdAt: -1 }).lean();
+    const tf = tenantFilter(decoded, 'createdBy');
+    const settings = await EmailSettings.find(tf).sort({ isDefault: -1, createdAt: -1 }).lean();
 
     // Auto-heal: if env SMTP is configured and matches a sender, ensure it's marked verified
     const envSmtpUser = process.env.SMTP_USER;
@@ -60,6 +62,7 @@ export async function GET(request: NextRequest) {
         isVerified: true,
         lastVerifiedAt: new Date(),
         createdBy: 'auto-config',
+        createdByUserId: getViewerUserId(decoded),
         updatedBy: 'auto-config',
       });
       const masked = { ...doc.toObject(), smtpPass: '••••••••', resendApiKey: '' };
@@ -69,7 +72,7 @@ export async function GET(request: NextRequest) {
     // Auto-heal existing records: if SMTP env matches a sender stuck as unverified, fix it
     const healed = await Promise.all(settings.map(async (s: any) => {
       if (!s.isVerified && envSmtpConfigured && s.senderEmail === envSmtpUser?.toLowerCase()) {
-        await EmailSettings.updateOne({ _id: s._id }, { $set: { isVerified: true, lastVerifiedAt: new Date() } });
+        await EmailSettings.updateOne({ _id: s._id, ...tf }, { $set: { isVerified: true, lastVerifiedAt: new Date() } });
         s.isVerified = true;
         s.lastVerifiedAt = new Date();
       }
@@ -115,14 +118,15 @@ export async function POST(request: NextRequest) {
 
     await connectDB();
     const EmailSettings = getEmailSettings();
+    const tf = tenantFilter(decoded, 'createdBy');
 
     // If setting as default, unset others
     if (isDefault) {
-      await EmailSettings.updateMany({}, { isDefault: false });
+      await EmailSettings.updateMany(tf, { isDefault: false });
     }
 
     // Resolve real credentials (never store masked values)
-    const existing = await EmailSettings.findOne({ senderEmail: senderEmail.trim().toLowerCase() });
+    const existing = await EmailSettings.findOne({ senderEmail: senderEmail.trim().toLowerCase(), ...tf });
     const host = smtpHost?.trim() || process.env.SMTP_HOST || 'smtp.hostinger.com';
     const port = smtpPort || parseInt(process.env.SMTP_PORT || '465');
     const user = smtpUser?.trim() || process.env.SMTP_USER || senderEmail.trim();
@@ -152,8 +156,8 @@ export async function POST(request: NextRequest) {
 
     // Upsert: update if exists, create if not
     const doc = await EmailSettings.findOneAndUpdate(
-      { senderEmail: senderEmail.trim().toLowerCase() },
-      { $set: updateData, $setOnInsert: { senderEmail: senderEmail.trim().toLowerCase(), createdBy: decoded.userId || 'unknown' } },
+      { senderEmail: senderEmail.trim().toLowerCase(), ...tf },
+      { $set: updateData, $setOnInsert: { senderEmail: senderEmail.trim().toLowerCase(), createdBy: decoded.userId || 'unknown', createdByUserId: getViewerUserId(decoded) } },
       { upsert: true, new: true },
     );
 
@@ -185,8 +189,9 @@ export async function PUT(request: NextRequest) {
 
     await connectDB();
     const EmailSettings = getEmailSettings();
+    const tf = tenantFilter(decoded, 'createdBy');
 
-    const doc = await EmailSettings.findById(id);
+    const doc = await EmailSettings.findOne({ _id: id, ...tf });
     if (!doc) return apiError('NOT_FOUND', 'Email setting not found');
 
     if (senderEmail?.trim()) {
@@ -194,7 +199,7 @@ export async function PUT(request: NextRequest) {
       if (!emailRegex.test(senderEmail.trim())) {
         return apiError('VALIDATION_ERROR', 'Invalid email address');
       }
-      const dup = await EmailSettings.findOne({ senderEmail: senderEmail.trim().toLowerCase(), _id: { $ne: id } });
+      const dup = await EmailSettings.findOne({ senderEmail: senderEmail.trim().toLowerCase(), _id: { $ne: id }, ...tf });
       if (dup) return apiError('VALIDATION_ERROR', 'This sender email already exists');
       doc.senderEmail = senderEmail.trim().toLowerCase();
     }
@@ -206,7 +211,7 @@ export async function PUT(request: NextRequest) {
     if (smtpUser !== undefined) doc.smtpUser = smtpUser.trim();
     if (smtpSecure !== undefined) doc.smtpSecure = smtpSecure;
     if (isDefault) {
-      await EmailSettings.updateMany({ _id: { $ne: id } }, { isDefault: false });
+      await EmailSettings.updateMany({ _id: { $ne: id }, ...tf }, { isDefault: false });
       doc.isDefault = true;
     }
     doc.updatedBy = decoded.userId || 'unknown';
@@ -254,8 +259,9 @@ export async function DELETE(request: NextRequest) {
 
     await connectDB();
     const EmailSettings = getEmailSettings();
+    const tf = tenantFilter(decoded, 'createdBy');
 
-    const doc = await EmailSettings.findByIdAndDelete(id);
+    const doc = await EmailSettings.findOneAndDelete({ _id: id, ...tf });
     if (!doc) return apiError('NOT_FOUND', 'Email setting not found');
 
     return apiSuccess({ message: 'Sender email deleted' });

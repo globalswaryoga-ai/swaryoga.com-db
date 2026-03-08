@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
+import { tenantFilter, getViewerUserId } from '@/lib/crm-handlers';
 import { connectDB } from '@/lib/db';
 import { getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { DeleteObjectCommand, S3Client } from '@aws-sdk/client-s3';
@@ -23,6 +24,7 @@ export async function GET(req: NextRequest) {
     if (!decoded || !decoded.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
+    const tf = tenantFilter(decoded);
 
     await connectDB();
     const WhatsAppMessage = getWhatsAppMessage();
@@ -38,6 +40,7 @@ export async function GET(req: NextRequest) {
       direction: 'inbound',
       messageType: 'media',
       'media.url': { $exists: true, $ne: null },
+      ...tf,
     };
 
     if (kind && kind !== 'all') {
@@ -76,7 +79,7 @@ export async function GET(req: NextRequest) {
 
     // Calculate storage stats
     const stats = await WhatsAppMessage.aggregate([
-      { $match: { direction: 'inbound', messageType: 'media', 'media.url': { $exists: true, $ne: null } } },
+      { $match: { direction: 'inbound', messageType: 'media', 'media.url': { $exists: true, $ne: null }, ...tf } },
       { $group: { _id: '$media.kind', count: { $sum: 1 } } },
     ]);
 
@@ -105,6 +108,7 @@ export async function DELETE(req: NextRequest) {
     if (!decoded || !decoded.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
+    const tf = tenantFilter(decoded);
 
     await connectDB();
     const WhatsAppMessage = getWhatsAppMessage();
@@ -120,6 +124,7 @@ export async function DELETE(req: NextRequest) {
       _id: { $in: messageIds },
       direction: 'inbound',
       messageType: 'media',
+      ...tf,
     }).select('media');
 
     let deletedFromS3 = 0;
@@ -147,7 +152,7 @@ export async function DELETE(req: NextRequest) {
 
     // Remove media URL from messages (keep the message, just clear media)
     await WhatsAppMessage.updateMany(
-      { _id: { $in: messageIds } },
+      { _id: { $in: messageIds }, ...tf },
       { $set: { 'media.url': null, 'media.deleted': true, 'media.deletedAt': new Date() } }
     );
 

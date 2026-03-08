@@ -4,6 +4,7 @@ import { apiError, apiSuccess } from '@/lib/api-error';
 import { connectDB } from '@/lib/db';
 import { getEmailCampaign } from '@/lib/schemas/enterpriseSchemas';
 import { hasPermission } from '@/lib/permissions';
+import { tenantFilter } from '@/lib/crm-handlers';
 
 // Mark as dynamic since this route uses request.headers and request.url
 export const dynamic = 'force-dynamic';
@@ -25,6 +26,7 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
     const EmailCampaign = getEmailCampaign();
+    const tf = tenantFilter(decoded, 'createdBy');
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
@@ -36,13 +38,13 @@ export async function GET(request: NextRequest) {
       filter.status = status;
     }
 
-    const campaigns = await EmailCampaign.find(filter)
+    const campaigns = await EmailCampaign.find({ ...filter, ...tf })
       .sort({ createdAt: -1 })
       .limit(limit)
       .skip(skip)
       .lean();
 
-    const total = await EmailCampaign.countDocuments(filter);
+    const total = await EmailCampaign.countDocuments({ ...filter, ...tf });
 
     return apiSuccess({
       campaigns,

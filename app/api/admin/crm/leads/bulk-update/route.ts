@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
+import { verifyToken } from '@/lib/auth';
 import { Lead } from '@/lib/schemas/enterpriseSchemas';
 import { 
-  verifyAdminAccess, 
+  tenantOrFilter, 
   toObjectId, 
   isValidObjectId, 
   handleCrmError, 
@@ -27,7 +28,10 @@ type Body = {
 
 export async function POST(request: NextRequest) {
   try {
-    verifyAdminAccess(request);
+    const token = request.headers.get('authorization')?.slice('Bearer '.length);
+    const decoded = verifyToken(token);
+    if (!decoded?.isAdmin || !decoded?.userId) throw new Error('Unauthorized');
+    const tf = tenantOrFilter(decoded);
 
     const body = (await request.json().catch(() => null)) as Body | null;
     if (!body || !Array.isArray(body.leadIds) || body.leadIds.length === 0) {
@@ -78,7 +82,7 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await Lead.updateMany(
-      { _id: { $in: objectIds } },
+      { _id: { $in: objectIds }, ...tf },
       { 
         $set: update,
         ...(Object.keys(arrayUpdates).length > 0 ? arrayUpdates : {})

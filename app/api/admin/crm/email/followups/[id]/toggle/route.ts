@@ -4,6 +4,7 @@ import { apiError, apiSuccess } from '@/lib/api-error';
 import { connectDB } from '@/lib/db';
 import { getFollowUpSequence } from '@/lib/schemas/enterpriseSchemas';
 import { hasPermission } from '@/lib/permissions';
+import { tenantFilter } from '@/lib/crm-handlers';
 
 // POST /api/admin/crm/email/followups/[id]/toggle - Activate/deactivate follow-up sequence
 
@@ -29,9 +30,10 @@ export async function POST(
 
     await connectDB();
     const FollowUpSequence = getFollowUpSequence();
+    const tf = tenantFilter(decoded, 'createdBy');
 
     // Check if sequence exists
-    const sequence = await FollowUpSequence.findById(params.id);
+    const sequence = await FollowUpSequence.findOne({ _id: params.id, ...tf });
     if (!sequence) {
       return apiError('NOT_FOUND', 'Follow-up sequence not found');
     }

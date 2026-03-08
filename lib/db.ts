@@ -425,6 +425,9 @@ const communitySchema = new mongoose.Schema({
   
   // For old_sadhak: track which workshops have been merged into this community
   mergedWorkshopIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Workshop' }],
+
+  // Tenant isolation: admin who created/owns this community
+  createdByUserId: { type: String, index: true },
   
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
@@ -434,6 +437,7 @@ communitySchema.index({ id: 1 }, { unique: true, sparse: true });
 communitySchema.index({ name: 1 }, { unique: true, sparse: true });
 communitySchema.index({ type: 1, isArchived: 1 });
 communitySchema.index({ workshopId: 1 });
+communitySchema.index({ createdByUserId: 1 });
 
 export const Community = mongoose.models.Community || mongoose.model('Community', communitySchema);
 

@@ -10,6 +10,7 @@ import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { getAgentLanguageMapping } from '@/lib/schemas/enterpriseSchemas';
 import { resolveAgentForLanguage } from '@/lib/retellAI';
+import { tenantFilter, isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +24,7 @@ export async function GET(request: NextRequest) {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
+    const tf = tenantFilter(decoded, 'createdBy');
 
     await connectDB();
 
@@ -33,7 +35,7 @@ export async function GET(request: NextRequest) {
     }
 
     const AgentLanguageMapping = getAgentLanguageMapping();
-    const mappings = await AgentLanguageMapping.find({}).sort({ language: 1 }).lean();
+    const mappings = await AgentLanguageMapping.find(tf).sort({ language: 1 }).lean();
     return apiSuccess({ mappings });
   } catch (err: any) {
     console.error('[agent-mapping GET]', err);
@@ -51,6 +53,7 @@ export async function POST(request: NextRequest) {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
+    const tf = tenantFilter(decoded, 'createdBy');
 
     const body = await request.json();
     const { language, agentId, agentName, voiceId, isDefault, isActive } = body;
@@ -65,12 +68,12 @@ export async function POST(request: NextRequest) {
 
     // If setting as default, clear other defaults
     if (isDefault) {
-      await AgentLanguageMapping.updateMany({ isDefault: true }, { $set: { isDefault: false } });
+      await AgentLanguageMapping.updateMany({ isDefault: true, ...tf }, { $set: { isDefault: false } });
     }
 
     // Upsert: update if language exists, insert if not
     const result = await AgentLanguageMapping.findOneAndUpdate(
-      { language: normalizedLang },
+      { language: normalizedLang, ...tf },
       {
         $set: {
           language: normalizedLang,
@@ -105,6 +108,7 @@ export async function DELETE(request: NextRequest) {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
+    const tf = tenantFilter(decoded, 'createdBy');
 
     await connectDB();
     const AgentLanguageMapping = getAgentLanguageMapping();
@@ -115,7 +119,7 @@ export async function DELETE(request: NextRequest) {
     if (!language && !id) return apiError('VALIDATION_ERROR', 'language or id is required');
 
     const query = id ? { _id: id } : { language: language!.toLowerCase() };
-    const deleted = await AgentLanguageMapping.findOneAndDelete(query);
+    const deleted = await AgentLanguageMapping.findOneAndDelete({ ...query, ...tf });
 
     if (!deleted) return apiError('NOT_FOUND', 'Mapping not found');
 

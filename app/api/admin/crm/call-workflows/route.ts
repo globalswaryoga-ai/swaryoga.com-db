@@ -8,6 +8,7 @@ import { NextRequest } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
+import { tenantFilter } from '@/lib/crm-handlers';
 import { getCallWorkflow, getLead } from '@/lib/schemas/enterpriseSchemas';
 
 export const dynamic = 'force-dynamic';
@@ -23,6 +24,7 @@ export async function GET(request: NextRequest) {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
+    const tf = tenantFilter(decoded, 'createdBy');
 
     await connectDB();
     const CallWorkflow = getCallWorkflow();
@@ -33,7 +35,7 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(Number(request.nextUrl.searchParams.get('limit') || 50), 200);
     const skip = Number(request.nextUrl.searchParams.get('skip') || 0);
 
-    const query: any = { direction };
+    const query: any = { direction, ...tf };
     if (status) query.workflowStatus = status;
     if (leadId) query.leadId = leadId;
 
@@ -42,7 +44,7 @@ export async function GET(request: NextRequest) {
       CallWorkflow.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
       CallWorkflow.countDocuments(query),
       CallWorkflow.aggregate([
-        { $match: { direction } },
+        { $match: { direction, ...tf } },
         { $group: { _id: '$workflowStatus', count: { $sum: 1 } } },
       ]),
     ]);
@@ -74,6 +76,7 @@ export async function POST(request: NextRequest) {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
+    const tf = tenantFilter(decoded, 'createdBy');
 
     const { leadIds, direction } = await request.json();
 
@@ -100,6 +103,7 @@ export async function POST(request: NextRequest) {
       leadId: { $in: leadIds },
       direction,
       workflowStatus: { $nin: ['completed'] },
+      ...tf,
     }).select('leadId').lean();
 
     const existingLeadIds = new Set(existingWorkflows.map((w: any) => String(w.leadId)));
@@ -142,6 +146,7 @@ export async function PUT(request: NextRequest) {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
+    const tf = tenantFilter(decoded, 'createdBy');
 
     const { id, updates } = await request.json();
 
@@ -150,7 +155,7 @@ export async function PUT(request: NextRequest) {
     await connectDB();
     const CallWorkflow = getCallWorkflow();
 
-    const workflow = await CallWorkflow.findById(id);
+    const workflow = await CallWorkflow.findOne({ _id: id, ...tf });
     if (!workflow) return apiError('NOT_FOUND', 'Workflow not found');
 
     // Allowed update fields
@@ -191,7 +196,7 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    const updated = await CallWorkflow.findByIdAndUpdate(id, { $set }, { new: true }).lean();
+    const updated = await CallWorkflow.findOneAndUpdate({ _id: id, ...tf }, { $set }, { new: true }).lean();
 
     return apiSuccess({ workflow: updated });
   } catch (err: any) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, CommunityMember } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { verifyCommunityTenant, getAccessibleCommunityIds } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -17,6 +18,7 @@ export async function POST(request: NextRequest) {
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized - Admin access required' }, { status: 401 });
     }
+    
 
     const body = await request.json().catch(() => null);
     const memberId = typeof body?.memberId === 'string' ? body.memberId.trim() : '';
@@ -30,18 +32,27 @@ export async function POST(request: NextRequest) {
 
     await connectDB();
 
+    // Community-level tenant isolation
+    if (communityId) {
+      if (!(await verifyCommunityTenant(decoded, communityId))) {
+        return NextResponse.json({ error: 'Access denied to this community' }, { status: 403 });
+      }
+    }
+
     let filter: any = {};
     if (memberId) {
       filter._id = memberId;
     } else if (userId && communityId) {
       filter = { userId, communityId };
     } else if (userId) {
-      // Block user from all communities
-      filter = { userId };
+      // Block from accessible communities only
+      const accessibleIds = await getAccessibleCommunityIds(decoded);
+      if (accessibleIds) filter = { userId, communityId: { $in: accessibleIds } };
+      else filter = { userId };
     }
 
     const result = await CommunityMember.updateMany(
-      filter,
+      { ...filter },
       {
         $set: {
           status: 'banned',
@@ -84,6 +95,7 @@ export async function DELETE(request: NextRequest) {
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized - Admin access required' }, { status: 401 });
     }
+    
 
     const body = await request.json().catch(() => null);
     const memberId = typeof body?.memberId === 'string' ? body.memberId.trim() : '';
@@ -96,17 +108,26 @@ export async function DELETE(request: NextRequest) {
 
     await connectDB();
 
+    // Community-level tenant isolation
+    if (communityId) {
+      if (!(await verifyCommunityTenant(decoded, communityId))) {
+        return NextResponse.json({ error: 'Access denied to this community' }, { status: 403 });
+      }
+    }
+
     let filter: any = {};
     if (memberId) {
       filter._id = memberId;
     } else if (userId && communityId) {
       filter = { userId, communityId };
     } else if (userId) {
-      filter = { userId };
+      const accessibleIds = await getAccessibleCommunityIds(decoded);
+      if (accessibleIds) filter = { userId, communityId: { $in: accessibleIds } };
+      else filter = { userId };
     }
 
     const result = await CommunityMember.updateMany(
-      filter,
+      { ...filter },
       {
         $set: {
           status: 'active',
@@ -152,18 +173,29 @@ export async function GET(request: NextRequest) {
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized - Admin access required' }, { status: 401 });
     }
+    
 
     const { searchParams } = new URL(request.url);
     const communityId = searchParams.get('communityId') || '';
 
     await connectDB();
 
+    // Community-level tenant isolation
+    if (communityId) {
+      if (!(await verifyCommunityTenant(decoded, communityId))) {
+        return NextResponse.json({ error: 'Access denied to this community' }, { status: 403 });
+      }
+    }
+
     let filter: any = { status: 'banned' };
     if (communityId) {
       filter.communityId = communityId;
+    } else {
+      const accessibleIds = await getAccessibleCommunityIds(decoded);
+      if (accessibleIds) filter.communityId = { $in: accessibleIds };
     }
 
-    const blockedMembers = await CommunityMember.find(filter)
+    const blockedMembers = await CommunityMember.find({ ...filter })
       .sort({ 'metadata.bannedAt': -1 })
       .limit(100)
       .lean();

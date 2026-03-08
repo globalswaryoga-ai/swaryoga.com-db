@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import { verifyToken } from '@/lib/auth';
+import { tenantFilter, getViewerUserId } from '@/lib/crm-handlers';
 import { connectDB } from '@/lib/db';
 import { WhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 
@@ -20,6 +21,7 @@ export async function POST(request: NextRequest) {
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
     }
+    const tf = tenantFilter(decoded);
 
     const body = await request.json().catch(() => ({} as any));
     const leadIds: string[] = Array.isArray(body?.leadIds) ? body.leadIds.map((x: any) => String(x)) : [];
@@ -49,7 +51,7 @@ export async function POST(request: NextRequest) {
     // Delete messages. This is irreversible.
     // Access-control note: This currently allows any admin to delete; if you want to restrict to admincrm only,
     // we can tighten this check.
-    const res = await (WhatsAppMessage as any).deleteMany({ $or: or });
+    const res = await (WhatsAppMessage as any).deleteMany({ $or: or, ...tf });
 
     return NextResponse.json(
       {

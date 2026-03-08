@@ -11,6 +11,7 @@ import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { getAICallLog } from '@/lib/schemas/enterpriseSchemas';
 import { getCallDetails, mapRetellStatus, mapDisconnectionReason, extractCollectedData } from '@/lib/retellAI';
+import { tenantFilter, isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,6 +27,7 @@ export async function POST(request: NextRequest) {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
+    const tf = tenantFilter(decoded, 'initiatedBy');
 
     const body = await request.json();
     const { action, callId } = body;
@@ -34,7 +36,7 @@ export async function POST(request: NextRequest) {
     const AICallLog = getAICallLog();
 
     if (action === 'sync_one' && callId) {
-      const callLog = await AICallLog.findById(callId).lean() as any;
+      const callLog = await AICallLog.findOne({ _id: callId, ...tf }).lean() as any;
       if (!callLog) return apiError('NOT_FOUND', 'Call not found');
       if (!callLog.retellCallId) return apiError('VALIDATION_ERROR', 'Call has no Retell ID — cannot sync');
 
@@ -47,6 +49,7 @@ export async function POST(request: NextRequest) {
       status: { $in: ['ringing', 'queued', 'in_progress'] },
       retellCallId: { $exists: true, $ne: null },
       createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }, // Last 30 days
+      ...tf,
     })
       .sort({ createdAt: -1 })
       .limit(50)

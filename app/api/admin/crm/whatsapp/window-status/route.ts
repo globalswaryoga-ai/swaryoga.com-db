@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { tenantFilter } from '@/lib/crm-handlers';
 import { getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import mongoose from 'mongoose';
 
@@ -19,6 +20,7 @@ export async function GET(request: NextRequest) {
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const tf = tenantFilter(decoded);
 
     const leadIdsParam = request.nextUrl.searchParams.get('leadIds') || '';
     const leadIds = leadIdsParam.split(',').filter(Boolean);
@@ -42,6 +44,7 @@ export async function GET(request: NextRequest) {
           leadId: { $in: limitedIds.map(id => new mongoose.Types.ObjectId(id)) },
           direction: 'inbound',
           sentAt: { $gte: cutoff },
+          ...tf,
         },
       },
       { $sort: { sentAt: -1 } },

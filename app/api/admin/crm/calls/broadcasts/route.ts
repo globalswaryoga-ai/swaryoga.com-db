@@ -10,6 +10,7 @@ import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { getAICallLog, getAICallTemplate, getLead } from '@/lib/schemas/enterpriseSchemas';
 import { createBatchCall, checkRetellConfig } from '@/lib/retellAI';
+import { tenantFilter, isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,6 +47,7 @@ export async function GET(request: NextRequest) {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
+    const tf = tenantFilter(decoded, 'initiatedBy');
 
     await connectDB();
     const AICallLog = getAICallLog();
@@ -58,6 +60,7 @@ export async function GET(request: NextRequest) {
     if (period !== 'all') {
       matchFilter.createdAt = { $gte: periodStart };
     }
+    Object.assign(matchFilter, tf);
 
     // Aggregate broadcasts grouped by batchName
     const broadcasts = await AICallLog.aggregate([
@@ -144,6 +147,8 @@ export async function POST(request: NextRequest) {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
+    const tf = tenantFilter(decoded, 'initiatedBy');
+    const tfTpl = tenantFilter(decoded, 'createdBy');
 
     const body = await request.json();
     const { leadIds, templateId, scheduledAt, language, purpose, batchName: customName, concurrency } = body;
@@ -157,7 +162,7 @@ export async function POST(request: NextRequest) {
     const AICallTemplate = getAICallTemplate();
 
     // Load template
-    const template = await AICallTemplate.findById(templateId).lean() as any;
+    const template = await AICallTemplate.findOne({ _id: templateId, ...tfTpl }).lean() as any;
     if (!template) return apiError('NOT_FOUND', 'Template not found');
 
     // Load leads
@@ -236,14 +241,14 @@ export async function POST(request: NextRequest) {
 
       if (!result.success) {
         await AICallLog.updateMany(
-          { _id: { $in: createdLogs.map((l: any) => l._id) } },
+          { _id: { $in: createdLogs.map((l: any) => l._id) }, ...tf },
           { $set: { status: 'failed', callEndedReason: result.error } }
         );
         return apiError('SERVER_ERROR', result.error || 'Batch call failed');
       }
 
       await AICallLog.updateMany(
-        { _id: { $in: createdLogs.map((l: any) => l._id) } },
+        { _id: { $in: createdLogs.map((l: any) => l._id) }, ...tf },
         { $set: { retellBatchId: result.batchId, status: 'ringing', startedAt: new Date() } }
       );
     }
@@ -278,6 +283,7 @@ export async function PUT(request: NextRequest) {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
+    const tf = tenantFilter(decoded, 'initiatedBy');
 
     const { batchName, action } = await request.json();
     if (!batchName) return apiError('VALIDATION_ERROR', 'batchName is required');
@@ -288,7 +294,7 @@ export async function PUT(request: NextRequest) {
     if (action === 'cancel') {
       // Cancel all queued/pending calls in this batch
       const result = await AICallLog.updateMany(
-        { batchName, status: { $in: ['queued', 'ringing'] } },
+        { batchName, status: { $in: ['queued', 'ringing'] }, ...tf },
         { $set: { status: 'canceled', callEndedReason: 'Cancelled by admin' } }
       );
       return apiSuccess({

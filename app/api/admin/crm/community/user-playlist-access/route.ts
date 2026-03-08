@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, getCommunityVideo, UserPlaylistAccess } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { verifyCommunityTenant } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,6 +21,7 @@ export async function GET(request: NextRequest) {
     if (!decoded || !decoded.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
+    
 
     const { searchParams } = new URL(request.url);
     const communityId = searchParams.get('communityId');
@@ -27,6 +29,11 @@ export async function GET(request: NextRequest) {
 
     if (!communityId || !userId) {
       return NextResponse.json({ error: 'communityId and userId are required' }, { status: 400 });
+    }
+
+    // Community-level tenant isolation
+    if (!(await verifyCommunityTenant(decoded, communityId))) {
+      return NextResponse.json({ error: 'Access denied to this community' }, { status: 403 });
     }
 
     // Fetch all community videos for this community
@@ -115,11 +122,17 @@ export async function POST(request: NextRequest) {
     if (!decoded || !decoded.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
+    
 
     const { userId, communityId, userName, mobile, allAccess, playlistIds } = await request.json();
 
     if (!userId || !communityId) {
       return NextResponse.json({ error: 'userId and communityId are required' }, { status: 400 });
+    }
+
+    // Community-level tenant isolation
+    if (!(await verifyCommunityTenant(decoded, communityId))) {
+      return NextResponse.json({ error: 'Access denied to this community' }, { status: 403 });
     }
 
     const result = await UserPlaylistAccess.findOneAndUpdate(

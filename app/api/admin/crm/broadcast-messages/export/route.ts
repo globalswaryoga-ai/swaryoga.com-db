@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { tenantFilter } from '@/lib/crm-handlers';
 import { getWhatsAppMessage, getLead } from '@/lib/schemas/enterpriseSchemas';
 
 export const dynamic = 'force-dynamic';
@@ -20,6 +21,7 @@ export async function GET(request: NextRequest) {
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const tf = tenantFilter(decoded);
 
     const url = new URL(request.url);
     const period = url.searchParams.get('period') || 'daily';
@@ -57,6 +59,7 @@ export async function GET(request: NextRequest) {
     // Build filter - outbound messages only
     const filter: any = {
       direction: 'outbound',
+      ...tf,
     };
 
     // Date filter

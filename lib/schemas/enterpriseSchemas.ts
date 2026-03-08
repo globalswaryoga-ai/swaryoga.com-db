@@ -421,6 +421,7 @@ const UserConsentSchema = new mongoose.Schema(
     blockedUntil: Date, // For temporal blocking (cooldown after STOP)
     consentExpiryDate: Date, // Auto re-consent after period
     consentSource: String, // Where consent came from (website, form, etc)
+    recordedByUserId: { type: String, trim: true, index: true }, // Admin who recorded/manages this consent
     metadata: mongoose.Schema.Types.Mixed,
   },
   { timestamps: true, collection: 'user_consents' }
@@ -428,6 +429,7 @@ const UserConsentSchema = new mongoose.Schema(
 
 UserConsentSchema.index({ phoneNumber: 1, status: 1, channel: 1 });
 UserConsentSchema.index({ phoneNumber: 1, consentStatus: 1 });
+UserConsentSchema.index({ recordedByUserId: 1 });
 
 // ============================================================================
 // 3. MESSAGE STATUS TRACKING SCHEMA

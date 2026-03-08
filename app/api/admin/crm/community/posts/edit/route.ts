@@ -18,6 +18,7 @@ export async function POST(request: NextRequest) {
     if (!decoded || !decoded.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
+    
 
     const body = await request.json();
     const { postId, content, images, videos, documents, links, status, metadata } = body;
@@ -41,7 +42,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if post exists
-    const existingPost = await CommunityPost.findById(postId);
+    const existingPost = await CommunityPost.findOne({ _id: postId });
     if (!existingPost) {
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
@@ -76,7 +77,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Update the post
-    const updatedPost = await CommunityPost.findByIdAndUpdate(postId, updateData, { new: true }).lean() as any;
+    const updatedPost = await CommunityPost.findOneAndUpdate({ _id: postId }, updateData, { new: true }).lean() as any;
 
     if (!updatedPost) {
       return NextResponse.json({ error: 'Failed to update post' }, { status: 500 });

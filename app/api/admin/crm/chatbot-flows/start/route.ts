@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
+import { tenantFilter, getViewerUserId } from '@/lib/crm-handlers';
 import { connectDB } from '@/lib/db';
 import { getLead, getWhatsAppMessage, getChatbotFlow, getWhatsAppTemplate, getChatbotScheduledAction } from '@/lib/schemas/enterpriseSchemas';
 import { normalizePhone, sendWhatsAppText, sendWhatsAppPresence, sendWhatsAppInteractiveButtons } from '@/lib/whatsapp';
@@ -31,6 +32,7 @@ export async function POST(request: NextRequest) {
     if (!decoded?.isAdmin) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
+    const tf = tenantFilter(decoded);
 
     const body = await request.json().catch(() => null);
     if (!body?.flowId || !body?.leadId) {
@@ -43,7 +45,7 @@ export async function POST(request: NextRequest) {
     const ChatbotFlow = getChatbotFlow();
 
     // Load lead and flow
-    const lead = await Lead.findById(body.leadId).lean() as any;
+    const lead = await Lead.findOne({ _id: body.leadId, ...tf }).lean() as any;
     if (!lead) {
       return NextResponse.json({ success: false, error: 'Lead not found' }, { status: 404 });
     }
@@ -52,7 +54,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Lead is blocked' }, { status: 403 });
     }
 
-    const flow = await ChatbotFlow.findById(body.flowId).lean() as any;
+    const flow = await ChatbotFlow.findOne({ _id: body.flowId, ...tf }).lean() as any;
     if (!flow || !flow.enabled) {
       return NextResponse.json({ success: false, error: 'Flow not found or disabled' }, { status: 404 });
     }
@@ -180,8 +182,8 @@ export async function POST(request: NextRequest) {
     async function sendTemplate(node: any) {
       const TemplateModel = getWhatsAppTemplate();
       let tplDoc: any = null;
-      if (node.templateId) tplDoc = await TemplateModel.findById(node.templateId).lean();
-      if (!tplDoc && node.templateName) tplDoc = await TemplateModel.findOne({ templateName: node.templateName }).lean();
+      if (node.templateId) tplDoc = await TemplateModel.findOne({ _id: node.templateId, ...tf }).lean();
+      if (!tplDoc && node.templateName) tplDoc = await TemplateModel.findOne({ templateName: node.templateName, ...tf }).lean();
       
       if (!tplDoc) {
         console.warn(`[FlowStart] Template not found: ${node.templateName || node.templateId}`);
@@ -383,7 +385,7 @@ export async function POST(request: NextRequest) {
       // CRM update node - apply and continue
       if (nextNode.type === 'crm_update') {
         if (nextNode.leadUpdates && typeof nextNode.leadUpdates === 'object') {
-          await Lead.updateOne({ _id: lead._id }, { $set: nextNode.leadUpdates });
+          await Lead.updateOne({ _id: lead._id, ...tf }, { $set: nextNode.leadUpdates });
         }
         nextStateNodeId = nextNode.nextNodeId || '';
         chainCount++;
@@ -414,20 +416,20 @@ export async function POST(request: NextRequest) {
     if (nextStateNodeId) {
       // Flow is in progress
       await Lead.updateOne(
-        { _id: lead._id },
+        { _id: lead._id, ...tf },
         { $set: { 'metadata.chatbotFlowState': flowState } }
       );
     } else {
       // Flow completed (end node or no next node)
       await Lead.updateOne(
-        { _id: lead._id },
+        { _id: lead._id, ...tf },
         { $unset: { 'metadata.chatbotFlowState': 1, 'metadata.chatbotVariables': 1 } }
       );
     }
 
     // Assign labels from start node if defined
     if (Array.isArray(startNode.assignLabels) && startNode.assignLabels.length > 0) {
-      await Lead.updateOne({ _id: lead._id }, { $addToSet: { labels: { $each: startNode.assignLabels } } });
+      await Lead.updateOne({ _id: lead._id, ...tf }, { $addToSet: { labels: { $each: startNode.assignLabels } } });
     }
 
     console.log(`[FlowStart] ✅ Flow "${flow.name}" started for ${phone}. Sent ${sentMessages.length} message(s). State: node=${nextStateNodeId || 'completed'}`);

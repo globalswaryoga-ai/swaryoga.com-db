@@ -13,6 +13,7 @@ import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { getAgentLanguageMapping } from '@/lib/schemas/enterpriseSchemas';
 import { listAgents, listVoices, LANGUAGE_LABELS } from '@/lib/retellAI';
+import { tenantFilter, isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,6 +58,7 @@ export async function GET(request: NextRequest) {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
+    const tf = tenantFilter(decoded, 'createdBy');
 
     await connectDB();
     const AgentLanguageMapping = getAgentLanguageMapping();
@@ -73,7 +75,7 @@ export async function GET(request: NextRequest) {
     const retellAgents = Array.from(latestMap.values());
 
     // Fetch CRM mappings
-    const mappings = await AgentLanguageMapping.find({}).lean() as any[];
+    const mappings = await AgentLanguageMapping.find(tf).lean() as any[];
     const mappingsByAgentId = new Map<string, any[]>();
     for (const m of mappings) {
       const existing = mappingsByAgentId.get(m.agentId) || [];
@@ -169,6 +171,7 @@ export async function POST(request: NextRequest) {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
+    const tf = tenantFilter(decoded, 'createdBy');
 
     const body = await request.json();
     const { agent_name, voice_id, language, llm_id, general_prompt, webhook_url,
@@ -217,12 +220,12 @@ export async function POST(request: NextRequest) {
 
       // If setting as default, clear other defaults
       if (crm_is_default) {
-        await AgentLanguageMapping.updateMany({ isDefault: true }, { $set: { isDefault: false } });
+        await AgentLanguageMapping.updateMany({ isDefault: true, ...tf }, { $set: { isDefault: false } });
       }
 
       for (const lang of crm_languages) {
         const mapping = await AgentLanguageMapping.findOneAndUpdate(
-          { language: lang.toLowerCase().trim() },
+          { language: lang.toLowerCase().trim(), ...tf },
           {
             $set: {
               agentId: retellAgent.agent_id,
@@ -274,6 +277,7 @@ export async function PATCH(request: NextRequest) {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
+    const tf = tenantFilter(decoded, 'createdBy');
 
     const body = await request.json();
     const { agent_id, agent_name, voice_id, language, webhook_url, general_prompt,
@@ -313,17 +317,15 @@ export async function PATCH(request: NextRequest) {
       const AgentLanguageMapping = getAgentLanguageMapping();
 
       // Remove old mappings for this agent
-      await AgentLanguageMapping.deleteMany({ agentId: agent_id });
-
-      // If setting as default, clear other defaults
+      await AgentLanguageMapping.deleteMany({ agentId: agent_id, ...tf });
       if (crm_is_default) {
-        await AgentLanguageMapping.updateMany({ isDefault: true }, { $set: { isDefault: false } });
+        await AgentLanguageMapping.updateMany({ isDefault: true, ...tf }, { $set: { isDefault: false } });
       }
 
       // Create new mappings
       for (const lang of crm_languages) {
         const mapping = await AgentLanguageMapping.findOneAndUpdate(
-          { language: lang.toLowerCase().trim() },
+          { language: lang.toLowerCase().trim(), ...tf },
           {
             $set: {
               agentId: retellAgent.agent_id,
@@ -361,6 +363,7 @@ export async function DELETE(request: NextRequest) {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
+    const tf = tenantFilter(decoded, 'createdBy');
 
     const body = await request.json();
     const { agent_id } = body;
@@ -373,7 +376,7 @@ export async function DELETE(request: NextRequest) {
     // Remove CRM mappings
     await connectDB();
     const AgentLanguageMapping = getAgentLanguageMapping();
-    const deletedMappings = await AgentLanguageMapping.deleteMany({ agentId: agent_id });
+    const deletedMappings = await AgentLanguageMapping.deleteMany({ agentId: agent_id, ...tf });
 
     return apiSuccess({
       deleted: true,

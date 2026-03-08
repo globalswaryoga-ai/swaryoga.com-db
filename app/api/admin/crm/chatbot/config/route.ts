@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { tenantFilter, getViewerUserId } from '@/lib/crm-handlers';
 import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
@@ -49,11 +50,12 @@ export async function GET(request: NextRequest) {
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const tf = tenantFilter(decoded);
 
     await connectDB();
     const ChatbotConfig = getChatbotConfig();
 
-    const config = await ChatbotConfig.findOne({ key: 'chatbot_config' });
+    const config = await ChatbotConfig.findOne({ key: 'chatbot_config', ...tf });
 
     return NextResponse.json({
       success: true,
@@ -80,6 +82,7 @@ export async function POST(request: NextRequest) {
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const tf = tenantFilter(decoded);
 
     const body = await request.json();
 
@@ -87,7 +90,7 @@ export async function POST(request: NextRequest) {
     const ChatbotConfig = getChatbotConfig();
 
     const config = await ChatbotConfig.findOneAndUpdate(
-      { key: 'chatbot_config' },
+      { key: 'chatbot_config', ...tf },
       {
         $set: {
           enabled: body.enabled,
@@ -102,6 +105,7 @@ export async function POST(request: NextRequest) {
           maxAiTokens: body.maxAiTokens,
           updatedAt: new Date(),
           updatedBy: decoded.userId || 'admin',
+          createdByUserId: getViewerUserId(decoded),
         },
       },
       { upsert: true, new: true }

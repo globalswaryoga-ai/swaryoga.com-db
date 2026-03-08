@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, VideoPlaylist, CommunityPlaylistAccess } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { verifyCommunityTenant, getAccessibleCommunityIds } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,9 +21,17 @@ export async function GET(request: NextRequest) {
     if (!decoded || !decoded.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
+    
 
     const { searchParams } = new URL(request.url);
     const communityId = searchParams.get('communityId');
+
+    // Community-level tenant isolation
+    if (communityId) {
+      if (!(await verifyCommunityTenant(decoded, communityId))) {
+        return NextResponse.json({ error: 'Access denied to this community' }, { status: 403 });
+      }
+    }
 
     // Fetch all active playlists
     const playlists = await VideoPlaylist.find({ status: { $ne: 'archived' } })
@@ -36,7 +45,10 @@ export async function GET(request: NextRequest) {
       const mapping = await CommunityPlaylistAccess.findOne({ communityId }).lean();
       accessMappings = mapping ? [mapping] : [];
     } else {
-      accessMappings = await CommunityPlaylistAccess.find({}).lean();
+      // Scope to accessible communities for non-superadmins
+      const accessibleIds = await getAccessibleCommunityIds(decoded);
+      const accessFilter = accessibleIds ? { communityId: { $in: accessibleIds } } : {};
+      accessMappings = await CommunityPlaylistAccess.find(accessFilter).lean();
     }
 
     // Build a communityId → access map
@@ -87,11 +99,17 @@ export async function POST(request: NextRequest) {
     if (!decoded || !decoded.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
+    
 
     const { communityId, communityName, allAccess, playlistIds } = await request.json();
 
     if (!communityId || typeof communityId !== 'string') {
       return NextResponse.json({ error: 'communityId is required' }, { status: 400 });
+    }
+
+    // Community-level tenant isolation
+    if (!(await verifyCommunityTenant(decoded, communityId))) {
+      return NextResponse.json({ error: 'Access denied to this community' }, { status: 403 });
     }
 
     // Upsert the access mapping

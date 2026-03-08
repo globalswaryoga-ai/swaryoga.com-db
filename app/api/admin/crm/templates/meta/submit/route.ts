@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { tenantFilter, getViewerUserId } from '@/lib/crm-handlers';
 import { getWhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
 import {
   submitTemplateToMeta,
@@ -25,6 +26,7 @@ export async function POST(request: NextRequest) {
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const tf = tenantFilter(decoded, 'createdBy');
 
     const body = await request.json().catch(() => null);
     if (!body?.templateId) {
@@ -40,7 +42,7 @@ export async function POST(request: NextRequest) {
     await connectDB();
     const WhatsAppTemplate = getWhatsAppTemplate();
 
-    const template = await WhatsAppTemplate.findById(templateId).lean();
+    const template = await WhatsAppTemplate.findOne({ _id: templateId, ...tf }).lean();
     if (!template) {
       return NextResponse.json({ error: 'Template not found' }, { status: 404 });
     }
@@ -56,7 +58,7 @@ export async function POST(request: NextRequest) {
       if (statusResult.success && statusResult.template) {
         const localStatus = mapMetaStatusToLocal(statusResult.template.status);
         
-        await WhatsAppTemplate.findByIdAndUpdate(templateId, {
+        await WhatsAppTemplate.findOneAndUpdate({ _id: templateId, ...tf }, {
           $set: {
             status: localStatus,
             metaStatus: statusResult.template.status,
@@ -157,8 +159,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Update local template with Meta info
-    const updated = await WhatsAppTemplate.findByIdAndUpdate(
-      templateId,
+    const updated = await WhatsAppTemplate.findOneAndUpdate(
+      { _id: templateId, ...tf },
       {
         $set: {
           metaTemplateId: result.metaTemplateId,

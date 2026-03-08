@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { PDFDocument, StandardFonts, rgb, degrees } from 'pdf-lib';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { tenantFilter, getViewerUserId } from '@/lib/crm-handlers';
 import { CrmReceipt } from '@/lib/schemas/enterpriseSchemas';
 
 // Mark as dynamic since this route uses request.headers or request.url
@@ -319,6 +320,7 @@ export async function GET(request: NextRequest) {
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
     }
+    const tf = tenantFilter(decoded, 'issuedByUserId');
 
     const url = new URL(request.url);
     const receiptId = url.searchParams.get('id');
@@ -336,13 +338,13 @@ export async function GET(request: NextRequest) {
       if (!mongoose.Types.ObjectId.isValid(receiptId)) {
         return NextResponse.json({ error: 'Invalid receipt id' }, { status: 400 });
       }
-      rec = await (CrmReceipt as any).findById(receiptId).lean();
+      rec = await (CrmReceipt as any).findOne({ _id: receiptId, ...tf }).lean();
     } else {
       if (!mongoose.Types.ObjectId.isValid(leadId!)) {
         return NextResponse.json({ error: 'Invalid lead id' }, { status: 400 });
       }
       rec = await (CrmReceipt as any)
-        .findOne({ leadId: new mongoose.Types.ObjectId(leadId!) })
+        .findOne({ leadId: new mongoose.Types.ObjectId(leadId!), ...tf })
         .sort({ issuedAt: -1 })
         .lean();
     }

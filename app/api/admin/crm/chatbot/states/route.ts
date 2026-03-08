@@ -9,6 +9,7 @@ export const dynamic = 'force-dynamic';
  * GET /api/admin/crm/chatbot/states?leadIds=id1,id2,...
  * Returns chatbot conversation state for each lead (mode, activeFlowId, lastBotReplyAt).
  * Used by the manage page to show green/red/blue chatbot status indicators.
+ * NOTE: Tenant isolation is handled by the caller — leadIds are already scoped to the admin's leads.
  */
 export async function GET(request: NextRequest) {
   try {

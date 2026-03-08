@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { tenantFilter, getViewerUserId } from '@/lib/crm-handlers';
 import { getChatbotFlow, getChatbotConversationState } from '@/lib/schemas/enterpriseSchemas';
 import { Lead } from '@/lib/schemas/enterpriseSchemas';
 import { startChatbotFlowForLead } from '@/lib/whatsappAutomation';
@@ -18,6 +19,7 @@ export async function GET(request: NextRequest) {
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const tf = tenantFilter(decoded);
 
     await connectDB();
     const ChatbotFlow = getChatbotFlow();
@@ -25,7 +27,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch all enabled flows (name, description, node count, status)
     const flows = await ChatbotFlow.find(
-      { enabled: true },
+      { enabled: true, ...tf },
       { name: 1, description: 1, enabled: 1, nodes: 1, startNodeId: 1, createdAt: 1 }
     ).sort({ createdAt: -1 }).lean();
 
@@ -42,7 +44,7 @@ export async function GET(request: NextRequest) {
     const leadId = request.nextUrl.searchParams.get('leadId');
     if (leadId) {
       // Primary: check lead.metadata.chatbotFlowState (used by automation engine)
-      const lead = await Lead.findById(leadId).select({ 'metadata.chatbotFlowState': 1 }).lean() as any;
+      const lead = await Lead.findOne({ _id: leadId, ...tf }).select({ 'metadata.chatbotFlowState': 1 }).lean() as any;
       const flowState = lead?.metadata?.chatbotFlowState;
       if (flowState?.flowId) {
         const activeFlow = flows.find((f: any) => String(f._id) === String(flowState.flowId)) as any;
@@ -53,7 +55,7 @@ export async function GET(request: NextRequest) {
         };
       } else {
         // Fallback: check ChatbotConversationState collection
-        const state = await ChatbotState.findOne({ leadId }, { activeFlowId: 1, flowStartedAt: 1 }).lean() as any;
+        const state = await ChatbotState.findOne({ leadId, ...tf }, { activeFlowId: 1, flowStartedAt: 1 }).lean() as any;
         if (state?.activeFlowId) {
           const activeFlow = flows.find((f: any) => String(f._id) === String(state.activeFlowId)) as any;
           currentFlow = {
@@ -90,13 +92,14 @@ export async function POST(request: NextRequest) {
     if (!leadId || !flowId) {
       return NextResponse.json({ error: 'leadId and flowId are required' }, { status: 400 });
     }
+    const tf = tenantFilter(decoded);
 
     await connectDB();
 
     // Resolve phone number from lead if not provided
     let phone = phoneNumber;
     if (!phone) {
-      const lead = await Lead.findById(leadId).select({ phoneNumber: 1 }).lean() as any;
+      const lead = await Lead.findOne({ _id: leadId, ...tf }).select({ phoneNumber: 1 }).lean() as any;
       phone = lead?.phoneNumber || '';
     }
 
@@ -112,7 +115,7 @@ export async function POST(request: NextRequest) {
     const ChatbotState = getChatbotConversationState();
     const syncNow = new Date();
     ChatbotState.findOneAndUpdate(
-      { leadId },
+      { leadId, ...tf },
       {
         $set: {
           activeFlowId: flowId,
@@ -130,7 +133,7 @@ export async function POST(request: NextRequest) {
 
     // Resolve flow name for the UI
     const ChatbotFlow = getChatbotFlow();
-    const startedFlow = await ChatbotFlow.findById(flowId).select('name').lean() as any;
+    const startedFlow = await ChatbotFlow.findOne({ _id: flowId, ...tf }).select('name').lean() as any;
 
     return NextResponse.json({
       success: true,
@@ -169,12 +172,13 @@ export async function DELETE(request: NextRequest) {
     if (!leadId) {
       return NextResponse.json({ error: 'leadId is required' }, { status: 400 });
     }
+    const tf = tenantFilter(decoded);
 
     await connectDB();
     const ChatbotState = getChatbotConversationState();
 
     await ChatbotState.findOneAndUpdate(
-      { leadId },
+      { leadId, ...tf },
       {
         $set: {
           activeFlowId: null,
@@ -189,7 +193,7 @@ export async function DELETE(request: NextRequest) {
 
     // Also clear lead.metadata.chatbotFlowState (canonical state used by automation engine)
     await Lead.updateOne(
-      { _id: leadId },
+      { _id: leadId, ...tf },
       { $unset: { 'metadata.chatbotFlowState': 1, 'metadata.chatbotVariables': 1 } }
     );
 

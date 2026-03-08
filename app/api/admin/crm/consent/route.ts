@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
+import { verifyToken } from '@/lib/auth';
 import {
-  verifyAdminAccess,
+  tenantFilter,
   parsePagination,
   handleCrmError,
   formatCrmSuccess,
@@ -25,7 +26,10 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    verifyAdminAccess(request);
+    const token = request.headers.get('authorization')?.slice('Bearer '.length);
+    const decoded = verifyToken(token);
+    if (!decoded?.isAdmin || !decoded?.userId) throw new Error('Unauthorized');
+    const tf = tenantFilter(decoded, 'recordedByUserId');
     const url = new URL(request.url);
     const consentStatus = url.searchParams.get('status');
     const channel = url.searchParams.get('channel');
@@ -33,7 +37,7 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
 
-    const filter: any = {};
+    const filter: any = { ...tf };
     if (consentStatus) filter.status = consentStatus;
     if (channel) filter.channel = channel;
 
@@ -58,7 +62,10 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    verifyAdminAccess(request);
+    const token = request.headers.get('authorization')?.slice('Bearer '.length);
+    const decoded = verifyToken(token);
+    if (!decoded?.isAdmin || !decoded?.userId) throw new Error('Unauthorized');
+    const tf = tenantFilter(decoded, 'recordedByUserId');
     const body = await request.json().catch(() => null);
     if (!body) throw new Error('Invalid JSON body');
 
@@ -68,7 +75,7 @@ export async function POST(request: NextRequest) {
 
     await connectDB();
 
-    const existing = await UserConsent.findOne({ phoneNumber, channel });
+    const existing = await UserConsent.findOne({ phoneNumber, channel, ...tf });
     if (existing) {
       existing.status = status || existing.status;
       existing.consentStatus = status === 'opted_in' ? 'opted-in' : status === 'opted_out' ? 'opted-out' : 'pending';
@@ -94,6 +101,7 @@ export async function POST(request: NextRequest) {
       consentMethod: consentMethod || (status === 'opted_in' ? 'manual' : undefined),
       optOutDate: status === 'opted_out' ? new Date() : undefined,
       optOutKeyword: status === 'opted_out' ? body.optOutKeyword || 'STOP' : undefined,
+      recordedByUserId: decoded.userId,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -106,7 +114,10 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    verifyAdminAccess(request);
+    const token = request.headers.get('authorization')?.slice('Bearer '.length);
+    const decoded = verifyToken(token);
+    if (!decoded?.isAdmin || !decoded?.userId) throw new Error('Unauthorized');
+    const tf = tenantFilter(decoded, 'recordedByUserId');
     const body = await request.json().catch(() => null);
     if (!body) throw new Error('Invalid JSON body');
 
@@ -117,8 +128,8 @@ export async function PUT(request: NextRequest) {
     await connectDB();
 
     if (action === 'opt-in') {
-      const consent = await UserConsent.findByIdAndUpdate(
-        consentId,
+      const consent = await UserConsent.findOneAndUpdate(
+        { _id: consentId, ...tf },
         {
           $set: {
             status: 'opted_in',
@@ -134,8 +145,8 @@ export async function PUT(request: NextRequest) {
       if (!consent) throw new Error('Consent record not found');
       return formatCrmSuccess({ consent }, {});
     } else if (action === 'opt-out') {
-      const consent = await UserConsent.findByIdAndUpdate(
-        consentId,
+      const consent = await UserConsent.findOneAndUpdate(
+        { _id: consentId, ...tf },
         {
           $set: {
             status: 'opted_out',
@@ -155,7 +166,7 @@ export async function PUT(request: NextRequest) {
         updateData.status = status;
         updateData.consentStatus = status === 'opted_in' ? 'opted-in' : status === 'opted_out' ? 'opted-out' : 'pending';
       }
-      const consent = await UserConsent.findByIdAndUpdate(consentId, { $set: updateData }, { new: true });
+      const consent = await UserConsent.findOneAndUpdate({ _id: consentId, ...tf }, { $set: updateData }, { new: true });
       if (!consent) throw new Error('Consent record not found');
       return formatCrmSuccess({ consent }, {});
     }
@@ -166,14 +177,17 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    verifyAdminAccess(request);
+    const token = request.headers.get('authorization')?.slice('Bearer '.length);
+    const decoded = verifyToken(token);
+    if (!decoded?.isAdmin || !decoded?.userId) throw new Error('Unauthorized');
+    const tf = tenantFilter(decoded, 'recordedByUserId');
     const url = new URL(request.url);
     const consentId = url.searchParams.get('consentId');
     if (!consentId) throw new Error('consentId parameter required');
     if (!isValidObjectId(consentId)) throw new Error('Invalid consentId');
 
     await connectDB();
-    const result = await UserConsent.findByIdAndDelete(consentId);
+    const result = await UserConsent.findOneAndDelete({ _id: consentId, ...tf });
     if (!result) throw new Error('Consent record not found');
     return formatCrmSuccess({ deleted: true }, {});
   } catch (error) {

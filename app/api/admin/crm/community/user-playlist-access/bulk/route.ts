@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, UserPlaylistAccess } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { verifyCommunityTenant } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,11 +28,17 @@ export async function POST(request: NextRequest) {
     if (!decoded || !decoded.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
+    
 
     const { userIds, communityId, action, playlistId, members } = await request.json();
 
     if (!Array.isArray(userIds) || userIds.length === 0 || !communityId || !action) {
       return NextResponse.json({ error: 'userIds (array), communityId, and action are required' }, { status: 400 });
+    }
+
+    // Community-level tenant isolation
+    if (!(await verifyCommunityTenant(decoded, communityId))) {
+      return NextResponse.json({ error: 'Access denied to this community' }, { status: 403 });
     }
 
     if ((action === 'grant-playlist' || action === 'revoke-playlist') && !playlistId) {

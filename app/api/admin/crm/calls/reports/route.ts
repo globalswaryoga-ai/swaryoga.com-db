@@ -9,6 +9,7 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { getAICallLog, getLead } from '@/lib/schemas/enterpriseSchemas';
+import { tenantFilter, isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
@@ -71,6 +72,7 @@ export async function GET(request: NextRequest) {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
+    const tf = tenantFilter(decoded, 'initiatedBy');
 
     await connectDB();
     const AICallLog = getAICallLog();
@@ -95,6 +97,7 @@ export async function GET(request: NextRequest) {
     if (initiatedBy) {
       match.initiatedBy = initiatedBy;
     }
+    Object.assign(match, tf);
 
     const costPerMin = 0.07;
 
@@ -407,6 +410,7 @@ export async function POST(request: NextRequest) {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
+    const tf = tenantFilter(decoded, 'initiatedBy');
 
     await connectDB();
     const AICallLog = getAICallLog();
@@ -417,7 +421,7 @@ export async function POST(request: NextRequest) {
     if (action === 'mark_answered') {
       // Mark a query call as answered by adding a note
       if (!callId) return apiError('VALIDATION_ERROR', 'callId required');
-      const callLog = await AICallLog.findById(callId);
+      const callLog = await AICallLog.findOne({ _id: callId, ...tf });
       if (!callLog) return apiError('NOT_FOUND', 'Call not found');
       
       // Update collectedData to indicate questions were answered
@@ -427,7 +431,7 @@ export async function POST(request: NextRequest) {
       cd.answered_by = decoded.userId || 'admin';
       if (notes) cd.answer_notes = notes;
       
-      await AICallLog.updateOne({ _id: callId }, { $set: { collectedData: cd } });
+      await AICallLog.updateOne({ _id: callId, ...tf }, { $set: { collectedData: cd } });
       return apiSuccess({ updated: true });
     }
 
@@ -441,7 +445,7 @@ export async function POST(request: NextRequest) {
       if (notes) cd.resolution_notes = notes;
 
       await AICallLog.updateOne(
-        { _id: callId },
+        { _id: callId, ...tf },
         { $set: { 'collectedData.overdue_resolved': true, 'collectedData.resolved_at': cd.resolved_at, 'collectedData.resolved_by': cd.resolved_by, ...(notes ? { 'collectedData.resolution_notes': notes } : {}) } }
       );
       return apiSuccess({ updated: true });

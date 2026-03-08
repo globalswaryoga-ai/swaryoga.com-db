@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
-import { handleCrmError } from '@/lib/crm-handlers';
+import { handleCrmError, tenantFilter, getViewerUserId } from '@/lib/crm-handlers';
 import { verifyToken } from '@/lib/auth';
 import { BroadcastRun, BroadcastRunMessage, Lead } from '@/lib/schemas/enterpriseSchemas';
 
@@ -21,17 +21,18 @@ function verifyAdmin(request: NextRequest) {
  */
 export async function GET(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
-    verifyAdmin(request);
+    const decoded = verifyAdmin(request);
+    const tf = tenantFilter(decoded);
     const { id } = await ctx.params;
 
     await connectDB();
 
-    const run = await BroadcastRun.findById(id).lean();
+    const run = await BroadcastRun.findOne({ _id: id, ...tf }).lean();
     if (!run) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
     // Recalculate stats from actual message statuses for accuracy
     const statsCounts = await BroadcastRunMessage.aggregate([
-      { $match: { runId: (run as any)._id } },
+      { $match: { runId: (run as any)._id, ...tf } },
       { $group: { _id: '$status', count: { $sum: 1 } } },
     ]);
     const statsMap = new Map<string, number>();
@@ -60,7 +61,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
 
     // Get error category breakdown for failed messages
     const errorCategoryCounts = await BroadcastRunMessage.aggregate([
-      { $match: { runId: (run as any)._id, status: 'failed' } },
+      { $match: { runId: (run as any)._id, status: 'failed', ...tf } },
       { $group: { _id: '$errorCategory', count: { $sum: 1 } } },
     ]);
     const errorsByCategory: Record<string, number> = {};
@@ -77,7 +78,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
     const limit = Math.min(Number(url.searchParams.get('limit') || 200) || 200, 500);
     const skip = Math.max(Number(url.searchParams.get('skip') || 0) || 0, 0);
 
-    const filter: any = { runId: (run as any)._id };
+    const filter: any = { runId: (run as any)._id, ...tf };
     if (status) filter.status = String(status);
 
     const total = await BroadcastRunMessage.countDocuments(filter);
@@ -89,7 +90,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
 
     // enrich basic lead info
     const leadIds = rows.map((r: any) => r.leadId).filter(Boolean);
-    const leads = await Lead.find({ _id: { $in: leadIds } })
+    const leads = await Lead.find({ _id: { $in: leadIds }, ...tf })
       .select({ _id: 1, name: 1, phoneNumber: 1, status: 1, workshopName: 1, labels: 1 })
       .lean();
     const byId = new Map(leads.map((l: any) => [String(l._id), l]));
@@ -123,12 +124,13 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
  */
 export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
-    verifyAdmin(request);
+    const decoded = verifyAdmin(request);
+    const tf = tenantFilter(decoded);
     const { id } = await ctx.params;
 
     await connectDB();
 
-    const run = await BroadcastRun.findById(id);
+    const run = await BroadcastRun.findOne({ _id: id, ...tf });
     if (!run) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
     const body = await request.json().catch(() => ({}));
@@ -141,7 +143,7 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
       case 'cancel':
         // Cancel the broadcast - mark as cancelled, don't process pending
         await BroadcastRun.updateOne(
-          { _id: id },
+          { _id: id, ...tf },
           { $set: { status: 'cancelled', updatedAt: now } }
         );
         result.message = 'Broadcast cancelled';
@@ -150,12 +152,12 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
       case 'reset-pending':
         // Reset all messages back to pending (for retry)
         const resetResult = await BroadcastRunMessage.updateMany(
-          { runId: run._id, status: { $in: ['failed', 'skipped', 'sending'] } },
+          { runId: run._id, status: { $in: ['failed', 'skipped', 'sending'] }, ...tf },
           { $set: { status: 'pending', failureReason: null, updatedAt: now } }
         );
         // Update run status back to scheduled
         await BroadcastRun.updateOne(
-          { _id: id },
+          { _id: id, ...tf },
           { $set: { status: 'scheduled', updatedAt: now }, $unset: { lastError: 1 } }
         );
         result.message = `Reset ${resetResult.modifiedCount} messages to pending`;
@@ -165,13 +167,13 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
       case 'retry-failed':
         // Only reset failed messages back to pending
         const retryResult = await BroadcastRunMessage.updateMany(
-          { runId: run._id, status: 'failed' },
+          { runId: run._id, status: 'failed', ...tf },
           { $set: { status: 'pending', failureReason: null, updatedAt: now } }
         );
         // Update run status back to scheduled if it was completed/failed
         if (['completed', 'failed', 'cancelled'].includes(run.status)) {
           await BroadcastRun.updateOne(
-            { _id: id },
+            { _id: id, ...tf },
             { $set: { status: 'scheduled', updatedAt: now }, $unset: { lastError: 1, completedAt: 1 } }
           );
         }
@@ -182,11 +184,11 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
       case 'reset-all':
         // Reset ALL messages back to pending (full restart)
         const resetAllResult = await BroadcastRunMessage.updateMany(
-          { runId: run._id },
+          { runId: run._id, ...tf },
           { $set: { status: 'pending', failureReason: null, provider: null, waMessageId: null, updatedAt: now } }
         );
         await BroadcastRun.updateOne(
-          { _id: id },
+          { _id: id, ...tf },
           { 
             $set: { 
               status: 'scheduled', 
@@ -209,14 +211,14 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
 
     // Refresh stats
     const counts = await BroadcastRunMessage.aggregate([
-      { $match: { runId: run._id } },
+      { $match: { runId: run._id, ...tf } },
       { $group: { _id: '$status', count: { $sum: 1 } } },
     ]);
     const map = new Map<string, number>();
     counts.forEach((c: any) => map.set(String(c._id).toLowerCase(), Number(c.count || 0)));
     
     await BroadcastRun.updateOne(
-      { _id: id },
+      { _id: id, ...tf },
       {
         $set: {
           'stats.pending': (map.get('pending') || 0) + (map.get('sending') || 0),
@@ -243,19 +245,20 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
  */
 export async function DELETE(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
-    verifyAdmin(request);
+    const decoded = verifyAdmin(request);
+    const tf = tenantFilter(decoded);
     const { id } = await ctx.params;
 
     await connectDB();
 
-    const run = await BroadcastRun.findById(id);
+    const run = await BroadcastRun.findOne({ _id: id, ...tf });
     if (!run) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
     // Delete all messages first
-    const msgResult = await BroadcastRunMessage.deleteMany({ runId: run._id });
+    const msgResult = await BroadcastRunMessage.deleteMany({ runId: run._id, ...tf });
     
     // Delete the run
-    await BroadcastRun.deleteOne({ _id: id });
+    await BroadcastRun.deleteOne({ _id: id, ...tf });
 
     return NextResponse.json({
       success: true,

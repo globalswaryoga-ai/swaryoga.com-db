@@ -4,6 +4,7 @@ import { apiError, apiSuccess } from '@/lib/api-error';
 import { connectDB } from '@/lib/db';
 import { getEmailCampaign } from '@/lib/schemas/enterpriseSchemas';
 import { hasPermission } from '@/lib/permissions';
+import { tenantFilter } from '@/lib/crm-handlers';
 
 // POST /api/admin/crm/email/campaigns/[id]/retry - Retry failed email campaign
 
@@ -29,9 +30,10 @@ export async function POST(
 
     await connectDB();
     const EmailCampaign = getEmailCampaign();
+    const tf = tenantFilter(decoded, 'createdBy');
 
     // Check if campaign exists
-    const campaign = await EmailCampaign.findById(params.id);
+    const campaign = await EmailCampaign.findOne({ _id: params.id, ...tf });
     if (!campaign) {
       return apiError('NOT_FOUND', 'Email campaign not found');
     }

@@ -5,6 +5,7 @@ import { hasPermission } from '@/lib/permissions';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { getEmailLog } from '@/lib/schemas/enterpriseSchemas';
 import { sendEmail, wrapInEmailTemplate, personalizeEmail, EmailAttachment } from '@/lib/email';
+import { tenantFilter } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,11 +39,13 @@ export async function POST(request: NextRequest) {
 
     await connectDB();
     const EmailLog = getEmailLog();
+    const tf = tenantFilter(decoded, 'sentBy');
 
     // Get the failed/bounced logs
     const logs = await EmailLog.find({
       _id: { $in: logIds },
       status: { $in: ['failed', 'bounced'] },
+      ...tf,
     }).lean();
 
     if (logs.length === 0) {

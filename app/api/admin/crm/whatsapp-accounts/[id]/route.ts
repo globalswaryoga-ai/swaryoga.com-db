@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { getWhatsAppAccount } from '@/lib/schemas/enterpriseSchemas';
 import { verifyToken } from '@/lib/auth';
+import { tenantFilter, getViewerUserId } from '@/lib/crm-handlers';
 import { Types } from 'mongoose';
 
 // Mark as dynamic since this route uses request.headers or request.url
@@ -19,6 +20,7 @@ export async function GET(
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const tf = tenantFilter(decoded);
 
     await connectDB();
     const WhatsAppAccount = getWhatsAppAccount();
@@ -27,7 +29,7 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid account ID' }, { status: 400 });
     }
 
-    const account = await WhatsAppAccount.findById(params.id).lean();
+    const account = await WhatsAppAccount.findOne({ _id: params.id, ...tf }).lean();
 
     if (!account) {
       return NextResponse.json({ error: 'Account not found' }, { status: 404 });
@@ -54,6 +56,7 @@ export async function PUT(
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const tf = tenantFilter(decoded);
 
     await connectDB();
     const WhatsAppAccount = getWhatsAppAccount();
@@ -97,17 +100,17 @@ export async function PUT(
 
     // If setting as default, unset others of same type
     if (isDefault) {
-      const account = await WhatsAppAccount.findById(params.id);
+      const account = await WhatsAppAccount.findOne({ _id: params.id, ...tf });
       if (account) {
         await WhatsAppAccount.updateMany(
-          { accountType: account.accountType, _id: { $ne: params.id }, isDefault: true },
+          { accountType: account.accountType, _id: { $ne: params.id }, isDefault: true, ...tf },
           { isDefault: false }
         );
       }
       updateData.isDefault = true;
     }
 
-    const updated = await WhatsAppAccount.findByIdAndUpdate(params.id, updateData, {
+    const updated = await WhatsAppAccount.findOneAndUpdate({ _id: params.id, ...tf }, updateData, {
       new: true,
     });
 
@@ -136,6 +139,7 @@ export async function DELETE(
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const tf = tenantFilter(decoded);
 
     await connectDB();
     const WhatsAppAccount = getWhatsAppAccount();
@@ -144,7 +148,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Invalid account ID' }, { status: 400 });
     }
 
-    const deleted = await WhatsAppAccount.findByIdAndDelete(params.id);
+    const deleted = await WhatsAppAccount.findOneAndDelete({ _id: params.id, ...tf });
 
     if (!deleted) {
       return NextResponse.json({ error: 'Account not found' }, { status: 404 });

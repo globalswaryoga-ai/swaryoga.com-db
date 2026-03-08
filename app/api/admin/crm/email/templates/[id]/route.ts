@@ -4,6 +4,7 @@ import { apiError, apiSuccess } from '@/lib/api-error';
 import { connectDB } from '@/lib/db';
 import { getEmailTemplate } from '@/lib/schemas/enterpriseSchemas';
 import { hasPermission } from '@/lib/permissions';
+import { tenantFilter } from '@/lib/crm-handlers';
 
 // PUT /api/admin/crm/email/templates/[id] - Update email template
 export async function PUT(
@@ -28,9 +29,10 @@ export async function PUT(
 
     await connectDB();
     const EmailTemplate = getEmailTemplate();
+    const tf = tenantFilter(decoded, 'createdBy');
 
     // Check if template exists
-    const template = await EmailTemplate.findById(params.id);
+    const template = await EmailTemplate.findOne({ _id: params.id, ...tf });
     if (!template) {
       return apiError('NOT_FOUND', 'Email template not found');
     }
@@ -39,7 +41,8 @@ export async function PUT(
     if (name && name !== template.name) {
       const existing = await EmailTemplate.findOne({ 
         name, 
-        _id: { $ne: params.id } 
+        _id: { $ne: params.id },
+        ...tf,
       });
       if (existing) {
         return apiError('VALIDATION_ERROR', 'A template with this name already exists');
@@ -55,8 +58,8 @@ export async function PUT(
     if (variables !== undefined) updateData.variables = variables;
     if (attachments !== undefined) updateData.attachments = attachments;
 
-    const updatedTemplate = await EmailTemplate.findByIdAndUpdate(
-      params.id,
+    const updatedTemplate = await EmailTemplate.findOneAndUpdate(
+      { _id: params.id, ...tf },
       { $set: updateData },
       { new: true }
     );
@@ -95,15 +98,16 @@ export async function DELETE(
 
     await connectDB();
     const EmailTemplate = getEmailTemplate();
+    const tf = tenantFilter(decoded, 'createdBy');
 
     // Check if template exists
-    const template = await EmailTemplate.findById(params.id);
+    const template = await EmailTemplate.findOne({ _id: params.id, ...tf });
     if (!template) {
       return apiError('NOT_FOUND', 'Email template not found');
     }
 
     // Delete template
-    await EmailTemplate.findByIdAndDelete(params.id);
+    await EmailTemplate.findOneAndDelete({ _id: params.id, ...tf });
 
     return apiSuccess({
       message: 'Email template deleted successfully',

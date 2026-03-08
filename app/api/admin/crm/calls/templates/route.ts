@@ -10,6 +10,7 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { getAICallTemplate } from '@/lib/schemas/enterpriseSchemas';
+import { tenantFilter, isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
@@ -80,11 +81,12 @@ export async function GET(request: NextRequest) {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
+    const tf = tenantFilter(decoded, 'createdBy');
 
     await connectDB();
     const AICallTemplate = getAICallTemplate();
 
-    const count = await AICallTemplate.countDocuments();
+    const count = await AICallTemplate.countDocuments(tf);
     if (count === 0) {
       await seedDefaults(decoded.userId || decoded.email || 'system');
     }
@@ -95,6 +97,7 @@ export async function GET(request: NextRequest) {
     const query: any = {};
     if (language) query.language = language;
     if (category) query.category = category;
+    Object.assign(query, tf);
 
     const templates = await AICallTemplate.find(query)
       .sort({ category: 1, stageOrder: 1 })
@@ -116,6 +119,7 @@ export async function POST(request: NextRequest) {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
+    const tf = tenantFilter(decoded, 'createdBy');
 
     const body = await request.json();
     if (!body.key || !body.name || !body.category || !body.language) {
@@ -125,7 +129,7 @@ export async function POST(request: NextRequest) {
     await connectDB();
     const AICallTemplate = getAICallTemplate();
 
-    const existing = await AICallTemplate.findOne({ key: body.key, language: body.language });
+    const existing = await AICallTemplate.findOne({ key: body.key, language: body.language, ...tf });
     if (existing) {
       return apiError('VALIDATION_ERROR', `Template "${body.key}" for ${body.language} already exists`);
     }
@@ -157,6 +161,7 @@ export async function PUT(request: NextRequest) {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
+    const tf = tenantFilter(decoded, 'createdBy');
 
     const body = await request.json();
     if (!body.id) return apiError('VALIDATION_ERROR', 'id is required');
@@ -164,7 +169,7 @@ export async function PUT(request: NextRequest) {
     await connectDB();
     const AICallTemplate = getAICallTemplate();
 
-    const existing = await AICallTemplate.findById(body.id);
+    const existing = await AICallTemplate.findOne({ _id: body.id, ...tf });
     if (!existing) return apiError('NOT_FOUND', 'Template not found');
 
     const adminId = decoded.userId || decoded.email || 'admin';
@@ -213,7 +218,7 @@ export async function PUT(request: NextRequest) {
     }
     updates.updatedBy = adminId;
 
-    const template = await AICallTemplate.findByIdAndUpdate(id, updates, { new: true }).lean();
+    const template = await AICallTemplate.findOneAndUpdate({ _id: id, ...tf }, updates, { new: true }).lean();
     return apiSuccess({ template });
   } catch (err: any) {
     console.error('[call-templates PUT]', err);
@@ -229,6 +234,7 @@ export async function DELETE(request: NextRequest) {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
+    const tf = tenantFilter(decoded, 'createdBy');
 
     const body = await request.json();
     if (!body.id) return apiError('VALIDATION_ERROR', 'id is required');
@@ -236,10 +242,10 @@ export async function DELETE(request: NextRequest) {
     await connectDB();
     const AICallTemplate = getAICallTemplate();
 
-    const template = await AICallTemplate.findById(body.id);
+    const template = await AICallTemplate.findOne({ _id: body.id, ...tf });
     if (!template) return apiError('NOT_FOUND', 'Template not found');
 
-    await AICallTemplate.findByIdAndDelete(body.id);
+    await AICallTemplate.findOneAndDelete({ _id: body.id, ...tf });
     return apiSuccess({ deleted: true });
   } catch (err: any) {
     console.error('[call-templates DELETE]', err);

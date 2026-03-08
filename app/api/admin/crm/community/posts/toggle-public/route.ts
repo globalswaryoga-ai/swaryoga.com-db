@@ -21,6 +21,7 @@ export async function POST(request: NextRequest) {
     if (!decoded || !decoded.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
+    
 
     const { postId } = await request.json();
 
@@ -28,7 +29,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Valid postId is required' }, { status: 400 });
     }
 
-    const post = await CommunityPost.findById(postId);
+    const post = await CommunityPost.findOne({ _id: postId });
     if (!post) {
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }

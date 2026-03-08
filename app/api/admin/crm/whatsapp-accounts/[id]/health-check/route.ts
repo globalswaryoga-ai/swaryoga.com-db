@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { WhatsAppAccount } from '@/lib/schemas/enterpriseSchemas';
 import { verifyToken } from '@/lib/auth';
+import { tenantFilter, getViewerUserId } from '@/lib/crm-handlers';
 import { Types } from 'mongoose';
 
 // Mark as dynamic since this route uses request.headers or request.url
@@ -19,6 +20,7 @@ export async function POST(
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const tf = tenantFilter(decoded);
 
     await connectDB();
 
@@ -26,7 +28,7 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid account ID' }, { status: 400 });
     }
 
-    const account = await WhatsAppAccount.findById(params.id);
+    const account = await WhatsAppAccount.findOne({ _id: params.id, ...tf });
 
     if (!account) {
       return NextResponse.json({ error: 'Account not found' }, { status: 404 });
@@ -59,8 +61,8 @@ export async function POST(
       connectionError = 'Missing credentials';
     }
 
-    const updated = await WhatsAppAccount.findByIdAndUpdate(
-      params.id,
+    const updated = await WhatsAppAccount.findOneAndUpdate(
+      { _id: params.id, ...tf },
       {
         healthStatus,
         connectionError: connectionError || undefined,

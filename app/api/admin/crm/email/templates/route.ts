@@ -4,6 +4,7 @@ import { apiError, apiSuccess } from '@/lib/api-error';
 import { connectDB } from '@/lib/db';
 import { getEmailTemplate } from '@/lib/schemas/enterpriseSchemas';
 import { hasPermission } from '@/lib/permissions';
+import { tenantFilter, getViewerUserId } from '@/lib/crm-handlers';
 
 // Mark as dynamic since this route uses request.headers and request.url
 export const dynamic = 'force-dynamic';
@@ -25,6 +26,7 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
     const EmailTemplate = getEmailTemplate();
+    const tf = tenantFilter(decoded, 'createdBy');
 
     const { searchParams } = new URL(request.url);
     const category = searchParams.get('category');
@@ -34,7 +36,7 @@ export async function GET(request: NextRequest) {
       filter.category = category;
     }
 
-    const templates = await EmailTemplate.find(filter)
+    const templates = await EmailTemplate.find({ ...filter, ...tf })
       .sort({ createdAt: -1 })
       .lean();
 
@@ -73,9 +75,10 @@ export async function POST(request: NextRequest) {
 
     await connectDB();
     const EmailTemplate = getEmailTemplate();
+    const tf = tenantFilter(decoded, 'createdBy');
 
     // Check for duplicate template name
-    const existing = await EmailTemplate.findOne({ name });
+    const existing = await EmailTemplate.findOne({ name, ...tf });
     if (existing) {
       return apiError('VALIDATION_ERROR', 'A template with this name already exists');
     }
@@ -88,6 +91,7 @@ export async function POST(request: NextRequest) {
       variables: variables || [],
       attachments: Array.isArray(attachments) ? attachments : [],
       createdBy: decoded.userId || decoded.username,
+      createdByUserId: getViewerUserId(decoded),
     });
 
     return apiSuccess(

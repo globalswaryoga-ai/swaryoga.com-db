@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { tenantFilter, getViewerUserId } from '@/lib/crm-handlers';
 import { getWhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
 import {
   fetchTemplatesFromMeta,
@@ -23,6 +24,7 @@ export async function GET(request: NextRequest) {
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const tf = tenantFilter(decoded, 'createdBy');
 
     const url = new URL(request.url);
     const importNew = url.searchParams.get('import') === 'true';
@@ -56,12 +58,13 @@ export async function GET(request: NextRequest) {
           { metaTemplateName: metaTemplate.name },
           { templateName: metaTemplate.name },
         ],
+        ...tf,
       });
 
       if (existing) {
         // Update ONLY status fields - preserve local content (headerUrl, etc.)
         const localStatus = mapMetaStatusToLocal(metaTemplate.status);
-        await WhatsAppTemplate.findByIdAndUpdate(existing._id, {
+        await WhatsAppTemplate.findOneAndUpdate({ _id: existing._id, ...tf }, {
           $set: {
             metaTemplateId: metaTemplate.id,
             metaTemplateName: metaTemplate.name,
@@ -107,6 +110,7 @@ export async function GET(request: NextRequest) {
           importedFromMeta: true,
           importedAt: new Date(),
           createdBy: new mongoose.Types.ObjectId(), // System import
+          createdByUserId: getViewerUserId(decoded),
         });
 
         syncResults.push({
@@ -151,6 +155,7 @@ export async function POST(request: NextRequest) {
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const tf = tenantFilter(decoded, 'createdBy');
 
     const body = await request.json().catch(() => null);
     if (!body?.templateId) {
@@ -166,7 +171,7 @@ export async function POST(request: NextRequest) {
     await connectDB();
     const WhatsAppTemplate = getWhatsAppTemplate();
 
-    const template = await WhatsAppTemplate.findById(templateId).lean();
+    const template = await WhatsAppTemplate.findOne({ _id: templateId, ...tf }).lean();
     if (!template) {
       return NextResponse.json({ error: 'Template not found' }, { status: 404 });
     }
@@ -186,8 +191,8 @@ export async function POST(request: NextRequest) {
     const metaTemplate = result.template!;
     const localStatus = mapMetaStatusToLocal(metaTemplate.status);
 
-    const updated = await WhatsAppTemplate.findByIdAndUpdate(
-      templateId,
+    const updated = await WhatsAppTemplate.findOneAndUpdate(
+      { _id: templateId, ...tf },
       {
         $set: {
           metaTemplateId: metaTemplate.id,

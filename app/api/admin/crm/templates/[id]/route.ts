@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { tenantFilter, getViewerUserId } from '@/lib/crm-handlers';
 import { getWhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
 import { deleteTemplateFilesFromS3 } from '@/lib/bunny-storage';
 import mongoose from 'mongoose';
@@ -21,6 +22,7 @@ export async function GET(
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const tf = tenantFilter(decoded, 'createdBy');
 
     const { id } = await params;
     
@@ -31,7 +33,7 @@ export async function GET(
     await connectDB();
     const WhatsAppTemplate = getWhatsAppTemplate();
 
-    const template = await WhatsAppTemplate.findById(id).lean();
+    const template = await WhatsAppTemplate.findOne({ _id: id, ...tf }).lean();
     if (!template) {
       return NextResponse.json({ error: 'Template not found' }, { status: 404 });
     }
@@ -57,6 +59,7 @@ export async function PUT(
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const tf = tenantFilter(decoded, 'createdBy');
 
     const { id } = await params;
     
@@ -76,8 +79,8 @@ export async function PUT(
 
     // Handle special actions
     if (action === 'approve') {
-      const template = await WhatsAppTemplate.findByIdAndUpdate(
-        id,
+      const template = await WhatsAppTemplate.findOneAndUpdate(
+        { _id: id, ...tf },
         { $set: { status: 'approved', approvedBy: decoded.userId, approvalDate: new Date() } },
         { new: true }
       );
@@ -88,8 +91,8 @@ export async function PUT(
     }
 
     if (action === 'reject') {
-      const template = await WhatsAppTemplate.findByIdAndUpdate(
-        id,
+      const template = await WhatsAppTemplate.findOneAndUpdate(
+        { _id: id, ...tf },
         {
           $set: {
             status: 'rejected',
@@ -135,8 +138,8 @@ export async function PUT(
       delete updates.content;
     }
 
-    const template = await WhatsAppTemplate.findByIdAndUpdate(
-      id,
+    const template = await WhatsAppTemplate.findOneAndUpdate(
+      { _id: id, ...tf },
       { $set: { ...updates, updatedAt: new Date() } },
       { new: true }
     );
@@ -178,6 +181,7 @@ export async function DELETE(
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const tf = tenantFilter(decoded, 'createdBy');
 
     const { id } = await params;
     
@@ -188,7 +192,7 @@ export async function DELETE(
     await connectDB();
     const WhatsAppTemplate = getWhatsAppTemplate();
 
-    const template = await WhatsAppTemplate.findById(id);
+    const template = await WhatsAppTemplate.findOne({ _id: id, ...tf });
     if (!template) {
       return NextResponse.json({ error: 'Template not found' }, { status: 404 });
     }
@@ -201,7 +205,7 @@ export async function DELETE(
       // Continue with deletion even if S3 cleanup fails
     }
 
-    await WhatsAppTemplate.findByIdAndDelete(id);
+    await WhatsAppTemplate.deleteOne({ _id: id, ...tf });
 
     return NextResponse.json({ success: true, message: 'Template deleted' }, { status: 200 });
   } catch (error) {

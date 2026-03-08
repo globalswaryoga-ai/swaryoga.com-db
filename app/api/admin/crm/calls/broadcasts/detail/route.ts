@@ -7,6 +7,7 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { getAICallLog } from '@/lib/schemas/enterpriseSchemas';
+import { tenantFilter, isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +16,7 @@ export async function GET(request: NextRequest) {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
+    const tf = tenantFilter(decoded, 'initiatedBy');
 
     const batchName = request.nextUrl.searchParams.get('batchName');
     if (!batchName) return apiError('VALIDATION_ERROR', 'batchName is required');
@@ -22,7 +24,7 @@ export async function GET(request: NextRequest) {
     await connectDB();
     const AICallLog = getAICallLog();
 
-    const calls = await AICallLog.find({ batchName })
+    const calls = await AICallLog.find({ batchName, ...tf })
       .sort({ createdAt: -1 })
       .limit(500)
       .lean() as any[];

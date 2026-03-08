@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
-import { handleCrmError } from '@/lib/crm-handlers';
+import { handleCrmError, tenantFilter } from '@/lib/crm-handlers';
 import { verifyToken } from '@/lib/auth';
 import { BroadcastRun, BroadcastRunMessage } from '@/lib/schemas/enterpriseSchemas';
 
@@ -21,10 +21,11 @@ function verifyAdmin(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    verifyAdmin(request);
+    const decoded = verifyAdmin(request);
+    const tf = tenantFilter(decoded);
     await connectDB();
 
-    const runs = await BroadcastRun.find({}).lean();
+    const runs = await BroadcastRun.find({ ...tf }).lean();
     const results: any[] = [];
 
     for (const run of runs) {
@@ -60,7 +61,7 @@ export async function POST(request: NextRequest) {
 
       // Update the run
       await BroadcastRun.updateOne(
-        { _id: runId },
+        { _id: runId, ...tf },
         { $set: { stats: newStats, updatedAt: new Date() } }
       );
 

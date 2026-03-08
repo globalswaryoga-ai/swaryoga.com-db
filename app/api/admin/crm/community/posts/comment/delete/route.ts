@@ -17,6 +17,7 @@ export async function DELETE(request: NextRequest) {
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized - Admin access required' }, { status: 401 });
     }
+    
 
     const body = await request.json().catch(() => null);
     const postId = typeof body?.postId === 'string' ? body.postId.trim() : '';
@@ -30,7 +31,7 @@ export async function DELETE(request: NextRequest) {
 
     await connectDB();
 
-    const post = await CommunityPost.findById(postId);
+    const post = await CommunityPost.findOne({ _id: postId });
     if (!post) {
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }

@@ -9,6 +9,7 @@ import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { getLead, getAICallLog } from '@/lib/schemas/enterpriseSchemas';
 import { createOutboundCall, checkRetellConfig, listAgents, listVoices, resolveAgentForLanguage } from '@/lib/retellAI';
+import { tenantFilter, isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,6 +22,7 @@ export async function GET(request: NextRequest) {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
+    const tf = tenantFilter(decoded, 'initiatedBy');
 
     await connectDB();
     const AICallLog = getAICallLog();
@@ -36,7 +38,7 @@ export async function GET(request: NextRequest) {
 
         // Aggregate today's calls grouped by leadId
         const summary = await AICallLog.aggregate([
-          { $match: { createdAt: { $gte: todayStart } } },
+          { $match: { createdAt: { $gte: todayStart }, ...tf } },
           {
             $group: {
               _id: '$leadId',
@@ -100,6 +102,7 @@ export async function GET(request: NextRequest) {
 
     const query: any = {};
     if (leadId) query.leadId = leadId;
+    Object.assign(query, tf);
 
     const calls = await AICallLog.find(query)
       .sort({ createdAt: -1 })
@@ -126,6 +129,7 @@ export async function POST(request: NextRequest) {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
+    const tf = tenantFilter(decoded, 'initiatedBy');
 
     const body = await request.json();
     const { leadId, purpose, language, customPrompt, overrideAgentId, overrideVoiceId, action, text, languageLabel, callingNumber, templateName } = body;
@@ -216,13 +220,13 @@ export async function POST(request: NextRequest) {
 
     if (!result.success) {
       // Update call log to failed
-      await AICallLog.updateOne({ _id: callLog._id }, { $set: { status: 'failed', callEndedReason: result.error } });
+      await AICallLog.updateOne({ _id: callLog._id, ...tf }, { $set: { status: 'failed', callEndedReason: result.error } });
       return apiError('SERVER_ERROR', result.error || 'Failed to start call');
     }
 
     // Update call log with Retell call ID
     await AICallLog.updateOne(
-      { _id: callLog._id },
+      { _id: callLog._id, ...tf },
       { $set: { retellCallId: result.callId, status: 'ringing', startedAt: new Date() } }
     );
 

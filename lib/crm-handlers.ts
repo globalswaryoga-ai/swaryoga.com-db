@@ -308,3 +308,91 @@ export const buildMetadata = (
     ...additional
   };
 };
+
+/**
+ * Quick tenant isolation filter.
+ * - Super admin & manager: returns {}  (see all data)
+ * - Regular admin: returns { createdByUserId: viewerId }
+ *
+ * Use `field` when the ownership column has a different name
+ * (e.g. "initiatedBy", "userId", "uploadedBy").
+ *
+ * Merge into every .find() / .countDocuments() / .aggregate $match.
+ */
+export const tenantFilter = (
+  decoded: any,
+  field: string = 'createdByUserId',
+): Record<string, any> => {
+  if (isSuperAdmin(decoded)) return {};
+  const viewerId = getViewerUserId(decoded);
+  return viewerId ? { [field]: viewerId } : { [field]: '__never_match__' };
+};
+
+/**
+ * Same as tenantFilter but checks both assignedToUserId AND createdByUserId.
+ * Useful for leads and messages that can be owned OR assigned.
+ */
+export const tenantOrFilter = (decoded: any): Record<string, any> => {
+  if (isSuperAdmin(decoded)) return {};
+  const viewerId = getViewerUserId(decoded);
+  if (!viewerId) return { createdByUserId: '__never_match__' };
+  return {
+    $or: [
+      { assignedToUserId: viewerId },
+      { createdByUserId: viewerId },
+    ],
+  };
+};
+
+/**
+ * Verify that the given communityId belongs to the current admin tenant.
+ * Community sub-data (posts, members, videos, playlists) is scoped by Community ownership.
+ * - SuperAdmin: always allowed
+ * - Regular admin: community must have createdByUserId matching the admin, or be legacy (no createdByUserId set)
+ * Returns false only when the community clearly belongs to another tenant.
+ */
+export const verifyCommunityTenant = async (decoded: any, communityId: string): Promise<boolean> => {
+  if (isSuperAdmin(decoded)) return true;
+  const viewerId = getViewerUserId(decoded);
+  if (!viewerId) return false;
+
+  const { getCommunity } = await import('@/lib/db');
+  const Community = getCommunity();
+  const community = await Community.findOne({
+    $or: [{ id: communityId }, { _id: communityId }],
+  }).select('createdByUserId').lean() as any;
+
+  if (!community) return false;
+  // Legacy communities (no createdByUserId) are accessible by all admins
+  if (!community.createdByUserId) return true;
+  return community.createdByUserId === viewerId;
+};
+
+/**
+ * Get the list of communityIds accessible to the current admin.
+ * - SuperAdmin: returns null (no restriction)
+ * - Regular admin: returns communityIds they own + legacy communities (no createdByUserId)
+ */
+export const getAccessibleCommunityIds = async (decoded: any): Promise<string[] | null> => {
+  if (isSuperAdmin(decoded)) return null;
+  const viewerId = getViewerUserId(decoded);
+  if (!viewerId) return [];
+
+  const { getCommunity } = await import('@/lib/db');
+  const Community = getCommunity();
+  const communities = await Community.find({
+    $or: [
+      { createdByUserId: viewerId },
+      { createdByUserId: { $exists: false } },
+      { createdByUserId: null },
+      { createdByUserId: '' },
+    ],
+  }).select('id _id').lean() as any[];
+
+  const ids = new Set<string>();
+  for (const c of communities) {
+    if (c.id) ids.add(c.id);
+    if (c._id) ids.add(c._id.toString());
+  }
+  return Array.from(ids);
+};

@@ -4,6 +4,7 @@ import { apiError, apiSuccess } from '@/lib/api-error';
 import { connectDB } from '@/lib/db';
 import { getFollowUpSequence } from '@/lib/schemas/enterpriseSchemas';
 import { hasPermission } from '@/lib/permissions';
+import { tenantFilter } from '@/lib/crm-handlers';
 
 // PUT /api/admin/crm/email/followups/[id] - Update follow-up sequence
 export async function PUT(
@@ -28,9 +29,10 @@ export async function PUT(
 
     await connectDB();
     const FollowUpSequence = getFollowUpSequence();
+    const tf = tenantFilter(decoded, 'createdBy');
 
     // Check if sequence exists
-    const sequence = await FollowUpSequence.findById(params.id);
+    const sequence = await FollowUpSequence.findOne({ _id: params.id, ...tf });
     if (!sequence) {
       return apiError('NOT_FOUND', 'Follow-up sequence not found');
     }
@@ -39,7 +41,8 @@ export async function PUT(
     if (name && name !== sequence.name) {
       const existing = await FollowUpSequence.findOne({ 
         name, 
-        _id: { $ne: params.id } 
+        _id: { $ne: params.id },
+        ...tf,
       });
       if (existing) {
         return apiError('VALIDATION_ERROR', 'A follow-up sequence with this name already exists');
@@ -68,8 +71,8 @@ export async function PUT(
     if (steps) updateData.steps = steps;
     if (active !== undefined) updateData.active = active;
 
-    const updatedSequence = await FollowUpSequence.findByIdAndUpdate(
-      params.id,
+    const updatedSequence = await FollowUpSequence.findOneAndUpdate(
+      { _id: params.id, ...tf },
       { $set: updateData },
       { new: true }
     );
@@ -108,15 +111,16 @@ export async function DELETE(
 
     await connectDB();
     const FollowUpSequence = getFollowUpSequence();
+    const tf = tenantFilter(decoded, 'createdBy');
 
     // Check if sequence exists
-    const sequence = await FollowUpSequence.findById(params.id);
+    const sequence = await FollowUpSequence.findOne({ _id: params.id, ...tf });
     if (!sequence) {
       return apiError('NOT_FOUND', 'Follow-up sequence not found');
     }
 
     // Delete sequence
-    await FollowUpSequence.findByIdAndDelete(params.id);
+    await FollowUpSequence.findOneAndDelete({ _id: params.id, ...tf });
 
     return apiSuccess({
       message: 'Follow-up sequence deleted successfully',
