@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { sendWelcomeEmail } from '@/lib/crm-site/emailService';
 
 /**
  * POST /api/crm-site/signup
@@ -155,6 +156,13 @@ export async function POST(request: NextRequest) {
       jwtSecret,
       { expiresIn: '7d' }
     );
+
+    /* ─── Send welcome email (async, non-blocking) ─── */
+    sendWelcomeEmail({
+      customerName: fullName.trim(),
+      customerEmail: userId,
+      tenantSlug: finalSlug,
+    }).catch(err => console.error('Failed to send welcome email:', err));
 
     return NextResponse.json({
       success: true,

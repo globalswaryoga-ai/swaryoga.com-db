@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { cashfreeGetOrder } from '@/lib/payments/cashfree';
+import { 
+  sendCustomerPaymentConfirmation, 
+  sendAdminPaymentNotification,
+  PaymentEmailData 
+} from '@/lib/crm-site/emailService';
 
 /**
  * POST /api/crm-site/billing/webhook
@@ -52,23 +57,33 @@ const PLAN_MODULES: Record<string, Record<string, boolean>> = {
 const ADMIN_NOTIFICATION_EMAIL = 'mohan@swaryoga.com';
 
 /**
- * Send payment confirmation email to admin and customer
+ * Send payment confirmation emails to both customer and admin
  */
 async function sendPaymentConfirmationEmail(order: any, subscriptionEndDate: Date) {
   try {
-    // Log the notification (email integration can be added later)
-    console.log(`📧 Payment confirmation for order ${order.orderId}:`);
-    console.log(`   Customer: ${order.email}`);
-    console.log(`   Plan: ${order.plan} (${order.billing})`);
-    console.log(`   Amount: ₹${order.amount}`);
-    console.log(`   Storage: ${order.storageGB || 1}GB`);
-    console.log(`   Payment Method: ${order.paymentMethod || 'upi'}`);
-    console.log(`   Auto-pay: ${order.enableAutopay ? 'Yes' : 'No'}`);
-    console.log(`   Subscription ends: ${subscriptionEndDate.toISOString()}`);
-    console.log(`   Notify: ${ADMIN_NOTIFICATION_EMAIL}`);
+    const emailData: PaymentEmailData = {
+      orderId: order.orderId,
+      customerName: order.name || 'Customer',
+      customerEmail: order.email,
+      businessName: order.businessName,
+      plan: order.plan,
+      billing: order.billing,
+      amount: order.amount,
+      storageGB: order.storageGB || 1,
+      paymentMethod: order.paymentMethod || 'upi',
+      enableAutopay: order.enableAutopay || false,
+      subscriptionEndDate,
+    };
+
+    // Send emails in parallel
+    const [customerResult, adminResult] = await Promise.all([
+      sendCustomerPaymentConfirmation(emailData),
+      sendAdminPaymentNotification(emailData),
+    ]);
+
+    console.log(`📧 Payment emails sent - Customer: ${customerResult}, Admin: ${adminResult}`);
     
-    // TODO: Integrate with email service (SendGrid, SES, etc.)
-    // For now, we'll store notification in database for admin dashboard
+    // Store notification record
     const mongoose = (await import('mongoose')).default;
     const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
     
@@ -86,11 +101,12 @@ async function sendPaymentConfirmationEmail(order: any, subscriptionEndDate: Dat
       enableAutopay: order.enableAutopay,
       subscriptionEndDate,
       adminEmail: ADMIN_NOTIFICATION_EMAIL,
-      emailSent: false, // Will be true when email integration is added
+      customerEmailSent: customerResult,
+      adminEmailSent: adminResult,
       createdAt: new Date(),
     });
     
-    return true;
+    return customerResult && adminResult;
   } catch (err) {
     console.error('Failed to send payment confirmation:', err);
     return false;
