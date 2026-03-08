@@ -100,14 +100,23 @@ export default function EmailCampaignsPage() {
   const [sending, setSending] = useState(false);
 
   // Create campaign form
-  const [newCampaign, setNewCampaign] = useState({
+  const [newCampaign, setNewCampaign] = useState<{
+    name: string;
+    subject: string;
+    type: 'broadcast' | 'drip' | 'scheduled' | 'triggered';
+    templateId: string;
+    htmlContent: string;
+    textContent: string;
+    audience: { type: 'all' | 'filtered' | 'list'; filters?: Record<string, any>; leadIds?: string[] };
+    schedule: { sendAt: string; timezone: string };
+  }>({
     name: '',
     subject: '',
-    type: 'broadcast' as const,
+    type: 'broadcast',
     templateId: '',
     htmlContent: '',
     textContent: '',
-    audience: { type: 'all' as const },
+    audience: { type: 'all' },
     schedule: { sendAt: '', timezone: 'Asia/Kolkata' },
   });
 

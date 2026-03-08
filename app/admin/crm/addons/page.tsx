@@ -12,15 +12,9 @@ import { CRMAddonsManager } from '@/components/admin/crm/CRMAddonsManager';
 
 export default function AddonsPage() {
   const router = useRouter();
-  const { user, loading } = useAuth();
+  const token = useAuth(); // useAuth returns string | null and handles redirect
 
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push('/auth/login');
-    }
-  }, [user, loading, router]);
-
-  if (loading) {
+  if (!token) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center">
         <div className="text-center">
@@ -29,10 +23,6 @@ export default function AddonsPage() {
         </div>
       </div>
     );
-  }
-
-  if (!user) {
-    return null;
   }
 
   return (

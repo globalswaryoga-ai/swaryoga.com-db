@@ -1853,7 +1853,7 @@ export default function MetaInboxPage() {
             {/* Status Dropdown */}
             <select
               value={chatStatusFilter}
-              onChange={(e) => setChatStatusFilter(e.target.value)}
+              onChange={(e) => setChatStatusFilter(e.target.value as typeof chatStatusFilter)}
               className="text-[11px] font-bold border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#1E7F43] focus:border-[#1E7F43] cursor-pointer"
             >
               <option value="all">All Status</option>
@@ -1871,7 +1871,7 @@ export default function MetaInboxPage() {
                 const v = e.target.value;
                 if (v === 'archived') { setShowArchived(true); setShowBlocked(false); setDateFilter('all'); }
                 else if (v === 'blocked') { setShowBlocked(true); setShowArchived(false); setDateFilter('all'); }
-                else { setShowArchived(false); setShowBlocked(false); setDateFilter(v); }
+                else { setShowArchived(false); setShowBlocked(false); setDateFilter(v as typeof dateFilter); }
               }}
               className="text-[11px] font-bold border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#1E7F43] focus:border-[#1E7F43] cursor-pointer"
             >

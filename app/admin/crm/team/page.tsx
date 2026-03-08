@@ -22,15 +22,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 
-declare global {
-  interface Window {
-    Cashfree?: {
-      PG: {
-        checkout: (config: { paymentSessionId: string; returnUrl?: string }) => { redirect: () => void };
-      };
-    };
-  }
-}
+// Cashfree types are declared globally in types/cashfree.d.ts
 
 interface TeamMember {
   id: string;
@@ -184,7 +176,7 @@ export default function TeamPage() {
       const data = await res.json();
       if (res.ok && data.paymentSessionId) {
         // Initialize Cashfree checkout
-        if (window.Cashfree) {
+        if (window.Cashfree?.PG) {
           const checkout = window.Cashfree.PG.checkout({
             paymentSessionId: data.paymentSessionId,
           });

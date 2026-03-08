@@ -20,7 +20,7 @@ import { PlanTier, TenantModule } from './types';
 
 declare global {
   // eslint-disable-next-line no-var
-  var _tenantModelCache: Record<string, mongoose.Model<any>>;
+  var _tenantModelCache: Record<string, any>;
 }
 
 if (!global._tenantModelCache) {

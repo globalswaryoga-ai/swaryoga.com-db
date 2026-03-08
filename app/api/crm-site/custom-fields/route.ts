@@ -1,13 +1,11 @@
 // Custom Fields API for CRM SaaS
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, connectCRMDB } from '@/lib/db';
+import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { apiError, apiSuccess } from '@/lib/api-error';
 import { 
   CUSTOM_FIELD_LIMITS, 
   SYSTEM_FIELDS,
   generateFieldKey,
-  validateFieldValue,
   CustomField 
 } from '@/lib/crm-site/customFieldsConfig';
 
@@ -16,24 +14,31 @@ export async function GET(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
-      return apiError('Unauthorized', 401);
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const decoded = await verifyToken(authHeader.substring(7));
-    if (!decoded || !decoded.tenantId) {
-      return apiError('Invalid token', 401);
+    const token = authHeader.slice(7);
+    const decoded = verifyToken(token);
+    if (!decoded) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);
     const entity = searchParams.get('entity');
     const includeSystem = searchParams.get('includeSystem') === 'true';
+    const tenantSlug = searchParams.get('tenant') || (decoded as any).tenantSlug;
+
+    if (!tenantSlug) {
+      return NextResponse.json({ error: 'Tenant not found' }, { status: 400 });
+    }
 
     await connectDB();
-    const crmDb = await connectCRMDB();
+    const mongoose = (await import('mongoose')).default;
+    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
     const collection = crmDb.collection('custom_fields');
 
     // Build query
-    const query: any = { tenantId: decoded.tenantId, isActive: true };
+    const query: any = { tenantSlug, isActive: true };
     if (entity) {
       query.entity = entity;
     }
@@ -41,7 +46,7 @@ export async function GET(request: NextRequest) {
     const fields = await collection.find(query).sort({ sortOrder: 1 }).toArray();
 
     // Include system fields if requested
-    let result = fields;
+    let result: any[] = fields;
     if (includeSystem && entity) {
       const systemFields = SYSTEM_FIELDS[entity] || [];
       result = [
@@ -50,11 +55,12 @@ export async function GET(request: NextRequest) {
       ];
     }
 
-    // Get plan limits
-    const tenantPlan = decoded.plan || 'free';
+    // Get tenant plan
+    const tenant = await crmDb.collection('crm_tenants').findOne({ slug: tenantSlug });
+    const tenantPlan = tenant?.plan || 'free';
     const limits = CUSTOM_FIELD_LIMITS[tenantPlan] || CUSTOM_FIELD_LIMITS.free;
 
-    return apiSuccess({
+    return NextResponse.json({
       fields: result,
       total: fields.length,
       limits: {
@@ -68,7 +74,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('Custom fields GET error:', error);
-    return apiError('Failed to fetch custom fields', 500);
+    return NextResponse.json({ error: 'Failed to fetch custom fields' }, { status: 500 });
   }
 }
 
@@ -77,58 +83,66 @@ export async function POST(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
-      return apiError('Unauthorized', 401);
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const decoded = await verifyToken(authHeader.substring(7));
-    if (!decoded || !decoded.tenantId) {
-      return apiError('Invalid token', 401);
+    const token = authHeader.slice(7);
+    const decoded = verifyToken(token);
+    if (!decoded) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
     const body = await request.json();
     const { name, type, entity, description, required, unique, defaultValue, options, showInList, showInForm, min, max, minLength, maxLength, pattern } = body;
+    const tenantSlug = body.tenant || (decoded as any).tenantSlug;
+
+    if (!tenantSlug) {
+      return NextResponse.json({ error: 'Tenant not found' }, { status: 400 });
+    }
 
     // Validate required fields
     if (!name || !type || !entity) {
-      return apiError('Name, type, and entity are required', 400);
+      return NextResponse.json({ error: 'Name, type, and entity are required' }, { status: 400 });
     }
 
-    // Check plan limits
-    const tenantPlan = decoded.plan || 'free';
+    await connectDB();
+    const mongoose = (await import('mongoose')).default;
+    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+    const collection = crmDb.collection('custom_fields');
+
+    // Get tenant plan
+    const tenant = await crmDb.collection('crm_tenants').findOne({ slug: tenantSlug });
+    const tenantPlan = tenant?.plan || 'free';
     const limits = CUSTOM_FIELD_LIMITS[tenantPlan] || CUSTOM_FIELD_LIMITS.free;
 
     // Check if field type is allowed
     if (!limits.fieldTypes.includes(type)) {
-      return apiError(`Field type "${type}" is not available in your plan. Upgrade to access more field types.`, 403);
+      return NextResponse.json({ error: `Field type "${type}" is not available in your plan. Upgrade to access more field types.` }, { status: 403 });
     }
 
-    await connectDB();
-    const crmDb = await connectCRMDB();
-    const collection = crmDb.collection('custom_fields');
-
     // Check field count limit
-    const currentCount = await collection.countDocuments({ tenantId: decoded.tenantId, isActive: true });
+    const currentCount = await collection.countDocuments({ tenantSlug, isActive: true });
     if (currentCount >= limits.maxFields) {
-      return apiError(`You have reached the maximum of ${limits.maxFields} custom fields. Upgrade your plan to add more.`, 403);
+      return NextResponse.json({ error: `You have reached the maximum of ${limits.maxFields} custom fields. Upgrade your plan to add more.` }, { status: 403 });
     }
 
     // Check for duplicate name
     const existing = await collection.findOne({
-      tenantId: decoded.tenantId,
+      tenantSlug,
       entity,
       name: { $regex: new RegExp(`^${name}$`, 'i') },
       isActive: true,
     });
     if (existing) {
-      return apiError('A field with this name already exists for this entity', 400);
+      return NextResponse.json({ error: 'A field with this name already exists for this entity' }, { status: 400 });
     }
 
     // Generate unique key
     const key = generateFieldKey(name);
 
     const now = new Date();
-    const field: Omit<CustomField, 'id'> & { _id?: any } = {
-      tenantId: decoded.tenantId,
+    const field: any = {
+      tenantSlug,
       name,
       key,
       type,
@@ -145,7 +159,7 @@ export async function POST(request: NextRequest) {
       isSystem: false,
       createdAt: now,
       updatedAt: now,
-    } as any;
+    };
 
     // Add validation rules if allowed by plan
     if (limits.validation) {
@@ -158,13 +172,13 @@ export async function POST(request: NextRequest) {
 
     const result = await collection.insertOne(field);
 
-    return apiSuccess({
+    return NextResponse.json({
       message: 'Custom field created successfully',
       field: { ...field, id: result.insertedId.toString() },
-    }, 201);
+    }, { status: 201 });
   } catch (error) {
     console.error('Custom field POST error:', error);
-    return apiError('Failed to create custom field', 500);
+    return NextResponse.json({ error: 'Failed to create custom field' }, { status: 500 });
   }
 }
 
@@ -173,42 +187,49 @@ export async function PATCH(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
-      return apiError('Unauthorized', 401);
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const decoded = await verifyToken(authHeader.substring(7));
-    if (!decoded || !decoded.tenantId) {
-      return apiError('Invalid token', 401);
+    const token = authHeader.slice(7);
+    const decoded = verifyToken(token);
+    if (!decoded) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
     const body = await request.json();
     const { id, name, description, required, defaultValue, options, showInList, showInForm, sortOrder, min, max, minLength, maxLength, pattern, isActive } = body;
+    const tenantSlug = body.tenant || (decoded as any).tenantSlug;
 
     if (!id) {
-      return apiError('Field ID is required', 400);
+      return NextResponse.json({ error: 'Field ID is required' }, { status: 400 });
+    }
+
+    if (!tenantSlug) {
+      return NextResponse.json({ error: 'Tenant not found' }, { status: 400 });
     }
 
     await connectDB();
-    const crmDb = await connectCRMDB();
+    const mongoose = (await import('mongoose')).default;
+    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
     const collection = crmDb.collection('custom_fields');
 
     // Find existing field
-    const { ObjectId } = await import('mongodb');
     const existing = await collection.findOne({
-      _id: new ObjectId(id),
-      tenantId: decoded.tenantId,
+      _id: new mongoose.Types.ObjectId(id),
+      tenantSlug,
     });
 
     if (!existing) {
-      return apiError('Field not found', 404);
+      return NextResponse.json({ error: 'Field not found' }, { status: 404 });
     }
 
     if (existing.isSystem) {
-      return apiError('System fields cannot be modified', 403);
+      return NextResponse.json({ error: 'System fields cannot be modified' }, { status: 403 });
     }
 
-    // Check plan limits for validation
-    const tenantPlan = decoded.plan || 'free';
+    // Get tenant plan
+    const tenant = await crmDb.collection('crm_tenants').findOne({ slug: tenantSlug });
+    const tenantPlan = tenant?.plan || 'free';
     const limits = CUSTOM_FIELD_LIMITS[tenantPlan] || CUSTOM_FIELD_LIMITS.free;
 
     // Build update
@@ -233,14 +254,14 @@ export async function PATCH(request: NextRequest) {
     }
 
     await collection.updateOne(
-      { _id: new ObjectId(id), tenantId: decoded.tenantId },
+      { _id: new mongoose.Types.ObjectId(id), tenantSlug },
       { $set: update }
     );
 
-    return apiSuccess({ message: 'Field updated successfully' });
+    return NextResponse.json({ message: 'Field updated successfully' });
   } catch (error) {
     console.error('Custom field PATCH error:', error);
-    return apiError('Failed to update custom field', 500);
+    return NextResponse.json({ error: 'Failed to update custom field' }, { status: 500 });
   }
 }
 
@@ -249,48 +270,54 @@ export async function DELETE(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
-      return apiError('Unauthorized', 401);
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const decoded = await verifyToken(authHeader.substring(7));
-    if (!decoded || !decoded.tenantId) {
-      return apiError('Invalid token', 401);
+    const token = authHeader.slice(7);
+    const decoded = verifyToken(token);
+    if (!decoded) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
+    const tenantSlug = searchParams.get('tenant') || (decoded as any).tenantSlug;
 
     if (!id) {
-      return apiError('Field ID is required', 400);
+      return NextResponse.json({ error: 'Field ID is required' }, { status: 400 });
+    }
+
+    if (!tenantSlug) {
+      return NextResponse.json({ error: 'Tenant not found' }, { status: 400 });
     }
 
     await connectDB();
-    const crmDb = await connectCRMDB();
+    const mongoose = (await import('mongoose')).default;
+    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
     const collection = crmDb.collection('custom_fields');
 
-    const { ObjectId } = await import('mongodb');
     const existing = await collection.findOne({
-      _id: new ObjectId(id),
-      tenantId: decoded.tenantId,
+      _id: new mongoose.Types.ObjectId(id),
+      tenantSlug,
     });
 
     if (!existing) {
-      return apiError('Field not found', 404);
+      return NextResponse.json({ error: 'Field not found' }, { status: 404 });
     }
 
     if (existing.isSystem) {
-      return apiError('System fields cannot be deleted', 403);
+      return NextResponse.json({ error: 'System fields cannot be deleted' }, { status: 403 });
     }
 
     // Soft delete
     await collection.updateOne(
-      { _id: new ObjectId(id), tenantId: decoded.tenantId },
+      { _id: new mongoose.Types.ObjectId(id), tenantSlug },
       { $set: { isActive: false, updatedAt: new Date() } }
     );
 
-    return apiSuccess({ message: 'Field deleted successfully' });
+    return NextResponse.json({ message: 'Field deleted successfully' });
   } catch (error) {
     console.error('Custom field DELETE error:', error);
-    return apiError('Failed to delete custom field', 500);
+    return NextResponse.json({ error: 'Failed to delete custom field' }, { status: 500 });
   }
 }

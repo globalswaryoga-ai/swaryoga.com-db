@@ -216,7 +216,11 @@ export default function WorkflowsPage() {
     }
   };
 
+  // Track which action is being configured
+  const [configuringAction, setConfiguringAction] = useState<number | null>(null);
+
   const addAction = (actionType: string) => {
+    const newIndex = newWorkflow.actions.length;
     setNewWorkflow(w => ({
       ...w,
       actions: [
@@ -225,10 +229,15 @@ export default function WorkflowsPage() {
           id: `action-${Date.now()}`,
           type: actionType,
           config: {},
-          order: w.actions.length,
+          order: newIndex,
         },
       ],
     }));
+    // Auto-open config for new action if it has fields
+    const actionDef = actionTypes[actionType];
+    if (actionDef?.fields && actionDef.fields.length > 0) {
+      setConfiguringAction(newIndex);
+    }
   };
 
   const removeAction = (index: number) => {
@@ -236,6 +245,7 @@ export default function WorkflowsPage() {
       ...w,
       actions: w.actions.filter((_, i) => i !== index).map((a, i) => ({ ...a, order: i })),
     }));
+    if (configuringAction === index) setConfiguringAction(null);
   };
 
   const updateActionConfig = (index: number, config: Record<string, any>) => {
@@ -243,6 +253,101 @@ export default function WorkflowsPage() {
       ...w,
       actions: w.actions.map((a, i) => (i === index ? { ...a, config: { ...a.config, ...config } } : a)),
     }));
+  };
+
+  const updateTriggerConfig = (config: Record<string, any>) => {
+    setNewWorkflow(w => ({
+      ...w,
+      trigger: { ...w.trigger, config: { ...w.trigger.config, ...config } },
+    }));
+  };
+
+  // Render config field based on type
+  const renderConfigField = (
+    field: { name: string; label: string; type: string; placeholder?: string; default?: any; options?: any; showIf?: any },
+    value: any,
+    onChange: (val: any) => void,
+    allConfig: Record<string, any>
+  ) => {
+    // Check showIf condition
+    if (field.showIf) {
+      const [key, expectedValue] = Object.entries(field.showIf)[0];
+      if (allConfig[key] !== expectedValue) return null;
+    }
+
+    switch (field.type) {
+      case 'text':
+        return (
+          <div key={field.name} className="mb-3">
+            <label className="block text-sm font-medium text-gray-700 mb-1">{field.label}</label>
+            <input
+              type="text"
+              value={value || ''}
+              onChange={e => onChange(e.target.value)}
+              placeholder={field.placeholder}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+        );
+      case 'number':
+        return (
+          <div key={field.name} className="mb-3">
+            <label className="block text-sm font-medium text-gray-700 mb-1">{field.label}</label>
+            <input
+              type="number"
+              value={value ?? field.default ?? ''}
+              onChange={e => onChange(Number(e.target.value))}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+        );
+      case 'textarea':
+        return (
+          <div key={field.name} className="mb-3">
+            <label className="block text-sm font-medium text-gray-700 mb-1">{field.label}</label>
+            <textarea
+              value={value || ''}
+              onChange={e => onChange(e.target.value)}
+              placeholder={field.placeholder}
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+        );
+      case 'select':
+        const options = Array.isArray(field.options) ? field.options : [];
+        return (
+          <div key={field.name} className="mb-3">
+            <label className="block text-sm font-medium text-gray-700 mb-1">{field.label}</label>
+            <select
+              value={value || ''}
+              onChange={e => onChange(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="">Select...</option>
+              {options.map((opt: string | { value: string; label: string }) => {
+                const optVal = typeof opt === 'string' ? opt : opt.value;
+                const optLabel = typeof opt === 'string' ? opt : opt.label;
+                return <option key={optVal} value={optVal}>{optLabel}</option>;
+              })}
+            </select>
+          </div>
+        );
+      case 'time':
+        return (
+          <div key={field.name} className="mb-3">
+            <label className="block text-sm font-medium text-gray-700 mb-1">{field.label}</label>
+            <input
+              type="time"
+              value={value || field.default || '09:00'}
+              onChange={e => onChange(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+        );
+      default:
+        return null;
+    }
   };
 
   const getIcon = (iconName: string) => {
@@ -498,26 +603,43 @@ export default function WorkflowsPage() {
                     {Object.entries(triggerTypes).map(([id, trigger]) => {
                       const Icon = getIcon(trigger.icon);
                       const isSelected = newWorkflow.trigger.type === id;
+                      const triggerDef = trigger as TriggerType;
+                      const hasFields = triggerDef.fields && triggerDef.fields.length > 0;
                       return (
-                        <button
-                          key={id}
-                          onClick={() => setNewWorkflow(w => ({ ...w, trigger: { type: id, config: {} } }))}
-                          className={`flex items-center gap-4 p-4 rounded-xl border-2 text-left transition ${
-                            isSelected
-                              ? 'border-indigo-500 bg-indigo-50'
-                              : 'border-gray-200 hover:border-gray-300'
-                          }`}
-                        >
-                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                            isSelected ? 'bg-indigo-100' : 'bg-gray-100'
-                          }`}>
-                            <Icon className={`w-5 h-5 ${isSelected ? 'text-indigo-600' : 'text-gray-500'}`} />
-                          </div>
-                          <div>
-                            <p className="font-medium text-gray-900">{trigger.name}</p>
-                            <p className="text-sm text-gray-500">{trigger.description}</p>
-                          </div>
-                        </button>
+                        <div key={id} className={`rounded-xl border-2 overflow-hidden transition ${
+                          isSelected ? 'border-indigo-500' : 'border-gray-200'
+                        }`}>
+                          <button
+                            onClick={() => setNewWorkflow(w => ({ ...w, trigger: { type: id, config: {} } }))}
+                            className={`flex items-center gap-4 p-4 w-full text-left ${
+                              isSelected ? 'bg-indigo-50' : 'hover:bg-gray-50'
+                            }`}
+                          >
+                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                              isSelected ? 'bg-indigo-100' : 'bg-gray-100'
+                            }`}>
+                              <Icon className={`w-5 h-5 ${isSelected ? 'text-indigo-600' : 'text-gray-500'}`} />
+                            </div>
+                            <div className="flex-1">
+                              <p className="font-medium text-gray-900">{trigger.name}</p>
+                              <p className="text-sm text-gray-500">{trigger.description}</p>
+                            </div>
+                          </button>
+                          {/* Trigger Config Fields */}
+                          {isSelected && hasFields && (
+                            <div className="p-4 bg-white border-t border-indigo-100">
+                              <p className="text-xs font-semibold text-gray-500 uppercase mb-3">Configure Trigger</p>
+                              {triggerDef.fields?.map((field: any) =>
+                                renderConfigField(
+                                  field,
+                                  newWorkflow.trigger.config[field.name],
+                                  val => updateTriggerConfig({ [field.name]: val }),
+                                  newWorkflow.trigger.config
+                                )
+                              )}
+                            </div>
+                          )}
+                        </div>
                       );
                     })}
                   </div>
@@ -529,29 +651,51 @@ export default function WorkflowsPage() {
                 <div>
                   <p className="text-sm text-gray-600 mb-4">What should happen when the trigger fires?</p>
 
-                  {/* Current Actions */}
+                  {/* Current Actions with Config */}
                   {newWorkflow.actions.length > 0 && (
-                    <div className="mb-6 space-y-2">
+                    <div className="mb-6 space-y-3">
                       <p className="text-sm font-medium text-gray-700">Actions ({newWorkflow.actions.length})</p>
                       {newWorkflow.actions.map((action, index) => {
-                        const actionDef = actionTypes[action.type];
+                        const actionDef = actionTypes[action.type] as TriggerType;
                         const Icon = actionDef ? getIcon(actionDef.icon) : Zap;
+                        const hasFields = actionDef?.fields && actionDef.fields.length > 0;
+                        const isConfiguring = configuringAction === index;
+
                         return (
-                          <div
-                            key={action.id}
-                            className="flex items-center gap-3 p-3 bg-indigo-50 rounded-xl"
-                          >
-                            <span className="w-6 h-6 bg-indigo-200 rounded-full flex items-center justify-center text-xs font-bold text-indigo-700">
-                              {index + 1}
-                            </span>
-                            <Icon className="w-5 h-5 text-indigo-600" />
-                            <span className="flex-1 font-medium text-indigo-700">{actionDef?.name || action.type}</span>
-                            <button
-                              onClick={() => removeAction(index)}
-                              className="p-1 text-indigo-400 hover:text-red-600 rounded"
+                          <div key={action.id} className="border border-indigo-200 rounded-xl overflow-hidden">
+                            <div
+                              className="flex items-center gap-3 p-3 bg-indigo-50 cursor-pointer"
+                              onClick={() => hasFields && setConfiguringAction(isConfiguring ? null : index)}
                             >
-                              <X className="w-4 h-4" />
-                            </button>
+                              <span className="w-6 h-6 bg-indigo-200 rounded-full flex items-center justify-center text-xs font-bold text-indigo-700">
+                                {index + 1}
+                              </span>
+                              <Icon className="w-5 h-5 text-indigo-600" />
+                              <span className="flex-1 font-medium text-indigo-700">{actionDef?.name || action.type}</span>
+                              {hasFields && (
+                                <ChevronDown className={`w-4 h-4 text-indigo-400 transition-transform ${isConfiguring ? 'rotate-180' : ''}`} />
+                              )}
+                              <button
+                                onClick={e => { e.stopPropagation(); removeAction(index); }}
+                                className="p-1 text-indigo-400 hover:text-red-600 rounded"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                            {/* Config Fields */}
+                            {isConfiguring && hasFields && (
+                              <div className="p-4 bg-white border-t border-indigo-100">
+                                <p className="text-xs font-semibold text-gray-500 uppercase mb-3">Configure Action</p>
+                                {actionDef.fields?.map((field: any) =>
+                                  renderConfigField(
+                                    field,
+                                    action.config[field.name],
+                                    val => updateActionConfig(index, { [field.name]: val }),
+                                    action.config
+                                  )
+                                )}
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -694,6 +838,252 @@ export default function WorkflowsPage() {
           </div>
         </div>
       )}
+
+      {/* Edit Workflow Modal */}
+      {showEdit && (
+        <EditWorkflowModal
+          workflow={showEdit}
+          triggerTypes={triggerTypes}
+          actionTypes={actionTypes}
+          onClose={() => setShowEdit(null)}
+          onSave={async (updated) => {
+            try {
+              const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
+              const res = await fetch('/api/crm-site/workflows', {
+                method: 'PATCH',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                  tenantSlug,
+                  workflowId: updated.id,
+                  ...updated,
+                }),
+              });
+              if (res.ok) {
+                setShowEdit(null);
+                fetchWorkflows();
+              }
+            } catch (err) {
+              console.error('Failed to update workflow:', err);
+            }
+          }}
+          getIcon={getIcon}
+          renderConfigField={renderConfigField}
+        />
+      )}
+    </div>
+  );
+}
+
+// Edit Workflow Modal Component
+function EditWorkflowModal({
+  workflow,
+  triggerTypes,
+  actionTypes,
+  onClose,
+  onSave,
+  getIcon,
+  renderConfigField,
+}: {
+  workflow: Workflow;
+  triggerTypes: Record<string, TriggerType>;
+  actionTypes: Record<string, ActionType>;
+  onClose: () => void;
+  onSave: (w: Workflow) => Promise<void>;
+  getIcon: (name: string) => any;
+  renderConfigField: (field: any, value: any, onChange: (v: any) => void, config: any) => React.ReactNode;
+}) {
+  const [edited, setEdited] = useState<Workflow>(() => ({
+    ...workflow,
+    actions: workflow.actions.map((a, i) => ({ ...a, order: i })),
+  }));
+  const [saving, setSaving] = useState(false);
+  const [configuringAction, setConfiguringAction] = useState<number | null>(null);
+
+  const trigger = triggerTypes[edited.trigger.type];
+  const TriggerIcon = trigger ? getIcon(trigger.icon) : Zap;
+
+  const addAction = (actionType: string) => {
+    const newIndex = edited.actions.length;
+    setEdited(e => ({
+      ...e,
+      actions: [...e.actions, { id: `action-${Date.now()}`, type: actionType, config: {}, order: newIndex }],
+    }));
+    const actionDef = actionTypes[actionType];
+    if (actionDef?.fields && actionDef.fields.length > 0) {
+      setConfiguringAction(newIndex);
+    }
+  };
+
+  const removeAction = (index: number) => {
+    setEdited(e => ({
+      ...e,
+      actions: e.actions.filter((_, i) => i !== index).map((a, i) => ({ ...a, order: i })),
+    }));
+    if (configuringAction === index) setConfiguringAction(null);
+  };
+
+  const updateActionConfig = (index: number, config: Record<string, any>) => {
+    setEdited(e => ({
+      ...e,
+      actions: e.actions.map((a, i) => (i === index ? { ...a, config: { ...a.config, ...config } } : a)),
+    }));
+  };
+
+  const updateTriggerConfig = (config: Record<string, any>) => {
+    setEdited(e => ({
+      ...e,
+      trigger: { ...e.trigger, config: { ...e.trigger.config, ...config } },
+    }));
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    await onSave(edited);
+    setSaving(false);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+        {/* Header */}
+        <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="text-lg font-bold text-gray-900">Edit Workflow</h3>
+          <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {/* Name & Description */}
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Workflow Name</label>
+              <input
+                type="text"
+                value={edited.name}
+                onChange={e => setEdited(w => ({ ...w, name: e.target.value }))}
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+              <textarea
+                value={edited.description || ''}
+                onChange={e => setEdited(w => ({ ...w, description: e.target.value }))}
+                rows={2}
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+          </div>
+
+          {/* Trigger */}
+          <div>
+            <p className="text-sm font-medium text-gray-700 mb-3">Trigger</p>
+            <div className="p-4 bg-amber-50 rounded-xl border border-amber-200">
+              <div className="flex items-center gap-3 mb-3">
+                <TriggerIcon className="w-5 h-5 text-amber-600" />
+                <span className="font-medium text-amber-700">{trigger?.name || edited.trigger.type}</span>
+              </div>
+              {trigger?.fields && trigger.fields.length > 0 && (
+                <div className="pt-3 border-t border-amber-200">
+                  {trigger.fields.map((field: any) =>
+                    renderConfigField(
+                      field,
+                      edited.trigger.config[field.name],
+                      val => updateTriggerConfig({ [field.name]: val }),
+                      edited.trigger.config
+                    )
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div>
+            <p className="text-sm font-medium text-gray-700 mb-3">Actions ({edited.actions.length})</p>
+            <div className="space-y-3">
+              {edited.actions.map((action, index) => {
+                const actionDef = actionTypes[action.type];
+                const Icon = actionDef ? getIcon(actionDef.icon) : Zap;
+                const hasFields = actionDef?.fields && actionDef.fields.length > 0;
+                const isConfiguring = configuringAction === index;
+
+                return (
+                  <div key={action.id} className="border border-indigo-200 rounded-xl overflow-hidden">
+                    <div
+                      className="flex items-center gap-3 p-3 bg-indigo-50 cursor-pointer"
+                      onClick={() => hasFields && setConfiguringAction(isConfiguring ? null : index)}
+                    >
+                      <span className="w-6 h-6 bg-indigo-200 rounded-full flex items-center justify-center text-xs font-bold text-indigo-700">
+                        {index + 1}
+                      </span>
+                      <Icon className="w-5 h-5 text-indigo-600" />
+                      <span className="flex-1 font-medium text-indigo-700">{actionDef?.name || action.type}</span>
+                      {hasFields && (
+                        <ChevronDown className={`w-4 h-4 text-indigo-400 transition-transform ${isConfiguring ? 'rotate-180' : ''}`} />
+                      )}
+                      <button
+                        onClick={e => { e.stopPropagation(); removeAction(index); }}
+                        className="p-1 text-indigo-400 hover:text-red-600 rounded"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    {isConfiguring && hasFields && (
+                      <div className="p-4 bg-white border-t border-indigo-100">
+                        {actionDef.fields?.map((field: any) =>
+                          renderConfigField(
+                            field,
+                            action.config[field.name],
+                            val => updateActionConfig(index, { [field.name]: val }),
+                            action.config
+                          )
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Add action dropdown */}
+            <div className="mt-4">
+              <select
+                onChange={e => { if (e.target.value) { addAction(e.target.value); e.target.value = ''; } }}
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-gray-600"
+              >
+                <option value="">+ Add Action...</option>
+                {Object.entries(actionTypes).map(([id, action]) => (
+                  <option key={id} value={id}>{action.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="p-6 border-t border-gray-100 flex justify-between">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 border border-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving || !edited.name.trim()}
+            className="px-6 py-2 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition disabled:opacity-50 flex items-center gap-2"
+          >
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+            Save Changes
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

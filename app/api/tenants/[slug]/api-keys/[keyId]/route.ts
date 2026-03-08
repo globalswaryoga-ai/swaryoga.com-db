@@ -7,7 +7,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { getTenantBySlug, revokeAPIKey } from '@/lib/multiTenant/handlers';
 import { tenantError, tenantSuccess } from '@/lib/multiTenant/middleware';
-import { verifyToken, isSuperAdmin } from '@/lib/crm-handlers';
+import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 
 export async function DELETE(
   request: NextRequest,
@@ -26,19 +27,19 @@ export async function DELETE(
     const token = authHeader.substring(7);
     const decoded = verifyToken(token);
 
-    const tenant = await getTenantBySlug(slug);
+    const tenant = await getTenantBySlug(slug) as any;
     if (!tenant) {
       return tenantError('Tenant not found', 404);
     }
 
     const isAdmin =
-      isSuperAdmin(decoded) || decoded.userId === (tenant.adminUserId as any)?.toString();
+      isSuperAdmin(decoded) || decoded?.userId === tenant.adminUserId?.toString();
     if (!isAdmin) {
       return tenantError('Unauthorized', 403);
     }
 
     // Revoke the API key
-    const revokedKey = await revokeAPIKey((tenant._id as any).toString(), keyId);
+    const revokedKey = await revokeAPIKey(tenant._id?.toString(), keyId);
 
     return tenantSuccess({
       message: 'API key revoked successfully',

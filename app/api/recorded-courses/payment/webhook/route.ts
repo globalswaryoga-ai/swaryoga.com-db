@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
             orderId: order.order_id,
             amount: enrollment.amountPaid || order.order_amount || 0,
             currency: enrollment.currency || 'INR',
-            workshopName: course?.title || 'E-Learning Course',
+            workshopName: course?.content?.en?.title || 'E-Learning Course',
             paymentMethod: 'Cashfree',
             transactionId: payment?.cf_payment_id || payment?.payment_id,
           }

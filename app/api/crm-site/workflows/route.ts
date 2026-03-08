@@ -181,7 +181,7 @@ export async function POST(request: NextRequest) {
       createdBy: (decoded as any).userId || (decoded as any).email,
     };
 
-    await crmDb.collection('workflows').insertOne(workflow);
+    await crmDb.collection('workflows').insertOne(workflow as any);
 
     return NextResponse.json({
       success: true,

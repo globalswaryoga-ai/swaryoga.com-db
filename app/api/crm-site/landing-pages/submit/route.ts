@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
-import { apiError, apiSuccess } from '@/lib/api-error';
 import { validateSubmission, mapToLeadData, LANDING_PAGE_LIMITS } from '@/lib/crm-site/landingPageConfig';
 
 // POST - Submit form on landing page (public endpoint)
@@ -10,26 +9,27 @@ export async function POST(request: NextRequest) {
     const { slug, data, utmParams } = body;
 
     if (!slug || !data) {
-      return apiError('Slug and form data required', 400);
+      return NextResponse.json({ error: 'Slug and form data required' }, { status: 400 });
     }
 
     await connectDB();
-    const db = (await connectDB()).connection.db;
-    const pagesCol = db.collection('crm_landing_pages');
-    const submissionsCol = db.collection('crm_form_submissions');
-    const tenantsCol = db.collection('crm_tenants');
-    const leadsCol = db.collection('crm_leads');
+    const mongoose = (await import('mongoose')).default;
+    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+    const pagesCol = crmDb.collection('crm_landing_pages');
+    const submissionsCol = crmDb.collection('crm_form_submissions');
+    const tenantsCol = crmDb.collection('crm_tenants');
+    const leadsCol = crmDb.collection('crm_leads');
 
     // Find the landing page
     const page = await pagesCol.findOne({ slug, status: 'published' });
     if (!page) {
-      return apiError('Landing page not found', 404);
+      return NextResponse.json({ error: 'Landing page not found' }, { status: 404 });
     }
 
     // Get tenant info for limits
-    const tenant = await tenantsCol.findOne({ _id: new (require('mongodb').ObjectId)(page.tenantId) });
+    const tenant = await tenantsCol.findOne({ _id: new mongoose.Types.ObjectId(page.tenantId) });
     if (!tenant) {
-      return apiError('Tenant not found', 404);
+      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
     }
 
     const plan = tenant.subscription?.plan || 'free';
@@ -46,13 +46,13 @@ export async function POST(request: NextRequest) {
     });
 
     if (monthlySubmissions >= limits.maxSubmissions) {
-      return apiError('Monthly submission limit reached', 429);
+      return NextResponse.json({ error: 'Monthly submission limit reached' }, { status: 429 });
     }
 
     // Validate form data
     const validation = validateSubmission(page.form.fields, data);
     if (!validation.valid) {
-      return apiError('Validation failed', 400, { errors: validation.errors });
+      return NextResponse.json({ error: 'Validation failed', details: validation.errors }, { status: 400 });
     }
 
     // Get request metadata
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
 
     // Create submission record
     const submissionId = `sub_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const submission = {
+    const submission: any = {
       id: submissionId,
       tenantId: page.tenantId,
       landingPageId: page.id,
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
 
     // Create lead from submission
     const leadData = mapToLeadData(page.form.fields, data);
-    let leadId = null;
+    let leadId: string | null = null;
 
     if (leadData.email || leadData.phone) {
       // Check for existing lead
@@ -152,7 +152,7 @@ export async function POST(request: NextRequest) {
     // TODO: Trigger workflow if configured
     // if (page.leadSettings.triggerWorkflow) { ... }
 
-    return apiSuccess({
+    return NextResponse.json({
       message: page.form.successMessage || 'Thank you for your submission!',
       redirectUrl: page.form.redirectUrl || null,
       submissionId,
@@ -160,7 +160,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error: any) {
     console.error('Form submit error:', error);
-    return apiError(error.message || 'Failed to submit form', 500);
+    return NextResponse.json({ error: error.message || 'Failed to submit form' }, { status: 500 });
   }
 }
 
@@ -177,17 +177,18 @@ export async function GET(request: NextRequest) {
     const skip = parseInt(searchParams.get('skip') || '0');
 
     if (!tenant) {
-      return apiError('Tenant required', 400);
+      return NextResponse.json({ error: 'Tenant required' }, { status: 400 });
     }
 
     await connectDB();
-    const db = (await connectDB()).connection.db;
-    const tenantsCol = db.collection('crm_tenants');
-    const submissionsCol = db.collection('crm_form_submissions');
+    const mongoose = (await import('mongoose')).default;
+    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+    const tenantsCol = crmDb.collection('crm_tenants');
+    const submissionsCol = crmDb.collection('crm_form_submissions');
 
     const tenantDoc = await tenantsCol.findOne({ slug: tenant });
     if (!tenantDoc) {
-      return apiError('Tenant not found', 404);
+      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
     }
 
     const query: any = { tenantId: tenantDoc._id.toString() };
@@ -200,9 +201,9 @@ export async function GET(request: NextRequest) {
       submissionsCol.countDocuments(query),
     ]);
 
-    return apiSuccess({ submissions, total, limit, skip });
+    return NextResponse.json({ submissions, total, limit, skip });
   } catch (error: any) {
     console.error('Submissions GET error:', error);
-    return apiError(error.message || 'Failed to fetch submissions', 500);
+    return NextResponse.json({ error: error.message || 'Failed to fetch submissions' }, { status: 500 });
   }
 }

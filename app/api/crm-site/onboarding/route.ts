@@ -17,11 +17,11 @@ import {
  * Update onboarding step data
  */
 
-async function getOnboardingData(tenantSlug: string) {
+async function getOnboardingData(tenantSlug: string): Promise<OnboardingProgress> {
   const mongoose = (await import('mongoose')).default;
   const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
   
-  let progress = await crmDb.collection('tenant_onboarding').findOne({ tenantSlug });
+  let progress = await crmDb.collection('tenant_onboarding').findOne({ tenantSlug }) as OnboardingProgress | null;
   
   if (!progress) {
     // Create new onboarding record
@@ -33,7 +33,7 @@ async function getOnboardingData(tenantSlug: string) {
       startedAt: new Date(),
       skippedSteps: [],
     };
-    await crmDb.collection('tenant_onboarding').insertOne(newProgress);
+    await crmDb.collection('tenant_onboarding').insertOne(newProgress as any);
     progress = newProgress;
   }
   
@@ -64,9 +64,9 @@ export async function GET(request: NextRequest) {
     }
 
     const progress = await getOnboardingData(tenantSlug);
-    const percentComplete = calculateOnboardingProgress(progress as OnboardingProgress);
-    const isComplete = isOnboardingComplete(progress as OnboardingProgress);
-    const nextStep = getNextStep(progress as OnboardingProgress);
+    const percentComplete = calculateOnboardingProgress(progress);
+    const isComplete = isOnboardingComplete(progress);
+    const nextStep = getNextStep(progress);
 
     return NextResponse.json({
       progress,
@@ -166,9 +166,9 @@ export async function POST(request: NextRequest) {
 
     // Return updated progress
     const updatedProgress = await getOnboardingData(tenantSlug);
-    const percentComplete = calculateOnboardingProgress(updatedProgress as OnboardingProgress);
-    const isComplete = isOnboardingComplete(updatedProgress as OnboardingProgress);
-    const nextStep = getNextStep(updatedProgress as OnboardingProgress);
+    const percentComplete = calculateOnboardingProgress(updatedProgress);
+    const isComplete = isOnboardingComplete(updatedProgress);
+    const nextStep = getNextStep(updatedProgress);
 
     return NextResponse.json({
       success: true,

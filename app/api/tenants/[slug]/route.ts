@@ -18,7 +18,8 @@ import {
   deleteTenant,
 } from '@/lib/multiTenant/handlers';
 import { buildTenantContext, tenantError, tenantSuccess, withTenantContext } from '@/lib/multiTenant/middleware';
-import { verifyToken, isSuperAdmin } from '@/lib/crm-handlers';
+import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 
 // ============================================================================
 // GET /api/tenants/:slug - Get tenant details
@@ -32,7 +33,7 @@ export async function GET(
     const { slug } = params;
     await connectDB();
 
-    const tenant = await getTenantBySlug(slug);
+    const tenant = await getTenantBySlug(slug) as any;
     if (!tenant) {
       return tenantError('Tenant not found', 404);
     }
@@ -44,7 +45,7 @@ export async function GET(
       try {
         const decoded = verifyToken(token);
         const isAdmin =
-          isSuperAdmin(decoded) || decoded.userId === (tenant.adminUserId as any)?.toString();
+          isSuperAdmin(decoded) || decoded?.userId === tenant.adminUserId?.toString();
 
         if (isAdmin) {
           // Return full tenant details for admins
@@ -120,13 +121,13 @@ export async function PUT(
     const token = authHeader.substring(7);
     const decoded = verifyToken(token);
 
-    const tenant = await getTenantBySlug(slug);
+    const tenant = await getTenantBySlug(slug) as any;
     if (!tenant) {
       return tenantError('Tenant not found', 404);
     }
 
     const isAdmin =
-      isSuperAdmin(decoded) || decoded.userId === (tenant.adminUserId as any)?.toString();
+      isSuperAdmin(decoded) || decoded?.userId === tenant.adminUserId?.toString();
     if (!isAdmin) {
       return tenantError('Unauthorized to update this tenant', 403);
     }
@@ -138,7 +139,7 @@ export async function PUT(
     // Handle subscription tier upgrade
     if (subscriptionTier && subscriptionTier !== tenant.subscriptionTier) {
       const upgraded = await upgradePlan(
-        (tenant._id as any).toString(),
+        tenant._id?.toString(),
         subscriptionTier,
         // paymentMethodId would come from Stripe webhook in real app
         'manual'
@@ -157,7 +158,7 @@ export async function PUT(
     // Handle custom domain
     if (customDomain) {
       const updated = await setCustomDomain(
-        (tenant._id as any).toString(),
+        tenant._id?.toString(),
         customDomain
       );
       return tenantSuccess({
@@ -167,7 +168,7 @@ export async function PUT(
     }
 
     if (verifyDomain) {
-      const verified = await verifyCustomDomain((tenant._id as any).toString());
+      const verified = await verifyCustomDomain(tenant._id?.toString());
       return tenantSuccess({
         message: 'Custom domain verified',
         tenant: verified,
@@ -220,7 +221,7 @@ export async function DELETE(
       return tenantError('Only superadmin can delete tenants', 403);
     }
 
-    const tenant = await getTenantBySlug(slug);
+    const tenant = await getTenantBySlug(slug) as any;
     if (!tenant) {
       return tenantError('Tenant not found', 404);
     }

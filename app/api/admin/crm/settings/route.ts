@@ -58,7 +58,7 @@ export async function PUT(req: NextRequest) {
       { upsert: true, new: true }
     );
 
-    return apiSuccess(settings, 'Settings saved');
+    return apiSuccess(settings);
   } catch (err) {
     console.error('[crm-settings PUT]', err);
     return apiError('Failed to save settings', 500);

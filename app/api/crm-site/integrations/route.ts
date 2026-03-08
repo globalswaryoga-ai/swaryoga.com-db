@@ -1,12 +1,10 @@
 // Integrations API for CRM SaaS
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, connectCRMDB } from '@/lib/db';
+import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { apiError, apiSuccess } from '@/lib/api-error';
 import { 
   INTEGRATION_LIMITS,
-  INTEGRATION_CATALOG,
-  Integration
+  INTEGRATION_CATALOG
 } from '@/lib/crm-site/integrationsConfig';
 
 // GET - List integrations
@@ -14,25 +12,35 @@ export async function GET(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
-      return apiError('Unauthorized', 401);
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const decoded = await verifyToken(authHeader.substring(7));
-    if (!decoded || !decoded.tenantId) {
-      return apiError('Invalid token', 401);
+    const token = authHeader.slice(7);
+    const decoded = verifyToken(token);
+    if (!decoded) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const tenantSlug = searchParams.get('tenant') || (decoded as any).tenantSlug;
+
+    if (!tenantSlug) {
+      return NextResponse.json({ error: 'Tenant not found' }, { status: 400 });
     }
 
     await connectDB();
-    const crmDb = await connectCRMDB();
+    const mongoose = (await import('mongoose')).default;
+    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
     const collection = crmDb.collection('integrations');
 
     // Get tenant's integrations
     const integrations = await collection
-      .find({ tenantId: decoded.tenantId })
+      .find({ tenantSlug })
       .toArray();
 
-    // Get plan limits
-    const tenantPlan = decoded.plan || 'free';
+    // Get tenant plan
+    const tenant = await crmDb.collection('crm_tenants').findOne({ slug: tenantSlug });
+    const tenantPlan = tenant?.plan || 'free';
     const limits = INTEGRATION_LIMITS[tenantPlan] || INTEGRATION_LIMITS.free;
 
     // Build catalog with status
@@ -52,7 +60,7 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    return apiSuccess({
+    return NextResponse.json({
       integrations: catalog,
       connected: integrations.filter(i => i.isConnected).length,
       limits: {
@@ -64,7 +72,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('Integrations GET error:', error);
-    return apiError('Failed to fetch integrations', 500);
+    return NextResponse.json({ error: 'Failed to fetch integrations' }, { status: 500 });
   }
 }
 
@@ -73,53 +81,58 @@ export async function POST(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
-      return apiError('Unauthorized', 401);
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const decoded = await verifyToken(authHeader.substring(7));
-    if (!decoded || !decoded.tenantId) {
-      return apiError('Invalid token', 401);
+    const token = authHeader.slice(7);
+    const decoded = verifyToken(token);
+    if (!decoded) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
     const body = await request.json();
     const { provider, credentials, config } = body;
+    const tenantSlug = body.tenant || (decoded as any).tenantSlug;
+
+    if (!tenantSlug) {
+      return NextResponse.json({ error: 'Tenant not found' }, { status: 400 });
+    }
 
     if (!provider) {
-      return apiError('Provider is required', 400);
+      return NextResponse.json({ error: 'Provider is required' }, { status: 400 });
     }
 
     // Verify provider exists
     const catalogItem = INTEGRATION_CATALOG.find(i => i.provider === provider);
     if (!catalogItem) {
-      return apiError('Invalid integration provider', 400);
-    }
-
-    // Check plan limits
-    const tenantPlan = decoded.plan || 'free';
-    const limits = INTEGRATION_LIMITS[tenantPlan] || INTEGRATION_LIMITS.free;
-
-    if (!limits.allowedProviders.includes(provider)) {
-      return apiError(`${catalogItem.name} is not available in your plan. Upgrade to access this integration.`, 403);
+      return NextResponse.json({ error: 'Invalid integration provider' }, { status: 400 });
     }
 
     await connectDB();
-    const crmDb = await connectCRMDB();
+    const mongoose = (await import('mongoose')).default;
+    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
     const collection = crmDb.collection('integrations');
+
+    // Get tenant plan
+    const tenant = await crmDb.collection('crm_tenants').findOne({ slug: tenantSlug });
+    const tenantPlan = tenant?.plan || 'free';
+    const limits = INTEGRATION_LIMITS[tenantPlan] || INTEGRATION_LIMITS.free;
+
+    if (!limits.allowedProviders.includes(provider)) {
+      return NextResponse.json({ error: `${catalogItem.name} is not available in your plan. Upgrade to access this integration.` }, { status: 403 });
+    }
 
     // Check integration count
     const connectedCount = await collection.countDocuments({ 
-      tenantId: decoded.tenantId, 
+      tenantSlug, 
       isConnected: true 
     });
     
-    // Check if this provider is already connected (don't count against limit)
-    const existing = await collection.findOne({ 
-      tenantId: decoded.tenantId, 
-      provider 
-    });
+    // Check if this provider is already connected
+    const existing = await collection.findOne({ tenantSlug, provider });
 
     if (!existing && connectedCount >= limits.maxIntegrations) {
-      return apiError(`You have reached the maximum of ${limits.maxIntegrations} integrations. Upgrade your plan to add more.`, 403);
+      return NextResponse.json({ error: `You have reached the maximum of ${limits.maxIntegrations} integrations. Upgrade your plan to add more.` }, { status: 403 });
     }
 
     const now = new Date();
@@ -140,14 +153,14 @@ export async function POST(request: NextRequest) {
         }
       );
 
-      return apiSuccess({
+      return NextResponse.json({
         message: `${catalogItem.name} reconnected successfully`,
         id: existing._id.toString(),
       });
     } else {
       // Create new
-      const integration: Omit<Integration, 'id'> = {
-        tenantId: decoded.tenantId,
+      const integration: any = {
+        tenantSlug,
         provider,
         name: catalogItem.name,
         description: catalogItem.description,
@@ -163,14 +176,14 @@ export async function POST(request: NextRequest) {
 
       const result = await collection.insertOne(integration);
 
-      return apiSuccess({
+      return NextResponse.json({
         message: `${catalogItem.name} connected successfully`,
         id: result.insertedId.toString(),
-      }, 201);
+      }, { status: 201 });
     }
   } catch (error) {
     console.error('Integration POST error:', error);
-    return apiError('Failed to connect integration', 500);
+    return NextResponse.json({ error: 'Failed to connect integration' }, { status: 500 });
   }
 }
 
@@ -179,28 +192,35 @@ export async function PATCH(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
-      return apiError('Unauthorized', 401);
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const decoded = await verifyToken(authHeader.substring(7));
-    if (!decoded || !decoded.tenantId) {
-      return apiError('Invalid token', 401);
+    const token = authHeader.slice(7);
+    const decoded = verifyToken(token);
+    if (!decoded) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
     const body = await request.json();
     const { id, provider, credentials, config, isActive } = body;
+    const tenantSlug = body.tenant || (decoded as any).tenantSlug;
 
     if (!id && !provider) {
-      return apiError('Integration ID or provider is required', 400);
+      return NextResponse.json({ error: 'Integration ID or provider is required' }, { status: 400 });
+    }
+
+    if (!tenantSlug) {
+      return NextResponse.json({ error: 'Tenant not found' }, { status: 400 });
     }
 
     await connectDB();
-    const crmDb = await connectCRMDB();
+    const mongoose = (await import('mongoose')).default;
+    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
     const collection = crmDb.collection('integrations');
 
     const { ObjectId } = await import('mongodb');
     
-    const query: any = { tenantId: decoded.tenantId };
+    const query: any = { tenantSlug };
     if (id) {
       query._id = new ObjectId(id);
     } else {
@@ -209,7 +229,7 @@ export async function PATCH(request: NextRequest) {
 
     const existing = await collection.findOne(query);
     if (!existing) {
-      return apiError('Integration not found', 404);
+      return NextResponse.json({ error: 'Integration not found' }, { status: 404 });
     }
 
     const update: any = { updatedAt: new Date() };
@@ -219,10 +239,10 @@ export async function PATCH(request: NextRequest) {
 
     await collection.updateOne(query, { $set: update });
 
-    return apiSuccess({ message: 'Integration updated successfully' });
+    return NextResponse.json({ message: 'Integration updated successfully' });
   } catch (error) {
     console.error('Integration PATCH error:', error);
-    return apiError('Failed to update integration', 500);
+    return NextResponse.json({ error: 'Failed to update integration' }, { status: 500 });
   }
 }
 
@@ -231,36 +251,43 @@ export async function DELETE(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
-      return apiError('Unauthorized', 401);
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const decoded = await verifyToken(authHeader.substring(7));
-    if (!decoded || !decoded.tenantId) {
-      return apiError('Invalid token', 401);
+    const token = authHeader.slice(7);
+    const decoded = verifyToken(token);
+    if (!decoded) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     const provider = searchParams.get('provider');
+    const tenantSlug = searchParams.get('tenant') || (decoded as any).tenantSlug;
 
     if (!id && !provider) {
-      return apiError('Integration ID or provider is required', 400);
+      return NextResponse.json({ error: 'Integration ID or provider is required' }, { status: 400 });
+    }
+
+    if (!tenantSlug) {
+      return NextResponse.json({ error: 'Tenant not found' }, { status: 400 });
     }
 
     await connectDB();
-    const crmDb = await connectCRMDB();
+    const mongoose = (await import('mongoose')).default;
+    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
     const collection = crmDb.collection('integrations');
 
     const { ObjectId } = await import('mongodb');
     
-    const query: any = { tenantId: decoded.tenantId };
+    const query: any = { tenantSlug };
     if (id) {
       query._id = new ObjectId(id);
     } else {
       query.provider = provider;
     }
 
-    // Soft disconnect - keep config but mark as disconnected
+    // Soft disconnect
     const result = await collection.updateOne(query, {
       $set: {
         isConnected: false,
@@ -270,12 +297,12 @@ export async function DELETE(request: NextRequest) {
     });
 
     if (result.matchedCount === 0) {
-      return apiError('Integration not found', 404);
+      return NextResponse.json({ error: 'Integration not found' }, { status: 404 });
     }
 
-    return apiSuccess({ message: 'Integration disconnected successfully' });
+    return NextResponse.json({ message: 'Integration disconnected successfully' });
   } catch (error) {
     console.error('Integration DELETE error:', error);
-    return apiError('Failed to disconnect integration', 500);
+    return NextResponse.json({ error: 'Failed to disconnect integration' }, { status: 500 });
   }
 }

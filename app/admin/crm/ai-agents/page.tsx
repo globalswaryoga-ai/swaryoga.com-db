@@ -133,6 +133,17 @@ export default function AIAgentsPage() {
   const [mappingIsDefault, setMappingIsDefault] = useState(false);
   const [mappingSaving, setMappingSaving] = useState(false);
 
+  // Create Agent Wizard state
+  const [showCreateWizard, setShowCreateWizard] = useState(false);
+  const [wizardStep, setWizardStep] = useState(1);
+  const [newAgentConfig, setNewAgentConfig] = useState({
+    name: '',
+    language: 'en-IN',
+    useCase: 'sales',
+    voiceProvider: 'elevenlabs',
+    prompt: '',
+  });
+
   useEffect(() => {
     const stored = localStorage.getItem('crm_active_agent_id') || '';
     setActiveAgentId(stored);
@@ -340,6 +351,14 @@ export default function AIAgentsPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowCreateWizard(true)}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-white rounded-xl transition"
+              style={{ background: C.indigo.main }}
+            >
+              <Zap className="h-3.5 w-3.5" />
+              Create Agent
+            </button>
             <a
               href="https://beta.retellai.com/dashboard"
               target="_blank"
@@ -995,6 +1014,229 @@ export default function AIAgentsPage() {
           </div>
         )}
       </div>
+
+      {/* ── Create Agent Wizard Modal ── */}
+      {showCreateWizard && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between"
+              style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.06), rgba(139,92,246,0.03))' }}>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  <Bot className="h-5 w-5 text-violet-600" />
+                  Create AI Voice Agent
+                </h3>
+                <p className="text-sm text-gray-500 mt-1">Step {wizardStep} of 3</p>
+              </div>
+              <button
+                onClick={() => { setShowCreateWizard(false); setWizardStep(1); }}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {/* Step 1: Basic Info */}
+              {wizardStep === 1 && (
+                <div className="space-y-5">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Agent Name *</label>
+                    <input
+                      type="text"
+                      value={newAgentConfig.name}
+                      onChange={e => setNewAgentConfig(c => ({ ...c, name: e.target.value }))}
+                      placeholder="e.g., Sales Assistant - Hindi"
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-violet-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Primary Language *</label>
+                    <select
+                      value={newAgentConfig.language}
+                      onChange={e => setNewAgentConfig(c => ({ ...c, language: e.target.value }))}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-violet-500"
+                    >
+                      <option value="en-IN">🇮🇳 English (India)</option>
+                      <option value="hi-IN">🇮🇳 Hindi</option>
+                      <option value="en-US">🇺🇸 English (US)</option>
+                      <option value="multi">🌐 Multilingual</option>
+                      <option value="mr">🇮🇳 Marathi</option>
+                      <option value="ta">🇮🇳 Tamil</option>
+                      <option value="te">🇮🇳 Telugu</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Use Case *</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      {[
+                        { id: 'sales', label: 'Sales Calls', desc: 'Lead qualification & follow-ups' },
+                        { id: 'support', label: 'Customer Support', desc: 'Handle inquiries & issues' },
+                        { id: 'appointment', label: 'Appointment Booking', desc: 'Schedule meetings & calls' },
+                        { id: 'survey', label: 'Surveys & Feedback', desc: 'Collect customer insights' },
+                      ].map(uc => (
+                        <button
+                          key={uc.id}
+                          onClick={() => setNewAgentConfig(c => ({ ...c, useCase: uc.id }))}
+                          className={`p-4 rounded-xl border-2 text-left transition ${
+                            newAgentConfig.useCase === uc.id
+                              ? 'border-violet-500 bg-violet-50'
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                        >
+                          <p className="font-medium text-gray-900">{uc.label}</p>
+                          <p className="text-xs text-gray-500 mt-1">{uc.desc}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 2: Voice & Prompt */}
+              {wizardStep === 2 && (
+                <div className="space-y-5">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Voice Provider</label>
+                    <div className="grid grid-cols-3 gap-3">
+                      {[
+                        { id: 'elevenlabs', label: 'ElevenLabs', desc: 'Natural voices' },
+                        { id: 'openai', label: 'OpenAI', desc: 'GPT voices' },
+                        { id: 'deepgram', label: 'Deepgram', desc: 'Fast synthesis' },
+                      ].map(vp => (
+                        <button
+                          key={vp.id}
+                          onClick={() => setNewAgentConfig(c => ({ ...c, voiceProvider: vp.id }))}
+                          className={`p-3 rounded-xl border-2 text-center transition ${
+                            newAgentConfig.voiceProvider === vp.id
+                              ? 'border-violet-500 bg-violet-50'
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                        >
+                          <p className="font-medium text-gray-900 text-sm">{vp.label}</p>
+                          <p className="text-xs text-gray-500">{vp.desc}</p>
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">
+                      Voice will be selected in Retell Dashboard based on your preference
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Agent Prompt (Instructions)</label>
+                    <textarea
+                      value={newAgentConfig.prompt}
+                      onChange={e => setNewAgentConfig(c => ({ ...c, prompt: e.target.value }))}
+                      rows={6}
+                      placeholder={`You are a helpful ${newAgentConfig.useCase === 'sales' ? 'sales' : newAgentConfig.useCase} assistant for our yoga and wellness business. Your role is to ${
+                        newAgentConfig.useCase === 'sales' ? 'qualify leads and book consultations' :
+                        newAgentConfig.useCase === 'support' ? 'assist customers with their queries' :
+                        newAgentConfig.useCase === 'appointment' ? 'schedule appointments and classes' :
+                        'gather feedback from customers'
+                      }.\n\nKey behaviors:\n- Be warm, friendly, and professional\n- Keep responses concise (under 3 sentences)\n- Confirm understanding before proceeding`}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-violet-500 text-sm"
+                    />
+                    <p className="text-xs text-gray-500 mt-2">
+                      This will be used as the general prompt when creating the agent
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 3: Review & Create */}
+              {wizardStep === 3 && (
+                <div className="space-y-5">
+                  <div className="p-4 bg-violet-50 rounded-xl border border-violet-100">
+                    <h4 className="font-semibold text-gray-900 mb-3">Agent Configuration</h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Name:</span>
+                        <span className="font-medium">{newAgentConfig.name || 'Not set'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Language:</span>
+                        <span className="font-medium">{newAgentConfig.language}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Use Case:</span>
+                        <span className="font-medium capitalize">{newAgentConfig.useCase}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Voice Provider:</span>
+                        <span className="font-medium capitalize">{newAgentConfig.voiceProvider}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-amber-50 rounded-xl border border-amber-200">
+                    <div className="flex items-start gap-3">
+                      <ExternalLink className="w-5 h-5 text-amber-600 mt-0.5" />
+                      <div>
+                        <h4 className="font-semibold text-amber-800">Next Steps in Retell Dashboard</h4>
+                        <p className="text-sm text-amber-700 mt-1">
+                          After clicking "Create in Retell", you'll be redirected to the Retell AI Dashboard where you can:
+                        </p>
+                        <ul className="mt-2 space-y-1 text-sm text-amber-700">
+                          <li>• Select a specific voice from {newAgentConfig.voiceProvider}</li>
+                          <li>• Fine-tune voice settings (speed, pitch, emphasis)</li>
+                          <li>• Configure webhook URLs for your CRM</li>
+                          <li>• Test the agent with sample calls</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-gray-50 rounded-xl">
+                    <p className="text-xs text-gray-600">
+                      <strong>Tip:</strong> After creating the agent in Retell, return here and click "Refresh" to see your new agent. 
+                      Then you can set it as the active agent for CRM calls.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-6 border-t border-gray-100 flex justify-between">
+              <button
+                onClick={() => {
+                  if (wizardStep > 1) setWizardStep(wizardStep - 1);
+                  else { setShowCreateWizard(false); setWizardStep(1); }
+                }}
+                className="px-4 py-2 border border-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition"
+              >
+                {wizardStep > 1 ? 'Back' : 'Cancel'}
+              </button>
+
+              {wizardStep < 3 ? (
+                <button
+                  onClick={() => setWizardStep(wizardStep + 1)}
+                  disabled={wizardStep === 1 && !newAgentConfig.name.trim()}
+                  className="px-6 py-2 text-white font-semibold rounded-xl transition disabled:opacity-50 flex items-center gap-2"
+                  style={{ background: C.violet.main }}
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              ) : (
+                <a
+                  href={`https://beta.retellai.com/dashboard/agents/create?name=${encodeURIComponent(newAgentConfig.name)}&language=${newAgentConfig.language}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => { setShowCreateWizard(false); setWizardStep(1); }}
+                  className="px-6 py-2 text-white font-semibold rounded-xl transition flex items-center gap-2"
+                  style={{ background: C.indigo.main }}
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  Create in Retell
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

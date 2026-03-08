@@ -16,13 +16,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const userId = decoded.userId || decoded.sub || decoded.username || '';
+    const userId = decoded.userId || (decoded as any).sub || decoded.username || '';
     const permissions = Array.isArray(decoded.permissions) ? decoded.permissions : [];
     const isSuperAdmin =
       userId === 'admin' ||
       userId === 'admincrm' ||
       permissions.includes('all') ||
-      decoded.permissionsV2?.isSuperAdmin === true;
+      (decoded.permissionsV2 as any)?.isSuperAdmin === true;
 
     return NextResponse.json({
       success: true,

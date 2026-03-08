@@ -16,7 +16,7 @@ import { apiError, apiSuccess } from '@/lib/api-error';
 export async function POST(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization');
-    const decoded = verifyToken(authHeader);
+    const decoded = verifyToken(authHeader ?? undefined);
     if (!decoded?.isAdmin) {
       return apiError('Unauthorized', 401);
     }
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization');
-    const decoded = verifyToken(authHeader);
+    const decoded = verifyToken(authHeader ?? undefined);
     if (!decoded?.isAdmin) {
       return apiError('Unauthorized', 401);
     }

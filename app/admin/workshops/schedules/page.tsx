@@ -409,7 +409,7 @@ export default function AdminWorkshopSchedulesPage() {
           body: JSON.stringify({ id: nepalQrModal.scheduleId, nepalQrCode: nepalQrUrl }),
         });
         if (!res.ok) throw new Error('Failed to save Nepal QR');
-        setSchedules(prev => prev.map(s => s.id === nepalQrModal.scheduleId ? { ...s, nepalQrCode: nepalQrUrl } : s));
+        setAllSchedules(prev => prev.map(s => s.id === nepalQrModal.scheduleId ? { ...s, nepalQrCode: nepalQrUrl } : s));
         setNepalQrModal({ isOpen: false, scheduleId: null, currentQrUrl: '' });
         setNepalQrUrl('');
       } catch (err: unknown) {
@@ -443,6 +443,9 @@ export default function AdminWorkshopSchedulesPage() {
         endTime: '',
         seatsTotal: '60',
         price: '0',
+        price3Month: '',
+        priceNPR: '',
+        nepalQrCode: '',
         currency: 'INR',
         location: '',
         language: selectedLanguage,

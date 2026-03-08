@@ -5,6 +5,12 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import { PageHeader, StatCard, LoadingSpinner, AlertBox } from '@/components/admin/crm';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  LineChart, Line, PieChart, Pie, Cell, AreaChart, Area,
+} from 'recharts';
+
+const CHART_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
 
 interface AnalyticsData {
   overview?: {
@@ -271,6 +277,52 @@ export default function AnalyticsPage() {
                     </div>
                   </div>
                 </div>
+
+                {/* Leads by Status Chart */}
+                {analytics.leads.byStatus && Object.keys(analytics.leads.byStatus).length > 0 && (
+                  <div className="bg-white border border-slate-200/70 rounded-2xl p-6 shadow-sm">
+                    <h3 className="text-slate-900 font-extrabold mb-4">Leads by Status</h3>
+                    <div className="h-72">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={Object.entries(analytics.leads.byStatus).map(([name, value]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1), value }))}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                          <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#64748b' }} />
+                          <YAxis tick={{ fontSize: 12, fill: '#64748b' }} />
+                          <Tooltip contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0' }} />
+                          <Bar dataKey="value" fill="#3B82F6" radius={[6, 6, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )}
+
+                {/* Pie Chart for Leads */}
+                {analytics.leads.byStatus && Object.keys(analytics.leads.byStatus).length > 0 && (
+                  <div className="bg-white border border-slate-200/70 rounded-2xl p-6 shadow-sm">
+                    <h3 className="text-slate-900 font-extrabold mb-4">Status Distribution</h3>
+                    <div className="h-72">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={Object.entries(analytics.leads.byStatus).map(([name, value]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1), value }))}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={60}
+                            outerRadius={100}
+                            paddingAngle={2}
+                            dataKey="value"
+                            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                          >
+                            {Object.entries(analytics.leads.byStatus).map((_, index) => (
+                              <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0' }} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -327,6 +379,46 @@ export default function AnalyticsPage() {
             {/* Trends */}
             {view === 'trends' && analytics.trends && (
               <div className="space-y-4">
+                {/* Trend Charts */}
+                {analytics.trends.daily && analytics.trends.daily.length > 0 && (
+                  <>
+                    {/* Line Chart for Leads & Sales */}
+                    <div className="bg-white border border-slate-200/70 rounded-2xl p-6 shadow-sm">
+                      <h2 className="text-slate-900 font-extrabold mb-4">Leads & Sales Trend</h2>
+                      <div className="h-72">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={analytics.trends.daily}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                            <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#64748b' }} />
+                            <YAxis tick={{ fontSize: 12, fill: '#64748b' }} />
+                            <Tooltip contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0' }} />
+                            <Legend />
+                            <Line type="monotone" dataKey="leads" stroke="#3B82F6" strokeWidth={2} dot={{ fill: '#3B82F6', r: 4 }} name="Leads" />
+                            <Line type="monotone" dataKey="sales" stroke="#10B981" strokeWidth={2} dot={{ fill: '#10B981', r: 4 }} name="Sales" />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+
+                    {/* Area Chart for Revenue */}
+                    <div className="bg-white border border-slate-200/70 rounded-2xl p-6 shadow-sm">
+                      <h2 className="text-slate-900 font-extrabold mb-4">Revenue Trend</h2>
+                      <div className="h-72">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={analytics.trends.daily}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                            <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#64748b' }} />
+                            <YAxis tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 12, fill: '#64748b' }} />
+                            <Tooltip formatter={(value: number) => [`₹${value.toLocaleString()}`, 'Revenue']} contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0' }} />
+                            <Area type="monotone" dataKey="revenue" stroke="#10B981" fill="#10B981" fillOpacity={0.2} strokeWidth={2} />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Data Table */}
                 <div className="bg-white border border-slate-200/70 rounded-2xl p-6 shadow-sm overflow-x-auto">
                   <h2 className="text-slate-900 font-extrabold mb-4">Daily Trends</h2>
                   <table className="w-full text-sm">

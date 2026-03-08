@@ -110,6 +110,7 @@ interface AdminActivity {
 
 // ── Lead Detail Popup ──
 function LeadDetailPopup({ leadId, token, onClose }: { leadId: string; token: string; onClose: () => void }) {
+  const router = useRouter();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'timeline' | 'messages' | 'stages' | 'sales'>('timeline');

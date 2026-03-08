@@ -64,3 +64,21 @@ export {
   type ChatStatusInfo,
   type ChatStatusBadgeProps,
 } from './ChatStatusBadge';
+
+// Tenant Setup Dashboard and Forms
+export { default as TenantSetupDashboard } from './TenantSetupDashboard';
+export {
+  BusinessSetupForm,
+  DomainSetupForm,
+  WhatsAppSetupForm,
+} from './TenantSetupForms';
+export {
+  PaymentSetupForm,
+  LeadAdsSetupForm,
+  AICallingSetupForm,
+  TeamSetupForm,
+} from './TenantSetupFormsExtended';
+export {
+  default as TenantSetupModal,
+  SetupChecklistInline,
+} from './TenantSetupModal';

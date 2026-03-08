@@ -29,7 +29,7 @@ interface ScheduledMessage {
   createdAt: string;
 }
 
-const STATUS_COLORS: Record<string, { bg: string; text: string; icon: React.FC }> = {
+const STATUS_COLORS: Record<string, { bg: string; text: string; icon: React.FC<{ className?: string }> }> = {
   scheduled: { bg: 'bg-blue-50', text: 'text-blue-700', icon: Clock },
   processing: { bg: 'bg-yellow-50', text: 'text-yellow-700', icon: Loader },
   sent: { bg: 'bg-green-50', text: 'text-green-700', icon: CheckCircle },

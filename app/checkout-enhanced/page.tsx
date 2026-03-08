@@ -370,10 +370,10 @@ export default function EnhancedCheckoutPage() {
                                 </span>
                               )}
                             </div>
-                            {item.metadata?.startDate && (
+                            {(item.metadata?.startDate as string | undefined) && (
                               <p className="text-xs text-gray-500 mt-1">
-                                📅 Starts: {new Date(item.metadata.startDate as string).toLocaleDateString('en-IN')}
-                                {item.metadata?.time && ` • ⏰ ${item.metadata.time}`}
+                                📅 Starts: {new Date(String(item.metadata!.startDate)).toLocaleDateString('en-IN')}
+                                {(item.metadata?.time as string | undefined) && ` • ⏰ ${String(item.metadata!.time)}`}
                               </p>
                             )}
                           </div>

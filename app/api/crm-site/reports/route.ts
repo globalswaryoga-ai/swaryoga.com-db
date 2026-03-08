@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { apiError, apiSuccess } from '@/lib/api-error';
 import { BUILT_IN_REPORTS, REPORT_LIMITS, getDateRange, formatMetricValue } from '@/lib/crm-site/analyticsConfig';
 
 // GET - Get specific report data
@@ -9,10 +8,10 @@ export async function GET(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization');
     const token = authHeader?.replace('Bearer ', '');
-    if (!token) return apiError('Unauthorized', 401);
+    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const decoded = verifyToken(token);
-    if (!decoded) return apiError('Invalid token', 401);
+    if (!decoded) return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
 
     const { searchParams } = new URL(request.url);
     const tenant = searchParams.get('tenant');
@@ -20,16 +19,17 @@ export async function GET(request: NextRequest) {
     const timeRange = searchParams.get('timeRange') || '30d';
 
     if (!tenant) {
-      return apiError('Tenant required', 400);
+      return NextResponse.json({ error: 'Tenant required' }, { status: 400 });
     }
 
     await connectDB();
-    const db = (await connectDB()).connection.db;
-    const tenantsCol = db.collection('crm_tenants');
+    const mongoose = (await import('mongoose')).default;
+    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+    const tenantsCol = crmDb.collection('crm_tenants');
 
     const tenantDoc = await tenantsCol.findOne({ slug: tenant });
     if (!tenantDoc) {
-      return apiError('Tenant not found', 404);
+      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
     }
 
     const plan = tenantDoc.subscription?.plan || 'free';
@@ -39,17 +39,17 @@ export async function GET(request: NextRequest) {
     // List available reports
     if (!reportId) {
       const availableReports = BUILT_IN_REPORTS.filter(r => limits.reports.includes(r.id));
-      return apiSuccess({ reports: availableReports, limits, plan });
+      return NextResponse.json({ reports: availableReports, limits, plan });
     }
 
     // Check if report is available in plan
     if (!limits.reports.includes(reportId)) {
-      return apiError('Report not available in your plan. Please upgrade.', 403);
+      return NextResponse.json({ error: 'Report not available in your plan. Please upgrade.' }, { status: 403 });
     }
 
     const report = BUILT_IN_REPORTS.find(r => r.id === reportId);
     if (!report) {
-      return apiError('Report not found', 404);
+      return NextResponse.json({ error: 'Report not found' }, { status: 404 });
     }
 
     const { start, end } = getDateRange(timeRange);
@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
 
     switch (report.id) {
       case 'leads_overview': {
-        const leadsCol = db.collection('crm_leads');
+        const leadsCol = crmDb.collection('crm_leads');
         const [total, newInPeriod, trend] = await Promise.all([
           leadsCol.countDocuments({ tenantId }),
           leadsCol.countDocuments({ tenantId, createdAt: dateFilter }),
@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
       }
 
       case 'leads_by_status': {
-        const leadsCol = db.collection('crm_leads');
+        const leadsCol = crmDb.collection('crm_leads');
         const byStatus = await leadsCol.aggregate([
           { $match: { tenantId } },
           { $group: { _id: '$status', count: { $sum: 1 } } },
@@ -94,7 +94,7 @@ export async function GET(request: NextRequest) {
       }
 
       case 'leads_by_source': {
-        const leadsCol = db.collection('crm_leads');
+        const leadsCol = crmDb.collection('crm_leads');
         const bySource = await leadsCol.aggregate([
           { $match: { tenantId } },
           { $unwind: { path: '$sources', preserveNullAndEmptyArrays: true } },
@@ -112,7 +112,7 @@ export async function GET(request: NextRequest) {
       }
 
       case 'lead_conversion': {
-        const leadsCol = db.collection('crm_leads');
+        const leadsCol = crmDb.collection('crm_leads');
         const [total, converted] = await Promise.all([
           leadsCol.countDocuments({ tenantId, createdAt: dateFilter }),
           leadsCol.countDocuments({ tenantId, status: 'converted', createdAt: dateFilter }),
@@ -128,7 +128,7 @@ export async function GET(request: NextRequest) {
       }
 
       case 'revenue_overview': {
-        const dealsCol = db.collection('crm_deals');
+        const dealsCol = crmDb.collection('crm_deals');
         const [totals, trend] = await Promise.all([
           dealsCol.aggregate([
             { $match: { tenantId, status: 'won', createdAt: dateFilter } },
@@ -153,7 +153,7 @@ export async function GET(request: NextRequest) {
       }
 
       case 'deals_pipeline': {
-        const dealsCol = db.collection('crm_deals');
+        const dealsCol = crmDb.collection('crm_deals');
         const byStage = await dealsCol.aggregate([
           { $match: { tenantId } },
           { $group: { _id: '$stage', count: { $sum: 1 }, value: { $sum: '$amount' } } },
@@ -169,7 +169,7 @@ export async function GET(request: NextRequest) {
       }
 
       case 'email_performance': {
-        const campaignsCol = db.collection('crm_email_campaigns');
+        const campaignsCol = crmDb.collection('crm_email_campaigns');
         const campaigns = await campaignsCol.find({
           tenantId,
           sentAt: { $exists: true },
@@ -202,7 +202,7 @@ export async function GET(request: NextRequest) {
       }
 
       case 'landing_page_performance': {
-        const pagesCol = db.collection('crm_landing_pages');
+        const pagesCol = crmDb.collection('crm_landing_pages');
         const pages = await pagesCol.find({ tenantId }).toArray();
 
         const totals = pages.reduce(
@@ -231,7 +231,7 @@ export async function GET(request: NextRequest) {
       }
 
       case 'team_activity': {
-        const leadsCol = db.collection('crm_leads');
+        const leadsCol = crmDb.collection('crm_leads');
         const byUser = await leadsCol.aggregate([
           { $match: { tenantId, assignedTo: { $ne: null } } },
           { $group: { _id: '$assignedTo', total: { $sum: 1 }, recent: { $sum: { $cond: [{ $gte: ['$createdAt', start] }, 1, 0] } } } },
@@ -263,7 +263,7 @@ export async function GET(request: NextRequest) {
         data = { message: 'Report data not available' };
     }
 
-    return apiSuccess({
+    return NextResponse.json({
       report: {
         ...report,
         timeRange,
@@ -273,6 +273,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error: any) {
     console.error('Reports GET error:', error);
-    return apiError(error.message || 'Failed to fetch report', 500);
+    return NextResponse.json({ error: error.message || 'Failed to fetch report' }, { status: 500 });
   }
 }

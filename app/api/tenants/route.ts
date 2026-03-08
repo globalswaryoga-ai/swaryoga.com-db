@@ -14,7 +14,8 @@ import {
   getTenantById,
 } from '@/lib/multiTenant/handlers';
 import { buildTenantContext, tenantError, tenantSuccess } from '@/lib/multiTenant/middleware';
-import { verifyToken, isSuperAdmin } from '@/lib/crm-handlers';
+import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 
 // ============================================================================
 // POST /api/tenants - Create new tenant (public, or superadmin only)
@@ -49,8 +50,10 @@ export async function POST(request: NextRequest) {
     if (authToken) {
       try {
         const decoded = verifyToken(authToken);
-        adminUserId = decoded.userId;
-        adminName = decoded.userName || 'Admin';
+        if (decoded?.userId) {
+          adminUserId = decoded.userId;
+          adminName = decoded.username || 'Admin';
+        }
       } catch (e) {
         // Ignore invalid token, allow anonymous signup
       }
@@ -87,6 +90,7 @@ export async function POST(request: NextRequest) {
         apiKey: apiKeyResult.plainKey,
         apiKeyNote: 'Save this API key securely. You cannot view it again.',
       },
+      'Tenant created',
       201
     );
   } catch (error: any) {
@@ -141,7 +145,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Look up tenant by slug (public info only)
-    const tenant = await getTenantBySlug(slug);
+    const tenant = await getTenantBySlug(slug) as any;
     if (!tenant) {
       return tenantError('Tenant not found', 404);
     }

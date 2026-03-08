@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { apiError, apiSuccess } from '@/lib/api-error';
 import {
   HELPDESK_LIMITS,
   DEFAULT_CATEGORIES,
@@ -14,10 +13,10 @@ export async function GET(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization');
     const token = authHeader?.replace('Bearer ', '');
-    if (!token) return apiError('Unauthorized', 401);
+    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const decoded = verifyToken(token);
-    if (!decoded) return apiError('Invalid token', 401);
+    if (!decoded) return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
 
     const { searchParams } = new URL(request.url);
     const tenant = searchParams.get('tenant');
@@ -29,17 +28,18 @@ export async function GET(request: NextRequest) {
     const skip = parseInt(searchParams.get('skip') || '0');
 
     if (!tenant) {
-      return apiError('Tenant required', 400);
+      return NextResponse.json({ error: 'Tenant required' }, { status: 400 });
     }
 
     await connectDB();
-    const db = (await connectDB()).connection.db;
-    const tenantsCol = db.collection('crm_tenants');
-    const ticketsCol = db.collection('crm_tickets');
+    const mongoose = (await import('mongoose')).default;
+    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+    const tenantsCol = crmDb.collection('crm_tenants');
+    const ticketsCol = crmDb.collection('crm_tickets');
 
     const tenantDoc = await tenantsCol.findOne({ slug: tenant });
     if (!tenantDoc) {
-      return apiError('Tenant not found', 404);
+      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
     }
 
     const plan = tenantDoc.subscription?.plan || 'free';
@@ -47,16 +47,16 @@ export async function GET(request: NextRequest) {
     const tenantId = tenantDoc._id.toString();
 
     if (!limits.enabled) {
-      return apiError('Help desk not available in your plan', 403);
+      return NextResponse.json({ error: 'Help desk not available in your plan' }, { status: 403 });
     }
 
     // Get single ticket
     if (ticketId) {
       const ticket = await ticketsCol.findOne({ id: ticketId, tenantId });
       if (!ticket) {
-        return apiError('Ticket not found', 404);
+        return NextResponse.json({ error: 'Ticket not found' }, { status: 404 });
       }
-      return apiSuccess({ ticket, categories: DEFAULT_CATEGORIES });
+      return NextResponse.json({ ticket, categories: DEFAULT_CATEGORIES });
     }
 
     // Build query
@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
       if (s._id) statusStats[s._id as keyof typeof statusStats] = s.count;
     });
 
-    return apiSuccess({
+    return NextResponse.json({
       tickets,
       total,
       stats: statusStats,
@@ -100,7 +100,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error: any) {
     console.error('Tickets GET error:', error);
-    return apiError(error.message || 'Failed to fetch tickets', 500);
+    return NextResponse.json({ error: error.message || 'Failed to fetch tickets' }, { status: 500 });
   }
 }
 
@@ -121,18 +121,19 @@ export async function POST(request: NextRequest) {
     } = body;
 
     if (!tenantSlug || !subject || !customerEmail) {
-      return apiError('Tenant, subject, and customer email required', 400);
+      return NextResponse.json({ error: 'Tenant, subject, and customer email required' }, { status: 400 });
     }
 
     await connectDB();
-    const db = (await connectDB()).connection.db;
-    const tenantsCol = db.collection('crm_tenants');
-    const ticketsCol = db.collection('crm_tickets');
-    const countersCol = db.collection('crm_counters');
+    const mongoose = (await import('mongoose')).default;
+    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+    const tenantsCol = crmDb.collection('crm_tenants');
+    const ticketsCol = crmDb.collection('crm_tickets');
+    const countersCol = crmDb.collection('crm_counters');
 
     const tenant = await tenantsCol.findOne({ slug: tenantSlug });
     if (!tenant) {
-      return apiError('Tenant not found', 404);
+      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
     }
 
     const plan = tenant.subscription?.plan || 'free';
@@ -140,21 +141,21 @@ export async function POST(request: NextRequest) {
     const tenantId = tenant._id.toString();
 
     if (!limits.enabled) {
-      return apiError('Help desk not available in your plan', 403);
+      return NextResponse.json({ error: 'Help desk not available in your plan' }, { status: 403 });
     }
 
     // Check ticket limit
     const ticketCount = await ticketsCol.countDocuments({ tenantId });
     if (ticketCount >= limits.maxTickets) {
-      return apiError('Ticket limit reached. Please upgrade your plan.', 403);
+      return NextResponse.json({ error: 'Ticket limit reached. Please upgrade your plan.' }, { status: 403 });
     }
 
     // Get next ticket number
     const counter = await countersCol.findOneAndUpdate(
-      { _id: `tickets_${tenantId}` },
+      { _id: `tickets_${tenantId}` } as any,
       { $inc: { seq: 1 } },
       { upsert: true, returnDocument: 'after' }
-    );
+    ) as any;
     const ticketNumber = generateTicketNumber(counter?.seq || 1);
 
     // Find category config
@@ -197,10 +198,10 @@ export async function POST(request: NextRequest) {
 
     await ticketsCol.insertOne(newTicket);
 
-    return apiSuccess({ ticket: newTicket, message: 'Ticket created successfully' });
+    return NextResponse.json({ ticket: newTicket, message: 'Ticket created successfully' });
   } catch (error: any) {
     console.error('Ticket POST error:', error);
-    return apiError(error.message || 'Failed to create ticket', 500);
+    return NextResponse.json({ error: error.message || 'Failed to create ticket' }, { status: 500 });
   }
 }
 
@@ -209,32 +210,33 @@ export async function PATCH(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization');
     const token = authHeader?.replace('Bearer ', '');
-    if (!token) return apiError('Unauthorized', 401);
+    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const decoded = verifyToken(token);
-    if (!decoded) return apiError('Invalid token', 401);
+    if (!decoded) return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
 
     const body = await request.json();
     const { tenantSlug, ticketId, action, ...data } = body;
 
     if (!tenantSlug || !ticketId) {
-      return apiError('Tenant and ticketId required', 400);
+      return NextResponse.json({ error: 'Tenant and ticketId required' }, { status: 400 });
     }
 
     await connectDB();
-    const db = (await connectDB()).connection.db;
-    const tenantsCol = db.collection('crm_tenants');
-    const ticketsCol = db.collection('crm_tickets');
+    const mongoose = (await import('mongoose')).default;
+    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+    const tenantsCol = crmDb.collection('crm_tenants');
+    const ticketsCol = crmDb.collection('crm_tickets');
 
     const tenant = await tenantsCol.findOne({ slug: tenantSlug });
     if (!tenant) {
-      return apiError('Tenant not found', 404);
+      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
     }
 
     const tenantId = tenant._id.toString();
     const ticket = await ticketsCol.findOne({ id: ticketId, tenantId });
     if (!ticket) {
-      return apiError('Ticket not found', 404);
+      return NextResponse.json({ error: 'Ticket not found' }, { status: 404 });
     }
 
     const updates: any = { updatedAt: new Date() };
@@ -280,10 +282,10 @@ export async function PATCH(request: NextRequest) {
     }
 
     const updated = await ticketsCol.findOne({ id: ticketId });
-    return apiSuccess({ ticket: updated, message: 'Ticket updated' });
+    return NextResponse.json({ ticket: updated, message: 'Ticket updated' });
   } catch (error: any) {
     console.error('Ticket PATCH error:', error);
-    return apiError(error.message || 'Failed to update ticket', 500);
+    return NextResponse.json({ error: error.message || 'Failed to update ticket' }, { status: 500 });
   }
 }
 
@@ -292,33 +294,34 @@ export async function DELETE(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization');
     const token = authHeader?.replace('Bearer ', '');
-    if (!token) return apiError('Unauthorized', 401);
+    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const decoded = verifyToken(token);
-    if (!decoded) return apiError('Invalid token', 401);
+    if (!decoded) return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
 
     const body = await request.json();
     const { tenantSlug, ticketId } = body;
 
     if (!tenantSlug || !ticketId) {
-      return apiError('Tenant and ticketId required', 400);
+      return NextResponse.json({ error: 'Tenant and ticketId required' }, { status: 400 });
     }
 
     await connectDB();
-    const db = (await connectDB()).connection.db;
-    const tenantsCol = db.collection('crm_tenants');
-    const ticketsCol = db.collection('crm_tickets');
+    const mongoose = (await import('mongoose')).default;
+    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+    const tenantsCol = crmDb.collection('crm_tenants');
+    const ticketsCol = crmDb.collection('crm_tickets');
 
     const tenant = await tenantsCol.findOne({ slug: tenantSlug });
     if (!tenant) {
-      return apiError('Tenant not found', 404);
+      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
     }
 
     await ticketsCol.deleteOne({ id: ticketId, tenantId: tenant._id.toString() });
 
-    return apiSuccess({ message: 'Ticket deleted' });
+    return NextResponse.json({ message: 'Ticket deleted' });
   } catch (error: any) {
     console.error('Ticket DELETE error:', error);
-    return apiError(error.message || 'Failed to delete ticket', 500);
+    return NextResponse.json({ error: error.message || 'Failed to delete ticket' }, { status: 500 });
   }
 }

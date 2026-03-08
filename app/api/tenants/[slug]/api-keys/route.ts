@@ -12,7 +12,8 @@ import {
   listAPIKeys,
 } from '@/lib/multiTenant/handlers';
 import { tenantError, tenantSuccess } from '@/lib/multiTenant/middleware';
-import { verifyToken, isSuperAdmin } from '@/lib/crm-handlers';
+import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 
 // ============================================================================
 // GET /api/tenants/:slug/api-keys - List API keys (tenant admin only)
@@ -35,18 +36,18 @@ export async function GET(
     const token = authHeader.substring(7);
     const decoded = verifyToken(token);
 
-    const tenant = await getTenantBySlug(slug);
+    const tenant = await getTenantBySlug(slug) as any;
     if (!tenant) {
       return tenantError('Tenant not found', 404);
     }
 
     const isAdmin =
-      isSuperAdmin(decoded) || decoded.userId === (tenant.adminUserId as any)?.toString();
+      isSuperAdmin(decoded) || decoded?.userId === tenant.adminUserId?.toString();
     if (!isAdmin) {
       return tenantError('Unauthorized', 403);
     }
 
-    const keys = await listAPIKeys((tenant._id as any).toString());
+    const keys = await listAPIKeys(tenant._id?.toString());
 
     return tenantSuccess({
       tenantSlug: slug,
@@ -86,13 +87,13 @@ export async function POST(
     const token = authHeader.substring(7);
     const decoded = verifyToken(token);
 
-    const tenant = await getTenantBySlug(slug);
+    const tenant = await getTenantBySlug(slug) as any;
     if (!tenant) {
       return tenantError('Tenant not found', 404);
     }
 
     const isAdmin =
-      isSuperAdmin(decoded) || decoded.userId === (tenant.adminUserId as any)?.toString();
+      isSuperAdmin(decoded) || decoded?.userId === tenant.adminUserId?.toString();
     if (!isAdmin) {
       return tenantError('Unauthorized', 403);
     }
@@ -106,7 +107,7 @@ export async function POST(
     const keyPermissions = permissions || defaultPermissions;
 
     const apiKeyResult = await generateAPIKey(
-      (tenant._id as any).toString(),
+      tenant._id?.toString(),
       slug,
       name,
       keyPermissions
@@ -120,6 +121,7 @@ export async function POST(
         plainKey: apiKeyResult.plainKey,
         warning: 'Save this key securely. You will not be able to view it again.',
       },
+      'API key created',
       201
     );
   } catch (error: any) {

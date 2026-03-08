@@ -10,9 +10,10 @@ export async function GET(
     const { slug } = params;
 
     await connectDB();
-    const db = (await connectDB()).connection.db;
-    const pagesCol = db.collection('crm_landing_pages');
-    const tenantsCol = db.collection('crm_tenants');
+    const mongoose = (await import('mongoose')).default;
+    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+    const pagesCol = crmDb.collection('crm_landing_pages');
+    const tenantsCol = crmDb.collection('crm_tenants');
 
     // Find the landing page
     const page = await pagesCol.findOne({ slug, status: 'published' });

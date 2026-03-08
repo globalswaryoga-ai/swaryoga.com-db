@@ -18,6 +18,8 @@ import {
   Circle,
   Filter,
   ChevronDown,
+  UserPlus,
+  AlertTriangle,
 } from 'lucide-react';
 
 interface TicketData {
@@ -31,6 +33,7 @@ interface TicketData {
   customerName: string;
   customerEmail: string;
   assignedTo?: string;
+  assignedToName?: string;
   tags: string[];
   slaDeadline?: string;
   messages: {
@@ -43,6 +46,12 @@ interface TicketData {
   }[];
   createdAt: string;
   updatedAt: string;
+}
+
+interface TeamMember {
+  id: string;
+  name: string;
+  email: string;
 }
 
 interface Category {
@@ -72,6 +81,7 @@ export default function HelpDeskPage() {
   const [stats, setStats] = useState({ open: 0, pending: 0, in_progress: 0, resolved: 0, closed: 0 });
   const [plan, setPlan] = useState('free');
   const [tenantSlug, setTenantSlug] = useState('');
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
 
   // Filters
   const [filterStatus, setFilterStatus] = useState('');
@@ -83,6 +93,7 @@ export default function HelpDeskPage() {
   const [showTicket, setShowTicket] = useState<TicketData | null>(null);
   const [saving, setSaving] = useState(false);
   const [replyText, setReplyText] = useState('');
+  const [showAssignDropdown, setShowAssignDropdown] = useState(false);
 
   // Create form
   const [newTicket, setNewTicket] = useState({
@@ -94,11 +105,51 @@ export default function HelpDeskPage() {
     customerEmail: '',
   });
 
+  // SLA helper
+  const getSLAStatus = (ticket: TicketData) => {
+    if (!ticket.slaDeadline || ticket.status === 'resolved' || ticket.status === 'closed') {
+      return null;
+    }
+    const deadline = new Date(ticket.slaDeadline);
+    const now = new Date();
+    const diffMs = deadline.getTime() - now.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+
+    if (diffMs <= 0) {
+      return { breached: true, text: 'SLA Breached', color: 'text-red-600 bg-red-100' };
+    } else if (diffHours < 2) {
+      return { breached: false, text: `${diffHours}h ${diffMins}m left`, color: 'text-orange-600 bg-orange-100' };
+    } else if (diffHours < 24) {
+      return { breached: false, text: `${diffHours}h left`, color: 'text-yellow-600 bg-yellow-100' };
+    } else {
+      const days = Math.floor(diffHours / 24);
+      return { breached: false, text: `${days}d ${diffHours % 24}h left`, color: 'text-green-600 bg-green-100' };
+    }
+  };
+
   useEffect(() => {
     const slug = localStorage.getItem('tenantSlug') || '';
     setTenantSlug(slug);
     fetchTickets();
+    fetchTeamMembers();
   }, [filterStatus, filterPriority]);
+
+  const fetchTeamMembers = async () => {
+    try {
+      const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
+      const slug = localStorage.getItem('tenantSlug') || '';
+      const res = await fetch(`/api/crm-site/team?tenant=${slug}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTeamMembers(data.members || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch team members:', err);
+    }
+  };
 
   const fetchTickets = async () => {
     setLoading(true);
@@ -192,6 +243,36 @@ export default function HelpDeskPage() {
       }
     } catch (err) {
       console.error('Failed to update ticket:', err);
+    }
+  };
+
+  const assignTicket = async (ticketId: string, memberId: string | null, memberName?: string) => {
+    try {
+      const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
+      const res = await fetch('/api/crm-site/tickets', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          tenantSlug,
+          ticketId,
+          assignedTo: memberId,
+          assignedToName: memberName,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (showTicket?.id === ticketId) {
+          setShowTicket(data.ticket);
+        }
+        setShowAssignDropdown(false);
+        fetchTickets();
+      }
+    } catch (err) {
+      console.error('Failed to assign ticket:', err);
     }
   };
 
@@ -355,43 +436,60 @@ export default function HelpDeskPage() {
                 <tr>
                   <th className="text-left px-6 py-3 text-sm font-medium text-gray-600">Ticket</th>
                   <th className="text-left px-6 py-3 text-sm font-medium text-gray-600">Customer</th>
+                  <th className="text-left px-6 py-3 text-sm font-medium text-gray-600">Assigned To</th>
                   <th className="text-left px-6 py-3 text-sm font-medium text-gray-600">Status</th>
                   <th className="text-left px-6 py-3 text-sm font-medium text-gray-600">Priority</th>
-                  <th className="text-left px-6 py-3 text-sm font-medium text-gray-600">Created</th>
+                  <th className="text-left px-6 py-3 text-sm font-medium text-gray-600">SLA</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {filteredTickets.map((ticket) => (
-                  <tr
-                    key={ticket.id}
-                    onClick={() => setShowTicket(ticket)}
-                    className="hover:bg-gray-50 cursor-pointer"
-                  >
-                    <td className="px-6 py-4">
-                      <div>
-                        <p className="font-medium text-gray-900">{ticket.subject}</p>
-                        <p className="text-sm text-gray-500">{ticket.ticketNumber}</p>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="text-sm text-gray-900">{ticket.customerName}</p>
-                      <p className="text-sm text-gray-500">{ticket.customerEmail}</p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_CONFIG[ticket.status].bg} ${STATUS_CONFIG[ticket.status].color}`}>
-                        {STATUS_CONFIG[ticket.status].label}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${PRIORITY_CONFIG[ticket.priority].bg} ${PRIORITY_CONFIG[ticket.priority].color}`}>
-                        {PRIORITY_CONFIG[ticket.priority].label}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500">
-                      {new Date(ticket.createdAt).toLocaleDateString()}
-                    </td>
-                  </tr>
-                ))}
+                {filteredTickets.map((ticket) => {
+                  const sla = getSLAStatus(ticket);
+                  return (
+                    <tr
+                      key={ticket.id}
+                      onClick={() => setShowTicket(ticket)}
+                      className="hover:bg-gray-50 cursor-pointer"
+                    >
+                      <td className="px-6 py-4">
+                        <div>
+                          <p className="font-medium text-gray-900">{ticket.subject}</p>
+                          <p className="text-sm text-gray-500">{ticket.ticketNumber}</p>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="text-sm text-gray-900">{ticket.customerName}</p>
+                        <p className="text-sm text-gray-500">{ticket.customerEmail}</p>
+                      </td>
+                      <td className="px-6 py-4">
+                        {ticket.assignedToName ? (
+                          <span className="text-sm text-gray-900">{ticket.assignedToName}</span>
+                        ) : (
+                          <span className="text-sm text-gray-400 italic">Unassigned</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_CONFIG[ticket.status].bg} ${STATUS_CONFIG[ticket.status].color}`}>
+                          {STATUS_CONFIG[ticket.status].label}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${PRIORITY_CONFIG[ticket.priority].bg} ${PRIORITY_CONFIG[ticket.priority].color}`}>
+                          {PRIORITY_CONFIG[ticket.priority].label}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        {sla ? (
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${sla.color}`}>
+                            {sla.breached ? '⚠️' : '⏱'} {sla.text}
+                          </span>
+                        ) : (
+                          <span className="text-sm text-gray-400">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -523,15 +621,73 @@ export default function HelpDeskPage() {
             </div>
 
             <div className="p-6">
-              {/* Customer Info */}
+              {/* SLA Status */}
+              {(() => {
+                const sla = getSLAStatus(showTicket);
+                if (sla) {
+                  return (
+                    <div className={`rounded-lg p-3 mb-4 flex items-center gap-3 ${sla.color}`}>
+                      {sla.breached ? (
+                        <AlertTriangle className="w-5 h-5" />
+                      ) : (
+                        <Clock className="w-5 h-5" />
+                      )}
+                      <span className="font-medium">{sla.text}</span>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
+              {/* Customer Info & Assignment */}
               <div className="bg-gray-50 rounded-lg p-4 mb-6">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                    <User className="w-5 h-5 text-blue-600" />
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                      <User className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="font-medium">{showTicket.customerName}</p>
+                      <p className="text-sm text-gray-500">{showTicket.customerEmail}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-medium">{showTicket.customerName}</p>
-                    <p className="text-sm text-gray-500">{showTicket.customerEmail}</p>
+                  {/* Assignment Section */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowAssignDropdown(!showAssignDropdown)}
+                      className="flex items-center gap-2 px-3 py-2 text-sm bg-white border rounded-lg hover:bg-gray-50"
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      {showTicket.assignedToName || 'Unassigned'}
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+                    {showAssignDropdown && (
+                      <div className="absolute right-0 top-full mt-1 w-56 bg-white border rounded-lg shadow-lg z-20">
+                        <div className="p-2">
+                          <button
+                            onClick={() => assignTicket(showTicket.id, null)}
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded-lg text-gray-600"
+                          >
+                            Unassign
+                          </button>
+                          {teamMembers.map((member) => (
+                            <button
+                              key={member.id}
+                              onClick={() => assignTicket(showTicket.id, member.id, member.name)}
+                              className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded-lg ${
+                                showTicket.assignedTo === member.id ? 'bg-blue-50 text-blue-700' : ''
+                              }`}
+                            >
+                              <p className="font-medium">{member.name}</p>
+                              <p className="text-xs text-gray-500">{member.email}</p>
+                            </button>
+                          ))}
+                          {teamMembers.length === 0 && (
+                            <p className="px-3 py-2 text-sm text-gray-500">No team members</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

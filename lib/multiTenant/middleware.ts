@@ -75,11 +75,12 @@ async function loadTenant(tenantSlug: string) {
     throw new Error(`Tenant not found: ${tenantSlug}`);
   }
 
-  if (tenant.subscriptionStatus === 'suspended') {
+  const t = tenant as any;
+  if (t.subscriptionStatus === 'suspended') {
     throw new Error('This tenant account has been suspended');
   }
 
-  return tenant;
+  return t;
 }
 
 /**
@@ -145,25 +146,27 @@ export async function verifyAPIKey(keyHeader: string): Promise<TenantContext> {
     throw new Error('Invalid or expired API key');
   }
 
+  const key = apiKey as any;
+
   // Check expiration
-  if (apiKey.expiresAt && new Date(apiKey.expiresAt) < new Date()) {
+  if (key.expiresAt && new Date(key.expiresAt) < new Date()) {
     throw new Error('API key has expired');
   }
 
   // Check IP whitelist
-  if (apiKey.allowedIPs && apiKey.allowedIPs.length > 0) {
+  if (key.allowedIPs && key.allowedIPs.length > 0) {
     const clientIP = ''; // Would be extracted from request in real implementation
-    if (!apiKey.allowedIPs.includes(clientIP)) {
+    if (!key.allowedIPs.includes(clientIP)) {
       throw new Error('IP address not whitelisted for this API key');
     }
   }
 
   // Load tenant
-  const tenant = await loadTenant(apiKey.tenantSlug);
+  const tenant = await loadTenant(key.tenantSlug);
 
   // Update last used timestamp
   await APIKeyModel.updateOne(
-    { _id: apiKey._id },
+    { _id: key._id },
     {
       lastUsedAt: new Date(),
       $inc: { callCount: 1 },
@@ -177,7 +180,7 @@ export async function verifyAPIKey(keyHeader: string): Promise<TenantContext> {
     subscriptionTier: tenant.subscriptionTier,
     subscriptionStatus: tenant.subscriptionStatus,
     isAdmin: false, // API keys are never admin by default
-    userId: apiKey._id.toString(),
+    userId: key._id.toString(),
     enabledModules: tenant.enabledModules,
     limits: tenant.limits,
   };
@@ -225,7 +228,7 @@ export async function checkUsageLimit(
 ): Promise<boolean> {
   await connectDB();
   const TenantModel = getTenant();
-  const tenant = await TenantModel.findById(tenantId).lean();
+  const tenant = await TenantModel.findById(tenantId).lean() as any;
 
   if (!tenant) {
     throw new Error('Tenant not found');
