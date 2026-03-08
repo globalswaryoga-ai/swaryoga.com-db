@@ -460,8 +460,8 @@ export default function QRWhatsAppPage() {
       if (data?.connected) {
         // Connected — clear QR
         setQrData(null);
-        // Auto-switch to inbox
-        if (tab === 'status') {
+        // Auto-switch to inbox (use ref to avoid re-creating this callback on tab changes)
+        if (tabRef.current === 'status') {
           setTab('inbox');
           fetchChats();
         }
@@ -482,19 +482,26 @@ export default function QRWhatsAppPage() {
     } finally {
       setLoading(false);
     }
-  }, [bridgeCall, tab]);
+  }, [bridgeCall]);
 
   // ── Poll setup ──
+  // Use a stable interval — don't re-run the effect when status changes
+  // (that would clear the interval mid-poll and cause status flickering)
+  const connectedRef = useRef(false);
+  connectedRef.current = !!status?.connected;
   useEffect(() => {
     if (!token || bridgeConfigured !== true) return;
     fetchStatus();
-    // Poll less aggressively: 15s when connected, 6s when waiting for QR
-    const interval = status?.connected ? 15000 : 6000;
-    pollRef.current = setInterval(fetchStatus, interval);
+    // Adaptive poll: check connectedRef inside setInterval instead of deps
+    const id = setInterval(() => {
+      fetchStatus();
+    }, connectedRef.current ? 15000 : 6000);
+    pollRef.current = id;
     return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
+      clearInterval(id);
+      pollRef.current = null;
     };
-  }, [token, fetchStatus, status?.connected, bridgeConfigured]);
+  }, [token, fetchStatus, bridgeConfigured]);
 
   // ── Auto-fetch WhatsApp statuses when connected and on status tab ──
   useEffect(() => {
