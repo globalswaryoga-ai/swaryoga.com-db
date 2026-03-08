@@ -1,6 +1,8 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
+
+export const dynamic = 'force-dynamic';
 import Link from 'next/link';
 import { XCircle, RefreshCcw, ArrowRight } from 'lucide-react';
 

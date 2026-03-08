@@ -2,6 +2,8 @@
 
 import React from 'react';
 import { useSearchParams } from 'next/navigation';
+
+export const dynamic = 'force-dynamic';
 import Link from 'next/link';
 import { CheckCircle2, ArrowRight, Download, Mail } from 'lucide-react';
 
