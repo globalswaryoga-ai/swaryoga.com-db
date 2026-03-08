@@ -42,6 +42,10 @@
     {
       "path": "/api/admin/crm/broadcast-runs/run",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/crm-site/capacity",
+      "schedule": "0 * * * *"
     }
   ],
   "headers": [
