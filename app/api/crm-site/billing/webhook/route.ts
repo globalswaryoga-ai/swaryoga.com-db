@@ -48,6 +48,55 @@ const PLAN_MODULES: Record<string, Record<string, boolean>> = {
   },
 };
 
+// Admin email for payment notifications
+const ADMIN_NOTIFICATION_EMAIL = 'mohan@swaryoga.com';
+
+/**
+ * Send payment confirmation email to admin and customer
+ */
+async function sendPaymentConfirmationEmail(order: any, subscriptionEndDate: Date) {
+  try {
+    // Log the notification (email integration can be added later)
+    console.log(`📧 Payment confirmation for order ${order.orderId}:`);
+    console.log(`   Customer: ${order.email}`);
+    console.log(`   Plan: ${order.plan} (${order.billing})`);
+    console.log(`   Amount: ₹${order.amount}`);
+    console.log(`   Storage: ${order.storageGB || 1}GB`);
+    console.log(`   Payment Method: ${order.paymentMethod || 'upi'}`);
+    console.log(`   Auto-pay: ${order.enableAutopay ? 'Yes' : 'No'}`);
+    console.log(`   Subscription ends: ${subscriptionEndDate.toISOString()}`);
+    console.log(`   Notify: ${ADMIN_NOTIFICATION_EMAIL}`);
+    
+    // TODO: Integrate with email service (SendGrid, SES, etc.)
+    // For now, we'll store notification in database for admin dashboard
+    const mongoose = (await import('mongoose')).default;
+    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+    
+    await crmDb.collection('payment_notifications').insertOne({
+      type: 'payment_success',
+      orderId: order.orderId,
+      customerEmail: order.email,
+      customerName: order.name,
+      businessName: order.businessName,
+      plan: order.plan,
+      billing: order.billing,
+      amount: order.amount,
+      storageGB: order.storageGB,
+      paymentMethod: order.paymentMethod,
+      enableAutopay: order.enableAutopay,
+      subscriptionEndDate,
+      adminEmail: ADMIN_NOTIFICATION_EMAIL,
+      emailSent: false, // Will be true when email integration is added
+      createdAt: new Date(),
+    });
+    
+    return true;
+  } catch (err) {
+    console.error('Failed to send payment confirmation:', err);
+    return false;
+  }
+}
+
 export async function GET() {
   return NextResponse.json({
     ok: true,
@@ -127,16 +176,23 @@ export async function POST(request: NextRequest) {
     }
 
     // ─── UPGRADE TENANT SUBSCRIPTION ───
-    const { plan, billing, tenantSlug, email } = billingOrder;
+    const { plan, billing, tenantSlug, email, storageGB, paymentMethod, enableAutopay } = billingOrder;
     const tier = PLAN_TO_TIER[plan] || 'plan1';
-    const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.starter;
+    const limits = { ...PLAN_LIMITS[plan] || PLAN_LIMITS.starter };
     const enabledModules = PLAN_MODULES[plan] || PLAN_MODULES.starter;
+    
+    // Override storage quota with purchased amount
+    if (storageGB && storageGB > 0) {
+      limits.storageQuotaMB = storageGB * 1024; // Convert GB to MB
+    }
 
     // Calculate subscription dates
     const now = new Date();
     const subscriptionEndDate = new Date(now);
     if (billing === 'annual') {
       subscriptionEndDate.setFullYear(subscriptionEndDate.getFullYear() + 1);
+    } else if (billing === 'quarterly') {
+      subscriptionEndDate.setMonth(subscriptionEndDate.getMonth() + 3);
     } else {
       subscriptionEndDate.setMonth(subscriptionEndDate.getMonth() + 1);
     }
@@ -161,6 +217,8 @@ export async function POST(request: NextRequest) {
           enabledModules,
           lastPaymentId: cfOrderId,
           lastPaymentDate: now,
+          paymentMethod: paymentMethod || 'upi',
+          autopayEnabled: enableAutopay || false,
           updatedAt: now,
         },
       }
@@ -170,6 +228,9 @@ export async function POST(request: NextRequest) {
       console.warn(`CRM Billing: Tenant not found for order ${cfOrderId}`);
     } else {
       console.log(`✅ CRM Billing: Upgraded tenant to ${plan} (${tier}) — Order: ${cfOrderId}`);
+      
+      // Send confirmation email notification
+      await sendPaymentConfirmationEmail(billingOrder, subscriptionEndDate);
     }
 
     // Record payment in subscription history
@@ -180,6 +241,12 @@ export async function POST(request: NextRequest) {
       plan,
       tier,
       billing,
+      storageGB: storageGB || 1,
+      paymentMethod: paymentMethod || 'upi',
+      enableAutopay: enableAutopay || false,
+      planAmount: billingOrder.planAmount,
+      storageCost: billingOrder.storageCost,
+      gst: billingOrder.gst,
       amount: billingOrder.amount,
       currency: billingOrder.currency || 'INR',
       status: 'PAID',

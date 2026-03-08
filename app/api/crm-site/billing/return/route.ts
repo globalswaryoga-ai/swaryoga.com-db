@@ -55,10 +55,10 @@ export async function GET(request: NextRequest) {
     );
 
     if (cfStatus === 'PAID') {
-      // Success - redirect to CRM with success message
-      const successUrl = new URL('/admin/crm', url.origin);
-      successUrl.searchParams.set('payment', 'success');
+      // Success - redirect to billing success page
+      const successUrl = new URL('/crm-site/billing/success', url.origin);
       successUrl.searchParams.set('plan', billingOrder.plan);
+      successUrl.searchParams.set('orderId', orderId);
       return NextResponse.redirect(successUrl);
     } else if (cfStatus === 'PENDING' || cfStatus === 'ACTIVE') {
       // Payment pending - redirect to pending page
