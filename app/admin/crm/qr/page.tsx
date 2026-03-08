@@ -360,7 +360,9 @@ export default function QRWhatsAppPage() {
             setBridgeSecretInput(settingsRes.qrBridgeSecret || '');
             setBridgeConfigured(true);
           } else {
-            setBridgeConfigured(false);
+            // No per-user bridge in DB — use fallback bridge from env vars
+            // This skips the manual setup modal and goes straight to QR scanning
+            setBridgeConfigured(true);
           }
           console.log('[QR] ✅ Loaded settings from MongoDB — funnels:', settingsRes.qrFunnelStages?.length || 0, 'chatFunnels:', Object.keys(settingsRes.chatFunnels || {}).length, 'chatLabels:', Object.keys(settingsRes.chatLabels || {}).length, 'labels:', settingsRes.labelPresets?.length || 0, 'bridge:', settingsRes.qrBridgeUrl ? 'configured' : 'not set');
         }
