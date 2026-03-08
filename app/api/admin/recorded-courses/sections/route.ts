@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 import {
   getRecordedCourse,
   getCourseSection,
@@ -17,10 +18,10 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-// Check admin access
-function checkAdminAccess(decoded: any | null): boolean {
+// Check superadmin access - E-Learning management is superadmin only
+function checkSuperAdminAccess(decoded: any | null): boolean {
   if (!decoded) return false;
-  return decoded.isAdmin === true || decoded.role === 'admin' || decoded.role === 'superadmin';
+  return isSuperAdmin(decoded);
 }
 
 /**
@@ -42,7 +43,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
     
-    if (!checkAdminAccess(decoded)) {
+    if (!checkSuperAdminAccess(decoded)) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
     
@@ -84,7 +85,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
     
-    if (!checkAdminAccess(decoded)) {
+    if (!checkSuperAdminAccess(decoded)) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
     
@@ -145,7 +146,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
     
-    if (!checkAdminAccess(decoded)) {
+    if (!checkSuperAdminAccess(decoded)) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
     
@@ -198,7 +199,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
     
-    if (!checkAdminAccess(decoded)) {
+    if (!checkSuperAdminAccess(decoded)) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
     

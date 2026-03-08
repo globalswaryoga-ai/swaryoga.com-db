@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { Plus, Edit2, Trash2, Video, Eye, EyeOff, GraduationCap, X, Upload } from 'lucide-react';
+import { Plus, Edit2, Trash2, Video, Eye, EyeOff, GraduationCap, X, Upload, ShieldAlert } from 'lucide-react';
 
 interface Course {
   _id: string;
@@ -26,14 +27,48 @@ interface Course {
 }
 
 export default function DLearningPage() {
+  const router = useRouter();
   const token = useAuth();
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  // Check superadmin status
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const userStr = localStorage.getItem('admin_user');
+    let resolvedUserId = localStorage.getItem('adminUser') || '';
+    let legacyPerms: string[] = [];
+    let pv2: any = null;
+    if (userStr) {
+      try {
+        const u = JSON.parse(userStr);
+        resolvedUserId = (u?.userId as string) || resolvedUserId;
+        legacyPerms = Array.isArray(u?.permissions) ? u.permissions : [];
+        pv2 = u?.permissionsV2 || null;
+      } catch {
+        // ignore
+      }
+    }
+    const superAdmin =
+      resolvedUserId === 'admin' ||
+      resolvedUserId === 'admincrm' ||
+      legacyPerms.includes('all') ||
+      pv2?.isSuperAdmin === true;
+    setIsSuperAdmin(superAdmin);
+    setAuthChecked(true);
+    
+    // Redirect non-superadmin users
+    if (!superAdmin) {
+      router.replace('/admin/crm');
+    }
+  }, [router]);
 
   const fetchCourses = useCallback(async () => {
-    if (!token) return;
+    if (!token || !isSuperAdmin) return;
     
     try {
       setLoading(true);
@@ -55,11 +90,11 @@ export default function DLearningPage() {
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, isSuperAdmin]);
 
   useEffect(() => {
-    if (token) fetchCourses();
-  }, [token, fetchCourses]);
+    if (token && isSuperAdmin) fetchCourses();
+  }, [token, isSuperAdmin, fetchCourses]);
 
   const togglePublish = async (course: Course) => {
     if (!token) return;
@@ -110,10 +145,23 @@ export default function DLearningPage() {
     return h > 0 ? `${h}h ${m}m` : `${m}m`;
   };
 
-  if (!token) {
+  if (!token || !authChecked) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="animate-spin w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
+  // Non-superadmin - show access denied while redirecting
+  if (!isSuperAdmin) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-center">
+          <ShieldAlert className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <h1 className="text-xl font-bold text-white mb-2">Access Denied</h1>
+          <p className="text-gray-400">E-Learning management requires super admin access.</p>
+        </div>
       </div>
     );
   }

@@ -247,13 +247,6 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       module: 'dashboard',
     },
     {
-      icon: GraduationCap,
-      label: 'E-Learning',
-      href: '/admin/crm/e-learning',
-      color: 'text-lime-400',
-      module: 'dashboard',
-    },
-    {
       icon: Calculator,
       label: 'Tally',
       href: '/admin/crm/tally',
@@ -342,6 +335,12 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
 
   // Super admin only items
   const superAdminItems = [
+    {
+      icon: GraduationCap,
+      label: 'E-Learning',
+      href: '/admin/crm/e-learning',
+      color: 'text-lime-400',
+    },
     {
       icon: Building2,
       label: 'Tenants',
