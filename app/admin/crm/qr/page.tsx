@@ -818,6 +818,16 @@ export default function QRWhatsAppPage() {
     }
   }, [bridgeCall]);
 
+  // ── Fetch contact about/bio ──
+  const fetchContactAbout = useCallback(async (jid: string) => {
+    try {
+      const data = await bridgeCall(`/contact-about/${encodeURIComponent(jid)}`);
+      setContactAbout(data?.about || null);
+    } catch {
+      setContactAbout(null);
+    }
+  }, [bridgeCall]);
+
   // ── Select chat ──
   const selectChat = useCallback((jid: string) => {
     setSelectedChat(jid);
@@ -1051,16 +1061,6 @@ export default function QRWhatsAppPage() {
       bridgeCall('/typing', 'POST', { jid: selectedChat, composing: false }).catch(() => {});
     }, 3000);
   }, [selectedChat, bridgeCall]);
-
-  // ── Fetch contact about/bio ──
-  const fetchContactAbout = useCallback(async (jid: string) => {
-    try {
-      const data = await bridgeCall(`/contact-about/${encodeURIComponent(jid)}`);
-      setContactAbout(data?.about || null);
-    } catch {
-      setContactAbout(null);
-    }
-  }, [bridgeCall]);
 
   // ── Download media from bridge via server-side proxy (avoids CORS) ──
   const downloadMediaFromBridge = useCallback(async (messageId: string, fileName?: string) => {
