@@ -1,0 +1,186 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { connectDB } from '@/lib/db';
+import { verifyToken } from '@/lib/auth';
+import crypto from 'crypto';
+
+/**
+ * GET /api/crm-site/webhooks
+ * List webhooks for a tenant
+ * 
+ * POST /api/crm-site/webhooks
+ * Create/update webhook
+ * 
+ * DELETE /api/crm-site/webhooks
+ * Delete a webhook
+ */
+
+function generateWebhookSecret(): string {
+  return `whsec_${crypto.randomBytes(24).toString('hex')}`;
+}
+
+const WEBHOOK_EVENTS = [
+  'lead.created',
+  'lead.updated',
+  'lead.deleted',
+  'lead.status_changed',
+  'message.received',
+  'message.sent',
+  'broadcast.completed',
+  'payment.received',
+  'subscription.updated',
+];
+
+export async function GET(request: NextRequest) {
+  try {
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const token = authHeader.slice(7);
+    const decoded = verifyToken(token);
+    if (!decoded) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
+
+    await connectDB();
+
+    const url = new URL(request.url);
+    const tenantSlug = url.searchParams.get('tenant') || (decoded as any).tenantSlug;
+
+    if (!tenantSlug) {
+      return NextResponse.json({ error: 'Tenant not found' }, { status: 400 });
+    }
+
+    const mongoose = (await import('mongoose')).default;
+    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+
+    const webhooks = await crmDb.collection('tenant_webhooks').find({ tenantSlug }).toArray();
+
+    return NextResponse.json({
+      webhooks: webhooks.map(w => ({
+        id: w._id,
+        url: w.url,
+        events: w.events,
+        enabled: w.enabled,
+        secretPrefix: w.secret?.substring(0, 12) + '...',
+        createdAt: w.createdAt,
+        lastTriggeredAt: w.lastTriggeredAt,
+        successCount: w.successCount || 0,
+        failureCount: w.failureCount || 0,
+      })),
+      availableEvents: WEBHOOK_EVENTS,
+    });
+  } catch (err: any) {
+    console.error('Webhooks GET error:', err);
+    return NextResponse.json({ error: err.message || 'Failed to fetch webhooks' }, { status: 500 });
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const token = authHeader.slice(7);
+    const decoded = verifyToken(token);
+    if (!decoded) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { tenantSlug, url, events = [], enabled = true, webhookId } = body;
+
+    if (!tenantSlug || !url) {
+      return NextResponse.json({ error: 'tenantSlug and url required' }, { status: 400 });
+    }
+
+    // Validate URL
+    try {
+      new URL(url);
+    } catch {
+      return NextResponse.json({ error: 'Invalid webhook URL' }, { status: 400 });
+    }
+
+    await connectDB();
+
+    const mongoose = (await import('mongoose')).default;
+    const { ObjectId } = mongoose.Types;
+    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+
+    if (webhookId) {
+      // Update existing webhook
+      await crmDb.collection('tenant_webhooks').updateOne(
+        { _id: new ObjectId(webhookId), tenantSlug },
+        { $set: { url, events, enabled, updatedAt: new Date() } }
+      );
+
+      return NextResponse.json({ success: true, message: 'Webhook updated' });
+    } else {
+      // Create new webhook
+      const secret = generateWebhookSecret();
+
+      const result = await crmDb.collection('tenant_webhooks').insertOne({
+        tenantSlug,
+        url,
+        events,
+        enabled,
+        secret,
+        createdBy: (decoded as any).userId || (decoded as any).email,
+        createdAt: new Date(),
+        successCount: 0,
+        failureCount: 0,
+      });
+
+      return NextResponse.json({
+        success: true,
+        webhookId: result.insertedId,
+        secret, // Return secret only once
+        message: 'Save this webhook secret. It will not be shown again.',
+      });
+    }
+  } catch (err: any) {
+    console.error('Webhooks POST error:', err);
+    return NextResponse.json({ error: err.message || 'Failed to save webhook' }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const token = authHeader.slice(7);
+    const decoded = verifyToken(token);
+    if (!decoded) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { tenantSlug, webhookId } = body;
+
+    if (!tenantSlug || !webhookId) {
+      return NextResponse.json({ error: 'tenantSlug and webhookId required' }, { status: 400 });
+    }
+
+    await connectDB();
+
+    const mongoose = (await import('mongoose')).default;
+    const { ObjectId } = mongoose.Types;
+    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+
+    await crmDb.collection('tenant_webhooks').deleteOne({
+      _id: new ObjectId(webhookId),
+      tenantSlug,
+    });
+
+    return NextResponse.json({ success: true, message: 'Webhook deleted' });
+  } catch (err: any) {
+    console.error('Webhooks DELETE error:', err);
+    return NextResponse.json({ error: err.message || 'Failed to delete webhook' }, { status: 500 });
+  }
+}
