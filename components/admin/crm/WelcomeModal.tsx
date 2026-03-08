@@ -30,6 +30,15 @@ export default function WelcomeModal({
       
       {/* Modal */}
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden animate-in fade-in zoom-in duration-300">
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 z-10 w-8 h-8 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center text-white transition-colors"
+          aria-label="Close"
+        >
+          <X className="h-5 w-5" />
+        </button>
+
         {/* Header gradient */}
         <div className="bg-gradient-to-r from-swar-primary to-emerald-500 px-6 py-8 text-white text-center">
           <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
