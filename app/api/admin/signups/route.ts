@@ -1,5 +1,7 @@
 import { connectDB, User } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
+import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,8 +16,23 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Token validation would go here
-    // For now, we'll accept any token that's present
+    const token = authHeader.slice('Bearer '.length);
+    const decoded = verifyToken(token);
+    
+    if (!decoded?.isAdmin) {
+      return NextResponse.json(
+        { error: 'Unauthorized: Admin access required' },
+        { status: 401 }
+      );
+    }
+
+    // Only superadmins can see all signup data
+    if (!isSuperAdmin(decoded)) {
+      return NextResponse.json(
+        { error: 'Access denied: Superadmin access required for signup data' },
+        { status: 403 }
+      );
+    }
 
     await connectDB();
 
