@@ -77,10 +77,11 @@ export async function PATCH(
       return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
     }
 
-    // Non-super-admin can only modify their assigned leads
+    // Non-super-admin can only modify leads assigned to them or created by them
     if (
       !superAdmin &&
-      String((lead as any).assignedToUserId || '').trim() !== viewerUserId
+      String((lead as any).assignedToUserId || '').trim() !== viewerUserId &&
+      String((lead as any).createdByUserId || '').trim() !== viewerUserId
     ) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }

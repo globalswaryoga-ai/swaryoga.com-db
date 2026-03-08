@@ -43,7 +43,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
     }
 
-    if (!superAdmin && String(lead.assignedToUserId || '').trim() !== viewerUserId) {
+    if (!superAdmin && String(lead.assignedToUserId || '').trim() !== viewerUserId && String(lead.createdByUserId || '').trim() !== viewerUserId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     return NextResponse.json({ success: true, data: lead }, { status: 200 });
@@ -104,7 +104,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     if (!existing) {
       return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
     }
-    if (!superAdmin && String(existing.assignedToUserId || '').trim() !== viewerUserId) {
+    if (!superAdmin && String(existing.assignedToUserId || '').trim() !== viewerUserId && String(existing.createdByUserId || '').trim() !== viewerUserId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -294,7 +294,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     if (!existing) {
       return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
     }
-    if (!superAdmin && String(existing.assignedToUserId || '').trim() !== viewerUserId) {
+    if (!superAdmin && String(existing.assignedToUserId || '').trim() !== viewerUserId && String(existing.createdByUserId || '').trim() !== viewerUserId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -400,7 +400,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     if (!existing) {
       return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
     }
-    if (!superAdmin && String(existing.assignedToUserId || '').trim() !== viewerUserId) {
+    if (!superAdmin && String(existing.assignedToUserId || '').trim() !== viewerUserId && String(existing.createdByUserId || '').trim() !== viewerUserId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

@@ -36,13 +36,15 @@ export async function GET(request: NextRequest) {
     if (superAdmin) {
       unreadCount = await WhatsAppMessage.countDocuments(filter);
     } else {
-      // Only count messages whose lead is assigned to this admin
+      // Only count messages whose lead is assigned to or created by this admin
       const unreadMessages = await WhatsAppMessage.find(filter)
-        .populate('leadId', 'assignedToUserId')
+        .populate('leadId', 'assignedToUserId createdByUserId')
         .lean();
 
       unreadCount = unreadMessages.filter(
-        (m: any) => String(m?.leadId?.assignedToUserId || '') === viewerUserId
+        (m: any) => 
+          String(m?.leadId?.assignedToUserId || '') === viewerUserId ||
+          String(m?.leadId?.createdByUserId || '') === viewerUserId
       ).length;
     }
 

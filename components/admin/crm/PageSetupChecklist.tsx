@@ -19,6 +19,7 @@ export const PAGE_SETUP_CONFIG: Record<string, PageSetupConfig> = {
   '/admin/crm': {
     title: 'Dashboard',
     requirements: [
+      { key: 'compartmentReady', label: 'Complete data compartment setup', required: true },
       { key: 'setupPaid', label: 'Buy 500MB Storage (₹30)', required: true },
     ],
     tutorialVideo: 'https://www.youtube.com/embed/your-dashboard-video',
@@ -28,6 +29,7 @@ export const PAGE_SETUP_CONFIG: Record<string, PageSetupConfig> = {
   '/admin/crm/leads': {
     title: 'Lead Management',
     requirements: [
+      { key: 'compartmentReady', label: 'Complete data compartment setup', required: true },
       { key: 'setupPaid', label: 'Buy 500MB Storage (₹30)', required: true },
     ],
     tutorialVideo: 'https://www.youtube.com/embed/your-leads-video',
@@ -37,6 +39,7 @@ export const PAGE_SETUP_CONFIG: Record<string, PageSetupConfig> = {
   '/admin/crm/meta': {
     title: 'WhatsApp Inbox',
     requirements: [
+      { key: 'compartmentReady', label: 'Complete data compartment setup', required: true },
       { key: 'setupPaid', label: 'Buy 500MB Storage (₹30)', required: true },
       { key: 'whatsappConnected', label: 'Connect WhatsApp Business API', required: true },
       { key: 'whatsappTemplates', label: 'Create message templates', required: false },
@@ -48,6 +51,7 @@ export const PAGE_SETUP_CONFIG: Record<string, PageSetupConfig> = {
   '/admin/crm/calls': {
     title: 'AI Voice Calls',
     requirements: [
+      { key: 'compartmentReady', label: 'Complete data compartment setup', required: true },
       { key: 'setupPaid', label: 'Buy 500MB Storage (₹30)', required: true },
       { key: 'retellConnected', label: 'Connect Retell AI account', required: true },
     ],
@@ -58,6 +62,7 @@ export const PAGE_SETUP_CONFIG: Record<string, PageSetupConfig> = {
   '/admin/crm/settings': {
     title: 'Settings',
     requirements: [
+      { key: 'compartmentReady', label: 'Complete data compartment setup', required: true },
       { key: 'setupPaid', label: 'Buy 500MB Storage (₹30)', required: true },
     ],
     tutorialVideo: 'https://www.youtube.com/embed/your-settings-video',
@@ -67,6 +72,7 @@ export const PAGE_SETUP_CONFIG: Record<string, PageSetupConfig> = {
   '/admin/crm/broadcasts': {
     title: 'Broadcasts',
     requirements: [
+      { key: 'compartmentReady', label: 'Complete data compartment setup', required: true },
       { key: 'setupPaid', label: 'Buy 500MB Storage (₹30)', required: true },
       { key: 'whatsappConnected', label: 'Connect WhatsApp Business API', required: true },
       { key: 'whatsappTemplates', label: 'Create approved templates', required: true },
@@ -93,6 +99,7 @@ interface PageSetupConfig {
 
 interface UserSetupStatus {
   setupPaid: boolean;
+  compartmentReady: boolean;
   whatsappConnected: boolean;
   whatsappTemplates: boolean;
   retellConnected: boolean;
@@ -116,6 +123,7 @@ export default function PageSetupChecklist({
   const [dismissed, setDismissed] = useState(false);
   const [setupStatus, setSetupStatus] = useState<UserSetupStatus>({
     setupPaid: false,
+    compartmentReady: false,
     whatsappConnected: false,
     whatsappTemplates: false,
     retellConnected: false,
@@ -133,7 +141,7 @@ export default function PageSetupChecklist({
 
   const fetchSetupStatus = async () => {
     try {
-      const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
+      const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token') || localStorage.getItem('crm_token');
       if (!token) return;
 
       const res = await fetch('/api/crm-site/setup-status', {
@@ -142,7 +150,10 @@ export default function PageSetupChecklist({
 
       if (res.ok) {
         const data = await res.json();
-        setSetupStatus(data);
+        setSetupStatus({
+          ...data,
+          compartmentReady: data.compartment?.isComplete || data.isSuperAdmin || false,
+        });
       }
     } catch (err) {
       console.error('Failed to fetch setup status:', err);

@@ -7,6 +7,8 @@ import CrmSubNav from './CrmSubNav';
 import { findSectionForPath } from './crmNavConfig';
 import TenantOnboarding from './TenantOnboarding';
 import StoragePurchaseModal from './StoragePurchaseModal';
+import CompartmentSetupModal from './CompartmentSetupModal';
+import CompartmentGuard from './CompartmentGuard';
 import { useOnboarding } from './hooks/useOnboarding';
 
 /**
@@ -33,6 +35,8 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
     setShowOnboarding,
     showStorageModal,
     setShowStorageModal,
+    showCompartmentSetup,
+    setShowCompartmentSetup,
     completeOnboarding,
     refreshStatus,
   } = useOnboarding();
@@ -55,13 +59,31 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
 
   const handlePaymentSuccess = () => {
     setShowStorageModal(false);
+    // After payment, re-open compartment setup for remaining steps (Bunny, MongoDB, verify)
+    setShowCompartmentSetup(true);
     refreshStatus();
   };
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
+      {/* Compartment Setup Modal (blocks everything until setup complete) */}
+      {showCompartmentSetup && !loading && (
+        <CompartmentSetupModal
+          isOpen={showCompartmentSetup}
+          onClose={() => setShowCompartmentSetup(false)}
+          onComplete={() => {
+            setShowCompartmentSetup(false);
+            refreshStatus();
+          }}
+          onStoragePurchase={() => {
+            setShowCompartmentSetup(false);
+            setShowStorageModal(true);
+          }}
+        />
+      )}
+
       {/* Tenant Onboarding Modal */}
-      {showOnboarding && !loading && (
+      {showOnboarding && !loading && !showCompartmentSetup && (
         <TenantOnboarding
           userName={userName}
           userEmail={userEmail}
@@ -102,9 +124,18 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
           />
         )}
 
-        {/* Page content - scrollable */}
+        {/* Page content - scrollable, guarded by compartment readiness */}
         <main className="flex-1 overflow-y-auto">
-          {children}
+          {(!loading && status && !status.isSuperAdmin && !status.compartmentReady) ? (
+            <CompartmentGuard
+              pageName={section?.title || 'CRM'}
+              onStoragePurchase={handleStoragePurchase}
+            >
+              {children}
+            </CompartmentGuard>
+          ) : (
+            children
+          )}
         </main>
       </div>
     </div>

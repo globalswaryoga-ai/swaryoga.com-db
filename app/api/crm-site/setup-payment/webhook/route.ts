@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
+import { getUserCompartment } from '@/lib/schemas/enterpriseSchemas';
 import crypto from 'crypto';
 
 /**
@@ -79,6 +80,29 @@ export async function POST(request: NextRequest) {
             storageUsedMB: 0,
           } 
         }
+      );
+
+      // Update user compartment - mark storage as purchased
+      const storagePlanMap: Record<number, string> = {
+        500: 'starter',
+        2048: 'growth',
+        10240: 'pro',
+      };
+      const storageMB = paymentRecord.storageMB || 500;
+      const storagePlan = storagePlanMap[storageMB] || 'starter';
+
+      const UserCompartment = getUserCompartment();
+      await UserCompartment.findOneAndUpdate(
+        { userId: paymentRecord.userId },
+        {
+          $set: {
+            'storage.quotaMB': storageMB,
+            'storage.plan': storagePlan,
+            'storage.purchasedAt': new Date(),
+            'setup.steps.storagePurchased': true,
+          },
+        },
+        { upsert: false }
       );
 
       console.log('Setup payment completed for user:', paymentRecord.userId || paymentRecord.email);

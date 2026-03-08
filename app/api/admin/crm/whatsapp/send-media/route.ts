@@ -88,10 +88,12 @@ export async function POST(request: NextRequest) {
       await addLeadToMainBroadcastList(lead);
     }
 
-    // Permission check for non-superadmin
+    // Permission check for non-superadmin (user compartment)
     if (!superAdmin) {
       const assignedTo = String((lead as any).assignedToUserId || '').trim();
-      if (!assignedTo || assignedTo !== decoded?.userId) {
+      const createdBy = String((lead as any).createdByUserId || '').trim();
+      // Allow if assigned to user OR created by user
+      if (assignedTo !== decoded?.userId && createdBy !== decoded?.userId) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
     }

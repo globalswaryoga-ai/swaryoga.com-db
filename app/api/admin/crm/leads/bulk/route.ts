@@ -158,7 +158,7 @@ export async function POST(request: NextRequest) {
       const result = await Lead.updateMany(
         {
           _id: { $in: objectIds },
-          ...(superAdmin ? {} : { assignedToUserId: viewerUserId }),
+          ...(superAdmin ? {} : { $or: [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }] }),
         },
         { $set: { status: newStatus, updatedAt: new Date() } }
       );
@@ -203,7 +203,7 @@ export async function POST(request: NextRequest) {
       const result = await Lead.updateMany(
         {
           _id: { $in: objectIds },
-          ...(superAdmin ? {} : { assignedToUserId: viewerUserId }),
+          ...(superAdmin ? {} : { $or: [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }] }),
         },
         update
       );
@@ -260,7 +260,7 @@ export async function DELETE(request: NextRequest) {
     // Snapshot leads before deletion for the delete-record log.
     const toDelete = await Lead.find({
       _id: { $in: objectIds },
-      ...(superAdmin ? {} : { assignedToUserId: viewerUserId }),
+      ...(superAdmin ? {} : { $or: [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }] }),
     }).lean();
 
     if (toDelete.length > 0) {
@@ -288,7 +288,7 @@ export async function DELETE(request: NextRequest) {
 
     const result = await Lead.deleteMany({
       _id: { $in: objectIds },
-      ...(superAdmin ? {} : { assignedToUserId: viewerUserId }),
+      ...(superAdmin ? {} : { $or: [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }] }),
     });
 
     return NextResponse.json(
@@ -329,7 +329,7 @@ export async function GET(request: NextRequest) {
         filter.assignedToUserId = String(userIdParam).trim();
       }
     } else {
-      filter.assignedToUserId = viewerUserId;
+      filter.$or = [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }];
     }
     if (status) filter.status = status;
 

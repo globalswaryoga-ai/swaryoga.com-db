@@ -241,29 +241,27 @@ export async function GET(request: NextRequest) {
     // Access control (3-tier):
     // - Super admin: can see all conversations (both Meta and QR)
     // - Manager (MR Admin): can see conversations for leads assigned to them OR their team
-    // - Regular admin: can ONLY see conversations for leads assigned to them
-    // This now applies to BOTH Meta and QR inboxes
+    // - Regular admin: can ONLY see conversations for leads assigned to them OR created by them
+    // IMPORTANT: Unassigned leads are NOT visible to everyone - only to the creator
     if (visibleUserIds !== null) {
-      // Not super admin - apply user filter
+      // Not super admin - apply strict user filter
       if (visibleUserIds.length === 1) {
-        // Regular admin: only their own leads (assigned to them or unassigned)
+        // Regular admin: only their own leads (assigned to them OR created by them)
         pipeline.push({
           $match: {
             $or: [
               { 'lead.assignedToUserId': visibleUserIds[0] },
-              { 'lead.assignedToUserId': { $in: [null, '', undefined] } }, // Unassigned leads visible to all
-              { 'lead.assignedToUserId': { $exists: false } },
+              { 'lead.createdByUserId': visibleUserIds[0] },
             ]
           },
         });
       } else {
-        // Manager: can see their team's leads + unassigned
+        // Manager: can see their team's leads (assigned OR created by team members)
         pipeline.push({
           $match: {
             $or: [
               { 'lead.assignedToUserId': { $in: visibleUserIds } },
-              { 'lead.assignedToUserId': { $in: [null, '', undefined] } },
-              { 'lead.assignedToUserId': { $exists: false } },
+              { 'lead.createdByUserId': { $in: visibleUserIds } },
             ]
           },
         });

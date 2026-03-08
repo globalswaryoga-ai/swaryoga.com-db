@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
         filter.assignedToUserId = String(userIdParam).trim();
       }
     } else {
-      filter.assignedToUserId = viewerUserId;
+      filter.$or = [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }];
     }
 
     if (q && String(q).trim()) {

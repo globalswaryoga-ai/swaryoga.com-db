@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { getUserCompartment } from '@/lib/schemas/enterpriseSchemas';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -64,6 +65,46 @@ export async function GET(request: NextRequest) {
     const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
 
     const userId = decoded.userId || decoded.email;
+
+    // Get user compartment status (new isolated compartment system)
+    const UserCompartment = getUserCompartment();
+    const compartment = await UserCompartment.findOne({ userId }).lean();
+    
+    const compartmentStatus = compartment ? {
+      exists: true,
+      isComplete: compartment.setup?.isComplete || false,
+      folderName: compartment.folderName || null,
+      compartmentId: compartment.compartmentId || null,
+      bunnyFolderCreated: compartment.bunny?.folderCreated || false,
+      mongodbConfigured: compartment.mongodb?.setupComplete || false,
+      storageQuotaMB: compartment.storage?.quotaMB || 0,
+      storageUsedMB: compartment.storage?.usedMB || 0,
+      storagePlan: compartment.storage?.plan || 'none',
+      steps: compartment.setup?.steps || {
+        folderNameChosen: false,
+        storagePurchased: false,
+        bunnyFolderCreated: false,
+        mongodbConfigured: false,
+        connectionVerified: false,
+      },
+    } : {
+      exists: false,
+      isComplete: false,
+      folderName: null,
+      compartmentId: null,
+      bunnyFolderCreated: false,
+      mongodbConfigured: false,
+      storageQuotaMB: 0,
+      storageUsedMB: 0,
+      storagePlan: 'none',
+      steps: {
+        folderNameChosen: false,
+        storagePurchased: false,
+        bunnyFolderCreated: false,
+        mongodbConfigured: false,
+        connectionVerified: false,
+      },
+    };
 
     // Get user record
     const user = await crmDb.collection('admin_users').findOne({
@@ -142,15 +183,19 @@ export async function GET(request: NextRequest) {
       isFirstLogin: !user?.lastLoginAt || user?.loginCount <= 1,
       loginCount: user?.loginCount || 1,
       
-      // Storage info
-      storageUsedMB: user?.storageUsedMB || 0,
-      storageLimitMB: user?.storageLimitMB || 500, // Default 500MB
+      // Storage info from compartment
+      storageUsedMB: compartmentStatus.storageUsedMB || user?.storageUsedMB || 0,
+      storageLimitMB: compartmentStatus.storageQuotaMB || user?.storageLimitMB || 500, // Default 500MB
+      storagePlan: compartmentStatus.storagePlan,
       planName: user?.planName || 'Free Trial',
       planId: user?.planId || '',
 
-      // Overall progress
+      // Compartment status (new isolated system)
+      compartment: compartmentStatus,
+
+      // Overall progress (setupPaid now based on compartment completion)
       overallProgress: calculateProgress({
-        setupPaid: user?.setupComplete || !!paymentComplete,
+        setupPaid: compartmentStatus.isComplete || user?.setupComplete || !!paymentComplete,
         whatsappConnected: !!whatsappAccount,
         whatsappTemplates: templateCount > 0,
         retellConnected: !!retellAccount,

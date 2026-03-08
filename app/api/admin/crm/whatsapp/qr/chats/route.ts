@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: true, chats: data.chats });
     }
 
-    // 3. Filter for regular admins: Show their assigned leads OR unassigned ones.
+    // 3. Filter for regular admins: Show their assigned leads OR leads they created (user compartment).
     await connectDB();
     const Lead = getLead();
     
@@ -56,18 +56,23 @@ export async function GET(req: NextRequest) {
     // Find all leads for these numbers
     const leads = await Lead.find({
       phoneNumber: { $in: phoneNumbers }
-    }).select('phoneNumber assignedToUserId');
+    }).select('phoneNumber assignedToUserId createdByUserId');
 
     const leadMap = new Map();
-    leads.forEach(l => leadMap.set(l.phoneNumber, l.assignedToUserId));
+    leads.forEach(l => leadMap.set(l.phoneNumber, { 
+      assignedToUserId: l.assignedToUserId, 
+      createdByUserId: l.createdByUserId 
+    }));
 
     const filteredChats = data.chats.filter((c: any) => {
       const idStr = typeof c.id === 'string' ? c.id : (c.id?._serialized || '');
       const phone = idStr.split('@')[0];
       
-      const assignedTo = leadMap.get(phone);
-      // Show if unassigned OR assigned to viewer
-      return !assignedTo || assignedTo === viewerUserId;
+      const leadInfo = leadMap.get(phone);
+      if (!leadInfo) return false; // No lead record = not visible
+      
+      // Show if assigned to viewer OR created by viewer (user compartment)
+      return leadInfo.assignedToUserId === viewerUserId || leadInfo.createdByUserId === viewerUserId;
     });
 
     return NextResponse.json({ success: true, chats: filteredChats });

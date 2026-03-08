@@ -94,7 +94,8 @@ export async function POST(request: NextRequest) {
 
     if (!superAdmin) {
       const assignedTo = String((lead as any).assignedToUserId || '').trim();
-      if (assignedTo && assignedTo !== userId) {
+      const createdBy = String((lead as any).createdByUserId || '').trim();
+      if (assignedTo && assignedTo !== userId && createdBy !== userId) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
     }

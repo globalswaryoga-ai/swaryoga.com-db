@@ -81,15 +81,16 @@ export async function POST(req: NextRequest) {
       
       if (lead) {
         const assignedTo = String(lead.assignedToUserId || '').trim();
-        // If lead is assigned to someone else, block the message
-        if (assignedTo && assignedTo !== viewerUserId) {
+        const createdBy = String(lead.createdByUserId || '').trim();
+        // If lead is assigned to someone else (and not created by viewer), block the message
+        if (assignedTo && assignedTo !== viewerUserId && createdBy !== viewerUserId) {
           console.log(`[QR SEND] Access denied: ${viewerUserId} tried to message lead assigned to ${assignedTo}`);
           return NextResponse.json({
             success: false,
-            error: `This lead is assigned to another user. You can only message leads assigned to you.`
+            error: `This lead is assigned to another user. You can only message leads assigned to you or created by you.`
           }, { status: 403 });
         }
-        // If lead is unassigned, allow (first-come-first-served or auto-assign could happen)
+        // If lead is unassigned but created by viewer, allow
       }
       // If no lead found, allow (new contact)
     }

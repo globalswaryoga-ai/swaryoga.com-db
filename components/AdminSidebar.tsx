@@ -256,7 +256,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
     {
       icon: DollarSign,
       label: 'Sales & Funnel',
-      href: '/admin/crm/sales',
+      href: '/admin/crm/funnel/manage',
       color: 'text-green-400',
       module: 'payments',
     },

@@ -3121,6 +3121,74 @@ export function getCRMUserSettings() { return getModel('CRMUserSettings', CRMUse
 export const CRMUserSettings = createModelProxy('CRMUserSettings', CRMUserSettingsSchema);
 
 // ============================================================================
+// USER COMPARTMENT - Per-user isolated data compartment for MongoDB & Bunny CDN
+// ============================================================================
+const UserCompartmentSchema = new mongoose.Schema(
+  {
+    // User identification
+    userId: { type: String, required: true, unique: true, index: true },
+    email: { type: String, trim: true, lowercase: true, index: true },
+    
+    // Compartment identification
+    compartmentId: { type: String, required: true, unique: true, index: true }, // e.g., "comp_abc123"
+    folderName: { type: String, required: true, unique: true, index: true },   // User-chosen name (lowercase, no spaces)
+    
+    // Bunny CDN Storage
+    bunny: {
+      folderPath: { type: String, default: '' },      // e.g., "users/folderName/"
+      folderCreated: { type: Boolean, default: false },
+      folderCreatedAt: { type: Date },
+      cdnUrl: { type: String, default: '' },          // Public CDN URL for folder
+    },
+    
+    // Storage quota (in MB)
+    storage: {
+      quotaMB: { type: Number, default: 0 },          // 0 = not purchased yet
+      usedMB: { type: Number, default: 0 },
+      plan: { type: String, enum: ['none', 'starter', 'growth', 'pro'], default: 'none' },
+      purchasedAt: { type: Date },
+      expiresAt: { type: Date },                      // Optional expiration for subscription model
+    },
+    
+    // MongoDB data isolation (all queries use userId filter)
+    mongodb: {
+      setupComplete: { type: Boolean, default: false },
+      indexesCreated: { type: Boolean, default: false },
+      setupCompletedAt: { type: Date },
+    },
+    
+    // Overall setup status
+    setup: {
+      isComplete: { type: Boolean, default: false, index: true },
+      completedAt: { type: Date },
+      steps: {
+        folderNameChosen: { type: Boolean, default: false },
+        storagePurchased: { type: Boolean, default: false },
+        bunnyFolderCreated: { type: Boolean, default: false },
+        mongodbConfigured: { type: Boolean, default: false },
+        connectionVerified: { type: Boolean, default: false },
+      },
+      lastVerifiedAt: { type: Date },
+    },
+    
+    // Activity tracking
+    isActive: { type: Boolean, default: true },
+    lastActivityAt: { type: Date },
+    
+    // Metadata
+    metadata: mongoose.Schema.Types.Mixed,
+  },
+  { timestamps: true, collection: 'user_compartments' }
+);
+
+// Compound indexes for efficient queries
+UserCompartmentSchema.index({ 'setup.isComplete': 1, createdAt: -1 });
+UserCompartmentSchema.index({ 'bunny.folderCreated': 1, userId: 1 });
+
+export function getUserCompartment() { return getModel('UserCompartment', UserCompartmentSchema); }
+export const UserCompartment = createModelProxy('UserCompartment', UserCompartmentSchema);
+
+// ============================================================================
 // PENDING PAYMENT SCHEMA - QR Code payments (Nepal/eSewa) awaiting admin approval
 // ============================================================================
 const PendingPaymentSchema = new mongoose.Schema(

@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
 
     const baseFilter: any = {};
     if (!superAdmin) {
-      baseFilter.assignedToUserId = viewerUserId;
+      baseFilter.$or = [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }];
     }
 
     let lead: any = null;

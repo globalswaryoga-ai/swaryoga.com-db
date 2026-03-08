@@ -85,6 +85,8 @@ export {
 
 // New User Onboarding Components
 export { default as WelcomeModal } from './WelcomeModal';
+export { default as CompartmentSetupModal } from './CompartmentSetupModal';
+export { default as CompartmentGuard } from './CompartmentGuard';
 export {
   default as PageSetupChecklist,
   SetupProgressMini,

@@ -77,13 +77,13 @@ export async function GET(request: NextRequest) {
 
     // Access control:
     // - Super admin (admincrm) can see all messages.
-    // - Other admins can see messages for leads assigned to them OR unassigned leads.
+    // - Other admins can see messages for leads assigned to them OR created by them (user compartment).
     if (!superAdmin) {
-      // Find leads assigned to this user OR currently unassigned
+      // Find leads assigned to this user OR created by this user
       const accessibleLeads = await Lead.find({ 
         $or: [
           { assignedToUserId: viewerUserId },
-          { assignedToUserId: { $in: [null, '', undefined] } }
+          { createdByUserId: viewerUserId }
         ]
       }).select('_id').lean();
       
@@ -169,12 +169,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
     }
 
-    // ACCESS CONTROL: Check if admin is assigned to this lead
+    // ACCESS CONTROL: Check if admin is assigned to or created this lead (user compartment)
     if (!superAdmin) {
       const assignedTo = String(lead.assignedToUserId || '').trim();
-      if (assignedTo && assignedTo !== userId) {
+      const createdBy = String(lead.createdByUserId || '').trim();
+      if (assignedTo && assignedTo !== userId && createdBy !== userId) {
         return NextResponse.json(
-          { error: 'Forbidden: You can only message leads assigned to you' },
+          { error: 'Forbidden: You can only message leads assigned to you or created by you' },
           { status: 403 }
         );
       }

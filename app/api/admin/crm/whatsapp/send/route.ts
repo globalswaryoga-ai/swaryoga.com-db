@@ -74,14 +74,16 @@ export async function POST(request: NextRequest) {
       }, { status: 403 });
     }
 
-    // ACCESS CONTROL: Check if regular admin is assigned to this lead
+    // ACCESS CONTROL: Check if regular admin is assigned to or created this lead (user compartment)
     if (!superAdmin && lead) {
       const assignedTo = String(lead.assignedToUserId || '').trim();
-      if (assignedTo && assignedTo !== userId) {
+      const createdBy = String(lead.createdByUserId || '').trim();
+      // Block if assigned to someone else AND not created by this user
+      if (assignedTo && assignedTo !== userId && createdBy !== userId) {
         console.log(`[SEND:${requestId}] ❌ Forbidden: Lead assigned to ${assignedTo}, not ${userId}`);
         return NextResponse.json({ 
           success: false, 
-          error: `You can only message leads assigned to you. This lead is assigned to ${assignedTo || 'unassigned'}` 
+          error: `You can only message leads assigned to you or created by you.` 
         }, { status: 403 });
       }
     }

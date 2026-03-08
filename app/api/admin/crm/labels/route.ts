@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
 
-    const baseMatch = superAdmin ? {} : { assignedToUserId: viewerUserId };
+    const baseMatch = superAdmin ? {} : { $or: [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }] };
 
     // Aggregate to get all unique labels with counts
     const labelStats = await Lead.aggregate([
@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
     const result = await Lead.updateMany(
       {
         _id: { $in: objectIds },
-        ...(superAdmin ? {} : { assignedToUserId: viewerUserId }),
+        ...(superAdmin ? {} : { $or: [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }] }),
       },
       { $addToSet: { labels: label }, $set: { updatedAt: new Date() } }
     );
@@ -163,7 +163,7 @@ export async function DELETE(request: NextRequest) {
     await connectDB();
 
     const result = await Lead.updateMany(
-      superAdmin ? {} : { assignedToUserId: viewerUserId },
+      superAdmin ? {} : { $or: [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }] },
       { $pull: { labels: label }, $set: { updatedAt: new Date() } }
     );
 

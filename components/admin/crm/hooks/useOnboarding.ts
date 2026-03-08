@@ -2,6 +2,27 @@
 
 import { useState, useEffect, useCallback } from 'react';
 
+interface CompartmentSteps {
+  folderNameChosen: boolean;
+  storagePurchased: boolean;
+  bunnyFolderCreated: boolean;
+  mongodbConfigured: boolean;
+  connectionVerified: boolean;
+}
+
+interface CompartmentInfo {
+  exists: boolean;
+  isComplete: boolean;
+  folderName: string | null;
+  compartmentId: string | null;
+  bunnyFolderCreated: boolean;
+  mongodbConfigured: boolean;
+  storageQuotaMB: number;
+  storageUsedMB: number;
+  storagePlan: string;
+  steps: CompartmentSteps;
+}
+
 interface OnboardingStatus {
   setupPaid: boolean;
   isFirstLogin: boolean;
@@ -12,6 +33,9 @@ interface OnboardingStatus {
   planId: string;
   isSuperAdmin: boolean;
   needsOnboarding: boolean;
+  // Compartment info
+  compartment: CompartmentInfo;
+  compartmentReady: boolean;
 }
 
 interface UseOnboardingReturn {
@@ -22,9 +46,30 @@ interface UseOnboardingReturn {
   setShowOnboarding: (show: boolean) => void;
   showStorageModal: boolean;
   setShowStorageModal: (show: boolean) => void;
+  showCompartmentSetup: boolean;
+  setShowCompartmentSetup: (show: boolean) => void;
   completeOnboarding: () => void;
   refreshStatus: () => Promise<void>;
 }
+
+const DEFAULT_COMPARTMENT: CompartmentInfo = {
+  exists: false,
+  isComplete: false,
+  folderName: null,
+  compartmentId: null,
+  bunnyFolderCreated: false,
+  mongodbConfigured: false,
+  storageQuotaMB: 0,
+  storageUsedMB: 0,
+  storagePlan: 'none',
+  steps: {
+    folderNameChosen: false,
+    storagePurchased: false,
+    bunnyFolderCreated: false,
+    mongodbConfigured: false,
+    connectionVerified: false,
+  },
+};
 
 const DEFAULT_STATUS: OnboardingStatus = {
   setupPaid: false,
@@ -36,10 +81,12 @@ const DEFAULT_STATUS: OnboardingStatus = {
   planId: '',
   isSuperAdmin: false,
   needsOnboarding: true,
+  compartment: DEFAULT_COMPARTMENT,
+  compartmentReady: false,
 };
 
 /**
- * useOnboarding - Hook to manage tenant onboarding state
+ * useOnboarding - Hook to manage tenant onboarding state + compartment setup
  */
 export function useOnboarding(): UseOnboardingReturn {
   const [status, setStatus] = useState<OnboardingStatus | null>(null);
@@ -47,6 +94,7 @@ export function useOnboarding(): UseOnboardingReturn {
   const [error, setError] = useState<string | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showStorageModal, setShowStorageModal] = useState(false);
+  const [showCompartmentSetup, setShowCompartmentSetup] = useState(false);
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -69,7 +117,13 @@ export function useOnboarding(): UseOnboardingReturn {
       const data = await response.json();
       
       const onboardingSeen = localStorage.getItem('crm_onboarding_seen') === 'true';
-      const needsOnboarding = !data.isSuperAdmin && !data.setupPaid && !onboardingSeen;
+      
+      // Compartment status from API
+      const compartment: CompartmentInfo = data.compartment || DEFAULT_COMPARTMENT;
+      const compartmentReady = compartment.isComplete;
+      
+      // Needs onboarding if not superadmin and compartment is not setup
+      const needsOnboarding = !data.isSuperAdmin && !compartmentReady && !onboardingSeen;
       
       const statusData: OnboardingStatus = {
         setupPaid: data.setupPaid || false,
@@ -81,12 +135,16 @@ export function useOnboarding(): UseOnboardingReturn {
         planId: data.planId || '',
         isSuperAdmin: data.isSuperAdmin || false,
         needsOnboarding,
+        compartment,
+        compartmentReady,
       };
 
       setStatus(statusData);
 
-      // Show onboarding if needed
-      if (needsOnboarding && data.isFirstLogin) {
+      // Show compartment setup if not complete and not superadmin
+      if (!data.isSuperAdmin && !compartmentReady) {
+        setShowCompartmentSetup(true);
+      } else if (needsOnboarding && data.isFirstLogin) {
         setShowOnboarding(true);
       }
     } catch (err: any) {
@@ -104,6 +162,7 @@ export function useOnboarding(): UseOnboardingReturn {
   const completeOnboarding = useCallback(() => {
     localStorage.setItem('crm_onboarding_seen', 'true');
     setShowOnboarding(false);
+    setShowCompartmentSetup(false);
     // Refresh status after completing
     fetchStatus();
   }, [fetchStatus]);
@@ -116,6 +175,8 @@ export function useOnboarding(): UseOnboardingReturn {
     setShowOnboarding,
     showStorageModal,
     setShowStorageModal,
+    showCompartmentSetup,
+    setShowCompartmentSetup,
     completeOnboarding,
     refreshStatus: fetchStatus,
   };

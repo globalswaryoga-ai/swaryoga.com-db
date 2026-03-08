@@ -741,9 +741,7 @@ export default function QRWhatsAppPage() {
     setGroupInfo(null);
     fetchMessages(jid);
     fetchProfilePic(jid);
-    // Only suppress unread for the currently-viewed chat;
-    // clear previous entries so new messages to other chats show badges
-    readChatsRef.current.clear();
+    // Accumulate read chats so polling preserves unreadCount=0 for ALL read chats
     readChatsRef.current.add(jid);
     // Tell the bridge to reset unread count on its side too
     bridgeCall(`/read/${encodeURIComponent(jid)}`, 'POST').catch(() => {});
