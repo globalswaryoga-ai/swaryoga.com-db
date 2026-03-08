@@ -3,16 +3,21 @@ import { connectDB } from '@/lib/db';
 import bcrypt from 'bcryptjs';
 import { generateToken } from '@/lib/auth';
 
+// CORS headers for all responses
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
 // Handle CORS preflight
 export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 200,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    },
-  });
+  return new NextResponse(null, { status: 200, headers: corsHeaders });
+}
+
+// Helper to return JSON with CORS headers
+function jsonResponse(data: any, status = 200) {
+  return NextResponse.json(data, { status, headers: corsHeaders });
 }
 
 export async function POST(request: Request) {
@@ -26,9 +31,9 @@ export async function POST(request: Request) {
         : '';
 
     if (!identifier || !password) {
-      return NextResponse.json(
-        { error: 'Missing userId/email or password' },
-        { status: 400 }
+      return jsonResponse(
+        { error: 'Missing userId/email or password', success: false },
+        400
       );
     }
 
@@ -46,26 +51,26 @@ export async function POST(request: Request) {
       ],
     });
     if (!user) {
-      return NextResponse.json(
-        { error: 'Invalid credentials' },
-        { status: 401 }
+      return jsonResponse(
+        { error: 'Invalid credentials', success: false },
+        401
       );
     }
 
     // Verify password
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      return NextResponse.json(
-        { error: 'Invalid credentials' },
-        { status: 401 }
+      return jsonResponse(
+        { error: 'Invalid credentials', success: false },
+        401
       );
     }
 
     // Check if admin
     if (!user.isAdmin) {
-      return NextResponse.json(
-        { error: 'Admin access required' },
-        { status: 403 }
+      return jsonResponse(
+        { error: 'Admin access required', success: false },
+        403
       );
     }
 
@@ -80,28 +85,25 @@ export async function POST(request: Request) {
       managedUserIds: user.managedUserIds || [], // For managers: IDs of users they supervise
     });
 
-    return NextResponse.json(
-      {
-        success: true,
-        token,
-        user: {
-          userId: user.userId,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          isAdmin: user.isAdmin,
-          permissions: user.permissions,
-          permissionsV2: user.permissionsV2 || null,
-          managedUserIds: user.managedUserIds || [],
-        }
-      },
-      { status: 200 }
-    );
+    return jsonResponse({
+      success: true,
+      token,
+      user: {
+        userId: user.userId,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        isAdmin: user.isAdmin,
+        permissions: user.permissions,
+        permissionsV2: user.permissionsV2 || null,
+        managedUserIds: user.managedUserIds || [],
+      }
+    });
   } catch (error) {
     console.error('Login error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Login failed' },
-      { status: 500 }
+    return jsonResponse(
+      { error: error instanceof Error ? error.message : 'Login failed', success: false },
+      500
     );
   }
 }

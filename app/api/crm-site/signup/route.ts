@@ -3,17 +3,23 @@ import { connectDB } from '@/lib/db';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { sendWelcomeEmail } from '@/lib/crm-site/emailService';
+import { apiError, apiSuccess, logError, validateRequired } from '@/lib/api-error';
+
+// CORS headers for all responses
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
 
 // Handle CORS preflight
 export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 200,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    },
-  });
+  return new NextResponse(null, { status: 200, headers: corsHeaders });
+}
+
+// Helper to return JSON with CORS headers
+function jsonResponse(data: any, status = 200) {
+  return NextResponse.json(data, { status, headers: corsHeaders });
 }
 
 /**
@@ -30,7 +36,13 @@ export async function OPTIONS() {
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch (parseError) {
+      logError('crm-signup/parseBody', parseError);
+      return jsonResponse({ error: 'Invalid request body', success: false }, 400);
+    }
     const {
       businessName,
       fullName,
@@ -56,7 +68,7 @@ export async function POST(request: NextRequest) {
     if (!password || password.length < 6) fieldErrors.push({ field: 'password', message: 'Password must be at least 6 characters' });
 
     if (fieldErrors.length > 0) {
-      return NextResponse.json({ error: 'Validation failed', fieldErrors }, { status: 400 });
+      return jsonResponse({ error: 'Validation failed', fieldErrors, success: false }, 400);
     }
 
     await connectDB();
@@ -73,12 +85,13 @@ export async function POST(request: NextRequest) {
     });
 
     if (existingUser) {
-      return NextResponse.json(
+      return jsonResponse(
         {
           error: 'An account with this email already exists. Please log in instead.',
           fieldErrors: [{ field: 'email', message: 'Email already registered' }],
+          success: false,
         },
-        { status: 409 }
+        409
       );
     }
 
@@ -176,7 +189,7 @@ export async function POST(request: NextRequest) {
       tenantSlug: finalSlug,
     }).catch(err => console.error('Failed to send welcome email:', err));
 
-    return NextResponse.json({
+    return jsonResponse({
       success: true,
       token,
       userId,
@@ -191,10 +204,10 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (err: any) {
-    console.error('CRM Site Signup Error:', err);
-    return NextResponse.json(
-      { error: 'Failed to create account. Please try again.' },
-      { status: 500 }
+    logError('crm-signup/main', err);
+    return jsonResponse(
+      { error: 'Failed to create account. Please try again.', success: false },
+      500
     );
   }
 }
