@@ -10,7 +10,8 @@ import StoragePurchaseModal from './StoragePurchaseModal';
 import CompartmentSetupModal from './CompartmentSetupModal';
 import CompartmentGuard from './CompartmentGuard';
 import { PlanProvider } from './hooks/usePlan';
-import { TrialBanner } from './PlanComponents';
+import { TrialBanner, PlanGate } from './PlanComponents';
+import { PATH_TO_MODULE, CrmModule } from '@/lib/crm-site/planConfig';
 import { useOnboarding } from './hooks/useOnboarding';
 
 /**
@@ -55,6 +56,18 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
 
   // Auto-detect current section from pathname
   const section = findSectionForPath(pathname || '');
+
+  // Auto-detect gated module from current path
+  const currentModule: CrmModule | null = (() => {
+    const p = pathname || '';
+    // Exact match first
+    if (PATH_TO_MODULE[p]) return PATH_TO_MODULE[p];
+    // Prefix match (e.g. /admin/crm/broadcast/reports → broadcasting)
+    const match = Object.keys(PATH_TO_MODULE)
+      .filter(k => p.startsWith(k))
+      .sort((a, b) => b.length - a.length)[0];
+    return match ? PATH_TO_MODULE[match] : null;
+  })();
 
   const handleStoragePurchase = () => {
     setShowOnboarding(false);
@@ -132,15 +145,23 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
           />
         )}
 
-        {/* Page content - scrollable, guarded by compartment readiness */}
+        {/* Page content - scrollable, guarded by compartment + plan */}
         <main className="flex-1 overflow-y-auto">
           {(!loading && status && !status.isSuperAdmin && !status.compartmentReady) ? (
             <CompartmentGuard
               pageName={section?.title || 'CRM'}
               onStoragePurchase={handleStoragePurchase}
             >
-              {children}
+              {currentModule ? (
+                <PlanGate module={currentModule} variant="page">
+                  {children}
+                </PlanGate>
+              ) : children}
             </CompartmentGuard>
+          ) : currentModule ? (
+            <PlanGate module={currentModule} variant="page">
+              {children}
+            </PlanGate>
           ) : (
             children
           )}

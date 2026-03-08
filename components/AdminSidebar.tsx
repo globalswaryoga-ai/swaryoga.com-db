@@ -461,7 +461,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
 
         {/* Main Navigation */}
         <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
-          {sidebarItems.filter(item => hasModuleAccess(item.module)).map((item) => {
+          {sidebarItems.map((item) => {
             const Icon = item.icon;
             const active = isActive(item.href);
             return (
