@@ -60,6 +60,12 @@ export function useCRM(options: UseCRMOptions = {}) {
     localStorage.removeItem('admin_token');
     localStorage.removeItem('adminUser');
     localStorage.removeItem('admin_user');
+    // Redirect to login immediately so the user doesn't stay on a broken page.
+    const isCrm = window.location.hostname === 'crm.swaryoga.com' ||
+      window.location.hostname.startsWith('crm.');
+    const loginPath = isCrm ? '/crm-site/login' : '/admin/login';
+    // Use replace so the broken page is removed from history.
+    window.location.replace(loginPath);
   };
 
   const fetch = useCallback(

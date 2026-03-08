@@ -88,10 +88,33 @@ export function useAuth() {
   // When login/logout happens in the same tab (or another tab), keep token fresh.
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const sync = () => setToken(getStoredAdminToken());
+    const sync = () => {
+      const t = getStoredAdminToken();
+      setToken(t);
+      // If token was removed (e.g. by handleUnauthorized in useCRM), redirect to login.
+      if (!t && !pathname?.includes('/login') && !pathname?.includes('/signup')) {
+        router.push(getLoginPath());
+      }
+    };
     window.addEventListener('storage', sync);
-    return () => window.removeEventListener('storage', sync);
-  }, []);
+
+    // Also poll localStorage periodically to detect in-tab token removal
+    // (the 'storage' event only fires for changes in OTHER tabs).
+    const poll = setInterval(() => {
+      const current = getStoredAdminToken();
+      if (!current && token) {
+        setToken(null);
+        if (!pathname?.includes('/login') && !pathname?.includes('/signup')) {
+          router.push(getLoginPath());
+        }
+      }
+    }, 2000);
+
+    return () => {
+      window.removeEventListener('storage', sync);
+      clearInterval(poll);
+    };
+  }, [token, pathname, router]);
 
   return token;
 }

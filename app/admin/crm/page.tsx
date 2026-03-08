@@ -190,11 +190,18 @@ export default function CRMDashboard() {
           },
         });
 
-        if (response.status === 401 || response.status === 403) {
+        if (response.status === 401) {
+          // Token expired or invalid — clear session and redirect to login.
           localStorage.removeItem('adminToken');
           localStorage.removeItem('admin_token');
+          localStorage.removeItem('adminUser');
+          localStorage.removeItem('admin_user');
           router.push(getLoginPath());
           return;
+        }
+        if (response.status === 403) {
+          // Authenticated but lacks permission — show error, don't clear session.
+          throw new Error('You do not have permission to view analytics.');
         }
 
         if (!response.ok) {
