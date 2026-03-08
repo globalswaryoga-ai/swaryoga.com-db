@@ -1528,14 +1528,39 @@ app.get('/lid-map', (req, res) => {
 });
 
 // Mark chat as read — reset unreadCount in chatMap
+// Also resets the paired LID/phone JID if they share the same contact
 app.post('/read/:jid', async (req, res) => {
   try {
     const jid = req.params.jid.includes('@') ? req.params.jid : `${req.params.jid}@s.whatsapp.net`;
-    const chat = chatMap.get(jid);
-    if (chat) {
-      chat.unreadCount = 0;
-      chatMap.set(jid, chat);
+    
+    // Collect all JIDs that map to this contact (LID + phone)
+    const jidsToRead = [jid];
+    
+    // If this is a LID, also find the phone JID
+    if (jid.endsWith('@lid') || isLidNumber(jid)) {
+      const phoneNum = resolveToPhone(jid);
+      if (phoneNum) {
+        jidsToRead.push(`${phoneNum}@s.whatsapp.net`);
+      }
+    } else {
+      // If this is a phone JID, also find any LID JIDs that map to this phone
+      const phoneNum = jid.split('@')[0];
+      for (const [lid, phone] of lidToPhoneMap.entries()) {
+        if (phone === phoneNum || phone === jid) {
+          jidsToRead.push(lid.includes('@') ? lid : `${lid}@lid`);
+        }
+      }
     }
+    
+    // Reset unreadCount for all related JIDs
+    for (const readJid of jidsToRead) {
+      const chat = chatMap.get(readJid);
+      if (chat) {
+        chat.unreadCount = 0;
+        chatMap.set(readJid, chat);
+      }
+    }
+    
     // Also try to mark as read on WhatsApp via Baileys
     if (sock && connectionState === 'connected') {
       try {

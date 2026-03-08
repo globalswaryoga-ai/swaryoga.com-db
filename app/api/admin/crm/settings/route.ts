@@ -22,6 +22,8 @@ export async function GET(req: NextRequest) {
       chatLabels: settings?.chatLabels || {},
       labelPresets: settings?.labelPresets || [],
       qrFunnelStages: settings?.qrFunnelStages || [],
+      qrBridgeUrl: settings?.qrBridgeUrl || '',
+      qrBridgeSecret: settings?.qrBridgeSecret || '',
     });
   } catch (err) {
     console.error('[crm-settings GET]', err);
@@ -46,6 +48,8 @@ export async function PUT(req: NextRequest) {
     if (body.chatLabels !== undefined) update.chatLabels = body.chatLabels;
     if (body.labelPresets !== undefined) update.labelPresets = body.labelPresets;
     if (body.qrFunnelStages !== undefined) update.qrFunnelStages = body.qrFunnelStages;
+    if (body.qrBridgeUrl !== undefined) update.qrBridgeUrl = body.qrBridgeUrl;
+    if (body.qrBridgeSecret !== undefined) update.qrBridgeSecret = body.qrBridgeSecret;
 
     if (Object.keys(update).length === 0) {
       return apiError('No settings to update', 400);

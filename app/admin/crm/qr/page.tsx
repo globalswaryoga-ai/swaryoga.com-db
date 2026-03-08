@@ -1,10 +1,9 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
-import { QrCode, Wifi, WifiOff, RefreshCw, LogOut, Phone, PhoneCall, Send, Image as ImageIcon, FileText, Mic, ArrowLeft, Loader2, AlertTriangle, CheckCircle2, Unplug, Funnel, Plus, Tag, CheckSquare, Square, X, Paperclip, Video, File, Pencil, Trash2, Users, Mail, MailOpen, Radio, Info, Shield, Crown, Calendar, MessageSquare, Hash, UserCircle, PhoneOff, Search, Star, Bold, Italic, Strikethrough, Smile, Zap, Type, Link2, Copy, RotateCcw, Lock, Unlock, UserMinus, ChevronUp, ChevronDown, Save, Settings, Eye, ChevronLeft, ChevronRight, ShieldAlert } from 'lucide-react';
+import { QrCode, Wifi, WifiOff, RefreshCw, LogOut, Phone, PhoneCall, Send, Image as ImageIcon, FileText, Mic, ArrowLeft, Loader2, AlertTriangle, CheckCircle2, Unplug, Funnel, Plus, Tag, CheckSquare, Square, X, Paperclip, Video, File, Pencil, Trash2, Users, Mail, MailOpen, Radio, Info, Shield, Crown, Calendar, MessageSquare, Hash, UserCircle, PhoneOff, Search, Star, Bold, Italic, Strikethrough, Smile, Zap, Type, Link2, Copy, RotateCcw, Lock, Unlock, UserMinus, ChevronUp, ChevronDown, Save, Settings, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
 
 type ConnectionStatus = 'disconnected' | 'connecting' | 'connected';
 
@@ -194,35 +193,7 @@ type GroupInfo = {
 
 export default function QRWhatsAppPage() {
   const token = useAuth();
-  const router = useRouter();
   const { fetch: crmFetch } = useCRM({ token });
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-  const [authChecked, setAuthChecked] = useState(false);
-
-  // Check superadmin status — QR WhatsApp is superadmin-only
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const userStr = localStorage.getItem('admin_user');
-    let resolvedUserId = localStorage.getItem('adminUser') || '';
-    let legacyPerms: string[] = [];
-    let pv2: any = null;
-    if (userStr) {
-      try {
-        const u = JSON.parse(userStr);
-        resolvedUserId = (u?.userId as string) || resolvedUserId;
-        legacyPerms = Array.isArray(u?.permissions) ? u.permissions : [];
-        pv2 = u?.permissionsV2 || null;
-      } catch { /* ignore */ }
-    }
-    const superAdmin =
-      resolvedUserId === 'admin' ||
-      resolvedUserId === 'admincrm' ||
-      legacyPerms.includes('all') ||
-      pv2?.isSuperAdmin === true;
-    setIsSuperAdmin(superAdmin);
-    setAuthChecked(true);
-    if (!superAdmin) router.replace('/admin/crm');
-  }, [router]);
 
   // State
   const [status, setStatus] = useState<BridgeStatus | null>(null);
@@ -288,10 +259,18 @@ export default function QRWhatsAppPage() {
   const [broadcastText, setBroadcastText] = useState('');
   const [broadcastSending, setBroadcastSending] = useState(false);
   const [broadcastSearch, setBroadcastSearch] = useState('');
+  // Per-user bridge setup state
+  const [bridgeUrlInput, setBridgeUrlInput] = useState('');
+  const [bridgeSecretInput, setBridgeSecretInput] = useState('');
+  const [bridgeConfigured, setBridgeConfigured] = useState<boolean | null>(null); // null = loading
+  const [savingBridge, setSavingBridge] = useState(false);
+  const [showBridgeSettings, setShowBridgeSettings] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
   const profilePicLoadedRef = useRef<Set<string>>(new Set());
-  const readChatsRef = useRef<Set<string>>(new Set());
+  const readChatsRef = useRef<Map<string, number>>(new Map()); // JID → timestamp when user read the chat
+  const selectedChatRef = useRef(selectedChat);
+  selectedChatRef.current = selectedChat;
   const messengerRef = useRef<HTMLDivElement>(null);
   const composerInputRef = useRef<HTMLInputElement>(null);
   const tabRef = useRef(tab);
@@ -359,7 +338,15 @@ export default function QRWhatsAppPage() {
           if (settingsRes.labelPresets?.length > 0) {
             setLabelPresets(settingsRes.labelPresets);
           }
-          console.log('[QR] ✅ Loaded settings from MongoDB — funnels:', settingsRes.qrFunnelStages?.length || 0, 'chatFunnels:', Object.keys(settingsRes.chatFunnels || {}).length, 'chatLabels:', Object.keys(settingsRes.chatLabels || {}).length, 'labels:', settingsRes.labelPresets?.length || 0);
+          // Load per-user bridge URL
+          if (settingsRes.qrBridgeUrl) {
+            setBridgeUrlInput(settingsRes.qrBridgeUrl);
+            setBridgeSecretInput(settingsRes.qrBridgeSecret || '');
+            setBridgeConfigured(true);
+          } else {
+            setBridgeConfigured(false);
+          }
+          console.log('[QR] ✅ Loaded settings from MongoDB — funnels:', settingsRes.qrFunnelStages?.length || 0, 'chatFunnels:', Object.keys(settingsRes.chatFunnels || {}).length, 'chatLabels:', Object.keys(settingsRes.chatLabels || {}).length, 'labels:', settingsRes.labelPresets?.length || 0, 'bridge:', settingsRes.qrBridgeUrl ? 'configured' : 'not set');
         }
       } catch (e) {
         console.warn('[QR] Failed to load CRM settings, using localStorage cache:', e);
@@ -393,6 +380,29 @@ export default function QRWhatsAppPage() {
     try { localStorage.setItem('crm_labelPresets', JSON.stringify(labelPresets)); } catch {}
     if (dbLoadedRef.current) saveToMongoDB({ labelPresets });
   }, [labelPresets, saveToMongoDB]);
+
+  // ── Save bridge URL to user settings ──
+  const saveBridgeConfig = useCallback(async () => {
+    const url = bridgeUrlInput.trim().replace(/\/+$/, ''); // strip trailing slashes
+    if (!url) { setError('Bridge URL is required'); return; }
+    setSavingBridge(true);
+    try {
+      await crmFetchRef.current('/api/admin/crm/settings', {
+        method: 'PUT',
+        body: { qrBridgeUrl: url, qrBridgeSecret: bridgeSecretInput.trim() },
+        silent: true,
+      });
+      setBridgeConfigured(true);
+      setShowBridgeSettings(false);
+      setError(null);
+      // Force re-render so poll effect picks up the new bridge URL
+      setLoading(true);
+    } catch (e: any) {
+      setError(e.message || 'Failed to save bridge URL');
+    } finally {
+      setSavingBridge(false);
+    }
+  }, [bridgeUrlInput, bridgeSecretInput]);
 
   // ── Bridge API calls via CRM proxy ──
   const bridgeCall = useCallback(async (path: string, method = 'GET', body?: any) => {
@@ -458,7 +468,7 @@ export default function QRWhatsAppPage() {
 
   // ── Poll setup ──
   useEffect(() => {
-    if (!token) return;
+    if (!token || bridgeConfigured !== true) return;
     fetchStatus();
     // Poll less aggressively: 15s when connected, 6s when waiting for QR
     const interval = status?.connected ? 15000 : 6000;
@@ -466,7 +476,7 @@ export default function QRWhatsAppPage() {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
-  }, [token, fetchStatus, status?.connected]);
+  }, [token, fetchStatus, status?.connected, bridgeConfigured]);
 
   // ── Auto-fetch WhatsApp statuses when connected and on status tab ──
   useEffect(() => {
@@ -561,11 +571,21 @@ export default function QRWhatsAppPage() {
             if (cTime > eTime) {
               // current chat is newer — replace but merge unread
               c.unreadCount = (c.unreadCount || 0) + (existing.unreadCount || 0);
+              // Transfer read status from the dropped JID to the surviving one
+              const droppedReadAt = readChatsRef.current.get(existing.id);
+              if (droppedReadAt && !readChatsRef.current.has(c.id)) {
+                readChatsRef.current.set(c.id, droppedReadAt);
+              }
               phoneMap.set(phone, c);
               const idx = deduped.indexOf(existing);
               if (idx >= 0) deduped[idx] = c;
             } else {
               existing.unreadCount = (existing.unreadCount || 0) + (c.unreadCount || 0);
+              // Transfer read status from the dropped JID to the surviving one
+              const droppedReadAt = readChatsRef.current.get(c.id);
+              if (droppedReadAt && !readChatsRef.current.has(existing.id)) {
+                readChatsRef.current.set(existing.id, droppedReadAt);
+              }
             }
           } else {
             if (phone) phoneMap.set(phone, c);
@@ -600,9 +620,21 @@ export default function QRWhatsAppPage() {
           });
         }
 
-        // Preserve unreadCount=0 for chats the user has already read locally
+        // Preserve unreadCount=0 only if no NEW messages arrived since the user read the chat
         for (const c of deduped) {
-          if (readChatsRef.current.has(c.id)) {
+          const readAt = readChatsRef.current.get(c.id);
+          if (readAt) {
+            const lastMsgTime = c.lastMessageTime ? new Date(c.lastMessageTime).getTime() : 0;
+            if (lastMsgTime <= readAt) {
+              // No new messages since the user read — keep as read
+              c.unreadCount = 0;
+            } else {
+              // New message came in after reading — remove from readChatsRef so we show the real count
+              readChatsRef.current.delete(c.id);
+            }
+          }
+          // Also clear unread for the currently selected chat (always show as read)
+          if (c.id === selectedChatRef.current) {
             c.unreadCount = 0;
           }
         }
@@ -777,8 +809,8 @@ export default function QRWhatsAppPage() {
     setGroupInfo(null);
     fetchMessages(jid);
     fetchProfilePic(jid);
-    // Accumulate read chats so polling preserves unreadCount=0 for ALL read chats
-    readChatsRef.current.add(jid);
+    // Track when the user read this chat so polling can distinguish new messages vs already-read
+    readChatsRef.current.set(jid, Date.now());
     // Tell the bridge to reset unread count on its side too
     bridgeCall(`/read/${encodeURIComponent(jid)}`, 'POST').catch(() => {});
     // Clear unread count and re-sort so read chat moves below unread ones
@@ -1167,7 +1199,8 @@ export default function QRWhatsAppPage() {
   const connState = status?.status || 'disconnected';
   const isConnected = connState === 'connected';
 
-  if (!token || !authChecked) {
+  // ── Bridge setup onboarding / settings modal ──
+  if (bridgeConfigured === null) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-green-600" />
@@ -1175,13 +1208,64 @@ export default function QRWhatsAppPage() {
     );
   }
 
-  if (!isSuperAdmin) {
+  if (bridgeConfigured === false || showBridgeSettings) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <ShieldAlert className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <h1 className="text-xl font-bold text-gray-800 mb-2">Access Denied</h1>
-          <p className="text-gray-500">QR WhatsApp management requires super admin access.</p>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-xl shadow-lg max-w-md w-full p-6 space-y-5">
+          <div className="text-center">
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-green-50 mb-3">
+              <QrCode className="w-7 h-7 text-green-600" />
+            </div>
+            <h2 className="text-xl font-bold text-gray-900">
+              {showBridgeSettings ? 'WhatsApp Bridge Settings' : 'Connect Your WhatsApp'}
+            </h2>
+            <p className="text-sm text-gray-500 mt-1">
+              Enter the URL and secret of your WhatsApp bridge instance.
+              Each CRM account connects its own WhatsApp number.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Bridge URL</label>
+              <input
+                type="url"
+                placeholder="https://your-bridge.up.railway.app"
+                value={bridgeUrlInput}
+                onChange={e => setBridgeUrlInput(e.target.value)}
+                className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Bridge Secret</label>
+              <input
+                type="password"
+                placeholder="your-bridge-secret"
+                value={bridgeSecretInput}
+                onChange={e => setBridgeSecretInput(e.target.value)}
+                className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            {showBridgeSettings && (
+              <button
+                onClick={() => setShowBridgeSettings(false)}
+                className="flex-1 px-4 py-2 border rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+            )}
+            <button
+              onClick={saveBridgeConfig}
+              disabled={savingBridge || !bridgeUrlInput.trim()}
+              className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {savingBridge ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              {savingBridge ? 'Saving...' : 'Save & Connect'}
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -1240,6 +1324,7 @@ export default function QRWhatsAppPage() {
           <button onClick={() => { setShowStatusPanel(true); fetchStatuses(); }} className="px-1.5 py-0.5 text-[10px] font-medium bg-green-50 text-green-700 rounded hover:bg-green-100 border border-green-200 flex items-center gap-0.5" title="View Statuses">
             <Eye className="w-3 h-3" /> Status
           </button>
+          <button onClick={() => setShowBridgeSettings(true)} className="p-0.5 rounded hover:bg-gray-100" title="Bridge Settings"><Settings className="w-3 h-3 text-gray-500" /></button>
           <button onClick={() => setShowExtensionModal(true)} className="px-1.5 py-0.5 text-[10px] font-medium bg-blue-50 text-blue-700 rounded hover:bg-blue-100 border border-blue-200" title="Download">📥</button>
           {isConnected && (
             <>

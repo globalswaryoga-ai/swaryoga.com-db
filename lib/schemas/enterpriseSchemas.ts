@@ -3114,6 +3114,9 @@ const CRMUserSettingsSchema = new mongoose.Schema(
         color: { type: String, default: '' },
       },
     ],
+    // Per-user QR WhatsApp bridge connection (each user runs their own bridge instance)
+    qrBridgeUrl: { type: String, default: '' },      // e.g. https://my-bridge.up.railway.app
+    qrBridgeSecret: { type: String, default: '' },    // bridge auth secret
     metadata: mongoose.Schema.Types.Mixed,
   },
   { timestamps: true, collection: 'crm_user_settings' }

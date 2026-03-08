@@ -1,26 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { connectDB } from '@/lib/db';
+import { getCRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
+import { verifyToken } from '@/lib/auth';
 
 /**
  * WhatsApp QR Bridge Proxy Endpoint
- * Proxies requests to the WhatsApp bridge service (Baileys on Railway or local).
- * Supports dynamic path routing for QR code retrieval, status checks, and messaging.
+ * Proxies requests to the user's own WhatsApp bridge service (Baileys).
+ * Each CRM user has their own bridge instance — URL stored in crm_user_settings.
  * 
- * Set WHATSAPP_BRIDGE_HTTP_URL env var to point to your Baileys bridge instance.
- * e.g. https://your-app.up.railway.app or http://localhost:3333
+ * Fallback: uses WHATSAPP_BRIDGE_HTTP_URL env var (for legacy / superadmin bridge).
  */
 
-// Fallback: local dev or Railway URL
+// Fallback: env var or local dev
 const DEFAULT_BRIDGE_URL = 'http://localhost:3333';
 
-// Prefer server-only vars, but also allow NEXT_PUBLIC_* (often configured first in Vercel/env files).
-// This route runs server-side, so either works.
-const BRIDGE_URL =
+const FALLBACK_BRIDGE_URL =
   process.env.WHATSAPP_BRIDGE_HTTP_URL ||
   process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL ||
   process.env.WHATSAPP_BRIDGE_URL ||
   DEFAULT_BRIDGE_URL;
 
-const BRIDGE_SECRET =
+const FALLBACK_BRIDGE_SECRET =
   process.env.WHATSAPP_BRIDGE_SECRET ||
   process.env.WHATSAPP_WEB_BRIDGE_SECRET ||
   process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_SECRET ||
@@ -30,6 +30,37 @@ const BRIDGE_SECRET =
 export const dynamic = 'force-dynamic';
 // Allow large media payloads (base64 encoded images/videos up to 50MB)
 export const maxDuration = 60; // 60s function timeout for Vercel
+
+/**
+ * Resolve the bridge URL and secret for the authenticated user.
+ * Returns per-user bridge from crm_user_settings if configured.
+ * Returns null if user has no bridge configured (prevents data leakage between accounts).
+ */
+async function resolveUserBridge(authHeader: string | null): Promise<{ url: string; secret: string } | null> {
+  try {
+    const decoded = verifyToken(authHeader || '');
+    if (decoded?.userId && decoded?.isAdmin) {
+      await connectDB();
+      const CRMUserSettings = getCRMUserSettings();
+      const settings = await CRMUserSettings.findOne(
+        { userId: decoded.userId },
+        { qrBridgeUrl: 1, qrBridgeSecret: 1 }
+      ).lean();
+      if (settings?.qrBridgeUrl) {
+        return {
+          url: settings.qrBridgeUrl,
+          secret: settings.qrBridgeSecret || FALLBACK_BRIDGE_SECRET,
+        };
+      }
+      // User has no bridge configured — return null (don't fall back to admin's bridge)
+      return null;
+    }
+  } catch (e) {
+    console.warn('[QR Bridge Proxy] Failed to resolve user bridge:', (e as Error).message);
+  }
+  // Auth failed — fall back to env vars for backward compatibility
+  return { url: FALLBACK_BRIDGE_URL, secret: FALLBACK_BRIDGE_SECRET };
+}
 
 function decodePathFully(rawPath: string): string {
   let decoded = rawPath || '';
@@ -50,6 +81,16 @@ function decodePathFully(rawPath: string): string {
 
 export async function POST(req: NextRequest) {
   try {
+    const authHeader = req.headers.get('authorization');
+    const resolved = await resolveUserBridge(authHeader);
+    if (!resolved) {
+      return NextResponse.json(
+        { error: 'No WhatsApp bridge configured. Please set up your bridge URL in QR WhatsApp settings.' },
+        { status: 422 }
+      );
+    }
+    const { url: BRIDGE_URL, secret: BRIDGE_SECRET } = resolved;
+
     const { action, path, body } = await req.json();
 
     if (!path) {
@@ -142,6 +183,16 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
+    const authHeader = req.headers.get('authorization');
+    const resolved = await resolveUserBridge(authHeader);
+    if (!resolved) {
+      return NextResponse.json(
+        { error: 'No WhatsApp bridge configured. Please set up your bridge URL in QR WhatsApp settings.' },
+        { status: 422 }
+      );
+    }
+    const { url: BRIDGE_URL, secret: BRIDGE_SECRET } = resolved;
+
     let path = req.nextUrl.searchParams.get('path') || '/status';
     
     // Decode the path to handle double-encoded values like %2540 (@)
