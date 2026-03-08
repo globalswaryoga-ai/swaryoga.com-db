@@ -153,6 +153,43 @@ export default function CrmSignupPage() {
         }
       }
 
+      // For paid plans, redirect to Cashfree checkout
+      if (form.plan !== 'free' && data.user?.tenantSlug) {
+        try {
+          const checkoutRes = await fetch('/api/crm-site/billing/checkout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              plan: form.plan,
+              billing: 'monthly',
+              email: form.email,
+              name: form.fullName,
+              phone: form.phone,
+              tenantSlug: data.user.tenantSlug,
+            }),
+          });
+          const checkoutData = await checkoutRes.json();
+          
+          if (checkoutData.paymentSessionId) {
+            // Load Cashfree SDK and redirect to payment
+            const script = document.createElement('script');
+            script.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
+            script.onload = () => {
+              const cashfree = (window as any).Cashfree({ mode: 'production' });
+              cashfree.checkout({
+                paymentSessionId: checkoutData.paymentSessionId,
+                redirectTarget: '_self',
+              });
+            };
+            document.body.appendChild(script);
+            return; // Don't redirect to CRM yet
+          }
+        } catch (payErr) {
+          console.error('Payment init failed:', payErr);
+          // Fall through to CRM dashboard - they can pay later
+        }
+      }
+
       setTimeout(() => router.push('/admin/crm'), 1500);
     } catch (err: any) {
       setStatus('error');

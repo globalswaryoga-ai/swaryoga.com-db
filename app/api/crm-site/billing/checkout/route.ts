@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
-import { cashfreeCreateOrder, getCashfreeReturnUrl } from '@/lib/payments/cashfree';
+import { cashfreeCreateOrder } from '@/lib/payments/cashfree';
 
 /**
  * POST /api/crm-site/billing/checkout
@@ -11,6 +11,11 @@ import { cashfreeCreateOrder, getCashfreeReturnUrl } from '@/lib/payments/cashfr
  * Expects: { plan, email, name, phone, tenantSlug }
  * Returns: { paymentSessionId, orderId }
  */
+
+function getCrmBillingReturnUrl(request: NextRequest): string {
+  const url = new URL(request.url);
+  return `${url.origin}/api/crm-site/billing/return?order_id={order_id}`;
+}
 
 function getCrmBillingWebhookUrl(request: NextRequest): string {
   const url = new URL(request.url);
@@ -56,9 +61,9 @@ export async function POST(request: NextRequest) {
         customer_email: email.trim().toLowerCase(),
         customer_phone: phone?.trim() || '9999999999',
       },
-      order_note: `${planInfo.name} — ${billing === 'annual' ? 'Annual' : 'Monthly'} subscription`,
+      order_note: `${planInfo.name} — ${billing === 'annual' ? 'Annual' : billing === 'quarterly' ? 'Quarterly' : 'Monthly'} subscription`,
       order_meta: {
-        return_url: getCashfreeReturnUrl(request),
+        return_url: getCrmBillingReturnUrl(request),
         notify_url: getCrmBillingWebhookUrl(request),
       },
     });
