@@ -10,13 +10,13 @@ const FOOTER_LINKS = {
   Company: [
     { href: '/crm-site/about', label: 'About Us' },
     { href: '/crm-site/contact', label: 'Contact' },
-    { href: '/privacy', label: 'Privacy Policy' },
-    { href: '/terms', label: 'Terms of Service' },
+    { href: 'https://swaryoga.com/privacy', label: 'Privacy Policy' },
+    { href: 'https://swaryoga.com/terms', label: 'Terms of Service' },
   ],
   Support: [
     { href: '/crm-site/contact', label: 'Help Center' },
     { href: '/crm-site/contact', label: 'Report a Bug' },
-    { href: '/refunds-and-cancellations', label: 'Refunds' },
+    { href: 'https://swaryoga.com/refunds-and-cancellations', label: 'Refunds' },
   ],
 };
 
@@ -68,9 +68,9 @@ export default function CrmFooter() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-2">
           <span className="text-xs">Made with care in India</span>
           <div className="flex items-center gap-4 text-xs">
-            <Link href="/privacy" className="hover:text-white transition">Privacy</Link>
-            <Link href="/terms" className="hover:text-white transition">Terms</Link>
-            <Link href="/refunds-and-cancellations" className="hover:text-white transition">Refunds</Link>
+            <a href="https://swaryoga.com/privacy" className="hover:text-white transition">Privacy</a>
+            <a href="https://swaryoga.com/terms" className="hover:text-white transition">Terms</a>
+            <a href="https://swaryoga.com/refunds-and-cancellations" className="hover:text-white transition">Refunds</a>
           </div>
         </div>
       </div>
