@@ -18,10 +18,10 @@ export default function CrmLoginPage() {
     setError('');
 
     try {
-      const res = await fetch('/api/admin/auth/login', {
+      const res = await fetch('/api/crm-site/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: form.email, password: form.password }),
+        body: JSON.stringify({ email: form.email, password: form.password }),
       });
 
       const data = await res.json();
