@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { tenantSlug, seats, billing = 'monthly', email, name, phone } = body;
+    const { tenantSlug, seats, billing = 'monthly', email, name, phone, includeGST = false } = body;
 
     if (!tenantSlug || !seats || seats < 1) {
       return NextResponse.json({ error: 'tenantSlug and seats (≥1) required' }, { status: 400 });
@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
     // Calculate pricing
     const pricePerSeat = SEAT_PRICING[billing as keyof typeof SEAT_PRICING] || SEAT_PRICING.monthly;
     const subtotal = seats * pricePerSeat;
-    const gst = Math.ceil(subtotal * GST_RATE);
+    const gst = includeGST ? Math.ceil(subtotal * GST_RATE) : 0;
     const total = subtotal + gst;
 
     // Create order ID
@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
         customer_email: (email || tenant.ownerEmail).trim().toLowerCase(),
         customer_phone: phone?.trim() || '9999999999',
       },
-      order_note: `${seats} Extra User Seat${seats > 1 ? 's' : ''} (${billingLabel}) — ₹${total} inc. GST`,
+      order_note: `${seats} Extra User Seat${seats > 1 ? 's' : ''} (${billingLabel}) — ₹${total}${includeGST ? ' inc. GST' : ''}`,
       order_meta: {
         return_url: `${new URL(request.url).origin}/api/crm-site/addons/seats/return?order_id={order_id}`,
         notify_url: `${new URL(request.url).origin}/api/crm-site/addons/seats/webhook`,

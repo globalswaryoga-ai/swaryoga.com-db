@@ -92,6 +92,7 @@ export default function TeamPage() {
   const [showBuySeats, setShowBuySeats] = useState(false);
   const [seatsToBuy, setSeatsToBuy] = useState(1);
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'quarterly' | 'annual'>('monthly');
+  const [includeGST, setIncludeGST] = useState(false);
   const [buyingSeats, setBuyingSeats] = useState(false);
   const [cashfreeReady, setCashfreeReady] = useState(false);
 
@@ -101,7 +102,6 @@ export default function TeamPage() {
     quarterly: 810,
     annual: 3000,
   };
-  const GST_RATE = 0.18;
 
   useEffect(() => {
     const slug = localStorage.getItem('tenantSlug') || '';
@@ -177,6 +177,7 @@ export default function TeamPage() {
           tenantSlug,
           seats: seatsToBuy,
           billing: billingPeriod,
+          includeGST,
         }),
       });
 
@@ -205,7 +206,7 @@ export default function TeamPage() {
   const calculateSeatPrice = () => {
     const pricePerSeat = SEAT_PRICING[billingPeriod];
     const subtotal = seatsToBuy * pricePerSeat;
-    const gst = Math.ceil(subtotal * GST_RATE);
+    const gst = includeGST ? Math.ceil(subtotal * 0.18) : 0;
     return { pricePerSeat, subtotal, gst, total: subtotal + gst };
   };
 
@@ -704,16 +705,32 @@ export default function TeamPage() {
                 </div>
               </div>
 
+              {/* GST Option */}
+              <label className="flex items-center justify-between p-3 bg-gray-50 rounded-xl cursor-pointer">
+                <div>
+                  <p className="font-medium text-gray-900 text-sm">Add GST (18%)</p>
+                  <p className="text-xs text-gray-500">Required for GST invoice</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={includeGST}
+                  onChange={e => setIncludeGST(e.target.checked)}
+                  className="w-5 h-5 text-green-600 rounded focus:ring-green-500"
+                />
+              </label>
+
               {/* Price Summary */}
               <div className="bg-gray-50 rounded-xl p-4 space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">{seatsToBuy} seat{seatsToBuy > 1 ? 's' : ''} × ₹{calculateSeatPrice().pricePerSeat}</span>
                   <span className="text-gray-900">₹{calculateSeatPrice().subtotal.toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">GST (18%)</span>
-                  <span className="text-gray-900">₹{calculateSeatPrice().gst.toLocaleString()}</span>
-                </div>
+                {includeGST && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">GST (18%)</span>
+                    <span className="text-gray-900">₹{calculateSeatPrice().gst.toLocaleString()}</span>
+                  </div>
+                )}
                 <div className="h-px bg-gray-200 my-2" />
                 <div className="flex justify-between font-semibold">
                   <span className="text-gray-900">Total</span>
