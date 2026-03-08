@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { getCRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
 import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 
 /**
  * WhatsApp QR Bridge Proxy Endpoint
@@ -47,19 +48,28 @@ async function resolveUserBridge(authHeader: string | null): Promise<{ url: stri
         { qrBridgeUrl: 1, qrBridgeSecret: 1 }
       ).lean();
       if (settings?.qrBridgeUrl) {
+        // User has their own bridge configured — use it
         return {
           url: settings.qrBridgeUrl,
           secret: settings.qrBridgeSecret || FALLBACK_BRIDGE_SECRET,
         };
       }
-      // User has no per-user bridge — fall back to env var bridge
-      return { url: FALLBACK_BRIDGE_URL, secret: FALLBACK_BRIDGE_SECRET };
+      // No per-user bridge configured.
+      // Only superadmins fall back to the shared env var bridge.
+      // Regular CRM users must set up their own bridge to avoid
+      // accidentally sharing the admin's WhatsApp session.
+      if (isSuperAdmin(decoded)) {
+        return { url: FALLBACK_BRIDGE_URL, secret: FALLBACK_BRIDGE_SECRET };
+      }
+      // Non-superadmin without own bridge — return null so the frontend
+      // shows the bridge-setup modal instead of the admin's inbox.
+      return null;
     }
   } catch (e) {
     console.warn('[QR Bridge Proxy] Failed to resolve user bridge:', (e as Error).message);
   }
-  // Auth failed — fall back to env vars for backward compatibility
-  return { url: FALLBACK_BRIDGE_URL, secret: FALLBACK_BRIDGE_SECRET };
+  // Auth failed — no bridge access
+  return null;
 }
 
 function decodePathFully(rawPath: string): string {

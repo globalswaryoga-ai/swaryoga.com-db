@@ -360,9 +360,22 @@ export default function QRWhatsAppPage() {
             setBridgeSecretInput(settingsRes.qrBridgeSecret || '');
             setBridgeConfigured(true);
           } else {
-            // No per-user bridge in DB — use fallback bridge from env vars
-            // This skips the manual setup modal and goes straight to QR scanning
-            setBridgeConfigured(true);
+            // No per-user bridge in DB.
+            // Check if this user is superadmin — superadmins use the shared
+            // env-var bridge so they can skip the setup modal.
+            // Regular CRM users need their own bridge to avoid sharing the
+            // admin's WhatsApp session.
+            try {
+              const userStr = localStorage.getItem('admin_user');
+              const u = userStr ? JSON.parse(userStr) : null;
+              const userId = u?.userId || localStorage.getItem('adminUser') || '';
+              const perms: string[] = Array.isArray(u?.permissions) ? u.permissions : [];
+              const superAdmin = userId === 'admin' || userId === 'admincrm' ||
+                u?.role === 'superadmin' || perms.includes('all');
+              setBridgeConfigured(superAdmin ? true : false);
+            } catch {
+              setBridgeConfigured(false);
+            }
           }
           console.log('[QR] ✅ Loaded settings from MongoDB — funnels:', settingsRes.qrFunnelStages?.length || 0, 'chatFunnels:', Object.keys(settingsRes.chatFunnels || {}).length, 'chatLabels:', Object.keys(settingsRes.chatLabels || {}).length, 'labels:', settingsRes.labelPresets?.length || 0, 'bridge:', settingsRes.qrBridgeUrl ? 'configured' : 'not set');
         }
