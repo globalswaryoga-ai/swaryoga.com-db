@@ -10,6 +10,12 @@ import {
   Settings,
   Home,
   LogOut,
+  User,
+  CreditCard,
+  Crown,
+  ArrowUpRight,
+  Landmark,
+  Receipt,
 } from 'lucide-react';
 
 export interface SubNavItem {
@@ -64,6 +70,126 @@ function DropdownPortal({
       {children}
     </div>,
     document.body
+  );
+}
+
+// ============================================================================
+// PROFILE DROPDOWN - User avatar with account menu
+// ============================================================================
+
+function ProfileDropdown({ onLogout }: { onLogout: () => void }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [userName, setUserName] = useState('');
+  const [userEmail, setUserEmail] = useState('');
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const userStr = localStorage.getItem('admin_user');
+    if (userStr) {
+      try {
+        const u = JSON.parse(userStr);
+        setUserName(u?.name || u?.userId || 'Admin');
+        setUserEmail(u?.email || '');
+      } catch { /* ignore */ }
+    }
+    const crmName = localStorage.getItem('crm_user_name');
+    const crmEmail = localStorage.getItem('crm_user_email');
+    if (crmName) setUserName(crmName);
+    if (crmEmail) setUserEmail(crmEmail);
+  }, []);
+
+  // Close on outside click
+  useEffect(() => {
+    if (!isOpen) return;
+    function handleClick(e: MouseEvent) {
+      const target = e.target as Node;
+      if (btnRef.current?.contains(target)) return;
+      if (panelRef.current?.contains(target)) return;
+      setIsOpen(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [isOpen]);
+
+  const initials = userName
+    ? userName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
+    : 'U';
+
+  const menuItems = [
+    { label: 'Plan Details', icon: Crown, href: '/admin/crm/subscription', color: 'text-purple-600' },
+    { label: 'Upgrade', icon: ArrowUpRight, href: '/admin/crm/subscription', color: 'text-indigo-600' },
+    { label: 'Billing', icon: Receipt, href: '/admin/crm/settings?tab=billing', color: 'text-green-600' },
+    { label: 'Payment / Bank Details', icon: Landmark, href: '/admin/crm/settings?tab=payments', color: 'text-blue-600' },
+    { label: 'Settings', icon: Settings, href: '/admin/crm/settings', color: 'text-gray-600' },
+  ];
+
+  return (
+    <div className="relative">
+      <button
+        ref={btnRef}
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-2 p-1 rounded-lg hover:bg-gray-100 transition"
+        title="Account"
+      >
+        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-[11px] font-bold">
+          {initials}
+        </div>
+        <ChevronDown className={`h-3 w-3 text-gray-400 transition-transform hidden sm:block ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <div
+          ref={panelRef}
+          className="absolute right-0 top-full mt-1.5 w-64 bg-white border border-gray-200 rounded-xl shadow-2xl py-2 z-[9999]"
+        >
+          {/* User info header */}
+          <div className="px-4 py-3 border-b border-gray-100">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                {initials}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-gray-900 truncate">{userName || 'Admin'}</p>
+                {userEmail && (
+                  <p className="text-xs text-gray-500 truncate">{userEmail}</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Menu items */}
+          <div className="py-1.5">
+            {menuItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.label}
+                  href={item.href}
+                  onClick={() => setIsOpen(false)}
+                  className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  <Icon className={`h-4 w-4 flex-shrink-0 ${item.color}`} />
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+
+          {/* Sign out */}
+          <div className="border-t border-gray-100 pt-1.5">
+            <button
+              onClick={() => { setIsOpen(false); onLogout(); }}
+              className="flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors w-full text-left"
+            >
+              <LogOut className="h-4 w-4 flex-shrink-0" />
+              <span>Sign Out</span>
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -259,15 +385,8 @@ export default function CrmSubNav({
           </div>
         )}
 
-        {/* Right: Settings + Home + Logout */}
-        <div className="flex items-center gap-1 shrink-0">
-          <Link
-            href="/admin/crm/settings"
-            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition"
-            title="Settings"
-          >
-            <Settings className="h-4 w-4" />
-          </Link>
+        {/* Right: Profile Menu */}
+        <div className="flex items-center gap-1 shrink-0 relative">
           <Link
             href="/"
             className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition"
@@ -275,13 +394,9 @@ export default function CrmSubNav({
           >
             <Home className="h-4 w-4" />
           </Link>
-          <button
-            onClick={handleLogout}
-            className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition"
-            title="Logout"
-          >
-            <LogOut className="h-4 w-4" />
-          </button>
+
+          {/* Profile Dropdown */}
+          <ProfileDropdown onLogout={handleLogout} />
         </div>
       </div>
     </header>

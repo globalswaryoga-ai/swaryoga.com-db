@@ -438,8 +438,16 @@ export function SidebarLock({ module }: SidebarLockProps) {
   if (loading) return null;
   if (canAccess(module)) return null;
 
+  const requiredPlan = getMinimumPlan(module);
+  const display = getPlanDisplay(requiredPlan);
+
   return (
-    <Lock className="w-3 h-3 text-gray-400 flex-shrink-0" />
+    <span className="relative group/lock" title={`Requires ${display.name} plan`}>
+      <Lock className="w-3 h-3 text-gray-400 flex-shrink-0" />
+      <span className="absolute right-0 top-full mt-1 px-2 py-1 bg-gray-900 text-white text-[10px] rounded-md opacity-0 group-hover/lock:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-lg transition-opacity">
+        {display.name} plan
+      </span>
+    </span>
   );
 }
 

@@ -34,6 +34,7 @@ import {
   GraduationCap,
   Languages,
   Lock,
+  LogOut,
 } from 'lucide-react';
 import { PlanBadge, SidebarLock } from './admin/crm/PlanComponents';
 import type { CrmModule } from '@/lib/crm-site/planConfig';
@@ -228,6 +229,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
     module: string;
     planModule?: CrmModule;
     badge?: number;
+    description?: string;
   }[] = [
     {
       icon: LayoutDashboard,
@@ -235,6 +237,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       href: '/admin/crm',
       color: 'text-blue-400',
       module: 'dashboard',
+      description: 'Overview of your CRM activity',
     },
     {
       icon: Monitor,
@@ -242,6 +245,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       href: '/admin/crm/web-admin',
       color: 'text-orange-400',
       module: 'dashboard',
+      description: 'Manage your website content',
     },
     {
       icon: FileText,
@@ -250,6 +254,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       color: 'text-rose-400',
       module: 'dashboard',
       planModule: 'landingPages',
+      description: 'Build lead capture pages & forms',
     },
     {
       icon: Calculator,
@@ -257,6 +262,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       href: '/admin/crm/tally',
       color: 'text-yellow-400',
       module: 'dashboard',
+      description: 'Invoice & accounting management',
     },
     {
       icon: DollarSign,
@@ -265,6 +271,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       color: 'text-green-400',
       module: 'payments',
       planModule: 'leads',
+      description: 'Track leads through your sales pipeline',
     },
     {
       icon: MessageCircle,
@@ -274,6 +281,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       module: 'whatsapp',
       planModule: 'whatsapp',
       badge: unreadCount,
+      description: 'WhatsApp Business API messaging',
     },
     {
       icon: Radio,
@@ -282,6 +290,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       color: 'text-pink-400',
       module: 'broadcasts',
       planModule: 'broadcasting',
+      description: 'Send bulk WhatsApp campaigns',
     },
     {
       icon: Mail,
@@ -290,6 +299,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       color: 'text-blue-400',
       module: 'email',
       planModule: 'emailMarketing',
+      description: 'Email campaigns & drip sequences',
     },
     {
       icon: Globe,
@@ -298,6 +308,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       color: 'text-teal-400',
       module: 'community',
       planModule: 'community',
+      description: 'Courses, forums & community hub',
     },
     {
       icon: QrCode,
@@ -306,6 +317,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       color: 'text-emerald-400',
       module: 'whatsapp',
       planModule: 'whatsapp',
+      description: 'WhatsApp via QR code bridge',
     },
     {
       icon: Bot,
@@ -314,6 +326,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       color: 'text-violet-400',
       module: 'whatsapp',
       planModule: 'chatbot',
+      description: 'Automated conversation flows',
     },
     {
       icon: Phone,
@@ -322,6 +335,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       color: 'text-emerald-400',
       module: 'calls',
       planModule: 'aiCalls',
+      description: 'AI-powered voice calling',
     },
     {
       icon: SmartphoneNfc,
@@ -330,6 +344,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       color: 'text-indigo-400',
       module: 'messages',
       planModule: 'whatsapp',
+      description: 'Message inbox & management',
     },
     {
       icon: BarChart3,
@@ -338,6 +353,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       color: 'text-purple-400',
       module: 'analytics',
       planModule: 'reports',
+      description: 'Analytics & performance dashboards',
     },
     {
       icon: Languages,
@@ -345,6 +361,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       href: '/admin/crm/translate',
       color: 'text-cyan-400',
       module: 'translate',
+      description: 'Multi-language content translation',
     },
   ];
 
@@ -495,8 +512,11 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
                 )}
                 {/* Tooltip when collapsed */}
                 {isCollapsed && (
-                  <div className="absolute left-full ml-2 px-2.5 py-1 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-lg border border-gray-700 transition-opacity">
-                    {item.label}
+                  <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-lg border border-gray-700 transition-opacity">
+                    <div className="font-medium">{item.label}</div>
+                    {item.description && (
+                      <div className="text-[10px] text-gray-400 mt-0.5">{item.description}</div>
+                    )}
                   </div>
                 )}
               </Link>
@@ -648,6 +668,34 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
               </div>
             )}
           </Link>
+
+          {/* Sign Out */}
+          <button
+            onClick={() => {
+              localStorage.removeItem('adminToken');
+              localStorage.removeItem('adminUser');
+              localStorage.removeItem('admin_token');
+              localStorage.removeItem('admin_user');
+              localStorage.removeItem('crm_token');
+              localStorage.removeItem('crm_user_name');
+              localStorage.removeItem('crm_user_email');
+              const isCrm = typeof window !== 'undefined' &&
+                (window.location.hostname === 'crm.swaryoga.com' || window.location.hostname.startsWith('crm.'));
+              router.push(isCrm ? '/crm-site/login' : '/admin/login');
+            }}
+            title="Sign Out"
+            className={`flex items-center ${isCollapsed ? 'justify-center' : ''} gap-3 px-3 py-2 rounded-xl transition-all group relative hover:bg-red-900/30 w-full text-left`}
+          >
+            <LogOut className="h-[18px] w-[18px] flex-shrink-0 text-gray-400 group-hover:text-red-400" />
+            {!isCollapsed && (
+              <span className="font-medium text-[13px] text-gray-400 group-hover:text-red-400">Sign Out</span>
+            )}
+            {isCollapsed && (
+              <div className="absolute left-full ml-2 px-2.5 py-1 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-lg border border-gray-700 transition-opacity">
+                Sign Out
+              </div>
+            )}
+          </button>
         </div>
       </aside>
     </>
