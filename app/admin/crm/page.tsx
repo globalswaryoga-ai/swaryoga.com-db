@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import WelcomeModal from '@/components/admin/crm/WelcomeModal';
+import PageSetupChecklist from '@/components/admin/crm/PageSetupChecklist';
 import {
   X,
   UserPlus,
@@ -41,11 +43,17 @@ interface DashboardData {
 
 export default function CRMDashboard() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const token = useAuth();
   const [stats, setStats] = useState<CRMStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+
+  // Welcome & Setup state
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [setupPaid, setSetupPaid] = useState(false);
+  const [userName, setUserName] = useState('');
 
   // Add User Modal State
   const [showAddUser, setShowAddUser] = useState(false);
@@ -76,6 +84,7 @@ export default function CRMDashboard() {
 
       if (!userStr) {
         setIsSuperAdmin(fallbackUserId === 'admin');
+        setUserName(fallbackUserId || 'there');
         return;
       }
 
@@ -83,11 +92,47 @@ export default function CRMDashboard() {
       const userId = (u?.userId as string) || fallbackUserId;
       const permissions: string[] = Array.isArray(u?.permissions) ? u.permissions : [];
       setIsSuperAdmin(userId === 'admin' || permissions.includes('all'));
+      setUserName(u?.name || u?.userId || fallbackUserId || 'there');
     } catch {
       const fallbackUserId = localStorage.getItem('adminUser') || localStorage.getItem('adminUserId') || '';
       setIsSuperAdmin(fallbackUserId === 'admin');
+      setUserName(fallbackUserId || 'there');
     }
   }, []);
+
+  // Check setup status and show welcome modal for first-time users
+  useEffect(() => {
+    const checkSetupStatus = async () => {
+      if (!token) return;
+      
+      try {
+        const res = await fetch('/api/crm-site/setup-status', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          setSetupPaid(data.setupPaid);
+          
+          // Show welcome modal for first login or if setup param is present
+          if (data.isFirstLogin || searchParams.get('showSetup') === 'true') {
+            setShowWelcome(true);
+          }
+          
+          // Handle successful payment return
+          if (searchParams.get('setup') === 'complete') {
+            setSetupPaid(true);
+            // Clean up URL
+            router.replace('/admin/crm');
+          }
+        }
+      } catch (err) {
+        console.error('Failed to check setup status:', err);
+      }
+    };
+    
+    checkSetupStatus();
+  }, [token, searchParams, router]);
 
   const toggleSelectedPermission = (key: 'crm' | 'whatsapp' | 'email') => {
     setSelectedPermissions((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -212,8 +257,35 @@ export default function CRMDashboard() {
     fetchDashboardData();
   }, [token, isSuperAdmin]);
 
+  const handleCloseWelcome = () => {
+    setShowWelcome(false);
+  };
+
+  const handleProceedToPayment = () => {
+    // Payment is handled inside WelcomeModal
+    // This will be called after successful payment
+    setShowWelcome(false);
+    setSetupPaid(true);
+  };
+
   return (
     <>
+      {/* Welcome Modal for new users */}
+      <WelcomeModal
+        isOpen={showWelcome && !setupPaid}
+        onClose={handleCloseWelcome}
+        userName={userName}
+        onProceedToPayment={handleProceedToPayment}
+      />
+
+      {/* Setup Checklist Banner */}
+      {!loading && !setupPaid && (
+        <PageSetupChecklist
+          currentPath="/admin/crm"
+          onPaymentClick={() => setShowWelcome(true)}
+          className="mx-4 mt-4 md:mx-6"
+        />
+      )}
       {/* Add User Modal */}
       {showAddUser && (
           <div className="fixed inset-0 z-50 flex items-center justify-center">

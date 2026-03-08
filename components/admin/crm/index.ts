@@ -82,3 +82,11 @@ export {
   default as TenantSetupModal,
   SetupChecklistInline,
 } from './TenantSetupModal';
+
+// New User Onboarding Components
+export { default as WelcomeModal } from './WelcomeModal';
+export {
+  default as PageSetupChecklist,
+  SetupProgressMini,
+  PAGE_SETUP_CONFIG,
+} from './PageSetupChecklist';
