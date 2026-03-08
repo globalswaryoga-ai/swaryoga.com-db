@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 
 function getStoredAdminToken() {
@@ -32,19 +32,38 @@ function getLoginPath() {
  */
 export function useAuth() {
   const router = useRouter();
+  const hasCheckedRef = useRef(false);
 
   // Keep token in state so callers get a stable value across renders.
   const [token, setToken] = useState<string | null>(() => getStoredAdminToken());
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    
+    // Only check once per mount
+    if (hasCheckedRef.current) return;
+    hasCheckedRef.current = true;
 
-    const t = getStoredAdminToken();
-    setToken(t);
+    // Small delay to ensure localStorage is accessible after navigation
+    const checkToken = () => {
+      const t = getStoredAdminToken();
+      setToken(t);
 
-    if (!t) {
-      router.push(getLoginPath());
-    }
+      if (!t) {
+        // Double-check after a brief delay (handles race condition after login redirect)
+        setTimeout(() => {
+          const retryToken = getStoredAdminToken();
+          if (!retryToken) {
+            router.push(getLoginPath());
+          } else {
+            setToken(retryToken);
+          }
+        }, 100);
+      }
+    };
+    
+    // Run check after a microtask to ensure DOM is ready
+    Promise.resolve().then(checkToken);
   }, [router]);
 
   // When login/logout happens in the same tab (or another tab), keep token fresh.

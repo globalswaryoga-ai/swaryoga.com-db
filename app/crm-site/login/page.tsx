@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { LogIn, AlertCircle, CheckCircle, Eye, EyeOff } from 'lucide-react';
@@ -11,6 +11,14 @@ export default function CrmLoginPage() {
   const [showPw, setShowPw] = useState(false);
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [error, setError] = useState('');
+
+  // Check if already logged in - redirect to dashboard
+  useEffect(() => {
+    const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
+    if (token && token !== 'null' && token !== 'undefined') {
+      router.replace('/admin/crm');
+    }
+  }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,6 +36,7 @@ export default function CrmLoginPage() {
 
       if (res.ok && data.token) {
         setStatus('success');
+        // Set tokens synchronously
         localStorage.setItem('adminToken', data.token);
         localStorage.setItem('admin_token', data.token);
         const resolvedUserId = data.user?.userId || form.email;
@@ -39,7 +48,11 @@ export default function CrmLoginPage() {
             userId: resolvedUserId,
           })
         );
-        setTimeout(() => router.push('/admin/crm'), 800);
+        // Use replace instead of push to prevent back button issues
+        // Small delay to show success message
+        setTimeout(() => {
+          window.location.href = '/admin/crm';
+        }, 800);
       } else {
         setError(data.error || 'Invalid credentials. Please try again.');
         setStatus('error');
