@@ -130,7 +130,7 @@ export default function StoragePurchaseModal({
       } else if (data.sessionId && typeof window.Cashfree === 'function') {
         // Use Cashfree SDK checkout (newer function-based API)
         const cashfree = window.Cashfree({
-          mode: process.env.NODE_ENV === 'production' ? 'production' : 'sandbox',
+          mode: 'production',
         });
         await cashfree.checkout({
           paymentSessionId: data.sessionId,

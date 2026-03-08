@@ -136,19 +136,31 @@ export async function POST(request: NextRequest) {
     }
 
     // Create Cashfree order
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://crm.swaryoga.com';
+    // IMPORTANT: CRM payment callbacks must point to crm.swaryoga.com, not the main site
+    const baseUrl = process.env.CRM_BASE_URL || 'https://crm.swaryoga.com';
     const returnUrl = `${baseUrl}/api/crm-site/setup-payment/return?order_id={order_id}`;
     const notifyUrl = `${baseUrl}/api/crm-site/setup-payment/webhook`;
     
+    // Sanitize customer_id: Cashfree only allows alphanumeric, underscore, hyphen (max 50 chars)
+    const rawCustomerId = decoded.userId || decoded.email || `user_${Date.now()}`;
+    const customerId = rawCustomerId.replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 50);
+    
+    // Ensure email is valid (Cashfree requires a valid email)
+    const customerEmail = (userEmail && userEmail.includes('@')) ? userEmail : `${customerId}@crm.swaryoga.com`;
+    
+    // Ensure phone is 10+ digits (Cashfree requires valid phone)
+    const rawPhone = (userPhone || '').replace(/[^0-9]/g, '');
+    const customerPhone = rawPhone.length >= 10 ? rawPhone : '9999999999';
+
     const orderPayload = {
       order_id: orderId,
-      order_amount: paymentAmount,
+      order_amount: Number(paymentAmount),
       order_currency: 'INR',
       customer_details: {
-        customer_id: (decoded.userId || decoded.email || '').substring(0, 50),
-        customer_email: userEmail,
-        customer_phone: userPhone || '9999999999',
-        customer_name: userName,
+        customer_id: customerId,
+        customer_email: customerEmail,
+        customer_phone: customerPhone,
+        customer_name: (userName || 'Customer').substring(0, 100),
       },
       order_meta: {
         return_url: returnUrl,
@@ -156,6 +168,8 @@ export async function POST(request: NextRequest) {
       },
       order_note: `CRM Storage - ${plan.name} Plan (${storageLimit}MB)`,
     };
+
+    console.log('[Setup Payment] Creating Cashfree order:', { orderId, amount: paymentAmount, planId, customerId, env: isProduction ? 'production' : 'sandbox' });
 
     const cfResponse = await fetch(`${cashfreeBaseUrl}/orders`, {
       method: 'POST',
@@ -168,13 +182,23 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify(orderPayload),
     });
 
-    const cfData = await cfResponse.json();
+    let cfData;
+    try {
+      cfData = await cfResponse.json();
+    } catch {
+      const text = await cfResponse.text().catch(() => 'No response body');
+      console.error('Cashfree returned non-JSON:', cfResponse.status, text);
+      return jsonResponse({ 
+        error: 'Payment gateway returned invalid response',
+        details: `Status ${cfResponse.status}`,
+      }, 502);
+    }
 
     if (!cfResponse.ok) {
-      console.error('Cashfree order creation failed:', cfData);
+      console.error('Cashfree order creation failed:', JSON.stringify(cfData));
       return jsonResponse({ 
         error: 'Payment initiation failed', 
-        details: cfData.message 
+        details: cfData.message || cfData.type || JSON.stringify(cfData),
       }, 500);
     }
 

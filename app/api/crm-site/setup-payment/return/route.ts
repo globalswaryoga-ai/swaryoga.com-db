@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const orderId = url.searchParams.get('order_id');
 
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://crm.swaryoga.com';
+  const baseUrl = process.env.CRM_BASE_URL || 'https://crm.swaryoga.com';
 
   if (!orderId) {
     return NextResponse.redirect(new URL('/admin/crm?setup=error&msg=missing_order', baseUrl));
