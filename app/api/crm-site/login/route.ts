@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import { generateToken } from '@/lib/auth';
 import { logError } from '@/lib/api-error';
 
 // CORS headers for all responses
@@ -80,20 +80,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate JWT token
-    const jwtSecret = process.env.JWT_SECRET || process.env.ADMIN_JWT_SECRET || 'swar-yoga-default-secret';
-    const token = jwt.sign(
-      {
-        userId: user.userId || user.email,
-        email: user.email,
-        name: user.name,
-        role: user.role || 'admin',
-        isAdmin: true, // CRM users are always admins
-        tenantSlug: user.tenantSlug,
-      },
-      jwtSecret,
-      { expiresIn: '7d' }
-    );
+    // Generate JWT token using shared auth utility (ensures same secret)
+    const token = generateToken({
+      userId: user.userId || user.email,
+      email: user.email,
+      name: user.name,
+      role: user.role || 'admin',
+      isAdmin: true, // CRM users are always admins
+    });
 
     // Update last login
     await crmDb.collection('admin_users').updateOne(
