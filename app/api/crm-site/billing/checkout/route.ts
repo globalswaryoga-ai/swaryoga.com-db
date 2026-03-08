@@ -150,8 +150,8 @@ export async function POST(request: NextRequest) {
       createdAt: new Date(),
     });
 
-    // Send confirmation email to admin
-    // TODO: Integrate email service to send to mohan@swaryoga.com
+    // Note: Payment confirmation emails are sent via webhook after successful payment
+    // See: /api/crm-site/billing/webhook (sendPaymentConfirmationEmail)
 
     return NextResponse.json({
       success: true,
