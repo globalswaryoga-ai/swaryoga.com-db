@@ -117,7 +117,10 @@ export default function CrmSubNav({
     localStorage.removeItem('adminUser');
     localStorage.removeItem('admin_token');
     localStorage.removeItem('admin_user');
-    router.push('/admin/login');
+    // Redirect to correct login page based on domain
+    const isCrm = typeof window !== 'undefined' && 
+      (window.location.hostname === 'crm.swaryoga.com' || window.location.hostname.startsWith('crm.'));
+    router.push(isCrm ? '/crm-site/login' : '/admin/login');
   };
 
   return (

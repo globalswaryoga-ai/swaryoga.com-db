@@ -8,6 +8,18 @@ function getStoredAdminToken() {
   return token;
 }
 
+/** Check if running on CRM subdomain */
+function isCrmSubdomain() {
+  if (typeof window === 'undefined') return false;
+  const host = window.location.hostname.toLowerCase();
+  return host === 'crm.swaryoga.com' || host.startsWith('crm.');
+}
+
+/** Get the correct login path based on domain */
+function getLoginPath() {
+  return isCrmSubdomain() ? '/crm-site/login' : '/admin/login';
+}
+
 /**
  * Custom hook for authentication checks
  * Redirects to login if no token found
@@ -31,7 +43,7 @@ export function useAuth() {
     setToken(t);
 
     if (!t) {
-      router.push('/admin/login');
+      router.push(getLoginPath());
     }
   }, [router]);
 

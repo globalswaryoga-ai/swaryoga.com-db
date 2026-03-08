@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
         email: user.email,
         name: user.name,
         role: user.role || 'admin',
-        isAdmin: user.isAdmin,
+        isAdmin: true, // CRM users are always admins
         tenantSlug: user.tenantSlug,
       },
       jwtSecret,
