@@ -94,13 +94,7 @@ export {
 } from './PageSetupChecklist';
 
 // Plan & Subscription Components
-// NOTE: Import PlanProvider and usePlan directly from './hooks/usePlan'
-// to avoid webpack module concatenation ordering issues.
-export { PlanProvider, usePlan } from './hooks/usePlan';
-export {
-  PlanGate,
-  PlanBadge,
-  TrialBanner,
-  UsageMeter,
-  SidebarLock,
-} from './PlanComponents';
+// DO NOT re-export from barrel — causes webpack TDZ errors (circular init order).
+// Import directly:
+//   import { PlanProvider, usePlan } from '@/components/admin/crm/hooks/usePlan';
+//   import { PlanGate, ... } from '@/components/admin/crm/PlanComponents';
