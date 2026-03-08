@@ -299,14 +299,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       module: 'community',
       planModule: 'community',
     },
-    {
-      icon: QrCode,
-      label: 'QR WhatsApp',
-      href: '/admin/crm/qr',
-      color: 'text-emerald-400',
-      module: 'whatsapp',
-      planModule: 'whatsapp',
-    },
+    // QR WhatsApp moved to superAdminItems — only superadmins manage the shared bridge
     {
       icon: Bot,
       label: 'AI & Chatbot',
@@ -350,6 +343,12 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
 
   // Super admin only items
   const superAdminItems = [
+    {
+      icon: QrCode,
+      label: 'QR WhatsApp',
+      href: '/admin/crm/qr',
+      color: 'text-emerald-400',
+    },
     {
       icon: GraduationCap,
       label: 'E-Learning',

@@ -574,10 +574,14 @@ async function startSocket() {
         loadChatsFromDB().catch(e => console.error('[DB-LOAD] Error:', e.message));
       }
 
-      // NOTE: Disabled group prefetching and LID resolution on connect to avoid rate limiting
-      // These operations cause WhatsApp to rate-limit the connection with 429/503/440 errors
-      // Groups and contacts will be resolved on-demand as messages come in
-      // prefetchGroupNames().catch(e => console.error('[GROUPS] Prefetch error:', e.message));
+      // NOTE: Disabled LID resolution on connect to avoid rate limiting (many individual API calls).
+      // LID contacts will be resolved on-demand as messages come in.
+      // Group prefetch is a single API call (groupFetchAllParticipating) and is safe after a delay.
+      setTimeout(() => {
+        if (connectionState === 'connected') {
+          prefetchGroupNames().catch(e => console.error('[GROUPS] Prefetch error:', e.message));
+        }
+      }, 30000); // Wait 30s after connect for connection to stabilize
       // setTimeout(() => {
       //   resolveLidsFromDB().catch(e => console.error('[LID-RESOLVE-DB] Error:', e.message));
       // }, 5000);

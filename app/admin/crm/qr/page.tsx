@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
-import { QrCode, Wifi, WifiOff, RefreshCw, LogOut, Phone, PhoneCall, Send, Image as ImageIcon, FileText, Mic, ArrowLeft, Loader2, AlertTriangle, CheckCircle2, Unplug, Funnel, Plus, Tag, CheckSquare, Square, X, Paperclip, Video, File, Pencil, Trash2, Users, Mail, MailOpen, Radio, Info, Shield, Crown, Calendar, MessageSquare, Hash, UserCircle, PhoneOff, Search, Star, Bold, Italic, Strikethrough, Smile, Zap, Type, Link2, Copy, RotateCcw, Lock, Unlock, UserMinus, ChevronUp, ChevronDown, Save, Settings, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
+import { QrCode, Wifi, WifiOff, RefreshCw, LogOut, Phone, PhoneCall, Send, Image as ImageIcon, FileText, Mic, ArrowLeft, Loader2, AlertTriangle, CheckCircle2, Unplug, Funnel, Plus, Tag, CheckSquare, Square, X, Paperclip, Video, File, Pencil, Trash2, Users, Mail, MailOpen, Radio, Info, Shield, Crown, Calendar, MessageSquare, Hash, UserCircle, PhoneOff, Search, Star, Bold, Italic, Strikethrough, Smile, Zap, Type, Link2, Copy, RotateCcw, Lock, Unlock, UserMinus, ChevronUp, ChevronDown, Save, Settings, Eye, ChevronLeft, ChevronRight, ShieldAlert } from 'lucide-react';
 
 type ConnectionStatus = 'disconnected' | 'connecting' | 'connected';
 
@@ -193,7 +194,35 @@ type GroupInfo = {
 
 export default function QRWhatsAppPage() {
   const token = useAuth();
+  const router = useRouter();
   const { fetch: crmFetch } = useCRM({ token });
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  // Check superadmin status — QR WhatsApp is superadmin-only
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const userStr = localStorage.getItem('admin_user');
+    let resolvedUserId = localStorage.getItem('adminUser') || '';
+    let legacyPerms: string[] = [];
+    let pv2: any = null;
+    if (userStr) {
+      try {
+        const u = JSON.parse(userStr);
+        resolvedUserId = (u?.userId as string) || resolvedUserId;
+        legacyPerms = Array.isArray(u?.permissions) ? u.permissions : [];
+        pv2 = u?.permissionsV2 || null;
+      } catch { /* ignore */ }
+    }
+    const superAdmin =
+      resolvedUserId === 'admin' ||
+      resolvedUserId === 'admincrm' ||
+      legacyPerms.includes('all') ||
+      pv2?.isSuperAdmin === true;
+    setIsSuperAdmin(superAdmin);
+    setAuthChecked(true);
+    if (!superAdmin) router.replace('/admin/crm');
+  }, [router]);
 
   // State
   const [status, setStatus] = useState<BridgeStatus | null>(null);
@@ -438,6 +467,13 @@ export default function QRWhatsAppPage() {
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, [token, fetchStatus, status?.connected]);
+
+  // ── Auto-fetch WhatsApp statuses when connected and on status tab ──
+  useEffect(() => {
+    if (status?.connected && tab === 'status' && statusData.length === 0) {
+      fetchStatuses();
+    }
+  }, [status?.connected, tab]);
 
   // ── Fetch profile picture for a JID ──
   const fetchProfilePic = useCallback(async (jid: string) => {
@@ -1131,6 +1167,26 @@ export default function QRWhatsAppPage() {
   const connState = status?.status || 'disconnected';
   const isConnected = connState === 'connected';
 
+  if (!token || !authChecked) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-green-600" />
+      </div>
+    );
+  }
+
+  if (!isSuperAdmin) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <ShieldAlert className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <h1 className="text-xl font-bold text-gray-800 mb-2">Access Denied</h1>
+          <p className="text-gray-500">QR WhatsApp management requires super admin access.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Single-row header: status + tabs + funnel pills + actions */}
@@ -1278,12 +1334,85 @@ export default function QRWhatsAppPage() {
               <p className="text-xs text-gray-400 mb-6">
                 Uptime: {status?.uptime ? formatUptime(status.uptime) : 'unknown'}
               </p>
-              <button
-                onClick={() => { setTab('inbox'); fetchChats(); }}
-                className="px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium"
-              >
-                Open Inbox →
-              </button>
+              <div className="flex items-center gap-3 justify-center">
+                <button
+                  onClick={() => { setTab('inbox'); fetchChats(); }}
+                  className="px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium"
+                >
+                  Open Inbox →
+                </button>
+                <button
+                  onClick={() => { setShowStatusPanel(true); fetchStatuses(); }}
+                  className="px-6 py-2.5 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 transition font-medium border border-emerald-200"
+                >
+                  <Eye className="w-4 h-4 inline mr-1" /> View Stories
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* WhatsApp Status Stories — shown inline when connected */}
+          {isConnected && (
+            <div className="mt-6 bg-white rounded-xl border p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
+                  <Radio className="w-4 h-4 text-green-600" />
+                  Recent Status Updates
+                </h3>
+                <button
+                  onClick={fetchStatuses}
+                  className="text-xs text-green-600 hover:text-green-700 flex items-center gap-1"
+                >
+                  <RefreshCw className={`w-3 h-3 ${loadingStatuses ? 'animate-spin' : ''}`} />
+                  Refresh
+                </button>
+              </div>
+              {loadingStatuses ? (
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 className="w-5 h-5 animate-spin text-green-500 mr-2" />
+                  <span className="text-sm text-gray-500">Loading statuses...</span>
+                </div>
+              ) : statusData.length === 0 ? (
+                <div className="py-6 text-center">
+                  <Eye className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                  <p className="text-sm text-gray-500">No recent status updates</p>
+                  <p className="text-[10px] text-gray-400 mt-1">Statuses from contacts will appear here as they are posted</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {statusData.slice(0, 8).map((user: any) => (
+                    <button
+                      key={user.senderJid}
+                      onClick={() => { setShowStatusPanel(true); setSelectedStatusUser(user); setCurrentStatusIndex(0); }}
+                      className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 rounded-lg text-left transition"
+                    >
+                      <div className="relative">
+                        <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-semibold ${getAvatarColor(user.senderPhone)} ring-2 ring-green-500 ring-offset-1`}>
+                          {user.senderPhone.slice(-2)}
+                        </div>
+                        <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-green-500 flex items-center justify-center">
+                          <span className="text-white text-[7px] font-bold">{user.statuses.length}</span>
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-gray-900 truncate">{user.senderName}</p>
+                        <p className="text-[10px] text-gray-500">
+                          {user.statuses.length} status{user.statuses.length > 1 ? 'es' : ''} · {new Date(user.statuses[0].timestamp * 1000).toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                      <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
+                    </button>
+                  ))}
+                  {statusData.length > 8 && (
+                    <button
+                      onClick={() => { setShowStatusPanel(true); fetchStatuses(); }}
+                      className="w-full text-center text-xs text-green-600 hover:text-green-700 py-2"
+                    >
+                      View all {statusData.length} status updates →
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
