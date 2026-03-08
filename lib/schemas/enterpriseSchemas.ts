@@ -3171,6 +3171,24 @@ const UserCompartmentSchema = new mongoose.Schema(
       lastVerifiedAt: { type: Date },
     },
     
+    // Subscription & Plan
+    subscription: {
+      plan: { type: String, enum: ['free', 'basic', 'starter', 'growth', 'professional'], default: 'free' },
+      billing: { type: String, enum: ['monthly', 'quarterly', 'annual'], default: 'monthly' },
+      status: { type: String, enum: ['active', 'trial', 'expired', 'cancelled', 'pending'], default: 'trial' },
+      startDate: { type: Date },
+      endDate: { type: Date },
+      // Trial tracking
+      trialStartDate: { type: Date, default: Date.now },
+      trialEndDate: { type: Date },           // Auto-calculated: trialStartDate + 14 days
+      trialUsed: { type: Boolean, default: false },
+      // Payment
+      lastPaymentDate: { type: Date },
+      lastPaymentAmount: { type: Number },
+      paymentMethod: { type: String },
+      autopayEnabled: { type: Boolean, default: false },
+    },
+
     // Activity tracking
     isActive: { type: Boolean, default: true },
     lastActivityAt: { type: Date },

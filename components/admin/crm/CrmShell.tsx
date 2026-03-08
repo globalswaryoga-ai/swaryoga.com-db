@@ -9,6 +9,8 @@ import TenantOnboarding from './TenantOnboarding';
 import StoragePurchaseModal from './StoragePurchaseModal';
 import CompartmentSetupModal from './CompartmentSetupModal';
 import CompartmentGuard from './CompartmentGuard';
+import { PlanProvider } from './hooks/usePlan';
+import { TrialBanner } from './PlanComponents';
 import { useOnboarding } from './hooks/useOnboarding';
 
 /**
@@ -17,6 +19,8 @@ import { useOnboarding } from './hooks/useOnboarding';
  * 2. CrmSubNav header bar (auto-detected from pathname)
  * 3. Main content area
  * 4. Tenant Onboarding flow for new users
+ * 5. PlanProvider for plan-gated features
+ * 6. TrialBanner when trial is active
  *
  * This is rendered once in layout.tsx — individual pages
  * should NOT import AdminSidebar or CrmSubNav themselves.
@@ -65,6 +69,7 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
   };
 
   return (
+    <PlanProvider>
     <div className="flex h-screen overflow-hidden bg-gray-50">
       {/* Compartment Setup Modal (blocks everything until setup complete) */}
       {showCompartmentSetup && !loading && (
@@ -113,6 +118,9 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Trial Banner */}
+        <TrialBanner />
+
         {/* Section Sub-Nav Header */}
         {section && (
           <CrmSubNav
@@ -139,5 +147,6 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
         </main>
       </div>
     </div>
+    </PlanProvider>
   );
 }

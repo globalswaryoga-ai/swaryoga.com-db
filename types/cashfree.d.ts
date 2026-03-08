@@ -6,5 +6,6 @@ declare global {
       checkout: (opts: { paymentSessionId: string; redirectTarget?: string }) => Promise<unknown>;
     }) & {
       checkout?: (opts: { paymentSessionId: string; redirectTarget?: string }) => Promise<unknown> | unknown;
+    };
   }
 }

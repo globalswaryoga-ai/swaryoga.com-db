@@ -92,3 +92,13 @@ export {
   SetupProgressMini,
   PAGE_SETUP_CONFIG,
 } from './PageSetupChecklist';
+
+// Plan & Subscription Components
+export {
+  PlanGate,
+  PlanBadge,
+  TrialBanner,
+  UsageMeter,
+  SidebarLock,
+} from './PlanComponents';
+export { PlanProvider, usePlan } from './hooks/usePlan';

@@ -33,7 +33,10 @@ import {
   EyeOff,
   GraduationCap,
   Languages,
+  Lock,
 } from 'lucide-react';
+import { PlanBadge, SidebarLock } from './admin/crm/PlanComponents';
+import type { CrmModule } from '@/lib/crm-site/planConfig';
 
 interface AdminSidebarProps {
   isOpen?: boolean;
@@ -223,6 +226,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
     href: string;
     color: string;
     module: string;
+    planModule?: CrmModule;
     badge?: number;
   }[] = [
     {
@@ -245,6 +249,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       href: '/admin/landing-pages',
       color: 'text-rose-400',
       module: 'dashboard',
+      planModule: 'landingPages',
     },
     {
       icon: Calculator,
@@ -259,6 +264,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       href: '/admin/crm/funnel/manage',
       color: 'text-green-400',
       module: 'payments',
+      planModule: 'leads',
     },
     {
       icon: MessageCircle,
@@ -266,6 +272,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       href: '/admin/crm/meta',
       color: 'text-cyan-400',
       module: 'whatsapp',
+      planModule: 'whatsapp',
       badge: unreadCount,
     },
     {
@@ -274,6 +281,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       href: '/admin/crm/broadcast',
       color: 'text-pink-400',
       module: 'broadcasts',
+      planModule: 'broadcasting',
     },
     {
       icon: Mail,
@@ -281,6 +289,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       href: '/admin/crm/email',
       color: 'text-blue-400',
       module: 'email',
+      planModule: 'emailMarketing',
     },
     {
       icon: Globe,
@@ -288,6 +297,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       href: '/admin/crm/community',
       color: 'text-teal-400',
       module: 'community',
+      planModule: 'community',
     },
     {
       icon: QrCode,
@@ -295,6 +305,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       href: '/admin/crm/qr',
       color: 'text-emerald-400',
       module: 'whatsapp',
+      planModule: 'whatsapp',
     },
     {
       icon: Bot,
@@ -302,6 +313,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       href: '/admin/crm/chatbots',
       color: 'text-violet-400',
       module: 'whatsapp',
+      planModule: 'chatbot',
     },
     {
       icon: Phone,
@@ -309,6 +321,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       href: '/admin/crm/calls',
       color: 'text-emerald-400',
       module: 'calls',
+      planModule: 'aiCalls',
     },
     {
       icon: SmartphoneNfc,
@@ -316,6 +329,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       href: '/admin/crm/messages',
       color: 'text-indigo-400',
       module: 'messages',
+      planModule: 'whatsapp',
     },
     {
       icon: BarChart3,
@@ -323,6 +337,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       href: '/admin/crm/analytics',
       color: 'text-purple-400',
       module: 'analytics',
+      planModule: 'reports',
     },
     {
       icon: Languages,
@@ -472,6 +487,12 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
                     {item.badge > 99 ? '99+' : item.badge}
                   </span>
                 )}
+                {/* Plan lock icon for gated modules */}
+                {!isCollapsed && item.planModule && !item.badge && (
+                  <span className="ml-auto">
+                    <SidebarLock module={item.planModule} />
+                  </span>
+                )}
                 {/* Tooltip when collapsed */}
                 {isCollapsed && (
                   <div className="absolute left-full ml-2 px-2.5 py-1 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-lg border border-gray-700 transition-opacity">
@@ -602,6 +623,13 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
               <Eye className="h-3 w-3" />
               <span>Show storage</span>
             </button>
+          )}
+
+          {/* Plan Badge */}
+          {!isCollapsed ? (
+            <PlanBadge variant="sidebar" />
+          ) : (
+            <PlanBadge variant="compact" className="flex justify-center mb-2" />
           )}
           
           <Link
