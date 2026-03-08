@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { getLead } from '@/lib/schemas/enterpriseSchemas';
+import { getLead, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import { 
   escapeRegexLiteral, 
@@ -39,6 +39,7 @@ export async function GET(request: NextRequest) {
     const workshop = url.searchParams.get('workshop');
     const q = url.searchParams.get('q');
     const userIdParam = url.searchParams.get('userId');
+    const metaOnly24h = url.searchParams.get('metaOnly24h') === '1';  // Filter for Meta messages in 24h
     // NOTE: Some admin screens (e.g., Broadcast) need a large dataset so client-side
     // segmentation/filtering is accurate.
     // We allow a higher cap when explicitly requested via selectAll=true.
@@ -132,6 +133,39 @@ export async function GET(request: NextRequest) {
 
     // Ensure leads and filter are valid before querying
     // Lead model is initialized above via getLead()
+
+    // ── Filter by Meta messages in 24-hour window ──
+    if (metaOnly24h) {
+      const WhatsAppMessage = getWhatsAppMessage();
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      
+      // Find leads with Meta messages in last 24 hours
+      const metaMessageLeads = await WhatsAppMessage.find({
+        provider: 'meta',
+        createdAt: { $gte: twentyFourHoursAgo },
+        leadId: { $exists: true, $ne: null }
+      })
+        .distinct('leadId')
+        .lean();
+
+      const metaLeadIds = metaMessageLeads.map(id => String(id));
+      
+      // Add to filter: must have Meta messages in last 24 hours
+      if (metaLeadIds.length === 0) {
+        // No Meta messages in 24h, return empty
+        return NextResponse.json({ success: true, data: { leads: [], total: 0, limit, skip } }, { status: 200 });
+      }
+      
+      if (filter.$and) {
+        filter.$and.push({ _id: { $in: metaLeadIds } });
+      } else if (filter.$or) {
+        // Wrap existing $or in $and
+        filter.$and = [{ $or: filter.$or }, { _id: { $in: metaLeadIds } }];
+        delete filter.$or;
+      } else {
+        filter._id = { $in: metaLeadIds };
+      }
+    }
 
     const leads = await Lead.find(filter)
       .sort({ createdAt: -1 })

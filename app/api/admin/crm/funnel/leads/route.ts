@@ -6,7 +6,7 @@ import { NextRequest } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
-import { getLead } from '@/lib/schemas/enterpriseSchemas';
+import { getLead, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { getViewerUserId, isSuperAdmin } from '@/lib/crm-handlers';
 
 export async function GET(request: NextRequest) {
@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
     const Lead = getLead();
+    const WhatsAppMessage = getWhatsAppMessage();
     const url = new URL(request.url);
 
     const viewerId = getViewerUserId(decoded);
@@ -34,6 +35,7 @@ export async function GET(request: NextRequest) {
     const workshopName = url.searchParams.get('workshop') || '';
     const month = url.searchParams.get('month') || ''; // YYYY-MM format
     const fetchAll = url.searchParams.get('all') === '1'; // fetch leads even without stage
+    const metaOnly24h = url.searchParams.get('metaOnly24h') === '1'; // show only Meta messages in 24h window
     const limit = Math.min(Number(url.searchParams.get('limit') || 50), 200);
     const skip = Number(url.searchParams.get('skip') || 0);
 
@@ -94,6 +96,32 @@ export async function GET(request: NextRequest) {
         const start = new Date(y, m - 1, 1);
         const end = new Date(y, m, 1);
         query.createdAt = { $gte: start, $lt: end };
+      }
+    }
+
+    // ── Filter by Meta messages in last 24 hours ──
+    if (metaOnly24h) {
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      
+      // Find leads with Meta messages in last 24 hours
+      const metaMessageLeads = await WhatsAppMessage.find({
+        provider: 'meta',
+        createdAt: { $gte: twentyFourHoursAgo },
+        leadId: { $exists: true, $ne: null }
+      })
+        .distinct('leadId')
+        .lean();
+
+      const metaLeadIds = metaMessageLeads.map(id => String(id));
+      
+      if (query.$and) {
+        query.$and.push({ _id: { $in: metaLeadIds } });
+      } else if (query.$or) {
+        // Wrap existing $or in $and
+        query.$and = [{ $or: query.$or }, { _id: { $in: metaLeadIds } }];
+        delete query.$or;
+      } else {
+        query._id = { $in: metaLeadIds };
       }
     }
 

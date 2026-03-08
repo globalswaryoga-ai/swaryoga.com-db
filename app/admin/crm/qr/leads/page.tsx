@@ -96,6 +96,7 @@ export default function QRLeadsPage() {
   const [error, setError] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('');
   const [filterWorkshop, setFilterWorkshop] = useState<string>('');
+  const [metaOnly24h, setMetaOnly24h] = useState(false);  // Filter for Meta messages in 24h window
   const [workshops, setWorkshops] = useState<string[]>([]);
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
   const [workshopCounts, setWorkshopCounts] = useState<Record<string, number>>({});
@@ -205,6 +206,7 @@ export default function QRLeadsPage() {
       if (filterWorkshop) params.workshop = filterWorkshop;
       if (search.query) params.q = search.query;
       if (isSuperAdmin && userFilter) params.userId = userFilter;
+      if (metaOnly24h) params.metaOnly24h = '1';  // Pass filter param
 
       const response = await fetch('/api/admin/crm/leads?' + new URLSearchParams(params), {
         headers: { Authorization: `Bearer ${token}` },
@@ -217,7 +219,7 @@ export default function QRLeadsPage() {
     } catch (err) {
       console.error('Failed to fetch QR leads', err);
     }
-  }, [token, limit, skip, filterStatus, filterWorkshop, search.query, isSuperAdmin, userFilter]);
+  }, [token, limit, skip, filterStatus, filterWorkshop, search.query, isSuperAdmin, userFilter, metaOnly24h]);
 
   const handleCreateLead = async (values: LeadFormValues) => {
     try {
@@ -555,6 +557,19 @@ export default function QRLeadsPage() {
           <option value={50}>50 / page</option>
           <option value={100}>100 / page</option>
         </select>
+
+        {/* Meta Only 24h filter toggle */}
+        <button
+          onClick={() => { setMetaOnly24h(!metaOnly24h); setSkip(0); }}
+          className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
+            metaOnly24h
+              ? 'bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100'
+              : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+          }`}
+          title="Show only leads with Meta messages in last 24 hours"
+        >
+          📱 Meta 24h
+        </button>
 
         {selectedLeadIds.size > 0 && (
           <span className="text-xs text-green-700 font-semibold bg-green-50 px-2 py-1 rounded-full">{selectedLeadIds.size} selected</span>
