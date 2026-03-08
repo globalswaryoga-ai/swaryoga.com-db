@@ -121,7 +121,9 @@ export async function POST(req: NextRequest) {
       method,
       headers: {
         'x-bridge-secret': BRIDGE_SECRET,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': 'true',
+        'User-Agent': 'SwarYoga-Bridge-Proxy/1.0'
       },
       signal: controller.signal
     };
@@ -221,7 +223,9 @@ export async function GET(req: NextRequest) {
       res = await fetch(bridgeUrl, {
         method: 'GET',
         headers: {
-          'x-bridge-secret': BRIDGE_SECRET
+          'x-bridge-secret': BRIDGE_SECRET,
+          'ngrok-skip-browser-warning': 'true',
+          'User-Agent': 'SwarYoga-Bridge-Proxy/1.0'
         },
         signal: controller.signal
       });
