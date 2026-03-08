@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { getPendingPayment, getLead } from '@/lib/schemas/enterpriseSchemas';
 import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 
 /**
  * GET /api/admin/pending-payments
- * Fetch all pending payments for admin approval
+ * Fetch all pending payments for admin approval (SUPERADMIN ONLY)
  */
 export async function GET(req: NextRequest) {
   try {
@@ -19,6 +20,14 @@ export async function GET(req: NextRequest) {
     const decoded = verifyToken(token);
     if (!decoded || !decoded.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    }
+
+    // Only superadmins can see all pending payments
+    if (!isSuperAdmin(decoded)) {
+      return NextResponse.json(
+        { error: 'Access denied: Superadmin access required for payment data' },
+        { status: 403 }
+      );
     }
 
     await connectDB();

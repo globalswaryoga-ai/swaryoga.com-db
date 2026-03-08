@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
-import { handleCrmError } from '@/lib/crm-handlers';
+import { handleCrmError, isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 import { verifyToken } from '@/lib/auth';
 import { BroadcastListMember, BroadcastRun, BroadcastRunMessage, Lead, WhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
 import mongoose from 'mongoose';
@@ -282,11 +282,11 @@ export async function POST(request: NextRequest) {
 
 /**
  * GET /api/admin/crm/broadcast-runs
- * List runs.
+ * List runs — Non-superadmins only see their own broadcasts.
  */
 export async function GET(request: NextRequest) {
   try {
-    verifyAdmin(request);
+    const decoded = verifyAdmin(request);
     await connectDB();
 
     const url = new URL(request.url);
@@ -296,6 +296,13 @@ export async function GET(request: NextRequest) {
     const status = url.searchParams.get('status');
     const filter: any = {};
     if (status) filter.status = String(status);
+
+    // Non-superadmins only see their own broadcasts
+    const superAdmin = isSuperAdmin(decoded);
+    if (!superAdmin) {
+      const viewerUserId = getViewerUserId(decoded);
+      filter.createdByUserId = viewerUserId;
+    }
 
     const total = await BroadcastRun.countDocuments(filter);
     const rows = await BroadcastRun.find(filter)

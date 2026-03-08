@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, CommunityMember } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 
-// GET - Fetch community members
+// GET - Fetch community members (SUPERADMIN ONLY)
 export async function GET(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
@@ -10,6 +11,14 @@ export async function GET(request: NextRequest) {
 
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Only superadmins can see all community members
+    if (!isSuperAdmin(decoded)) {
+      return NextResponse.json(
+        { error: 'Access denied: Superadmin access required for community data' },
+        { status: 403 }
+      );
     }
 
     await connectDB();

@@ -6,6 +6,8 @@ import { getLead } from '@/lib/schemas/enterpriseSchemas';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import { normalizePhone } from '@/lib/whatsapp';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
+import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 
 // Path to store enquiries as JSON file
 const enquiriesDir = path.join(process.cwd(), 'data');
@@ -44,9 +46,30 @@ function saveEnquiries(enquiries: any[]) {
   }
 }
 
-// GET: Fetch all enquiries
+// GET: Fetch all enquiries (SUPERADMIN ONLY)
 export async function GET(request: NextRequest) {
   try {
+    // Verify superadmin access
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const token = authHeader.slice('Bearer '.length);
+    const decoded = verifyToken(token);
+    
+    if (!decoded?.isAdmin) {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 401 });
+    }
+
+    // Only superadmins can see all enquiries
+    if (!isSuperAdmin(decoded)) {
+      return NextResponse.json(
+        { error: 'Access denied: Superadmin access required for enquiries' },
+        { status: 403 }
+      );
+    }
+
     const enquiries = getEnquiries();
     
     // Support filtering by workshop

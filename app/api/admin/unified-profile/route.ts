@@ -1,11 +1,12 @@
-// Unified User Profile API - Get all user data across all touchpoints
+// Unified User Profile API - SUPERADMIN ONLY
 import { NextRequest } from 'next/server';
 import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 import { connectDB, User, Contact, Order, CommunityMembership, CommunityPost, UserDevice, DeviceViolation } from '@/lib/db';
 import { getLead, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { apiError, apiSuccess } from '@/lib/api-error';
 
-// GET - Get unified profile by userId, profileId, phone, or email
+// GET - Get unified profile (SUPERADMIN ONLY)
 export async function GET(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization');
@@ -18,6 +19,11 @@ export async function GET(req: NextRequest) {
     const decoded = await verifyToken(token);
     if (!decoded || !decoded.isAdmin) {
       return apiError('Admin access required', 403);
+    }
+
+    // Only superadmins can access unified profiles
+    if (!isSuperAdmin(decoded)) {
+      return apiError('Access denied: Superadmin access required for unified profiles', 403);
     }
     
     await connectDB();

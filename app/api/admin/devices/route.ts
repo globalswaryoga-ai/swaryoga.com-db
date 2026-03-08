@@ -1,6 +1,7 @@
-// Admin Device Management API
+// Admin Device Management API - SUPERADMIN ONLY
 import { NextRequest } from 'next/server';
 import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 import { 
   getAllUserDevices, 
   getDevicesByUser, 
@@ -11,7 +12,7 @@ import {
 } from '@/lib/device-control';
 import { apiError, apiSuccess } from '@/lib/api-error';
 
-// GET - Get all devices or devices by user
+// GET - Get all devices or devices by user (SUPERADMIN ONLY)
 export async function GET(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization');
@@ -24,6 +25,11 @@ export async function GET(req: NextRequest) {
     const decoded = await verifyToken(token);
     if (!decoded || !decoded.isAdmin) {
       return apiError('Admin access required', 403);
+    }
+
+    // Only superadmins can access device management
+    if (!isSuperAdmin(decoded)) {
+      return apiError('Access denied: Superadmin access required for device management', 403);
     }
     
     const { searchParams } = new URL(req.url);

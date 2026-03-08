@@ -1,5 +1,5 @@
 /**
- * AI Agents API — Retell AI Agent Management
+ * AI Agents API — Retell AI Agent Management (SUPERADMIN ONLY)
  * GET  — List all agents or get a single agent's details
  * POST — Update agent settings (voice, speed, temperature, volume)
  */
@@ -7,11 +7,12 @@ import { NextRequest } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { listAgents, getAgent, listPhoneNumbers } from '@/lib/retellAI';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * GET /api/admin/crm/ai-agents
+ * GET /api/admin/crm/ai-agents (SUPERADMIN ONLY)
  * ?action=list          → List all agents
  * ?action=detail&id=xxx → Get single agent detail
  */
@@ -20,6 +21,11 @@ export async function GET(request: NextRequest) {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
+
+    // Only superadmins can manage AI agents (shared Retell account)
+    if (!isSuperAdmin(decoded)) {
+      return apiError('FORBIDDEN', 'Access denied: Superadmin access required for AI agent management');
+    }
 
     const action = request.nextUrl.searchParams.get('action') || 'list';
     const agentId = request.nextUrl.searchParams.get('id');
@@ -71,7 +77,7 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST /api/admin/crm/ai-agents
+ * POST /api/admin/crm/ai-agents (SUPERADMIN ONLY)
  * Body: { action: 'update_settings', agentId, settings: { voice_speed, voice_temperature, voice_volume } }
  * Body: { action: 'set_active', agentId }  — mark as primary CRM agent
  */
@@ -80,6 +86,11 @@ export async function POST(request: NextRequest) {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
+
+    // Only superadmins can manage AI agents (shared Retell account)
+    if (!isSuperAdmin(decoded)) {
+      return apiError('FORBIDDEN', 'Access denied: Superadmin access required for AI agent management');
+    }
 
     const body = await request.json();
     const { action, agentId } = body;

@@ -1,13 +1,14 @@
 /**
  * CRM Filter Options API
- * GET  - Fetch custom filter options by category
- * POST - Add a new custom filter option
+ * GET  - Fetch custom filter options by category (all admins)
+ * POST - Add a new custom filter option (superadmin only)
  */
 import { NextRequest } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { getCRMFilterOption } from '@/lib/schemas/enterpriseSchemas';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,6 +53,11 @@ export async function POST(request: NextRequest) {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
+
+    // Only superadmins can add new filter options (shared across all users)
+    if (!isSuperAdmin(decoded)) {
+      return apiError('FORBIDDEN', 'Superadmin access required to add filter options');
+    }
 
     const { category, value } = await request.json();
 

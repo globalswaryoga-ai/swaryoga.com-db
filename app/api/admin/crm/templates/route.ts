@@ -5,6 +5,7 @@ import { getWhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
 import { User } from '@/lib/db';
 import { deleteTemplateFilesFromS3 } from '@/lib/bunny-storage';
 import mongoose from 'mongoose';
+import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 
 // Mark as dynamic since this route uses request.headers or request.url
 export const dynamic = 'force-dynamic';
@@ -12,7 +13,7 @@ export const dynamic = 'force-dynamic';
 
 /**
  * WhatsApp message templates management
- * GET: Fetch templates
+ * GET: Fetch templates (user-filtered for non-superadmins)
  * POST: Create template
  * PUT: Update template
  * DELETE: Delete template
@@ -26,6 +27,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
     }
 
+    const viewerUserId = getViewerUserId(decoded);
+    const superAdmin = isSuperAdmin(decoded);
+
     const url = new URL(request.url);
     const category = url.searchParams.get('category');
     const status = url.searchParams.get('status'); // draft, pending_approval, approved, rejected, disabled
@@ -37,6 +41,12 @@ export async function GET(request: NextRequest) {
     const WhatsAppTemplate = getWhatsAppTemplate();
 
     const filter: any = {};
+    
+    // Non-superadmins only see their own templates
+    if (!superAdmin) {
+      filter.createdByUserId = viewerUserId;
+    }
+    
     if (category) filter.category = category;
     if (status) filter.status = status;
     if (provider) filter.provider = provider;

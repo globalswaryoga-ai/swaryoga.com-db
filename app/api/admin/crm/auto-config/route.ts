@@ -3,11 +3,12 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { getAutoConfig } from '@/lib/schemas/enterpriseSchemas';
 import { bustAutoConfigCache } from '@/lib/autoConfig';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * GET /api/admin/crm/auto-config
+ * GET /api/admin/crm/auto-config (SUPERADMIN ONLY)
  * Fetch current auto-config settings
  */
 export async function GET(request: NextRequest) {
@@ -17,6 +18,11 @@ export async function GET(request: NextRequest) {
 
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Auto-config is global CRM settings - superadmin only
+    if (!isSuperAdmin(decoded)) {
+      return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
     }
 
     await connectDB();
@@ -38,7 +44,7 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST /api/admin/crm/auto-config
+ * POST /api/admin/crm/auto-config (SUPERADMIN ONLY)
  * Save auto-config settings (upsert)
  */
 export async function POST(request: NextRequest) {
@@ -48,6 +54,11 @@ export async function POST(request: NextRequest) {
 
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Auto-config is global CRM settings - superadmin only
+    if (!isSuperAdmin(decoded)) {
+      return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
     }
 
     const body = await request.json();

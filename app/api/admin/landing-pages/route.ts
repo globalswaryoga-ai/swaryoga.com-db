@@ -1,16 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, LandingPage } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
-// GET - List all landing pages
+// GET - List all landing pages (SUPERADMIN ONLY)
 export async function GET(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Only superadmins can manage landing pages
+    if (!isSuperAdmin(decoded)) {
+      return NextResponse.json(
+        { error: 'Access denied: Superadmin access required for landing pages' },
+        { status: 403 }
+      );
     }
 
     await connectDB();

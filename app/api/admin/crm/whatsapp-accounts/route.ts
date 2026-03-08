@@ -3,6 +3,7 @@ import { connectDB } from '@/lib/db';
 import { WhatsAppAccount } from '@/lib/schemas/enterpriseSchemas';
 import { verifyToken } from '@/lib/auth';
 import { Types } from 'mongoose';
+import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 
 // Mark as dynamic since this route uses request.headers or request.url
 export const dynamic = 'force-dynamic';
@@ -17,6 +18,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const viewerUserId = getViewerUserId(decoded);
+    const superAdmin = isSuperAdmin(decoded);
+
     await connectDB();
 
     const { searchParams } = new URL(request.url);
@@ -26,6 +30,15 @@ export async function GET(request: NextRequest) {
     const isActive = searchParams.get('isActive');
 
     const filter: any = {};
+    
+    // Non-superadmins only see their own WhatsApp accounts
+    if (!superAdmin) {
+      filter.$or = [
+        { createdBy: viewerUserId },
+        { userId: viewerUserId }
+      ];
+    }
+    
     if (accountType) filter.accountType = accountType;
     if (isActive !== null) filter.isActive = isActive === 'true';
 

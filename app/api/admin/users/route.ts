@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, User } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
-// GET - Fetch admin users
+// GET - Fetch admin users (SUPERADMIN ONLY)
 export async function GET(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization');
@@ -17,6 +18,14 @@ export async function GET(request: NextRequest) {
     const decoded = verifyToken(token);
     if (!decoded || !decoded.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    }
+
+    // Only superadmins can see all admin users
+    if (!isSuperAdmin(decoded)) {
+      return NextResponse.json(
+        { error: 'Access denied: Superadmin access required for user management' },
+        { status: 403 }
+      );
     }
 
     await connectDB();

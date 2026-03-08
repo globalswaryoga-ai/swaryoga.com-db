@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { MediaPost } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 
 /**
  * GET /api/admin/media
- * Fetch all media posts (paginated)
- * Query params: limit (default 50), skip (default 0), status, category, featured, search
+ * Fetch all media posts (SUPERADMIN ONLY)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -16,6 +16,14 @@ export async function GET(request: NextRequest) {
 
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized - Admin access required' }, { status: 401 });
+    }
+
+    // Only superadmins can manage media
+    if (!isSuperAdmin(decoded)) {
+      return NextResponse.json(
+        { error: 'Access denied: Superadmin access required for media management' },
+        { status: 403 }
+      );
     }
 
     await connectDB();

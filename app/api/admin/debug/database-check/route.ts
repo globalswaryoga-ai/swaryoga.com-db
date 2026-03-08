@@ -1,19 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import { connectDB } from '@/lib/db';
+import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 
 /**
  * Debug endpoint to check which database has the leads
- * Use only for diagnosis - should be deleted before production
+ * SUPERADMIN ONLY - exposes database internals
  */
 export async function GET(request: NextRequest) {
   try {
-    // Check if accessing is authorized (basic check)
-    const token = request.headers.get('authorization');
-    if (!token) {
+    // Verify with proper token verification
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const token = authHeader.slice('Bearer '.length);
+    const decoded = verifyToken(token);
+    
+    if (!decoded?.isAdmin) {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 401 });
+    }
+
+    // Only superadmins can access debug endpoints
+    if (!isSuperAdmin(decoded)) {
       return NextResponse.json(
-        { error: 'Unauthorized - provide Authorization header' },
-        { status: 401 }
+        { error: 'Access denied: Superadmin access required for debug endpoints' },
+        { status: 403 }
       );
     }
 
