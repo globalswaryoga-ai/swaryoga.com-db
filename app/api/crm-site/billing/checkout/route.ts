@@ -12,6 +12,11 @@ import { cashfreeCreateOrder, getCashfreeReturnUrl } from '@/lib/payments/cashfr
  * Returns: { paymentSessionId, orderId }
  */
 
+function getCrmBillingWebhookUrl(request: NextRequest): string {
+  const url = new URL(request.url);
+  return `${url.origin}/api/crm-site/billing/webhook`;
+}
+
 const PLAN_PRICES: Record<string, { monthly: number; annual: number; name: string }> = {
   starter:      { monthly: 1999,  annual: 19990,  name: 'Starter Plan' },
   growth:       { monthly: 4999,  annual: 49990,  name: 'Growth Plan' },
@@ -54,7 +59,7 @@ export async function POST(request: NextRequest) {
       order_note: `${planInfo.name} — ${billing === 'annual' ? 'Annual' : 'Monthly'} subscription`,
       order_meta: {
         return_url: getCashfreeReturnUrl(request),
-        notify_url: undefined,
+        notify_url: getCrmBillingWebhookUrl(request),
       },
     });
 
