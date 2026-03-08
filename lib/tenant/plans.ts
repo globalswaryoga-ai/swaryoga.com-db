@@ -1,15 +1,16 @@
 /**
  * Multi-Tenant SaaS — Plan Definitions
  *
- * Static configuration for the 5 plan tiers.
+ * Static configuration for the 6 plan tiers.
  * Each plan specifies numeric limits and which modules are enabled.
  *
  * Tier overview:
- *   FREE         – 250 leads, 1 seat, basic CRM only
- *   STARTER      – 5 000 leads, 3 seats, + WhatsApp + Broadcasts
- *   GROWTH       – 25 000 leads, 10 seats, + Voice AI + Payments + Chatbot
- *   PROFESSIONAL – 50 000 leads, 25 seats, + Workshops + Custom Domain + Analytics
- *   ENTERPRISE   – 100 000 leads, unlimited seats, all modules, API access
+ *   FREE         – 250 leads, 1 user, 1 chatbot flow
+ *   BASIC        – 2,000 leads, 2 users, 5 chatbot flows (₹999/mo)
+ *   STARTER      – 5,000 leads, 3 users, 10 chatbot flows (₹1,999/mo)
+ *   GROWTH       – 25,000 leads, 10 users, unlimited chatbot flows (₹4,999/mo)
+ *   PROFESSIONAL – Unlimited leads, unlimited users (₹9,999/mo)
+ *   ENTERPRISE   – Custom pricing, all modules, API access
  */
 
 import {
@@ -25,12 +26,17 @@ import {
 
 const FREE_MODULES: TenantModule[] = [
   TenantModule.CRM,
+  TenantModule.CHATBOT,
 ];
 
-const STARTER_MODULES: TenantModule[] = [
+const BASIC_MODULES: TenantModule[] = [
   ...FREE_MODULES,
   TenantModule.WHATSAPP,
   TenantModule.BROADCASTS,
+];
+
+const STARTER_MODULES: TenantModule[] = [
+  ...BASIC_MODULES,
   TenantModule.META_FORMS,
 ];
 
@@ -38,14 +44,13 @@ const GROWTH_MODULES: TenantModule[] = [
   ...STARTER_MODULES,
   TenantModule.VOICE_AI,
   TenantModule.PAYMENTS,
-  TenantModule.CHATBOT,
   TenantModule.CERTIFICATES,
+  TenantModule.COMMUNITY,
 ];
 
 const PROFESSIONAL_MODULES: TenantModule[] = [
   ...GROWTH_MODULES,
   TenantModule.WORKSHOPS,
-  TenantModule.COMMUNITY,
   TenantModule.LIFE_PLANNER,
   TenantModule.ANALYTICS,
   TenantModule.CUSTOM_DOMAIN,
@@ -65,7 +70,7 @@ export const PLAN_DEFINITIONS: Record<PlanTier, PlanDefinition> = {
   [PlanTier.FREE]: {
     tier: PlanTier.FREE,
     name: 'Free',
-    description: 'Get started with basic CRM — no cost.',
+    description: 'Explore everything — 250 leads.',
     limits: {
       maxLeads: 250,
       maxUsers: 1,
@@ -79,16 +84,33 @@ export const PLAN_DEFINITIONS: Record<PlanTier, PlanDefinition> = {
     annualPriceINR: 0,
   },
 
+  [PlanTier.BASIC]: {
+    tier: PlanTier.BASIC,
+    name: 'Basic',
+    description: 'Full CRM power for early-stage.',
+    limits: {
+      maxLeads: 2_000,
+      maxUsers: 2,
+      maxWhatsAppTemplates: 5,
+      maxBroadcastsPerDay: 3,
+      maxStorageMB: 500,
+      maxApiRequestsPerDay: 2_000,
+    },
+    enabledModules: BASIC_MODULES,
+    monthlyPriceINR: 999,
+    annualPriceINR: 9_990,
+  },
+
   [PlanTier.STARTER]: {
     tier: PlanTier.STARTER,
     name: 'Starter',
-    description: 'WhatsApp messaging and lead management for small teams.',
+    description: 'Scale your outreach — 5K leads.',
     limits: {
       maxLeads: 5_000,
       maxUsers: 3,
       maxWhatsAppTemplates: 10,
       maxBroadcastsPerDay: 5,
-      maxStorageMB: 500,
+      maxStorageMB: 1_000,
       maxApiRequestsPerDay: 5_000,
     },
     enabledModules: STARTER_MODULES,
@@ -99,14 +121,14 @@ export const PLAN_DEFINITIONS: Record<PlanTier, PlanDefinition> = {
   [PlanTier.GROWTH]: {
     tier: PlanTier.GROWTH,
     name: 'Growth',
-    description: 'Voice AI, payments, and automation for growing businesses.',
+    description: 'For growing teams — 25K leads.',
     limits: {
       maxLeads: 25_000,
       maxUsers: 10,
-      maxWhatsAppTemplates: 50,
-      maxBroadcastsPerDay: 20,
-      maxStorageMB: 2_000,
-      maxApiRequestsPerDay: 25_000,
+      maxWhatsAppTemplates: 9999,
+      maxBroadcastsPerDay: 50,
+      maxStorageMB: 5_000,
+      maxApiRequestsPerDay: 50_000,
     },
     enabledModules: GROWTH_MODULES,
     monthlyPriceINR: 4_999,
@@ -116,14 +138,14 @@ export const PLAN_DEFINITIONS: Record<PlanTier, PlanDefinition> = {
   [PlanTier.PROFESSIONAL]: {
     tier: PlanTier.PROFESSIONAL,
     name: 'Professional',
-    description: 'Full-featured platform with workshops, analytics, and custom domain.',
+    description: 'Unlimited leads. No limits.',
     limits: {
-      maxLeads: 50_000,
-      maxUsers: 25,
-      maxWhatsAppTemplates: 200,
-      maxBroadcastsPerDay: 50,
-      maxStorageMB: 10_000,
-      maxApiRequestsPerDay: 100_000,
+      maxLeads: 999_999,
+      maxUsers: 9999, // effectively unlimited
+      maxWhatsAppTemplates: 9999,
+      maxBroadcastsPerDay: 9999,
+      maxStorageMB: 50_000,
+      maxApiRequestsPerDay: 500_000,
     },
     enabledModules: PROFESSIONAL_MODULES,
     monthlyPriceINR: 9_999,
@@ -133,13 +155,13 @@ export const PLAN_DEFINITIONS: Record<PlanTier, PlanDefinition> = {
   [PlanTier.ENTERPRISE]: {
     tier: PlanTier.ENTERPRISE,
     name: 'Enterprise',
-    description: 'Unlimited scale with API access, Tally integration, and priority support.',
+    description: 'Custom pricing with API access, Tally integration, and priority support.',
     limits: {
-      maxLeads: 100_000,
+      maxLeads: 999_999,
       maxUsers: 9999, // effectively unlimited
-      maxWhatsAppTemplates: 1_000,
-      maxBroadcastsPerDay: 500,
-      maxStorageMB: 50_000,
+      maxWhatsAppTemplates: 9999,
+      maxBroadcastsPerDay: 9999,
+      maxStorageMB: 100_000,
       maxApiRequestsPerDay: 1_000_000,
     },
     enabledModules: ENTERPRISE_MODULES,

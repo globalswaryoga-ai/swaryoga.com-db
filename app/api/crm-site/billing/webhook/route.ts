@@ -10,34 +10,40 @@ import { cashfreeGetOrder } from '@/lib/payments/cashfree';
  */
 
 const PLAN_TO_TIER: Record<string, string> = {
-  starter: 'plan1',
-  growth: 'plan2',
-  professional: 'plan3',
-  enterprise: 'plan4',
+  free: 'free',
+  basic: 'basic',
+  starter: 'starter',
+  growth: 'growth',
+  professional: 'professional',
 };
 
-const PLAN_LIMITS: Record<string, { maxLeads: number; maxUsers: number; storageQuotaMB: number }> = {
-  starter:      { maxLeads: 5000,   maxUsers: 3,   storageQuotaMB: 500 },
-  growth:       { maxLeads: 25000,  maxUsers: 10,  storageQuotaMB: 2000 },
-  professional: { maxLeads: 50000,  maxUsers: 25,  storageQuotaMB: 10000 },
-  enterprise:   { maxLeads: 100000, maxUsers: 999, storageQuotaMB: 50000 },
+const PLAN_LIMITS: Record<string, { maxLeads: number; maxUsers: number; maxChatbotFlows: number; storageQuotaMB: number }> = {
+  free:         { maxLeads: 250,     maxUsers: 1,   maxChatbotFlows: 1,    storageQuotaMB: 100 },
+  basic:        { maxLeads: 2000,    maxUsers: 2,   maxChatbotFlows: 5,    storageQuotaMB: 500 },
+  starter:      { maxLeads: 5000,    maxUsers: 3,   maxChatbotFlows: 10,   storageQuotaMB: 1000 },
+  growth:       { maxLeads: 25000,   maxUsers: 10,  maxChatbotFlows: 9999, storageQuotaMB: 5000 },
+  professional: { maxLeads: 999999,  maxUsers: 999, maxChatbotFlows: 9999, storageQuotaMB: 50000 },
 };
 
 const PLAN_MODULES: Record<string, Record<string, boolean>> = {
-  starter: {
-    leads: true, whatsapp: true, broadcasting: true,
+  free: {
+    leads: true, whatsapp: false, broadcasting: false, chatbot: true,
+    aiCalls: false, reports: false, community: false, templates: false, callRecording: false,
+  },
+  basic: {
+    leads: true, whatsapp: true, broadcasting: true, chatbot: true,
     aiCalls: false, reports: false, community: false, templates: true, callRecording: false,
   },
-  growth: {
-    leads: true, whatsapp: true, broadcasting: true,
-    aiCalls: true, reports: false, community: false, templates: true, callRecording: false,
+  starter: {
+    leads: true, whatsapp: true, broadcasting: true, chatbot: true,
+    aiCalls: false, reports: true, community: false, templates: true, callRecording: false,
   },
-  professional: {
-    leads: true, whatsapp: true, broadcasting: true,
+  growth: {
+    leads: true, whatsapp: true, broadcasting: true, chatbot: true,
     aiCalls: true, reports: true, community: true, templates: true, callRecording: true,
   },
-  enterprise: {
-    leads: true, whatsapp: true, broadcasting: true,
+  professional: {
+    leads: true, whatsapp: true, broadcasting: true, chatbot: true,
     aiCalls: true, reports: true, community: true, templates: true, callRecording: true,
   },
 };

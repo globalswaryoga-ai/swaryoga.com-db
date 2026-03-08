@@ -17,11 +17,11 @@ function getCrmBillingWebhookUrl(request: NextRequest): string {
   return `${url.origin}/api/crm-site/billing/webhook`;
 }
 
-const PLAN_PRICES: Record<string, { monthly: number; annual: number; name: string }> = {
-  starter:      { monthly: 1999,  annual: 19990,  name: 'Starter Plan' },
-  growth:       { monthly: 4999,  annual: 49990,  name: 'Growth Plan' },
-  professional: { monthly: 9999,  annual: 99990,  name: 'Professional Plan' },
-  enterprise:   { monthly: 24999, annual: 249990, name: 'Enterprise Plan' },
+const PLAN_PRICES: Record<string, { monthly: number; quarterly: number; annual: number; name: string }> = {
+  basic:        { monthly: 999,   quarterly: 2997,  annual: 9990,   name: 'Basic Plan' },
+  starter:      { monthly: 1999,  quarterly: 5997,  annual: 19990,  name: 'Starter Plan' },
+  growth:       { monthly: 4999,  quarterly: 14997, annual: 49990,  name: 'Growth Plan' },
+  professional: { monthly: 9999,  quarterly: 29997, annual: 99990,  name: 'Professional Plan' },
 };
 
 export async function POST(request: NextRequest) {
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     }
 
     const planInfo = PLAN_PRICES[plan];
-    const amount = billing === 'annual' ? planInfo.annual : planInfo.monthly;
+    const amount = billing === 'annual' ? planInfo.annual : billing === 'quarterly' ? planInfo.quarterly : planInfo.monthly;
 
     await connectDB();
 

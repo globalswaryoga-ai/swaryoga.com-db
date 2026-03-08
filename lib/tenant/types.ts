@@ -14,10 +14,11 @@
 
 export enum PlanTier {
   FREE       = 'free',
-  STARTER    = 'starter',     // Plan 1
-  GROWTH     = 'growth',      // Plan 2
-  PROFESSIONAL = 'professional', // Plan 3
-  ENTERPRISE = 'enterprise',  // Plan 4
+  BASIC      = 'basic',       // Plan 0.5 - ₹999/mo
+  STARTER    = 'starter',     // Plan 1 - ₹1,999/mo
+  GROWTH     = 'growth',      // Plan 2 - ₹4,999/mo
+  PROFESSIONAL = 'professional', // Plan 3 - ₹9,999/mo
+  ENTERPRISE = 'enterprise',  // Plan 4 - Custom
 }
 
 // ---------------------------------------------------------------------------
