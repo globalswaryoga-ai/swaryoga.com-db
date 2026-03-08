@@ -136,7 +136,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Create Cashfree order
-    const returnUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://crm.swaryoga.com'}/admin/crm?setup=complete`;
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://crm.swaryoga.com';
+    const returnUrl = `${baseUrl}/api/crm-site/setup-payment/return?order_id={order_id}`;
+    const notifyUrl = `${baseUrl}/api/crm-site/setup-payment/webhook`;
     
     const orderPayload = {
       order_id: orderId,
@@ -149,10 +151,10 @@ export async function POST(request: NextRequest) {
         customer_name: userName,
       },
       order_meta: {
-        return_url: `${returnUrl}&order_id={order_id}`,
-        notify_url: `${process.env.NEXT_PUBLIC_BASE_URL || 'https://crm.swaryoga.com'}/api/crm-site/setup-payment/webhook`,
+        return_url: returnUrl,
+        notify_url: notifyUrl,
       },
-      order_note: 'CRM Setup Fee',
+      order_note: `CRM Storage - ${plan.name} Plan (${storageLimit}MB)`,
     };
 
     const cfResponse = await fetch(`${cashfreeBaseUrl}/orders`, {

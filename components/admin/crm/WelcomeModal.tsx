@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Script from 'next/script';
 import { X, Sparkles, ArrowRight, CheckCircle, CreditCard, Loader2 } from 'lucide-react';
 
 interface WelcomeModalProps {
@@ -107,6 +108,12 @@ export default function WelcomeModal({
           )}
         </div>
       </div>
+
+      {/* Cashfree SDK */}
+      <Script
+        src="https://sdk.cashfree.com/js/v3/cashfree.js"
+        strategy="lazyOnload"
+      />
     </div>
   );
 }
@@ -143,12 +150,29 @@ function SetupPaymentStep({ onProceed }: { onProceed: () => void }) {
         throw new Error(data.error || 'Payment initiation failed');
       }
 
-      // Redirect to Cashfree payment page or handle payment
+      // Redirect to Cashfree payment page or use SDK
       if (data.paymentLink) {
         window.location.href = data.paymentLink;
-      } else if (data.sessionId) {
-        // Use Cashfree SDK
+      } else if (data.sessionId && window.Cashfree?.PG) {
+        // Use Cashfree SDK checkout (v3 API)
+        const checkout = window.Cashfree.PG.checkout({
+          paymentSessionId: data.sessionId,
+        });
+        checkout.redirect();
+      } else if (data.sessionId && typeof window.Cashfree === 'function') {
+        // Use Cashfree SDK checkout (newer function-based API)
+        const cashfree = window.Cashfree({
+          mode: process.env.NODE_ENV === 'production' ? 'production' : 'sandbox',
+        });
+        await cashfree.checkout({
+          paymentSessionId: data.sessionId,
+          redirectTarget: '_self',
+        });
+      } else if (data.success && data.testMode) {
+        // Test mode - payment auto-completed
         onProceed();
+      } else {
+        throw new Error('Cashfree SDK not loaded. Please refresh and try again.');
       }
     } catch (err: any) {
       setError(err.message || 'Failed to initiate payment');

@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import Script from 'next/script';
 import {
   X,
   Server,
@@ -88,6 +89,7 @@ export default function StoragePurchaseModal({
   const [selectedPlan, setSelectedPlan] = useState<StoragePlan | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cashfreeReady, setCashfreeReady] = useState(false);
 
   const handlePurchase = async () => {
     if (!selectedPlan) return;
@@ -116,13 +118,30 @@ export default function StoragePurchaseModal({
         throw new Error(data.error || 'Payment initiation failed');
       }
 
-      // If payment URL is returned, redirect to it
-      if (data.paymentUrl) {
-        window.location.href = data.paymentUrl;
+      // If payment link is returned, redirect to it
+      if (data.paymentLink) {
+        window.location.href = data.paymentLink;
+      } else if (data.sessionId && window.Cashfree?.PG) {
+        // Use Cashfree SDK checkout (v3 API)
+        const checkout = window.Cashfree.PG.checkout({
+          paymentSessionId: data.sessionId,
+        });
+        checkout.redirect();
+      } else if (data.sessionId && typeof window.Cashfree === 'function') {
+        // Use Cashfree SDK checkout (newer function-based API)
+        const cashfree = window.Cashfree({
+          mode: process.env.NODE_ENV === 'production' ? 'production' : 'sandbox',
+        });
+        await cashfree.checkout({
+          paymentSessionId: data.sessionId,
+          redirectTarget: '_self',
+        });
       } else if (data.success) {
         // Payment completed (test mode)
         onPaymentSuccess?.();
         onClose();
+      } else {
+        throw new Error('Cashfree SDK not loaded. Please refresh and try again.');
       }
     } catch (err: any) {
       setError(err.message || 'Something went wrong');
@@ -287,6 +306,13 @@ export default function StoragePurchaseModal({
           </div>
         </motion.div>
       </div>
+
+      {/* Cashfree SDK */}
+      <Script
+        src="https://sdk.cashfree.com/js/v3/cashfree.js"
+        onLoad={() => setCashfreeReady(true)}
+        strategy="lazyOnload"
+      />
     </AnimatePresence>
   );
 }

@@ -447,13 +447,16 @@ export default function CRMDashboard() {
                   color="green"
                   href="/admin/crm/sales"
                 />
-                <BigStatCard
-                  label="Meta Messages"
-                  value={stats?.metaMessagesSent || 0}
-                  icon={MessageCircle}
-                  color="purple"
-                  href="/admin/crm/meta"
-                />
+                {/* Meta Messages - only show to superadmin (global business data) */}
+                {isSuperAdmin && (
+                  <BigStatCard
+                    label="Meta Messages"
+                    value={stats?.metaMessagesSent || 0}
+                    icon={MessageCircle}
+                    color="purple"
+                    href="/admin/crm/meta"
+                  />
+                )}
                 <BigStatCard
                   label="Conversion Rate"
                   value={`${stats?.conversionRate || 0}%`}
