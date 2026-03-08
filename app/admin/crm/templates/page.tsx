@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, getLoginPath } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import {
   PageHeader,
@@ -137,7 +137,7 @@ export default function TemplatesPage() {
 
   useEffect(() => {
     if (!token) {
-      router.push('/admin/login');
+      router.push(getLoginPath());
       return;
     }
     

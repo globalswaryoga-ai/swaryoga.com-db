@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, getLoginPath } from '@/hooks/useAuth';
 import { PageHeader, StatCard, LoadingSpinner, AlertBox } from '@/components/admin/crm';
 
 interface WhatsAppStats {
@@ -227,7 +227,7 @@ export default function WhatsAppAnalyticsPage() {
 
   useEffect(() => {
     if (!token) {
-      router.push('/admin/login');
+      router.push(getLoginPath());
       return;
     }
     fetchData();

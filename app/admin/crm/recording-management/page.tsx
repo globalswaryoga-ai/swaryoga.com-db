@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, getLoginPath } from '@/hooks/useAuth';
 import {
   Video, CheckCircle, Loader, Save, AlertCircle, ChevronRight,
   Globe, Music, Heart, Baby, Sparkles, Activity, Sun, Leaf,
@@ -87,7 +87,7 @@ export default function RecordingManagementPage() {
         { headers: { Authorization: 'Bearer ' + token } }
       );
       if (res.status === 401 || res.status === 403) {
-        router.push('/admin/login');
+        router.push(getLoginPath());
         return;
       }
       const json = await res.json();
@@ -191,7 +191,7 @@ export default function RecordingManagementPage() {
 
   useEffect(() => {
     if (!token) {
-      router.push('/admin/login');
+      router.push(getLoginPath());
       return;
     }
     fetchMembers();

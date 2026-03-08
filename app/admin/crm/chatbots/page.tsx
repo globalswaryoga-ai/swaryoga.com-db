@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, getLoginPath } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import { AlertBox, LoadingSpinner, PageHeader } from '@/components/admin/crm';
 
@@ -160,7 +160,7 @@ export default function ChatbotsPage() {
 
   useEffect(() => {
     if (!token) {
-      router.push('/admin/login');
+      router.push(getLoginPath());
       return;
     }
     fetchStats();

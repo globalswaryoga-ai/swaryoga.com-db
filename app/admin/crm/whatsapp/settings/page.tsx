@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, getLoginPath } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import { LoadingSpinner, AlertBox } from '@/components/admin/crm';
 
@@ -71,7 +71,7 @@ function SettingsContent() {
 
   useEffect(() => {
     if (!token) {
-      router.push('/admin/login');
+      router.push(getLoginPath());
       return;
     }
     fetchAccounts();

@@ -93,3 +93,8 @@ export function isAuthenticated() {
   if (typeof window === 'undefined') return false;
   return !!getStoredAdminToken();
 }
+
+/**
+ * Check if running on CRM subdomain (exported for use in other components)
+ */
+export { isCrmSubdomain, getLoginPath };

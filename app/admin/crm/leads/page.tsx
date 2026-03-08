@@ -2,7 +2,7 @@
 
 import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, getLoginPath } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import { useSearch } from '@/hooks/useSearch';
 import { useModal } from '@/hooks/useModal';
@@ -305,7 +305,7 @@ export default function LeadsPage() {
 
   useEffect(() => {
     if (!token) {
-      router.push('/admin/login');
+      router.push(getLoginPath());
       return;
     }
     fetchMetadata();

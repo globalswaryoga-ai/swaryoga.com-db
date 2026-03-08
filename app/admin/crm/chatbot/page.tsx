@@ -1,4 +1,5 @@
 'use client';
+import { getLoginPath } from '@/hooks/useAuth';
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
@@ -191,7 +192,7 @@ export default function ChatbotPage() {
   useEffect(() => {
     const token = getToken();
     if (!token) {
-      router.push('/admin/login');
+      router.push(getLoginPath());
       return;
     }
 

@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/hooks/useAuth';
+import Link from 'next/link';
+import { useAuth, getLoginPath } from '@/hooks/useAuth';
 
 interface WhatsAppGroup {
   id: string;
@@ -188,9 +189,9 @@ export default function WhatsAppGroupsManagement() {
       <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white p-6 flex items-center justify-center">
         <div className="text-center">
           <p className="text-slate-600 mb-4">Please log in to manage WhatsApp groups</p>
-          <a href="/admin/login" className="text-green-600 hover:text-green-700 font-semibold">
+          <Link href={getLoginPath()} className="text-green-600 hover:text-green-700 font-semibold">
             Go to Login
-          </a>
+          </Link>
         </div>
       </div>
     );

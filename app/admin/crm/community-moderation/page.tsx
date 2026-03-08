@@ -1,4 +1,5 @@
 'use client';
+import { getLoginPath } from '@/hooks/useAuth';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -65,7 +66,7 @@ export default function CommunityModerationPage() {
   async function checkAuth() {
     const token = localStorage.getItem('token');
     if (!token) {
-      router.push('/admin/login');
+      router.push(getLoginPath());
       return;
     }
     try {
@@ -73,10 +74,10 @@ export default function CommunityModerationPage() {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       if (!res.ok) {
-        router.push('/admin/login');
+        router.push(getLoginPath());
       }
     } catch {
-      router.push('/admin/login');
+      router.push(getLoginPath());
     }
   }
 

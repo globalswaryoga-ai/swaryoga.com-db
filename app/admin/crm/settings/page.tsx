@@ -1,4 +1,5 @@
 'use client';
+import { getLoginPath } from '@/hooks/useAuth';
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -101,7 +102,7 @@ export default function AutoConfigSettingsPage() {
   // Load config on mount
   useEffect(() => {
     const token = getToken();
-    if (!token) { router.push('/admin/login'); return; }
+    if (!token) { router.push(getLoginPath()); return; }
 
     (async () => {
       try {

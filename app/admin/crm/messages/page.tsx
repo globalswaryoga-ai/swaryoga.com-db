@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, getLoginPath } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import { PageHeader, LoadingSpinner, AlertBox } from '@/components/admin/crm';
 
@@ -130,7 +130,7 @@ export default function MessagesPage() {
     crmRef.current = crm;
     
     if (!token) {
-      router.push('/admin/login');
+      router.push(getLoginPath());
       return;
     }
     doFetch();

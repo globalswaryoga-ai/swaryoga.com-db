@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, getLoginPath } from '@/hooks/useAuth';
 import WelcomeModal from '@/components/admin/crm/WelcomeModal';
 import PageSetupChecklist from '@/components/admin/crm/PageSetupChecklist';
 import {
@@ -193,7 +193,7 @@ export default function CRMDashboard() {
         if (response.status === 401 || response.status === 403) {
           localStorage.removeItem('adminToken');
           localStorage.removeItem('admin_token');
-          router.push('/admin/login');
+          router.push(getLoginPath());
           return;
         }
 

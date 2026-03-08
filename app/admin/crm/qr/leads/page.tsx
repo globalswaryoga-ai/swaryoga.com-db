@@ -2,7 +2,7 @@
 
 import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, getLoginPath } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import { useSearch } from '@/hooks/useSearch';
 import { useModal } from '@/hooks/useModal';
@@ -264,7 +264,7 @@ export default function QRLeadsPage() {
   });
 
   useEffect(() => {
-    if (!token) { router.push('/admin/login'); return; }
+    if (!token) { router.push(getLoginPath()); return; }
     fetchMetadata();
   }, [token, router, fetchMetadata]);
 

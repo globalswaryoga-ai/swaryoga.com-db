@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, getLoginPath } from '@/hooks/useAuth';
 import { MediaPreview } from '@/components/admin/crm';
 import {
   Users, MessageSquare, MessageCircle, Send, Mail, Phone, MoreVertical, Trash2, Edit, Shield,
@@ -483,7 +483,7 @@ export default function AdminCommunityPage() {
       if (res.status === 401 || res.status === 403) {
         localStorage.removeItem('adminToken');
         localStorage.removeItem('admin_token');
-        router.push('/admin/login');
+        router.push(getLoginPath());
         return;
       }
 
@@ -721,7 +721,7 @@ export default function AdminCommunityPage() {
         alert('Your session has expired. Please log in again.');
         localStorage.removeItem('adminToken');
         localStorage.removeItem('admin_token');
-        router.push('/admin/login');
+        router.push(getLoginPath());
         return;
       }
 
@@ -814,7 +814,7 @@ export default function AdminCommunityPage() {
       if (res.status === 401 || res.status === 403) {
         localStorage.removeItem('adminToken');
         localStorage.removeItem('admin_token');
-        router.push('/admin/login');
+        router.push(getLoginPath());
         return;
       }
 
@@ -874,7 +874,7 @@ export default function AdminCommunityPage() {
 
       if (res.status === 401 || res.status === 403) {
         localStorage.removeItem('adminToken');
-        router.push('/admin/login');
+        router.push(getLoginPath());
         return;
       }
 
@@ -920,7 +920,7 @@ export default function AdminCommunityPage() {
       if (res.status === 401 || res.status === 403) {
         localStorage.removeItem('adminToken');
         localStorage.removeItem('admin_token');
-        router.push('/admin/login');
+        router.push(getLoginPath());
         return;
       }
 
@@ -1180,7 +1180,7 @@ export default function AdminCommunityPage() {
       if (res.status === 401 || res.status === 403) {
         localStorage.removeItem('adminToken');
         localStorage.removeItem('admin_token');
-        router.push('/admin/login');
+        router.push(getLoginPath());
         return;
       }
 
@@ -1207,7 +1207,7 @@ export default function AdminCommunityPage() {
       });
       if (res.status === 401 || res.status === 403) {
         localStorage.removeItem('adminToken');
-        router.push('/admin/login');
+        router.push(getLoginPath());
         return;
       }
       const json = await res.json();
@@ -1235,7 +1235,7 @@ export default function AdminCommunityPage() {
       });
       if (res.status === 401 || res.status === 403) {
         localStorage.removeItem('adminToken');
-        router.push('/admin/login');
+        router.push(getLoginPath());
         return;
       }
       const json = await res.json();
@@ -1260,7 +1260,7 @@ export default function AdminCommunityPage() {
       });
       if (res.status === 401 || res.status === 403) {
         localStorage.removeItem('adminToken');
-        router.push('/admin/login');
+        router.push(getLoginPath());
         return;
       }
       const json = await res.json();
@@ -1573,7 +1573,7 @@ export default function AdminCommunityPage() {
         if (res.status === 401 || res.status === 403) {
           localStorage.removeItem('adminToken');
           localStorage.removeItem('admin_token');
-          router.push('/admin/login');
+          router.push(getLoginPath());
           return;
         }
 

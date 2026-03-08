@@ -1,4 +1,5 @@
 'use client';
+import { getLoginPath } from '@/hooks/useAuth';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -182,7 +183,7 @@ export default function EmailAutomationPage() {
 
     const resolvedToken = localStorage.getItem('admin_token') || localStorage.getItem('adminToken') || '';
     if (!resolvedToken) {
-      router.replace('/admin/login');
+      router.replace(getLoginPath());
       return;
     }
 
@@ -378,7 +379,7 @@ export default function EmailAutomationPage() {
     localStorage.removeItem('admin_user');
     localStorage.removeItem('adminToken');
     localStorage.removeItem('adminUser');
-    router.push('/admin/login');
+    router.push(getLoginPath());
   };
 
   const toggleRecipient = (lead: Lead) => {

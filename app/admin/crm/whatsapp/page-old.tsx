@@ -5,7 +5,7 @@ import { normalizeLabel } from '@/lib/crm/labels';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, getLoginPath } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import { AlertBox, BulkActionsModal, LoadingSpinner } from '@/components/admin/crm';
 import CreateLeadModal from '@/components/admin/crm/CreateLeadModal';
@@ -807,7 +807,7 @@ export default function WhatsAppChatDashboardPage() {
 
   useEffect(() => {
     if (!token) {
-      router.push('/admin/login');
+      router.push(getLoginPath());
       return;
     }
     fetchConversations();

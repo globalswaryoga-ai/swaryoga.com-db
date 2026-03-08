@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCRM } from '@/hooks/useCRM';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, getLoginPath } from '@/hooks/useAuth';
 import { AlertBox, LoadingSpinner } from '@/components/admin/crm';
 
 // Meta WhatsApp pricing (approximate INR rates as of 2024)
@@ -179,7 +179,7 @@ export default function BroadcastReportsPage() {
 
   useEffect(() => {
     if (!token) {
-      router.push('/admin/login');
+      router.push(getLoginPath());
       return;
     }
     

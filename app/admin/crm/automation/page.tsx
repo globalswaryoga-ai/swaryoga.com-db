@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, getLoginPath } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import { PageHeader, LoadingSpinner, AlertBox, TemplateSelector, type WhatsAppTemplate } from '@/components/admin/crm';
 
@@ -167,7 +167,7 @@ export default function AutomationPage() {
   useEffect(() => {
     if (!mounted) return;
     if (!token) {
-      window.location.href = '/admin/login';
+      window.location.href = getLoginPath();
       return;
     }
 

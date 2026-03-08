@@ -1,4 +1,5 @@
 'use client';
+import { getLoginPath } from '@/hooks/useAuth';
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -54,7 +55,7 @@ export default function TranslationPage() {
   useEffect(() => {
     const token = localStorage.getItem('admin_token');
     if (!token) {
-      router.push('/admin/login');
+      router.push(getLoginPath());
       return;
     }
     setIsAuthenticated(true);

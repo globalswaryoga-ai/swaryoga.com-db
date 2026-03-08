@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, getLoginPath } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import { LoadingSpinner, AlertBox } from '@/components/admin/crm';
 
@@ -93,7 +93,7 @@ export default function ChatbotEditorPage() {
   useEffect(() => {
     if (!mounted) return;
     if (!token) {
-      router.push('/admin/login');
+      router.push(getLoginPath());
       return;
     }
 

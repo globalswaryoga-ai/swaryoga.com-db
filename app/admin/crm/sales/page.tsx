@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, getLoginPath } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import { normalizePhoneForMeta } from '@/lib/utils/phone';
 import CSVUploadPanel from '@/components/admin/crm/CSVUploadPanel';
@@ -336,7 +336,7 @@ export default function SalesPage() {
     if (token === null) return;
     
     if (!token) {
-      router.push('/admin/login');
+      router.push(getLoginPath());
       return;
     }
     fetchSalesData();
