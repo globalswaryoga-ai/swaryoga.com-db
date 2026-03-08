@@ -20,6 +20,7 @@ function jsonResponse(data: any, status = 200) {
  * GET /api/crm-site/setup-status
  * 
  * Returns the comprehensive setup status for the current user
+ * Superadmins automatically bypass setup payment
  */
 export async function GET(request: NextRequest) {
   try {
@@ -29,6 +30,32 @@ export async function GET(request: NextRequest) {
 
     if (!decoded) {
       return jsonResponse({ error: 'Unauthorized' }, 401);
+    }
+
+    // Superadmins bypass all setup requirements
+    const isSuperAdmin = decoded.role === 'superadmin' || 
+                         decoded.userId === 'admincrm' || 
+                         decoded.userId === 'admin';
+
+    if (isSuperAdmin) {
+      return jsonResponse({
+        setupPaid: true,
+        setupPaidAt: new Date().toISOString(),
+        whatsappConnected: true,
+        whatsappAccountId: null,
+        whatsappTemplates: true,
+        templateCount: 0,
+        retellConnected: true,
+        retellAccountId: null,
+        teamInvited: true,
+        teamMembersCount: 0,
+        leadsImported: true,
+        leadsCount: 0,
+        isFirstLogin: false,
+        loginCount: 999,
+        overallProgress: 100,
+        isSuperAdmin: true,
+      });
     }
 
     await connectDB();
