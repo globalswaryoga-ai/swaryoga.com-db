@@ -93,6 +93,7 @@ export default function LandingPagesPage() {
   const [usage, setUsage] = useState({ pages: 0, maxPages: 1, canCreate: true });
   const [plan, setPlan] = useState('free');
   const [tenantSlug, setTenantSlug] = useState('');
+  const [creatingSample, setCreatingSample] = useState(false);
 
   // Modal states
   const [showCreate, setShowCreate] = useState(false);
@@ -179,6 +180,60 @@ export default function LandingPagesPage() {
       alert('Failed to create page');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Create a sample dark-themed landing page for new users
+  const createSampleDarkPage = async () => {
+    if (creatingSample) return;
+    setCreatingSample(true);
+    try {
+      const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
+      const res = await fetch('/api/crm-site/landing-pages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          tenantSlug,
+          name: 'My First Page',
+          title: 'Transform Your Life with Expert Guidance',
+          subtitle: 'Join thousands who have discovered clarity, balance, and purpose through our proven programs. Start your journey today.',
+          template: 'lead_capture',
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.page) {
+        // Update the page with dark theme styling
+        const patchRes = await fetch('/api/crm-site/landing-pages', {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            tenantSlug,
+            pageId: data.page.id,
+            backgroundColor: '#0a0a0a',
+            primaryColor: '#10b981',
+            form: {
+              ...data.page.form,
+              submitButtonText: 'Get Started Free',
+              successMessage: 'Thank you! We will reach out to you shortly.',
+            },
+          }),
+        });
+        fetchPages();
+      } else {
+        alert(data.error || 'Failed to create sample page');
+      }
+    } catch (err) {
+      console.error('Failed to create sample page:', err);
+      alert('Failed to create sample page');
+    } finally {
+      setCreatingSample(false);
     }
   };
 
@@ -371,13 +426,23 @@ export default function LandingPagesPage() {
             <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-gray-900 mb-2">No landing pages yet</h3>
             <p className="text-gray-600 mb-4">Create your first landing page to start collecting leads</p>
-            <button
-              onClick={() => setShowCreate(true)}
-              className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-            >
-              <Plus className="w-4 h-4" />
-              Create Page
-            </button>
+            <div className="flex flex-wrap justify-center gap-3">
+              <button
+                onClick={() => setShowCreate(true)}
+                className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+              >
+                <Plus className="w-4 h-4" />
+                Create Page
+              </button>
+              <button
+                onClick={createSampleDarkPage}
+                disabled={creatingSample}
+                className="inline-flex items-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800 disabled:opacity-50 border border-gray-700"
+              >
+                {creatingSample ? <Loader2 className="w-4 h-4 animate-spin" /> : <Globe className="w-4 h-4" />}
+                {creatingSample ? 'Creating…' : '✨ Sample Dark Page'}
+              </button>
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
