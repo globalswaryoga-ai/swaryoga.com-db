@@ -119,6 +119,11 @@ export default function QRWhatsAppPage() {
   const readChatsRef = useRef<Map<string, number>>(new Map()); // JID → timestamp when user read the chat
   const selectedChatRef = useRef(selectedChat);
   selectedChatRef.current = selectedChat;
+  // Refs for user identity — used inside fetchChats callback without stale closure issues
+  const currentUserIdRef = useRef(currentUserId);
+  currentUserIdRef.current = currentUserId;
+  const isSuperAdminRef = useRef(isSuperAdminUser);
+  isSuperAdminRef.current = isSuperAdminUser;
   const messengerRef = useRef<HTMLDivElement>(null);
   const composerInputRef = useRef<HTMLInputElement>(null);
   const tabRef = useRef(tab);
@@ -394,10 +399,19 @@ export default function QRWhatsAppPage() {
   // ── Fetch chats (bridge + CRM leads merge) ──
   const fetchChats = useCallback(async () => {
     try {
+      const isSuperUser = isSuperAdminRef.current;
+      const userId = currentUserIdRef.current;
+
+      // For non-super-admin users, explicitly filter leads by their userId
+      // (The API also filters server-side via JWT, but this is belt-and-suspenders)
+      const leadsUrl = isSuperUser
+        ? '/api/admin/crm/leads?selectAll=true&limit=5000'
+        : `/api/admin/crm/leads?selectAll=true&limit=5000&userId=${encodeURIComponent(userId)}`;
+
       // Fetch bridge chats and CRM leads in parallel
       const [data, leadsRes] = await Promise.all([
         bridgeCall('/chats'),
-        crmFetch('/api/admin/crm/leads?selectAll=true&limit=5000', { silent: true }).catch(() => null),
+        crmFetch(leadsUrl, { silent: true }).catch(() => null),
       ]);
 
       // Build CRM leads phone→name map
@@ -488,6 +502,9 @@ export default function QRWhatsAppPage() {
         }
 
         // Add CRM leads that don't have a matching QR chat
+        // NOTE: For non-super-admin users, leadsRes only contains leads assigned to THEM
+        // (filtered server-side by the leads API). For super admins, it contains ALL leads.
+        console.log(`[QR] CRM leads to merge: ${crmLeadMap.size} leads, ${matchedCrmPhones.size} already matched, user=${currentUserIdRef.current}, superAdmin=${isSuperAdminRef.current}`);
         for (const [phone, lead] of crmLeadMap) {
           if (matchedCrmPhones.has(phone)) continue;
           // Skip variant keys (10-digit/12-digit duplicates we added)
