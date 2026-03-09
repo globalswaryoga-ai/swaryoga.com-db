@@ -8,6 +8,8 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { getAccGroup } from '@/lib/schemas/enterpriseSchemas';
+import { resolveTallyOwnerId } from '@/lib/tally/access';
+import { scopeQuery } from '@/lib/tally/access';
 
 function getAuth(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -30,7 +32,8 @@ export async function GET(request: NextRequest) {
     const fy = searchParams.get('fy') || '2023-24';
     const nature = searchParams.get('nature'); // ASSET, LIABILITY, etc.
 
-    const query: any = { financialYear: fy };
+    const ownerId = resolveTallyOwnerId(decoded);
+    const query: any = ownerId ? { financialYear: fy, ownerId } : { financialYear: fy };
     if (nature) query.nature = nature;
 
     const groups = await AccGroup.find(query).sort({ nature: 1, name: 1 }).lean();

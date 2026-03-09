@@ -14,6 +14,7 @@ import {
   deleteCostCenter,
   getCostCenterReport,
 } from '@/lib/tally/engine';
+import { resolveTallyOwnerId, getTallyOwnerIdForWrite } from '@/lib/tally/access';
 
 function getAuth(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -30,7 +31,8 @@ export async function GET(request: NextRequest) {
     const fy = request.nextUrl.searchParams.get('fy');
     if (!fy) return apiError('VALIDATION_ERROR', 'fy parameter required');
 
-    const centers = await getCostCenters(fy);
+    const ownerId = resolveTallyOwnerId(decoded);
+    const centers = await getCostCenters(fy, ownerId);
     return apiSuccess({ centers });
   } catch (e: any) {
     return apiError('SERVER_ERROR', e.message);
@@ -48,7 +50,8 @@ export async function POST(request: NextRequest) {
     if (action === 'create') {
       const { name, category, financialYear, parentId, description, budgetAmount } = body;
       if (!name || !financialYear) return apiError('VALIDATION_ERROR', 'name and financialYear required');
-      const doc = await createCostCenter({ name, category: category || 'department', financialYear, parentId, description, budgetAmount, createdByUserId: (decoded as any).userId });
+      const writeOwnerId = getTallyOwnerIdForWrite(decoded);
+      const doc = await createCostCenter({ name, category: category || 'department', financialYear, parentId, description, budgetAmount, createdByUserId: (decoded as any).userId, ownerId: writeOwnerId });
       return apiSuccess({ costCenter: doc });
     }
 
@@ -69,7 +72,8 @@ export async function POST(request: NextRequest) {
     if (action === 'report') {
       const { financialYear } = body;
       if (!financialYear) return apiError('VALIDATION_ERROR', 'financialYear required');
-      const report = await getCostCenterReport(financialYear);
+      const ownerId = resolveTallyOwnerId(decoded);
+      const report = await getCostCenterReport(financialYear, ownerId);
       return apiSuccess(report);
     }
 

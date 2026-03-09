@@ -9,6 +9,7 @@ import { NextRequest } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { reconcileVouchers, unreconcileVouchers, setBudget } from '@/lib/tally/engine';
+import { resolveTallyOwnerId } from '@/lib/tally/access';
 
 function getAuth(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -28,23 +29,27 @@ export async function POST(request: NextRequest) {
     if (action === 'reconcile') {
       if (!voucherIds?.length) return apiError('VALIDATION_ERROR', 'voucherIds required');
       if (!reconciledDate) return apiError('VALIDATION_ERROR', 'reconciledDate required');
+      const ownerId = resolveTallyOwnerId(decoded);
       const result = await reconcileVouchers(
         voucherIds,
         new Date(reconciledDate),
         bankDate ? new Date(bankDate) : undefined,
+        ownerId,
       );
       return apiSuccess(result);
     }
 
     if (action === 'unreconcile') {
       if (!voucherIds?.length) return apiError('VALIDATION_ERROR', 'voucherIds required');
-      const result = await unreconcileVouchers(voucherIds);
+      const ownerId = resolveTallyOwnerId(decoded);
+      const result = await unreconcileVouchers(voucherIds, ownerId);
       return apiSuccess(result);
     }
 
     if (action === 'set-budget') {
       if (!ledgerId || budgetAmount === undefined) return apiError('VALIDATION_ERROR', 'ledgerId and budgetAmount required');
-      const result = await setBudget(ledgerId, Number(budgetAmount));
+      const ownerId = resolveTallyOwnerId(decoded);
+      const result = await setBudget(ledgerId, Number(budgetAmount), ownerId);
       return apiSuccess(result);
     }
 

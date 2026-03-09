@@ -3,7 +3,7 @@ import { connectDB } from '@/lib/db';
 import { getFunnelConfig, getFunnelStageMapping, getLead, getFunnelStageHistory } from '@/lib/schemas/enterpriseSchemas';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { verifyToken } from '@/lib/auth';
-import { isSuperAdmin } from '@/lib/crm-handlers';
+import { isSuperAdmin, getViewerUserId, getVisibleUserIds } from '@/lib/crm-handlers';
 
 const CRM_DB_NAME = process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm';
 
@@ -17,17 +17,30 @@ export async function GET(req: NextRequest) {
       return apiError('Unauthorized', 403);
     }
 
-    // Get funnel config
+    // Get funnel config - scoped by user
     const FunnelConfig = getFunnelConfig();
-    const config = await FunnelConfig.findOne({}).select().lean();
+    const superAdmin = isSuperAdmin(decoded);
+    const viewerUserId = getViewerUserId(decoded);
+    const configFilter = superAdmin ? {} : { createdByUserId: viewerUserId };
+    const config = await FunnelConfig.findOne(configFilter).select().lean();
 
     if (!config) {
       return apiSuccess({ stages: [], stats: {} });
     }
 
-    // Get stage distribution (count of leads in each stage)
+    // Get stage distribution - scoped by visible leads
     const FunnelStageMapping = getFunnelStageMapping();
+    const visibleUserIds = getVisibleUserIds(decoded);
+    const Lead = getLead();
+    let mappingFilter: any = {};
+    if (visibleUserIds) {
+      // Get lead IDs visible to this user
+      const leadFilter = { $or: [{ assignedToUserId: { $in: visibleUserIds } }, { createdByUserId: { $in: visibleUserIds } }] };
+      const leadIds = await Lead.find(leadFilter).distinct('_id');
+      mappingFilter = { leadId: { $in: leadIds.map(String) } };
+    }
     const stageCounts = await FunnelStageMapping.aggregate([
+      { $match: mappingFilter },
       { $group: { _id: '$stageKey', count: { $sum: 1 } } },
     ]);
 
@@ -101,9 +114,11 @@ export async function POST(req: NextRequest) {
         return apiError('leadId and stageKey required', 400);
       }
 
-      // Find the funnel config
+      // Find the funnel config - scoped
       const FunnelConfig = getFunnelConfig();
-      const config = await FunnelConfig.findOne({});
+      const superAdmin2 = isSuperAdmin(decoded);
+      const viewerUserId2 = getViewerUserId(decoded);
+      const config = await FunnelConfig.findOne(superAdmin2 ? {} : { createdByUserId: viewerUserId2 });
 
       if (!config) {
         return apiError('Funnel config not found', 404);
@@ -174,8 +189,9 @@ export async function PUT(req: NextRequest) {
     const sortedStages = body.stages.sort((a, b) => a.order - b.order);
 
     const FunnelConfig = getFunnelConfig();
+    const putFilter = isSuperAdmin(decoded) ? {} : { createdByUserId: getViewerUserId(decoded) };
     const config = await FunnelConfig.findOneAndUpdate(
-      {},
+      putFilter,
       { stages: sortedStages },
       { new: true }
     );
@@ -210,7 +226,7 @@ export async function DELETE(req: NextRequest) {
 
     const FunnelConfig = getFunnelConfig();
     const config = await FunnelConfig.findOneAndUpdate(
-      {},
+      {}, // DELETE is superadmin-only, no user scoping needed
       { $pull: { stages: { key: stageKey } } },
       { new: true }
     );

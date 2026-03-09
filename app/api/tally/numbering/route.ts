@@ -15,6 +15,7 @@ import {
   resetNumberingCounter,
   formatVoucherNumber,
 } from '@/lib/tally/engine';
+import { resolveTallyOwnerId } from '@/lib/tally/access';
 
 function getAuth(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -34,7 +35,8 @@ export async function GET(request: NextRequest) {
     if (!decoded) return apiError('UNAUTHORIZED');
 
     const fy = request.nextUrl.searchParams.get('fy') || '2024-25';
-    const series = await getAllNumberingSeries(fy);
+    const ownerId = resolveTallyOwnerId(decoded);
+    const series = await getAllNumberingSeries(fy, ownerId);
 
     return apiSuccess({ financialYear: fy, series });
   } catch (error: any) {
@@ -75,7 +77,8 @@ export async function PUT(request: NextRequest) {
     if (updates.includeFYCode !== undefined) safeUpdates.includeFYCode = Boolean(updates.includeFYCode);
     if (updates.fyPosition !== undefined) safeUpdates.fyPosition = updates.fyPosition;
 
-    const result = await updateNumberingSeries(voucherType, financialYear, safeUpdates);
+    const ownerId = resolveTallyOwnerId(decoded);
+    const result = await updateNumberingSeries(voucherType, financialYear, ownerId, safeUpdates);
 
     return apiSuccess({ message: 'Numbering series updated', series: result });
   } catch (error: any) {
@@ -118,7 +121,8 @@ export async function POST(request: NextRequest) {
       }
 
       const resetTo = body.resetTo !== undefined ? Math.max(0, Number(body.resetTo) || 0) : 0;
-      await resetNumberingCounter(voucherType, financialYear, resetTo);
+      const ownerId = resolveTallyOwnerId(decoded);
+      await resetNumberingCounter(voucherType, financialYear, ownerId, resetTo);
 
       return apiSuccess({ message: `Counter reset to ${resetTo} for ${voucherType} in FY ${financialYear}` });
     }

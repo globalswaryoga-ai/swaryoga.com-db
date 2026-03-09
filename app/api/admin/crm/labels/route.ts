@@ -3,22 +3,10 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { Lead } from '@/lib/schemas/enterpriseSchemas';
 import mongoose from 'mongoose';
+import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 
 // Mark as dynamic since this route uses request.headers or request.url
 export const dynamic = 'force-dynamic';
-
-
-function getViewerUserId(decoded: any): string {
-  return String(decoded?.userId || decoded?.username || '').trim();
-}
-
-function isSuperAdmin(decoded: any): boolean {
-  return (
-    decoded?.userId === 'admin' ||
-    (Array.isArray(decoded?.permissions) && 
-      (decoded.permissions.includes('all') || decoded.permissions.includes('broadcast')))
-  );
-}
 
 /**
  * Label management for CRM leads

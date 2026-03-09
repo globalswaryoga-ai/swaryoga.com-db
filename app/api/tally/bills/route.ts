@@ -11,6 +11,7 @@ import { apiError, apiSuccess } from '@/lib/api-error';
 import { getAccVoucher } from '@/lib/schemas/enterpriseSchemas';
 import { uploadToS3 } from '@/lib/bunny-storage';
 import { getVouchersWithBills } from '@/lib/tally/engine';
+import { resolveTallyOwnerId } from '@/lib/tally/access';
 
 function getAuth(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -99,7 +100,8 @@ export async function GET(request: NextRequest) {
     const month = searchParams.get('month') ? parseInt(searchParams.get('month')!, 10) : undefined;
     const year = searchParams.get('year') ? parseInt(searchParams.get('year')!, 10) : undefined;
 
-    const bills = await getVouchersWithBills(fy, month, year);
+    const ownerId = resolveTallyOwnerId(decoded);
+    const bills = await getVouchersWithBills(fy, month, year, ownerId);
 
     return apiSuccess({
       bills,

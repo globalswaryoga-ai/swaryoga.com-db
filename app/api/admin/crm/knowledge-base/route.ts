@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { verifyAdminAccess, isSuperAdmin, getViewerUserId, handleCrmError } from '@/lib/crm-handlers';
+import { verifyToken } from '@/lib/auth';
 
 // GET - List all knowledge base articles
 export async function GET(req: NextRequest) {
@@ -21,7 +22,14 @@ export async function GET(req: NextRequest) {
     const skip = Number(url.searchParams.get('skip') || 0);
 
     const query: any = {};
-    
+
+    // Non-superadmins only see their own articles
+    const token = req.headers.get('authorization')?.slice('Bearer '.length);
+    const decoded = verifyToken(token);
+    if (!isSuperAdmin(decoded)) {
+      query.createdByUserId = userId;
+    }
+
     if (category && category !== 'all') {
       query.category = category;
     }

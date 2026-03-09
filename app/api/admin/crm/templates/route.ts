@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
     
     // Non-superadmins only see their own templates
     if (!superAdmin) {
-      filter.createdByUserId = viewerUserId;
+      filter.createdBy = viewerUserId;
     }
     
     if (category) filter.category = category;

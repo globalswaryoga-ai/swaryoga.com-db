@@ -17,6 +17,7 @@
 import mongoose from 'mongoose';
 import { connectDB } from '@/lib/db';
 import { getAccLedger, getAccVoucher, getAccGroup, getAccFinancialYear, getAccVoucherNumbering, getAccCostCenter, getAccAuditTrail, getAccTdsEntry, getAccStockGroup, getAccStockItem, getAccStockTxn } from '@/lib/schemas/enterpriseSchemas';
+import { scopeQuery } from '@/lib/tally/access';
 
 // ─── Server-Side Report Cache (30s TTL) ─────────────────────────────
 // Avoids re-computing identical reports when user switches tabs quickly.
@@ -38,7 +39,7 @@ function setCache(key: string, data: any): void {
 }
 
 /** Call after any ledger/voucher mutation to invalidate stale reports */
-export function invalidateReportCache(financialYear?: string): void {
+export function invalidateReportCache(financialYear?: string, ownerId?: string): void {
   if (financialYear) {
     for (const k of _reportCache.keys()) {
       if (k.includes(`:${financialYear}`)) _reportCache.delete(k);
@@ -198,16 +199,17 @@ export function formatVoucherNumber(config: {
  * Get or create numbering config for a voucher type + FY.
  * Returns the config document (lean).
  */
-export async function getNumberingConfig(type: VoucherType, financialYear: string): Promise<any> {
+export async function getNumberingConfig(type: VoucherType, financialYear: string, ownerId?: string): Promise<any> {
   await connectDB();
   const AccVoucherNumbering = getAccVoucherNumbering();
 
-  let config = await AccVoucherNumbering.findOne({ voucherType: type, financialYear }).lean();
+  let config = await AccVoucherNumbering.findOne(scopeQuery({ voucherType: type, financialYear }, ownerId)).lean();
   if (!config) {
     // Auto-create default config on first access
     config = await AccVoucherNumbering.create({
       voucherType: type,
       financialYear,
+      ...(ownerId && { ownerId }),
       method: 'Automatic',
       prefix: DEFAULT_PREFIX[type],
       suffix: '',
@@ -227,16 +229,16 @@ export async function getNumberingConfig(type: VoucherType, financialYear: strin
  * Generate the next voucher number — atomic increment.
  * Uses findOneAndUpdate with $inc for race-safety.
  */
-export async function generateVoucherNumber(type: VoucherType, financialYear: string): Promise<string> {
+export async function generateVoucherNumber(type: VoucherType, financialYear: string, ownerId?: string): Promise<string> {
   await connectDB();
   const AccVoucherNumbering = getAccVoucherNumbering();
 
   // Ensure config exists
-  await getNumberingConfig(type, financialYear);
+  await getNumberingConfig(type, financialYear, ownerId);
 
   // Atomic increment
   const updated = await AccVoucherNumbering.findOneAndUpdate(
-    { voucherType: type, financialYear },
+    scopeQuery({ voucherType: type, financialYear }, ownerId),
     { $inc: { currentNumber: 1 } },
     { new: true }
   ).lean() as any;
@@ -254,22 +256,22 @@ export async function generateVoucherNumber(type: VoucherType, financialYear: st
  * Get all numbering series configs for a financial year.
  * Auto-creates missing ones with defaults.
  */
-export async function getAllNumberingSeries(financialYear: string): Promise<NumberingSeriesConfig[]> {
+export async function getAllNumberingSeries(financialYear: string, ownerId?: string): Promise<NumberingSeriesConfig[]> {
   await connectDB();
   const AccVoucherNumbering = getAccVoucherNumbering();
   const allTypes: VoucherType[] = ['RECEIPT', 'PAYMENT', 'JOURNAL', 'CONTRA', 'SALES', 'PURCHASE', 'DEBIT_NOTE', 'CREDIT_NOTE'];
 
-  const existing = await AccVoucherNumbering.find({ financialYear }).lean() as any[];
+  const existing = await AccVoucherNumbering.find(scopeQuery({ financialYear }, ownerId)).lean() as any[];
   const existingTypes = new Set(existing.map((c: any) => c.voucherType));
 
   // Create missing configs
   const missing = allTypes.filter(t => !existingTypes.has(t));
   for (const t of missing) {
-    await getNumberingConfig(t, financialYear);
+    await getNumberingConfig(t, financialYear, ownerId);
   }
 
   // Re-fetch all
-  const configs = await AccVoucherNumbering.find({ financialYear }).sort({ voucherType: 1 }).lean() as any[];
+  const configs = await AccVoucherNumbering.find(scopeQuery({ financialYear }, ownerId)).sort({ voucherType: 1 }).lean() as any[];
 
   return configs.map((c: any) => {
     const previewNum = Math.max(c.currentNumber + 1, c.startingNumber);
@@ -296,6 +298,7 @@ export async function getAllNumberingSeries(financialYear: string): Promise<Numb
 export async function updateNumberingSeries(
   voucherType: VoucherType,
   financialYear: string,
+  ownerId: string | undefined,
   updates: Partial<{
     method: string;
     prefix: string;
@@ -310,10 +313,10 @@ export async function updateNumberingSeries(
   await connectDB();
   const AccVoucherNumbering = getAccVoucherNumbering();
 
-  await getNumberingConfig(voucherType, financialYear); // ensure exists
+  await getNumberingConfig(voucherType, financialYear, ownerId); // ensure exists
 
   const updated = await AccVoucherNumbering.findOneAndUpdate(
-    { voucherType, financialYear },
+    scopeQuery({ voucherType, financialYear }, ownerId),
     { $set: updates },
     { new: true }
   ).lean() as any;
@@ -341,12 +344,13 @@ export async function updateNumberingSeries(
 export async function resetNumberingCounter(
   voucherType: VoucherType,
   financialYear: string,
+  ownerId?: string,
   resetTo?: number
 ): Promise<void> {
   await connectDB();
   const AccVoucherNumbering = getAccVoucherNumbering();
   await AccVoucherNumbering.updateOne(
-    { voucherType, financialYear },
+    scopeQuery({ voucherType, financialYear }, ownerId),
     { $set: { currentNumber: resetTo ?? 0 } }
   );
 }
@@ -404,13 +408,14 @@ export async function createVoucher(data: {
   createdByUserId?: string;
   receiptFileUrl?: string;
   receiptFileName?: string;
+  ownerId?: string;
 }) {
   await connectDB();
   const AccVoucher = getAccVoucher();
   const AccFinancialYear = getAccFinancialYear();
 
   // Check if the FY is locked (closed)
-  const fyDoc = await AccFinancialYear.findOne({ code: data.financialYear }).lean() as any;
+  const fyDoc = await AccFinancialYear.findOne(scopeQuery({ code: data.financialYear }, data.ownerId)).lean() as any;
   if (fyDoc?.isClosed) {
     throw new Error(`FY ${data.financialYear} is locked. No new vouchers can be created in a closed financial year.`);
   }
@@ -424,7 +429,7 @@ export async function createVoucher(data: {
   const totalDebit = data.entries.filter(e => e.type === 'DEBIT').reduce((sum, e) => sum + e.amount, 0);
   const totalCredit = data.entries.filter(e => e.type === 'CREDIT').reduce((sum, e) => sum + e.amount, 0);
 
-  const voucherNumber = await generateVoucherNumber(data.type, data.financialYear);
+  const voucherNumber = await generateVoucherNumber(data.type, data.financialYear, data.ownerId);
 
   const voucher = await AccVoucher.create({
     voucherNumber,
@@ -440,6 +445,7 @@ export async function createVoucher(data: {
     createdByUserId: data.createdByUserId,
     receiptFileUrl: data.receiptFileUrl,
     receiptFileName: data.receiptFileName,
+    ...(data.ownerId && { ownerId: data.ownerId }),
   });
 
   return voucher;
@@ -455,6 +461,7 @@ export async function updateVoucher(
     entries?: { ledgerId: string; ledgerName: string; amount: number; type: BalanceType }[];
     narration?: string;
   },
+  ownerId?: string,
 ) {
   await connectDB();
   const AccVoucher = getAccVoucher();
@@ -465,7 +472,7 @@ export async function updateVoucher(
   const v = voucher as any;
 
   // Check if FY is locked
-  const fyDoc = await AccFinancialYear.findOne({ code: v.financialYear }).lean() as any;
+  const fyDoc = await AccFinancialYear.findOne(scopeQuery({ code: v.financialYear }, ownerId)).lean() as any;
   if (fyDoc?.isClosed) {
     throw new Error(`FY ${v.financialYear} is locked. Cannot edit vouchers in a closed financial year.`);
   }
@@ -494,7 +501,7 @@ export async function updateVoucher(
 
 // ─── Delete (Reverse) Voucher ───────────────────────────────────────
 
-export async function deleteVoucher(voucherId: string) {
+export async function deleteVoucher(voucherId: string, ownerId?: string) {
   await connectDB();
   const AccVoucher = getAccVoucher();
   const AccFinancialYear = getAccFinancialYear();
@@ -504,7 +511,7 @@ export async function deleteVoucher(voucherId: string) {
   const v = voucher as any;
 
   // Check if FY is locked
-  const fyDoc = await AccFinancialYear.findOne({ code: v.financialYear }).lean() as any;
+  const fyDoc = await AccFinancialYear.findOne(scopeQuery({ code: v.financialYear }, ownerId)).lean() as any;
   if (fyDoc?.isClosed) {
     throw new Error(`FY ${v.financialYear} is locked. Cannot delete vouchers in a closed financial year.`);
   }
@@ -530,16 +537,17 @@ export async function deleteVoucher(voucherId: string) {
 export async function batchCalculateLedgerBalances(
   financialYear: string,
   dateTo?: Date,
+  ownerId?: string,
 ): Promise<Map<string, LedgerBalance>> {
   await connectDB();
   const AccLedger = getAccLedger();
   const AccVoucher = getAccVoucher();
 
   // 1. Fetch ALL active ledgers in one query
-  const ledgers = await AccLedger.find({ financialYear, isActive: true }).lean() as any[];
+  const ledgers = await AccLedger.find(scopeQuery({ financialYear, isActive: true }, ownerId)).lean() as any[];
 
   // 2. Single aggregate: sum debit/credit per ledger across all vouchers
-  const matchQuery: any = { financialYear, isReversed: { $ne: true } };
+  const matchQuery: any = scopeQuery({ financialYear, isReversed: { $ne: true } }, ownerId);
   if (dateTo) matchQuery.date = { $lte: dateTo };
 
   const agg = await AccVoucher.aggregate([
@@ -600,6 +608,7 @@ export async function calculateLedgerBalance(
   financialYear: string,
   dateFrom?: Date,
   dateTo?: Date,
+  ownerId?: string,
 ): Promise<LedgerBalance> {
   await connectDB();
   const AccLedger = getAccLedger();
@@ -621,11 +630,11 @@ export async function calculateLedgerBalance(
   // Build query for voucher entries that reference this ledger
   // IMPORTANT: Convert string ledgerId to ObjectId for proper matching in aggregate
   const objectLedgerId = new mongoose.Types.ObjectId(ledgerId);
-  const matchQuery: any = {
+  const matchQuery: any = scopeQuery({
     financialYear,
     'entries.ledgerId': objectLedgerId,
     isReversed: { $ne: true },
-  };
+  }, ownerId);
   if (dateFrom || dateTo) {
     matchQuery.date = {};
     if (dateFrom) matchQuery.date.$gte = dateFrom;
@@ -680,6 +689,7 @@ export async function generateTrialBalance(
   financialYear: string,
   dateTo?: Date,
   _balanceMap?: Map<string, LedgerBalance>,
+  ownerId?: string,
 ): Promise<{
   rows: TrialBalanceRow[];
   totalDebit: number;
@@ -689,7 +699,7 @@ export async function generateTrialBalance(
   await connectDB();
 
   // Use provided balanceMap or compute once
-  const balanceMap = _balanceMap || await batchCalculateLedgerBalances(financialYear, dateTo);
+  const balanceMap = _balanceMap || await batchCalculateLedgerBalances(financialYear, dateTo, ownerId);
 
   const rows: TrialBalanceRow[] = [];
   let totalDebit = 0;
@@ -721,11 +731,12 @@ export async function generateProfitLoss(
   financialYear: string,
   dateTo?: Date,
   _balanceMap?: Map<string, LedgerBalance>,
+  ownerId?: string,
 ): Promise<ProfitLossResult> {
   await connectDB();
 
   // Use provided balanceMap or compute once
-  const balanceMap = _balanceMap || await batchCalculateLedgerBalances(financialYear, dateTo);
+  const balanceMap = _balanceMap || await batchCalculateLedgerBalances(financialYear, dateTo, ownerId);
 
   const income: ReportRow[] = [];
   const expenses: ReportRow[] = [];
@@ -789,11 +800,12 @@ export async function generateBalanceSheet(
   dateTo?: Date,
   _balanceMap?: Map<string, LedgerBalance>,
   _plResult?: ProfitLossResult,
+  ownerId?: string,
 ): Promise<BalanceSheetResult> {
   await connectDB();
 
   // Use provided balanceMap or compute once
-  const balanceMap = _balanceMap || await batchCalculateLedgerBalances(financialYear, dateTo);
+  const balanceMap = _balanceMap || await batchCalculateLedgerBalances(financialYear, dateTo, ownerId);
 
   const assets: ReportRow[] = [];
   const liabilities: ReportRow[] = [];
@@ -826,7 +838,7 @@ export async function generateBalanceSheet(
   }
 
   // Reuse provided P&L or compute (sharing the same balanceMap avoids duplicate queries)
-  const pl = _plResult || await generateProfitLoss(financialYear, dateTo, balanceMap);
+  const pl = _plResult || await generateProfitLoss(financialYear, dateTo, balanceMap, ownerId);
 
   totalAssets = Math.round(totalAssets * 100) / 100;
   totalLiabilities = Math.round(totalLiabilities * 100) / 100;
@@ -891,11 +903,12 @@ export async function getDayBook(
   date?: Date,
   dateFrom?: Date,
   dateTo?: Date,
+  ownerId?: string,
 ): Promise<DayBookEntry[]> {
   await connectDB();
   const AccVoucher = getAccVoucher();
 
-  const query: any = { financialYear, isReversed: { $ne: true } };
+  const query: any = scopeQuery({ financialYear, isReversed: { $ne: true } }, ownerId);
 
   if (date) {
     // Single day
@@ -945,10 +958,10 @@ const GROUP_LABELS_DAYBOOK: Record<string, string> = {
   CAPITAL: 'Capital & Equity',
 };
 
-export async function getDayBookLedgerSummary(financialYear: string): Promise<DayBookGroupSummary[]> {
+export async function getDayBookLedgerSummary(financialYear: string, ownerId?: string): Promise<DayBookGroupSummary[]> {
   await connectDB();
   const AccLedger = getAccLedger();
-  const ledgers = await AccLedger.find({ financialYear }).sort({ group: 1, subGroup: 1, name: 1 }).lean();
+  const ledgers = await AccLedger.find(scopeQuery({ financialYear }, ownerId)).sort({ group: 1, subGroup: 1, name: 1 }).lean();
 
   const GROUP_ORDER = ['INCOME', 'EXPENSE', 'ASSET', 'LIABILITY', 'CAPITAL'];
   const groupMap: Record<string, DayBookGroupSummary> = {};
@@ -982,10 +995,10 @@ export async function getDayBookLedgerSummary(financialYear: string): Promise<Da
 
 // ─── Receipts & Payments Registers ──────────────────────────────────
 
-export async function getReceiptsRegister(financialYear: string, dateFrom?: Date, dateTo?: Date) {
+export async function getReceiptsRegister(financialYear: string, dateFrom?: Date, dateTo?: Date, ownerId?: string) {
   await connectDB();
   const AccVoucher = getAccVoucher();
-  const query: any = { financialYear, type: 'RECEIPT', isReversed: { $ne: true } };
+  const query: any = scopeQuery({ financialYear, type: 'RECEIPT', isReversed: { $ne: true } }, ownerId);
   if (dateFrom || dateTo) {
     query.date = {};
     if (dateFrom) query.date.$gte = dateFrom;
@@ -994,10 +1007,10 @@ export async function getReceiptsRegister(financialYear: string, dateFrom?: Date
   return AccVoucher.find(query).sort({ date: -1 }).lean();
 }
 
-export async function getPaymentsRegister(financialYear: string, dateFrom?: Date, dateTo?: Date) {
+export async function getPaymentsRegister(financialYear: string, dateFrom?: Date, dateTo?: Date, ownerId?: string) {
   await connectDB();
   const AccVoucher = getAccVoucher();
-  const query: any = { financialYear, type: 'PAYMENT', isReversed: { $ne: true } };
+  const query: any = scopeQuery({ financialYear, type: 'PAYMENT', isReversed: { $ne: true } }, ownerId);
   if (dateFrom || dateTo) {
     query.date = {};
     if (dateFrom) query.date.$gte = dateFrom;
@@ -1013,6 +1026,7 @@ export async function getLedgerStatement(
   financialYear: string,
   dateFrom?: Date,
   dateTo?: Date,
+  ownerId?: string,
 ) {
   await connectDB();
   const AccVoucher = getAccVoucher();
@@ -1022,11 +1036,11 @@ export async function getLedgerStatement(
   if (!ledger) throw new Error('Ledger not found');
   const l = ledger as any;
 
-  const query: any = {
+  const query: any = scopeQuery({
     financialYear,
     'entries.ledgerId': l._id,
     isReversed: { $ne: true },
-  };
+  }, ownerId);
   if (dateFrom || dateTo) {
     query.date = {};
     if (dateFrom) query.date.$gte = dateFrom;
@@ -1096,14 +1110,14 @@ export async function getLedgerStatement(
 
 // ─── Cash/Bank Ledger List (for Cash Book / Bank Book selector) ─────
 
-export async function getCashBankLedgers(financialYear: string) {
+export async function getCashBankLedgers(financialYear: string, ownerId?: string) {
   await connectDB();
   const AccLedger = getAccLedger();
-  const ledgers = await AccLedger.find({
+  const ledgers = await AccLedger.find(scopeQuery({
     financialYear,
     isActive: { $ne: false },
     subGroup: { $in: ['Cash-in-Hand', 'Bank Accounts', 'Bank OCC A/c', 'Bank OD A/c'] },
-  }).select('_id name group subGroup openingBalance openingBalanceType').sort({ subGroup: 1, name: 1 }).lean();
+  }, ownerId)).select('_id name group subGroup openingBalance openingBalanceType').sort({ subGroup: 1, name: 1 }).lean();
 
   return (ledgers as any[]).map(l => ({
     id: String(l._id),
@@ -1116,11 +1130,11 @@ export async function getCashBankLedgers(financialYear: string) {
 
 // ─── Cash/Bank Summary ──────────────────────────────────────────────
 
-export async function getCashBankSummary(financialYear: string, _balanceMap?: Map<string, LedgerBalance>) {
+export async function getCashBankSummary(financialYear: string, _balanceMap?: Map<string, LedgerBalance>, ownerId?: string) {
   await connectDB();
 
   // Use provided balanceMap or compute
-  const balanceMap = _balanceMap || await batchCalculateLedgerBalances(financialYear);
+  const balanceMap = _balanceMap || await batchCalculateLedgerBalances(financialYear, undefined, ownerId);
 
   const cashBankSubGroups = new Set(['Cash-in-Hand', 'Bank Accounts', 'Cash', 'Bank']);
   const result: { ledgerId: string; name: string; subGroup: string; openingBalance: number; openingBalanceType: BalanceType; balance: number; balanceType: BalanceType; totalReceipts: number; totalPayments: number }[] = [];
@@ -1167,8 +1181,9 @@ export interface GroupSummaryGroup {
 
 export async function getGroupSummary(
   financialYear: string,
+  ownerId?: string,
 ): Promise<Record<string, GroupSummaryGroup>> {
-  const balanceMap = await batchCalculateLedgerBalances(financialYear);
+  const balanceMap = await batchCalculateLedgerBalances(financialYear, undefined, ownerId);
 
   const groups: Record<string, GroupSummaryGroup> = {};
 
@@ -1211,29 +1226,29 @@ export async function getGroupSummary(
 
 // ─── Dashboard Summary ──────────────────────────────────────────────
 
-export async function getAccountingSummary(financialYear: string) {
+export async function getAccountingSummary(financialYear: string, ownerId?: string) {
   await connectDB();
   const AccLedger = getAccLedger();
   const AccVoucher = getAccVoucher();
   const AccFinancialYear = getAccFinancialYear();
 
   // Compute ALL ledger balances once (2 queries instead of 70+)
-  const balanceMap = await batchCalculateLedgerBalances(financialYear);
+  const balanceMap = await batchCalculateLedgerBalances(financialYear, undefined, ownerId);
 
   // Generate P&L first, then pass it to BS to avoid double computation
-  const pl = await generateProfitLoss(financialYear, undefined, balanceMap);
-  const bs = await generateBalanceSheet(financialYear, undefined, balanceMap, pl);
-  const cashBank = await getCashBankSummary(financialYear, balanceMap);
+  const pl = await generateProfitLoss(financialYear, undefined, balanceMap, ownerId);
+  const bs = await generateBalanceSheet(financialYear, undefined, balanceMap, pl, ownerId);
+  const cashBank = await getCashBankSummary(financialYear, balanceMap, ownerId);
 
   const [ledgerCount, voucherCount, fyDoc] = await Promise.all([
-    AccLedger.countDocuments({ financialYear, isActive: true }),
-    AccVoucher.countDocuments({ financialYear, isReversed: { $ne: true } }),
-    AccFinancialYear.findOne({ code: financialYear }).lean(),
+    AccLedger.countDocuments(scopeQuery({ financialYear, isActive: true }, ownerId)),
+    AccVoucher.countDocuments(scopeQuery({ financialYear, isReversed: { $ne: true } }, ownerId)),
+    AccFinancialYear.findOne(scopeQuery({ code: financialYear }, ownerId)).lean(),
   ]);
 
   // Voucher breakdown by type
   const voucherBreakdown = await AccVoucher.aggregate([
-    { $match: { financialYear, isReversed: { $ne: true } } },
+    { $match: scopeQuery({ financialYear, isReversed: { $ne: true } }, ownerId) },
     { $group: { _id: '$type', count: { $sum: 1 }, totalAmount: { $sum: '$totalDebit' } } },
     { $sort: { _id: 1 } },
   ]);
@@ -1261,7 +1276,7 @@ export async function getAccountingSummary(financialYear: string) {
     });
   const bankAgg = bankLedgerIds.length > 0
     ? await AccVoucher.aggregate([
-        { $match: { financialYear, isReversed: { $ne: true } } },
+        { $match: scopeQuery({ financialYear, isReversed: { $ne: true } }, ownerId) },
         { $unwind: '$entries' },
         { $match: { 'entries.ledgerId': { $in: bankLedgerIds } } },
         { $group: { _id: '$entries.type', total: { $sum: '$entries.amount' } } },
@@ -1316,21 +1331,21 @@ export async function getAccountingSummary(financialYear: string) {
  *   <REQUESTDATA><TALLYMESSAGE>..masters+vouchers..</TALLYMESSAGE></REQUESTDATA>
  * </IMPORTDATA></BODY></ENVELOPE>
  */
-export async function exportTallyXML(financialYear: string): Promise<string> {
+export async function exportTallyXML(financialYear: string, ownerId?: string): Promise<string> {
   await connectDB();
   const AccLedger = getAccLedger();
   const AccVoucher = getAccVoucher();
   const AccGroup = getAccGroup();
   const AccFinancialYear = getAccFinancialYear();
 
-  const fyDoc = await AccFinancialYear.findOne({ code: financialYear }).lean() as any;
+  const fyDoc = await AccFinancialYear.findOne(scopeQuery({ code: financialYear }, ownerId)).lean() as any;
   const companyName = fyDoc?.companyName || 'Swar Yoga';
   const fyStart = fyDoc?.startDate ? new Date(fyDoc.startDate) : new Date();
   const fyEnd = fyDoc?.endDate ? new Date(fyDoc.endDate) : new Date();
 
-  const groups = await AccGroup.find({ financialYear }).lean() as any[];
-  const ledgers = await AccLedger.find({ financialYear, isActive: true }).lean() as any[];
-  const vouchers = await AccVoucher.find({ financialYear, isReversed: { $ne: true } }).sort({ date: 1 }).lean() as any[];
+  const groups = await AccGroup.find(scopeQuery({ financialYear }, ownerId)).lean() as any[];
+  const ledgers = await AccLedger.find(scopeQuery({ financialYear, isActive: true }, ownerId)).lean() as any[];
+  const vouchers = await AccVoucher.find(scopeQuery({ financialYear, isReversed: { $ne: true } }, ownerId)).sort({ date: 1 }).lean() as any[];
 
   // Tally group mapping — fallback when no subGroup match
   const TALLY_GROUP_MAP: Record<string, string> = {
@@ -1714,7 +1729,7 @@ export function buildTallyXML(
  * Parse Tally Prime XML (exported from any version) and import into our system.
  * Handles both Tally.ERP 9 and Tally Prime XML formats.
  */
-export async function importTallyXML(xmlContent: string, financialYear: string, createdByUserId?: string) {
+export async function importTallyXML(xmlContent: string, financialYear: string, createdByUserId?: string, ownerId?: string) {
   await connectDB();
   const AccLedger = getAccLedger();
   const AccVoucher = getAccVoucher();
@@ -1804,7 +1819,7 @@ export async function importTallyXML(xmlContent: string, financialYear: string, 
       const nature = REVERSE_GROUP_MAP[parent] || REVERSE_GROUP_MAP[name] || 'ASSET';
       const isRevenue = extractValue(gXml, 'ISREVENUE')?.toLowerCase() === 'yes';
 
-      const existing = await AccGroup.findOne({ name, financialYear });
+      const existing = await AccGroup.findOne(scopeQuery({ name, financialYear }, ownerId));
       if (!existing) {
         await AccGroup.create({
           name,
@@ -1813,6 +1828,7 @@ export async function importTallyXML(xmlContent: string, financialYear: string, 
           financialYear,
           isSystemDefault: false,
           createdByUserId,
+          ...(ownerId && { ownerId }),
         });
         importedGroups++;
       }
@@ -1844,7 +1860,7 @@ export async function importTallyXML(xmlContent: string, financialYear: string, 
       const state = extractValue(lXml, 'LEDSTATENAME');
       const address = extractValue(lXml, 'ADDRESS');
 
-      const existing = await AccLedger.findOne({ name, financialYear });
+      const existing = await AccLedger.findOne(scopeQuery({ name, financialYear }, ownerId));
       if (existing) {
         ledgerNameMap[name] = String((existing as any)._id);
       } else {
@@ -1863,6 +1879,7 @@ export async function importTallyXML(xmlContent: string, financialYear: string, 
           address: address || undefined,
           isActive: true,
           createdByUserId,
+          ...(ownerId && { ownerId }),
         });
         ledgerNameMap[name] = String(doc._id);
         importedLedgers++;
@@ -1871,7 +1888,7 @@ export async function importTallyXML(xmlContent: string, financialYear: string, 
   }
 
   // Refresh ledger name map with all ledgers
-  const allLedgers = await AccLedger.find({ financialYear }).lean() as any[];
+  const allLedgers = await AccLedger.find(scopeQuery({ financialYear }, ownerId)).lean() as any[];
   for (const l of allLedgers) {
     ledgerNameMap[l.name] = String(l._id);
   }
@@ -1943,7 +1960,7 @@ export async function importTallyXML(xmlContent: string, financialYear: string, 
       }
 
       // Generate new voucher number and create
-      const voucherNumber = await generateVoucherNumber(vType, financialYear);
+      const voucherNumber = await generateVoucherNumber(vType, financialYear, ownerId);
       await AccVoucher.create({
         voucherNumber,
         date: vDate,
@@ -1956,6 +1973,7 @@ export async function importTallyXML(xmlContent: string, financialYear: string, 
         partyName: partyName || undefined,
         createdByUserId,
         metadata: { importedFrom: 'TallyPrime', originalVoucherNumber: origVoucherNum },
+        ...(ownerId && { ownerId }),
       });
       importedVouchers++;
     } catch (e: any) { errors.push(`Voucher: ${e.message}`); }
@@ -1972,17 +1990,17 @@ export async function importTallyXML(xmlContent: string, financialYear: string, 
 
 // ─── JSON Export (for cross-system portability) ─────────────────────
 
-export async function exportTallyJSON(financialYear: string) {
+export async function exportTallyJSON(financialYear: string, ownerId?: string) {
   await connectDB();
   const AccLedger = getAccLedger();
   const AccVoucher = getAccVoucher();
   const AccGroup = getAccGroup();
   const AccFinancialYear = getAccFinancialYear();
 
-  const fyDoc = await AccFinancialYear.findOne({ code: financialYear }).lean() as any;
-  const groups = await AccGroup.find({ financialYear }).lean();
-  const ledgers = await AccLedger.find({ financialYear, isActive: true }).lean();
-  const vouchers = await AccVoucher.find({ financialYear, isReversed: { $ne: true } }).sort({ date: 1 }).lean();
+  const fyDoc = await AccFinancialYear.findOne(scopeQuery({ code: financialYear }, ownerId)).lean() as any;
+  const groups = await AccGroup.find(scopeQuery({ financialYear }, ownerId)).lean();
+  const ledgers = await AccLedger.find(scopeQuery({ financialYear, isActive: true }, ownerId)).lean();
+  const vouchers = await AccVoucher.find(scopeQuery({ financialYear, isReversed: { $ne: true } }, ownerId)).sort({ date: 1 }).lean();
 
   return {
     format: 'SwarYoga-Tally-v1',
@@ -2029,7 +2047,7 @@ export async function exportTallyJSON(financialYear: string) {
 
 // ─── JSON Import (cross-system portability) ─────────────────────────
 
-export async function importTallyJSON(jsonData: any, financialYear: string, createdByUserId?: string) {
+export async function importTallyJSON(jsonData: any, financialYear: string, createdByUserId?: string, ownerId?: string) {
   await connectDB();
   const AccLedger = getAccLedger();
   const AccVoucher = getAccVoucher();
@@ -2043,7 +2061,7 @@ export async function importTallyJSON(jsonData: any, financialYear: string, crea
   // Import groups
   for (const g of jsonData.groups || []) {
     try {
-      const existing = await AccGroup.findOne({ name: g.name, financialYear });
+      const existing = await AccGroup.findOne(scopeQuery({ name: g.name, financialYear }, ownerId));
       if (!existing) {
         await AccGroup.create({
           name: g.name,
@@ -2053,6 +2071,7 @@ export async function importTallyJSON(jsonData: any, financialYear: string, crea
           financialYear,
           isSystemDefault: false,
           createdByUserId,
+          ...(ownerId && { ownerId }),
         });
         importedGroups++;
       }
@@ -2063,7 +2082,7 @@ export async function importTallyJSON(jsonData: any, financialYear: string, crea
   const ledgerNameMap: Record<string, string> = {};
   for (const l of jsonData.ledgers || []) {
     try {
-      const existing = await AccLedger.findOne({ name: l.name, financialYear });
+      const existing = await AccLedger.findOne(scopeQuery({ name: l.name, financialYear }, ownerId));
       if (existing) {
         ledgerNameMap[l.name] = String((existing as any)._id);
       } else {
@@ -2082,6 +2101,7 @@ export async function importTallyJSON(jsonData: any, financialYear: string, crea
           state: l.state,
           isActive: true,
           createdByUserId,
+          ...(ownerId && { ownerId }),
         });
         ledgerNameMap[l.name] = String(doc._id);
         importedLedgers++;
@@ -2090,7 +2110,7 @@ export async function importTallyJSON(jsonData: any, financialYear: string, crea
   }
 
   // Refresh all ledger maps
-  const allLedgers = await AccLedger.find({ financialYear }).lean() as any[];
+  const allLedgers = await AccLedger.find(scopeQuery({ financialYear }, ownerId)).lean() as any[];
   for (const l of allLedgers) ledgerNameMap[l.name] = String(l._id);
 
   // Import vouchers
@@ -2107,7 +2127,7 @@ export async function importTallyJSON(jsonData: any, financialYear: string, crea
       const totalCredit = entries.filter((e: any) => e.type === 'CREDIT').reduce((s: number, e: any) => s + e.amount, 0);
       if (Math.abs(totalDebit - totalCredit) > 0.01) continue;
 
-      const voucherNumber = await generateVoucherNumber(v.type || 'JOURNAL', financialYear);
+      const voucherNumber = await generateVoucherNumber(v.type || 'JOURNAL', financialYear, ownerId);
       await AccVoucher.create({
         voucherNumber,
         date: new Date(v.date),
@@ -2120,6 +2140,7 @@ export async function importTallyJSON(jsonData: any, financialYear: string, crea
         partyName: v.partyName,
         createdByUserId,
         metadata: { importedFrom: 'JSON', originalVoucherNumber: v.voucherNumber },
+        ...(ownerId && { ownerId }),
       });
       importedVouchers++;
     } catch (e: any) { errors.push(`Voucher: ${e.message}`); }
@@ -2149,7 +2170,7 @@ export interface MonthlyPLRow {
   isProfit: boolean;
 }
 
-export async function generateMonthlyPL(financialYear: string): Promise<MonthlyPLRow[]> {
+export async function generateMonthlyPL(financialYear: string, ownerId?: string): Promise<MonthlyPLRow[]> {
   await connectDB();
   const AccLedger = getAccLedger();
   const AccVoucher = getAccVoucher();
@@ -2163,11 +2184,11 @@ export async function generateMonthlyPL(financialYear: string): Promise<MonthlyP
   const fyEnd = new Date(startYear + 1, 2, 31, 23, 59, 59, 999); // March 31
 
   // 1. Get all INCOME and EXPENSE ledger IDs in one query
-  const plLedgers = await AccLedger.find({
+  const plLedgers = await AccLedger.find(scopeQuery({
     financialYear,
     group: { $in: ['INCOME', 'EXPENSE'] },
     isActive: true,
-  }).lean() as any[];
+  }, ownerId)).lean() as any[];
 
   const ledgerMap = new Map(plLedgers.map((l: any) => [String(l._id), l]));
 
@@ -2175,11 +2196,11 @@ export async function generateMonthlyPL(financialYear: string): Promise<MonthlyP
   //    Replaces 12 months × N ledgers sequential queries with ONE query
   const agg = await AccVoucher.aggregate([
     {
-      $match: {
+      $match: scopeQuery({
         financialYear,
         isReversed: { $ne: true },
         date: { $gte: fyStart, $lte: fyEnd },
-      },
+      }, ownerId),
     },
     { $unwind: '$entries' },
     {
@@ -2254,13 +2275,14 @@ export async function generateProfitLossForPeriod(
   financialYear: string,
   dateFrom: Date,
   dateTo: Date,
+  ownerId?: string,
 ): Promise<ProfitLossResult> {
   await connectDB();
   const AccLedger = getAccLedger();
   const AccVoucher = getAccVoucher();
 
-  const incomeLedgers = await AccLedger.find({ financialYear, group: 'INCOME', isActive: true }).lean();
-  const expenseLedgers = await AccLedger.find({ financialYear, group: 'EXPENSE', isActive: true }).lean();
+  const incomeLedgers = await AccLedger.find(scopeQuery({ financialYear, group: 'INCOME', isActive: true }, ownerId)).lean();
+  const expenseLedgers = await AccLedger.find(scopeQuery({ financialYear, group: 'EXPENSE', isActive: true }, ownerId)).lean();
 
   const income: { ledgerName: string; amount: number; subGroup?: string }[] = [];
   const expenses: { ledgerName: string; amount: number; subGroup?: string }[] = [];
@@ -2273,12 +2295,12 @@ export async function generateProfitLossForPeriod(
     const ledger = l as any;
     const agg = await AccVoucher.aggregate([
       {
-        $match: {
+        $match: scopeQuery({
           financialYear,
           isReversed: { $ne: true },
           'entries.ledgerId': ledger._id,
           date: { $gte: dateFrom, $lte: dateTo },
-        },
+        }, ownerId),
       },
       { $unwind: '$entries' },
       { $match: { 'entries.ledgerId': ledger._id } },
@@ -2301,12 +2323,12 @@ export async function generateProfitLossForPeriod(
     const ledger = l as any;
     const agg = await AccVoucher.aggregate([
       {
-        $match: {
+        $match: scopeQuery({
           financialYear,
           isReversed: { $ne: true },
           'entries.ledgerId': ledger._id,
           date: { $gte: dateFrom, $lte: dateTo },
-        },
+        }, ownerId),
       },
       { $unwind: '$entries' },
       { $match: { 'entries.ledgerId': ledger._id } },
@@ -2364,17 +2386,18 @@ export async function carryForwardBalances(
   nextStartDate: Date,
   nextEndDate: Date,
   createdByUserId?: string,
+  ownerId?: string,
 ) {
   await connectDB();
   const AccLedger = getAccLedger();
   const AccFinancialYear = getAccFinancialYear();
 
   // 1. Calculate all ledger balances in one batch (2 queries instead of N)
-  const balanceMap = await batchCalculateLedgerBalances(currentFY);
-  const pl = await generateProfitLoss(currentFY, undefined, balanceMap);
+  const balanceMap = await batchCalculateLedgerBalances(currentFY, undefined, ownerId);
+  const pl = await generateProfitLoss(currentFY, undefined, balanceMap, ownerId);
 
   // 2. Create next FY if not exists
-  let nextFYDoc = await AccFinancialYear.findOne({ code: nextFY });
+  let nextFYDoc = await AccFinancialYear.findOne(scopeQuery({ code: nextFY }, ownerId));
   if (!nextFYDoc) {
     await AccFinancialYear.updateMany({}, { isCurrent: false });
     nextFYDoc = await AccFinancialYear.create({
@@ -2385,6 +2408,7 @@ export async function carryForwardBalances(
       isCurrent: true,
       companyName: 'Upamnyu International Education Pvt. Ltd.',
       createdByUserId,
+      ...(ownerId && { ownerId }),
     });
   } else {
     // Mark this as the current FY
@@ -2393,7 +2417,7 @@ export async function carryForwardBalances(
   }
 
   // 3. Seed default groups for next FY
-  await seedDefaultGroups(nextFY);
+  await seedDefaultGroups(nextFY, ownerId);
 
   // 4. Carry forward Balance Sheet items (ASSET, LIABILITY, CAPITAL)
   let carriedForward = 0;
@@ -2409,7 +2433,7 @@ export async function carryForwardBalances(
     // Only carry forward if closing balance is meaningful
     if (bal.closingBalance > 0.01) {
       // Check if already exists in next FY
-      const existing = await AccLedger.findOne({ name: bal.ledgerName, financialYear: nextFY });
+      const existing = await AccLedger.findOne(scopeQuery({ name: bal.ledgerName, financialYear: nextFY }, ownerId));
       if (existing) {
         // Update existing ledger's opening balance to match current year's closing
         await AccLedger.updateOne(
@@ -2433,6 +2457,7 @@ export async function carryForwardBalances(
           openingBalanceType: bal.closingBalanceType,
           financialYear: nextFY,
           isActive: true,
+          ...(ownerId && { ownerId }),
         });
         carriedForward++;
       }
@@ -2448,7 +2473,7 @@ export async function carryForwardBalances(
   // 5. Transfer Net P/L → Reserves & Surplus (Tally Prime official logic)
   //    retainedEarnings += currentYearPL
   if (Math.abs(pl.netProfit) > 0.01) {
-    const reservesLedger = await AccLedger.findOne({ name: 'Reserves & Surplus', financialYear: nextFY });
+    const reservesLedger = await AccLedger.findOne(scopeQuery({ name: 'Reserves & Surplus', financialYear: nextFY }, ownerId));
     if (reservesLedger) {
       const r = reservesLedger as any;
       // Current Reserves OB was carried forward from current FY's OB.
@@ -2481,8 +2506,8 @@ export async function carryForwardBalances(
 
   // 6. Link ledgers to groups in next FY
   const AccGroup = getAccGroup();
-  const nextFYLedgers = await AccLedger.find({ financialYear: nextFY, isActive: true }).lean() as any[];
-  const groups = await AccGroup.find({ financialYear: nextFY }).lean() as any[];
+  const nextFYLedgers = await AccLedger.find(scopeQuery({ financialYear: nextFY, isActive: true }, ownerId)).lean() as any[];
+  const groups = await AccGroup.find(scopeQuery({ financialYear: nextFY }, ownerId)).lean() as any[];
   const groupMap = new Map(groups.map((g: any) => [g.name, g._id]));
 
   for (const ledger of nextFYLedgers) {
@@ -2524,15 +2549,16 @@ export async function closeFinancialYear(
   nextStartDate: Date,
   nextEndDate: Date,
   createdByUserId?: string,
+  ownerId?: string,
 ) {
   await connectDB();
   const AccFinancialYear = getAccFinancialYear();
 
   // 1. Carry forward all balances
-  const result = await carryForwardBalances(currentFY, nextFY, nextStartDate, nextEndDate, createdByUserId);
+  const result = await carryForwardBalances(currentFY, nextFY, nextStartDate, nextEndDate, createdByUserId, ownerId);
 
   // 2. Mark current FY as closed (locked)
-  await AccFinancialYear.updateOne({ code: currentFY }, { isClosed: true, isCurrent: false });
+  await AccFinancialYear.updateOne(scopeQuery({ code: currentFY }, ownerId), { isClosed: true, isCurrent: false });
 
   return {
     ...result,
@@ -2597,29 +2623,29 @@ export interface CAAuditReport {
   billsMissing: number;
 }
 
-export async function generateCAAuditReport(financialYear: string): Promise<CAAuditReport> {
+export async function generateCAAuditReport(financialYear: string, ownerId?: string): Promise<CAAuditReport> {
   await connectDB();
   const AccVoucher = getAccVoucher();
   const AccLedger = getAccLedger();
   const AccFinancialYear = getAccFinancialYear();
 
   // Get company info
-  const fyDoc = await AccFinancialYear.findOne({ code: financialYear }).lean() as any;
+  const fyDoc = await AccFinancialYear.findOne(scopeQuery({ code: financialYear }, ownerId)).lean() as any;
   const companyName = fyDoc?.companyName || 'Swar Yoga';
 
   // Generate all reports sharing a single balanceMap (2 DB queries replaces 70+)
-  const balanceMap = await batchCalculateLedgerBalances(financialYear);
+  const balanceMap = await batchCalculateLedgerBalances(financialYear, undefined, ownerId);
   const [tb, pl, monthly] = await Promise.all([
-    generateTrialBalance(financialYear, undefined, balanceMap),
-    generateProfitLoss(financialYear, undefined, balanceMap),
-    generateMonthlyPL(financialYear),
+    generateTrialBalance(financialYear, undefined, balanceMap, ownerId),
+    generateProfitLoss(financialYear, undefined, balanceMap, ownerId),
+    generateMonthlyPL(financialYear, ownerId),
   ]);
-  const bs = await generateBalanceSheet(financialYear, undefined, balanceMap, pl);
-  const cashBank = await getCashBankSummary(financialYear, balanceMap);
+  const bs = await generateBalanceSheet(financialYear, undefined, balanceMap, pl, ownerId);
+  const cashBank = await getCashBankSummary(financialYear, balanceMap, ownerId);
 
   // Inline voucher breakdown instead of calling getAccountingSummary (avoids duplicate batchCalculateLedgerBalances)
   const voucherBreakdown = await AccVoucher.aggregate([
-    { $match: { financialYear, isReversed: { $ne: true } } },
+    { $match: scopeQuery({ financialYear, isReversed: { $ne: true } }, ownerId) },
     { $group: { _id: '$type', count: { $sum: 1 }, totalAmount: { $sum: '$totalDebit' } } },
     { $sort: { _id: 1 } },
   ]);
@@ -2657,11 +2683,11 @@ export async function generateCAAuditReport(financialYear: string): Promise<CAAu
   const closingCash = (cashAccounts as any[]).reduce((sum: number, a: any) => sum + (a.balanceType === 'DEBIT' ? a.balance : -a.balance), 0);
 
   // Bills audit — count vouchers with and without receipts
-  const allVouchers = await AccVoucher.find({
+  const allVouchers = await AccVoucher.find(scopeQuery({
     financialYear,
     isReversed: { $ne: true },
     type: { $in: ['PAYMENT', 'PURCHASE', 'RECEIPT', 'SALES', 'EXPENSE'] },
-  }).lean() as any[];
+  }, ownerId)).lean() as any[];
 
   const billsAttached = allVouchers.filter(v => v.receiptFileUrl).length;
   const billsMissing = allVouchers.filter(v => !v.receiptFileUrl).length;
@@ -2722,11 +2748,11 @@ export async function generateCAAuditReport(financialYear: string): Promise<CAAu
 
 // ─── Get Vouchers With Bills (for CA view) ───────────────────────────
 
-export async function getVouchersWithBills(financialYear: string, month?: number, year?: number) {
+export async function getVouchersWithBills(financialYear: string, month?: number, year?: number, ownerId?: string) {
   await connectDB();
   const AccVoucher = getAccVoucher();
 
-  const query: any = { financialYear, isReversed: { $ne: true }, receiptFileUrl: { $exists: true, $ne: '' } };
+  const query: any = scopeQuery({ financialYear, isReversed: { $ne: true }, receiptFileUrl: { $exists: true, $ne: '' } }, ownerId);
 
   if (month !== undefined && year !== undefined) {
     const startDate = new Date(year, month - 1, 1);
@@ -2754,18 +2780,19 @@ export async function getVouchersWithBills(financialYear: string, month?: number
   }));
 }
 
-export async function seedDefaultGroups(financialYear: string) {
+export async function seedDefaultGroups(financialYear: string, ownerId?: string) {
   await connectDB();
   const AccGroup = getAccGroup();
 
   let created = 0;
   for (const g of DEFAULT_GROUPS) {
-    const exists = await AccGroup.findOne({ name: g.name, financialYear });
+    const exists = await AccGroup.findOne(scopeQuery({ name: g.name, financialYear }, ownerId));
     if (!exists) {
       await AccGroup.create({
         ...g,
         financialYear,
         isSystemDefault: true,
+        ...(ownerId && { ownerId }),
       });
       created++;
     }
@@ -2785,15 +2812,15 @@ const GST_LEDGERS = [
   { name: 'IGST Output', group: 'LIABILITY' as AccountGroup, subGroup: 'Duties & Taxes', openingBalance: 0, openingBalanceType: 'CREDIT' as BalanceType },
 ];
 
-export async function seedGSTLedgers(financialYear: string) {
+export async function seedGSTLedgers(financialYear: string, ownerId?: string) {
   await connectDB();
   const AccLedger = getAccLedger();
 
   let created = 0;
   for (const ledger of GST_LEDGERS) {
-    const exists = await AccLedger.findOne({ name: ledger.name, financialYear });
+    const exists = await AccLedger.findOne(scopeQuery({ name: ledger.name, financialYear }, ownerId));
     if (!exists) {
-      await AccLedger.create({ ...ledger, financialYear });
+      await AccLedger.create({ ...ledger, financialYear, ...(ownerId && { ownerId }) });
       created++;
     }
   }
@@ -3199,6 +3226,7 @@ export async function importBankStatement(
   toTxn: number,
   openingBalance: number,
   createdByUserId?: string,
+  ownerId?: string,
 ) {
   await connectDB();
   const AccLedger = getAccLedger();
@@ -3208,7 +3236,7 @@ export async function importBankStatement(
   let skipped = 0;
 
   // Seed default groups
-  try { await seedDefaultGroups(financialYear); } catch {}
+  try { await seedDefaultGroups(financialYear, ownerId); } catch {}
 
   // Parse the text
   const allTxns = parseBankStatementText(text);
@@ -3220,10 +3248,10 @@ export async function importBankStatement(
 
   // ── Ensure Bank ledger exists ──
   const ledgerIdMap: Record<string, string> = {};
-  let bankLedger = await AccLedger.findOne({
+  let bankLedger = await AccLedger.findOne(scopeQuery({
     name: { $regex: new RegExp(`^${escapeRegexStr(bankLedgerName)}$`, 'i') },
     financialYear,
-  }).lean() as any;
+  }, ownerId)).lean() as any;
 
   if (!bankLedger) {
     try {
@@ -3235,6 +3263,7 @@ export async function importBankStatement(
         openingBalance,
         openingBalanceType: 'DEBIT' as BalanceType,
         createdByUserId,
+        ...(ownerId && { ownerId }),
       });
       ledgersCreated++;
     } catch (e: any) { errors.push(`Bank ledger: ${e.message}`); }
@@ -3269,10 +3298,10 @@ export async function importBankStatement(
   for (const ledgerName of neededLedgers) {
     if (ledgerIdMap[ledgerName]) continue;
 
-    let existing = await AccLedger.findOne({
+    let existing = await AccLedger.findOne(scopeQuery({
       name: { $regex: new RegExp(`^${escapeRegexStr(ledgerName)}$`, 'i') },
       financialYear,
-    }).lean() as any;
+    }, ownerId)).lean() as any;
 
     if (existing) {
       ledgerIdMap[ledgerName] = String(existing._id);
@@ -3289,6 +3318,7 @@ export async function importBankStatement(
         openingBalance: 0,
         openingBalanceType: 'DEBIT' as BalanceType,
         createdByUserId,
+        ...(ownerId && { ownerId }),
       });
       ledgerIdMap[ledgerName] = String(ledger._id);
       ledgersCreated++;
@@ -3348,6 +3378,7 @@ export async function importBankStatement(
         narration: `Bank #${txn.no}: ${narration}`,
         financialYear,
         createdByUserId,
+        ownerId,
       });
       vouchersCreated++;
     } catch (e: any) {
@@ -3369,7 +3400,7 @@ export async function importBankStatement(
   };
 }
 
-export async function importExcelTally(buffer: Buffer, financialYear: string, createdByUserId?: string) {
+export async function importExcelTally(buffer: Buffer, financialYear: string, createdByUserId?: string, ownerId?: string) {
   await connectDB();
   const XLSX = require('xlsx');
   const wb = XLSX.read(buffer, { type: 'buffer' });
@@ -3381,7 +3412,7 @@ export async function importExcelTally(buffer: Buffer, financialYear: string, cr
 
   // Ensure default groups exist
   try {
-    const seedResult = await seedDefaultGroups(financialYear);
+    const seedResult = await seedDefaultGroups(financialYear, ownerId);
     groupsCreated = seedResult.created;
   } catch {}
 
@@ -3408,7 +3439,7 @@ export async function importExcelTally(buffer: Buffer, financialYear: string, cr
       // Create as Reserve & Surplus
       const group: AccountGroup = 'CAPITAL';
       const subGroup = 'Reserves & Surplus';
-      let existing = await AccLedger.findOne({ name: 'Profit & Loss A/c', financialYear }).lean() as any;
+      let existing = await AccLedger.findOne(scopeQuery({ name: 'Profit & Loss A/c', financialYear }, ownerId)).lean() as any;
       if (!existing) {
         try {
           const ledger = await AccLedger.create({
@@ -3416,6 +3447,7 @@ export async function importExcelTally(buffer: Buffer, financialYear: string, cr
             group, subGroup, financialYear,
             openingBalance: sec.openingBalance, openingBalanceType: sec.openingBalanceType,
             createdByUserId,
+            ...(ownerId && { ownerId }),
           });
           ledgerIdMap['Profit & Loss A/c'] = String(ledger._id);
           ledgersCreated++;
@@ -3429,10 +3461,10 @@ export async function importExcelTally(buffer: Buffer, financialYear: string, cr
     const group = guessLedgerGroup(sec.name, sec.openingBalanceType);
     const subGroup = guessLedgerSubGroup(sec.name, group);
 
-    let existing = await AccLedger.findOne({
+    let existing = await AccLedger.findOne(scopeQuery({
       name: { $regex: new RegExp(`^${escapeRegexStr(sec.name)}$`, 'i') },
       financialYear,
-    }).lean() as any;
+    }, ownerId)).lean() as any;
 
     if (!existing) {
       try {
@@ -3441,6 +3473,7 @@ export async function importExcelTally(buffer: Buffer, financialYear: string, cr
           openingBalance: sec.openingBalance,
           openingBalanceType: sec.openingBalanceType,
           createdByUserId,
+          ...(ownerId && { ownerId }),
         });
         ledgerIdMap[sec.name] = String(ledger._id);
         ledgersCreated++;
@@ -3508,6 +3541,7 @@ export async function importExcelTally(buffer: Buffer, financialYear: string, cr
           narration: `${tx.vchType}${tx.vchNo ? ' #' + tx.vchNo : ''} — ${tx.contra}`,
           financialYear,
           createdByUserId,
+          ownerId,
         });
         vouchersCreated++;
       } catch (e: any) {
@@ -3602,15 +3636,15 @@ const PAYABLE_SUBGROUPS = ['Sundry Creditors', 'Trade Payables', 'Creditors'];
 /**
  * Get Outstanding Receivables — Tally Prime: Gateway → Display → Statements of Accounts → Outstanding → Receivables
  */
-export async function getOutstandingReceivables(financialYear: string, asOnDate?: Date): Promise<OutstandingReport> {
-  return getOutstandingReport('receivable', financialYear, asOnDate);
+export async function getOutstandingReceivables(financialYear: string, asOnDate?: Date, ownerId?: string): Promise<OutstandingReport> {
+  return getOutstandingReport('receivable', financialYear, asOnDate, ownerId);
 }
 
 /**
  * Get Outstanding Payables — Tally Prime: Gateway → Display → Statements of Accounts → Outstanding → Payables
  */
-export async function getOutstandingPayables(financialYear: string, asOnDate?: Date): Promise<OutstandingReport> {
-  return getOutstandingReport('payable', financialYear, asOnDate);
+export async function getOutstandingPayables(financialYear: string, asOnDate?: Date, ownerId?: string): Promise<OutstandingReport> {
+  return getOutstandingReport('payable', financialYear, asOnDate, ownerId);
 }
 
 /**
@@ -3619,7 +3653,8 @@ export async function getOutstandingPayables(financialYear: string, asOnDate?: D
 async function getOutstandingReport(
   reportType: 'receivable' | 'payable',
   financialYear: string,
-  asOnDate?: Date
+  asOnDate?: Date,
+  ownerId?: string,
 ): Promise<OutstandingReport> {
   await connectDB();
   const AccLedger = getAccLedger();
@@ -3632,14 +3667,14 @@ async function getOutstandingReport(
   const subGroupPatterns = reportType === 'receivable' ? RECEIVABLE_SUBGROUPS : PAYABLE_SUBGROUPS;
   const natureFilter = reportType === 'receivable' ? 'ASSET' : 'LIABILITY';
 
-  const partyLedgers = await AccLedger.find({
+  const partyLedgers = await AccLedger.find(scopeQuery({
     financialYear,
     $or: [
       { subGroup: { $in: subGroupPatterns } },
       // Also catch ledgers that might be named differently but are in the right group
       { group: natureFilter, subGroup: { $regex: reportType === 'receivable' ? /debtor|receivable/i : /creditor|payable/i } },
     ],
-  }).lean() as any[];
+  }, ownerId)).lean() as any[];
 
   if (partyLedgers.length === 0) {
     return {
@@ -3664,7 +3699,7 @@ async function getOutstandingReport(
   }
 
   // 2. Get all vouchers involving these party ledgers (up to asOnDate)
-  const dateFilter: any = { financialYear, isReversed: { $ne: true } };
+  const dateFilter: any = scopeQuery({ financialYear, isReversed: { $ne: true } }, ownerId);
   if (asOnDate) {
     dateFilter.date = { $lte: asOnDate };
   }
@@ -3925,7 +3960,8 @@ async function getOutstandingReport(
 export async function getOutstandingByParty(
   ledgerId: string,
   financialYear: string,
-  asOnDate?: Date
+  asOnDate?: Date,
+  ownerId?: string,
 ): Promise<PartyOutstanding | null> {
   await connectDB();
   const AccLedger = getAccLedger();
@@ -3941,7 +3977,8 @@ export async function getOutstandingByParty(
   const report = await getOutstandingReport(
     isReceivable ? 'receivable' : 'payable',
     financialYear,
-    asOnDate
+    asOnDate,
+    ownerId,
   );
 
   return report.parties.find(p => p.ledgerId === ledgerId) || null;
@@ -3991,6 +4028,7 @@ export async function getBankReconciliation(
   bankLedgerId: string,
   financialYear: string,
   asOnDate?: Date,
+  ownerId?: string,
 ): Promise<BankReconSummary> {
   await connectDB();
   const AccLedger = getAccLedger();
@@ -4004,11 +4042,11 @@ export async function getBankReconciliation(
   const refDate = asOnDate || new Date(`20${financialYear.split('-')[1]}-03-31`);
 
   // All vouchers involving this bank ledger
-  const vouchers = await AccVoucher.find({
+  const vouchers = await AccVoucher.find(scopeQuery({
     financialYear,
     'entries.ledgerName': { $regex: new RegExp(`^${bankLedger.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
     date: { $gte: fyStart, $lte: refDate },
-  }).sort({ date: 1 }).lean() as any[];
+  }, ownerId)).sort({ date: 1 }).lean() as any[];
 
   let runningBalance = Number(bankLedger.openingBalance) || 0;
   if (bankLedger.openingBalanceType === 'CREDIT') runningBalance = -runningBalance;
@@ -4089,6 +4127,7 @@ export async function reconcileVouchers(
   voucherIds: string[],
   reconciledDate: Date,
   bankDate?: Date,
+  ownerId?: string,
 ): Promise<{ updated: number }> {
   await connectDB();
   const AccVoucher = getAccVoucher();
@@ -4109,7 +4148,7 @@ export async function reconcileVouchers(
 /**
  * Unreconcile vouchers
  */
-export async function unreconcileVouchers(voucherIds: string[]): Promise<{ updated: number }> {
+export async function unreconcileVouchers(voucherIds: string[], ownerId?: string): Promise<{ updated: number }> {
   await connectDB();
   const AccVoucher = getAccVoucher();
 
@@ -4259,6 +4298,7 @@ export async function generateGSTR1(
   financialYear: string,
   month?: number,  // 1-12, if undefined = full year
   year?: number,
+  ownerId?: string,
 ): Promise<GSTR1Report> {
   await connectDB();
   const AccVoucher = getAccVoucher();
@@ -4277,14 +4317,14 @@ export async function generateGSTR1(
   }
 
   // Fetch sales, debit notes, credit notes
-  const vouchers = await AccVoucher.find({
+  const vouchers = await AccVoucher.find(scopeQuery({
     financialYear,
     type: { $in: ['SALES', 'DEBIT_NOTE', 'CREDIT_NOTE'] },
     date: { $gte: dateFrom, $lte: dateTo },
-  }).sort({ date: 1 }).lean() as any[];
+  }, ownerId)).sort({ date: 1 }).lean() as any[];
 
   // Build ledger map for GST info
-  const ledgers = await AccLedger.find({ financialYear }).lean() as any[];
+  const ledgers = await AccLedger.find(scopeQuery({ financialYear }, ownerId)).lean() as any[];
   const ledgerMap = new Map<string, any>();
   for (const l of ledgers) {
     ledgerMap.set(l.name.toLowerCase(), l);
@@ -4337,6 +4377,7 @@ export async function generateGSTR3B(
   financialYear: string,
   month?: number,
   year?: number,
+  ownerId?: string,
 ): Promise<GSTR3BSummary> {
   await connectDB();
   const AccVoucher = getAccVoucher();
@@ -4353,16 +4394,16 @@ export async function generateGSTR3B(
     dateTo = new Date(`20${financialYear.split('-')[1]}-03-31T23:59:59`);
   }
 
-  const ledgers = await AccLedger.find({ financialYear }).lean() as any[];
+  const ledgers = await AccLedger.find(scopeQuery({ financialYear }, ownerId)).lean() as any[];
   const ledgerMap = new Map<string, any>();
   for (const l of ledgers) ledgerMap.set(l.name.toLowerCase(), l);
 
   // Outward supplies (Sales + Debit Notes)
-  const salesVouchers = await AccVoucher.find({
+  const salesVouchers = await AccVoucher.find(scopeQuery({
     financialYear,
     type: { $in: ['SALES', 'DEBIT_NOTE'] },
     date: { $gte: dateFrom, $lte: dateTo },
-  }).lean() as any[];
+  }, ownerId)).lean() as any[];
 
   const outward = { taxable: 0, cgst: 0, sgst: 0, igst: 0, cess: 0 };
   for (const v of salesVouchers) {
@@ -4376,11 +4417,11 @@ export async function generateGSTR3B(
   }
 
   // Inward supplies under RCM (Purchases with reverse charge)
-  const purchaseVouchers = await AccVoucher.find({
+  const purchaseVouchers = await AccVoucher.find(scopeQuery({
     financialYear,
     type: { $in: ['PURCHASE', 'CREDIT_NOTE'] },
     date: { $gte: dateFrom, $lte: dateTo },
-  }).lean() as any[];
+  }, ownerId)).lean() as any[];
 
   const inwardRCM = { taxable: 0, cgst: 0, sgst: 0, igst: 0, cess: 0 };
   const inputITC = { cgst: 0, sgst: 0, igst: 0, cess: 0 };
@@ -4446,11 +4487,12 @@ interface ComparativeReport {
 export async function generateComparativePL(
   currentFY: string,
   previousFY: string,
+  ownerId?: string,
 ): Promise<ComparativeReport> {
   await connectDB();
 
-  const currentPL = await generateProfitLoss(currentFY);
-  const previousPL = await generateProfitLoss(previousFY);
+  const currentPL = await generateProfitLoss(currentFY, undefined, undefined, ownerId);
+  const previousPL = await generateProfitLoss(previousFY, undefined, undefined, ownerId);
 
   // Merge income rows
   const allNames = new Set<string>();
@@ -4514,11 +4556,12 @@ export async function generateComparativePL(
 export async function generateComparativeBS(
   currentFY: string,
   previousFY: string,
+  ownerId?: string,
 ): Promise<ComparativeReport> {
   await connectDB();
 
-  const currentBS = await generateBalanceSheet(currentFY);
-  const previousBS = await generateBalanceSheet(previousFY);
+  const currentBS = await generateBalanceSheet(currentFY, undefined, undefined, undefined, ownerId);
+  const previousBS = await generateBalanceSheet(previousFY, undefined, undefined, undefined, ownerId);
 
   const allNames = new Set<string>();
   const currentMap = new Map<string, { amount: number; group: string; subGroup: string }>();
@@ -4609,18 +4652,18 @@ interface BudgetReport {
  * Stored as simple key-value in a budgets collection or as metadata on ledgers.
  * For now, we read from acc_budgets collection.
  */
-export async function getBudgetReport(financialYear: string): Promise<BudgetReport> {
+export async function getBudgetReport(financialYear: string, ownerId?: string): Promise<BudgetReport> {
   await connectDB();
   const AccLedger = getAccLedger();
 
   // Get all ledgers with budgets (budget stored as ledger metadata field)
-  const ledgers = await AccLedger.find({
+  const ledgers = await AccLedger.find(scopeQuery({
     financialYear,
     budgetAmount: { $exists: true, $gt: 0 },
-  }).lean() as any[];
+  }, ownerId)).lean() as any[];
 
   // Get actual amounts from P&L
-  const balanceMap = await batchCalculateLedgerBalances(financialYear);
+  const balanceMap = await batchCalculateLedgerBalances(financialYear, undefined, ownerId);
 
   const rows: BudgetRow[] = [];
   let totalBudget = 0, totalActual = 0;
@@ -4674,6 +4717,7 @@ export async function getBudgetReport(financialYear: string): Promise<BudgetRepo
 export async function setBudget(
   ledgerId: string,
   budgetAmount: number,
+  ownerId?: string,
 ): Promise<{ success: boolean }> {
   await connectDB();
   const AccLedger = getAccLedger();
@@ -4698,6 +4742,7 @@ export async function logAudit(params: {
   userName?: string;
   changes?: Record<string, { old: any; new: any }>;
   metadata?: any;
+  ownerId?: string;
 }): Promise<void> {
   try {
     await connectDB();
@@ -4710,11 +4755,12 @@ export async function logAudit(params: {
 
 export async function getAuditTrail(
   financialYear: string,
-  opts?: { entityType?: string; entityId?: string; userId?: string; limit?: number; skip?: number }
+  opts?: { entityType?: string; entityId?: string; userId?: string; limit?: number; skip?: number },
+  ownerId?: string,
 ): Promise<{ entries: any[]; total: number }> {
   await connectDB();
   const AccAuditTrail = getAccAuditTrail();
-  const filter: any = { financialYear };
+  const filter: any = scopeQuery({ financialYear }, ownerId);
   if (opts?.entityType) filter.entityType = opts.entityType;
   if (opts?.entityId) filter.entityId = opts.entityId;
   if (opts?.userId) filter.userId = opts.userId;
@@ -4731,10 +4777,10 @@ export async function getAuditTrail(
 
 // ─── COST CENTERS ─────────────────────────────────────────────────────
 
-export async function getCostCenters(financialYear: string): Promise<any[]> {
+export async function getCostCenters(financialYear: string, ownerId?: string): Promise<any[]> {
   await connectDB();
   const AccCostCenter = getAccCostCenter();
-  return AccCostCenter.find({ financialYear }).sort({ category: 1, name: 1 }).lean();
+  return AccCostCenter.find(scopeQuery({ financialYear }, ownerId)).sort({ category: 1, name: 1 }).lean();
 }
 
 export async function createCostCenter(data: {
@@ -4745,6 +4791,7 @@ export async function createCostCenter(data: {
   description?: string;
   budgetAmount?: number;
   createdByUserId?: string;
+  ownerId?: string;
 }): Promise<any> {
   await connectDB();
   const AccCostCenter = getAccCostCenter();
@@ -4779,13 +4826,13 @@ export async function deleteCostCenter(id: string): Promise<void> {
   if (doc) await logAudit({ action: 'DELETE', entityType: 'COST_CENTER', entityId: id, entityName: doc.name, financialYear: doc.financialYear });
 }
 
-export async function getCostCenterReport(financialYear: string): Promise<any> {
+export async function getCostCenterReport(financialYear: string, ownerId?: string): Promise<any> {
   await connectDB();
   const AccCostCenter = getAccCostCenter();
   const AccVoucher = getAccVoucher();
 
-  const centers = await AccCostCenter.find({ financialYear, isActive: true }).lean() as any[];
-  const vouchers = await AccVoucher.find({ financialYear, isReversed: { $ne: true } }).lean() as any[];
+  const centers = await AccCostCenter.find(scopeQuery({ financialYear, isActive: true }, ownerId)).lean() as any[];
+  const vouchers = await AccVoucher.find(scopeQuery({ financialYear, isReversed: { $ne: true } }, ownerId)).lean() as any[];
 
   const result = centers.map(cc => {
     let totalDebit = 0, totalCredit = 0;
@@ -4819,13 +4866,13 @@ export async function getCostCenterReport(financialYear: string): Promise<any> {
 
 // ─── DASHBOARD ANALYTICS ──────────────────────────────────────────────
 
-export async function getDashboardAnalytics(financialYear: string): Promise<any> {
+export async function getDashboardAnalytics(financialYear: string, ownerId?: string): Promise<any> {
   await connectDB();
   const AccLedger = getAccLedger();
   const AccVoucher = getAccVoucher();
 
-  const ledgers = await AccLedger.find({ financialYear, isActive: true }).lean() as any[];
-  const vouchers = await AccVoucher.find({ financialYear, isReversed: { $ne: true } }).sort({ date: 1 }).lean() as any[];
+  const ledgers = await AccLedger.find(scopeQuery({ financialYear, isActive: true }, ownerId)).lean() as any[];
+  const vouchers = await AccVoucher.find(scopeQuery({ financialYear, isReversed: { $ne: true } }, ownerId)).sort({ date: 1 }).lean() as any[];
 
   const nameToGroup: Record<string, { group: string; subGroup: string }> = {};
   for (const l of ledgers) nameToGroup[l.name] = { group: l.group, subGroup: l.subGroup || '' };
@@ -4958,11 +5005,12 @@ export async function getDashboardAnalytics(financialYear: string): Promise<any>
 
 export async function getTdsEntries(
   financialYear: string,
-  opts?: { section?: string; quarter?: string; deducteeId?: string }
+  opts?: { section?: string; quarter?: string; deducteeId?: string },
+  ownerId?: string,
 ): Promise<any[]> {
   await connectDB();
   const AccTdsEntry = getAccTdsEntry();
-  const filter: any = { financialYear, isActive: true };
+  const filter: any = scopeQuery({ financialYear, isActive: true }, ownerId);
   if (opts?.section) filter.section = opts.section;
   if (opts?.quarter) filter.quarter = opts.quarter;
   if (opts?.deducteeId) filter.deducteeId = opts.deducteeId;
@@ -4984,6 +5032,7 @@ export async function createTdsEntry(data: {
   financialYear: string;
   quarter: string;
   createdByUserId?: string;
+  ownerId?: string;
 }): Promise<any> {
   await connectDB();
   const AccTdsEntry = getAccTdsEntry();
@@ -5006,10 +5055,10 @@ export async function updateTdsEntry(id: string, data: Partial<{
   return AccTdsEntry.findByIdAndUpdate(id, update, { new: true }).lean();
 }
 
-export async function getTdsSummary(financialYear: string): Promise<any> {
+export async function getTdsSummary(financialYear: string, ownerId?: string): Promise<any> {
   await connectDB();
   const AccTdsEntry = getAccTdsEntry();
-  const entries = await AccTdsEntry.find({ financialYear, isActive: true }).lean() as any[];
+  const entries = await AccTdsEntry.find(scopeQuery({ financialYear, isActive: true }, ownerId)).lean() as any[];
 
   const bySection: Record<string, { count: number; grossAmount: number; tdsAmount: number; netAmount: number; paidCount: number }> = {};
   const byQuarter: Record<string, { count: number; tdsAmount: number; paidCount: number }> = {};
@@ -5045,22 +5094,22 @@ export async function getTdsSummary(financialYear: string): Promise<any> {
 
 // ─── INVENTORY / STOCK ────────────────────────────────────────────────
 
-export async function getStockGroups(financialYear: string): Promise<any[]> {
+export async function getStockGroups(financialYear: string, ownerId?: string): Promise<any[]> {
   await connectDB();
   const AccStockGroup = getAccStockGroup();
-  return AccStockGroup.find({ financialYear, isActive: true }).sort({ name: 1 }).lean();
+  return AccStockGroup.find(scopeQuery({ financialYear, isActive: true }, ownerId)).sort({ name: 1 }).lean();
 }
 
-export async function createStockGroup(data: { name: string; financialYear: string; parentId?: string; createdByUserId?: string }): Promise<any> {
+export async function createStockGroup(data: { name: string; financialYear: string; parentId?: string; createdByUserId?: string; ownerId?: string }): Promise<any> {
   await connectDB();
   const AccStockGroup = getAccStockGroup();
   return AccStockGroup.create(data);
 }
 
-export async function getStockItems(financialYear: string, opts?: { groupId?: string }): Promise<any[]> {
+export async function getStockItems(financialYear: string, opts?: { groupId?: string }, ownerId?: string): Promise<any[]> {
   await connectDB();
   const AccStockItem = getAccStockItem();
-  const filter: any = { financialYear, isActive: true };
+  const filter: any = scopeQuery({ financialYear, isActive: true }, ownerId);
   if (opts?.groupId) filter.stockGroupId = opts.groupId;
   return AccStockItem.find(filter).sort({ name: 1 }).lean();
 }
@@ -5081,6 +5130,7 @@ export async function createStockItem(data: {
   reorderLevel?: number;
   godown?: string;
   createdByUserId?: string;
+  ownerId?: string;
 }): Promise<any> {
   await connectDB();
   const AccStockItem = getAccStockItem();
@@ -5107,10 +5157,10 @@ export async function deleteStockItem(id: string): Promise<void> {
   await AccStockItem.findByIdAndDelete(id);
 }
 
-export async function getStockTransactions(financialYear: string, opts?: { stockItemId?: string }): Promise<any[]> {
+export async function getStockTransactions(financialYear: string, opts?: { stockItemId?: string }, ownerId?: string): Promise<any[]> {
   await connectDB();
   const AccStockTxn = getAccStockTxn();
-  const filter: any = { financialYear };
+  const filter: any = scopeQuery({ financialYear }, ownerId);
   if (opts?.stockItemId) filter.stockItemId = opts.stockItemId;
   return AccStockTxn.find(filter).sort({ date: -1 }).lean();
 }
@@ -5130,6 +5180,7 @@ export async function createStockTransaction(data: {
   narration?: string;
   financialYear: string;
   createdByUserId?: string;
+  ownerId?: string;
 }): Promise<any> {
   await connectDB();
   const AccStockTxn = getAccStockTxn();
@@ -5144,13 +5195,13 @@ export async function createStockTransaction(data: {
   return doc;
 }
 
-export async function getStockSummary(financialYear: string): Promise<any> {
+export async function getStockSummary(financialYear: string, ownerId?: string): Promise<any> {
   await connectDB();
   const AccStockItem = getAccStockItem();
   const AccStockTxn = getAccStockTxn();
 
-  const items = await AccStockItem.find({ financialYear, isActive: true }).lean() as any[];
-  const txns = await AccStockTxn.find({ financialYear }).lean() as any[];
+  const items = await AccStockItem.find(scopeQuery({ financialYear, isActive: true }, ownerId)).lean() as any[];
+  const txns = await AccStockTxn.find(scopeQuery({ financialYear }, ownerId)).lean() as any[];
 
   // Build per-item summary
   const itemSummary = items.map(item => {

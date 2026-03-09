@@ -34,8 +34,8 @@ export async function GET(request: NextRequest) {
     // Non-superadmins only see their own WhatsApp accounts
     if (!superAdmin) {
       filter.$or = [
-        { createdBy: viewerUserId },
-        { userId: viewerUserId }
+        { createdByUserId: viewerUserId },
+        { managedByUserIds: viewerUserId }
       ];
     }
     

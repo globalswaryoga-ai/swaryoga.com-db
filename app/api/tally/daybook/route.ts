@@ -8,6 +8,7 @@ import { NextRequest } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { getDayBook, getReceiptsRegister, getPaymentsRegister, getDayBookLedgerSummary, getCashBankLedgers } from '@/lib/tally/engine';
+import { resolveTallyOwnerId } from '@/lib/tally/access';
 
 function getAuth(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -30,9 +31,11 @@ export async function GET(request: NextRequest) {
     const dateTo = searchParams.get('dateTo');
     const register = searchParams.get('register'); // 'receipts' or 'payments' or 'cashbank'
 
+    const ownerId = resolveTallyOwnerId(decoded);
+
     // Cash/Bank ledger list (for selector)
     if (register === 'cashbank') {
-      const ledgers = await getCashBankLedgers(fy);
+      const ledgers = await getCashBankLedgers(fy, ownerId);
       return apiSuccess({
         register: 'CashBank',
         financialYear: fy,
@@ -46,6 +49,7 @@ export async function GET(request: NextRequest) {
         fy,
         dateFrom ? new Date(dateFrom) : undefined,
         dateTo ? new Date(dateTo) : undefined,
+        ownerId,
       );
       return apiSuccess({
         register: 'Receipts',
@@ -60,6 +64,7 @@ export async function GET(request: NextRequest) {
         fy,
         dateFrom ? new Date(dateFrom) : undefined,
         dateTo ? new Date(dateTo) : undefined,
+        ownerId,
       );
       return apiSuccess({
         register: 'Payments',
@@ -75,6 +80,7 @@ export async function GET(request: NextRequest) {
       date ? new Date(date) : undefined,
       dateFrom ? new Date(dateFrom) : undefined,
       dateTo ? new Date(dateTo) : undefined,
+      ownerId,
     );
 
     // Calculate totals
@@ -90,7 +96,7 @@ export async function GET(request: NextRequest) {
     // If no voucher entries, provide ledger OB summary (CA Report data)
     let ledgerSummary: any = null;
     if (entries.length === 0) {
-      ledgerSummary = await getDayBookLedgerSummary(fy);
+      ledgerSummary = await getDayBookLedgerSummary(fy, ownerId);
     }
 
     return apiSuccess({

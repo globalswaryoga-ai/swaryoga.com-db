@@ -10,6 +10,8 @@ import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { getAccLedger, getAccGroup } from '@/lib/schemas/enterpriseSchemas';
 import { calculateLedgerBalance, invalidateReportCache } from '@/lib/tally/engine';
+import { resolveTallyOwnerId, getTallyOwnerIdForWrite } from '@/lib/tally/access';
+import { scopeQuery } from '@/lib/tally/access';
 
 function getAuth(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -34,7 +36,8 @@ export async function GET(request: NextRequest) {
     const group = searchParams.get('group'); // ASSET, LIABILITY, etc.
     const withBalance = searchParams.get('withBalance') === 'true';
 
-    const query: any = { financialYear: fy, isActive: true };
+    const ownerId = resolveTallyOwnerId(decoded);
+    const query: any = ownerId ? { financialYear: fy, isActive: true, ownerId } : { financialYear: fy, isActive: true };
     if (group) query.group = group;
 
     const ledgers = await AccLedger.find(query).sort({ group: 1, name: 1 }).lean();
@@ -57,7 +60,7 @@ export async function GET(request: NextRequest) {
     // With balance calculation
     const ledgersWithBalance = await Promise.all(
       (ledgers as any[]).map(async (l) => {
-        const bal = await calculateLedgerBalance(String(l._id), fy);
+        const bal = await calculateLedgerBalance(String(l._id), fy, undefined, undefined, ownerId);
         return {
           id: String(l._id),
           name: l.name,
@@ -101,7 +104,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Check duplicate
-    const existing = await AccLedger.findOne({ name: name.trim(), financialYear });
+    const writeOwnerId = getTallyOwnerIdForWrite(decoded);
+    const existing = await AccLedger.findOne(writeOwnerId ? { name: name.trim(), financialYear, ownerId: writeOwnerId } : { name: name.trim(), financialYear });
     if (existing) {
       return apiError('VALIDATION_ERROR', `Ledger "${name}" already exists for FY ${financialYear}`);
     }
@@ -116,6 +120,7 @@ export async function POST(request: NextRequest) {
       description,
       gstin, phone, email, address, state,
       createdByUserId: (decoded as any)?.userId,
+      ownerId: getTallyOwnerIdForWrite(decoded),
     });
 
     invalidateReportCache(financialYear);

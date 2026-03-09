@@ -8,6 +8,7 @@ import { NextRequest } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { exportTallyXML, buildTallyXML, importTallyXML, exportTallyJSON, importTallyJSON, importExcelTally, importBankStatement } from '@/lib/tally/engine';
+import { resolveTallyOwnerId, getTallyOwnerIdForWrite } from '@/lib/tally/access';
 
 function getAuth(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -29,9 +30,10 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const fy = searchParams.get('fy') || '2023-24';
     const format = searchParams.get('format') || 'xml';
+    const ownerId = resolveTallyOwnerId(decoded);
 
     if (format === 'xml') {
-      const xml = await exportTallyXML(fy);
+      const xml = await exportTallyXML(fy, ownerId);
       return new Response(xml, {
         status: 200,
         headers: {
@@ -40,7 +42,7 @@ export async function GET(request: NextRequest) {
         },
       });
     } else if (format === 'json') {
-      const json = await exportTallyJSON(fy);
+      const json = await exportTallyJSON(fy, ownerId);
       return new Response(JSON.stringify(json, null, 2), {
         status: 200,
         headers: {
@@ -97,7 +99,8 @@ export async function POST(request: NextRequest) {
           const fromTxn = parseInt((formData.get('fromTxn') as string) || '1');
           const toTxn = parseInt((formData.get('toTxn') as string) || '9999');
           const openingBalance = parseFloat((formData.get('openingBalance') as string) || '0');
-          const result = await importBankStatement(text, bankName, fy, fromTxn, toTxn, openingBalance, (decoded as any)?.userId);
+          const writeOwnerId = getTallyOwnerIdForWrite(decoded);
+          const result = await importBankStatement(text, bankName, fy, fromTxn, toTxn, openingBalance, (decoded as any)?.userId, writeOwnerId);
           return apiSuccess(result);
         } catch (e: any) {
           return apiError('VALIDATION_ERROR', `Bank statement import failed: ${e.message}`);
@@ -133,7 +136,8 @@ export async function POST(request: NextRequest) {
           const toTxn = parseInt((formData.get('toTxn') as string) || '9999');
           const openingBalance = parseFloat((formData.get('openingBalance') as string) || '0');
 
-          const result = await importBankStatement(text, bankName, fy, fromTxn, toTxn, openingBalance, (decoded as any)?.userId);
+          const writeOwnerId = getTallyOwnerIdForWrite(decoded);
+          const result = await importBankStatement(text, bankName, fy, fromTxn, toTxn, openingBalance, (decoded as any)?.userId, writeOwnerId);
           return apiSuccess(result);
         } catch (e: any) {
           return apiError('VALIDATION_ERROR', `PDF bank statement import failed: ${e.message}`);
@@ -144,7 +148,8 @@ export async function POST(request: NextRequest) {
       if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
         try {
           const buffer = Buffer.from(await file.arrayBuffer());
-          const result = await importExcelTally(buffer, fy, (decoded as any)?.userId);
+          const writeOwnerId = getTallyOwnerIdForWrite(decoded);
+          const result = await importExcelTally(buffer, fy, (decoded as any)?.userId, writeOwnerId);
           return apiSuccess(result);
         } catch (e: any) {
           return apiError('VALIDATION_ERROR', `Excel import failed: ${e.message}`);
@@ -157,7 +162,8 @@ export async function POST(request: NextRequest) {
       if (fileName.endsWith('.json')) {
         try {
           const jsonData = JSON.parse(xmlContent);
-          const result = await importTallyJSON(jsonData, fy, (decoded as any)?.userId);
+          const writeOwnerId = getTallyOwnerIdForWrite(decoded);
+          const result = await importTallyJSON(jsonData, fy, (decoded as any)?.userId, writeOwnerId);
           return apiSuccess(result);
         } catch (e: any) {
           return apiError('VALIDATION_ERROR', `Invalid JSON: ${e.message}`);
@@ -172,7 +178,8 @@ export async function POST(request: NextRequest) {
 
     if (!xmlContent) return apiError('VALIDATION_ERROR', 'No XML content provided');
 
-    const result = await importTallyXML(xmlContent, fy, (decoded as any)?.userId);
+    const writeOwnerId = getTallyOwnerIdForWrite(decoded);
+    const result = await importTallyXML(xmlContent, fy, (decoded as any)?.userId, writeOwnerId);
     return apiSuccess(result);
 
   } catch (error: any) {

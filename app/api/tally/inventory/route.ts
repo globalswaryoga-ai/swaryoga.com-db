@@ -18,6 +18,7 @@ import {
   createStockTransaction,
   getStockSummary,
 } from '@/lib/tally/engine';
+import { resolveTallyOwnerId, getTallyOwnerIdForWrite } from '@/lib/tally/access';
 
 function getAuth(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -34,27 +35,28 @@ export async function GET(request: NextRequest) {
     const fy = request.nextUrl.searchParams.get('fy');
     if (!fy) return apiError('VALIDATION_ERROR', 'fy parameter required');
 
+    const ownerId = resolveTallyOwnerId(decoded);
     const type = request.nextUrl.searchParams.get('type') || 'items';
 
     if (type === 'groups') {
-      const groups = await getStockGroups(fy);
+      const groups = await getStockGroups(fy, ownerId);
       return apiSuccess({ groups });
     }
 
     if (type === 'txns') {
       const stockItemId = request.nextUrl.searchParams.get('stockItemId') || undefined;
-      const txns = await getStockTransactions(fy, { stockItemId });
+      const txns = await getStockTransactions(fy, { stockItemId }, ownerId);
       return apiSuccess({ transactions: txns });
     }
 
     if (type === 'summary') {
-      const summary = await getStockSummary(fy);
+      const summary = await getStockSummary(fy, ownerId);
       return apiSuccess(summary);
     }
 
     // Default: items
     const groupId = request.nextUrl.searchParams.get('groupId') || undefined;
-    const items = await getStockItems(fy, { groupId });
+    const items = await getStockItems(fy, { groupId }, ownerId);
     return apiSuccess({ items });
   } catch (e: any) {
     return apiError('SERVER_ERROR', e.message);
@@ -72,14 +74,16 @@ export async function POST(request: NextRequest) {
     if (action === 'create-group') {
       const { name, financialYear, parentId } = body;
       if (!name || !financialYear) return apiError('VALIDATION_ERROR', 'name and financialYear required');
-      const doc = await createStockGroup({ name, financialYear, parentId, createdByUserId: (decoded as any).userId });
+      const writeOwnerId = getTallyOwnerIdForWrite(decoded);
+      const doc = await createStockGroup({ name, financialYear, parentId, createdByUserId: (decoded as any).userId, ownerId: writeOwnerId });
       return apiSuccess({ stockGroup: doc });
     }
 
     if (action === 'create-item') {
       const { name, financialYear, stockGroupId, stockGroupName, unit, hsnCode, gstRate, openingQty, openingRate, openingValue, sellingPrice, purchasePrice, reorderLevel, godown } = body;
       if (!name || !financialYear) return apiError('VALIDATION_ERROR', 'name and financialYear required');
-      const doc = await createStockItem({ name, financialYear, stockGroupId, stockGroupName, unit, hsnCode, gstRate, openingQty, openingRate, openingValue, sellingPrice, purchasePrice, reorderLevel, godown, createdByUserId: (decoded as any).userId });
+      const writeOwnerId = getTallyOwnerIdForWrite(decoded);
+      const doc = await createStockItem({ name, financialYear, stockGroupId, stockGroupName, unit, hsnCode, gstRate, openingQty, openingRate, openingValue, sellingPrice, purchasePrice, reorderLevel, godown, createdByUserId: (decoded as any).userId, ownerId: writeOwnerId });
       return apiSuccess({ stockItem: doc });
     }
 
@@ -100,14 +104,16 @@ export async function POST(request: NextRequest) {
     if (action === 'create-txn') {
       const { stockItemId, stockItemName, txnType, qty, rate, value, date, voucherId, voucherNumber, godownFrom, godownTo, narration, financialYear } = body;
       if (!stockItemId || !txnType || !qty || !financialYear) return apiError('VALIDATION_ERROR', 'Required fields missing');
-      const doc = await createStockTransaction({ stockItemId, stockItemName, txnType, qty, rate: rate || 0, value: value || qty * (rate || 0), date, voucherId, voucherNumber, godownFrom, godownTo, narration, financialYear, createdByUserId: (decoded as any).userId });
+      const writeOwnerId = getTallyOwnerIdForWrite(decoded);
+      const doc = await createStockTransaction({ stockItemId, stockItemName, txnType, qty, rate: rate || 0, value: value || qty * (rate || 0), date, voucherId, voucherNumber, godownFrom, godownTo, narration, financialYear, createdByUserId: (decoded as any).userId, ownerId: writeOwnerId });
       return apiSuccess({ transaction: doc });
     }
 
     if (action === 'summary') {
       const { financialYear } = body;
       if (!financialYear) return apiError('VALIDATION_ERROR', 'financialYear required');
-      const summary = await getStockSummary(financialYear);
+      const ownerId = resolveTallyOwnerId(decoded);
+      const summary = await getStockSummary(financialYear, ownerId);
       return apiSuccess(summary);
     }
 

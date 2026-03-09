@@ -311,6 +311,7 @@ const WhatsAppMessageSchema = new mongoose.Schema(
     // Optional because admin JWTs may not map to a User document.
     sentBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: false },
     sentByLabel: String,
+    sentByUserId: { type: String, trim: true, index: true }, // Admin userId string
 
   // For WhatsApp CRM UI: display label to show in conversation bubble
   // (Admin fixed as "Mohan Sir" in UI by default).
@@ -1751,10 +1752,12 @@ const AccGroupSchema = new mongoose.Schema(
     isSystemDefault: { type: Boolean, default: false },
     createdByUserId: { type: String, trim: true },
     notes: { type: String, trim: true },
+    // Multi-tenant: which admin account owns this data
+    ownerId: { type: String, required: true, trim: true, index: true },
   },
   { timestamps: true, collection: 'acc_groups' }
 );
-AccGroupSchema.index({ name: 1, financialYear: 1 }, { unique: true });
+AccGroupSchema.index({ name: 1, financialYear: 1, ownerId: 1 }, { unique: true });
 AccGroupSchema.index({ nature: 1, financialYear: 1 });
 
 // ── LEDGER (Account) ────────────────────────────────────────────────
@@ -1793,10 +1796,12 @@ const AccLedgerSchema = new mongoose.Schema(
 
     isActive: { type: Boolean, default: true, index: true },
     createdByUserId: { type: String, trim: true },
+    // Multi-tenant: which admin account owns this data
+    ownerId: { type: String, required: true, trim: true, index: true },
   },
   { timestamps: true, collection: 'acc_ledgers' }
 );
-AccLedgerSchema.index({ name: 1, financialYear: 1 }, { unique: true });
+AccLedgerSchema.index({ name: 1, financialYear: 1, ownerId: 1 }, { unique: true });
 AccLedgerSchema.index({ group: 1, financialYear: 1 });
 AccLedgerSchema.index({ isActive: 1 });
 
@@ -1859,10 +1864,12 @@ const AccVoucherSchema = new mongoose.Schema(
     receiptFileName: { type: String, trim: true },
 
     metadata: mongoose.Schema.Types.Mixed,
+    // Multi-tenant: which admin account owns this data
+    ownerId: { type: String, required: true, trim: true, index: true },
   },
   { timestamps: true, collection: 'acc_vouchers' }
 );
-AccVoucherSchema.index({ voucherNumber: 1, financialYear: 1 }, { unique: true });
+AccVoucherSchema.index({ voucherNumber: 1, financialYear: 1, ownerId: 1 }, { unique: true });
 AccVoucherSchema.index({ type: 1, date: -1 });
 AccVoucherSchema.index({ financialYear: 1, date: -1 });
 AccVoucherSchema.index({ 'entries.ledgerId': 1, date: -1 });
@@ -1908,10 +1915,12 @@ const AccFinancialYearSchema = new mongoose.Schema(
     bankBranch: { type: String, trim: true },
     logo: { type: String, trim: true },             // URL to company logo
     notes: { type: String, trim: true },
+    // Multi-tenant: which admin account owns this data
+    ownerId: { type: String, required: true, trim: true, index: true },
   },
   { timestamps: true, collection: 'acc_financial_years' }
 );
-AccFinancialYearSchema.index({ code: 1 });
+AccFinancialYearSchema.index({ code: 1, ownerId: 1 }, { unique: true });
 
 // ── VOUCHER NUMBERING SERIES (Tally Prime compatible) ───────────────
 // Configurable per voucher type per FY — prefix, suffix, starting number,
@@ -1945,6 +1954,8 @@ const AccVoucherNumberingSchema = new mongoose.Schema(
 
     // Current counter (atomically incremented)
     currentNumber: { type: Number, default: 0 },
+    // Multi-tenant: which admin account owns this data
+    ownerId: { type: String, required: true, trim: true, index: true },
 
     // Preview example
     // e.g. prefix="REC", separator="-", includeFYCode=true, fyPosition="after-prefix",
@@ -1952,7 +1963,7 @@ const AccVoucherNumberingSchema = new mongoose.Schema(
   },
   { timestamps: true, collection: 'acc_voucher_numbering' }
 );
-AccVoucherNumberingSchema.index({ financialYear: 1, voucherType: 1 }, { unique: true });
+AccVoucherNumberingSchema.index({ financialYear: 1, voucherType: 1, ownerId: 1 }, { unique: true });
 
 // ── COST CENTER ─────────────────────────────────────────────────────
 const AccCostCenterSchema = new mongoose.Schema(
@@ -1965,10 +1976,12 @@ const AccCostCenterSchema = new mongoose.Schema(
     budgetAmount: { type: Number, default: 0 },
     description: { type: String, trim: true },
     createdByUserId: { type: String, trim: true },
+    // Multi-tenant: which admin account owns this data
+    ownerId: { type: String, required: true, trim: true, index: true },
   },
   { timestamps: true, collection: 'acc_cost_centers' }
 );
-AccCostCenterSchema.index({ name: 1, financialYear: 1 }, { unique: true });
+AccCostCenterSchema.index({ name: 1, financialYear: 1, ownerId: 1 }, { unique: true });
 
 // ── AUDIT TRAIL ─────────────────────────────────────────────────────
 const AccAuditTrailSchema = new mongoose.Schema(
@@ -1983,6 +1996,8 @@ const AccAuditTrailSchema = new mongoose.Schema(
     changes: { type: mongoose.Schema.Types.Mixed }, // { field: { old, new } }
     metadata: { type: mongoose.Schema.Types.Mixed },
     ipAddress: { type: String, trim: true },
+    // Multi-tenant: which admin account owns this data
+    ownerId: { type: String, required: true, trim: true, index: true },
   },
   { timestamps: true, collection: 'acc_audit_trail' }
 );
@@ -2011,6 +2026,8 @@ const AccTdsEntrySchema = new mongoose.Schema(
     quarter: { type: String, enum: ['Q1', 'Q2', 'Q3', 'Q4'], index: true },
     isActive: { type: Boolean, default: true },
     createdByUserId: { type: String, trim: true },
+    // Multi-tenant: which admin account owns this data
+    ownerId: { type: String, required: true, trim: true, index: true },
   },
   { timestamps: true, collection: 'acc_tds_entries' }
 );
@@ -2025,10 +2042,12 @@ const AccStockGroupSchema = new mongoose.Schema(
     financialYear: { type: String, required: true, trim: true, index: true },
     isActive: { type: Boolean, default: true },
     createdByUserId: { type: String, trim: true },
+    // Multi-tenant: which admin account owns this data
+    ownerId: { type: String, required: true, trim: true, index: true },
   },
   { timestamps: true, collection: 'acc_stock_groups' }
 );
-AccStockGroupSchema.index({ name: 1, financialYear: 1 }, { unique: true });
+AccStockGroupSchema.index({ name: 1, financialYear: 1, ownerId: 1 }, { unique: true });
 
 // ── STOCK ITEM ──────────────────────────────────────────────────────
 const AccStockItemSchema = new mongoose.Schema(
@@ -2050,10 +2069,12 @@ const AccStockItemSchema = new mongoose.Schema(
     financialYear: { type: String, required: true, trim: true, index: true },
     isActive: { type: Boolean, default: true },
     createdByUserId: { type: String, trim: true },
+    // Multi-tenant: which admin account owns this data
+    ownerId: { type: String, required: true, trim: true, index: true },
   },
   { timestamps: true, collection: 'acc_stock_items' }
 );
-AccStockItemSchema.index({ name: 1, financialYear: 1 }, { unique: true });
+AccStockItemSchema.index({ name: 1, financialYear: 1, ownerId: 1 }, { unique: true });
 AccStockItemSchema.index({ stockGroupId: 1 });
 
 // ── STOCK TRANSACTION ───────────────────────────────────────────────
@@ -2073,6 +2094,8 @@ const AccStockTxnSchema = new mongoose.Schema(
     narration: { type: String, trim: true },
     financialYear: { type: String, required: true, trim: true, index: true },
     createdByUserId: { type: String, trim: true },
+    // Multi-tenant: which admin account owns this data
+    ownerId: { type: String, required: true, trim: true, index: true },
   },
   { timestamps: true, collection: 'acc_stock_txns' }
 );

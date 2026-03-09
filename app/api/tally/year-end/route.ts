@@ -7,6 +7,7 @@ import { NextRequest } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { closeFinancialYear } from '@/lib/tally/engine';
+import { getTallyOwnerIdForWrite } from '@/lib/tally/access';
 
 function getAuth(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -29,7 +30,8 @@ export async function POST(request: NextRequest) {
       const [startYr] = toFY.split('-').map(Number);
       const nextStart = new Date(`${startYr}-04-01`);
       const nextEnd = new Date(`${startYr + 1}-03-31`);
-      const result = await closeFinancialYear(fromFY, toFY, nextStart, nextEnd, (decoded as any).userId);
+      const writeOwnerId = getTallyOwnerIdForWrite(decoded);
+      const result = await closeFinancialYear(fromFY, toFY, nextStart, nextEnd, (decoded as any).userId, writeOwnerId);
       return apiSuccess(result);
     }
 

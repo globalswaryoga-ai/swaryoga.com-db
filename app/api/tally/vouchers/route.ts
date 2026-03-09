@@ -12,6 +12,8 @@ import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { getAccVoucher, getAccLedger } from '@/lib/schemas/enterpriseSchemas';
 import { createVoucher, validateVoucherEntries, invalidateReportCache, updateVoucher, deleteVoucher, type VoucherType } from '@/lib/tally/engine';
+import { resolveTallyOwnerId, getTallyOwnerIdForWrite } from '@/lib/tally/access';
+import { scopeQuery } from '@/lib/tally/access';
 
 function getAuth(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -64,7 +66,8 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 200);
     const skip = (page - 1) * limit;
 
-    const query: any = { financialYear: fy, isReversed: { $ne: true } };
+    const ownerId = resolveTallyOwnerId(decoded);
+    const query: any = ownerId ? { financialYear: fy, isReversed: { $ne: true }, ownerId } : { financialYear: fy, isReversed: { $ne: true } };
     if (type) query.type = type;
     if (dateFrom || dateTo) {
       query.date = {};
@@ -152,6 +155,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create the voucher
+    const writeOwnerId = getTallyOwnerIdForWrite(decoded);
     const voucher = await createVoucher({
       date: new Date(date),
       type,
@@ -163,6 +167,7 @@ export async function POST(request: NextRequest) {
       createdByUserId: (decoded as any)?.userId,
       receiptFileUrl,
       receiptFileName,
+      ownerId: writeOwnerId,
     });
 
     invalidateReportCache(financialYear);
@@ -222,12 +227,13 @@ export async function PUT(request: NextRequest) {
       }
     }
 
+    const ownerId = resolveTallyOwnerId(decoded);
     const voucher = await updateVoucher(id, {
       date: date ? new Date(date) : undefined,
       type,
       entries,
       narration,
-    });
+    }, ownerId);
 
     return apiSuccess({
       id: String(voucher._id),
@@ -260,7 +266,8 @@ export async function DELETE(request: NextRequest) {
 
     if (!id) return apiError('VALIDATION_ERROR', 'Voucher id is required');
 
-    const result = await deleteVoucher(id);
+    const ownerId = resolveTallyOwnerId(decoded);
+    const result = await deleteVoucher(id, ownerId);
     return apiSuccess(result);
   } catch (error: any) {
     console.error('[Tally Vouchers DELETE]', error);

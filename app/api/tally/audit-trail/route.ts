@@ -7,6 +7,7 @@ import { NextRequest } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { getAuditTrail } from '@/lib/tally/engine';
+import { resolveTallyOwnerId } from '@/lib/tally/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,7 +31,8 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(request.nextUrl.searchParams.get('limit') || '50');
     const skip = parseInt(request.nextUrl.searchParams.get('skip') || '0');
 
-    const result = await getAuditTrail(fy, { entityType, entityId, limit, skip });
+    const ownerId = resolveTallyOwnerId(decoded);
+    const result = await getAuditTrail(fy, { entityType, entityId, limit, skip }, ownerId);
     return apiSuccess(result);
   } catch (e: any) {
     return apiError('INTERNAL_ERROR', e.message);

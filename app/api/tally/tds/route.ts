@@ -8,6 +8,7 @@ import { NextRequest } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { getTdsEntries, createTdsEntry, updateTdsEntry, getTdsSummary } from '@/lib/tally/engine';
+import { resolveTallyOwnerId, getTallyOwnerIdForWrite } from '@/lib/tally/access';
 
 function getAuth(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -27,7 +28,8 @@ export async function GET(request: NextRequest) {
     const section = request.nextUrl.searchParams.get('section') || undefined;
     const quarter = request.nextUrl.searchParams.get('quarter') || undefined;
 
-    const entries = await getTdsEntries(fy, { section, quarter });
+    const ownerId = resolveTallyOwnerId(decoded);
+    const entries = await getTdsEntries(fy, { section, quarter }, ownerId);
     return apiSuccess({ entries });
   } catch (e: any) {
     return apiError('SERVER_ERROR', e.message);
@@ -45,7 +47,8 @@ export async function POST(request: NextRequest) {
     if (action === 'create') {
       const { deducteeId, deducteeName, deducteePan, section, tdsRate, grossAmount, tdsAmount, netAmount, date, voucherId, voucherNumber, financialYear, quarter } = body;
       if (!deducteeId || !deducteeName || !section || !financialYear) return apiError('VALIDATION_ERROR', 'Required fields missing');
-      const doc = await createTdsEntry({ deducteeId, deducteeName, deducteePan, section, tdsRate, grossAmount, tdsAmount, netAmount, date, voucherId, voucherNumber, financialYear, quarter, createdByUserId: (decoded as any).userId });
+      const writeOwnerId = getTallyOwnerIdForWrite(decoded);
+      const doc = await createTdsEntry({ deducteeId, deducteeName, deducteePan, section, tdsRate, grossAmount, tdsAmount, netAmount, date, voucherId, voucherNumber, financialYear, quarter, createdByUserId: (decoded as any).userId, ownerId: writeOwnerId });
       return apiSuccess({ tdsEntry: doc });
     }
 
@@ -59,7 +62,8 @@ export async function POST(request: NextRequest) {
     if (action === 'summary') {
       const { financialYear } = body;
       if (!financialYear) return apiError('VALIDATION_ERROR', 'financialYear required');
-      const summary = await getTdsSummary(financialYear);
+      const ownerId = resolveTallyOwnerId(decoded);
+      const summary = await getTdsSummary(financialYear, ownerId);
       return apiSuccess(summary);
     }
 

@@ -89,13 +89,13 @@ export async function GET(request: NextRequest) {
             { $sort: { _id: 1 } },
           ]),
           SalesReport.countDocuments({ ...userSalesFilter, ...(hasDateRange ? { saleDate: dateRange } : {}) }),
-          // Messages are tied to leads - for non-super-admin, we need to join with leads
-          // For simplicity, super admin sees all, others see estimated based on their leads
+          // Messages are tied to leads - for non-super-admin, filter by sentByUserId
+          // For simplicity, super admin sees all, others see their own sent messages
           superAdmin 
             ? WhatsAppMessage.countDocuments(hasDateRange ? { sentAt: dateRange } : {})
             : WhatsAppMessage.countDocuments({ 
                 ...( hasDateRange ? { sentAt: dateRange } : {}),
-                // Would need lead join for accurate count - use estimate for now
+                sentByUserId: viewerUserId,
               }),
           // Count Meta messages - ONLY for superadmin (this is global business account data)
           superAdmin
@@ -114,9 +114,19 @@ export async function GET(request: NextRequest) {
               })
             : Promise.resolve(0), // Non-superadmin sees 0
           // Broadcast diagnostics: overall delivery outcomes across run messages.
+          // For non-superadmin, only include broadcast runs they created.
           // We aggregate by status + a normalized reason bucket derived from failureReason.
-          BroadcastRunMessage.aggregate([
-            ...(hasDateRange ? [{ $match: { createdAt: dateRange } }] : []),
+          (async () => {
+            let broadcastMatch: any = hasDateRange ? { createdAt: dateRange } : {};
+            if (!superAdmin) {
+              const { getBroadcastRun } = await import('@/lib/schemas/enterpriseSchemas');
+              const BroadcastRun = getBroadcastRun();
+              const userRunIds = await BroadcastRun.find({ createdByUserId: viewerUserId }).distinct('_id');
+              if (!userRunIds.length) return [];
+              broadcastMatch = { ...broadcastMatch, runId: { $in: userRunIds } };
+            }
+            return BroadcastRunMessage.aggregate([
+              ...(Object.keys(broadcastMatch).length ? [{ $match: broadcastMatch }] : []),
             {
               $project: {
                 status: 1,
@@ -180,7 +190,8 @@ export async function GET(request: NextRequest) {
                 count: { $sum: 1 },
               },
             },
-          ]),
+          ]);
+          })(),
         ]);
 
         // Summarize broadcast breakdown.

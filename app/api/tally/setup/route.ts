@@ -9,6 +9,8 @@ import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { getAccFinancialYear } from '@/lib/schemas/enterpriseSchemas';
 import { seedDefaultGroups, seedGSTLedgers } from '@/lib/tally/engine';
+import { resolveTallyOwnerId, getTallyOwnerIdForWrite } from '@/lib/tally/access';
+import { scopeQuery } from '@/lib/tally/access';
 
 function getAuth(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -35,10 +37,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Create or find financial year
-    let fy = await AccFinancialYear.findOne({ code });
+    const writeOwnerId = getTallyOwnerIdForWrite(decoded);
+    let fy = await AccFinancialYear.findOne(writeOwnerId ? { code, ownerId: writeOwnerId } : { code });
     if (!fy) {
       // Mark all other FYs as not current
-      await AccFinancialYear.updateMany({}, { isCurrent: false });
+      await AccFinancialYear.updateMany(writeOwnerId ? { ownerId: writeOwnerId } : {}, { isCurrent: false });
 
       fy = await AccFinancialYear.create({
         code,
@@ -48,11 +51,12 @@ export async function POST(request: NextRequest) {
         isCurrent: true,
         companyName: companyName || 'Upamnyu International Education Pvt. Ltd.',
         createdByUserId: (decoded as any)?.userId,
+        ownerId: writeOwnerId,
       });
     }
 
     // Seed default groups
-    const groups = await seedDefaultGroups(code);
+    const groups = await seedDefaultGroups(code, writeOwnerId);
 
     return apiSuccess({
       financialYear: {
@@ -82,7 +86,8 @@ export async function GET(request: NextRequest) {
     await connectDB();
     const AccFinancialYear = getAccFinancialYear();
 
-    const years = await AccFinancialYear.find().sort({ code: -1 }).lean();
+    const ownerId = resolveTallyOwnerId(decoded);
+    const years = await AccFinancialYear.find(ownerId ? { ownerId } : {}).sort({ code: -1 }).lean();
 
     return apiSuccess({
       financialYears: (years as any[]).map(y => ({
@@ -140,7 +145,8 @@ export async function PATCH(request: NextRequest) {
     const { action, fy } = body;
 
     if (action === 'seed-gst' && fy) {
-      const result = await seedGSTLedgers(fy);
+      const writeOwnerId = getTallyOwnerIdForWrite(decoded);
+      const result = await seedGSTLedgers(fy, writeOwnerId);
       return apiSuccess({
         ...result,
         message: result.created > 0 ? `${result.created} GST ledgers created.` : 'GST ledgers already exist.',
@@ -160,8 +166,9 @@ export async function PATCH(request: NextRequest) {
       for (const field of profileFields) {
         if (body[field] !== undefined) update[field] = body[field];
       }
+      const writeOwnerId2 = getTallyOwnerIdForWrite(decoded);
       const updated = await AccFinancialYear.findOneAndUpdate(
-        { code: fy },
+        writeOwnerId2 ? { code: fy, ownerId: writeOwnerId2 } : { code: fy },
         { $set: update },
         { new: true }
       ).lean() as any;
@@ -171,10 +178,11 @@ export async function PATCH(request: NextRequest) {
 
     if (action === 'toggle-lock' && fy) {
       const AccFinancialYear = getAccFinancialYear();
-      const fyDoc = await AccFinancialYear.findOne({ code: fy });
+      const writeOwnerId3 = getTallyOwnerIdForWrite(decoded);
+      const fyDoc = await AccFinancialYear.findOne(writeOwnerId3 ? { code: fy, ownerId: writeOwnerId3 } : { code: fy });
       if (!fyDoc) return apiError('NOT_FOUND', `FY ${fy} not found`);
       const newState = !(fyDoc as any).isClosed;
-      await AccFinancialYear.updateOne({ code: fy }, { $set: { isClosed: newState } });
+      await AccFinancialYear.updateOne(writeOwnerId3 ? { code: fy, ownerId: writeOwnerId3 } : { code: fy }, { $set: { isClosed: newState } });
       return apiSuccess({
         message: newState ? `FY ${fy} locked successfully.` : `FY ${fy} unlocked successfully.`,
         fy,

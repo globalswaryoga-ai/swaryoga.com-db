@@ -7,6 +7,7 @@ import { NextRequest } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { getLedgerStatement } from '@/lib/tally/engine';
+import { resolveTallyOwnerId } from '@/lib/tally/access';
 
 function getAuth(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -31,11 +32,13 @@ export async function GET(
     const dateFrom = searchParams.get('dateFrom');
     const dateTo = searchParams.get('dateTo');
 
+    const ownerId = resolveTallyOwnerId(decoded);
     const statement = await getLedgerStatement(
       id,
       fy,
       dateFrom ? new Date(dateFrom) : undefined,
       dateTo ? new Date(dateTo) : undefined,
+      ownerId,
     );
 
     return apiSuccess({

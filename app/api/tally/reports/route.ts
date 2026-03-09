@@ -34,6 +34,7 @@ import {
   getBankReconciliation,
   getCashBankLedgers,
 } from '@/lib/tally/engine';
+import { resolveTallyOwnerId, getTallyOwnerIdForWrite } from '@/lib/tally/access';
 
 function getAuth(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -71,7 +72,8 @@ export async function GET(request: NextRequest) {
     const dateTo = searchParams.get('dateTo') ? new Date(searchParams.get('dateTo')!) : undefined;
 
     // Check cache first (skip for date-filtered queries)
-    const cacheKey = `${reportType}:${fy}:${dateTo?.toISOString() || ''}`;
+    const ownerId = resolveTallyOwnerId(decoded);
+    const cacheKey = `${reportType}:${fy}:${ownerId || 'all'}:${dateTo?.toISOString() || ''}`;
     const cached = getCached(cacheKey);
     if (cached) return apiSuccess(cached);
 
@@ -79,96 +81,96 @@ export async function GET(request: NextRequest) {
 
     switch (reportType) {
       case 'trial-balance': {
-        const tb = await generateTrialBalance(fy, dateTo);
+        const tb = await generateTrialBalance(fy, dateTo, undefined, ownerId);
         result = { reportType: 'Trial Balance', financialYear: fy, ...tb };
         break;
       }
 
       case 'profit-loss': {
-        const balanceMap = await batchCalculateLedgerBalances(fy, dateTo);
-        const pl = await generateProfitLoss(fy, dateTo, balanceMap);
+        const balanceMap = await batchCalculateLedgerBalances(fy, dateTo, ownerId);
+        const pl = await generateProfitLoss(fy, dateTo, balanceMap, ownerId);
         result = { reportType: 'Profit & Loss', financialYear: fy, ...pl };
         break;
       }
 
       case 'balance-sheet': {
-        const balanceMap = await batchCalculateLedgerBalances(fy, dateTo);
-        const pl = await generateProfitLoss(fy, dateTo, balanceMap);
-        const bs = await generateBalanceSheet(fy, dateTo, balanceMap, pl);
+        const balanceMap = await batchCalculateLedgerBalances(fy, dateTo, ownerId);
+        const pl = await generateProfitLoss(fy, dateTo, balanceMap, ownerId);
+        const bs = await generateBalanceSheet(fy, dateTo, balanceMap, pl, ownerId);
         result = { reportType: 'Balance Sheet', financialYear: fy, ...bs };
         break;
       }
 
       case 'monthly-pl': {
-        const monthly = await generateMonthlyPL(fy);
+        const monthly = await generateMonthlyPL(fy, ownerId);
         result = { reportType: 'Monthly Profit & Loss', financialYear: fy, months: monthly };
         break;
       }
 
       case 'cash-bank': {
-        const cb = await getCashBankSummary(fy);
+        const cb = await getCashBankSummary(fy, undefined, ownerId);
         result = { reportType: 'Cash & Bank Summary', financialYear: fy, accounts: cb };
         break;
       }
 
       case 'summary': {
-        const summary = await getAccountingSummary(fy);
+        const summary = await getAccountingSummary(fy, ownerId);
         result = { reportType: 'Dashboard Summary', ...summary };
         break;
       }
 
       case 'ca-audit': {
-        const audit = await generateCAAuditReport(fy);
+        const audit = await generateCAAuditReport(fy, ownerId);
         result = { reportType: 'CA Audit Report', ...audit };
         break;
       }
 
       case 'group-summary': {
-        const groups = await getGroupSummary(fy);
+        const groups = await getGroupSummary(fy, ownerId);
         result = { reportType: 'Group Summary', financialYear: fy, groups };
         break;
       }
 
       case 'outstanding-receivable': {
         const asOn = searchParams.get('asOnDate') ? new Date(searchParams.get('asOnDate')!) : undefined;
-        result = await getOutstandingReceivables(fy, asOn);
+        result = await getOutstandingReceivables(fy, asOn, ownerId);
         break;
       }
 
       case 'outstanding-payable': {
         const asOn = searchParams.get('asOnDate') ? new Date(searchParams.get('asOnDate')!) : undefined;
-        result = await getOutstandingPayables(fy, asOn);
+        result = await getOutstandingPayables(fy, asOn, ownerId);
         break;
       }
 
       case 'gstr1': {
         const gstMonth = searchParams.get('month') ? Number(searchParams.get('month')) : undefined;
         const gstYear = searchParams.get('year') ? Number(searchParams.get('year')) : undefined;
-        result = await generateGSTR1(fy, gstMonth, gstYear);
+        result = await generateGSTR1(fy, gstMonth, gstYear, ownerId);
         break;
       }
 
       case 'gstr3b': {
         const g3bMonth = searchParams.get('month') ? Number(searchParams.get('month')) : undefined;
         const g3bYear = searchParams.get('year') ? Number(searchParams.get('year')) : undefined;
-        result = await generateGSTR3B(fy, g3bMonth, g3bYear);
+        result = await generateGSTR3B(fy, g3bMonth, g3bYear, ownerId);
         break;
       }
 
       case 'comparative-pl': {
         const prevFY = searchParams.get('prevFY') || '2023-24';
-        result = await generateComparativePL(fy, prevFY);
+        result = await generateComparativePL(fy, prevFY, ownerId);
         break;
       }
 
       case 'comparative-bs': {
         const prevFY = searchParams.get('prevFY') || '2023-24';
-        result = await generateComparativeBS(fy, prevFY);
+        result = await generateComparativeBS(fy, prevFY, ownerId);
         break;
       }
 
       case 'budget': {
-        result = await getBudgetReport(fy);
+        result = await getBudgetReport(fy, ownerId);
         break;
       }
 
@@ -176,11 +178,11 @@ export async function GET(request: NextRequest) {
         const bankId = searchParams.get('bankLedgerId');
         if (!bankId) {
           // Return list of bank ledgers
-          const banks = await getCashBankLedgers(fy);
+          const banks = await getCashBankLedgers(fy, ownerId);
           result = { reportType: 'Bank Reconciliation', banks: banks.filter((b: any) => b.subGroup === 'Bank Accounts') };
         } else {
           const asOn = searchParams.get('asOnDate') ? new Date(searchParams.get('asOnDate')!) : undefined;
-          result = await getBankReconciliation(bankId, fy, asOn);
+          result = await getBankReconciliation(bankId, fy, asOn, ownerId);
         }
         break;
       }
@@ -218,23 +220,27 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'carry-forward') {
+      const writeOwnerId = getTallyOwnerIdForWrite(decoded);
       const result = await carryForwardBalances(
         currentFY,
         nextFY,
         new Date(nextStartDate),
         new Date(nextEndDate),
         (decoded as any)?.userId,
+        writeOwnerId,
       );
       return apiSuccess(result);
     }
 
     // close-year: carry forward + lock
+    const writeOwnerId = getTallyOwnerIdForWrite(decoded);
     const result = await closeFinancialYear(
       currentFY,
       nextFY,
       new Date(nextStartDate),
       new Date(nextEndDate),
       (decoded as any)?.userId,
+      writeOwnerId,
     );
 
     return apiSuccess(result);
