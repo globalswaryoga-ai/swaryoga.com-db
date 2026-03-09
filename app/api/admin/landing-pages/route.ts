@@ -1,25 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, LandingPage } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { isSuperAdmin } from '@/lib/crm-handlers';
+import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
-// GET - List all landing pages (SUPERADMIN ONLY)
+// GET - List all landing pages
 export async function GET(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Only superadmins can manage landing pages
-    if (!isSuperAdmin(decoded)) {
-      return NextResponse.json(
-        { error: 'Access denied: Superadmin access required for landing pages' },
-        { status: 403 }
-      );
     }
 
     await connectDB();
@@ -31,6 +23,19 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
 
     const filter: any = {};
+
+    // Scope by ownerId for non-superadmins
+    if (!isSuperAdmin(decoded)) {
+      const viewerId = getViewerUserId(decoded);
+      if (viewerId) {
+        filter.$or = [
+          { ownerId: viewerId },
+          { createdBy: viewerId },
+          { createdByUserId: viewerId },
+        ];
+      }
+    }
+
     if (status && status !== 'all') {
       filter.status = status;
     }
@@ -104,6 +109,7 @@ export async function POST(request: NextRequest) {
     const landingPage = await LandingPage.create({
       ...body,
       slug,
+      ownerId: getViewerUserId(decoded),
       createdBy: decoded.userId || decoded.username || 'admin',
       updatedBy: decoded.userId || decoded.username || 'admin',
       createdAt: new Date(),

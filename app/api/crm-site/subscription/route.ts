@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
-import jwt from 'jsonwebtoken';
+import { verifyToken } from '@/lib/auth';
+import { getViewerUserId, isSuperAdmin } from '@/lib/crm-handlers';
 
 /**
  * GET /api/crm-site/subscription
@@ -12,83 +13,82 @@ import jwt from 'jsonwebtoken';
  */
 export async function GET(request: NextRequest) {
   try {
-    // Verify auth token
-    const authHeader = request.headers.get('Authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
+    // Verify auth token using shared verifyToken
+    const authHeader = request.headers.get('Authorization') || '';
+    const decoded = verifyToken(authHeader);
+    if (!decoded || !decoded.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const token = authHeader.split(' ')[1];
-    const jwtSecret = process.env.JWT_SECRET || process.env.ADMIN_JWT_SECRET || 'swar-yoga-default-secret';
-    
-    let decoded: any;
-    try {
-      decoded = jwt.verify(token, jwtSecret);
-    } catch {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
-    const tenantSlug = decoded.tenantSlug;
-    if (!tenantSlug) {
-      return NextResponse.json({ error: 'No tenant found' }, { status: 400 });
-    }
+    const tenantSlug = (decoded as any).tenantSlug || '';
+    const viewerId = getViewerUserId(decoded);
+    const isSuper = isSuperAdmin(decoded);
 
     await connectDB();
     const mongoose = (await import('mongoose')).default;
     const mainDb = mongoose.connection.useDb(process.env.MONGODB_MAIN_DB_NAME || 'swaryogaDB');
     const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
 
-    // Get tenant from main DB
-    const tenant = await mainDb.collection('tenants').findOne({
-      $or: [{ tenantSlug }, { slug: tenantSlug }],
-    });
-
-    if (!tenant) {
-      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
+    // Try to find tenant — tenantSlug may be absent for regular admin users
+    let tenant: any = null;
+    if (tenantSlug) {
+      tenant = await mainDb.collection('tenants').findOne({
+        $or: [{ tenantSlug }, { slug: tenantSlug }],
+      });
     }
 
-    // Get usage stats from CRM DB
-    const leadsCount = await crmDb.collection('leads').countDocuments({
-      $or: [{ tenantSlug }, { tenantId: tenantSlug }],
-    });
+    // If no tenant found, build a lightweight response from CRM data
+    // This handles regular admin users who don't have a tenantSlug in their token
+    let leadsCount = 0;
+    let usersCount = 0;
+    let storageUsedMB = 0;
+    let lastPayment: any = null;
 
-    const usersCount = await crmDb.collection('admin_users').countDocuments({
-      tenantSlug,
-    });
-
-    // Get last payment from billing orders
-    const lastPayment = await crmDb.collection('crm_billing_orders').findOne(
-      { tenantSlug, cfStatus: 'PAID' },
-      { sort: { createdAt: -1 } }
-    );
+    if (tenant) {
+      // Get usage stats from CRM DB scoped to tenant
+      leadsCount = await crmDb.collection('leads').countDocuments({
+        $or: [{ tenantSlug }, { tenantId: tenantSlug }],
+      });
+      usersCount = await crmDb.collection('admin_users').countDocuments({ tenantSlug });
+      lastPayment = await crmDb.collection('crm_billing_orders').findOne(
+        { tenantSlug, cfStatus: 'PAID' },
+        { sort: { createdAt: -1 } }
+      );
+    } else {
+      // For regular admin users without tenantSlug — scope by ownerId
+      const ownerFilter = isSuper ? {} : { ownerId: viewerId };
+      leadsCount = await crmDb.collection('crm_leads').countDocuments(ownerFilter);
+      usersCount = await crmDb.collection('admin_users').countDocuments(
+        isSuper ? {} : { $or: [{ userId: viewerId }, { createdBy: viewerId }] }
+      );
+    }
 
     // Calculate storage used (approximate from DB stats)
-    let storageUsedMB = 0;
     try {
       const dbStats = await crmDb.db.stats();
-      // This is a rough estimate - divide total storage by number of tenants
-      const tenantCount = await mainDb.collection('tenants').countDocuments();
-      storageUsedMB = Math.round((dbStats.dataSize / (1024 * 1024)) / Math.max(1, tenantCount));
+      const tenantCount = Math.max(1, await mainDb.collection('tenants').countDocuments());
+      storageUsedMB = Math.round((dbStats.dataSize / (1024 * 1024)) / tenantCount);
     } catch {
-      storageUsedMB = 10; // Default fallback
+      storageUsedMB = 10;
     }
 
     // Build subscription response
+    const plan = tenant?.subscriptionTier || tenant?.plan || 'free';
     const subscription = {
-      tenantSlug,
-      plan: tenant.subscriptionTier || tenant.plan || 'free',
+      tenantSlug: tenantSlug || viewerId,
+      plan,
       billing: lastPayment?.billing || 'monthly',
-      subscriptionStatus: tenant.subscriptionStatus || 'active',
-      subscriptionStartDate: tenant.subscriptionStartDate || tenant.createdAt,
-      subscriptionEndDate: tenant.subscriptionEndDate || null,
+      subscriptionStatus: tenant?.subscriptionStatus || 'active',
+      subscriptionStartDate: tenant?.subscriptionStartDate || tenant?.createdAt || null,
+      subscriptionEndDate: tenant?.subscriptionEndDate || null,
 
       // Usage
       storageUsedMB,
-      storageQuotaMB: tenant.limits?.storageQuotaMB || 100,
+      storageQuotaMB: tenant?.limits?.storageQuotaMB || 100,
       leadsUsed: leadsCount,
-      leadsQuota: tenant.limits?.maxLeads || 250,
+      leadsQuota: tenant?.limits?.maxLeads || 250,
       usersCount,
-      usersQuota: tenant.limits?.maxUsers || 1,
+      usersQuota: tenant?.limits?.maxUsers || 1,
 
       // Payment info
       paymentMethod: lastPayment?.paymentMethod || null,
