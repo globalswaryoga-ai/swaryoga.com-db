@@ -240,6 +240,18 @@ export async function POST(req: NextRequest) {
       data.chats = await filterChatsForUser(data.chats, userId);
     }
 
+    // ── MULTI-TENANT: Sanitize /status for non-super-admin users on shared bridge ──
+    if ((decodedPath === '/status' || decodedPath === '/') && !superAdmin) {
+      data = {
+        connected: data?.connected || false,
+        status: data?.status || 'disconnected',
+        qrAvailable: data?.qrAvailable || false,
+        chatCount: 0,
+        uptime: data?.uptime || 0,
+        phone: null,
+      };
+    }
+
     // Wrap in { success, data } so useCRM hook accepts the response
     return NextResponse.json({ success: true, data }, { status: res.status });
   } catch (err) {
@@ -392,6 +404,22 @@ export async function GET(req: NextRequest) {
     // ── CHAT COMPARTMENT: Filter /chats response for non-super-admin users ──
     if (path === '/chats' && !superAdmin && data?.chats) {
       data.chats = await filterChatsForUser(data.chats, userId);
+    }
+
+    // ── MULTI-TENANT: Sanitize /status for non-super-admin users on shared bridge ──
+    // Don't expose the admin's WhatsApp phone name, chat count, or session details
+    if ((path === '/status' || path === '/') && !superAdmin) {
+      // Keep connection status but hide admin-specific details
+      data = {
+        connected: data?.connected || false,
+        status: data?.status || 'disconnected',
+        qrAvailable: data?.qrAvailable || false,
+        // Show 0 chats — their actual chat count comes from filtered /chats
+        chatCount: 0,
+        uptime: data?.uptime || 0,
+        // Remove admin's phone info
+        phone: null,
+      };
     }
 
     // Wrap in { success, data } so useCRM hook accepts the response
