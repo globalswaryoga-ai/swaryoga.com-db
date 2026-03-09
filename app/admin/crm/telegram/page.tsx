@@ -290,18 +290,60 @@ export default function TelegramPage() {
                 </p>
               </div>
             ) : (
-              <div className="space-y-3">
-                <p className="text-xs text-gray-400">
-                  1. Open Telegram and chat with <a href="https://t.me/BotFather" target="_blank" className="text-blue-400 hover:underline">@BotFather</a><br />
-                  2. Send <code className="text-gray-300">/newbot</code> and follow the prompts<br />
-                  3. Paste the bot token below
-                </p>
+              <div className="space-y-4">
+                {/* Step-by-step guide */}
+                <div className="bg-gray-800/60 rounded-xl p-4 space-y-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-7 h-7 rounded-full bg-blue-600/30 text-blue-400 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">1</div>
+                    <div>
+                      <p className="text-sm font-medium text-white">Open @BotFather on Telegram</p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        Open the Telegram app on your phone or desktop and search for{' '}
+                        <a href="https://t.me/BotFather" target="_blank" rel="noopener" className="text-blue-400 hover:underline font-medium">@BotFather</a>{' '}
+                        — it&apos;s Telegram&apos;s official tool for creating bots.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3">
+                    <div className="w-7 h-7 rounded-full bg-blue-600/30 text-blue-400 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">2</div>
+                    <div>
+                      <p className="text-sm font-medium text-white">Create a new bot</p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        Send <code className="bg-gray-700 text-gray-200 px-1.5 py-0.5 rounded text-[11px]">/newbot</code> to BotFather.
+                        It will ask you for a <strong className="text-gray-300">display name</strong> (e.g. &quot;My Business Bot&quot;) and a <strong className="text-gray-300">username</strong> (must end in &quot;bot&quot;, e.g. &quot;mybusiness_bot&quot;).
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3">
+                    <div className="w-7 h-7 rounded-full bg-blue-600/30 text-blue-400 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">3</div>
+                    <div>
+                      <p className="text-sm font-medium text-white">Copy the bot token</p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        BotFather will reply with a token like <code className="bg-gray-700 text-gray-200 px-1.5 py-0.5 rounded text-[11px]">123456789:ABCdefGHI...</code>. Copy the <strong className="text-gray-300">entire token</strong> — this is how the CRM connects to your bot.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3">
+                    <div className="w-7 h-7 rounded-full bg-green-600/30 text-green-400 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">4</div>
+                    <div>
+                      <p className="text-sm font-medium text-white">Paste it below &amp; click Connect</p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        We&apos;ll verify the token with Telegram and automatically set up a webhook so incoming messages appear here instantly.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Token input */}
                 <div className="flex gap-2">
                   <input
                     type="text"
                     value={botTokenInput}
                     onChange={e => setBotTokenInput(e.target.value)}
-                    placeholder="123456789:ABCdefGHIjklMNOpqrSTUvwxYZ"
+                    placeholder="Paste your bot token here..."
                     className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   />
                   <button
@@ -318,6 +360,10 @@ export default function TelegramPage() {
                     <AlertTriangle className="w-3 h-3" /> {setupError}
                   </p>
                 )}
+
+                <p className="text-[11px] text-gray-600">
+                  Tip: You can also set your bot&apos;s profile picture and description in @BotFather using <code className="text-gray-500">/setuserpic</code> and <code className="text-gray-500">/setdescription</code>.
+                </p>
               </div>
             )}
           </div>
@@ -495,14 +541,48 @@ export default function TelegramPage() {
             </>
           ) : (
             <div className="flex-1 flex items-center justify-center text-gray-500">
-              <div className="text-center">
-                <Send className="w-12 h-12 mx-auto mb-3 opacity-30" />
+              <div className="text-center max-w-md px-6">
+                <Send className="w-12 h-12 mx-auto mb-4 opacity-30" />
                 <p className="text-lg font-medium text-gray-400">Telegram Bot Inbox</p>
-                <p className="text-sm mt-1">Select a contact to view messages</p>
-                {botConfig?.configured && (
-                  <p className="text-xs mt-3 text-gray-500">
-                    Share <span className="text-blue-400">t.me/{botConfig.botUsername}</span> to start receiving messages
-                  </p>
+
+                {botConfig?.configured ? (
+                  <div className="mt-4 space-y-3">
+                    <p className="text-sm text-gray-400">Select a contact from the left to view messages</p>
+                    <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 text-left space-y-3 mt-4">
+                      <p className="text-xs font-semibold text-gray-300">How to get contacts:</p>
+                      <div className="flex items-start gap-2">
+                        <span className="text-blue-400 text-xs mt-0.5">1.</span>
+                        <p className="text-xs text-gray-400">Share your bot link{' '}
+                          <a href={`https://t.me/${botConfig.botUsername}`} target="_blank" rel="noopener" className="text-blue-400 hover:underline">t.me/{botConfig.botUsername}</a>{' '}
+                          with customers via WhatsApp, website, social media, etc.
+                        </p>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="text-blue-400 text-xs mt-0.5">2.</span>
+                        <p className="text-xs text-gray-400">When they open the link and send a message (even &quot;Hi&quot;), they&apos;ll appear here as a contact automatically.</p>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="text-blue-400 text-xs mt-0.5">3.</span>
+                        <p className="text-xs text-gray-400">You can then reply, broadcast messages, and use templates — all from this CRM.</p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-4 space-y-3">
+                    <p className="text-sm text-gray-400">Connect your Telegram bot to get started</p>
+                    <button
+                      onClick={() => setShowSetup(true)}
+                      className="mt-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-xl transition-colors inline-flex items-center gap-2"
+                    >
+                      <Bot className="w-4 h-4" />
+                      Set Up Telegram Bot
+                    </button>
+                    <p className="text-xs text-gray-600 mt-2">
+                      You&apos;ll need a bot token from{' '}
+                      <a href="https://t.me/BotFather" target="_blank" rel="noopener" className="text-blue-400 hover:underline">@BotFather</a>{' '}
+                      — it takes less than 2 minutes.
+                    </p>
+                  </div>
                 )}
               </div>
             </div>
