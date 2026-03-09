@@ -47,6 +47,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Fetch media from bridge (server-side — no CORS issues)
+    // Must pass x-user-id so the bridge routes to the correct per-user session
     const bridgeMediaUrl = `${BRIDGE_URL}/media/${encodeURIComponent(messageId)}`;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
@@ -55,7 +56,10 @@ export async function GET(req: NextRequest) {
     try {
       res = await fetch(bridgeMediaUrl, {
         method: 'GET',
-        headers: { 'x-bridge-secret': BRIDGE_SECRET },
+        headers: {
+          'x-bridge-secret': BRIDGE_SECRET,
+          'x-user-id': decoded.userId,
+        },
         signal: controller.signal,
       });
     } catch (err) {

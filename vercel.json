@@ -28,6 +28,9 @@
     },
     "app/api/admin/crm/chatbot-actions/run/route.ts": {
       "maxDuration": 60
+    },
+    "app/api/whatsapp/qr/webhook/route.ts": {
+      "maxDuration": 60
     }
   },
   "crons": [

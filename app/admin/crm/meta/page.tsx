@@ -86,6 +86,8 @@ type Message = {
   };
   sentByLabel?: string;
   senderDisplayName?: string;
+  provider?: string;
+  waMessageId?: string;
 };
 
 type LeadFormValues = {
@@ -2710,28 +2712,33 @@ export default function MetaInboxPage() {
                             
                             // Proxy S3 URLs through our API to handle bucket access restrictions
                             const mediaUrl = rawMediaUrl ? getProxiedMediaUrl(rawMediaUrl, token) : null;
+                            // Bridge-download fallback for QR messages without uploaded media
+                            const bridgeFallbackUrl = (!mediaUrl && (msg.messageType === 'media' || msg.media?.kind) && (msg as any).waMessageId && (msg as any).provider === 'whatsapp_web_bridge')
+                              ? `/api/admin/crm/media/bridge-download?messageId=${encodeURIComponent((msg as any).waMessageId)}&token=${encodeURIComponent(token || '')}`
+                              : null;
+                            const effectiveMediaUrl = mediaUrl || bridgeFallbackUrl;
                             
-                            if (mediaUrl) {
+                            if (effectiveMediaUrl) {
                               // Determine filename for download
-                              const dlName = msg.media?.fileName || getFilenameFromUrl(rawMediaUrl) || `media-${Date.now()}`;
+                              const dlName = msg.media?.fileName || (rawMediaUrl ? getFilenameFromUrl(rawMediaUrl) : null) || `media-${Date.now()}`;
                               return (
-                                <div className="w-full relative group/media cursor-pointer" onClick={() => { if (mediaKind === 'image' || mediaKind === 'sticker') setLightboxImage(mediaUrl); }}>
+                                <div className="w-full relative group/media cursor-pointer" onClick={() => { if (mediaKind === 'image' || mediaKind === 'sticker') setLightboxImage(effectiveMediaUrl); }}>
                                   <InlineMediaPreview 
-                                    url={mediaUrl} 
+                                    url={effectiveMediaUrl} 
                                     type={mediaKind === 'sticker' ? 'image' : mediaKind}
                                     className="w-full max-h-[200px] object-cover"
                                   />
                                   {/* Download + Forward overlay buttons */}
                                   <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover/media:opacity-100 transition-opacity duration-200">
                                     <button
-                                      onClick={(e) => { e.stopPropagation(); handleMediaDownload(mediaUrl, dlName); }}
+                                      onClick={(e) => { e.stopPropagation(); handleMediaDownload(effectiveMediaUrl, dlName); }}
                                       className="w-8 h-8 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 text-white shadow-lg backdrop-blur-sm"
                                       title="Download"
                                     >
                                       <i className="ph ph-download-simple text-sm"></i>
                                     </button>
                                     <button
-                                      onClick={(e) => { e.stopPropagation(); setForwardMedia({ url: rawMediaUrl, kind: mediaKind, caption: msg.messageContent || undefined }); }}
+                                      onClick={(e) => { e.stopPropagation(); setForwardMedia({ url: rawMediaUrl || effectiveMediaUrl, kind: mediaKind, caption: msg.messageContent || undefined }); }}
                                       className="w-8 h-8 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 text-white shadow-lg backdrop-blur-sm"
                                       title="Forward"
                                     >
