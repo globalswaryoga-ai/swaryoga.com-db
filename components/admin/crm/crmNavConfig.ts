@@ -357,15 +357,16 @@ export const sectionConfigs: SectionConfig[] = [
 
   // 11. All Reports
   {
-    key: 'analytics',
+    key: 'reports',
     title: 'All Reports',
     icon: BarChart3,
     items: [
-      { label: 'Analytics', href: '/admin/crm/analytics', icon: BarChart3 },
-      { label: 'Meta Dashboard', href: '/admin/crm/meta-dashboard', icon: PieChart },
-      { label: 'WA Analytics', href: '/admin/crm/whatsapp-analytics', icon: BarChart2 },
+      { label: 'Reports Center', href: '/admin/crm/reports', icon: BarChart3 },
+      { label: 'Analytics', href: '/admin/crm/analytics', icon: PieChart },
+      { label: 'Meta Dashboard', href: '/admin/crm/meta-dashboard', icon: BarChart2 },
     ],
     moreItems: [
+      { label: 'WA Analytics', href: '/admin/crm/whatsapp-analytics', icon: BarChart2 },
       { label: 'Zoom Analytics', href: '/admin/crm/zoom-analytics', icon: Video },
       { label: 'Meta Reports', href: '/admin/crm/reports/meta', icon: FileText },
     ],

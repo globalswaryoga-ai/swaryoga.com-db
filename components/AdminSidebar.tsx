@@ -351,11 +351,11 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
     {
       icon: BarChart3,
       label: 'All Reports',
-      href: '/admin/crm/analytics',
+      href: '/admin/crm/reports',
       color: 'text-purple-400',
       module: 'analytics',
       planModule: 'reports',
-      description: 'Analytics & performance dashboards',
+      description: 'All reports, analytics & exports',
     },
     {
       icon: Plug,

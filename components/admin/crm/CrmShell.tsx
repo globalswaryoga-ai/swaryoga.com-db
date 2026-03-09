@@ -13,6 +13,9 @@ import { PlanProvider } from './hooks/usePlan';
 import { TrialBanner, PlanGate } from './PlanComponents';
 import { PATH_TO_MODULE, CrmModule } from '@/lib/crm-site/planConfig';
 import { useOnboarding } from './hooks/useOnboarding';
+import BackupReminder from './BackupReminder';
+import PageGuide from './PageGuide';
+import PAGE_GUIDES from './pageGuideData';
 
 /**
  * CrmShell wraps all CRM pages with:
@@ -29,7 +32,7 @@ import { useOnboarding } from './hooks/useOnboarding';
 export default function CrmShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(true);
+  const [collapsed, setCollapsed] = useState(false);
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
 
@@ -68,6 +71,19 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
       .sort((a, b) => b.length - a.length)[0];
     return match ? PATH_TO_MODULE[match] : null;
   })();
+
+  // Get page guide for current page
+  const pageGuideKey = (() => {
+    const p = pathname || '';
+    const suffix = p.replace('/admin/crm/', '').replace(/\/$/, '');
+    // Exact match
+    if (PAGE_GUIDES[suffix]) return suffix;
+    // First segment match (e.g. /admin/crm/broadcast/reports → broadcast)
+    const firstSeg = suffix.split('/')[0];
+    if (firstSeg && PAGE_GUIDES[firstSeg]) return firstSeg;
+    return null;
+  })();
+  const pageGuide = pageGuideKey ? PAGE_GUIDES[pageGuideKey] : null;
 
   const handleStoragePurchase = () => {
     setShowOnboarding(false);
@@ -147,6 +163,9 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
 
         {/* Page content - scrollable, guarded by compartment + plan */}
         <main className="flex-1 overflow-y-auto">
+          {/* Page Guide — auto-detected from pathname */}
+          {pageGuide && <PageGuide guide={pageGuide} />}
+
           {(!loading && status && !status.isSuperAdmin && !status.compartmentReady) ? (
             <CompartmentGuard
               pageName={section?.title || 'CRM'}
@@ -168,6 +187,9 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
         </main>
       </div>
     </div>
+
+    {/* 7-day backup reminder popup */}
+    <BackupReminder />
     </PlanProvider>
   );
 }

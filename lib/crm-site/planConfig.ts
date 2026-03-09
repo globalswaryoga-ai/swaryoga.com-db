@@ -50,6 +50,7 @@ export interface PlanLimits {
   maxBroadcastsPerDay: number;
   maxEmailsPerMonth: number;
   maxLandingPages: number;
+  maxCommunities: number;
   maxAutomationWorkflows: number;
 }
 
@@ -62,6 +63,7 @@ export const PLAN_LIMITS: Record<PlanTier, PlanLimits> = {
     maxBroadcastsPerDay: 1,
     maxEmailsPerMonth: 100,
     maxLandingPages: 1,
+    maxCommunities: 1,
     maxAutomationWorkflows: 1,
   },
   basic: {
@@ -72,6 +74,7 @@ export const PLAN_LIMITS: Record<PlanTier, PlanLimits> = {
     maxBroadcastsPerDay: 5,
     maxEmailsPerMonth: 1000,
     maxLandingPages: 3,
+    maxCommunities: 2,
     maxAutomationWorkflows: 5,
   },
   starter: {
@@ -82,6 +85,7 @@ export const PLAN_LIMITS: Record<PlanTier, PlanLimits> = {
     maxBroadcastsPerDay: 20,
     maxEmailsPerMonth: 5000,
     maxLandingPages: 10,
+    maxCommunities: 5,
     maxAutomationWorkflows: 15,
   },
   growth: {
@@ -92,6 +96,7 @@ export const PLAN_LIMITS: Record<PlanTier, PlanLimits> = {
     maxBroadcastsPerDay: 100,
     maxEmailsPerMonth: 25000,
     maxLandingPages: 50,
+    maxCommunities: 20,
     maxAutomationWorkflows: 50,
   },
   professional: {
@@ -102,6 +107,7 @@ export const PLAN_LIMITS: Record<PlanTier, PlanLimits> = {
     maxBroadcastsPerDay: 999,
     maxEmailsPerMonth: 100000,
     maxLandingPages: 999,
+    maxCommunities: 999,
     maxAutomationWorkflows: 999,
   },
 };
@@ -135,11 +141,11 @@ export const PLAN_MODULES: Record<PlanTier, Record<CrmModule, boolean>> = {
     chatbot: true,
     aiCalls: false,
     reports: false,
-    community: false,
+    community: true,
     templates: false,
     callRecording: false,
     emailMarketing: false,
-    landingPages: false,
+    landingPages: true,
     automation: false,
     helpdesk: false,
     api: false,
@@ -236,9 +242,9 @@ export const FEATURE_CATALOG: PlanFeatureDisplay[] = [
   { name: 'Help Desk', description: 'Ticket-based customer support', module: 'helpdesk', icon: 'LifeBuoy', minimumPlan: 'basic' },
   { name: 'Reports & Analytics', description: 'Performance dashboards and insights', module: 'reports', icon: 'BarChart3', minimumPlan: 'starter' },
   { name: 'Email Marketing', description: 'Email campaigns and drip sequences', module: 'emailMarketing', icon: 'Mail', minimumPlan: 'starter' },
-  { name: 'Landing Pages', description: 'Build lead capture pages', module: 'landingPages', icon: 'Layout', minimumPlan: 'starter' },
+  { name: 'Landing Pages', description: 'Build lead capture pages', module: 'landingPages', icon: 'Layout', minimumPlan: 'free' },
   { name: 'AI Voice Calls', description: 'AI-powered outbound calling', module: 'aiCalls', icon: 'Phone', minimumPlan: 'growth' },
-  { name: 'Community', description: 'Course and community management', module: 'community', icon: 'GraduationCap', minimumPlan: 'growth' },
+  { name: 'Community', description: 'Course and community management', module: 'community', icon: 'GraduationCap', minimumPlan: 'free' },
   { name: 'Call Recording', description: 'Record and review calls', module: 'callRecording', icon: 'Mic', minimumPlan: 'growth' },
   { name: 'Automation', description: 'Workflow automations and triggers', module: 'automation', icon: 'Workflow', minimumPlan: 'growth' },
   { name: 'API Access', description: 'REST API and webhook integrations', module: 'api', icon: 'Code', minimumPlan: 'growth' },
