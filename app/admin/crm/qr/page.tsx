@@ -186,6 +186,17 @@ type MessageItem = {
 
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 
+/** Message delivery tick marks (Baileys status codes) */
+function MessageTicks({ status }: { status?: number }) {
+  if (status === undefined || status === null) return null;
+  // 0=error, 1=pending, 2=server_ack (sent), 3=delivery_ack, 4=read, 5=played
+  if (status <= 1) return <span className="inline-block ml-1" title="Sending"><svg width="14" height="10" viewBox="0 0 16 11" fill="none"><path d="M1 5.5L5.5 10L14.5 1" stroke="#999" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg></span>;
+  if (status === 2) return <span className="inline-block ml-1" title="Sent"><svg width="14" height="10" viewBox="0 0 16 11" fill="none"><path d="M1 5.5L5.5 10L14.5 1" stroke="#667781" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg></span>;
+  if (status === 3) return <span className="inline-block ml-1" title="Delivered"><svg width="18" height="10" viewBox="0 0 21 11" fill="none"><path d="M1 5.5L5.5 10L14.5 1" stroke="#667781" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/><path d="M6 5.5L10.5 10L19.5 1" stroke="#667781" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg></span>;
+  // status >= 4 (read/played)
+  return <span className="inline-block ml-1" title="Read"><svg width="18" height="10" viewBox="0 0 21 11" fill="none"><path d="M1 5.5L5.5 10L14.5 1" stroke="#53bdeb" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/><path d="M6 5.5L10.5 10L19.5 1" stroke="#53bdeb" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg></span>;
+}
+
 type ChatFilter = 'all' | 'unread' | 'read' | 'groups';
 
 type GroupParticipant = { id: string; lid?: string; admin: 'admin' | 'superadmin' | null };
@@ -208,6 +219,8 @@ export default function QRWhatsAppPage() {
   const [chats, setChats] = useState<ChatItem[]>([]);
   const [selectedChat, setSelectedChat] = useState<string | null>(null);
   const [messages, setMessages] = useState<MessageItem[]>([]);
+  const [chatPresence, setChatPresence] = useState<{ presence: string; lastSeen: number | null } | null>(null);
+  const presenceSubRef = useRef<string | null>(null);
   const [composerText, setComposerText] = useState('');
   const [sending, setSending] = useState(false);
   const [tab, setTab] = useState<'connection' | 'inbox' | 'settings'>('connection');
@@ -722,6 +735,21 @@ export default function QRWhatsAppPage() {
     return () => { if (msgPollRef.current) { clearInterval(msgPollRef.current); msgPollRef.current = null; } };
   }, [selectedChat, status?.connected, fetchMessages]);
 
+  // ── Poll presence for active non-group chat ──
+  const presencePollRef = useRef<NodeJS.Timeout | null>(null);
+  useEffect(() => {
+    if (presencePollRef.current) { clearInterval(presencePollRef.current); presencePollRef.current = null; }
+    if (selectedChat && status?.connected && !selectedChat.endsWith('@g.us') && !selectedChat.endsWith('@lid')) {
+      const poll = () => {
+        bridgeCall(`/presence/${encodeURIComponent(selectedChat)}`).then((d: any) => {
+          if (d && presenceSubRef.current === selectedChat) setChatPresence({ presence: d.presence, lastSeen: d.lastSeen });
+        }).catch(() => {});
+      };
+      presencePollRef.current = setInterval(poll, 10000);
+    }
+    return () => { if (presencePollRef.current) { clearInterval(presencePollRef.current); presencePollRef.current = null; } };
+  }, [selectedChat, status?.connected, bridgeCall]);
+
   // ── Fetch group info ──
   const fetchGroupInfo = useCallback(async (jid: string) => {
     setLoadingGroupInfo(true);
@@ -847,10 +875,22 @@ export default function QRWhatsAppPage() {
     setReactingToMsg(null);
     setShowMsgActions(null);
     setContactAbout(null);
+    setChatPresence(null);
     fetchMessages(jid);
     fetchProfilePic(jid);
     // Fetch contact about/bio for non-group chats
     if (!jid.endsWith('@g.us')) fetchContactAbout(jid);
+    // Subscribe to presence for non-group chats
+    if (!jid.endsWith('@g.us') && !jid.endsWith('@lid')) {
+      presenceSubRef.current = jid;
+      bridgeCall(`/presence/subscribe/${encodeURIComponent(jid)}`, 'POST').catch(() => {});
+      // Fetch initial presence
+      bridgeCall(`/presence/${encodeURIComponent(jid)}`).then((d: any) => {
+        if (d && presenceSubRef.current === jid) setChatPresence({ presence: d.presence, lastSeen: d.lastSeen });
+      }).catch(() => {});
+    } else {
+      presenceSubRef.current = null;
+    }
     // Track when the user read this chat so polling can distinguish new messages vs already-read
     readChatsRef.current.set(jid, Date.now());
     // Tell the bridge to reset unread count on its side too
@@ -2247,6 +2287,16 @@ export default function QRWhatsAppPage() {
                               <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isConnected ? 'bg-green-500' : 'bg-gray-400'}`}></span>
                             </div>
                             <div className="flex items-center gap-1 mt-0.5">
+                              {/* Online/offline/last seen for non-group chats */}
+                              {!isGroupChat && chatPresence && (
+                                <span className={`text-[9px] font-medium ${chatPresence.presence === 'available' ? 'text-green-600' : chatPresence.presence === 'composing' ? 'text-green-600' : chatPresence.presence === 'recording' ? 'text-green-600' : 'text-gray-400'}`}>
+                                  {chatPresence.presence === 'available' ? '● online'
+                                    : chatPresence.presence === 'composing' ? '● typing...'
+                                    : chatPresence.presence === 'recording' ? '● recording...'
+                                    : chatPresence.lastSeen ? `last seen ${new Date(chatPresence.lastSeen * 1000).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`
+                                    : 'offline'}
+                                </span>
+                              )}
                               {stageInfo && (
                                 <span className={`text-[9px] px-1.5 rounded-full border ${stageInfo.color}`}>{stageInfo.label}</span>
                               )}
@@ -2463,13 +2513,14 @@ export default function QRWhatsAppPage() {
                           <p className="whitespace-pre-wrap break-words">[{msg.type}]</p>
                         )}
 
-                        <div className="text-[10px] text-gray-400 mt-1 text-right">
+                        <div className="text-[10px] text-gray-400 mt-1 text-right flex items-center justify-end gap-0.5">
                           {msg.timestamp
                             ? new Date(typeof msg.timestamp === 'number' && msg.timestamp < 10000000000
                                 ? msg.timestamp * 1000
                                 : msg.timestamp
                               ).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
                             : ''}
+                          {msg.fromMe && <MessageTicks status={msg.status} />}
                         </div>
                       </div>
                       {/* Reactions display */}

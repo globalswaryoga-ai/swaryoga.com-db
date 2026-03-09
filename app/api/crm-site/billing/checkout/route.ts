@@ -22,12 +22,12 @@ function getCrmBillingWebhookUrl(request: NextRequest): string {
   return `${url.origin}/api/crm-site/billing/webhook`;
 }
 
-const PLAN_PRICES: Record<string, { monthly: number; quarterly: number; annual: number; name: string }> = {
-  free:         { monthly: 0,     quarterly: 0,     annual: 0,      name: 'Free Plan' },
-  basic:        { monthly: 999,   quarterly: 2997,  annual: 9990,   name: 'Basic Plan' },
-  starter:      { monthly: 1999,  quarterly: 5997,  annual: 19990,  name: 'Starter Plan' },
-  growth:       { monthly: 4999,  quarterly: 14997, annual: 49990,  name: 'Growth Plan' },
-  professional: { monthly: 9999,  quarterly: 29997, annual: 99990,  name: 'Professional Plan' },
+const PLAN_PRICES: Record<string, { quarterly: number; halfyearly: number; annual: number; name: string }> = {
+  free:         { quarterly: 0,     halfyearly: 0,     annual: 0,      name: 'Free Plan' },
+  basic:        { quarterly: 2697,  halfyearly: 5094,  annual: 9590,   name: 'Basic Plan' },
+  starter:      { quarterly: 5397,  halfyearly: 10194, annual: 19190,  name: 'Starter Plan' },
+  growth:       { quarterly: 13497, halfyearly: 25494, annual: 47990,  name: 'Growth Plan' },
+  professional: { quarterly: 26997, halfyearly: 50994, annual: 95990,  name: 'Professional Plan' },
 };
 
 // Storage pricing: Free=₹30/500MB min, Basic=₹50/1GB min, Starter+=₹35/GB
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { 
       plan, 
-      billing = 'monthly', 
+      billing = 'quarterly', 
       storageGB = 1,
       paymentMethod = 'upi',
       enableAutopay = false,
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
     const storagePricing = STORAGE_PRICING[plan] || STORAGE_PRICING.starter;
     
     // Calculate plan cost
-    const planAmount = billing === 'annual' ? planInfo.annual : billing === 'quarterly' ? planInfo.quarterly : planInfo.monthly;
+    const planAmount = billing === 'annual' ? planInfo.annual : billing === 'halfyearly' ? planInfo.halfyearly : planInfo.quarterly;
     
     // Calculate storage cost (minimum applies)
     const storageCost = Math.max(storageGB * storagePricing.pricePerGB, storagePricing.minPrice);
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
     const orderId = `CRM-${tenantSlug || 'new'}-${plan}-${Date.now()}`.replace(/[^a-zA-Z0-9-_]/g, '');
 
     /* ─── Create Cashfree order ─── */
-    const billingPeriod = billing === 'annual' ? 'Annual' : billing === 'quarterly' ? 'Quarterly' : 'Monthly';
+    const billingPeriod = billing === 'annual' ? 'Annual' : billing === 'halfyearly' ? 'Half-Yearly' : 'Quarterly';
     const cashfreeOrder = await cashfreeCreateOrder({
       order_id: orderId,
       order_amount: amount,

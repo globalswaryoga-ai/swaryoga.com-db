@@ -109,6 +109,7 @@ class UserSession {
     this.lidToPhoneMap = new Map();
     this.phoneToLidMap = new Map();
     this.statusStore = [];
+    this.presenceMap = new Map();
 
     this.lastActivityTime = Date.now();
     this.createdAt = Date.now();
@@ -698,6 +699,33 @@ async function startSocket(userId) {
       }
     });
 
+    // ── Message Status Updates (delivery receipts: sent→delivered→read) ──
+    sock.ev.on('messages.update', (updates) => {
+      for (const { key, update } of updates) {
+        if (!key?.remoteJid || key.remoteJid === 'status@broadcast') continue;
+        const chatMsgs = session.messageMap.get(key.remoteJid);
+        if (!chatMsgs) continue;
+        const msgIdx = chatMsgs.findIndex(m => m.id === key.id);
+        if (msgIdx !== -1 && update.status !== undefined) {
+          chatMsgs[msgIdx].status = update.status;
+        }
+      }
+    });
+
+    // ── Presence Updates (online/offline/typing/last seen) ──
+    if (!session.presenceMap) session.presenceMap = new Map();
+    sock.ev.on('presence.update', ({ id, presences }) => {
+      if (!presences) return;
+      for (const [participant, info] of Object.entries(presences)) {
+        const presenceKey = id.endsWith('@g.us') ? `${id}:${participant}` : id;
+        session.presenceMap.set(presenceKey, {
+          lastKnownPresence: info.lastKnownPresence,
+          lastSeen: info.lastSeen || null,
+          updatedAt: Date.now(),
+        });
+      }
+    });
+
     // ── Incoming Messages ────────────────────
     sock.ev.on('messages.upsert', async ({ messages: msgs, type }) => {
       if (type !== 'notify') return;
@@ -1242,6 +1270,33 @@ app.get('/messages/:jid', async (req, res) => {
     const limit = parseInt(req.query.limit || '50', 10);
     const msgs = session.messageMap.get(jid) || [];
     res.json({ messages: msgs.slice(-limit) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Presence (subscribe + get) ───────────────────────────────────────────
+app.post('/presence/subscribe/:jid', async (req, res) => {
+  const session = getOrCreateSession(req.userId);
+  try {
+    if (!session.sock || session.connectionState !== 'connected') {
+      return res.json({ ok: false, error: 'Not connected' });
+    }
+    const jid = req.params.jid.includes('@') ? req.params.jid : `${req.params.jid}@s.whatsapp.net`;
+    await session.sock.presenceSubscribe(jid);
+    res.json({ ok: true });
+  } catch (e) { res.json({ ok: false, error: e.message }); }
+});
+
+app.get('/presence/:jid', (req, res) => {
+  const session = getOrCreateSession(req.userId);
+  try {
+    const jid = req.params.jid.includes('@') ? req.params.jid : `${req.params.jid}@s.whatsapp.net`;
+    const presence = session.presenceMap.get(jid);
+    res.json({
+      jid,
+      presence: presence?.lastKnownPresence || 'unavailable',
+      lastSeen: presence?.lastSeen || null,
+      updatedAt: presence?.updatedAt || null,
+    });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

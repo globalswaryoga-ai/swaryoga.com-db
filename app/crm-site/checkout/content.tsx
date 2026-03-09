@@ -25,12 +25,12 @@ const STORAGE_PRICING: Record<string, { minStorageMB: number; pricePerGB: number
   professional: { minStorageMB: 1000, pricePerGB: 35, minPrice: 35 },
 };
 
-const PLAN_PRICING: Record<string, { monthly: number; quarterly: number; annual: number; name: string }> = {
-  free: { monthly: 0, quarterly: 0, annual: 0, name: 'Free Plan' },
-  basic: { monthly: 999, quarterly: 2997, annual: 9990, name: 'Basic Plan' },
-  starter: { monthly: 1999, quarterly: 5997, annual: 19990, name: 'Starter Plan' },
-  growth: { monthly: 4999, quarterly: 14997, annual: 49990, name: 'Growth Plan' },
-  professional: { monthly: 9999, quarterly: 29997, annual: 99990, name: 'Professional Plan' },
+const PLAN_PRICING: Record<string, { quarterly: number; halfyearly: number; annual: number; name: string }> = {
+  free: { quarterly: 0, halfyearly: 0, annual: 0, name: 'Free Plan' },
+  basic: { quarterly: 2697, halfyearly: 5094, annual: 9590, name: 'Basic Plan' },
+  starter: { quarterly: 5397, halfyearly: 10194, annual: 19190, name: 'Starter Plan' },
+  growth: { quarterly: 13497, halfyearly: 25494, annual: 47990, name: 'Growth Plan' },
+  professional: { quarterly: 26997, halfyearly: 50994, annual: 95990, name: 'Professional Plan' },
 };
 
 const PAYMENT_METHODS = [
@@ -62,7 +62,7 @@ export default function CheckoutContent() {
   const router = useRouter();
   
   const [plan, setPlan] = useState(searchParams.get('plan') || 'starter');
-  const [billing, setBilling] = useState<'monthly' | 'quarterly' | 'annual'>('monthly');
+  const [billing, setBilling] = useState<'quarterly' | 'halfyearly' | 'annual'>('quarterly');
   const [storageGB, setStorageGB] = useState(1);
   const [paymentMethod, setPaymentMethod] = useState('upi');
   const [enableAutopay, setEnableAutopay] = useState(true);
@@ -103,9 +103,9 @@ export default function CheckoutContent() {
   
   const planCost = billing === 'annual' 
     ? planPricing.annual 
-    : billing === 'quarterly' 
-      ? planPricing.quarterly 
-      : planPricing.monthly;
+    : billing === 'halfyearly' 
+      ? planPricing.halfyearly 
+      : planPricing.quarterly;
       
   const storageCost = Math.max(storageGB * storagePricing.pricePerGB, storagePricing.minPrice);
   const subtotal = planCost + storageCost;
@@ -200,14 +200,14 @@ export default function CheckoutContent() {
                     }`}
                   >
                     <div className="font-medium text-sm text-gray-900">{p.name.replace(' Plan', '')}</div>
-                    <div className="text-xs text-gray-500">₹{p.monthly}/mo</div>
+                    <div className="text-xs text-gray-500">₹{Math.round(p.quarterly / 3)}/mo</div>
                   </button>
                 ))}
               </div>
 
               {/* Billing Cycle */}
               <div className="mt-4 flex gap-2">
-                {(['monthly', 'quarterly', 'annual'] as const).map((b) => (
+                {(['quarterly', 'halfyearly', 'annual'] as const).map((b) => (
                   <button
                     key={b}
                     onClick={() => setBilling(b)}
@@ -217,7 +217,7 @@ export default function CheckoutContent() {
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
                   >
-                    {b === 'monthly' ? 'Monthly' : b === 'quarterly' ? 'Quarterly' : 'Annual (Save 17%)'}
+                    {b === 'quarterly' ? '3 Months' : b === 'halfyearly' ? '6 Months (Save 10%)' : '1 Year (Save 20%)'}
                   </button>
                 ))}
               </div>
@@ -426,10 +426,10 @@ export default function CheckoutContent() {
                   <span className="text-swar-primary">₹{total}</span>
                 </div>
                 <p className="text-xs text-gray-400">
-                  {billing === 'monthly' 
-                    ? 'Billed monthly' 
-                    : billing === 'quarterly' 
-                      ? 'Billed every 3 months' 
+                  {billing === 'quarterly' 
+                    ? 'Billed every 3 months' 
+                    : billing === 'halfyearly' 
+                      ? 'Billed every 6 months' 
                       : 'Billed annually'}
                 </p>
               </div>
