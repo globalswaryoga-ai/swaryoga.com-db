@@ -734,7 +734,7 @@ export default function QRManagePage() {
                       router.push(`/admin/crm/email?leadIds=${encodeURIComponent(ids)}`);
                     }}
                     title="Schedule Email"
-                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium bg-blue-50 text-blue-600 hover:bg-blue-100 transition"
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition"
                   >
                     <Mail className="h-3 w-3" /> Schedule Email
                   </button>
@@ -1064,7 +1064,7 @@ export default function QRManagePage() {
 
                     {/* Country */}
                     {lead.country ? (
-                      <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 whitespace-nowrap flex-shrink-0">
+                      <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600 whitespace-nowrap flex-shrink-0">
                         {lead.country}
                       </span>
                     ) : null}
@@ -1270,7 +1270,7 @@ export default function QRManagePage() {
                     <a
                       href={`mailto:${lead.email || ''}`}
                       title="Send email"
-                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium bg-blue-50 text-blue-600 hover:bg-blue-100 transition whitespace-nowrap"
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition whitespace-nowrap"
                     >
                       <Mail className="h-3 w-3" />
                       Email
@@ -1413,7 +1413,7 @@ export default function QRManagePage() {
         const dl = leads.find(l => l._id === deleteLeadId);
         return (
           <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40" onClick={() => setDeleteLeadId(null)}>
-            <div className="bg-white rounded-2xl shadow-2xl w-[380px] overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="bg-white rounded-2xl shadow-xl w-[380px] overflow-hidden" onClick={e => e.stopPropagation()}>
               <div className="px-5 py-4 bg-red-50 border-b border-red-100 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center">
                   <AlertTriangle className="h-5 w-5 text-red-600" />
@@ -1453,7 +1453,7 @@ export default function QRManagePage() {
       {/* Bulk Delete Confirmation Modal */}
       {showBulkDeleteConfirm && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40" onClick={() => setShowBulkDeleteConfirm(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-[380px] overflow-hidden" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl shadow-xl w-[380px] overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="px-5 py-4 bg-red-50 border-b border-red-100 flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center">
                 <AlertTriangle className="h-5 w-5 text-red-600" />
@@ -1583,7 +1583,7 @@ export default function QRManagePage() {
         return (
           <div className="fixed inset-0 z-[60]" onClick={() => setUpdatesLeadId(null)}>
             <div
-              className="absolute bottom-6 right-6 w-[400px] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+              className="absolute bottom-6 right-6 w-[400px] bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col"
               style={{ maxHeight: 'calc(100vh - 48px)' }}
               onClick={e => e.stopPropagation()}
             >
@@ -1655,8 +1655,8 @@ export default function QRManagePage() {
                     {/* User Details */}
                     <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
                       <div className="flex items-center gap-2 px-3 py-2" style={{ background: '#EFF6FF' }}>
-                        <User className="h-3.5 w-3.5 text-blue-600" />
-                        <span className="text-xs font-bold text-blue-800">User Details</span>
+                        <User className="h-3.5 w-3.5 text-indigo-600" />
+                        <span className="text-xs font-bold text-indigo-800">User Details</span>
                       </div>
                       <div className="px-3 py-2.5 space-y-1.5">
                         <div className="flex justify-between">
@@ -1768,7 +1768,7 @@ export default function QRManagePage() {
                               const isNote = !h.fromStage && !h.toStage && h.note;
                               if (isNote) {
                                 return (
-                                  <div key={h._id} className="rounded-lg px-3 py-2 border border-blue-50 bg-blue-50/50">
+                                  <div key={h._id} className="rounded-lg px-3 py-2 border border-indigo-50 bg-indigo-50/50">
                                     <p className="text-[11px] text-gray-700">{h.note}</p>
                                     <div className="flex items-center gap-2 mt-1">
                                       <span className="text-[10px] text-gray-400">{fmtDt(h.createdAt)}</span>
@@ -1854,7 +1854,7 @@ export default function QRManagePage() {
                   <>
                     {emailsLoading ? (
                       <div className="flex items-center justify-center py-8">
-                        <RefreshCw className="h-5 w-5 animate-spin text-blue-500" />
+                        <RefreshCw className="h-5 w-5 animate-spin text-indigo-500" />
                       </div>
                     ) : updatesEmails.length === 0 ? (
                       <div className="text-center py-8">
@@ -1908,7 +1908,7 @@ export default function QRManagePage() {
                       <div className="space-y-2">
                         {updatesCalls.map(call => {
                           const purposeLabels: Record<string, string> = { follow_up: '📞 Follow-up', workshop_reminder: '📅 Workshop', collect_info: '📋 Collect Info', payment_reminder: '💳 Payment', welcome: '🙏 Welcome', custom: '✏️ Custom' };
-                          const statusColors: Record<string, string> = { completed: 'bg-green-100 text-green-700', failed: 'bg-red-100 text-red-600', no_answer: 'bg-orange-100 text-orange-600', busy: 'bg-orange-100 text-orange-600', in_progress: 'bg-blue-100 text-blue-600', ringing: 'bg-yellow-100 text-yellow-600', queued: 'bg-gray-100 text-gray-500' };
+                          const statusColors: Record<string, string> = { completed: 'bg-green-100 text-green-700', failed: 'bg-red-100 text-red-600', no_answer: 'bg-orange-100 text-orange-600', busy: 'bg-orange-100 text-orange-600', in_progress: 'bg-indigo-100 text-indigo-600', ringing: 'bg-yellow-100 text-yellow-600', queued: 'bg-gray-100 text-gray-500' };
                           const dur = call.duration ? `${Math.floor(call.duration / 60)}m ${call.duration % 60}s` : '—';
                           return (
                             <div key={call._id} className="bg-white rounded-xl shadow-sm border border-gray-100 px-3 py-2.5">
@@ -1930,7 +1930,7 @@ export default function QRManagePage() {
                               {call.crmUpdates?.length > 0 && (
                                 <div className="mt-1.5 flex flex-wrap gap-1">
                                   {call.crmUpdates.map((u: any, i: number) => (
-                                    <span key={i} className="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded text-[9px] font-medium">
+                                    <span key={i} className="px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[9px] font-medium">
                                       ✅ {u.field}: {String(u.newValue).slice(0, 20)}
                                     </span>
                                   ))}

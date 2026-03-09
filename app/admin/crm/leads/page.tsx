@@ -454,7 +454,7 @@ export default function LeadsPage() {
       key: 'assignedToUserId',
       label: 'User',
       render: (val: any) => (
-        <div className="bg-blue-600/80 text-white rounded-xl px-3 py-2 text-center font-semibold shadow-lg shadow-blue-500/20">
+        <div className="bg-indigo-600/80 text-white rounded-xl px-3 py-2 text-center font-semibold shadow-lg shadow-indigo-500/20">
           {getAssigneeLabel(val) || 'Unassigned'}
         </div>
       ),
@@ -584,7 +584,7 @@ export default function LeadsPage() {
               params.set('leadId', lead._id);
               router.push(`/admin/crm/broadcast?${params.toString()}`);
             }}
-            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-medium transition-all duration-300 shadow-lg shadow-blue-500/20"
+            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-medium transition-all duration-300 shadow-lg shadow-indigo-500/20"
             title="Open Broadcast with current filters"
           >
             📢 Broadcast
@@ -828,7 +828,7 @@ export default function LeadsPage() {
                     .catch(() => {});
                 }
               }}
-              className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-xl transition-all duration-300 font-semibold border border-blue-500/50 hover:shadow-lg hover:shadow-blue-500/20"
+              className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-xl transition-all duration-300 font-semibold border border-indigo-500/50 hover:shadow-lg hover:shadow-indigo-500/20"
             >
               📤 Bulk Upload
             </button>
@@ -859,7 +859,7 @@ export default function LeadsPage() {
         </div>
 
         {/* Filters Section - Dark Glass Card */}
-        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 md:p-8 shadow-2xl">
+        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 md:p-8 shadow-xl">
           <h2 className="text-sm font-bold text-green-400 uppercase tracking-wider mb-6">Filters & Search</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {/* Status Filter */}
@@ -975,7 +975,7 @@ export default function LeadsPage() {
             </div>
           </div>
         ) : leads.length === 0 ? (
-          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-12 text-center shadow-2xl">
+          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-12 text-center shadow-xl">
             <div className="text-5xl mb-4">📊</div>
             <h3 className="text-xl font-semibold text-white mb-2">No leads found</h3>
             <p className="text-gray-400 mb-6">Start by adding a new lead or uploading from a file</p>
@@ -1109,7 +1109,7 @@ export default function LeadsPage() {
             )}
 
             {/* Data Table - Dark Glass Card */}
-            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-visible">
+            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl shadow-xl overflow-visible">
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
@@ -1343,7 +1343,7 @@ export default function LeadsPage() {
       {/* Duplicate Entry Modal */}
       {duplicateModalOpen && duplicateLead && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-xl flex items-center justify-center z-50">
-          <div className="bg-gradient-to-br from-[#1a1a1a] to-[#111] border border-red-500/30 rounded-2xl p-8 max-w-md w-full space-y-6 shadow-2xl">
+          <div className="bg-gradient-to-br from-[#1a1a1a] to-[#111] border border-red-500/30 rounded-2xl p-8 max-w-md w-full space-y-6 shadow-xl">
             <div className="text-center">
               <div className="text-4xl mb-2">⚠️</div>
               <h2 className="text-xl font-bold text-red-400">Lead Already Exists!</h2>
@@ -1392,7 +1392,7 @@ export default function LeadsPage() {
       {/* Duplicate Update Confirmation Modal */}
       {showDuplicateUpdateModal && duplicatesForUpdate.length > 0 && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-xl flex items-center justify-center z-50">
-          <div className="bg-gradient-to-br from-[#1a1a1a] to-[#111] border border-yellow-500/30 rounded-2xl p-6 max-w-3xl w-full space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-gradient-to-br from-[#1a1a1a] to-[#111] border border-yellow-500/30 rounded-2xl p-6 max-w-3xl w-full space-y-4 shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="text-center">
               <div className="text-4xl mb-2">📋</div>
               <h2 className="text-xl font-bold text-yellow-400">
@@ -1558,7 +1558,7 @@ export default function LeadsPage() {
       {/* Bulk Import Modal */}
       {bulkImportModalOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-xl flex items-center justify-center z-50">
-          <div className="bg-gradient-to-br from-[#1a1a1a] to-[#111] border border-green-500/30 rounded-2xl p-6 max-w-2xl w-full space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-gradient-to-br from-[#1a1a1a] to-[#111] border border-green-500/30 rounded-2xl p-6 max-w-2xl w-full space-y-4 shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-bold text-green-400">📄 Bulk Import Leads</h2>
               <button
@@ -1578,11 +1578,11 @@ export default function LeadsPage() {
             </div>
 
             {/* Download Demo Template */}
-            <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
+            <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-xl p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-blue-400">📥 Need a sample format?</p>
-                  <p className="text-xs text-blue-300/70">Download demo Excel template with required columns</p>
+                  <p className="text-sm font-semibold text-indigo-400">📥 Need a sample format?</p>
+                  <p className="text-xs text-indigo-300/70">Download demo Excel template with required columns</p>
                 </div>
                 <button
                   onClick={() => {
@@ -1635,15 +1635,15 @@ export default function LeadsPage() {
                     XLSX.utils.book_append_sheet(wb, ws, 'Leads');
                     XLSX.writeFile(wb, 'leads_import_template.xlsx');
                   }}
-                  className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all duration-300 flex items-center gap-2 shadow-lg shadow-blue-500/20"
+                  className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all duration-300 flex items-center gap-2 shadow-lg shadow-indigo-500/20"
                 >
                   ⬇️ Download Template
                 </button>
               </div>
-              <div className="mt-3 text-xs text-blue-300/80 space-y-0.5">
-                <p><strong className="text-blue-400">Required:</strong> Phone Number</p>
-                <p><strong className="text-blue-400">Optional:</strong> Name, Email, Status, Source, Workshop Name, Address, Labels</p>
-                <p><strong className="text-blue-400">Status values:</strong> lead, hot, prospect, customer, inactive</p>
+              <div className="mt-3 text-xs text-indigo-300/80 space-y-0.5">
+                <p><strong className="text-indigo-400">Required:</strong> Phone Number</p>
+                <p><strong className="text-indigo-400">Optional:</strong> Name, Email, Status, Source, Workshop Name, Address, Labels</p>
+                <p><strong className="text-indigo-400">Status values:</strong> lead, hot, prospect, customer, inactive</p>
               </div>
             </div>
 
@@ -1919,7 +1919,7 @@ export default function LeadsPage() {
       {/* Bulk Delete Confirmation Modal */}
       {showBulkDeleteConfirm && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full overflow-hidden">
             <div className="px-5 py-4 bg-red-50 border-b border-red-100 flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600 text-lg">🗑️</div>
               <div>

@@ -118,10 +118,10 @@ export default function AnalyticsPage() {
   const tabMeta = useMemo(
     () =>
       ({
-        overview: { label: 'Overview', active: 'bg-blue-600 text-white', inactive: 'text-slate-700 hover:bg-slate-50' },
+        overview: { label: 'Overview', active: 'bg-indigo-600 text-white', inactive: 'text-slate-700 hover:bg-slate-50' },
         leads: { label: 'Leads', active: 'bg-emerald-600 text-white', inactive: 'text-slate-700 hover:bg-slate-50' },
         sales: { label: 'Sales', active: 'bg-emerald-600 text-white', inactive: 'text-slate-700 hover:bg-slate-50' },
-        messages: { label: 'Messages', active: 'bg-blue-600 text-white', inactive: 'text-slate-700 hover:bg-slate-50' },
+        messages: { label: 'Messages', active: 'bg-indigo-600 text-white', inactive: 'text-slate-700 hover:bg-slate-50' },
         conversion: { label: 'Conversion', active: 'bg-red-600 text-white', inactive: 'text-slate-700 hover:bg-slate-50' },
         trends: { label: 'Trends', active: 'bg-slate-900 text-white', inactive: 'text-slate-700 hover:bg-slate-50' },
       }) as const,
@@ -180,7 +180,7 @@ export default function AnalyticsPage() {
                       <button
                         type="button"
                         onClick={() => router.push('/admin/crm/broadcast')}
-                        className="px-3 py-2 rounded-xl text-xs font-extrabold bg-blue-600 text-white hover:bg-blue-700 shadow-sm"
+                        className="px-3 py-2 rounded-xl text-xs font-extrabold bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm"
                       >
                         Open Broadcasts
                       </button>
@@ -205,7 +205,7 @@ export default function AnalyticsPage() {
                     </div>
                     <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm">
                       <div className="text-xs text-slate-500 font-bold">Pending</div>
-                      <div className="text-2xl font-black text-blue-700 mt-1">{broadcastSummary.pending}</div>
+                      <div className="text-2xl font-black text-indigo-700 mt-1">{broadcastSummary.pending}</div>
                     </div>
                     <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm">
                       <div className="text-xs text-slate-500 font-bold">Skipped</div>
@@ -220,7 +220,7 @@ export default function AnalyticsPage() {
                     </div>
                     <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm">
                       <div className="text-xs text-slate-500 font-bold">Number not in use</div>
-                      <div className="text-xl font-black text-blue-700 mt-1">{broadcastSummary.numberNotInUse}</div>
+                      <div className="text-xl font-black text-indigo-700 mt-1">{broadcastSummary.numberNotInUse}</div>
                     </div>
                     <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm">
                       <div className="text-xs text-slate-500 font-bold">Not delivered</div>
@@ -243,7 +243,7 @@ export default function AnalyticsPage() {
                     <button
                       type="button"
                       onClick={() => router.push('/admin/crm/broadcast?tab=runs&status=scheduled')}
-                      className="px-3 py-2 rounded-xl text-xs font-extrabold bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100"
+                      className="px-3 py-2 rounded-xl text-xs font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-100 hover:bg-indigo-100"
                     >
                       View Scheduled
                     </button>
@@ -365,7 +365,7 @@ export default function AnalyticsPage() {
                       </div>
                       <div className="w-full bg-slate-100 rounded-full h-6 border border-slate-200">
                         <div
-                          className="bg-gradient-to-r from-blue-600 via-emerald-600 to-red-600 h-6 rounded-full"
+                          className="bg-gradient-to-r from-indigo-600 via-emerald-600 to-red-600 h-6 rounded-full"
                           style={{ width: `${stage.percentage}%` }}
                         />
                       </div>
@@ -434,7 +434,7 @@ export default function AnalyticsPage() {
                       {analytics.trends.daily.map((day, idx) => (
                         <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50">
                           <td className="text-slate-900 py-2 font-semibold">{day.date}</td>
-                          <td className="text-center text-blue-700 font-bold">{day.leads}</td>
+                          <td className="text-center text-indigo-700 font-bold">{day.leads}</td>
                           <td className="text-center text-emerald-700 font-bold">{day.sales}</td>
                           <td className="text-right text-emerald-700 font-black">₹{day.revenue.toLocaleString()}</td>
                         </tr>

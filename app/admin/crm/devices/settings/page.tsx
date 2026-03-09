@@ -94,7 +94,7 @@ export default function DeviceSettingsPage() {
             <div>
               <Link
                 href="/admin/crm/devices"
-                className="mb-2 inline-block text-sm text-blue-500 hover:underline"
+                className="mb-2 inline-block text-sm text-indigo-500 hover:underline"
               >
                 ← Back to Device Management
               </Link>
@@ -266,7 +266,7 @@ export default function DeviceSettingsPage() {
             <button
               onClick={handleSave}
               disabled={saving}
-              className="rounded-lg bg-blue-500 px-6 py-2.5 font-medium text-white hover:bg-blue-600 disabled:opacity-50"
+              className="rounded-lg bg-indigo-500 px-6 py-2.5 font-medium text-white hover:bg-indigo-600 disabled:opacity-50"
             >
               {saving ? 'Saving...' : '💾 Save Settings'}
             </button>

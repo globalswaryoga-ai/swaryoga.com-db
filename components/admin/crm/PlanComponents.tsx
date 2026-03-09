@@ -37,7 +37,7 @@ export function PlanGate({ module, children, title, variant = 'page', fallback }
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[200px]">
-        <div className="w-6 h-6 border-2 border-gray-200 border-t-purple-500 rounded-full animate-spin" />
+        <div className="w-6 h-6 border-2 border-gray-200 border-t-indigo-500 rounded-full animate-spin" />
       </div>
     );
   }
@@ -85,7 +85,7 @@ export function UpgradeCard({ module, requiredPlan, currentPlan }: UpgradeCardPr
   const price = PLAN_PRICING[requiredPlan];
 
   return (
-    <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-6 max-w-sm w-full">
+    <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 max-w-sm w-full">
       <div className="text-center">
         <div className={`w-14 h-14 mx-auto rounded-2xl bg-gradient-to-br ${display.gradientFrom} ${display.gradientTo} flex items-center justify-center mb-4`}>
           <Lock className="w-6 h-6 text-white" />
@@ -180,7 +180,7 @@ function UpgradeFullPage({ module, requiredPlan, currentPlan, title }: UpgradeFu
         </div>
 
         {/* Main card */}
-        <div className="bg-white rounded-3xl shadow-xl border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
           {/* Header gradient */}
           <div className={`bg-gradient-to-r ${display.gradientFrom} ${display.gradientTo} p-8 text-center`}>
             <div className="w-16 h-16 mx-auto rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center mb-4">
@@ -355,8 +355,8 @@ export function TrialBanner({ className = '' }: TrialBannerProps) {
   return (
     <div className={`px-4 py-2 text-center text-sm font-medium ${
       urgent
-        ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white'
-        : 'bg-gradient-to-r from-purple-500 to-indigo-500 text-white'
+        ? 'bg-red-500 text-white'
+        : 'bg-indigo-600 text-white'
     } ${className}`}>
       <div className="flex items-center justify-center gap-3">
         <Sparkles className="w-4 h-4" />

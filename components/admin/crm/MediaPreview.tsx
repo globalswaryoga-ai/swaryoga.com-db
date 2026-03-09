@@ -229,7 +229,7 @@ function Lightbox({ media, onClose, onDownload }: LightboxProps) {
         
         {media.type === 'document' && (
           <div className="bg-white p-8 rounded-lg text-center">
-            <FileText size={64} className="mx-auto mb-4 text-blue-500" />
+            <FileText size={64} className="mx-auto mb-4 text-indigo-500" />
             <div className="text-lg font-medium mb-2">{media.name}</div>
             {media.size && <div className="text-gray-500 mb-4">{formatFileSize(media.size)}</div>}
             <div className="flex gap-2 justify-center">
@@ -237,7 +237,7 @@ function Lightbox({ media, onClose, onDownload }: LightboxProps) {
                 href={media.url} 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center gap-2"
+                className="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 flex items-center gap-2"
               >
                 <ExternalLink size={18} /> Open
               </a>
@@ -358,7 +358,7 @@ function MediaItem({
         
       case 'audio':
         return (
-          <div className="w-full h-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center">
+          <div className="w-full h-full bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center">
             <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
               <Play size={16} className="text-white ml-0.5" fill="white" />
             </div>
@@ -367,7 +367,7 @@ function MediaItem({
         
       case 'document':
         return (
-          <div className="w-full h-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center p-2">
+          <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center p-2">
             <FileText size={iconSize} className="text-white" />
             {size !== 'xs' && size !== 'sm' && (
               <span className="absolute bottom-1 left-0 right-0 text-[10px] text-white/80 text-center truncate px-1">
@@ -391,7 +391,7 @@ function MediaItem({
       className={`
         relative ${sizeClasses[size]} rounded-lg overflow-hidden 
         border border-slate-600 group cursor-pointer
-        hover:border-blue-500 transition-colors
+        hover:border-indigo-500 transition-colors
         ${className}
       `}
       onClick={onExpand}
@@ -623,7 +623,7 @@ export function InlineMediaPreview({
       rel="noopener noreferrer"
       className={`flex items-center gap-2 p-2 bg-slate-700 rounded-lg hover:bg-slate-600 max-w-[200px] ${className}`}
     >
-      <FileText size={20} className="text-blue-400 shrink-0" />
+      <FileText size={20} className="text-indigo-400 shrink-0" />
       <span className="text-sm text-slate-200 truncate">{getFilenameFromUrl(url)}</span>
     </a>
   );

@@ -237,7 +237,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       icon: LayoutDashboard,
       label: 'Dashboard',
       href: '/admin/crm',
-      color: 'text-blue-400',
+      color: 'text-gray-400',
       module: 'dashboard',
       description: 'Overview of your CRM activity',
     },
@@ -245,7 +245,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       icon: Monitor,
       label: 'Web Admin',
       href: '/admin/crm/web-admin',
-      color: 'text-orange-400',
+      color: 'text-gray-400',
       module: 'dashboard',
       description: 'Manage your website content',
     },
@@ -253,7 +253,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       icon: FileText,
       label: 'Landing Pages',
       href: '/admin/landing-pages',
-      color: 'text-rose-400',
+      color: 'text-gray-400',
       module: 'dashboard',
       planModule: 'landingPages',
       description: 'Build lead capture pages & forms',
@@ -262,7 +262,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       icon: Calculator,
       label: 'Tally',
       href: '/admin/crm/tally',
-      color: 'text-yellow-400',
+      color: 'text-gray-400',
       module: 'dashboard',
       description: 'Invoice & accounting management',
     },
@@ -270,7 +270,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       icon: DollarSign,
       label: 'Sales & Funnel',
       href: '/admin/crm/funnel/manage',
-      color: 'text-green-400',
+      color: 'text-gray-400',
       module: 'payments',
       planModule: 'leads',
       description: 'Track leads through your sales pipeline',
@@ -279,7 +279,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       icon: MessageCircle,
       label: 'Meta WhatsApp',
       href: '/admin/crm/meta',
-      color: 'text-cyan-400',
+      color: 'text-gray-400',
       module: 'whatsapp',
       planModule: 'whatsapp',
       badge: unreadCount,
@@ -289,7 +289,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       icon: Radio,
       label: 'Broadcast',
       href: '/admin/crm/broadcast',
-      color: 'text-pink-400',
+      color: 'text-gray-400',
       module: 'broadcasts',
       planModule: 'broadcasting',
       description: 'Send bulk WhatsApp campaigns',
@@ -298,7 +298,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       icon: Mail,
       label: 'Email',
       href: '/admin/crm/email',
-      color: 'text-blue-400',
+      color: 'text-gray-400',
       module: 'email',
       planModule: 'emailMarketing',
       description: 'Email campaigns & drip sequences',
@@ -307,7 +307,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       icon: Globe,
       label: 'Community',
       href: '/admin/crm/community',
-      color: 'text-teal-400',
+      color: 'text-gray-400',
       module: 'community',
       planModule: 'community',
       description: 'Courses, forums & community hub',
@@ -316,7 +316,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       icon: QrCode,
       label: 'QR WhatsApp',
       href: '/admin/crm/qr',
-      color: 'text-emerald-400',
+      color: 'text-gray-400',
       module: 'whatsapp',
       planModule: 'whatsapp',
       description: 'WhatsApp via QR code bridge',
@@ -325,7 +325,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       icon: Bot,
       label: 'AI & Chatbot',
       href: '/admin/crm/chatbots',
-      color: 'text-violet-400',
+      color: 'text-gray-400',
       module: 'whatsapp',
       planModule: 'chatbot',
       description: 'Automated conversation flows',
@@ -334,7 +334,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       icon: Phone,
       label: 'Call',
       href: '/admin/crm/calls',
-      color: 'text-emerald-400',
+      color: 'text-gray-400',
       module: 'calls',
       planModule: 'aiCalls',
       description: 'AI-powered voice calling',
@@ -343,7 +343,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       icon: SmartphoneNfc,
       label: 'SMS Management',
       href: '/admin/crm/messages',
-      color: 'text-indigo-400',
+      color: 'text-gray-400',
       module: 'messages',
       planModule: 'whatsapp',
       description: 'Message inbox & management',
@@ -352,7 +352,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       icon: BarChart3,
       label: 'All Reports',
       href: '/admin/crm/reports',
-      color: 'text-purple-400',
+      color: 'text-gray-400',
       module: 'analytics',
       planModule: 'reports',
       description: 'All reports, analytics & exports',
@@ -361,7 +361,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       icon: Plug,
       label: 'Connections',
       href: '/admin/crm/connections',
-      color: 'text-amber-400',
+      color: 'text-gray-400',
       module: 'dashboard' as CrmModule,
       description: 'Configure all service credentials',
     },
@@ -369,7 +369,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       icon: Zap,
       label: 'Integrations',
       href: '/admin/crm/integration-hub',
-      color: 'text-violet-400',
+      color: 'text-gray-400',
       module: 'dashboard' as CrmModule,
       description: 'Chatbot, templates, campaigns & more',
     },
@@ -377,7 +377,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       icon: Languages,
       label: 'Translator',
       href: '/admin/crm/translate',
-      color: 'text-cyan-400',
+      color: 'text-gray-400',
       module: 'translate',
       description: 'Multi-language content translation',
     },
@@ -389,25 +389,25 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       icon: GraduationCap,
       label: 'E-Learning',
       href: '/admin/crm/e-learning',
-      color: 'text-lime-400',
+      color: 'text-gray-400',
     },
     {
       icon: Building2,
       label: 'Tenants',
       href: '/admin/crm/tenants',
-      color: 'text-indigo-400',
+      color: 'text-gray-400',
     },
     {
       icon: Shield,
       label: 'Permissions',
       href: '/admin/crm/permissions',
-      color: 'text-red-400',
+      color: 'text-gray-400',
     },
     {
       icon: Activity,
       label: 'Admin Activity',
       href: '/admin/crm/admin-activity',
-      color: 'text-yellow-400',
+      color: 'text-gray-400',
     },
   ];
 
@@ -507,13 +507,13 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
                 title={isCollapsed ? item.label : undefined}
                 className={`flex items-center ${isCollapsed ? 'justify-center' : ''} gap-3 px-3 py-2.5 rounded-xl transition-all group relative ${
                   active
-                    ? 'bg-gradient-to-r from-indigo-600/30 to-purple-600/20 border-l-[3px] border-indigo-400'
+                    ? 'bg-indigo-600/15 border-l-[3px] border-indigo-500'
                     : 'hover:bg-gray-800/60'
                 }`}
               >
-                <Icon className={`h-[18px] w-[18px] flex-shrink-0 transition-colors ${active ? 'text-indigo-400' : item.color + ' group-hover:text-white'}`} />
+                <Icon className={`h-[18px] w-[18px] flex-shrink-0 transition-colors ${active ? 'text-indigo-400' : 'text-gray-400 group-hover:text-gray-200'}`} />
                 {!isCollapsed && (
-                  <span className={`font-medium text-[13px] truncate ${active ? 'text-white' : 'text-gray-300 group-hover:text-white'}`}>
+                  <span className={`font-medium text-sm truncate ${active ? 'text-white' : 'text-gray-300 group-hover:text-white'}`}>
                     {item.label}
                   </span>
                 )}
@@ -561,13 +561,13 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
                     title={isCollapsed ? item.label : undefined}
                     className={`flex items-center ${isCollapsed ? 'justify-center' : ''} gap-3 px-3 py-2.5 rounded-xl transition-all group relative ${
                       active
-                        ? 'bg-gradient-to-r from-indigo-600/30 to-purple-600/20 border-l-[3px] border-indigo-400'
+                        ? 'bg-indigo-600/15 border-l-[3px] border-indigo-500'
                         : 'hover:bg-gray-800/60'
                     }`}
                   >
-                    <Icon className={`h-[18px] w-[18px] flex-shrink-0 ${active ? 'text-indigo-400' : item.color + ' group-hover:text-white'}`} />
+                    <Icon className={`h-[18px] w-[18px] flex-shrink-0 ${active ? 'text-indigo-400' : 'text-gray-400 group-hover:text-gray-200'}`} />
                     {!isCollapsed && (
-                      <span className={`font-medium text-[13px] ${active ? 'text-white' : 'text-gray-300 group-hover:text-white'}`}>
+                      <span className={`font-medium text-sm ${active ? 'text-white' : 'text-gray-300 group-hover:text-white'}`}>
                         {item.label}
                       </span>
                     )}

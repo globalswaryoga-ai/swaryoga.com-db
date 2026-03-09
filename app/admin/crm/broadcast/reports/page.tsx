@@ -70,7 +70,7 @@ type BroadcastMessage = {
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
     pending: 'bg-gray-100 text-gray-700',
-    sending: 'bg-blue-100 text-blue-700',
+    sending: 'bg-indigo-100 text-indigo-700',
     sent: 'bg-green-100 text-green-700',
     delivered: 'bg-emerald-100 text-emerald-700',
     read: 'bg-teal-100 text-teal-700',
@@ -78,7 +78,7 @@ function StatusBadge({ status }: { status: string }) {
     skipped: 'bg-yellow-100 text-yellow-700',
     blocked: 'bg-orange-100 text-orange-700',
     completed: 'bg-green-100 text-green-700',
-    running: 'bg-blue-100 text-blue-700',
+    running: 'bg-indigo-100 text-indigo-700',
     scheduled: 'bg-purple-100 text-purple-700',
     draft: 'bg-gray-100 text-gray-700',
   };
@@ -109,7 +109,7 @@ function ProgressBar({ value, max, color = 'green' }: { value: number; max: numb
   const percent = max > 0 ? Math.round((value / max) * 100) : 0;
   const colorClasses: Record<string, string> = {
     green: 'bg-green-500',
-    blue: 'bg-blue-500',
+    blue: 'bg-indigo-500',
     red: 'bg-red-500',
     yellow: 'bg-yellow-500',
     teal: 'bg-teal-500',
@@ -410,7 +410,7 @@ export default function BroadcastReportsPage() {
                         </td>
                         <td className="px-4 py-4">
                           <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${
-                            run.provider === 'meta' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
+                            run.provider === 'meta' ? 'bg-green-100 text-green-700' : 'bg-indigo-100 text-indigo-700'
                           }`}>
                             {run.provider === 'meta' ? '🟢 Meta' : '📲 QR'}
                           </span>
@@ -436,7 +436,7 @@ export default function BroadcastReportsPage() {
                             onClick={() => {
                               router.push(`/admin/crm/broadcast/reports?runId=${run._id}`);
                             }}
-                            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold"
+                            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold"
                           >
                             View Report
                           </button>
@@ -492,7 +492,7 @@ export default function BroadcastReportsPage() {
                       <div className="flex items-center gap-4 mt-2">
                         <StatusBadge status={selectedRun.status} />
                         <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${
-                          selectedRun.provider === 'meta' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
+                          selectedRun.provider === 'meta' ? 'bg-green-100 text-green-700' : 'bg-indigo-100 text-indigo-700'
                         }`}>
                           {selectedRun.provider === 'meta' ? '🟢 Meta Cloud API' : '📲 QR Bridge (Free)'}
                         </span>
@@ -587,7 +587,7 @@ export default function BroadcastReportsPage() {
                         </span>
                         <button
                           onClick={resendToSelected}
-                          className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold"
+                          className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold"
                         >
                           📤 Resend to Selected
                         </button>
@@ -627,7 +627,7 @@ export default function BroadcastReportsPage() {
                       </thead>
                       <tbody className="divide-y divide-gray-100">
                         {filteredMessages.map(msg => (
-                          <tr key={msg._id} className={`hover:bg-gray-50 ${selectedMessages.has(msg._id) ? 'bg-blue-50' : ''}`}>
+                          <tr key={msg._id} className={`hover:bg-gray-50 ${selectedMessages.has(msg._id) ? 'bg-indigo-50' : ''}`}>
                             <td className="px-4 py-3">
                               <input
                                 type="checkbox"
@@ -676,7 +676,7 @@ export default function BroadcastReportsPage() {
                                 {selectedRun.provider === 'qr' && (
                                   <Link
                                     href={`/admin/crm/qr?phone=${encodeURIComponent(msg.phoneNumber)}`}
-                                    className="px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded text-xs font-semibold"
+                                    className="px-2 py-1 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded text-xs font-semibold"
                                   >
                                     Chat
                                   </Link>

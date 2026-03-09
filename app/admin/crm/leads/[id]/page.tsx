@@ -216,7 +216,7 @@ export default function LeadDetailPage() {
                 </button>
                 <button
                   onClick={() => router.push(`/admin/crm/users/profile?leadId=${lead._id}`)}
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors"
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold transition-colors"
                   title="View unified user profile"
                 >
                   👤 View User

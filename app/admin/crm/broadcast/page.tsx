@@ -97,7 +97,7 @@ type Step = 1 | 2 | 3;
 function StatusBadge({ status, size = 'sm' }: { status: string; size?: 'sm' | 'md' }) {
   const configs: Record<string, { bg: string; text: string; icon: string }> = {
     draft: { bg: 'bg-gray-100', text: 'text-gray-700', icon: '📝' },
-    scheduled: { bg: 'bg-blue-100', text: 'text-blue-700', icon: '📅' },
+    scheduled: { bg: 'bg-indigo-100', text: 'text-indigo-700', icon: '📅' },
     running: { bg: 'bg-yellow-100', text: 'text-yellow-700', icon: '🔄' },
     completed: { bg: 'bg-green-100', text: 'text-green-700', icon: '✅' },
     failed: { bg: 'bg-red-100', text: 'text-red-700', icon: '❌' },
@@ -119,7 +119,7 @@ function StatusBadge({ status, size = 'sm' }: { status: string; size?: 'sm' | 'm
 function ProgressBar({ value, max, color = 'blue' }: { value: number; max: number; color?: string }) {
   const pct = max > 0 ? Math.round((value / max) * 100) : 0;
   const colorMap: Record<string, string> = {
-    blue: 'bg-blue-500',
+    blue: 'bg-indigo-500',
     green: 'bg-green-500',
     red: 'bg-red-500',
     yellow: 'bg-yellow-500',
@@ -127,7 +127,7 @@ function ProgressBar({ value, max, color = 'blue' }: { value: number; max: numbe
   return (
     <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
       <div
-        className={`h-full transition-all duration-500 ${colorMap[color] || 'bg-blue-500'}`}
+        className={`h-full transition-all duration-500 ${colorMap[color] || 'bg-indigo-500'}`}
         style={{ width: `${pct}%` }}
       />
     </div>
@@ -835,7 +835,7 @@ export default function BroadcastPage() {
             disabled={s.num === 2 && !canProceedToStep2 || s.num === 3 && (!canProceedToStep2 || !canProceedToStep3)}
             className={`flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all duration-300 font-medium ${
               step === s.num
-                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/30 scale-105'
+                ? 'bg-gradient-to-r from-indigo-600 to-indigo-600 text-white shadow-lg shadow-indigo-500/30 scale-105'
                 : step > s.num
                 ? 'bg-green-100 text-green-700 hover:bg-green-200'
                 : 'bg-white text-gray-400 border border-gray-200 hover:border-gray-300'
@@ -858,14 +858,14 @@ export default function BroadcastPage() {
   // ============================================================================
   if (token === null) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-indigo-50 flex items-center justify-center">
         <div className="animate-spin text-4xl">⏳</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-indigo-50">
       {/* Header */}
       <header className="bg-white/90 backdrop-blur-lg border-b shadow-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-4">
@@ -874,7 +874,7 @@ export default function BroadcastPage() {
               <Link href="/admin/crm" className="text-gray-500 hover:text-gray-700 transition-all hover:-translate-x-1 flex items-center gap-1">
                 <span>←</span> <span className="hidden sm:inline">CRM</span>
               </Link>
-              <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
                 📢 Broadcast Center
               </h1>
             </div>
@@ -882,7 +882,7 @@ export default function BroadcastPage() {
               <button
                 onClick={() => setShowQuotaDashboard(!showQuotaDashboard)}
                 className={`px-3 py-2 rounded-lg transition-all text-sm font-medium flex items-center gap-1 ${
-                  showQuotaDashboard ? 'bg-blue-100 text-blue-700' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                  showQuotaDashboard ? 'bg-indigo-100 text-indigo-700' : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
                 }`}
               >
                 📈 <span className="hidden sm:inline">Quota</span>
@@ -931,7 +931,7 @@ export default function BroadcastPage() {
 
         {/* Bulk Messaging Dashboard */}
         {showQuotaDashboard && bulkStats && (
-          <div className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-200 p-4 animate-fadeIn">
+          <div className="mb-6 bg-gradient-to-r from-indigo-50 to-indigo-50 rounded-2xl border border-indigo-200 p-4 animate-fadeIn">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-gray-800 flex items-center gap-2">
                 📊 Bulk Messaging Dashboard
@@ -996,7 +996,7 @@ export default function BroadcastPage() {
                 <div className="text-xs text-gray-500">Failed Today</div>
               </div>
               <div className="bg-white rounded-xl p-3 shadow-sm text-center">
-                <div className="text-2xl font-bold text-blue-600">{bulkStats.today.pending.toLocaleString()}</div>
+                <div className="text-2xl font-bold text-indigo-600">{bulkStats.today.pending.toLocaleString()}</div>
                 <div className="text-xs text-gray-500">Pending</div>
               </div>
               <div className="bg-white rounded-xl p-3 shadow-sm text-center">
@@ -1016,11 +1016,11 @@ export default function BroadcastPage() {
                     <div key={run.runId} className="bg-gray-50 rounded-lg p-3">
                       <div className="flex items-center justify-between mb-2">
                         <span className="font-medium text-gray-800 text-sm">Batch {run.currentBatch}/{run.totalBatches}</span>
-                        <span className="text-sm text-blue-600 font-medium">{run.percentage}%</span>
+                        <span className="text-sm text-indigo-600 font-medium">{run.percentage}%</span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden mb-2">
                         <div
-                          className="h-full bg-blue-500 transition-all duration-500"
+                          className="h-full bg-indigo-500 transition-all duration-500"
                           style={{ width: `${run.percentage}%` }}
                         />
                       </div>
@@ -1053,7 +1053,7 @@ export default function BroadcastPage() {
           <div className="mb-6 bg-white rounded-2xl shadow-lg border p-4 animate-fadeIn">
             <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
               📊 Recent Broadcasts
-              <button onClick={fetchData} className="text-blue-600 hover:text-blue-700 text-sm font-normal">
+              <button onClick={fetchData} className="text-indigo-600 hover:text-indigo-700 text-sm font-normal">
                 ↻ Refresh
               </button>
             </h3>
@@ -1102,7 +1102,7 @@ export default function BroadcastPage() {
                 placeholder="🔍 Search name or phone..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full sm:w-56 text-sm"
+                className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 w-full sm:w-56 text-sm"
               />
             </div>
 
@@ -1119,7 +1119,7 @@ export default function BroadcastPage() {
                 <button
                   onClick={() => csvFileRef.current?.click()}
                   disabled={csvParsing}
-                  className="w-full border-2 border-dashed border-gray-300 hover:border-blue-400 rounded-xl p-4 flex items-center justify-center gap-3 text-gray-500 hover:text-blue-600 transition-all duration-200 hover:bg-blue-50/30 group"
+                  className="w-full border-2 border-dashed border-gray-300 hover:border-indigo-400 rounded-xl p-4 flex items-center justify-center gap-3 text-gray-500 hover:text-indigo-600 transition-all duration-200 hover:bg-indigo-50/30 group"
                 >
                   {csvParsing ? (
                     <span className="animate-spin text-xl">⏳</span>
@@ -1158,7 +1158,7 @@ export default function BroadcastPage() {
                   {csvColumnMap && (
                     <div className="flex flex-wrap gap-2 mt-2 text-xs">
                       {csvColumnMap.phone && (
-                        <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full">
+                        <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded-full">
                           📱 Phone → {csvColumnMap.phone}
                         </span>
                       )}
@@ -1195,7 +1195,7 @@ export default function BroadcastPage() {
                             const last10 = c.phoneNumber.replace(/\D/g, '').slice(-10);
                             const existsInDB = leads.some(l => l.phoneNumber.replace(/\D/g, '').slice(-10) === last10);
                             return (
-                              <tr key={i} className={`border-t border-green-100 ${existsInDB ? 'bg-blue-50/40' : ''}`}>
+                              <tr key={i} className={`border-t border-green-100 ${existsInDB ? 'bg-indigo-50/40' : ''}`}>
                                 <td className="px-3 py-1.5 text-gray-500">{i + 1}</td>
                                 <td className="px-3 py-1.5 text-gray-800">{c.name || '—'}</td>
                                 <td className="px-3 py-1.5 text-gray-700 font-mono text-xs">{c.phoneNumber}</td>
@@ -1204,7 +1204,7 @@ export default function BroadcastPage() {
                                 )}
                                 <td className="px-3 py-1.5">
                                   {existsInDB ? (
-                                    <span className="text-blue-600 text-xs font-medium">✓ Exists</span>
+                                    <span className="text-indigo-600 text-xs font-medium">✓ Exists</span>
                                   ) : (
                                     <span className="text-orange-500 text-xs font-medium">New</span>
                                   )}
@@ -1242,7 +1242,7 @@ export default function BroadcastPage() {
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
-                className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-white min-w-[120px]"
+                className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm bg-white min-w-[120px]"
               >
                 <option value="all">All Status</option>
                 {uniqueStatuses.map(s => (
@@ -1255,7 +1255,7 @@ export default function BroadcastPage() {
                 <select
                   value={filterWorkshop}
                   onChange={(e) => setFilterWorkshop(e.target.value)}
-                  className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-white min-w-[140px]"
+                  className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm bg-white min-w-[140px]"
                 >
                   <option value="all">All Workshops</option>
                   {uniqueWorkshops.map(w => (
@@ -1269,7 +1269,7 @@ export default function BroadcastPage() {
                 <select
                   value={filterAssignedUser}
                   onChange={(e) => setFilterAssignedUser(e.target.value)}
-                  className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-white min-w-[140px]"
+                  className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm bg-white min-w-[140px]"
                 >
                   <option value="all">All Users</option>
                   {uniqueAssignedUsers.map(([id, name]) => (
@@ -1294,15 +1294,15 @@ export default function BroadcastPage() {
             </div>
 
             {/* Selection Bar */}
-            <div className="flex items-center justify-between p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl mb-4">
+            <div className="flex items-center justify-between p-3 bg-gradient-to-r from-indigo-50 to-indigo-50 rounded-xl mb-4">
               <label className="flex items-center gap-3 cursor-pointer group">
                 <input
                   type="checkbox"
                   checked={selectedLeads.size === filteredLeads.length && filteredLeads.length > 0}
                   onChange={selectAllFiltered}
-                  className="w-5 h-5 rounded text-blue-600 focus:ring-blue-500"
+                  className="w-5 h-5 rounded text-indigo-600 focus:ring-indigo-500"
                 />
-                <span className="font-medium text-blue-800 group-hover:text-blue-600 transition-colors">
+                <span className="font-medium text-indigo-800 group-hover:text-indigo-600 transition-colors">
                   Select All ({filteredLeads.length})
                 </span>
               </label>
@@ -1316,8 +1316,8 @@ export default function BroadcastPage() {
                   </button>
                 )}
                 <div className="flex items-center gap-2">
-                  <span className="text-3xl font-bold text-blue-600">{selectedLeads.size}</span>
-                  <span className="text-blue-700 text-sm">selected</span>
+                  <span className="text-3xl font-bold text-indigo-600">{selectedLeads.size}</span>
+                  <span className="text-indigo-700 text-sm">selected</span>
                 </div>
               </div>
             </div>
@@ -1340,7 +1340,7 @@ export default function BroadcastPage() {
                     key={lead._id}
                     className={`flex items-center gap-4 p-3 rounded-xl cursor-pointer transition-all duration-200 group ${
                       selectedLeads.has(lead._id)
-                        ? 'bg-blue-50 border-2 border-blue-400 shadow-sm'
+                        ? 'bg-indigo-50 border-2 border-indigo-400 shadow-sm'
                         : 'bg-gray-50/50 border-2 border-transparent hover:bg-white hover:shadow-sm hover:border-gray-200'
                     }`}
                   >
@@ -1348,10 +1348,10 @@ export default function BroadcastPage() {
                       type="checkbox"
                       checked={selectedLeads.has(lead._id)}
                       onChange={() => toggleLead(lead._id)}
-                      className="w-5 h-5 rounded text-blue-600 focus:ring-blue-500"
+                      className="w-5 h-5 rounded text-indigo-600 focus:ring-indigo-500"
                     />
                     <div className="flex-1 min-w-0">
-                      <div className="font-medium text-gray-800 truncate group-hover:text-blue-700 transition-colors">
+                      <div className="font-medium text-gray-800 truncate group-hover:text-indigo-700 transition-colors">
                         {lead.name || 'Unknown'}
                       </div>
                       <div className="flex items-center gap-2 text-sm text-gray-500">
@@ -1367,7 +1367,7 @@ export default function BroadcastPage() {
                           </span>
                         )}
                         {lead.userName && (
-                          <span className="px-1.5 py-0.5 bg-blue-100 text-blue-600 rounded text-xs">
+                          <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-600 rounded text-xs">
                             👤 {lead.userName}
                           </span>
                         )}
@@ -1386,7 +1386,7 @@ export default function BroadcastPage() {
                 disabled={!canProceedToStep2}
                 className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 flex items-center gap-2 ${
                   canProceedToStep2
-                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-lg hover:shadow-blue-500/30 hover:scale-105'
+                    ? 'bg-gradient-to-r from-indigo-600 to-indigo-600 text-white hover:shadow-lg hover:shadow-indigo-500/30 hover:scale-105'
                     : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                 }`}
               >
@@ -1411,12 +1411,12 @@ export default function BroadcastPage() {
                   placeholder="🔍 Search templates..."
                   value={templateSearch}
                   onChange={(e) => setTemplateSearch(e.target.value)}
-                  className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-48 text-sm"
+                  className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 w-48 text-sm"
                 />
                 <button
                   onClick={syncTemplatesFromMeta}
                   disabled={metaSubmitting === 'sync'}
-                  className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
+                  className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
                 >
                   {metaSubmitting === 'sync' ? '🔄 Syncing...' : '🔄 Sync Meta'}
                 </button>
@@ -1428,7 +1428,7 @@ export default function BroadcastPage() {
                 >
                   {metaSubmitting === 'process-scheduled' ? '⏱️ Processing...' : '⏱️ Run Scheduled'}
                 </button>
-                <Link href="/admin/crm/templates" className="text-blue-600 hover:text-blue-700 text-sm font-medium whitespace-nowrap">
+                <Link href="/admin/crm/templates" className="text-indigo-600 hover:text-indigo-700 text-sm font-medium whitespace-nowrap">
                   + New
                 </Link>
               </div>
@@ -1448,8 +1448,8 @@ export default function BroadcastPage() {
                     onClick={() => setSelectedTemplate(t)}
                     className={`group p-4 rounded-xl cursor-pointer transition-all duration-300 border-2 ${
                       selectedTemplate?._id === t._id
-                        ? 'bg-blue-50 border-blue-400 shadow-lg scale-[1.02]'
-                        : 'bg-white border-gray-100 hover:border-blue-200 hover:shadow-lg'
+                        ? 'bg-indigo-50 border-indigo-400 shadow-lg scale-[1.02]'
+                        : 'bg-white border-gray-100 hover:border-indigo-200 hover:shadow-lg'
                     }`}
                   >
                     {t.headerMedia?.url && (
@@ -1460,11 +1460,11 @@ export default function BroadcastPage() {
                       />
                     )}
                     <div className="flex items-center gap-2 mb-2 flex-wrap">
-                      <span className="font-bold text-gray-800 group-hover:text-blue-700 transition-colors">
+                      <span className="font-bold text-gray-800 group-hover:text-indigo-700 transition-colors">
                         {t.templateName}
                       </span>
                       {t.headerFormat === 'IMAGE' && (
-                        <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">🖼️</span>
+                        <span className="text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full">🖼️</span>
                       )}
                       {t.buttons?.length ? (
                         <span className="text-xs bg-green-100 text-green-600 px-2 py-0.5 rounded-full">🔘 {t.buttons.length}</span>
@@ -1503,7 +1503,7 @@ export default function BroadcastPage() {
                       <button
                         onClick={(e) => submitToMeta(t._id, e)}
                         disabled={metaSubmitting === t._id}
-                        className="mt-3 w-full px-3 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-blue-400 disabled:to-blue-500 text-white rounded-lg text-sm font-medium transition-all"
+                        className="mt-3 w-full px-3 py-2 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 disabled:from-indigo-400 disabled:to-indigo-500 text-white rounded-lg text-sm font-medium transition-all"
                       >
                         {metaSubmitting === t._id ? '⏳ Submitting...' : '🚀 Submit for Meta Approval'}
                       </button>
@@ -1526,7 +1526,7 @@ export default function BroadcastPage() {
                 disabled={!canProceedToStep3}
                 className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 flex items-center gap-2 ${
                   canProceedToStep3
-                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-lg hover:shadow-blue-500/30 hover:scale-105'
+                    ? 'bg-gradient-to-r from-indigo-600 to-indigo-600 text-white hover:shadow-lg hover:shadow-indigo-500/30 hover:scale-105'
                     : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                 }`}
               >
@@ -1552,7 +1552,7 @@ export default function BroadcastPage() {
                   value={broadcastName}
                   onChange={(e) => setBroadcastName(e.target.value)}
                   placeholder={`Broadcast - ${new Date().toLocaleDateString('en-IN')}`}
-                  className="w-full px-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                 />
               </div>
 
@@ -1577,7 +1577,7 @@ export default function BroadcastPage() {
                   <button
                     onClick={() => setSendMode('now')}
                     className={`w-full p-4 rounded-xl border-2 text-left transition-all duration-300 hover:shadow-md group ${
-                      sendMode === 'now' ? 'border-blue-500 bg-blue-50 shadow-md' : 'border-gray-200 hover:border-blue-300'
+                      sendMode === 'now' ? 'border-indigo-500 bg-indigo-50 shadow-md' : 'border-gray-200 hover:border-indigo-300'
                     }`}
                   >
                     <div className="flex items-center gap-3">
@@ -1662,9 +1662,9 @@ export default function BroadcastPage() {
                   📊 Summary
                 </h3>
                 <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 text-center">
-                    <div className="text-3xl font-bold text-blue-600">{selectedLeads.size}</div>
-                    <div className="text-sm text-blue-700">Recipients</div>
+                  <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-xl p-4 text-center">
+                    <div className="text-3xl font-bold text-indigo-600">{selectedLeads.size}</div>
+                    <div className="text-sm text-indigo-700">Recipients</div>
                   </div>
                   <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 text-center">
                     <div className="text-3xl font-bold text-purple-600">
@@ -1711,7 +1711,7 @@ export default function BroadcastPage() {
                     </p>
 
                     {/* WhatsApp Card Style */}
-                    <div className="bg-[#025c4c] rounded-2xl overflow-hidden max-w-xs mx-auto shadow-2xl">
+                    <div className="bg-[#025c4c] rounded-2xl overflow-hidden max-w-xs mx-auto shadow-xl">
                       {/* Header Image */}
                       {selectedTemplate.headerMedia?.url && (
                         <div className="relative">

@@ -637,9 +637,9 @@ function TemplatesSection({ data, updateField }: { data: IntegrationData['templa
         <NumberField label="Rate Limit (msgs/sec)" value={data.rateLimitPerSecond}
           onChange={v => updateField('rateLimitPerSecond', v)} min={1} max={100} />
       </div>
-      <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg flex items-start gap-2">
-        <Info className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
-        <p className="text-sm text-blue-700">Meta limits messaging to 1,000/day for new business accounts. <a href="/admin/crm/meta/templates" className="underline">Manage Templates →</a></p>
+      <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-lg flex items-start gap-2">
+        <Info className="w-4 h-4 text-indigo-500 mt-0.5 shrink-0" />
+        <p className="text-sm text-indigo-700">Meta limits messaging to 1,000/day for new business accounts. <a href="/admin/crm/meta/templates" className="underline">Manage Templates →</a></p>
       </div>
     </div>
   );
@@ -663,9 +663,9 @@ function EmailSection({ data, updateField }: { data: IntegrationData['email']; u
         checked={data.trackOpens} onChange={v => updateField('trackOpens', v)} />
       <ToggleRow label="Track Clicks" desc="Track link clicks in emails"
         checked={data.trackClicks} onChange={v => updateField('trackClicks', v)} />
-      <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg flex items-start gap-2">
-        <Info className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
-        <p className="text-sm text-blue-700">Configure email credentials in <a href="/admin/crm/connections" className="underline">Connections Hub</a> first. <a href="/admin/crm/email" className="underline ml-2">Email Dashboard →</a></p>
+      <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-lg flex items-start gap-2">
+        <Info className="w-4 h-4 text-indigo-500 mt-0.5 shrink-0" />
+        <p className="text-sm text-indigo-700">Configure email credentials in <a href="/admin/crm/connections" className="underline">Connections Hub</a> first. <a href="/admin/crm/email" className="underline ml-2">Email Dashboard →</a></p>
       </div>
     </div>
   );
@@ -688,9 +688,9 @@ function SmsSection({ data, updateField }: { data: IntegrationData['sms']; updat
         <Field label="Opt-Out Keyword" value={data.optOutKeyword} onChange={v => updateField('optOutKeyword', v)} placeholder="STOP" />
       </div>
       <TextAreaField label="Opt-Out Reply Message" value={data.optOutMessage} onChange={v => updateField('optOutMessage', v)} rows={2} />
-      <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg flex items-start gap-2">
-        <Info className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
-        <p className="text-sm text-blue-700">SMS provider credentials (PAN, API Key) go in <a href="/admin/crm/connections" className="underline">Connections Hub</a>. <a href="/admin/crm/messages" className="underline ml-2">SMS Dashboard →</a></p>
+      <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-lg flex items-start gap-2">
+        <Info className="w-4 h-4 text-indigo-500 mt-0.5 shrink-0" />
+        <p className="text-sm text-indigo-700">SMS provider credentials (PAN, API Key) go in <a href="/admin/crm/connections" className="underline">Connections Hub</a>. <a href="/admin/crm/messages" className="underline ml-2">SMS Dashboard →</a></p>
       </div>
     </div>
   );

@@ -238,7 +238,7 @@ export default function AdminDevicesPage() {
             </div>
             <Link
               href="/admin/crm/devices/settings"
-              className="rounded-lg bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
+              className="rounded-lg bg-indigo-500 px-4 py-2 text-white hover:bg-indigo-600"
             >
               ⚙️ Settings
             </Link>
@@ -251,7 +251,7 @@ export default function AdminDevicesPage() {
         <div className="mx-auto max-w-7xl px-4 py-6">
           <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
             <div className="rounded-lg bg-white p-4 shadow">
-              <p className="text-2xl font-bold text-blue-600">{stats.totalDevices}</p>
+              <p className="text-2xl font-bold text-indigo-600">{stats.totalDevices}</p>
               <p className="text-sm text-gray-500">Total Devices</p>
             </div>
             <div className="rounded-lg bg-white p-4 shadow">
@@ -283,7 +283,7 @@ export default function AdminDevicesPage() {
               onClick={() => setActiveTab(tab as typeof activeTab)}
               className={`px-4 py-2 capitalize ${
                 activeTab === tab
-                  ? 'border-b-2 border-blue-500 text-blue-600'
+                  ? 'border-b-2 border-indigo-500 text-indigo-600'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
@@ -318,7 +318,7 @@ export default function AdminDevicesPage() {
                   />
                   <button
                     onClick={() => fetchDevices(searchUserId || undefined)}
-                    className="rounded-lg bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
+                    className="rounded-lg bg-indigo-500 px-4 py-2 text-white hover:bg-indigo-600"
                   >
                     Search
                   </button>
@@ -459,7 +459,7 @@ export default function AdminDevicesPage() {
                             {formatDate(violation.createdAt)}
                           </span>
                           {violation.isAcknowledged && (
-                            <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700">
+                            <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs text-indigo-700">
                               User acknowledged
                             </span>
                           )}
@@ -513,7 +513,7 @@ export default function AdminDevicesPage() {
                         <span className="text-sm text-gray-600">
                           {i + 1}. {user._id.slice(0, 16)}...
                         </span>
-                        <span className="rounded-full bg-blue-100 px-2 py-0.5 text-sm text-blue-700">
+                        <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-sm text-indigo-700">
                           {user.deviceCount} devices
                         </span>
                       </div>

@@ -204,7 +204,7 @@ export default function BulkCallModal({ selectedCount, selectedLeadIds, token, o
 
   const PURPOSE_OPTIONS = [
     { key: 'welcome', label: 'Welcome Call', icon: '🙏', color: 'bg-orange-50 text-orange-700 border-orange-200' },
-    { key: 'follow_up', label: 'Follow-Up', icon: '📞', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+    { key: 'follow_up', label: 'Follow-Up', icon: '📞', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
     { key: 'answer_questions', label: 'Answer Back', icon: '💬', color: 'bg-violet-50 text-violet-700 border-violet-200' },
     { key: 'workshop_reminder', label: 'Workshop', icon: '📅', color: 'bg-amber-50 text-amber-700 border-amber-200' },
     { key: 'collect_info', label: 'Collect Info', icon: '📋', color: 'bg-cyan-50 text-cyan-700 border-cyan-200' },
@@ -213,7 +213,7 @@ export default function BulkCallModal({ selectedCount, selectedLeadIds, token, o
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center gap-3 px-5 py-4" style={{ background: 'linear-gradient(135deg, #6366F1, #EC4899)' }}>
           <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/20">

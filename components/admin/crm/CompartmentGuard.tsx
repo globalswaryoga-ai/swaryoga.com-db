@@ -70,7 +70,7 @@ export default function CompartmentGuard({
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+        <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
       </div>
     );
   }
@@ -92,12 +92,12 @@ export default function CompartmentGuard({
               This creates your own isolated space in MongoDB and Bunny CDN.
             </p>
             
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 text-left">
+            <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 mb-6 text-left">
               <div className="flex items-start gap-3">
-                <Database className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                <Database className="h-5 w-5 text-indigo-600 mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="font-medium text-blue-900 text-sm">Your Data is Isolated</p>
-                  <p className="text-xs text-blue-700 mt-1">
+                  <p className="font-medium text-indigo-900 text-sm">Your Data is Isolated</p>
+                  <p className="text-xs text-indigo-700 mt-1">
                     Each user gets their own folder and database space. No other user can see your leads, messages, or files.
                   </p>
                 </div>
@@ -106,7 +106,7 @@ export default function CompartmentGuard({
 
             <button
               onClick={() => setShowSetup(true)}
-              className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-3 rounded-xl font-semibold hover:shadow-lg transition flex items-center justify-center gap-2 mx-auto"
+              className="bg-gradient-to-r from-indigo-600 to-indigo-600 text-white px-8 py-3 rounded-xl font-semibold hover:shadow-lg transition flex items-center justify-center gap-2 mx-auto"
             >
               <Settings className="h-5 w-5" />
               Complete Setup

@@ -672,7 +672,7 @@ export default function AIAgentsPage() {
 
                         {/* Language & Voice Info */}
                         <div className="flex items-center gap-2 mb-3 flex-wrap">
-                          <span className="text-[10px] font-medium px-2 py-1 bg-blue-50 text-blue-600 rounded-lg">{agentType}</span>
+                          <span className="text-[10px] font-medium px-2 py-1 bg-indigo-50 text-indigo-600 rounded-lg">{agentType}</span>
                           <span className="flex items-center gap-1 text-[10px] px-2 py-1 bg-gray-50 rounded-lg">
                             <span>{langInfo.flag}</span>
                             <span className="font-medium text-gray-600">{langInfo.label}</span>

@@ -30,7 +30,7 @@ interface ScheduledMessage {
 }
 
 const STATUS_COLORS: Record<string, { bg: string; text: string; icon: React.FC<{ className?: string }> }> = {
-  scheduled: { bg: 'bg-blue-50', text: 'text-blue-700', icon: Clock },
+  scheduled: { bg: 'bg-indigo-50', text: 'text-indigo-700', icon: Clock },
   processing: { bg: 'bg-yellow-50', text: 'text-yellow-700', icon: Loader },
   sent: { bg: 'bg-green-50', text: 'text-green-700', icon: CheckCircle },
   failed: { bg: 'bg-red-50', text: 'text-red-700', icon: XCircle },
@@ -289,7 +289,7 @@ export default function ScheduledMessagesPage() {
                             <>
                               <button
                                 onClick={() => handleEditMessage(msg)}
-                                className="text-blue-600 hover:text-blue-700"
+                                className="text-indigo-600 hover:text-indigo-700"
                                 title="Edit"
                               >
                                 <Edit2 className="w-4 h-4" />

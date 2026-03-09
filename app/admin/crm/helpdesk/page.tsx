@@ -60,7 +60,7 @@ interface Category {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  open: { label: 'Open', color: 'text-blue-700', bg: 'bg-blue-100' },
+  open: { label: 'Open', color: 'text-indigo-700', bg: 'bg-indigo-100' },
   pending: { label: 'Pending', color: 'text-yellow-700', bg: 'bg-yellow-100' },
   in_progress: { label: 'In Progress', color: 'text-purple-700', bg: 'bg-purple-100' },
   resolved: { label: 'Resolved', color: 'text-green-700', bg: 'bg-green-100' },
@@ -69,7 +69,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
 
 const PRIORITY_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   low: { label: 'Low', color: 'text-gray-700', bg: 'bg-gray-100' },
-  medium: { label: 'Medium', color: 'text-blue-700', bg: 'bg-blue-100' },
+  medium: { label: 'Medium', color: 'text-indigo-700', bg: 'bg-indigo-100' },
   high: { label: 'High', color: 'text-orange-700', bg: 'bg-orange-100' },
   urgent: { label: 'Urgent', color: 'text-red-700', bg: 'bg-red-100' },
 };
@@ -323,7 +323,7 @@ export default function HelpDeskPage() {
   if (loading && tickets.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
       </div>
     );
   }
@@ -334,7 +334,7 @@ export default function HelpDeskPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <Ticket className="w-8 h-8 text-blue-600" />
+            <Ticket className="w-8 h-8 text-indigo-600" />
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Help Desk</h1>
               <p className="text-gray-600">Manage support tickets</p>
@@ -349,7 +349,7 @@ export default function HelpDeskPage() {
             </button>
             <button
               onClick={() => setShowCreate(true)}
-              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+              className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
             >
               <Plus className="w-4 h-4" />
               New Ticket
@@ -364,7 +364,7 @@ export default function HelpDeskPage() {
               key={key}
               onClick={() => setFilterStatus(filterStatus === key ? '' : key)}
               className={`bg-white rounded-xl p-4 border text-left transition ${
-                filterStatus === key ? 'ring-2 ring-blue-500' : ''
+                filterStatus === key ? 'ring-2 ring-indigo-500' : ''
               }`}
             >
               <p className={`text-sm ${config.color}`}>{config.label}</p>
@@ -423,7 +423,7 @@ export default function HelpDeskPage() {
             </p>
             <button
               onClick={() => setShowCreate(true)}
-              className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+              className="inline-flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
             >
               <Plus className="w-4 h-4" />
               Create Ticket
@@ -588,7 +588,7 @@ export default function HelpDeskPage() {
               <button
                 onClick={createTicket}
                 disabled={saving}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2"
               >
                 {saving && <Loader2 className="w-4 h-4 animate-spin" />}
                 Create Ticket
@@ -643,8 +643,8 @@ export default function HelpDeskPage() {
               <div className="bg-gray-50 rounded-lg p-4 mb-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                      <User className="w-5 h-5 text-blue-600" />
+                    <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center">
+                      <User className="w-5 h-5 text-indigo-600" />
                     </div>
                     <div>
                       <p className="font-medium">{showTicket.customerName}</p>
@@ -675,7 +675,7 @@ export default function HelpDeskPage() {
                               key={member.id}
                               onClick={() => assignTicket(showTicket.id, member.id, member.name)}
                               className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded-lg ${
-                                showTicket.assignedTo === member.id ? 'bg-blue-50 text-blue-700' : ''
+                                showTicket.assignedTo === member.id ? 'bg-indigo-50 text-indigo-700' : ''
                               }`}
                             >
                               <p className="font-medium">{member.name}</p>
@@ -727,7 +727,7 @@ export default function HelpDeskPage() {
                     key={msg.id}
                     className={`p-4 rounded-lg ${
                       msg.type === 'agent'
-                        ? 'bg-blue-50 ml-8'
+                        ? 'bg-indigo-50 ml-8'
                         : msg.type === 'system'
                         ? 'bg-gray-100 text-center text-sm'
                         : 'bg-gray-50 mr-8'
@@ -760,7 +760,7 @@ export default function HelpDeskPage() {
                     <button
                       onClick={sendReply}
                       disabled={saving || !replyText.trim()}
-                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                      className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
                     >
                       {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                       Send Reply

@@ -507,7 +507,7 @@ export default function ChatbotPage() {
                           </span>
                           <span className={`px-2 py-0.5 text-xs rounded ${
                             kw.action === 'forward_to_agent' ? 'bg-amber-600' : 
-                            kw.action === 'send_template' ? 'bg-blue-600' : 'bg-green-600'
+                            kw.action === 'send_template' ? 'bg-indigo-600' : 'bg-green-600'
                           } text-white`}>
                             {kw.action === 'forward_to_agent' ? '👤 Forward' : 
                              kw.action === 'send_template' ? '📋 Template' : '💬 Reply'}
@@ -586,7 +586,7 @@ export default function ChatbotPage() {
                               {t.language}
                             </span>
                             {t.category && (
-                              <span className="text-xs text-blue-300 bg-blue-900/50 px-2 py-0.5 rounded">
+                              <span className="text-xs text-indigo-300 bg-indigo-900/50 px-2 py-0.5 rounded">
                                 {t.category}
                               </span>
                             )}
@@ -623,7 +623,7 @@ export default function ChatbotPage() {
                       {t.buttons && t.buttons.length > 0 && (
                         <div className="flex flex-wrap gap-2 mb-3">
                           {t.buttons.map((btn, i) => (
-                            <span key={i} className="px-2 py-1 bg-blue-600/30 text-blue-200 rounded text-xs">
+                            <span key={i} className="px-2 py-1 bg-indigo-600/30 text-indigo-200 rounded text-xs">
                               {btn.type === 'QUICK_REPLY' ? '↩️' : '🔗'} {btn.title}
                             </span>
                           ))}
@@ -779,7 +779,7 @@ export default function ChatbotPage() {
                       {qmButtons.filter(b => b.trim()).length > 0 && (
                         <div className="border-t border-slate-600">
                           {qmButtons.filter(b => b.trim()).map((btn, i) => (
-                            <div key={i} className="p-2 text-center text-blue-400 text-sm border-b border-slate-600 last:border-0">
+                            <div key={i} className="p-2 text-center text-indigo-400 text-sm border-b border-slate-600 last:border-0">
                               {btn}
                             </div>
                           ))}
@@ -806,7 +806,7 @@ export default function ChatbotPage() {
                           <p className="text-white text-sm">{msg.text}</p>
                           <div className="flex flex-wrap gap-2 mt-2">
                             {msg.imageUrl && (
-                              <span className="text-xs bg-blue-900/50 text-blue-300 px-2 py-0.5 rounded">📷 Image</span>
+                              <span className="text-xs bg-indigo-900/50 text-indigo-300 px-2 py-0.5 rounded">📷 Image</span>
                             )}
                             {msg.buttons && msg.buttons.length > 0 && (
                               <span className="text-xs bg-green-900/50 text-green-300 px-2 py-0.5 rounded">🔘 {msg.buttons.length} btn</span>
@@ -993,7 +993,7 @@ export default function ChatbotPage() {
                       <div>
                         <h4 className="text-white font-medium">{form.name}</h4>
                         {form.description && <p className="text-purple-200 text-sm">{form.description}</p>}
-                        <a href={form.url} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-400 hover:underline">
+                        <a href={form.url} target="_blank" rel="noopener noreferrer" className="text-sm text-indigo-400 hover:underline">
                           {form.url}
                         </a>
                       </div>

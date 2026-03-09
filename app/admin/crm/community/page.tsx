@@ -1727,10 +1727,10 @@ export default function AdminCommunityPage() {
                     
                     {/* Last Activity */}
                     <div className="flex items-center gap-2">
-                      <Clock size={14} className="text-blue-500" />
+                      <Clock size={14} className="text-indigo-500" />
                       <div>
                         <p className="text-[8px] text-slate-500 font-semibold">ACTIVITY</p>
-                        <p className="text-sm font-bold text-blue-600">{lastActivityTime || 'N/A'}</p>
+                        <p className="text-sm font-bold text-indigo-600">{lastActivityTime || 'N/A'}</p>
                       </div>
                     </div>
                     
@@ -2134,7 +2134,7 @@ export default function AdminCommunityPage() {
                             <div className={`px-3 py-1 rounded-full text-[9px] font-bold uppercase inline-block w-fit ${
                               post.status === 'published' ? 'bg-emerald-50 text-emerald-700' :
                               post.status === 'draft' ? 'bg-amber-50 text-amber-700' :
-                              'bg-blue-50 text-blue-700'
+                              'bg-indigo-50 text-indigo-700'
                             }`}>
                               {post.status || 'published'}
                             </div>
@@ -2182,7 +2182,7 @@ export default function AdminCommunityPage() {
                             </button>
                             <button
                               onClick={() => openEditPostModal(post)}
-                              className="p-2 hover:bg-blue-600 hover:text-white rounded-lg transition-all text-blue-500 border border-blue-100"
+                              className="p-2 hover:bg-indigo-600 hover:text-white rounded-lg transition-all text-indigo-500 border border-indigo-100"
                               title="Edit Post"
                             >
                               <Edit size={16} />
@@ -2377,7 +2377,7 @@ export default function AdminCommunityPage() {
                           const firstVideo = playlistVideos[0];
                           const colors = [
                             'from-purple-500 to-pink-500',
-                            'from-blue-500 to-cyan-500',
+                            'from-indigo-500 to-cyan-500',
                             'from-orange-500 to-red-500',
                             'from-emerald-500 to-teal-500',
                             'from-indigo-500 to-purple-500',
@@ -2387,7 +2387,7 @@ export default function AdminCommunityPage() {
                           return (
                             <div 
                               key={playlistName}
-                              className="group bg-slate-800/50 backdrop-blur-sm rounded-3xl overflow-hidden border border-slate-700/50 hover:border-emerald-500/50 transition-all hover:shadow-2xl hover:shadow-emerald-500/10 cursor-pointer"
+                              className="group bg-slate-800/50 backdrop-blur-sm rounded-2xl overflow-hidden border border-slate-700/50 hover:border-emerald-500/50 transition-all hover:shadow-xl hover:shadow-emerald-500/10 cursor-pointer"
                               onClick={() => setSelectedPlaylist(playlistName)}
                             >
                               {/* Thumbnail */}
@@ -2546,7 +2546,7 @@ export default function AdminCommunityPage() {
                                     </button>
                                     <button
                                       onClick={(e) => { e.stopPropagation(); openEditVideoModal(recording); }}
-                                      className="p-2 text-slate-500 hover:text-blue-500 hover:bg-blue-500/10 rounded-lg transition-all"
+                                      className="p-2 text-slate-500 hover:text-indigo-500 hover:bg-indigo-500/10 rounded-lg transition-all"
                                       title="Edit"
                                     >
                                       <Edit size={16} />
@@ -2709,7 +2709,7 @@ export default function AdminCommunityPage() {
                           )}
                           <button
                             onClick={() => openEditVideoModal(video)}
-                            className="p-2 hover:bg-blue-600 hover:text-white rounded-lg transition-all text-blue-500 border border-blue-100"
+                            className="p-2 hover:bg-indigo-600 hover:text-white rounded-lg transition-all text-indigo-500 border border-indigo-100"
                             title="Edit"
                           >
                             <Edit size={16} />
@@ -2782,7 +2782,7 @@ export default function AdminCommunityPage() {
                       sub.category === 'experiences' ? 'bg-purple-50 border-purple-100' :
                       sub.category === 'tips' ? 'bg-yellow-50 border-yellow-100' :
                       sub.category === 'transformations' ? 'bg-emerald-50 border-emerald-100' :
-                      'bg-blue-50 border-blue-100'
+                      'bg-indigo-50 border-indigo-100'
                     }`}>
                       <div className="flex items-center gap-3">
                         <span className="text-2xl">
@@ -2799,7 +2799,7 @@ export default function AdminCommunityPage() {
                         sub.status === 'pending' ? 'bg-orange-100 text-orange-700' :
                         sub.status === 'approved' ? 'bg-green-100 text-green-700' :
                         sub.status === 'rejected' ? 'bg-red-100 text-red-700' :
-                        'bg-blue-100 text-blue-700'
+                        'bg-indigo-100 text-indigo-700'
                       }`}>
                         {sub.status.toUpperCase()}
                       </span>
@@ -2846,11 +2846,11 @@ export default function AdminCommunityPage() {
                       )}
                       
                       {sub.category === 'questions' && sub.question && (
-                        <div className="bg-blue-50 rounded-xl p-4 mb-4">
-                          <h5 className="text-sm font-bold text-blue-700 mb-2">❓ Question</h5>
+                        <div className="bg-indigo-50 rounded-xl p-4 mb-4">
+                          <h5 className="text-sm font-bold text-indigo-700 mb-2">❓ Question</h5>
                           <p className="text-sm text-slate-700 whitespace-pre-wrap">{sub.question}</p>
                           {sub.answer && (
-                            <div className="mt-3 pt-3 border-t border-blue-200">
+                            <div className="mt-3 pt-3 border-t border-indigo-200">
                               <h6 className="text-sm font-bold text-green-700 mb-1">✅ Answer</h6>
                               <p className="text-sm text-slate-700 whitespace-pre-wrap">{sub.answer}</p>
                             </div>
@@ -2917,7 +2917,7 @@ export default function AdminCommunityPage() {
       {/* Upload Video Modal */}
       {showUploadVideoModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[100] flex items-center justify-center animate-in fade-in">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-8 m-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-8 m-4">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-bold text-slate-900">📹 Upload Video</h3>
               <button onClick={() => setShowUploadVideoModal(false)} className="p-2 hover:bg-slate-100 rounded-xl transition-all">
@@ -2982,7 +2982,7 @@ export default function AdminCommunityPage() {
       {/* Add YouTube Video Modal */}
       {showAddYouTubeModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[100] flex items-center justify-center animate-in fade-in">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-8 m-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-8 m-4">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-bold text-slate-900">▶ Add YouTube Video</h3>
               <button onClick={() => setShowAddYouTubeModal(false)} className="p-2 hover:bg-slate-100 rounded-xl transition-all">
@@ -3086,7 +3086,7 @@ export default function AdminCommunityPage() {
       {/* Edit Video Modal */}
       {showEditVideoModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[100] flex items-center justify-center animate-in fade-in">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-8 m-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-8 m-4">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-bold text-slate-900">✏️ Edit Video</h3>
               <button onClick={() => setShowEditVideoModal(false)} className="p-2 hover:bg-slate-100 rounded-xl transition-all">
@@ -3102,7 +3102,7 @@ export default function AdminCommunityPage() {
                   value={editVideoUrl} 
                   onChange={e => setEditVideoUrl(e.target.value)}
                   placeholder="https://www.youtube.com/watch?v=... or video ID"
-                  className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 transition-all"
+                  className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 transition-all"
                 />
               </div>
               
@@ -3113,7 +3113,7 @@ export default function AdminCommunityPage() {
                   value={editVideoTitle} 
                   onChange={e => setEditVideoTitle(e.target.value)}
                   placeholder="Enter video title..."
-                  className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 transition-all"
+                  className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 transition-all"
                 />
               </div>
               
@@ -3123,7 +3123,7 @@ export default function AdminCommunityPage() {
                   value={editVideoDescription} 
                   onChange={e => setEditVideoDescription(e.target.value)}
                   placeholder="Enter video description..."
-                  className="w-full h-24 p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 transition-all resize-none"
+                  className="w-full h-24 p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 transition-all resize-none"
                 />
               </div>
               
@@ -3134,14 +3134,14 @@ export default function AdminCommunityPage() {
                   value={editVideoTags.join(', ')} 
                   onChange={e => setEditVideoTags(e.target.value.split(',').map(t => t.trim()))}
                   placeholder="tag1, tag2, tag3..."
-                  className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 transition-all"
+                  className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 transition-all"
                 />
               </div>
               
               <button
                 onClick={saveVideoEdit}
                 disabled={savingVideoEdit || !editVideoUrl.trim() || !editVideoTitle.trim()}
-                className="w-full h-12 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full h-12 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {savingVideoEdit ? (
                   <>
@@ -3160,7 +3160,7 @@ export default function AdminCommunityPage() {
       {/* Create New Community Modal */}
       {showCreateCommunityModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[100] flex items-center justify-center animate-in fade-in">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-8 m-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-8 m-4">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-bold text-slate-900">➕ Create New Community</h3>
               <button onClick={() => setShowCreateCommunityModal(false)} className="p-2 hover:bg-slate-100 rounded-xl transition-all">
@@ -3238,7 +3238,7 @@ export default function AdminCommunityPage() {
       {/* Upload Recording Modal - Folder/Playlist/Video Structure */}
       {showUploadRecordingModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[100] flex items-center justify-center animate-in fade-in">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-8 m-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-8 m-4">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-bold text-slate-900">🎥 Upload Recording</h3>
               <button onClick={() => setShowUploadRecordingModal(false)} className="p-2 hover:bg-slate-100 rounded-xl transition-all">
@@ -3349,7 +3349,7 @@ export default function AdminCommunityPage() {
       {/* Add YouTube Recording Modal - with Folder/Playlist structure */}
       {showAddYouTubeRecordingModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[100] flex items-center justify-center animate-in fade-in">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-8 m-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-8 m-4">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-bold text-slate-900">▶ Add YouTube Recording</h3>
               <button onClick={() => setShowAddYouTubeRecordingModal(false)} className="p-2 hover:bg-slate-100 rounded-xl transition-all">
@@ -3618,7 +3618,7 @@ export default function AdminCommunityPage() {
                     </div>
 
                     <div 
-                       className="bg-white rounded-[3rem] shadow-2xl border-[10px] border-slate-900 overflow-hidden relative transition-all duration-500 origin-top"
+                       className="bg-white rounded-[3rem] shadow-xl border-[10px] border-slate-900 overflow-hidden relative transition-all duration-500 origin-top"
                        style={{ 
                           width: previewWidth === 'mobile' ? '360px' : '480px', 
                           maxWidth: '100%',
@@ -3676,7 +3676,7 @@ export default function AdminCommunityPage() {
                              {editPostButtons.length > 0 && (
                                 <div className="space-y-2 mb-6">
                                    {editPostButtons.map(b => (
-                                      <div key={b.id} className="w-full py-3 bg-[#0070f3] text-white rounded-full text-[10px] font-black uppercase tracking-widest text-center shadow-lg shadow-blue-100 cursor-pointer">
+                                      <div key={b.id} className="w-full py-3 bg-[#0070f3] text-white rounded-full text-[10px] font-black uppercase tracking-widest text-center shadow-lg shadow-indigo-100 cursor-pointer">
                                          {b.label}
                                       </div>
                                    ))}
@@ -3710,7 +3710,7 @@ export default function AdminCommunityPage() {
       {/* Comments Management Modal */}
       {showCommentsModal && selectedPostForComments && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[100] flex items-center justify-center animate-in fade-in p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden">
             {/* Header */}
             <div className="p-6 border-b border-slate-100 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3">
@@ -3794,7 +3794,7 @@ export default function AdminCommunityPage() {
       {/* Video Comments Modal */}
       {showVideoCommentsModal && selectedVideoForComments && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[100] flex items-center justify-center animate-in fade-in p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden">
             {/* Header */}
             <div className="p-6 border-b border-slate-100 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3">
@@ -4245,19 +4245,19 @@ export default function AdminCommunityPage() {
 
                        {/* QUESTIONS CATEGORY */}
                        {postCategory === 'questions' && (
-                          <div className="space-y-4 p-6 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl border border-blue-200">
+                          <div className="space-y-4 p-6 bg-gradient-to-br from-indigo-50 to-cyan-50 rounded-2xl border border-indigo-200">
                              <div className="flex items-center gap-2 mb-4">
                                 <span className="text-2xl">❓</span>
-                                <span className="text-sm font-bold text-blue-700 uppercase tracking-wider">Q&A Post</span>
+                                <span className="text-sm font-bold text-indigo-700 uppercase tracking-wider">Q&A Post</span>
                              </div>
                              <div className="grid grid-cols-3 gap-4">
-                                <input type="text" value={postParticipantName} onChange={e => setPostParticipantName(e.target.value)} placeholder="Participant Name" className="h-12 px-4 bg-white border border-blue-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/20" spellCheck={true} />
-                                <input type="text" value={postWorkshopName} onChange={e => setPostWorkshopName(e.target.value)} placeholder="Workshop Name" className="h-12 px-4 bg-white border border-blue-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/20" spellCheck={true} />
-                                <input type="text" value={postBatchName} onChange={e => setPostBatchName(e.target.value)} placeholder="Batch Name/Number" className="h-12 px-4 bg-white border border-blue-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/20" spellCheck={true} />
+                                <input type="text" value={postParticipantName} onChange={e => setPostParticipantName(e.target.value)} placeholder="Participant Name" className="h-12 px-4 bg-white border border-indigo-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/20" spellCheck={true} />
+                                <input type="text" value={postWorkshopName} onChange={e => setPostWorkshopName(e.target.value)} placeholder="Workshop Name" className="h-12 px-4 bg-white border border-indigo-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/20" spellCheck={true} />
+                                <input type="text" value={postBatchName} onChange={e => setPostBatchName(e.target.value)} placeholder="Batch Name/Number" className="h-12 px-4 bg-white border border-indigo-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/20" spellCheck={true} />
                              </div>
                              <div className="space-y-2">
-                                <label className="text-xs font-bold text-blue-700 uppercase tracking-wider">Question</label>
-                                <textarea value={postQuestion} onChange={e => setPostQuestion(e.target.value)} rows={3} placeholder="What is the question?" className="w-full p-4 bg-white border border-blue-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/20 resize-none" spellCheck={true} />
+                                <label className="text-xs font-bold text-indigo-700 uppercase tracking-wider">Question</label>
+                                <textarea value={postQuestion} onChange={e => setPostQuestion(e.target.value)} rows={3} placeholder="What is the question?" className="w-full p-4 bg-white border border-indigo-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/20 resize-none" spellCheck={true} />
                              </div>
                              <div className="space-y-2">
                                 <label className="text-xs font-bold text-green-700 uppercase tracking-wider flex items-center justify-between">
@@ -4267,13 +4267,13 @@ export default function AdminCommunityPage() {
                                 <div className="relative">
                                    <div className="flex items-center gap-1 p-2 bg-green-50 border border-b-0 rounded-t-xl border-green-300">
                                       {WHATSAPP_FORMATS.map(f => (
-                                         <button key={f.label} title={f.desc} onClick={() => insertTextToActiveTextarea(f.prefix, f.suffix)} className="p-2 hover:bg-blue-100 rounded-lg text-slate-500 hover:text-blue-600 transition-colors">
+                                         <button key={f.label} title={f.desc} onClick={() => insertTextToActiveTextarea(f.prefix, f.suffix)} className="p-2 hover:bg-indigo-100 rounded-lg text-slate-500 hover:text-indigo-600 transition-colors">
                                             {f.icon}
                                          </button>
                                       ))}
                                       <div className="w-px h-4 bg-slate-200 mx-1" />
                                       <div className="relative">
-                                         <button onClick={() => { setActiveTextareaId('question'); setShowEmojiPicker(!showEmojiPicker); }} className={`p-2 hover:bg-blue-100 rounded-lg transition-colors ${showEmojiPicker && activeTextareaId === 'question' ? 'text-blue-600 bg-blue-50' : 'text-slate-500'}`} title="Emojis">
+                                         <button onClick={() => { setActiveTextareaId('question'); setShowEmojiPicker(!showEmojiPicker); }} className={`p-2 hover:bg-indigo-100 rounded-lg transition-colors ${showEmojiPicker && activeTextareaId === 'question' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-500'}`} title="Emojis">
                                             <Smile size={18} />
                                          </button>
                                          {showEmojiPicker && activeTextareaId === 'question' && (
@@ -4281,13 +4281,13 @@ export default function AdminCommunityPage() {
                                                <div className="text-[10px] font-bold text-slate-400 uppercase mb-2">Emojis</div>
                                                <div className="grid grid-cols-8 gap-1 mb-3">
                                                   {EMOJIS.map(e => (
-                                                     <button key={e} onClick={() => { insertTextToActiveTextarea(e); setShowEmojiPicker(false); }} className="w-7 h-7 flex items-center justify-center hover:bg-blue-100 rounded-lg text-lg">{e}</button>
+                                                     <button key={e} onClick={() => { insertTextToActiveTextarea(e); setShowEmojiPicker(false); }} className="w-7 h-7 flex items-center justify-center hover:bg-indigo-100 rounded-lg text-lg">{e}</button>
                                                   ))}
                                                </div>
                                                <div className="text-[10px] font-bold text-slate-400 uppercase mb-2">Symbols</div>
                                                <div className="grid grid-cols-8 gap-1">
                                                   {SYMBOLS.map(s => (
-                                                     <button key={s} onClick={() => { insertTextToActiveTextarea(s); setShowEmojiPicker(false); }} className="w-7 h-7 flex items-center justify-center hover:bg-blue-100 rounded-lg text-sm font-mono">{s}</button>
+                                                     <button key={s} onClick={() => { insertTextToActiveTextarea(s); setShowEmojiPicker(false); }} className="w-7 h-7 flex items-center justify-center hover:bg-indigo-100 rounded-lg text-sm font-mono">{s}</button>
                                                   ))}
                                                </div>
                                             </div>
@@ -4374,9 +4374,9 @@ export default function AdminCommunityPage() {
                              <input type="checkbox" checked={broadcastToMembers} onChange={e => setBroadcastToMembers(e.target.checked)} className="w-5 h-5 rounded border-green-300 text-green-600 focus:ring-green-500" />
                              <span className="text-sm font-bold text-green-700">📱 WhatsApp Broadcast to Members</span>
                           </label>
-                          <label className="flex items-center gap-3 cursor-pointer bg-blue-50 px-4 py-2 rounded-xl border border-blue-200">
-                             <input type="checkbox" checked={broadcastToTelegram} onChange={e => setBroadcastToTelegram(e.target.checked)} className="w-5 h-5 rounded border-blue-300 text-blue-600 focus:ring-blue-500" />
-                             <span className="text-sm font-bold text-blue-700">✈️ Telegram Channel/Groups</span>
+                          <label className="flex items-center gap-3 cursor-pointer bg-indigo-50 px-4 py-2 rounded-xl border border-indigo-200">
+                             <input type="checkbox" checked={broadcastToTelegram} onChange={e => setBroadcastToTelegram(e.target.checked)} className="w-5 h-5 rounded border-indigo-300 text-indigo-600 focus:ring-indigo-500" />
+                             <span className="text-sm font-bold text-indigo-700">✈️ Telegram Channel/Groups</span>
                           </label>
                        </div>
                        {broadcastToMembers && (
@@ -4386,15 +4386,15 @@ export default function AdminCommunityPage() {
                        )}
                        {broadcastToTelegram && (
                           <div className="space-y-3">
-                             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800">
-                                <strong>✈️ Telegram:</strong> Enter channel/group IDs (comma-separated). Example: <code className="bg-blue-100 px-1 rounded">@swaryoga, -1001234567890</code>
+                             <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 text-sm text-indigo-800">
+                                <strong>✈️ Telegram:</strong> Enter channel/group IDs (comma-separated). Example: <code className="bg-indigo-100 px-1 rounded">@swaryoga, -1001234567890</code>
                              </div>
                              <input 
                                 type="text" 
                                 value={telegramChatIds} 
                                 onChange={e => setTelegramChatIds(e.target.value)} 
                                 placeholder="@channel_username, -1001234567890 (group ID)" 
-                                className="w-full h-12 px-4 bg-white border border-blue-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/20"
+                                className="w-full h-12 px-4 bg-white border border-indigo-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/20"
                              />
                           </div>
                        )}
@@ -4414,7 +4414,7 @@ export default function AdminCommunityPage() {
                     </div>
 
                     <div 
-                       className="bg-white rounded-[3rem] shadow-2xl border-[10px] border-slate-900 overflow-hidden relative transition-all duration-500 origin-top"
+                       className="bg-white rounded-[3rem] shadow-xl border-[10px] border-slate-900 overflow-hidden relative transition-all duration-500 origin-top"
                        style={{ 
                           width: previewWidth === 'mobile' ? '360px' : '480px', 
                           maxWidth: '100%',
@@ -4499,7 +4499,7 @@ export default function AdminCommunityPage() {
                              {postButtons.length > 0 && (
                                 <div className="space-y-2 mb-6">
                                    {postButtons.map(b => (
-                                      <div key={b.id} className="w-full py-3 bg-[#0070f3] text-white rounded-full text-[10px] font-black uppercase tracking-widest text-center shadow-lg shadow-blue-100 cursor-pointer hover:bg-blue-700 transition-all hover:-translate-y-0.5 active:scale-95">
+                                      <div key={b.id} className="w-full py-3 bg-[#0070f3] text-white rounded-full text-[10px] font-black uppercase tracking-widest text-center shadow-lg shadow-indigo-100 cursor-pointer hover:bg-indigo-700 transition-all hover:-translate-y-0.5 active:scale-95">
                                          {b.label}
                                       </div>
                                    ))}
@@ -4536,7 +4536,7 @@ export default function AdminCommunityPage() {
       {/* Other Modals (Add Member, Permissions, Message, etc.) */}
       {showAddMemberModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[110] flex items-center justify-center p-6">
-           <div className="bg-white w-full max-w-xl rounded-[2.5rem] shadow-2xl border border-slate-100 overflow-hidden">
+           <div className="bg-white w-full max-w-xl rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
               <div className="p-10 border-b flex items-center justify-between bg-slate-50/30">
                  <h2 className="text-xl font-bold tracking-tight">Onboard Member</h2>
                  <button onClick={() => setShowAddMemberModal(false)} className="p-2 text-slate-400"><Plus className="rotate-45" size={20} /></button>
@@ -4571,7 +4571,7 @@ export default function AdminCommunityPage() {
 
       {showChatPermModal && selectedMember && (
          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[110] flex items-center justify-center p-6">
-            <div className="bg-white w-full max-w-xl rounded-[2.5rem] shadow-2xl overflow-hidden">
+            <div className="bg-white w-full max-w-xl rounded-[2.5rem] shadow-xl overflow-hidden">
                <div className="p-10 border-b flex justify-between items-center">
                   <h2 className="text-xl font-bold uppercase tracking-tighter">Permissions: {selectedMember.name}</h2>
                   <button onClick={() => setShowChatPermModal(false)}><Plus className="rotate-45" /></button>
@@ -4599,7 +4599,7 @@ export default function AdminCommunityPage() {
 
       {showMessageModal && selectedMember && (
          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[110] flex items-center justify-center p-6">
-            <div className="bg-white w-full max-w-xl rounded-[2.5rem] shadow-2xl p-10 space-y-8">
+            <div className="bg-white w-full max-w-xl rounded-[2.5rem] shadow-xl p-10 space-y-8">
                <h2 className="text-xl font-bold">Direct Message to {selectedMember.name}</h2>
                <textarea value={messageText} onChange={e => setMessageText(e.target.value)} rows={6} className="w-full p-6 bg-slate-50 border rounded-2xl outline-none focus:bg-white transition-all font-medium" placeholder="Type your message..." />
                <div className="flex gap-4">
@@ -4612,7 +4612,7 @@ export default function AdminCommunityPage() {
 
       {editingCommunityName && (
          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[110] flex items-center justify-center p-6">
-            <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl p-10 space-y-6">
+            <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-xl p-10 space-y-6">
                <h2 className="text-lg font-bold">Rename Collection</h2>
                <input type="text" value={newCommunityName} onChange={e => setNewCommunityName(e.target.value)} className="w-full h-14 p-6 bg-slate-50 border rounded-2xl focus:bg-white" />
                <div className="flex gap-3">
@@ -4626,7 +4626,7 @@ export default function AdminCommunityPage() {
       {/* Bulk Invite Modal */}
       {showBulkInviteModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[110] flex items-center justify-center p-6">
-          <div className="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl max-h-[90vh] overflow-hidden flex flex-col">
+          <div className="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-xl max-h-[90vh] overflow-hidden flex flex-col">
             {/* Header */}
             <div className="p-8 border-b border-slate-100 flex items-center justify-between shrink-0">
               <div>

@@ -48,16 +48,16 @@ const accentClasses = {
     footerBg: 'bg-green-50',
   },
   blue: {
-    border: 'border-blue-200',
-    bg: 'bg-blue-50/50',
-    headerBg: 'bg-blue-100',
-    headerText: 'text-blue-800',
-    rowBorder: 'border-blue-100',
-    text: 'text-blue-800',
-    textLight: 'text-blue-600',
-    btn: 'border-blue-300 hover:bg-blue-50 text-blue-700',
-    hoverBorder: 'hover:border-blue-400',
-    footerBg: 'bg-blue-50',
+    border: 'border-indigo-200',
+    bg: 'bg-indigo-50/50',
+    headerBg: 'bg-indigo-100',
+    headerText: 'text-indigo-800',
+    rowBorder: 'border-indigo-100',
+    text: 'text-indigo-800',
+    textLight: 'text-indigo-600',
+    btn: 'border-indigo-300 hover:bg-indigo-50 text-indigo-700',
+    hoverBorder: 'hover:border-indigo-400',
+    footerBg: 'bg-indigo-50',
   },
   purple: {
     border: 'border-purple-200',
@@ -347,7 +347,7 @@ export default function CSVUploadPanel({
                     const last10 = c.phoneNumber.replace(/\D/g, '').slice(-10);
                     const existsInDB = existingPhones?.has(last10);
                     return (
-                      <tr key={i} className={`border-t ${colors.rowBorder} ${existsInDB ? 'bg-blue-50/40' : ''}`}>
+                      <tr key={i} className={`border-t ${colors.rowBorder} ${existsInDB ? 'bg-indigo-50/40' : ''}`}>
                         <td className="px-3 py-1.5 text-gray-500">{i + 1}</td>
                         {previewColumns.map(col => {
                           const meta = columnLabels[col];
@@ -361,7 +361,7 @@ export default function CSVUploadPanel({
                         {existingPhones && (
                           <td className="px-3 py-1.5">
                             {existsInDB ? (
-                              <span className="text-blue-600 text-xs font-medium">✓ Exists</span>
+                              <span className="text-indigo-600 text-xs font-medium">✓ Exists</span>
                             ) : (
                               <span className="text-orange-500 text-xs font-medium">New</span>
                             )}

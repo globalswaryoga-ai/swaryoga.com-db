@@ -231,7 +231,7 @@ export default function MediaManagerPage() {
             {/* File Type Selection */}
             <div className="bg-slate-800/50 backdrop-blur border border-slate-700 rounded-2xl p-6">
               <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                <FileText size={20} className="text-blue-400" />
+                <FileText size={20} className="text-indigo-400" />
                 File Type
               </h2>
               <div className="flex gap-4">
@@ -241,7 +241,7 @@ export default function MediaManagerPage() {
                     onClick={() => setFileType(type.id)}
                     className={`flex-1 p-4 rounded-xl border-2 transition-all ${
                       fileType === type.id
-                        ? 'bg-blue-600 border-blue-500 text-white'
+                        ? 'bg-indigo-600 border-indigo-500 text-white'
                         : 'bg-slate-700/50 border-slate-600 text-slate-300 hover:border-slate-500'
                     }`}
                   >
@@ -277,7 +277,7 @@ export default function MediaManagerPage() {
                 onClick={() => fileInputRef.current?.click()}
                 className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-all ${
                   uploading
-                    ? 'border-blue-500 bg-blue-900/20'
+                    ? 'border-indigo-500 bg-indigo-900/20'
                     : 'border-slate-600 hover:border-green-500 hover:bg-slate-700/50'
                 }`}
               >
@@ -292,11 +292,11 @@ export default function MediaManagerPage() {
                 
                 {uploading ? (
                   <div className="space-y-4">
-                    <Loader size={48} className="mx-auto text-blue-400 animate-spin" />
+                    <Loader size={48} className="mx-auto text-indigo-400 animate-spin" />
                     <p className="text-slate-300">Uploading...</p>
                     <div className="w-full bg-slate-700 rounded-full h-2">
                       <div 
-                        className="bg-blue-500 h-2 rounded-full transition-all"
+                        className="bg-indigo-500 h-2 rounded-full transition-all"
                         style={{ width: `${uploadProgress}%` }}
                       ></div>
                     </div>

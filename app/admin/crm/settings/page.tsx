@@ -534,9 +534,9 @@ export default function AutoConfigSettingsPage() {
                 <>
                   {/* Overview Cards */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-xl p-4">
-                      <div className="text-blue-600 text-xs font-medium uppercase tracking-wide">Data Size</div>
-                      <div className="text-2xl font-bold text-blue-900 mt-1">{storageData.dataSize.display}</div>
+                    <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 border border-indigo-200 rounded-xl p-4">
+                      <div className="text-indigo-600 text-xs font-medium uppercase tracking-wide">Data Size</div>
+                      <div className="text-2xl font-bold text-indigo-900 mt-1">{storageData.dataSize.display}</div>
                     </div>
                     <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-xl p-4">
                       <div className="text-purple-600 text-xs font-medium uppercase tracking-wide">Storage Size</div>
@@ -608,7 +608,7 @@ export default function AutoConfigSettingsPage() {
                   </div>
 
                   {/* Info Note */}
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-700">
+                  <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 text-sm text-indigo-700">
                     <strong>💡 Note:</strong> Storage costs are based on MongoDB Atlas pricing. Admins don&apos;t need to pay directly — this is for monitoring purposes. Large collections use more storage.
                   </div>
 

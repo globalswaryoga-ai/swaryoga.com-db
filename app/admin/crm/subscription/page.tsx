@@ -213,7 +213,7 @@ export default function SubscriptionPage() {
         {/* Usage Meters */}
         <div className="p-6 grid grid-cols-1 sm:grid-cols-3 gap-6">
           <UsageMeterCard
-            icon={<HardDrive className="w-5 h-5 text-blue-500" />}
+            icon={<HardDrive className="w-5 h-5 text-indigo-500" />}
             label="Storage"
             used={`${(data.storageUsedMB / 1024).toFixed(2)} GB`}
             limit={`${(data.storageQuotaMB / 1024).toFixed(1)} GB`}

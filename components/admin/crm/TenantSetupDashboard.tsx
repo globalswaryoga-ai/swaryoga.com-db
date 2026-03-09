@@ -149,7 +149,7 @@ export default function TenantSetupDashboard({
   if (loading) {
     return (
       <div className="flex items-center justify-center p-12">
-        <RefreshCw className="w-8 h-8 animate-spin text-blue-500" />
+        <RefreshCw className="w-8 h-8 animate-spin text-indigo-500" />
       </div>
     );
   }
@@ -174,29 +174,29 @@ export default function TenantSetupDashboard({
   return (
     <div className="space-y-6">
       {/* Progress Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl p-6 text-white">
+      <div className="bg-gradient-to-r from-indigo-600 to-indigo-600 rounded-xl p-6 text-white">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-xl font-semibold">Setup Progress</h2>
-            <p className="text-blue-100 text-sm mt-1">
+            <p className="text-indigo-100 text-sm mt-1">
               Complete all required sections to activate your CRM
             </p>
           </div>
           <div className="text-right">
             <span className="text-4xl font-bold">{progress?.percentage || 0}%</span>
-            <p className="text-blue-100 text-sm">Complete</p>
+            <p className="text-indigo-100 text-sm">Complete</p>
           </div>
         </div>
         
         {/* Progress Bar */}
-        <div className="h-3 bg-blue-800/30 rounded-full overflow-hidden">
+        <div className="h-3 bg-indigo-800/30 rounded-full overflow-hidden">
           <div 
             className="h-full bg-white rounded-full transition-all duration-500"
             style={{ width: `${progress?.percentage || 0}%` }}
           />
         </div>
         
-        <div className="flex justify-between mt-2 text-sm text-blue-100">
+        <div className="flex justify-between mt-2 text-sm text-indigo-100">
           <span>{progress?.completed.length || 0} completed</span>
           <span>{progress?.pending.length || 0} remaining</span>
         </div>
@@ -219,9 +219,9 @@ export default function TenantSetupDashboard({
                   ? 'bg-gray-50 border-gray-200 cursor-not-allowed opacity-60' 
                   : isCompleted 
                     ? 'bg-green-50 border-green-200 cursor-pointer hover:border-green-300'
-                    : 'bg-white border-gray-200 cursor-pointer hover:border-blue-300 hover:shadow-md'
+                    : 'bg-white border-gray-200 cursor-pointer hover:border-indigo-300 hover:shadow-md'
                 }
-                ${activeSection === section.id ? 'ring-2 ring-blue-500' : ''}
+                ${activeSection === section.id ? 'ring-2 ring-indigo-500' : ''}
               `}
             >
               <div className="flex items-start gap-4">
@@ -232,7 +232,7 @@ export default function TenantSetupDashboard({
                     ? 'bg-gray-200 text-gray-400'
                     : isCompleted 
                       ? 'bg-green-100 text-green-600'
-                      : 'bg-blue-100 text-blue-600'
+                      : 'bg-indigo-100 text-indigo-600'
                   }
                 `}>
                   {isLocked ? <Lock className="w-5 h-5" /> : section.icon}

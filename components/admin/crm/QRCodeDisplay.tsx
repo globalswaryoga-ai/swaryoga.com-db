@@ -183,7 +183,7 @@ export default function QRCodeDisplay() {
         <button
           onClick={fetchQRCode}
           disabled={loading}
-          className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg font-semibold transition-colors"
+          className="w-full px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 text-white rounded-lg font-semibold transition-colors"
         >
           {loading ? 'Refreshing...' : '🔄 Refresh QR Code'}
         </button>
@@ -200,9 +200,9 @@ export default function QRCodeDisplay() {
       </div>
 
       {/* Instructions */}
-      <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-        <p className="text-xs text-blue-900 font-semibold mb-2">📱 How to scan:</p>
-        <ol className="text-xs text-blue-800 space-y-1 list-decimal list-inside">
+      <div className="mt-6 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+        <p className="text-xs text-indigo-900 font-semibold mb-2">📱 How to scan:</p>
+        <ol className="text-xs text-indigo-800 space-y-1 list-decimal list-inside">
           <li>Open WhatsApp on your phone</li>
           <li>Go to Settings → Linked Devices</li>
           <li>Click "Link a Device"</li>

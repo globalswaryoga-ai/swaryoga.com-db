@@ -1324,7 +1324,7 @@ export default function SalesPage() {
       {/* Upload Sales Modal */}
       {showUploadModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur flex items-center justify-center z-50">
-          <div className="bg-gray-950 border-2 border-white/30 rounded-xl p-6 max-w-2xl w-full space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-gray-950 border-2 border-white/30 rounded-xl p-6 max-w-2xl w-full space-y-4 shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-bold text-emerald-400">📄 Bulk Import Sales</h2>
               <button

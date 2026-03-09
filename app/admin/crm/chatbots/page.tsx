@@ -79,7 +79,7 @@ const CHATBOT_TYPES = [
     title: 'AI Agent',
     description: 'AI-powered responses using OpenAI GPT for complex questions',
     link: '/admin/crm/chatbot-settings',
-    color: 'from-blue-500 to-cyan-600',
+    color: 'from-indigo-500 to-cyan-600',
     features: ['OpenAI Integration', 'Context Awareness', 'Smart Responses', 'Fallback Logic'],
   },
   {
@@ -236,11 +236,11 @@ export default function ChatbotsPage() {
               <div className="text-xs text-green-600 mt-1">{stats.activeKb} active</div>
             </div>
             <div className="bg-white rounded-xl border border-gray-200 p-4">
-              <div className="text-3xl font-bold text-blue-600">
+              <div className="text-3xl font-bold text-indigo-600">
                 {stats.activeFlows + stats.activeRules + stats.activeKb}
               </div>
               <div className="text-sm text-gray-600">Total Active</div>
-              <div className="text-xs text-blue-600 mt-1">Auto-responding</div>
+              <div className="text-xs text-indigo-600 mt-1">Auto-responding</div>
             </div>
           </div>
         )}
@@ -274,7 +274,7 @@ export default function ChatbotsPage() {
                   ))}
                 </div>
                 <div className="mt-4 text-right">
-                  <span className="text-sm font-semibold text-blue-600 group-hover:text-blue-800">
+                  <span className="text-sm font-semibold text-indigo-600 group-hover:text-indigo-800">
                     Open →
                   </span>
                 </div>
@@ -332,7 +332,7 @@ export default function ChatbotsPage() {
                     <button
                       onClick={(e) => { e.preventDefault(); duplicateFlow(flow._id); }}
                       disabled={duplicating === flow._id}
-                      className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors disabled:opacity-50"
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors disabled:opacity-50"
                       title="Duplicate this flow"
                     >
                       {duplicating === flow._id ? '...' : '📋 Copy'}
@@ -409,7 +409,7 @@ export default function ChatbotsPage() {
         )}
 
         {/* How It Works */}
-        <div className="bg-gradient-to-r from-blue-900 to-indigo-900 rounded-xl p-8 text-white">
+        <div className="bg-gradient-to-r from-indigo-900 to-indigo-900 rounded-xl p-8 text-white">
           <h2 className="text-2xl font-bold mb-4">🔄 How Auto-Reply Works</h2>
           <div className="grid md:grid-cols-4 gap-6">
             <div className="text-center">

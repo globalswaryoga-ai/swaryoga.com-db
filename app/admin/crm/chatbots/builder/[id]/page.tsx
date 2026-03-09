@@ -730,7 +730,7 @@ export default function ChatbotBuilder() {
           <input
             value={flowName}
             onChange={(e) => setFlowName(e.target.value)}
-            className="text-lg font-bold border-0 border-b-2 border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1 bg-transparent"
+            className="text-lg font-bold border-0 border-b-2 border-transparent hover:border-gray-300 focus:border-indigo-500 focus:outline-none px-1 bg-transparent"
             placeholder="Flow Name"
           />
           <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${flowEnabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
@@ -791,7 +791,7 @@ export default function ChatbotBuilder() {
                   if (res?._id) router.push(`/admin/crm/chatbots/builder/${res._id}`);
                 } catch { alert('Failed to duplicate flow'); }
               }}
-              className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold text-sm"
+              className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg font-semibold text-sm"
               title="Create a copy of this flow"
             >
               📋 Duplicate Flow
@@ -873,7 +873,7 @@ export default function ChatbotBuilder() {
       >
         {/* Connection drag hint */}
         {draggingFrom && (
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-lg z-50 animate-pulse">
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-lg z-50 animate-pulse">
             🔗 Drop on a block's left port to connect
           </div>
         )}
@@ -1620,7 +1620,7 @@ export default function ChatbotBuilder() {
                   {(['message', 'end'].includes(block.type)) && (
                     <label className="block">
                       <span className="text-xs font-semibold text-gray-700">Message Text</span>
-                      <div className="mt-1 border border-gray-200 rounded-lg overflow-hidden focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-200">
+                      <div className="mt-1 border border-gray-200 rounded-lg overflow-hidden focus-within:border-indigo-400 focus-within:ring-1 focus-within:ring-indigo-200">
                         {/* Formatting Toolbar */}
                         <div className="flex items-center gap-1 px-2 py-1.5 bg-gray-50 border-b border-gray-200">
                           <button
@@ -1716,7 +1716,7 @@ export default function ChatbotBuilder() {
                     <>
                       <label className="block">
                         <span className="text-xs font-semibold text-gray-700">Question Text</span>
-                        <div className="mt-1 border border-gray-200 rounded-lg overflow-hidden focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-200">
+                        <div className="mt-1 border border-gray-200 rounded-lg overflow-hidden focus-within:border-indigo-400 focus-within:ring-1 focus-within:ring-indigo-200">
                           {/* Formatting Toolbar */}
                           <div className="flex items-center gap-1 px-2 py-1.5 bg-gray-50 border-b border-gray-200">
                             <button
@@ -1829,7 +1829,7 @@ export default function ChatbotBuilder() {
                                       updateBlockData(block.id, { options: newOpts });
                                     }}
                                     maxLength={20}
-                                    className={`w-full px-3 py-2 border-2 rounded-lg text-sm font-medium focus:outline-none transition-all ${label.length > 20 ? 'border-red-300 bg-red-50 text-red-700 focus:border-red-400' : 'border-blue-200 bg-blue-50 text-blue-700 focus:border-blue-400 focus:bg-white'}`}
+                                    className={`w-full px-3 py-2 border-2 rounded-lg text-sm font-medium focus:outline-none transition-all ${label.length > 20 ? 'border-red-300 bg-red-50 text-red-700 focus:border-red-400' : 'border-indigo-200 bg-indigo-50 text-indigo-700 focus:border-indigo-400 focus:bg-white'}`}
                                     placeholder={`Button ${i + 1} text`}
                                   />
                                   <span className={`absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-mono ${label.length >= 18 ? 'text-red-500' : 'text-gray-400'}`}>{label.length}/20</span>
@@ -1852,14 +1852,14 @@ export default function ChatbotBuilder() {
                                 options: [...(block.data?.options || []), { label: 'New button', value: 'new_button' }],
                               });
                             }}
-                            className="w-full px-3 py-2.5 bg-blue-50 border-2 border-dashed border-blue-300 rounded-lg text-blue-600 text-sm font-semibold hover:bg-blue-100 hover:border-blue-400 transition-all"
+                            className="w-full px-3 py-2.5 bg-indigo-50 border-2 border-dashed border-indigo-300 rounded-lg text-indigo-600 text-sm font-semibold hover:bg-indigo-100 hover:border-indigo-400 transition-all"
                           >
                             + Add Button
                           </button>
                           {(block.data?.options || []).length > 0 && (
-                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 mt-2">
-                              <p className="text-[11px] text-blue-700">
-                                💡 Each button creates an output connector on the canvas. Drag from the <span className="inline-block w-3 h-3 rounded-full bg-blue-500 align-middle"></span> port to connect each button to its next step.
+                            <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-2 mt-2">
+                              <p className="text-[11px] text-indigo-700">
+                                💡 Each button creates an output connector on the canvas. Drag from the <span className="inline-block w-3 h-3 rounded-full bg-indigo-500 align-middle"></span> port to connect each button to its next step.
                               </p>
                             </div>
                           )}
@@ -1919,7 +1919,7 @@ export default function ChatbotBuilder() {
                                     }))
                                   });
                                 }}
-                                className="w-full px-3 py-2 text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+                                className="w-full px-3 py-2 text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors"
                               >
                                 🔄 Sync {tplButtons.length} button{tplButtons.length > 1 ? 's' : ''} from template
                               </button>
@@ -1973,15 +1973,15 @@ export default function ChatbotBuilder() {
                               const newBtns = [...(block.data?.templateButtons || []), { title: `Button ${(block.data?.templateButtons || []).length + 1}`, type: 'QUICK_REPLY' }];
                               updateBlockData(block.id, { templateButtons: newBtns });
                             }}
-                            className="w-full px-3 py-2 border border-dashed border-gray-300 rounded-lg text-gray-500 text-sm hover:border-blue-400 hover:text-blue-500"
+                            className="w-full px-3 py-2 border border-dashed border-gray-300 rounded-lg text-gray-500 text-sm hover:border-indigo-400 hover:text-indigo-500"
                           >
                             + Add Button Connector
                           </button>
                         </div>
                         {(block.data?.templateButtons || []).length > 0 && (
-                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-2">
-                            <p className="text-[11px] text-blue-700">
-                              💡 Drag from each <span className="inline-block w-3 h-3 rounded-full bg-blue-500 align-middle"></span> port on the canvas to connect each button to its next step.
+                          <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-2">
+                            <p className="text-[11px] text-indigo-700">
+                              💡 Drag from each <span className="inline-block w-3 h-3 rounded-full bg-indigo-500 align-middle"></span> port on the canvas to connect each button to its next step.
                             </p>
                           </div>
                         )}
@@ -2029,7 +2029,7 @@ export default function ChatbotBuilder() {
                                 {tpl.buttons && tpl.buttons.length > 0 && (
                                   <div className="border-t border-gray-100">
                                     {tpl.buttons.map((btn: any, i: number) => (
-                                      <div key={i} className="flex items-center justify-center gap-1 py-2 border-b border-gray-100 last:border-b-0 text-blue-500 text-sm font-medium">
+                                      <div key={i} className="flex items-center justify-center gap-1 py-2 border-b border-gray-100 last:border-b-0 text-indigo-500 text-sm font-medium">
                                         {btn.type === 'URL' && <span>🔗</span>}
                                         {btn.type === 'PHONE_NUMBER' && <span>📞</span>}
                                         {btn.type === 'QUICK_REPLY' && <span>↩️</span>}
@@ -2054,12 +2054,12 @@ export default function ChatbotBuilder() {
                   {/* DELAY - Enhanced with time units */}
                   {block.type === 'delay' && (
                     <div className="space-y-4">
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                        <div className="flex items-center gap-2 text-blue-700 mb-2">
+                      <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3">
+                        <div className="flex items-center gap-2 text-indigo-700 mb-2">
                           <span>⏱️</span>
                           <span className="text-sm font-medium">Delay Timer</span>
                         </div>
-                        <p className="text-xs text-blue-600">
+                        <p className="text-xs text-indigo-600">
                           Wait for a specific time before proceeding to the next step.
                         </p>
                       </div>
@@ -2752,7 +2752,7 @@ export default function ChatbotBuilder() {
           <div className="p-4 border-t border-gray-100 bg-gray-50 space-y-2">
             <button
               onClick={() => duplicateBlock(selectedBlock)}
-              className="w-full px-4 py-2 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg text-sm font-medium hover:bg-blue-100"
+              className="w-full px-4 py-2 bg-indigo-50 text-indigo-600 border border-indigo-200 rounded-lg text-sm font-medium hover:bg-indigo-100"
             >
               📋 Duplicate Node
             </button>

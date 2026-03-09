@@ -65,7 +65,7 @@ function DropdownPortal({
   return createPortal(
     <div
       style={{ position: 'fixed', top: pos.top, left: Math.max(8, pos.left), zIndex: 9999 }}
-      className="w-60 bg-white border border-gray-200 rounded-xl shadow-2xl py-1.5 max-h-[70vh] overflow-y-auto"
+      className="w-60 bg-white border border-gray-200 rounded-lg shadow-lg py-1.5 max-h-[70vh] overflow-y-auto"
     >
       {children}
     </div>,
@@ -121,7 +121,7 @@ function ProfileDropdown({ onLogout }: { onLogout: () => void }) {
     { label: 'Plan Details', icon: Crown, href: '/admin/crm/subscription', color: 'text-purple-600' },
     { label: 'Upgrade', icon: ArrowUpRight, href: '/admin/crm/subscription', color: 'text-indigo-600' },
     { label: 'Billing', icon: Receipt, href: '/admin/crm/settings?tab=billing', color: 'text-green-600' },
-    { label: 'Payment / Bank Details', icon: Landmark, href: '/admin/crm/settings?tab=payments', color: 'text-blue-600' },
+    { label: 'Payment / Bank Details', icon: Landmark, href: '/admin/crm/settings?tab=payments', color: 'text-indigo-600' },
     { label: 'Settings', icon: Settings, href: '/admin/crm/settings', color: 'text-gray-600' },
   ];
 
@@ -133,7 +133,7 @@ function ProfileDropdown({ onLogout }: { onLogout: () => void }) {
         className="flex items-center gap-2 p-1 rounded-lg hover:bg-gray-100 transition"
         title="Account"
       >
-        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-[11px] font-bold">
+        <div className="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center text-white text-[11px] font-bold">
           {initials}
         </div>
         <ChevronDown className={`h-3 w-3 text-gray-400 transition-transform hidden sm:block ${isOpen ? 'rotate-180' : ''}`} />
@@ -142,12 +142,12 @@ function ProfileDropdown({ onLogout }: { onLogout: () => void }) {
       {isOpen && (
         <div
           ref={panelRef}
-          className="absolute right-0 top-full mt-1.5 w-64 bg-white border border-gray-200 rounded-xl shadow-2xl py-2 z-[9999]"
+          className="absolute right-0 top-full mt-1.5 w-64 bg-white border border-gray-200 rounded-lg shadow-lg py-2 z-[9999]"
         >
           {/* User info header */}
           <div className="px-4 py-3 border-b border-gray-100">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+              <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
                 {initials}
               </div>
               <div className="min-w-0 flex-1">

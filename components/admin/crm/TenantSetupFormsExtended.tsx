@@ -313,7 +313,7 @@ export function PaymentSetupForm({ data, tenantSlug, token, onSave, loading }: P
         <button
           onClick={() => handleSubmit(true)}
           disabled={loading}
-          className="px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 inline-flex items-center gap-2"
+          className="px-4 py-2 text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 inline-flex items-center gap-2"
         >
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
           {form.provider === 'none' ? 'Skip This Step' : 'Complete Setup'}
@@ -356,8 +356,8 @@ export function LeadAdsSetupForm({ data, onSave, loading }: LeadAdsSetupFormProp
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3 pb-4 border-b">
-        <div className="p-2 bg-blue-100 rounded-lg">
-          <Megaphone className="w-5 h-5 text-blue-600" />
+        <div className="p-2 bg-indigo-100 rounded-lg">
+          <Megaphone className="w-5 h-5 text-indigo-600" />
         </div>
         <div>
           <h3 className="font-semibold text-gray-900">Lead Ads Integration</h3>
@@ -379,7 +379,7 @@ export function LeadAdsSetupForm({ data, onSave, loading }: LeadAdsSetupFormProp
           type="checkbox"
           checked={form.enabled}
           onChange={(e) => setForm({ ...form, enabled: e.target.checked })}
-          className="w-5 h-5 text-blue-600 rounded"
+          className="w-5 h-5 text-indigo-600 rounded"
         />
         <div>
           <span className="font-medium text-gray-900">Enable Lead Ads Integration</span>
@@ -397,7 +397,7 @@ export function LeadAdsSetupForm({ data, onSave, loading }: LeadAdsSetupFormProp
               type="text"
               value={form.metaPageId}
               onChange={(e) => setForm({ ...form, metaPageId: e.target.value })}
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
               placeholder="123456789012345"
             />
           </div>
@@ -411,7 +411,7 @@ export function LeadAdsSetupForm({ data, onSave, loading }: LeadAdsSetupFormProp
                 type={showToken ? 'text' : 'password'}
                 value={form.metaPageAccessToken}
                 onChange={(e) => setForm({ ...form, metaPageAccessToken: e.target.value })}
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 pr-10"
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 pr-10"
                 placeholder="Page Access Token"
               />
               <button
@@ -424,9 +424,9 @@ export function LeadAdsSetupForm({ data, onSave, loading }: LeadAdsSetupFormProp
             </div>
           </div>
 
-          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <h4 className="text-sm font-medium text-blue-800 mb-2">How to get Page Access Token</h4>
-            <ol className="text-sm text-blue-700 list-decimal list-inside space-y-1">
+          <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
+            <h4 className="text-sm font-medium text-indigo-800 mb-2">How to get Page Access Token</h4>
+            <ol className="text-sm text-indigo-700 list-decimal list-inside space-y-1">
               <li>Go to Meta Business Suite → Settings → Business Assets</li>
               <li>Select your Page → Generate Token</li>
               <li>Grant "leads_retrieval" and "pages_manage_metadata" permissions</li>
@@ -435,7 +435,7 @@ export function LeadAdsSetupForm({ data, onSave, loading }: LeadAdsSetupFormProp
               href="https://developers.facebook.com/docs/pages/access-tokens"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 mt-2 text-sm text-blue-600 hover:underline"
+              className="inline-flex items-center gap-1 mt-2 text-sm text-indigo-600 hover:underline"
             >
               Learn more <ExternalLink className="w-3 h-3" />
             </a>
@@ -455,7 +455,7 @@ export function LeadAdsSetupForm({ data, onSave, loading }: LeadAdsSetupFormProp
         <button
           onClick={() => handleSubmit(true)}
           disabled={loading}
-          className="px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 inline-flex items-center gap-2"
+          className="px-4 py-2 text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 inline-flex items-center gap-2"
         >
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
           {form.enabled ? 'Complete Setup' : 'Skip This Step'}
@@ -637,7 +637,7 @@ export function AICallingSetupForm({ data, onSave, loading }: AICallingSetupForm
         <button
           onClick={() => handleSubmit(true)}
           disabled={loading}
-          className="px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 inline-flex items-center gap-2"
+          className="px-4 py-2 text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 inline-flex items-center gap-2"
         >
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
           {form.enabled ? 'Complete Setup' : 'Skip This Step'}
@@ -830,7 +830,7 @@ export function TeamSetupForm({ data, onSave, loading }: TeamSetupFormProps) {
         <button
           onClick={() => handleSubmit(true)}
           disabled={loading}
-          className="px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 inline-flex items-center gap-2"
+          className="px-4 py-2 text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 inline-flex items-center gap-2"
         >
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
           {members.length > 0 ? 'Complete Setup' : 'Skip This Step'}

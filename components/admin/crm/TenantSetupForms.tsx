@@ -40,8 +40,8 @@ export function BusinessSetupForm({ data, onSave, loading }: BusinessSetupFormPr
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3 pb-4 border-b">
-        <div className="p-2 bg-blue-100 rounded-lg">
-          <Building2 className="w-5 h-5 text-blue-600" />
+        <div className="p-2 bg-indigo-100 rounded-lg">
+          <Building2 className="w-5 h-5 text-indigo-600" />
         </div>
         <div>
           <h3 className="font-semibold text-gray-900">Business Details</h3>
@@ -72,7 +72,7 @@ export function BusinessSetupForm({ data, onSave, loading }: BusinessSetupFormPr
             type="text"
             value={form.businessName}
             onChange={(e) => setForm({ ...form, businessName: e.target.value })}
-            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             placeholder="Your Business Name"
           />
         </div>
@@ -89,7 +89,7 @@ export function BusinessSetupForm({ data, onSave, loading }: BusinessSetupFormPr
               </div>
             )}
             <label className="cursor-pointer">
-              <div className="px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 inline-flex items-center gap-2">
+              <div className="px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 inline-flex items-center gap-2">
                 <Upload className="w-4 h-4" />
                 Upload Logo
               </div>
@@ -171,7 +171,7 @@ export function BusinessSetupForm({ data, onSave, loading }: BusinessSetupFormPr
                 type="text"
                 value={form.adminName}
                 onChange={(e) => setForm({ ...form, adminName: e.target.value })}
-                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
                 placeholder="John Doe"
               />
             </div>
@@ -186,7 +186,7 @@ export function BusinessSetupForm({ data, onSave, loading }: BusinessSetupFormPr
                 type="email"
                 value={form.adminEmail}
                 onChange={(e) => setForm({ ...form, adminEmail: e.target.value })}
-                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
                 placeholder="admin@example.com"
               />
             </div>
@@ -201,7 +201,7 @@ export function BusinessSetupForm({ data, onSave, loading }: BusinessSetupFormPr
                 type="tel"
                 value={form.adminPhone}
                 onChange={(e) => setForm({ ...form, adminPhone: e.target.value })}
-                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
                 placeholder="9876543210"
               />
             </div>
@@ -221,7 +221,7 @@ export function BusinessSetupForm({ data, onSave, loading }: BusinessSetupFormPr
         <button
           onClick={() => handleSubmit(true)}
           disabled={loading}
-          className="px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 inline-flex items-center gap-2"
+          className="px-4 py-2 text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 inline-flex items-center gap-2"
         >
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
           Complete Setup
@@ -262,8 +262,8 @@ export function DomainSetupForm({ data, tenantSlug, onSave, loading }: DomainSet
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3 pb-4 border-b">
-        <div className="p-2 bg-blue-100 rounded-lg">
-          <Globe className="w-5 h-5 text-blue-600" />
+        <div className="p-2 bg-indigo-100 rounded-lg">
+          <Globe className="w-5 h-5 text-indigo-600" />
         </div>
         <div>
           <h3 className="font-semibold text-gray-900">Domain Setup</h3>
@@ -290,7 +290,7 @@ export function DomainSetupForm({ data, tenantSlug, onSave, loading }: DomainSet
               type="text"
               value={form.subdomain}
               onChange={(e) => setForm({ ...form, subdomain: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
-              className="flex-1 px-4 py-2 border rounded-l-lg focus:ring-2 focus:ring-blue-500"
+              className="flex-1 px-4 py-2 border rounded-l-lg focus:ring-2 focus:ring-indigo-500"
               placeholder="yourbusiness"
             />
             <span className="px-4 py-2 bg-gray-100 border border-l-0 rounded-r-lg text-gray-500">
@@ -309,7 +309,7 @@ export function DomainSetupForm({ data, tenantSlug, onSave, loading }: DomainSet
               type="checkbox"
               checked={form.useCustomDomain}
               onChange={(e) => setForm({ ...form, useCustomDomain: e.target.checked })}
-              className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+              className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
             />
             <div>
               <span className="font-medium text-gray-900">Use Custom Domain</span>
@@ -328,7 +328,7 @@ export function DomainSetupForm({ data, tenantSlug, onSave, loading }: DomainSet
                   type="text"
                   value={form.customDomain}
                   onChange={(e) => setForm({ ...form, customDomain: e.target.value.toLowerCase() })}
-                  className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
                   placeholder="crm.yourbusiness.com"
                 />
               </div>
@@ -366,7 +366,7 @@ export function DomainSetupForm({ data, tenantSlug, onSave, loading }: DomainSet
         <button
           onClick={() => handleSubmit(true)}
           disabled={loading}
-          className="px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 inline-flex items-center gap-2"
+          className="px-4 py-2 text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 inline-flex items-center gap-2"
         >
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
           Complete Setup
@@ -527,7 +527,7 @@ export function WhatsAppSetupForm({ data, tenantSlug, token, onSave, loading }: 
             type="text"
             value={form.phoneNumberId}
             onChange={(e) => setForm({ ...form, phoneNumberId: e.target.value })}
-            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
             placeholder="123456789012345"
           />
         </div>
@@ -541,7 +541,7 @@ export function WhatsAppSetupForm({ data, tenantSlug, token, onSave, loading }: 
               type={showSecrets ? 'text' : 'password'}
               value={form.accessToken}
               onChange={(e) => setForm({ ...form, accessToken: e.target.value })}
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 pr-10"
+              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 pr-10"
               placeholder="EAAxxxxxx..."
             />
             <button
@@ -563,7 +563,7 @@ export function WhatsAppSetupForm({ data, tenantSlug, token, onSave, loading }: 
               type="text"
               value={form.metaAppId}
               onChange={(e) => setForm({ ...form, metaAppId: e.target.value })}
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
               placeholder="Meta App ID"
             />
           </div>
@@ -575,7 +575,7 @@ export function WhatsAppSetupForm({ data, tenantSlug, token, onSave, loading }: 
               type={showSecrets ? 'text' : 'password'}
               value={form.metaAppSecret}
               onChange={(e) => setForm({ ...form, metaAppSecret: e.target.value })}
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
               placeholder="App Secret"
             />
           </div>
@@ -590,13 +590,13 @@ export function WhatsAppSetupForm({ data, tenantSlug, token, onSave, loading }: 
               type="text"
               value={form.businessAccountId}
               onChange={(e) => setForm({ ...form, businessAccountId: e.target.value })}
-              className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
               placeholder="Business Account ID"
             />
             <button
               onClick={fetchTemplates}
               disabled={!form.businessAccountId}
-              className="px-4 py-2 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 disabled:opacity-50"
+              className="px-4 py-2 text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 disabled:opacity-50"
             >
               Fetch Templates
             </button>
@@ -648,7 +648,7 @@ export function WhatsAppSetupForm({ data, tenantSlug, token, onSave, loading }: 
           <button
             onClick={() => handleSubmit(true)}
             disabled={loading}
-            className="px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 inline-flex items-center gap-2"
+            className="px-4 py-2 text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 inline-flex items-center gap-2"
           >
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
             Complete Setup

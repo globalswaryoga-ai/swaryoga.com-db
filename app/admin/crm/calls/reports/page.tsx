@@ -507,7 +507,7 @@ export default function CallReportsPage() {
                                   {call.leadId && (
                                     <button
                                       onClick={(e) => { e.stopPropagation(); handleViewLead(call.leadId); }}
-                                      className="p-2 rounded-lg text-gray-400 hover:bg-blue-50 hover:text-blue-600 transition" title="View Lead in CRM"
+                                      className="p-2 rounded-lg text-gray-400 hover:bg-indigo-50 hover:text-indigo-600 transition" title="View Lead in CRM"
                                     >
                                       <User className="h-4 w-4" />
                                     </button>
@@ -847,7 +847,7 @@ export default function CallReportsPage() {
                           <td className="py-2.5 px-3 text-gray-600 whitespace-nowrap">{fmtDate(call.createdAt)}</td>
                           <td className="py-2.5 px-3 font-mono text-gray-700">{call.phoneNumber}</td>
                           <td className="py-2.5 px-3">
-                            {call.direction === 'outbound' ? <PhoneOutgoing className="h-3.5 w-3.5 text-blue-500" /> : <PhoneIncoming className="h-3.5 w-3.5 text-green-500" />}
+                            {call.direction === 'outbound' ? <PhoneOutgoing className="h-3.5 w-3.5 text-indigo-500" /> : <PhoneIncoming className="h-3.5 w-3.5 text-green-500" />}
                           </td>
                           <td className="py-2.5 px-3">
                             <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: `${statusColor}15`, color: statusColor }}>{call.status}</span>

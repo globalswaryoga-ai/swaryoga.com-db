@@ -79,9 +79,9 @@ export default function BackupReminder() {
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
+      <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white relative">
+        <div className="bg-gradient-to-r from-indigo-600 to-indigo-600 p-6 text-white relative">
           <button
             onClick={handleDismiss}
             className="absolute top-4 right-4 p-1 rounded-full hover:bg-white/20 transition"
@@ -94,7 +94,7 @@ export default function BackupReminder() {
             </div>
             <h2 className="text-xl font-bold">Weekly Data Backup</h2>
           </div>
-          <p className="text-blue-100 text-sm">
+          <p className="text-indigo-100 text-sm">
             It&apos;s been 7 days — time to download your CRM data and keep it safe!
           </p>
         </div>
@@ -114,8 +114,8 @@ export default function BackupReminder() {
           ) : (
             <>
               <div className="space-y-3 mb-6">
-                <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-xl">
-                  <HardDrive className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
+                <div className="flex items-start gap-3 p-3 bg-indigo-50 rounded-xl">
+                  <HardDrive className="w-5 h-5 text-indigo-600 mt-0.5 shrink-0" />
                   <div>
                     <p className="text-sm font-medium text-gray-900">What&apos;s included</p>
                     <p className="text-xs text-gray-600 mt-0.5">
@@ -143,7 +143,7 @@ export default function BackupReminder() {
               <button
                 onClick={handleDownload}
                 disabled={downloading}
-                className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-indigo-700 disabled:opacity-60 transition"
+                className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-indigo-600 text-white rounded-xl font-semibold hover:from-indigo-700 hover:to-indigo-700 disabled:opacity-60 transition"
               >
                 {downloading ? (
                   <>

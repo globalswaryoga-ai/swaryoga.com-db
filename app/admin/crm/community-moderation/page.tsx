@@ -329,7 +329,7 @@ export default function CommunityModerationPage() {
                     <>
                       <div>
                         <div className="text-sm text-gray-500">Category</div>
-                        <span className="bg-blue-100 text-blue-700 text-sm px-2 py-1 rounded">
+                        <span className="bg-indigo-100 text-indigo-700 text-sm px-2 py-1 rounded">
                           {selectedItem.category}
                         </span>
                       </div>
@@ -386,7 +386,7 @@ export default function CommunityModerationPage() {
                       {selectedItem.duration && (
                         <div className="flex gap-4">
                           {selectedItem.duration && (
-                            <span className="bg-blue-50 text-blue-700 text-sm px-2 py-1 rounded">
+                            <span className="bg-indigo-50 text-indigo-700 text-sm px-2 py-1 rounded">
                               ⏱️ {selectedItem.duration}
                             </span>
                           )}

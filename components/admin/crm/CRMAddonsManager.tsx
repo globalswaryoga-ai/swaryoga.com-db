@@ -11,7 +11,7 @@ import { Check, X, AlertCircle, Zap } from 'lucide-react';
 import Link from 'next/link';
 
 const CATEGORY_COLORS = {
-  sales: 'bg-blue-50 border-blue-200',
+  sales: 'bg-indigo-50 border-indigo-200',
   messaging: 'bg-green-50 border-green-200',
   analytics: 'bg-purple-50 border-purple-200',
   workflow: 'bg-orange-50 border-orange-200',
@@ -62,7 +62,7 @@ export function CRMAddonsManager() {
           onClick={() => setSelectedCategory(null)}
           className={`px-4 py-2 rounded-lg transition ${
             !selectedCategory
-              ? 'bg-blue-600 text-white'
+              ? 'bg-indigo-600 text-white'
               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
           }`}
         >
@@ -76,7 +76,7 @@ export function CRMAddonsManager() {
               onClick={() => setSelectedCategory(cat)}
               className={`px-4 py-2 rounded-lg transition ${
                 selectedCategory === cat
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-indigo-600 text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
@@ -157,7 +157,7 @@ export function CRMAddonsManager() {
 
               {/* Dependencies */}
               {addon.dependencies && addon.dependencies.length > 0 && (
-                <div className="text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded">
+                <div className="text-xs text-indigo-700 bg-indigo-50 px-2 py-1 rounded">
                   🔗 Depends on: {addon.dependencies.join(', ')}
                 </div>
               )}
@@ -166,7 +166,7 @@ export function CRMAddonsManager() {
               {addon.enabled && (
                 <Link
                   href={addon.route}
-                  className="inline-flex items-center gap-1 mt-3 px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition"
+                  className="inline-flex items-center gap-1 mt-3 px-3 py-1 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700 transition"
                 >
                   <Zap className="w-3 h-3" />
                   Manage

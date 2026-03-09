@@ -72,7 +72,7 @@ const TIME_RANGES = [
 ];
 
 const REPORT_CATEGORIES = [
-  { id: 'all', name: 'All Reports', icon: BarChart3, color: 'text-blue-600' },
+  { id: 'all', name: 'All Reports', icon: BarChart3, color: 'text-indigo-600' },
   { id: 'leads', name: 'Lead Reports', icon: Users, color: 'text-emerald-600' },
   { id: 'sales', name: 'Sales Reports', icon: DollarSign, color: 'text-green-600' },
   { id: 'marketing', name: 'Marketing', icon: Mail, color: 'text-purple-600' },
@@ -90,7 +90,7 @@ const PLAN_LABELS: Record<string, string> = {
 
 const PLAN_COLORS: Record<string, string> = {
   free: 'bg-gray-100 text-gray-600',
-  basic: 'bg-blue-100 text-blue-700',
+  basic: 'bg-indigo-100 text-indigo-700',
   starter: 'bg-purple-100 text-purple-700',
   growth: 'bg-emerald-100 text-emerald-700',
   professional: 'bg-amber-100 text-amber-700',
@@ -249,7 +249,7 @@ export default function ReportsPage() {
 
     if (data.breakdown && data.breakdown.length > 0) {
       const max = Math.max(...data.breakdown.map(d => d.value));
-      const colors = ['bg-blue-500', 'bg-emerald-500', 'bg-purple-500', 'bg-amber-500', 'bg-rose-500', 'bg-cyan-500', 'bg-indigo-500'];
+      const colors = ['bg-indigo-500', 'bg-emerald-500', 'bg-purple-500', 'bg-amber-500', 'bg-rose-500', 'bg-cyan-500', 'bg-indigo-500'];
       return (
         <div className="space-y-3">
           {data.breakdown.map((item, idx) => (
@@ -280,7 +280,7 @@ export default function ReportsPage() {
             {data.trend.map((d, i) => (
               <div key={i} className="flex-1 flex flex-col items-center justify-end h-full group">
                 <div className="text-[10px] text-gray-500 opacity-0 group-hover:opacity-100 transition mb-1 font-medium">{d.value}</div>
-                <div className="w-full bg-gradient-to-t from-blue-500 to-blue-400 rounded-t-md transition-all duration-300 hover:from-blue-600 hover:to-blue-500 min-h-[4px]"
+                <div className="w-full bg-gradient-to-t from-indigo-500 to-indigo-400 rounded-t-md transition-all duration-300 hover:from-indigo-600 hover:to-indigo-500 min-h-[4px]"
                   style={{ height: `${max > 0 ? (d.value / max) * 100 : 2}%` }} />
               </div>
             ))}
@@ -335,7 +335,7 @@ export default function ReportsPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="w-10 h-10 animate-spin text-blue-600 mx-auto mb-3" />
+          <Loader2 className="w-10 h-10 animate-spin text-indigo-600 mx-auto mb-3" />
           <p className="text-gray-500">Loading reports…</p>
         </div>
       </div>
@@ -349,7 +349,7 @@ export default function ReportsPage() {
         {/* ═══ HEADER ═══ */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl text-white shadow-lg">
+            <div className="p-3 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-2xl text-white shadow-lg">
               <BarChart3 className="w-7 h-7" />
             </div>
             <div>
@@ -366,7 +366,7 @@ export default function ReportsPage() {
             <div className="flex bg-white border rounded-xl overflow-hidden shadow-sm">
               {TIME_RANGES.map(r => (
                 <button key={r.id} onClick={() => { setTimeRange(r.id); fetchOverview(); }}
-                  className={`px-3 py-2 text-xs font-medium transition-all ${timeRange === r.id ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+                  className={`px-3 py-2 text-xs font-medium transition-all ${timeRange === r.id ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
                   {r.name}
                 </button>
               ))}
@@ -393,7 +393,7 @@ export default function ReportsPage() {
                   </button>
                   <button onClick={handleExportJSON} disabled={!reportData || !canExport}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-gray-50 text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed">
-                    <FileText className="w-4 h-4 text-blue-600" />
+                    <FileText className="w-4 h-4 text-indigo-600" />
                     <div className="text-left">
                       <p className="font-medium">Export JSON</p>
                       <p className="text-[10px] text-gray-400">Selected report data</p>
@@ -429,7 +429,7 @@ export default function ReportsPage() {
 
         {/* Export success toast */}
         {exportSuccess && (
-          <div className="fixed bottom-6 right-6 bg-emerald-600 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-2 z-50">
+          <div className="fixed bottom-6 right-6 bg-emerald-600 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-2 z-50">
             <CheckCircle2 className="w-5 h-5" /> {exportSuccess}
           </div>
         )}
@@ -438,7 +438,7 @@ export default function ReportsPage() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <div className="bg-white rounded-2xl p-5 border shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between mb-3">
-              <div className="p-2 bg-blue-50 rounded-xl"><Users className="w-5 h-5 text-blue-600" /></div>
+              <div className="p-2 bg-indigo-50 rounded-xl"><Users className="w-5 h-5 text-indigo-600" /></div>
               <span className="text-xs text-emerald-600 font-semibold flex items-center gap-0.5">
                 <ArrowUp className="w-3 h-3" /> {overview?.newLeads || 0} new
               </span>
@@ -480,7 +480,7 @@ export default function ReportsPage() {
             return (
               <button key={cat.id} onClick={() => setCategory(cat.id)}
                 className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
-                  category === cat.id ? 'bg-blue-600 text-white shadow-md shadow-blue-200' : 'bg-white text-gray-600 border hover:bg-gray-50'
+                  category === cat.id ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-white text-gray-600 border hover:bg-gray-50'
                 }`}>
                 <Icon className="w-4 h-4" /> {cat.name}
               </button>
@@ -518,17 +518,17 @@ export default function ReportsPage() {
                     const active = selectedReport?.id === report.id;
                     return (
                       <button key={report.id} onClick={() => setSelectedReport(report)}
-                        className={`w-full p-4 text-left transition-all ${active ? 'bg-blue-50 border-l-[3px] border-l-blue-500' : 'hover:bg-gray-50 border-l-[3px] border-l-transparent'}`}>
+                        className={`w-full p-4 text-left transition-all ${active ? 'bg-indigo-50 border-l-[3px] border-l-indigo-500' : 'hover:bg-gray-50 border-l-[3px] border-l-transparent'}`}>
                         <div className="flex items-start gap-3">
-                          <div className={`p-2 rounded-xl flex-shrink-0 ${active ? 'bg-blue-100' : 'bg-gray-100'}`}>
-                            <Icon className={`w-4 h-4 ${active ? 'text-blue-600' : 'text-gray-500'}`} />
+                          <div className={`p-2 rounded-xl flex-shrink-0 ${active ? 'bg-indigo-100' : 'bg-gray-100'}`}>
+                            <Icon className={`w-4 h-4 ${active ? 'text-indigo-600' : 'text-gray-500'}`} />
                           </div>
                           <div className="min-w-0">
-                            <p className={`font-medium text-sm ${active ? 'text-blue-900' : 'text-gray-900'}`}>{report.name}</p>
+                            <p className={`font-medium text-sm ${active ? 'text-indigo-900' : 'text-gray-900'}`}>{report.name}</p>
                             <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{report.description}</p>
                             <span className="text-[10px] text-gray-400 capitalize mt-1 inline-block bg-gray-100 px-1.5 py-0.5 rounded">{report.category}</span>
                           </div>
-                          {active && <div className="ml-auto flex-shrink-0"><Eye className="w-4 h-4 text-blue-500" /></div>}
+                          {active && <div className="ml-auto flex-shrink-0"><Eye className="w-4 h-4 text-indigo-500" /></div>}
                         </div>
                       </button>
                     );
@@ -536,9 +536,9 @@ export default function ReportsPage() {
                 )}
               </div>
               {plan === 'free' && (
-                <div className="p-4 bg-gradient-to-r from-blue-50 to-purple-50 border-t">
+                <div className="p-4 bg-gradient-to-r from-indigo-50 to-purple-50 border-t">
                   <div className="flex items-start gap-2">
-                    <Lock className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                    <Lock className="w-4 h-4 text-indigo-600 mt-0.5 flex-shrink-0" />
                     <div>
                       <p className="text-xs font-semibold text-gray-800">Unlock all 10 reports</p>
                       <p className="text-[10px] text-gray-500 mt-0.5">Upgrade to Starter or above for full analytics, exports & scheduling</p>
@@ -561,7 +561,7 @@ export default function ReportsPage() {
                   <div className="flex items-center gap-2">
                     <span className="px-2.5 py-1 text-xs bg-gray-100 text-gray-600 rounded-lg capitalize font-medium">{selectedReport.category}</span>
                     {canExport && reportData && (
-                      <button onClick={handleExportCSV} className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Download CSV">
+                      <button onClick={handleExportCSV} className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition" title="Download CSV">
                         <Download className="w-4 h-4" />
                       </button>
                     )}
@@ -569,7 +569,7 @@ export default function ReportsPage() {
                 </div>
                 <div className="p-6">
                   {reportLoading ? (
-                    <div className="flex items-center justify-center py-16"><Loader2 className="w-8 h-8 animate-spin text-blue-600" /></div>
+                    <div className="flex items-center justify-center py-16"><Loader2 className="w-8 h-8 animate-spin text-indigo-600" /></div>
                   ) : reportData ? renderChart(selectedReport, reportData) : (
                     <div className="text-center py-16">
                       <BarChart3 className="w-12 h-12 text-gray-300 mx-auto mb-3" />
@@ -580,8 +580,8 @@ export default function ReportsPage() {
               </div>
             ) : (
               <div className="bg-white rounded-2xl border shadow-sm p-12 text-center">
-                <div className="p-4 bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl w-20 h-20 mx-auto mb-5 flex items-center justify-center">
-                  <PieChart className="w-10 h-10 text-blue-500" />
+                <div className="p-4 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl w-20 h-20 mx-auto mb-5 flex items-center justify-center">
+                  <PieChart className="w-10 h-10 text-indigo-500" />
                 </div>
                 <h3 className="text-xl font-bold text-gray-900 mb-2">Select a Report</h3>
                 <p className="text-gray-500 max-w-sm mx-auto">Choose a report from the list to view detailed analytics, charts, and export data.</p>
@@ -593,14 +593,14 @@ export default function ReportsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="bg-white rounded-2xl border shadow-sm p-5">
                   <div className="flex items-center gap-2 mb-4">
-                    <Users className="w-5 h-5 text-blue-600" />
+                    <Users className="w-5 h-5 text-indigo-600" />
                     <h3 className="font-semibold text-gray-900">Lead Distribution</h3>
                   </div>
                   {overview.leadsByStatus && overview.leadsByStatus.length > 0 ? (
                     <div className="space-y-3">
                       {overview.leadsByStatus.slice(0, 6).map((item, idx) => {
                         const total = overview.leadsByStatus!.reduce((s, i) => s + i.count, 0);
-                        const colors = ['bg-blue-500', 'bg-emerald-500', 'bg-purple-500', 'bg-amber-500', 'bg-rose-500', 'bg-cyan-500'];
+                        const colors = ['bg-indigo-500', 'bg-emerald-500', 'bg-purple-500', 'bg-amber-500', 'bg-rose-500', 'bg-cyan-500'];
                         return (
                           <div key={idx}>
                             <div className="flex justify-between text-sm mb-1">
@@ -626,7 +626,7 @@ export default function ReportsPage() {
                     <div className="space-y-3">
                       {overview.leadsBySource.slice(0, 6).map((item, idx) => {
                         const total = overview.leadsBySource!.reduce((s, i) => s + i.count, 0);
-                        const colors = ['bg-emerald-500', 'bg-blue-500', 'bg-purple-500', 'bg-amber-500', 'bg-rose-500', 'bg-cyan-500'];
+                        const colors = ['bg-emerald-500', 'bg-indigo-500', 'bg-purple-500', 'bg-amber-500', 'bg-rose-500', 'bg-cyan-500'];
                         return (
                           <div key={idx}>
                             <div className="flex justify-between text-sm mb-1">
@@ -647,7 +647,7 @@ export default function ReportsPage() {
             )}
 
             {/* Plan Comparison */}
-            <div className="bg-gradient-to-br from-blue-50 via-white to-purple-50 rounded-2xl border shadow-sm p-6 print:hidden">
+            <div className="bg-gradient-to-br from-indigo-50 via-white to-purple-50 rounded-2xl border shadow-sm p-6 print:hidden">
               <div className="flex items-center gap-3 mb-5">
                 <Star className="w-5 h-5 text-amber-500" />
                 <h3 className="font-bold text-gray-900">Reports by Plan</h3>
@@ -657,11 +657,11 @@ export default function ReportsPage() {
                   const isCurrentPlan = tier === plan;
                   return (
                     <div key={tier} className={`rounded-xl p-3 text-center border transition-all ${
-                      isCurrentPlan ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-200 scale-105' : 'bg-white border-gray-200'
+                      isCurrentPlan ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-200 scale-105' : 'bg-white border-gray-200'
                     }`}>
-                      <p className={`text-xs font-semibold mb-1 ${isCurrentPlan ? 'text-blue-100' : 'text-gray-500'}`}>{PLAN_LABELS[tier]}</p>
+                      <p className={`text-xs font-semibold mb-1 ${isCurrentPlan ? 'text-indigo-100' : 'text-gray-500'}`}>{PLAN_LABELS[tier]}</p>
                       <p className={`text-xl font-bold ${isCurrentPlan ? 'text-white' : 'text-gray-900'}`}>{PLAN_REPORT_COUNTS[tier]}</p>
-                      <p className={`text-[10px] mt-1 ${isCurrentPlan ? 'text-blue-200' : 'text-gray-400'}`}>reports</p>
+                      <p className={`text-[10px] mt-1 ${isCurrentPlan ? 'text-indigo-200' : 'text-gray-400'}`}>reports</p>
                       {isCurrentPlan && <div className="mt-2 text-[10px] bg-white/20 rounded-lg py-0.5 font-medium">Current</div>}
                     </div>
                   );

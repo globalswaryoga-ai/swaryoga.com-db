@@ -93,10 +93,10 @@ export default function AdminFormLinksPage() {
   const getColor = (color: string) => {
     const colors: Record<string, { bg: string; border: string; text: string; gradient: string }> = {
       emerald: { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-600', gradient: 'from-emerald-500 to-teal-600' },
-      blue: { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-600', gradient: 'from-blue-500 to-indigo-600' },
+      blue: { bg: 'bg-indigo-50', border: 'border-indigo-200', text: 'text-indigo-600', gradient: 'from-indigo-500 to-indigo-600' },
       purple: { bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-600', gradient: 'from-purple-500 to-violet-600' },
       orange: { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-600', gradient: 'from-orange-500 to-amber-600' },
-      cyan: { bg: 'bg-cyan-50', border: 'border-cyan-200', text: 'text-cyan-600', gradient: 'from-cyan-500 to-blue-600' },
+      cyan: { bg: 'bg-cyan-50', border: 'border-cyan-200', text: 'text-cyan-600', gradient: 'from-cyan-500 to-indigo-600' },
     };
     return colors[color] || colors.blue;
   };
@@ -274,7 +274,7 @@ export default function AdminFormLinksPage() {
         </div>
         
         {/* Quick Copy Section */}
-        <div className="mt-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-3xl p-8 text-white">
+        <div className="mt-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl p-8 text-white">
           <h2 className="text-2xl font-bold mb-2">📋 Quick Copy All Links</h2>
           <p className="text-white/80 mb-6">Copy all form links as formatted text for sharing</p>
           <div className="bg-white/10 rounded-xl p-4 backdrop-blur-sm mb-6">
@@ -310,7 +310,7 @@ export default function AdminFormLinksPage() {
           </p>
           <div className="bg-white rounded-xl p-4 border border-amber-200">
             <p className="font-mono text-lg text-amber-800 mb-2">
-              <span className="text-blue-600">[4 letters of name]</span>
+              <span className="text-indigo-600">[4 letters of name]</span>
               <span className="text-green-600">[last 4 digits of phone]</span>
               <span className="text-purple-600">[2 symbols]</span>
             </p>

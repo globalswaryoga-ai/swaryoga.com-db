@@ -626,7 +626,7 @@ export default function EmailAutomationPage() {
         <header className="bg-white border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Mail className="w-8 h-8 text-blue-600" />
+              <Mail className="w-8 h-8 text-indigo-600" />
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Email Automation</h1>
                 <p className="text-sm text-gray-600">Manage email campaigns and follow-ups</p>
@@ -662,7 +662,7 @@ export default function EmailAutomationPage() {
               onClick={() => setActiveTab('inbox')}
               className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
                 activeTab === 'inbox'
-                  ? 'border-blue-600 text-blue-600'
+                  ? 'border-indigo-600 text-indigo-600'
                   : 'border-transparent text-gray-600 hover:text-gray-900'
               }`}
             >
@@ -675,7 +675,7 @@ export default function EmailAutomationPage() {
               onClick={() => setActiveTab('compose')}
               className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
                 activeTab === 'compose'
-                  ? 'border-blue-600 text-blue-600'
+                  ? 'border-indigo-600 text-indigo-600'
                   : 'border-transparent text-gray-600 hover:text-gray-900'
               }`}
             >
@@ -688,7 +688,7 @@ export default function EmailAutomationPage() {
               onClick={() => setActiveTab('campaigns')}
               className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
                 activeTab === 'campaigns'
-                  ? 'border-blue-600 text-blue-600'
+                  ? 'border-indigo-600 text-indigo-600'
                   : 'border-transparent text-gray-600 hover:text-gray-900'
               }`}
             >
@@ -701,7 +701,7 @@ export default function EmailAutomationPage() {
               onClick={() => setActiveTab('reports')}
               className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
                 activeTab === 'reports'
-                  ? 'border-blue-600 text-blue-600'
+                  ? 'border-indigo-600 text-indigo-600'
                   : 'border-transparent text-gray-600 hover:text-gray-900'
               }`}
             >
@@ -714,7 +714,7 @@ export default function EmailAutomationPage() {
               onClick={() => setActiveTab('templates')}
               className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
                 activeTab === 'templates'
-                  ? 'border-blue-600 text-blue-600'
+                  ? 'border-indigo-600 text-indigo-600'
                   : 'border-transparent text-gray-600 hover:text-gray-900'
               }`}
             >
@@ -727,7 +727,7 @@ export default function EmailAutomationPage() {
               onClick={() => setActiveTab('followups')}
               className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
                 activeTab === 'followups'
-                  ? 'border-blue-600 text-blue-600'
+                  ? 'border-indigo-600 text-indigo-600'
                   : 'border-transparent text-gray-600 hover:text-gray-900'
               }`}
             >
@@ -740,7 +740,7 @@ export default function EmailAutomationPage() {
               onClick={() => setActiveTab('analytics')}
               className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
                 activeTab === 'analytics'
-                  ? 'border-blue-600 text-blue-600'
+                  ? 'border-indigo-600 text-indigo-600'
                   : 'border-transparent text-gray-600 hover:text-gray-900'
               }`}
             >
@@ -753,7 +753,7 @@ export default function EmailAutomationPage() {
               onClick={() => setActiveTab('replies')}
               className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
                 activeTab === 'replies'
-                  ? 'border-blue-600 text-blue-600'
+                  ? 'border-indigo-600 text-indigo-600'
                   : 'border-transparent text-gray-600 hover:text-gray-900'
               }`}
             >
@@ -766,7 +766,7 @@ export default function EmailAutomationPage() {
               onClick={() => setActiveTab('settings')}
               className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
                 activeTab === 'settings'
-                  ? 'border-blue-600 text-blue-600'
+                  ? 'border-indigo-600 text-indigo-600'
                   : 'border-transparent text-gray-600 hover:text-gray-900'
               }`}
             >
@@ -1033,7 +1033,7 @@ function ComposeTab({
             <div className="flex gap-2">
               <button
                 onClick={selectAllFiltered}
-                className="flex-1 text-sm px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100"
+                className="flex-1 text-sm px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100"
               >
                 Select All
               </button>
@@ -1063,7 +1063,7 @@ function ComposeTab({
                       disabled={!canAccess}
                       className={`w-full text-left p-3 rounded-lg border transition-colors ${
                         isSelected
-                          ? 'bg-blue-50 border-blue-300'
+                          ? 'bg-indigo-50 border-indigo-300'
                           : canAccess
                           ? 'bg-white border-gray-200 hover:border-gray-300'
                           : 'bg-gray-50 border-gray-100 opacity-50 cursor-not-allowed'
@@ -1078,7 +1078,7 @@ function ComposeTab({
                           )}
                         </div>
                         {isSelected && (
-                          <CheckCircle className="w-5 h-5 text-blue-600 flex-shrink-0 ml-2" />
+                          <CheckCircle className="w-5 h-5 text-indigo-600 flex-shrink-0 ml-2" />
                         )}
                         {!canAccess && (
                           <span className="text-xs text-gray-500 ml-2">🔒</span>
@@ -1184,7 +1184,7 @@ function ComposeTab({
                     <div className="flex items-center gap-2 min-w-0">
                       {att.fileType === 'image' && <Image className="w-4 h-4 text-green-600 flex-shrink-0" />}
                       {att.fileType === 'video' && <Eye className="w-4 h-4 text-purple-600 flex-shrink-0" />}
-                      {att.fileType === 'document' && <FileText className="w-4 h-4 text-blue-600 flex-shrink-0" />}
+                      {att.fileType === 'document' && <FileText className="w-4 h-4 text-indigo-600 flex-shrink-0" />}
                       <span className="text-sm text-gray-800 truncate">{att.fileName}</span>
                       {att.sizeBytes && (
                         <span className="text-xs text-gray-500 flex-shrink-0">
@@ -1215,7 +1215,7 @@ function ComposeTab({
                   type="radio"
                   checked={scheduleMode === 'now'}
                   onChange={() => setScheduleMode('now')}
-                  className="text-blue-600"
+                  className="text-indigo-600"
                 />
                 <span className="text-sm">Send Now</span>
               </label>
@@ -1224,7 +1224,7 @@ function ComposeTab({
                   type="radio"
                   checked={scheduleMode === 'later'}
                   onChange={() => setScheduleMode('later')}
-                  className="text-blue-600"
+                  className="text-indigo-600"
                 />
                 <span className="text-sm">Schedule for Later</span>
               </label>
@@ -1252,7 +1252,7 @@ function ComposeTab({
           <button
             onClick={handleSendEmail}
             disabled={!canSendEmail || loading || selectedRecipients.length === 0}
-            className="w-full bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full bg-indigo-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {loading ? (
               <>
@@ -1558,7 +1558,7 @@ function EmailSettingsTab({ settings, loading, token, onRefresh, setError, setMe
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-semibold text-gray-900">{s.senderName}</span>
                     {s.isDefault && (
-                      <span className="px-2 py-0.5 text-[10px] font-semibold bg-blue-100 text-blue-700 rounded-full">DEFAULT</span>
+                      <span className="px-2 py-0.5 text-[10px] font-semibold bg-indigo-100 text-indigo-700 rounded-full">DEFAULT</span>
                     )}
                     <span className={`px-2 py-0.5 text-[10px] font-semibold rounded-full ${
                       s.isVerified ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
@@ -1578,7 +1578,7 @@ function EmailSettingsTab({ settings, loading, token, onRefresh, setError, setMe
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => startEdit(s)}
-                  className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                  className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
                   title="Edit"
                 >
                   <Edit className="w-4 h-4" />

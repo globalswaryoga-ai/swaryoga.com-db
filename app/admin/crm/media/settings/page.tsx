@@ -152,7 +152,7 @@ export default function S3SettingsPage() {
           <button
             onClick={handleTestConnection}
             disabled={testing}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-all disabled:opacity-50"
           >
             {testing ? <RefreshCw size={18} className="animate-spin" /> : <TestTube size={18} />}
             Test Connection
@@ -240,7 +240,7 @@ export default function S3SettingsPage() {
             {/* Folder Structure */}
             <div className="bg-slate-800/50 backdrop-blur border border-slate-700 rounded-2xl p-6">
               <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                <HardDrive size={20} className="text-blue-400" />
+                <HardDrive size={20} className="text-indigo-400" />
                 Folder Structure
               </h2>
               
@@ -368,9 +368,9 @@ export default function S3SettingsPage() {
                   <p className="text-purple-400 font-medium">👥 Other Communities</p>
                   <p className="text-purple-300/70">Private - Members only</p>
                 </div>
-                <div className="p-3 bg-blue-900/20 rounded-lg border border-blue-800/50">
-                  <p className="text-blue-400 font-medium">📄 Frontend Pages</p>
-                  <p className="text-blue-300/70">Public - Website visitors</p>
+                <div className="p-3 bg-indigo-900/20 rounded-lg border border-indigo-800/50">
+                  <p className="text-indigo-400 font-medium">📄 Frontend Pages</p>
+                  <p className="text-indigo-300/70">Public - Website visitors</p>
                 </div>
               </div>
             </div>

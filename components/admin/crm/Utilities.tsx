@@ -13,7 +13,7 @@ const variantClasses = {
   success: 'bg-green-100 text-green-800 border-green-300',
   danger: 'bg-red-100 text-red-800 border-red-300',
   warning: 'bg-yellow-300 text-black border-yellow-500',
-  info: 'bg-blue-100 text-blue-800 border-blue-300',
+  info: 'bg-indigo-100 text-indigo-800 border-indigo-300',
   default: 'bg-slate-100 text-slate-700 border-slate-300',
 };
 
@@ -159,7 +159,7 @@ export function AlertBox({
     success: 'bg-green-900/20 border-green-700 text-green-400',
     error: 'bg-red-900/20 border-red-700 text-red-400',
     warning: 'bg-yellow-900/20 border-yellow-700 text-yellow-400',
-    info: 'bg-blue-900/20 border-blue-700 text-blue-400',
+    info: 'bg-indigo-900/20 border-indigo-700 text-indigo-400',
   };
 
   return (

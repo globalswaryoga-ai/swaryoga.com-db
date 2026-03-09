@@ -460,7 +460,7 @@ export default function KnowledgeBasePage() {
                 </p>
 
                 <div className="flex flex-wrap gap-1 mb-3">
-                  <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-medium">
+                  <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-xs font-medium">
                     {CATEGORIES.find(c => c.value === article.category)?.label || article.category}
                   </span>
                   {article.keywords.slice(0, 3).map((kw, i) => (
@@ -480,7 +480,7 @@ export default function KnowledgeBasePage() {
                   <div className="flex gap-2">
                     <button
                       onClick={() => startEdit(article)}
-                      className="text-blue-600 hover:text-blue-800 font-medium"
+                      className="text-indigo-600 hover:text-indigo-800 font-medium"
                     >
                       Edit
                     </button>

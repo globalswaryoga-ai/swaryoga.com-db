@@ -237,7 +237,7 @@ export default function UnifiedProfilePage() {
             <button
               onClick={fetchProfile}
               disabled={loading}
-              className="rounded-lg bg-blue-500 px-6 py-2 text-white hover:bg-blue-600 disabled:opacity-50"
+              className="rounded-lg bg-indigo-500 px-6 py-2 text-white hover:bg-indigo-600 disabled:opacity-50"
             >
               {loading ? 'Searching...' : '🔍 Search'}
             </button>
@@ -259,12 +259,12 @@ export default function UnifiedProfilePage() {
               <p className="text-2xl">{profile.summary.hasLead ? '✅' : '❌'}</p>
               <p className="text-sm text-gray-600">CRM Lead</p>
             </div>
-            <div className={`rounded-lg p-4 shadow ${profile.summary.isLinked ? 'bg-blue-50' : 'bg-yellow-50'}`}>
+            <div className={`rounded-lg p-4 shadow ${profile.summary.isLinked ? 'bg-indigo-50' : 'bg-yellow-50'}`}>
               <p className="text-2xl">{profile.summary.isLinked ? '🔗' : '⚠️'}</p>
               <p className="text-sm text-gray-600">{profile.summary.isLinked ? 'Linked' : 'Not Linked'}</p>
             </div>
             <div className="rounded-lg bg-white p-4 shadow">
-              <p className="text-2xl font-bold text-blue-600">{profile.summary.totalOrders}</p>
+              <p className="text-2xl font-bold text-indigo-600">{profile.summary.totalOrders}</p>
               <p className="text-sm text-gray-600">Orders</p>
             </div>
             <div className="rounded-lg bg-white p-4 shadow">
@@ -291,7 +291,7 @@ export default function UnifiedProfilePage() {
                 </div>
                 <button
                   onClick={handleLink}
-                  className="rounded-lg bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
+                  className="rounded-lg bg-indigo-500 px-4 py-2 text-white hover:bg-indigo-600"
                 >
                   🔗 Link Now
                 </button>
@@ -306,7 +306,7 @@ export default function UnifiedProfilePage() {
               <h3 className="mb-4 flex items-center gap-2 text-lg font-medium">
                 <span>👤</span> User Account
                 {profile.user?.profileId && (
-                  <span className="rounded-full bg-blue-100 px-2 py-0.5 text-sm text-blue-700">
+                  <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-sm text-indigo-700">
                     ID: {profile.user.profileId}
                   </span>
                 )}
@@ -342,7 +342,7 @@ export default function UnifiedProfilePage() {
                   <p><strong>Status:</strong> 
                     <span className={`ml-1 rounded-full px-2 py-0.5 text-xs ${
                       profile.lead.status === 'customer' ? 'bg-green-100 text-green-700' :
-                      profile.lead.status === 'prospect' ? 'bg-blue-100 text-blue-700' :
+                      profile.lead.status === 'prospect' ? 'bg-indigo-100 text-indigo-700' :
                       'bg-gray-100 text-gray-700'
                     }`}>
                       {profile.lead.status}
@@ -353,7 +353,7 @@ export default function UnifiedProfilePage() {
                   <p><strong>Created:</strong> {formatDate(profile.lead.createdAt)}</p>
                   <Link
                     href={`/admin/crm/leads/${profile.lead._id}`}
-                    className="mt-2 inline-block text-blue-500 hover:underline"
+                    className="mt-2 inline-block text-indigo-500 hover:underline"
                   >
                     View in CRM →
                   </Link>
@@ -372,7 +372,7 @@ export default function UnifiedProfilePage() {
                 onClick={() => setActiveTab(tab as typeof activeTab)}
                 className={`px-4 py-2 capitalize ${
                   activeTab === tab
-                    ? 'border-b-2 border-blue-500 text-blue-600'
+                    ? 'border-b-2 border-indigo-500 text-indigo-600'
                     : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
@@ -391,7 +391,7 @@ export default function UnifiedProfilePage() {
                   {profile.communityMemberships.length > 0 ? (
                     <div className="flex flex-wrap gap-2">
                       {profile.communityMemberships.map((m) => (
-                        <span key={m._id} className="rounded-full bg-blue-100 px-3 py-1 text-sm text-blue-700">
+                        <span key={m._id} className="rounded-full bg-indigo-100 px-3 py-1 text-sm text-indigo-700">
                           {m.communityId} ({m.role})
                         </span>
                       ))}
@@ -429,7 +429,7 @@ export default function UnifiedProfilePage() {
                       <div
                         key={m._id}
                         className={`rounded p-2 text-sm ${
-                          m.direction === 'inbound' ? 'bg-gray-100' : 'bg-blue-50'
+                          m.direction === 'inbound' ? 'bg-gray-100' : 'bg-indigo-50'
                         }`}
                       >
                         <p className="text-xs text-gray-500">
@@ -519,7 +519,7 @@ export default function UnifiedProfilePage() {
                   {profile.user && (
                     <Link
                       href={`/admin/crm/devices?userId=${profile.user._id}`}
-                      className="text-sm text-blue-500 hover:underline"
+                      className="text-sm text-indigo-500 hover:underline"
                     >
                       Manage Devices →
                     </Link>

@@ -185,7 +185,7 @@ export default function ConsentPage() {
         <div className="flex gap-2">
           <button
             onClick={() => setSelectedConsent(consent)}
-            className="px-3 py-1 bg-blue-500/20 text-blue-200 rounded-lg text-sm hover:bg-blue-500/30 transition-colors"
+            className="px-3 py-1 bg-indigo-500/20 text-indigo-200 rounded-lg text-sm hover:bg-indigo-500/30 transition-colors"
           >
             View
           </button>

@@ -238,7 +238,7 @@ export default function SpellCheckTextarea({
       {/* Right-click context menu */}
       {contextMenu && (
         <div
-          className="fixed z-[100] bg-white rounded-xl shadow-2xl border border-slate-200 py-2 min-w-[200px] max-w-[300px] animate-in fade-in zoom-in-95 duration-150"
+          className="fixed z-[100] bg-white rounded-xl shadow-xl border border-slate-200 py-2 min-w-[200px] max-w-[300px] animate-in fade-in zoom-in-95 duration-150"
           style={{
             left: Math.min(contextMenu.x, window.innerWidth - 220),
             top: Math.min(contextMenu.y, window.innerHeight - 300),

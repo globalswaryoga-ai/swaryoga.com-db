@@ -297,7 +297,7 @@ export default function ConnectionsHubPage() {
       {toast && (
         <div className={`mb-4 p-3 rounded-lg text-sm font-medium ${
           toast.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' :
-          toast.type === 'info' ? 'bg-blue-50 text-blue-800 border border-blue-200' :
+          toast.type === 'info' ? 'bg-indigo-50 text-indigo-800 border border-indigo-200' :
           'bg-red-50 text-red-800 border border-red-200'
         }`}>
           {toast.text}
@@ -366,9 +366,9 @@ export default function ConnectionsHubPage() {
                   />
 
                   {/* Help Note */}
-                  <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-lg flex items-start gap-2">
-                    <Info className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
-                    <p className="text-sm text-blue-700">{section.helpNote}</p>
+                  <div className="mt-4 p-3 bg-indigo-50 border border-indigo-100 rounded-lg flex items-start gap-2">
+                    <Info className="w-4 h-4 text-indigo-500 mt-0.5 shrink-0" />
+                    <p className="text-sm text-indigo-700">{section.helpNote}</p>
                   </div>
 
                   {/* Test Connection Button */}

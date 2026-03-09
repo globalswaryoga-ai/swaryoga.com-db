@@ -133,7 +133,7 @@ export function WhatsAppHealthStatus({ compact = false }: { compact?: boolean })
         <h3 className="text-lg font-semibold">WhatsApp Integration Health</h3>
         <button 
           onClick={fetchHealth}
-          className="text-blue-500 text-sm hover:underline"
+          className="text-indigo-500 text-sm hover:underline"
         >
           🔄 Refresh
         </button>

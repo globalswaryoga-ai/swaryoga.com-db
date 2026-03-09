@@ -165,7 +165,7 @@ export default function TenantSetupModal({
       />
       
       {/* Modal */}
-      <div className="absolute inset-4 md:inset-8 lg:inset-16 bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+      <div className="absolute inset-4 md:inset-8 lg:inset-16 bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b bg-gray-50">
           <div className="flex items-center gap-3">
@@ -201,7 +201,7 @@ export default function TenantSetupModal({
         <div className="flex-1 overflow-y-auto p-6">
           {loading ? (
             <div className="flex items-center justify-center h-64">
-              <RefreshCw className="w-8 h-8 animate-spin text-blue-500" />
+              <RefreshCw className="w-8 h-8 animate-spin text-indigo-500" />
             </div>
           ) : error ? (
             <div className="flex flex-col items-center justify-center h-64">
@@ -209,7 +209,7 @@ export default function TenantSetupModal({
               <p className="text-gray-600 mb-4">{error}</p>
               <button
                 onClick={fetchSetup}
-                className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                className="px-4 py-2 text-indigo-600 hover:bg-indigo-50 rounded-lg"
               >
                 Try Again
               </button>
@@ -277,13 +277,13 @@ export function SetupChecklistInline({ tenantSlug, token, onOpenSetup }: SetupCh
 
   return (
     <div 
-      className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-lg cursor-pointer hover:shadow-md transition-shadow"
+      className="p-4 bg-gradient-to-r from-indigo-50 to-indigo-50 border border-indigo-100 rounded-lg cursor-pointer hover:shadow-md transition-shadow"
       onClick={onOpenSetup}
     >
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-            <span className="text-sm font-bold text-blue-600">{progress.percentage}%</span>
+          <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
+            <span className="text-sm font-bold text-indigo-600">{progress.percentage}%</span>
           </div>
           <div>
             <h4 className="font-medium text-gray-900">Setup Progress</h4>
@@ -292,11 +292,11 @@ export function SetupChecklistInline({ tenantSlug, token, onOpenSetup }: SetupCh
             </p>
           </div>
         </div>
-        <span className="text-sm text-blue-600 font-medium">Continue →</span>
+        <span className="text-sm text-indigo-600 font-medium">Continue →</span>
       </div>
-      <div className="h-2 bg-blue-100 rounded-full overflow-hidden">
+      <div className="h-2 bg-indigo-100 rounded-full overflow-hidden">
         <div 
-          className="h-full bg-blue-500 rounded-full transition-all"
+          className="h-full bg-indigo-500 rounded-full transition-all"
           style={{ width: `${progress.percentage}%` }}
         />
       </div>

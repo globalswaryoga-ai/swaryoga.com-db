@@ -33,7 +33,7 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; icon: any }> = {
   PAID: { bg: 'bg-green-100', text: 'text-green-700', icon: CheckCircle2 },
   FAILED: { bg: 'bg-red-100', text: 'text-red-700', icon: XCircle },
   PENDING: { bg: 'bg-yellow-100', text: 'text-yellow-700', icon: Clock },
-  ACTIVE: { bg: 'bg-blue-100', text: 'text-blue-700', icon: Clock },
+  ACTIVE: { bg: 'bg-indigo-100', text: 'text-indigo-700', icon: Clock },
 };
 
 export default function BillingHistoryPage() {

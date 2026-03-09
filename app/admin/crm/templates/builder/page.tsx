@@ -543,7 +543,7 @@ export default function CreateTemplatePage() {
       <div className="p-6 md:p-8 max-w-6xl mx-auto">
         {/* Meta Guidelines Panel */}
         {showGuidelines && (
-          <div className="mb-6 p-5 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl">
+          <div className="mb-6 p-5 bg-gradient-to-r from-indigo-50 to-indigo-50 border border-indigo-200 rounded-2xl">
             <div className="flex items-start justify-between">
               <h3 className="text-lg font-bold text-gray-900 mb-3">📋 Meta WhatsApp Template Guidelines</h3>
               <button 
@@ -555,8 +555,8 @@ export default function CreateTemplatePage() {
             
             <div className="grid md:grid-cols-2 gap-4 text-sm">
               <div className="space-y-3">
-                <div className="p-3 bg-white rounded-xl border border-blue-100">
-                  <div className="font-semibold text-blue-800 mb-1">✅ Content Requirements</div>
+                <div className="p-3 bg-white rounded-xl border border-indigo-100">
+                  <div className="font-semibold text-indigo-800 mb-1">✅ Content Requirements</div>
                   <ul className="text-gray-600 space-y-1 text-xs">
                     <li>• Use proper grammar and spelling</li>
                     <li>• Include clear opt-out instructions for marketing</li>
@@ -608,8 +608,8 @@ export default function CreateTemplatePage() {
           </div>
         )}
         {uploading && (
-          <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <div className="text-sm text-blue-700">📤 Uploading file to S3...</div>
+          <div className="mb-4 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
+            <div className="text-sm text-indigo-700">📤 Uploading file to S3...</div>
           </div>
         )}
 
@@ -630,7 +630,7 @@ export default function CreateTemplatePage() {
                     onClick={() => setProvider('meta')}
                     className={`flex-1 py-3 px-4 rounded-xl border-2 transition-all ${
                       provider === 'meta'
-                        ? 'border-blue-500 bg-blue-50 text-blue-700'
+                        ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
                         : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
                     }`}
                   >

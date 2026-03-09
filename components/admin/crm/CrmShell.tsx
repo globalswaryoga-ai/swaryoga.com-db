@@ -16,6 +16,7 @@ import { useOnboarding } from './hooks/useOnboarding';
 import BackupReminder from './BackupReminder';
 import PageGuide from './PageGuide';
 import PAGE_GUIDES from './pageGuideData';
+import { ToastProvider } from './ui/Toast';
 
 /**
  * CrmShell wraps all CRM pages with:
@@ -99,6 +100,7 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
 
   return (
     <PlanProvider>
+    <ToastProvider>
     <div className="flex h-screen overflow-hidden bg-gray-50">
       {/* Compartment Setup Modal (blocks everything until setup complete) */}
       {showCompartmentSetup && !loading && (
@@ -190,6 +192,7 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
 
     {/* 7-day backup reminder popup */}
     <BackupReminder />
+    </ToastProvider>
     </PlanProvider>
   );
 }

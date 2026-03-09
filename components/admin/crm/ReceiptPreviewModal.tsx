@@ -151,7 +151,7 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden"
+        className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -322,7 +322,7 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
             {/* Email */}
             <button
               onClick={sendViaEmail}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 transition"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition"
             >
               <Mail className="h-4 w-4" />
               Email

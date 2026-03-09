@@ -40,7 +40,7 @@ const formatPhoneNumber = (phone: string): string => {
 
 // Get avatar color based on name/id
 const getAvatarColor = (name: string): string => {
-  const colors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-pink-500', 'bg-yellow-500', 'bg-red-500', 'bg-indigo-500', 'bg-cyan-500'];
+  const colors = ['bg-indigo-500', 'bg-green-500', 'bg-purple-500', 'bg-pink-500', 'bg-yellow-500', 'bg-red-500', 'bg-indigo-500', 'bg-cyan-500'];
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
   return colors[Math.abs(hash) % colors.length];
@@ -52,7 +52,7 @@ const linkifyText = (text: string): React.ReactNode[] => {
   const parts = text.split(URL_REGEX);
   return parts.map((part, i) =>
     URL_REGEX.test(part)
-      ? <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 underline break-all">{part}</a>
+      ? <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-800 underline break-all">{part}</a>
       : <React.Fragment key={i}>{part}</React.Fragment>
   );
 };
@@ -69,7 +69,7 @@ const getInitials = (name: string): string => {
 
 // Funnel color palette for new stages
 const FUNNEL_COLORS = [
-  'bg-blue-50 text-blue-700 border-blue-300',
+  'bg-indigo-50 text-indigo-700 border-indigo-300',
   'bg-green-50 text-green-700 border-green-300',
   'bg-red-50 text-red-700 border-red-300',
   'bg-purple-50 text-purple-700 border-purple-300',
@@ -131,7 +131,7 @@ type LabelPreset = { key: string; label: string; color: string };
 
 const DEFAULT_FUNNEL_STAGES: FunnelStage[] = [
   { key: 'all', label: 'All', color: 'bg-gray-100 text-gray-700 border-gray-300' },
-  { key: 'new_lead', label: 'New Lead', color: 'bg-blue-50 text-blue-700 border-blue-300' },
+  { key: 'new_lead', label: 'New Lead', color: 'bg-indigo-50 text-indigo-700 border-indigo-300' },
   { key: 'contacted', label: 'Contacted', color: 'bg-sky-50 text-sky-700 border-sky-300' },
   { key: 'interested', label: 'Interested', color: 'bg-cyan-50 text-cyan-700 border-cyan-300' },
   { key: 'demo_trial', label: 'Demo / Trial', color: 'bg-purple-50 text-purple-700 border-purple-300' },
@@ -1480,7 +1480,7 @@ export default function QRWhatsAppPage() {
             <Eye className="w-3 h-3" /> Status
           </button>
           <button onClick={() => setShowBridgeSettings(true)} className="p-0.5 rounded hover:bg-gray-100" title="Bridge Settings"><Settings className="w-3 h-3 text-gray-500" /></button>
-          <button onClick={() => setShowExtensionModal(true)} className="px-1.5 py-0.5 text-[10px] font-medium bg-blue-50 text-blue-700 rounded hover:bg-blue-100 border border-blue-200" title="Download">📥</button>
+          <button onClick={() => setShowExtensionModal(true)} className="px-1.5 py-0.5 text-[10px] font-medium bg-indigo-50 text-indigo-700 rounded hover:bg-indigo-100 border border-indigo-200" title="Download">📥</button>
           {isConnected && (
             <>
               <button onClick={handleReconnect} className="p-0.5 rounded hover:bg-gray-100" title="Reconnect"><RefreshCw className="w-3 h-3 text-gray-500" /></button>
@@ -1726,7 +1726,7 @@ export default function QRWhatsAppPage() {
                   {selectedChats.size === filteredChats.length && filteredChats.length > 0 ? 'Deselect' : 'All'}
                 </button>
                 {selectedChats.size > 0 && (
-                  <span className="text-[10px] text-blue-600 font-medium">{selectedChats.size} selected</span>
+                  <span className="text-[10px] text-indigo-600 font-medium">{selectedChats.size} selected</span>
                 )}
               </div>
               <div className="flex items-center gap-1">
@@ -1735,7 +1735,7 @@ export default function QRWhatsAppPage() {
                     <div className="relative">
                       <button
                         onClick={() => { setShowBulkFunnel(!showBulkFunnel); setShowBulkLabel(false); }}
-                        className="px-1.5 py-0.5 text-[10px] bg-blue-50 hover:bg-blue-100 rounded text-blue-600 border border-blue-200 flex items-center gap-0.5"
+                        className="px-1.5 py-0.5 text-[10px] bg-indigo-50 hover:bg-indigo-100 rounded text-indigo-600 border border-indigo-200 flex items-center gap-0.5"
                       >
                         <Funnel className="w-2.5 h-2.5" /> Funnel
                       </button>
@@ -1761,7 +1761,7 @@ export default function QRWhatsAppPage() {
                           <hr className="my-1" />
                           <button
                             onClick={() => { setShowBulkFunnel(false); openEditModal('funnel', 'add'); }}
-                            className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 text-blue-600 flex items-center gap-1"
+                            className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 text-indigo-600 flex items-center gap-1"
                           >
                             <Plus className="w-3 h-3" /> Add new stage
                           </button>
@@ -1840,7 +1840,7 @@ export default function QRWhatsAppPage() {
                     {/* Checkbox — always visible */}
                     <div className="flex-shrink-0" onClick={(e) => { e.stopPropagation(); toggleChatSelection(chat.id); }}>
                       {isSelected
-                        ? <CheckSquare className="w-4 h-4 text-blue-600" />
+                        ? <CheckSquare className="w-4 h-4 text-indigo-600" />
                         : <Square className="w-4 h-4 text-gray-300 hover:text-gray-500" />
                       }
                     </div>
@@ -1859,7 +1859,7 @@ export default function QRWhatsAppPage() {
                         {chat.isGroup ? <Users className="w-5 h-5" /> : (initials || '👤')}
                       </div>
                       {chat.isGroup && (
-                        <span className="absolute -bottom-0.5 -right-0.5 bg-blue-500 rounded-full w-3.5 h-3.5 flex items-center justify-center border-2 border-white">
+                        <span className="absolute -bottom-0.5 -right-0.5 bg-indigo-500 rounded-full w-3.5 h-3.5 flex items-center justify-center border-2 border-white">
                           <Users className="w-2 h-2 text-white" />
                         </span>
                       )}
@@ -1869,7 +1869,7 @@ export default function QRWhatsAppPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-1">
                         <span className="font-medium text-sm text-gray-900 truncate flex items-center gap-1">
-                          {chat.isGroup && <Users className="w-3 h-3 text-blue-500 flex-shrink-0" />}
+                          {chat.isGroup && <Users className="w-3 h-3 text-indigo-500 flex-shrink-0" />}
                           {chat.isGroup
                             ? (/^\d+$/.test(chat.name) ? `Group ${chat.name.slice(0, 8)}...` : chat.name)
                             : (chat.resolvedPhone
@@ -1969,7 +1969,7 @@ export default function QRWhatsAppPage() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5">
-                              {isGroupChat && <Users className="w-3 h-3 text-blue-500 flex-shrink-0" />}
+                              {isGroupChat && <Users className="w-3 h-3 text-indigo-500 flex-shrink-0" />}
                               <p className="font-medium text-sm truncate">{isGroupChat ? headerDisplayName : formatPhoneNumber(headerDisplayName)}</p>
                               <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isConnected ? 'bg-green-500' : 'bg-gray-400'}`}></span>
                             </div>
@@ -2007,14 +2007,14 @@ export default function QRWhatsAppPage() {
                         const phone = chatInfo?.resolvedPhone || selectedChat.replace('@s.whatsapp.net', '').replace('@g.us', '');
                         window.open(`https://wa.me/${phone}?video=true`, '_blank');
                       }}
-                      className="p-1.5 rounded-full hover:bg-blue-50 text-gray-500 hover:text-blue-600 transition"
+                      className="p-1.5 rounded-full hover:bg-indigo-50 text-gray-500 hover:text-indigo-600 transition"
                       title="Video Call"
                     >
                       <Video className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => openDetailsPanel(selectedChat)}
-                      className={`p-1.5 rounded-full hover:bg-gray-100 transition ${detailsPanel ? 'text-blue-600 bg-blue-50' : 'text-gray-500'}`}
+                      className={`p-1.5 rounded-full hover:bg-gray-100 transition ${detailsPanel ? 'text-indigo-600 bg-indigo-50' : 'text-gray-500'}`}
                       title="Contact Info"
                     >
                       <Info className="w-4 h-4" />
@@ -2146,7 +2146,7 @@ export default function QRWhatsAppPage() {
                             <FileText className="w-5 h-5 text-orange-500 flex-shrink-0" />
                             <div className="flex-1 min-w-0">
                               {msg.mediaFileName && <p className="text-xs font-semibold text-gray-700 truncate">{msg.mediaFileName}</p>}
-                              <a href={mediaDisplayUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 group-hover:underline">
+                              <a href={mediaDisplayUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 group-hover:underline">
                                 Download {msg.mediaFileName ? '' : 'document'}
                               </a>
                             </div>
@@ -2155,13 +2155,13 @@ export default function QRWhatsAppPage() {
 
                         {/* Fallback download button — only show when NO inline preview is available */}
                         {!hasMediaPreview && msg.hasMedia && (msg.type === 'image' || msg.type === 'video' || msg.type === 'audio' || msg.type === 'document') && (
-                          <div className="mb-1.5 flex items-center gap-2 px-3 py-2 bg-blue-50 hover:bg-blue-100 rounded-lg transition cursor-pointer"
+                          <div className="mb-1.5 flex items-center gap-2 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition cursor-pointer"
                                onClick={() => downloadMediaFromBridge(msg.id, msg.mediaFileName || undefined)}>
-                            {msg.type === 'image' && <ImageIcon className="w-4 h-4 text-blue-600 flex-shrink-0" />}
-                            {msg.type === 'video' && <Video className="w-4 h-4 text-blue-600 flex-shrink-0" />}
-                            {msg.type === 'audio' && <Mic className="w-4 h-4 text-blue-600 flex-shrink-0" />}
-                            {msg.type === 'document' && <FileText className="w-4 h-4 text-blue-600 flex-shrink-0" />}
-                            <span className="text-xs text-blue-600 font-medium flex-1">
+                            {msg.type === 'image' && <ImageIcon className="w-4 h-4 text-indigo-600 flex-shrink-0" />}
+                            {msg.type === 'video' && <Video className="w-4 h-4 text-indigo-600 flex-shrink-0" />}
+                            {msg.type === 'audio' && <Mic className="w-4 h-4 text-indigo-600 flex-shrink-0" />}
+                            {msg.type === 'document' && <FileText className="w-4 h-4 text-indigo-600 flex-shrink-0" />}
+                            <span className="text-xs text-indigo-600 font-medium flex-1">
                               {downloadingMedia === msg.id ? (
                                 <Loader2 className="w-3 h-3 animate-spin inline-block mr-1" />
                               ) : null}
@@ -2233,7 +2233,7 @@ export default function QRWhatsAppPage() {
                     {mediaPreview.type.startsWith('image/') ? (
                       <img src={mediaPreview.base64} alt="preview" className="w-12 h-12 object-cover rounded" />
                     ) : mediaPreview.type.startsWith('video/') ? (
-                      <div className="w-12 h-12 bg-blue-100 rounded flex items-center justify-center"><Video className="w-5 h-5 text-blue-600" /></div>
+                      <div className="w-12 h-12 bg-indigo-100 rounded flex items-center justify-center"><Video className="w-5 h-5 text-indigo-600" /></div>
                     ) : (
                       <div className="w-12 h-12 bg-gray-200 rounded flex items-center justify-center"><File className="w-5 h-5 text-gray-600" /></div>
                     )}
@@ -2263,7 +2263,7 @@ export default function QRWhatsAppPage() {
                   {showAttachMenu && (
                     <div className="absolute bottom-full left-0 mb-1 ml-2 bg-white border rounded-xl shadow-xl py-2 w-44 z-30">
                       <button onClick={() => { handleFileSelect('image/*'); setShowAttachMenu(false); }} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2 text-gray-700"><ImageIcon className="w-4 h-4 text-green-600" /> Image</button>
-                      <button onClick={() => { handleFileSelect('video/*'); setShowAttachMenu(false); }} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2 text-gray-700"><Video className="w-4 h-4 text-blue-600" /> Video</button>
+                      <button onClick={() => { handleFileSelect('video/*'); setShowAttachMenu(false); }} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2 text-gray-700"><Video className="w-4 h-4 text-indigo-600" /> Video</button>
                       <button onClick={() => { handleFileSelect('.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar'); setShowAttachMenu(false); }} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2 text-gray-700"><FileText className="w-4 h-4 text-orange-500" /> Document</button>
                       <button onClick={() => { handleFileSelect('audio/*'); setShowAttachMenu(false); }} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2 text-gray-700"><Mic className="w-4 h-4 text-purple-500" /> Audio</button>
                     </div>
@@ -2301,7 +2301,7 @@ export default function QRWhatsAppPage() {
                     {/* Format button */}
                     <button
                       onClick={() => { setShowFormatBar(!showFormatBar); setShowEmojiPicker(false); setShowAttachMenu(false); }}
-                      className="p-2 rounded-full hover:bg-gray-100 text-gray-500 hover:text-blue-600 transition"
+                      className="p-2 rounded-full hover:bg-gray-100 text-gray-500 hover:text-indigo-600 transition"
                       title="Format text"
                     >
                       <Type className="w-4 h-4" />
@@ -2430,8 +2430,8 @@ export default function QRWhatsAppPage() {
                     className="flex flex-col items-center gap-1 group"
                     title="Video Call"
                   >
-                    <div className="w-10 h-10 rounded-full bg-blue-50 group-hover:bg-blue-100 flex items-center justify-center transition">
-                      <Video className="w-5 h-5 text-blue-600" />
+                    <div className="w-10 h-10 rounded-full bg-indigo-50 group-hover:bg-indigo-100 flex items-center justify-center transition">
+                      <Video className="w-5 h-5 text-indigo-600" />
                     </div>
                     <span className="text-[10px] text-gray-500">Video</span>
                   </button>
@@ -2487,7 +2487,7 @@ export default function QRWhatsAppPage() {
                             {!editingDesc && (
                               <button
                                 onClick={() => { setEditingDesc(true); setEditDescText(groupInfo.desc || ''); }}
-                                className="text-[10px] text-blue-600 hover:text-blue-700 font-medium"
+                                className="text-[10px] text-indigo-600 hover:text-indigo-700 font-medium"
                               >
                                 Edit
                               </button>
@@ -2548,7 +2548,7 @@ export default function QRWhatsAppPage() {
                             const newName = prompt('New group name:', groupInfo?.subject || '');
                             if (newName && newName.trim()) handleRenameGroup(newName);
                           }}
-                          className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                          className="text-xs text-indigo-600 hover:text-indigo-800 hover:underline"
                         >
                           Rename Group
                         </button>
@@ -2580,7 +2580,7 @@ export default function QRWhatsAppPage() {
                         <div className="flex gap-1.5">
                           <button
                             onClick={() => { navigator.clipboard.writeText(groupInviteLink); }}
-                            className="flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100"
+                            className="flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
                           >
                             <Copy className="w-3 h-3" /> Copy
                           </button>
@@ -2716,7 +2716,7 @@ export default function QRWhatsAppPage() {
                                   </span>
                                 )}
                                 {isAdmin && (
-                                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 flex items-center gap-0.5">
+                                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 flex items-center gap-0.5">
                                     <Shield className="w-2.5 h-2.5" /> Admin
                                   </span>
                                 )}
@@ -2733,7 +2733,7 @@ export default function QRWhatsAppPage() {
                                     ) : (
                                       <button
                                         onClick={() => updateGroupParticipant(pId, 'promote')}
-                                        className="p-1 rounded hover:bg-blue-100 text-gray-400 hover:text-blue-600" title="Make admin"
+                                        className="p-1 rounded hover:bg-indigo-100 text-gray-400 hover:text-indigo-600" title="Make admin"
                                       >
                                         <ChevronUp className="w-3 h-3" />
                                       </button>
@@ -2764,7 +2764,7 @@ export default function QRWhatsAppPage() {
       {/* Status/Stories Panel */}
       {showStatusPanel && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
             {/* Header */}
             <div className="bg-gradient-to-r from-green-600 to-green-700 text-white px-5 py-3 flex items-center justify-between flex-shrink-0">
               <div className="flex items-center gap-2">
@@ -2923,7 +2923,7 @@ export default function QRWhatsAppPage() {
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full max-h-[80vh] overflow-y-auto">
             {/* Modal Header */}
-            <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-4 flex items-center justify-between">
+            <div className="sticky top-0 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white px-6 py-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <span className="text-2xl">📥</span>
                 <h2 className="text-xl font-bold">QR WhatsApp PC Extension</h2>
@@ -2980,7 +2980,7 @@ export default function QRWhatsAppPage() {
               </div>
 
               {/* Setup Steps */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+              <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 space-y-3">
                 <h4 className="font-semibold text-gray-900">🚀 Quick Setup (3 Steps)</h4>
                 <ol className="space-y-2 text-sm text-gray-700">
                   <li><strong>1. Download</strong> the script using the button below</li>
@@ -3031,7 +3031,7 @@ export default function QRWhatsAppPage() {
                 <button
                   onClick={handleDownloadInstaller}
                   disabled={downloadingExtension}
-                  className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition flex items-center gap-2"
+                  className="px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition flex items-center gap-2"
                 >
                   {downloadingExtension ? (
                     <>
@@ -3054,7 +3054,7 @@ export default function QRWhatsAppPage() {
       {/* Simple Install Guide Modal */}
       {showInstallGuide && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-xl w-full">
+          <div className="bg-white rounded-xl shadow-xl max-w-xl w-full">
             {/* Header */}
             <div className="bg-gradient-to-r from-green-600 to-emerald-600 text-white p-6">
               <h2 className="text-2xl font-bold">✅ Almost Done!</h2>
@@ -3067,8 +3067,8 @@ export default function QRWhatsAppPage() {
               <div>
                 <h3 className="font-bold text-lg mb-3">Step 1: Open Terminal</h3>
                 <p className="text-gray-700 mb-3">Open the Terminal app on your Mac</p>
-                <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-900">
-                  Press: <code className="bg-blue-100 px-2 py-1 rounded font-mono">Cmd + Space</code> then type "Terminal"
+                <div className="bg-indigo-50 border border-indigo-200 rounded p-3 text-sm text-indigo-900">
+                  Press: <code className="bg-indigo-100 px-2 py-1 rounded font-mono">Cmd + Space</code> then type "Terminal"
                 </div>
               </div>
 
@@ -3111,7 +3111,7 @@ export default function QRWhatsAppPage() {
                 href="https://nodejs.org"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition text-sm"
+                className="px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition text-sm"
               >
                 Need Node.js?
               </a>
@@ -3132,7 +3132,7 @@ export default function QRWhatsAppPage() {
               value={editName}
               onChange={e => setEditName(e.target.value)}
               placeholder={editModal.type === 'funnel' ? 'Stage name...' : 'Label name...'}
-              className="w-full px-3 py-1.5 border rounded-lg text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-blue-300"
+              className="w-full px-3 py-1.5 border rounded-lg text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-indigo-300"
               autoFocus
               onKeyDown={e => e.key === 'Enter' && saveEditModal()}
             />
@@ -3158,7 +3158,7 @@ export default function QRWhatsAppPage() {
                 <button
                   onClick={saveEditModal}
                   disabled={!editName.trim()}
-                  className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-40"
+                  className="px-3 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-40"
                 >
                   {editModal.mode === 'add' ? 'Add' : 'Save'}
                 </button>
@@ -3171,7 +3171,7 @@ export default function QRWhatsAppPage() {
       {/* Star Popup — Quick Actions */}
       {showStarPopup && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowStarPopup(false)}>
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
             {/* Header */}
             <div className="px-4 py-3 border-b flex items-center justify-between bg-gradient-to-r from-yellow-500 to-orange-500 rounded-t-xl">
               <div className="flex items-center gap-2 text-white">
@@ -3213,7 +3213,7 @@ export default function QRWhatsAppPage() {
                 <div className="space-y-3">
                   <p className="text-xs text-gray-500 mb-3">Click to load template into message box</p>
                   {TEMPLATES.map((tpl, i) => (
-                    <button key={i} onClick={() => { setComposerText(tpl.text); setShowStarPopup(false); }} className="w-full text-left px-4 py-3 bg-gray-50 hover:bg-blue-50 border rounded-lg hover:border-blue-300 transition">
+                    <button key={i} onClick={() => { setComposerText(tpl.text); setShowStarPopup(false); }} className="w-full text-left px-4 py-3 bg-gray-50 hover:bg-indigo-50 border rounded-lg hover:border-indigo-300 transition">
                       <p className="text-sm font-semibold text-gray-800 mb-1">{tpl.name}</p>
                       <p className="text-xs text-gray-500 line-clamp-2">{tpl.text}</p>
                     </button>

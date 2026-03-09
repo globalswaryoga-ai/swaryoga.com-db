@@ -292,14 +292,14 @@ export default function SendTemplatePage() {
   // ============================================================================
   if (token === null) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-indigo-50 flex items-center justify-center">
         <div className="animate-spin text-4xl">⏳</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-indigo-50">
       {/* Header */}
       <header className="bg-white/90 backdrop-blur-lg border-b shadow-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-4">
@@ -308,12 +308,12 @@ export default function SendTemplatePage() {
               <Link href="/admin/crm" className="text-gray-500 hover:text-gray-700 transition-all hover:-translate-x-1">
                 ← CRM
               </Link>
-              <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
                 📨 Send Template
               </h1>
             </div>
             <div className="flex items-center gap-2 sm:gap-3">
-              <Link href="/admin/crm/broadcast" className="px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-all text-sm font-medium flex items-center gap-1">
+              <Link href="/admin/crm/broadcast" className="px-3 py-2 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-all text-sm font-medium flex items-center gap-1">
                 📢 <span className="hidden sm:inline">Broadcast</span>
               </Link>
               <Link href="/admin/crm/templates" className="px-3 py-2 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-all text-sm font-medium flex items-center gap-1">
@@ -350,7 +350,7 @@ export default function SendTemplatePage() {
               placeholder="🔍 Search templates..."
               value={templateSearch}
               onChange={(e) => setTemplateSearch(e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg mb-4 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border rounded-lg mb-4 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
             />
 
             {loading ? (
@@ -371,7 +371,7 @@ export default function SendTemplatePage() {
                     onClick={() => setSelectedTemplate(t)}
                     className={`group p-3 rounded-xl cursor-pointer transition-all duration-200 border-2 ${
                       selectedTemplate?._id === t._id
-                        ? 'bg-blue-50 border-blue-400 shadow-md'
+                        ? 'bg-indigo-50 border-indigo-400 shadow-md'
                         : 'bg-gray-50/50 border-transparent hover:bg-white hover:shadow-sm hover:border-gray-200'
                     }`}
                   >
@@ -381,11 +381,11 @@ export default function SendTemplatePage() {
                       )}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="font-semibold text-gray-800 text-sm group-hover:text-blue-700">
+                          <span className="font-semibold text-gray-800 text-sm group-hover:text-indigo-700">
                             {t.templateName}
                           </span>
                           {t.headerFormat === 'IMAGE' && (
-                            <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded">🖼️</span>
+                            <span className="text-xs bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded">🖼️</span>
                           )}
                           {t.buttons?.length ? (
                             <span className="text-xs bg-green-100 text-green-600 px-1.5 py-0.5 rounded">🔘</span>
@@ -445,7 +445,7 @@ export default function SendTemplatePage() {
                 value={phoneNumber}
                 onChange={(e) => setPhoneNumber(e.target.value)}
                 placeholder="Phone number (e.g. 9876543210)"
-                className="w-full px-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
               />
               <p className="text-xs text-gray-500 mt-2">10-digit number or with country code</p>
 
@@ -514,7 +514,7 @@ export default function SendTemplatePage() {
                   </p>
 
                   {/* WhatsApp Card Style */}
-                  <div className="bg-[#025c4c] rounded-2xl overflow-hidden max-w-xs mx-auto shadow-2xl">
+                  <div className="bg-[#025c4c] rounded-2xl overflow-hidden max-w-xs mx-auto shadow-xl">
                     {/* Header Image */}
                     {selectedTemplate.headerMedia?.url && (
                       <div className="relative">
@@ -601,8 +601,8 @@ export default function SendTemplatePage() {
               )}
 
               {/* Info */}
-              <div className="mt-4 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-100">
-                <h4 className="font-semibold text-blue-800 mb-2 text-sm">💡 Provider Differences</h4>
+              <div className="mt-4 p-3 bg-gradient-to-r from-indigo-50 to-indigo-50 rounded-lg border border-indigo-100">
+                <h4 className="font-semibold text-indigo-800 mb-2 text-sm">💡 Provider Differences</h4>
                 <div className="space-y-2 text-xs">
                   <div className="flex items-start gap-2">
                     <span className="text-green-500">🟢</span>

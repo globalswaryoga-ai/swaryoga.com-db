@@ -276,7 +276,7 @@ export default function LeadAssignmentSettingsPage() {
           {settings && (
             <div className="mb-6 bg-white rounded-xl shadow-sm border p-6">
               <div className="flex items-center gap-2 mb-4">
-                <BarChart3 className="w-5 h-5 text-blue-600" />
+                <BarChart3 className="w-5 h-5 text-indigo-600" />
                 <h2 className="text-lg font-semibold text-gray-800">Current Statistics</h2>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -468,9 +468,9 @@ export default function LeadAssignmentSettingsPage() {
           </div>
 
           {/* How It Works */}
-          <div className="mt-8 bg-blue-50 rounded-xl p-6 border border-blue-100">
-            <h3 className="font-semibold text-blue-800 mb-3">How Round-Robin Assignment Works</h3>
-            <ul className="space-y-2 text-sm text-blue-700">
+          <div className="mt-8 bg-indigo-50 rounded-xl p-6 border border-indigo-100">
+            <h3 className="font-semibold text-indigo-800 mb-3">How Round-Robin Assignment Works</h3>
+            <ul className="space-y-2 text-sm text-indigo-700">
               <li className="flex items-start gap-2">
                 <span className="font-bold">1.</span>
                 When a new lead messages via WhatsApp for the first time, they are automatically assigned.

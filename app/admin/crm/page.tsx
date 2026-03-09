@@ -297,7 +297,7 @@ export default function CRMDashboard() {
       {showAddUser && (
           <div className="fixed inset-0 z-50 flex items-center justify-center">
             <div className="absolute inset-0 bg-black/50" onClick={() => setShowAddUser(false)} />
-            <div className="relative w-full max-w-lg mx-4 bg-white rounded-2xl shadow-2xl">
+            <div className="relative w-full max-w-lg mx-4 bg-white rounded-2xl shadow-xl">
               <div className="flex items-center justify-between px-6 py-4 border-b">
                 <h2 className="text-lg font-bold text-gray-900">Add Admin User</h2>
                 <button onClick={() => setShowAddUser(false)} className="p-2 rounded-lg hover:bg-gray-100">
@@ -311,7 +311,7 @@ export default function CRMDashboard() {
                   <input
                     value={newUserId}
                     onChange={(e) => setNewUserId(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     placeholder="e.g., usercrm1"
                     disabled={createUserBusy}
                   />
@@ -322,7 +322,7 @@ export default function CRMDashboard() {
                     type="email"
                     value={newEmail}
                     onChange={(e) => setNewEmail(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     placeholder="user@example.com"
                     disabled={createUserBusy}
                   />
@@ -333,7 +333,7 @@ export default function CRMDashboard() {
                     type="password"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     placeholder="Enter strong password"
                     disabled={createUserBusy}
                   />
@@ -394,7 +394,7 @@ export default function CRMDashboard() {
                 </button>
                 <button
                   onClick={createAdminUser}
-                  className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+                  className="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60"
                   disabled={createUserBusy}
                 >
                   {createUserBusy ? 'Creating...' : 'Create User'}
@@ -411,7 +411,7 @@ export default function CRMDashboard() {
             <div className="flex justify-end">
               <button
                 onClick={() => setShowAddUser(true)}
-                className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                className="flex items-center gap-2 px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
               >
                 <UserPlus className="h-4 w-4" />
                 <span>Add User</span>
@@ -430,15 +430,49 @@ export default function CRMDashboard() {
           )}
 
           {loading ? (
-            <div className="flex items-center justify-center min-h-[60vh]">
-              <div className="text-center">
-                <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                <p className="text-gray-500">Loading dashboard...</p>
+            <div className="space-y-4">
+              {/* Skeleton greeting */}
+              <div className="h-8 w-64 bg-gray-200 rounded-lg animate-pulse" />
+              {/* Skeleton stat cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {[1,2,3,4].map(i => (
+                  <div key={i} className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="w-12 h-12 bg-gray-100 rounded-xl animate-pulse" />
+                      <div className="w-5 h-5 bg-gray-100 rounded animate-pulse" />
+                    </div>
+                    <div className="h-8 w-20 bg-gray-200 rounded animate-pulse mb-2" />
+                    <div className="h-4 w-28 bg-gray-100 rounded animate-pulse" />
+                  </div>
+                ))}
+              </div>
+              {/* Skeleton quick actions */}
+              <div className="h-6 w-32 bg-gray-200 rounded animate-pulse mt-8" />
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                {[1,2,3,4,5,6].map(i => (
+                  <div key={i} className="bg-white rounded-xl p-4 border border-gray-200">
+                    <div className="w-10 h-10 bg-gray-100 rounded-lg animate-pulse mb-3" />
+                    <div className="h-4 w-16 bg-gray-100 rounded animate-pulse" />
+                  </div>
+                ))}
               </div>
             </div>
           ) : (
             <>
-              {/* Main Stats - Big Cards */}
+              {/* Welcome Greeting */}
+              <div className="mb-2">
+                <h1 className="text-2xl font-bold text-gray-900">
+                  {(() => {
+                    const h = new Date().getHours();
+                    if (h < 12) return 'Good morning';
+                    if (h < 17) return 'Good afternoon';
+                    return 'Good evening';
+                  })()}, {userName || 'there'}
+                </h1>
+                <p className="text-sm text-gray-500 mt-1">Here&apos;s what&apos;s happening with your business today.</p>
+              </div>
+
+              {/* Main Stats - Flat Cards */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <BigStatCard
                   label="Total Leads"
@@ -517,7 +551,7 @@ export default function CRMDashboard() {
   );
 }
 
-// Big Stat Card Component
+// Big Stat Card Component — flat white card with colored icon
 function BigStatCard({
   label,
   value,
@@ -531,24 +565,24 @@ function BigStatCard({
   color: 'blue' | 'green' | 'purple' | 'orange';
   href: string;
 }) {
-  const colors = {
-    blue: 'from-blue-500 to-blue-600',
-    green: 'from-green-500 to-green-600',
-    purple: 'from-purple-500 to-purple-600',
-    orange: 'from-orange-500 to-orange-600',
+  const iconBg = {
+    blue: 'bg-indigo-50 text-indigo-600',
+    green: 'bg-emerald-50 text-emerald-600',
+    purple: 'bg-purple-50 text-purple-600',
+    orange: 'bg-amber-50 text-amber-600',
   };
 
   return (
     <Link href={href}>
-      <div className={`bg-gradient-to-br ${colors[color]} rounded-2xl p-6 text-white cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg shadow-md`}>
+      <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm cursor-pointer transition-all hover:shadow-md hover:border-indigo-200 group">
         <div className="flex items-center justify-between mb-4">
-          <div className="p-3 bg-white/20 rounded-xl">
+          <div className={`p-3 rounded-xl ${iconBg[color]}`}>
             <Icon className="h-6 w-6" />
           </div>
-          <ArrowUpRight className="h-5 w-5 opacity-60" />
+          <ArrowUpRight className="h-5 w-5 text-gray-300 group-hover:text-indigo-500 transition-colors" />
         </div>
-        <div className="text-3xl font-bold mb-1">{value}</div>
-        <div className="text-white/80 text-sm font-medium">{label}</div>
+        <div className="text-3xl font-bold text-gray-900 mb-1">{value}</div>
+        <div className="text-sm font-medium text-gray-500">{label}</div>
       </div>
     </Link>
   );
@@ -583,12 +617,12 @@ function RevenueCard({
   color: 'blue' | 'green' | 'purple';
 }) {
   const colors = {
-    blue: 'border-l-blue-500 bg-blue-50',
+    blue: 'border-l-indigo-500 bg-indigo-50',
     green: 'border-l-green-500 bg-green-50',
     purple: 'border-l-purple-500 bg-purple-50',
   };
   const textColors = {
-    blue: 'text-blue-700',
+    blue: 'text-indigo-700',
     green: 'text-green-700',
     purple: 'text-purple-700',
   };
@@ -616,25 +650,27 @@ function QuickActionCard({
   color: string;
 }) {
   const bgColors: Record<string, string> = {
-    blue: 'hover:bg-blue-50 hover:border-blue-200',
-    green: 'hover:bg-green-50 hover:border-green-200',
+    blue: 'hover:bg-indigo-50 hover:border-indigo-200',
+    green: 'hover:bg-emerald-50 hover:border-emerald-200',
     emerald: 'hover:bg-emerald-50 hover:border-emerald-200',
     pink: 'hover:bg-pink-50 hover:border-pink-200',
-    orange: 'hover:bg-orange-50 hover:border-orange-200',
+    orange: 'hover:bg-amber-50 hover:border-amber-200',
     purple: 'hover:bg-purple-50 hover:border-purple-200',
+    gray: 'hover:bg-gray-50 hover:border-gray-300',
   };
   const iconColors: Record<string, string> = {
-    blue: 'text-blue-600 bg-blue-100',
-    green: 'text-green-600 bg-green-100',
-    emerald: 'text-emerald-600 bg-emerald-100',
-    pink: 'text-pink-600 bg-pink-100',
-    orange: 'text-orange-600 bg-orange-100',
-    purple: 'text-purple-600 bg-purple-100',
+    blue: 'text-indigo-600 bg-indigo-50',
+    green: 'text-emerald-600 bg-emerald-50',
+    emerald: 'text-emerald-600 bg-emerald-50',
+    pink: 'text-pink-600 bg-pink-50',
+    orange: 'text-amber-600 bg-amber-50',
+    purple: 'text-purple-600 bg-purple-50',
+    gray: 'text-gray-600 bg-gray-100',
   };
 
   return (
     <Link href={href}>
-      <div className={`bg-white rounded-xl p-4 border border-gray-200 transition-all cursor-pointer ${bgColors[color]}`}>
+      <div className={`bg-white rounded-xl p-4 border border-gray-200 shadow-sm transition-all cursor-pointer ${bgColors[color] || bgColors.blue}`}>
         <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${iconColors[color]}`}>
           <Icon className="h-5 w-5" />
         </div>

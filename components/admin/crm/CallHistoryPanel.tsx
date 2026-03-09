@@ -43,7 +43,7 @@ interface CallHistoryPanelProps {
 
 const PURPOSE_LABELS: Record<string, { icon: string; label: string; color: string }> = {
   welcome:            { icon: '🙏', label: 'Welcome',       color: 'bg-orange-50 text-orange-700' },
-  follow_up:          { icon: '📞', label: 'Follow-Up',     color: 'bg-blue-50 text-blue-700' },
+  follow_up:          { icon: '📞', label: 'Follow-Up',     color: 'bg-indigo-50 text-indigo-700' },
   answer_questions:   { icon: '💬', label: 'Answer Back',   color: 'bg-violet-50 text-violet-700' },
   workshop_reminder:  { icon: '📅', label: 'Workshop',      color: 'bg-amber-50 text-amber-700' },
   collect_info:       { icon: '📋', label: 'Collect Info',  color: 'bg-cyan-50 text-cyan-700' },
@@ -57,7 +57,7 @@ const STATUS_CONFIG: Record<string, { icon: typeof CheckCircle; color: string; b
   no_answer:   { icon: PhoneOff,       color: 'text-orange-600', bg: 'bg-orange-50' },
   busy:        { icon: PhoneOff,       color: 'text-amber-600',  bg: 'bg-amber-50' },
   queued:      { icon: Clock,          color: 'text-gray-600',   bg: 'bg-gray-50' },
-  ringing:     { icon: Phone,          color: 'text-blue-600',   bg: 'bg-blue-50' },
+  ringing:     { icon: Phone,          color: 'text-indigo-600',   bg: 'bg-indigo-50' },
   in_progress: { icon: PhoneCall,      color: 'text-green-600',  bg: 'bg-green-50' },
   canceled:    { icon: XCircle,        color: 'text-gray-500',   bg: 'bg-gray-50' },
 };
@@ -417,7 +417,7 @@ export default function CallHistoryPanel({ leadId, leadName, leadPhone, token, o
   return (
     <div className="fixed inset-0 z-[60] flex justify-end" onClick={onClose}>
       <div
-        className="w-full max-w-[520px] h-full bg-white shadow-2xl flex flex-col border-l border-gray-100"
+        className="w-full max-w-[520px] h-full bg-white shadow-xl flex flex-col border-l border-gray-100"
         onClick={e => e.stopPropagation()}
         style={{ animation: 'slideInRight 0.25s ease-out' }}
       >
@@ -466,7 +466,7 @@ export default function CallHistoryPanel({ leadId, leadName, leadPhone, token, o
               <p className="text-[8px] text-gray-400 uppercase font-semibold">No Ans</p>
             </div>
             <div className="text-center">
-              <p className="text-base font-bold text-blue-500">{stats.ringing}</p>
+              <p className="text-base font-bold text-indigo-500">{stats.ringing}</p>
               <p className="text-[8px] text-gray-400 uppercase font-semibold">Active</p>
             </div>
             <div className="text-center">
@@ -481,7 +481,7 @@ export default function CallHistoryPanel({ leadId, leadName, leadPhone, token, o
               <p className="text-[7px] text-gray-400 uppercase font-semibold">Today <span className="text-gray-300">·</span> {stats.today} calls</p>
             </div>
             <div className="text-center px-1 py-1 rounded-lg bg-white border border-gray-50">
-              <p className="text-xs font-bold text-blue-600">{fmtCost(calcCost(stats.weekDuration))}</p>
+              <p className="text-xs font-bold text-indigo-600">{fmtCost(calcCost(stats.weekDuration))}</p>
               <p className="text-[7px] text-gray-400 uppercase font-semibold">Week <span className="text-gray-300">·</span> {stats.weekCalls} calls</p>
             </div>
             <div className="text-center px-1 py-1 rounded-lg bg-white border border-gray-50">

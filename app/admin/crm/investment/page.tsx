@@ -354,12 +354,12 @@ export default function CRMInvestmentPage() {
               placeholder="Search by name, phone, or certificate..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="flex-1 min-w-[200px] px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 min-w-[200px] px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
             <select
               value={filterEntity}
               onChange={(e) => setFilterEntity(e.target.value as any)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="all">All Entities</option>
               <option value="swar-sakshi">Swar Sakshi</option>
@@ -368,7 +368,7 @@ export default function CRMInvestmentPage() {
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value as any)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="all">All Status</option>
               <option value="active">Active</option>
@@ -431,7 +431,7 @@ export default function CRMInvestmentPage() {
                       <td className="px-4 py-3 font-medium text-gray-900">{inv.name}</td>
                       <td className="px-4 py-3 text-gray-700">{inv.phone}</td>
                       <td className="px-4 py-3">
-                        <span className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold">
+                        <span className="inline-block px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-xs font-semibold">
                           {ENTITY_NAMES[inv.entity as any] || inv.entity}
                         </span>
                       </td>
@@ -457,7 +457,7 @@ export default function CRMInvestmentPage() {
                             inv.status === 'active'
                               ? 'bg-green-100 text-green-800'
                               : inv.status === 'matured'
-                              ? 'bg-blue-100 text-blue-800'
+                              ? 'bg-indigo-100 text-indigo-800'
                               : 'bg-red-100 text-red-800'
                           }`}
                         >
@@ -469,7 +469,7 @@ export default function CRMInvestmentPage() {
                         <div className="flex gap-2 justify-center">
                           <button
                             onClick={() => handleViewDetails(inv)}
-                            className="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded transition-colors"
+                            className="px-3 py-1 bg-indigo-500 hover:bg-indigo-600 text-white text-xs rounded transition-colors"
                             title="View details"
                           >
                             📋
@@ -529,7 +529,7 @@ export default function CRMInvestmentPage() {
                       key={entity}
                       className={`block p-4 border-2 rounded-lg cursor-pointer transition-all ${
                         formData.entity === entity
-                          ? 'border-blue-500 bg-blue-50'
+                          ? 'border-indigo-500 bg-indigo-50'
                           : 'border-gray-300 bg-white hover:border-gray-400'
                       }`}
                     >
@@ -559,7 +559,7 @@ export default function CRMInvestmentPage() {
                     value={formData.name}
                     onChange={handleInputChange}
                     placeholder="Investor name"
-                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
                       errors.name ? 'border-red-500' : 'border-gray-300'
                     }`}
                   />
@@ -575,7 +575,7 @@ export default function CRMInvestmentPage() {
                     onChange={handleInputChange}
                     placeholder="10-digit number"
                     maxLength={10}
-                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
                       errors.phone ? 'border-red-500' : 'border-gray-300'
                     }`}
                   />
@@ -593,7 +593,7 @@ export default function CRMInvestmentPage() {
                   onChange={handleInputChange}
                   placeholder="Enter amount"
                   step="1000"
-                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
                     errors.amount ? 'border-red-500' : 'border-gray-300'
                   }`}
                 />
@@ -633,7 +633,7 @@ export default function CRMInvestmentPage() {
                         onChange={handleInputChange}
                         placeholder="e.g., 110"
                         step="1"
-                        className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
                           errors.numberOfShares ? 'border-red-500' : 'border-gray-300'
                         }`}
                       />
@@ -651,7 +651,7 @@ export default function CRMInvestmentPage() {
                         onChange={handleInputChange}
                         placeholder="e.g., 110"
                         step="0.01"
-                        className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
                           errors.sharePrice ? 'border-red-500' : 'border-gray-300'
                         }`}
                       />
@@ -671,7 +671,7 @@ export default function CRMInvestmentPage() {
                     onChange={handleInputChange}
                     placeholder="12"
                     step="0.1"
-                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
                       errors.interestRate ? 'border-red-500' : 'border-gray-300'
                     }`}
                   />
@@ -688,7 +688,7 @@ export default function CRMInvestmentPage() {
                     name="startDate"
                     value={formData.startDate}
                     onChange={handleInputChange}
-                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
                       errors.startDate ? 'border-red-500' : 'border-gray-300'
                     }`}
                   />
@@ -702,7 +702,7 @@ export default function CRMInvestmentPage() {
                     name="endDate"
                     value={formData.endDate}
                     onChange={handleInputChange}
-                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
                       errors.endDate ? 'border-red-500' : 'border-gray-300'
                     }`}
                   />
@@ -711,7 +711,7 @@ export default function CRMInvestmentPage() {
               </div>
 
               {/* Old Investment Checkbox */}
-              <label className="flex items-center space-x-3 p-4 bg-blue-50 border border-blue-200 rounded-lg cursor-pointer hover:bg-blue-100 transition">
+              <label className="flex items-center space-x-3 p-4 bg-indigo-50 border border-indigo-200 rounded-lg cursor-pointer hover:bg-indigo-100 transition">
                 <input
                   type="checkbox"
                   name="isOldInvestment"
@@ -720,7 +720,7 @@ export default function CRMInvestmentPage() {
                     ...prev,
                     isOldInvestment: e.target.checked,
                   }))}
-                  className="w-5 h-5 text-blue-600 rounded"
+                  className="w-5 h-5 text-indigo-600 rounded"
                 />
                 <div className="flex-1">
                   <p className="font-semibold text-gray-900">Mark as Old Investment</p>
@@ -791,7 +791,7 @@ export default function CRMInvestmentPage() {
               <div className="grid grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg">
                 <div>
                   <label className="text-xs font-semibold text-gray-500 uppercase">Investment Amount</label>
-                  <p className="text-xl font-bold text-blue-600">{formatCurrency(selectedInvestment.amount)}</p>
+                  <p className="text-xl font-bold text-indigo-600">{formatCurrency(selectedInvestment.amount)}</p>
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-gray-500 uppercase">Maturity Amount</label>

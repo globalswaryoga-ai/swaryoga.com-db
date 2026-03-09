@@ -294,7 +294,7 @@ export default function PageSetupChecklist({
                     href={pageConfig.tutorialPdf}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700"
+                    className="flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-700"
                   >
                     <ExternalLink className="h-4 w-4" />
                     View Guide
@@ -309,7 +309,7 @@ export default function PageSetupChecklist({
       {/* Locked Overlay - show when required setup not complete */}
       {!loading && !setupStatus.setupPaid && !dismissed && (
         <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm flex items-center justify-center pointer-events-none">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md mx-4 text-center pointer-events-auto relative">
+          <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md mx-4 text-center pointer-events-auto relative">
             <button
               onClick={() => setDismissed(true)}
               className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 transition"

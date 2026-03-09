@@ -66,7 +66,7 @@ interface LeadDetailModalProps {
 
 // Color mappings
 const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  new_lead:      { bg: 'bg-blue-50',    text: 'text-blue-700',    border: 'border-blue-200' },
+  new_lead:      { bg: 'bg-indigo-50',    text: 'text-indigo-700',    border: 'border-indigo-200' },
   contacted:     { bg: 'bg-sky-50',     text: 'text-sky-700',     border: 'border-sky-200' },
   interested:    { bg: 'bg-cyan-50',    text: 'text-cyan-700',    border: 'border-cyan-200' },
   demo_trial:    { bg: 'bg-purple-50',  text: 'text-purple-700',  border: 'border-purple-200' },
@@ -77,7 +77,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }
   repeater:      { bg: 'bg-orange-50',  text: 'text-orange-700',  border: 'border-orange-200' },
   old_sadhak:    { bg: 'bg-teal-50',    text: 'text-teal-700',    border: 'border-teal-200' },
   only_for_post: { bg: 'bg-indigo-50',  text: 'text-indigo-700',  border: 'border-indigo-200' },
-  lead:          { bg: 'bg-blue-50',    text: 'text-blue-700',    border: 'border-blue-200' },
+  lead:          { bg: 'bg-indigo-50',    text: 'text-indigo-700',    border: 'border-indigo-200' },
   hot:           { bg: 'bg-red-50',     text: 'text-red-700',     border: 'border-red-200' },
   prospect:      { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200' },
   customer:      { bg: 'bg-green-50',   text: 'text-green-700',   border: 'border-green-200' },
@@ -99,7 +99,7 @@ const STAGE_COLORS: Record<string, string> = {
 
 const CHAT_STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   new:      { bg: 'bg-emerald-100', text: 'text-emerald-700' },
-  open:     { bg: 'bg-blue-100',    text: 'text-blue-700' },
+  open:     { bg: 'bg-indigo-100',    text: 'text-indigo-700' },
   pending:  { bg: 'bg-amber-100',   text: 'text-amber-700' },
   overdue:  { bg: 'bg-red-100',     text: 'text-red-700' },
   closed:   { bg: 'bg-gray-100',    text: 'text-gray-600' },
@@ -349,7 +349,7 @@ export default function LeadDetailModal({
   if (loading) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
-        <div className="bg-white rounded-2xl p-8 shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="bg-white rounded-2xl p-8 shadow-xl" onClick={e => e.stopPropagation()}>
           <div className="animate-spin h-8 w-8 border-4 border-indigo-500 border-t-transparent rounded-full mx-auto" />
           <p className="mt-4 text-gray-500 text-sm">Loading lead details...</p>
         </div>
@@ -360,7 +360,7 @@ export default function LeadDetailModal({
   if (!lead) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
-        <div className="bg-white rounded-2xl p-8 shadow-2xl text-center" onClick={e => e.stopPropagation()}>
+        <div className="bg-white rounded-2xl p-8 shadow-xl text-center" onClick={e => e.stopPropagation()}>
           <AlertCircle className="h-10 w-10 text-red-500 mx-auto" />
           <p className="mt-4 text-gray-700 font-medium">Lead not found</p>
           <button onClick={onClose} className="mt-4 px-4 py-2 bg-gray-100 rounded-lg text-sm">Close</button>
@@ -372,7 +372,7 @@ export default function LeadDetailModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-2 sm:p-4" onClick={onClose}>
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[95vh] overflow-hidden flex flex-col"
+        className="bg-white rounded-2xl shadow-xl w-full max-w-5xl max-h-[95vh] overflow-hidden flex flex-col"
         onClick={e => e.stopPropagation()}
       >
         {/* ── Header ── */}
@@ -409,7 +409,7 @@ export default function LeadDetailModal({
           {/* Call */}
           <a
             href={`tel:${lead.phoneNumber}`}
-            className="p-2 rounded-lg hover:bg-blue-50 text-blue-600 transition"
+            className="p-2 rounded-lg hover:bg-indigo-50 text-indigo-600 transition"
             title="Call"
           >
             <PhoneCall className="h-5 w-5" />
@@ -1005,7 +1005,7 @@ export default function LeadDetailModal({
                         )}
                         {item.type === 'message' && (
                           <p className="text-xs text-gray-500 mt-0.5">
-                            <span className={item.direction === 'inbound' ? 'text-green-600' : 'text-blue-600'}>{item.direction === 'inbound' ? '← In' : '→ Out'}</span>
+                            <span className={item.direction === 'inbound' ? 'text-green-600' : 'text-indigo-600'}>{item.direction === 'inbound' ? '← In' : '→ Out'}</span>
                             {' '}{item.content || '(media)'}
                           </p>
                         )}

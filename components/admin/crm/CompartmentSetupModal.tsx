@@ -322,7 +322,7 @@ export default function CompartmentSetupModal({
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
 
       {/* Modal */}
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden animate-in fade-in zoom-in duration-300 max-h-[90vh] overflow-y-auto">
+      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4 overflow-hidden animate-in fade-in zoom-in duration-300 max-h-[90vh] overflow-y-auto">
         {/* Close button */}
         <button
           onClick={onClose}
@@ -333,14 +333,14 @@ export default function CompartmentSetupModal({
         </button>
 
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-6 text-white">
+        <div className="bg-gradient-to-r from-indigo-600 to-indigo-600 px-6 py-6 text-white">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
               <Database className="h-5 w-5" />
             </div>
             <div>
               <h2 className="text-xl font-bold">Setup Your Data Compartment</h2>
-              <p className="text-blue-100 text-sm">
+              <p className="text-indigo-100 text-sm">
                 MongoDB + Bunny CDN isolation for your account
               </p>
             </div>
@@ -348,7 +348,7 @@ export default function CompartmentSetupModal({
 
           {/* Progress bar */}
           <div className="mt-4">
-            <div className="flex items-center justify-between text-xs text-blue-200 mb-1">
+            <div className="flex items-center justify-between text-xs text-indigo-200 mb-1">
               <span>{stepComplete.filter(Boolean).length} of {steps.length} steps</span>
               <span>{Math.round((stepComplete.filter(Boolean).length / steps.length) * 100)}%</span>
             </div>
@@ -364,7 +364,7 @@ export default function CompartmentSetupModal({
         {/* Loading */}
         {loading ? (
           <div className="p-8 flex items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+            <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
             <span className="ml-3 text-gray-600">Loading compartment status...</span>
           </div>
         ) : allComplete ? (
@@ -375,7 +375,7 @@ export default function CompartmentSetupModal({
             </div>
             <h3 className="text-xl font-bold text-gray-900 mb-2">Compartment Ready!</h3>
             <p className="text-gray-500 mb-2">
-              Your data is isolated at: <code className="bg-gray-100 px-2 py-0.5 rounded text-blue-600 font-mono text-sm">{status?.compartment?.folderName || '—'}</code>
+              Your data is isolated at: <code className="bg-gray-100 px-2 py-0.5 rounded text-indigo-600 font-mono text-sm">{status?.compartment?.folderName || '—'}</code>
             </p>
             <p className="text-gray-400 text-sm mb-6">
               MongoDB + Bunny CDN are 100% connected. You can now use all CRM pages.
@@ -403,7 +403,7 @@ export default function CompartmentSetupModal({
                     key={idx}
                     className={`
                       flex items-center gap-3 p-3 rounded-xl border transition
-                      ${isCurrent ? 'border-blue-300 bg-blue-50 shadow-sm' : ''}
+                      ${isCurrent ? 'border-indigo-300 bg-indigo-50 shadow-sm' : ''}
                       ${isComplete ? 'border-green-200 bg-green-50' : ''}
                       ${isLocked ? 'border-gray-200 bg-gray-50 opacity-60' : ''}
                     `}
@@ -411,7 +411,7 @@ export default function CompartmentSetupModal({
                     <div className={`
                       w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0
                       ${isComplete ? 'bg-green-500 text-white' : ''}
-                      ${isCurrent && !isComplete ? 'bg-blue-500 text-white' : ''}
+                      ${isCurrent && !isComplete ? 'bg-indigo-500 text-white' : ''}
                       ${isLocked ? 'bg-gray-300 text-white' : ''}
                     `}>
                       {isComplete ? (
@@ -421,12 +421,12 @@ export default function CompartmentSetupModal({
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className={`font-medium text-sm ${isComplete ? 'text-green-700' : isCurrent ? 'text-blue-700' : 'text-gray-500'}`}>
+                      <p className={`font-medium text-sm ${isComplete ? 'text-green-700' : isCurrent ? 'text-indigo-700' : 'text-gray-500'}`}>
                         {step.label}
                       </p>
                       <p className="text-xs text-gray-500 truncate">{step.description}</p>
                     </div>
-                    <step.icon className={`h-5 w-5 flex-shrink-0 ${isComplete ? 'text-green-500' : isCurrent ? 'text-blue-500' : 'text-gray-400'}`} />
+                    <step.icon className={`h-5 w-5 flex-shrink-0 ${isComplete ? 'text-green-500' : isCurrent ? 'text-indigo-500' : 'text-gray-400'}`} />
                   </div>
                 );
               })}
@@ -450,13 +450,13 @@ export default function CompartmentSetupModal({
                         setFolderError('');
                       }}
                       placeholder="e.g., mycompany, john-yoga"
-                      className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                      className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                       maxLength={32}
                     />
                     <button
                       onClick={handleInitialize}
                       disabled={actionLoading || !folderName.trim()}
-                      className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1"
+                      className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-1"
                     >
                       {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
                       Set Name
@@ -479,7 +479,7 @@ export default function CompartmentSetupModal({
                   <h4 className="font-semibold text-gray-900 mb-2">Purchase Storage</h4>
                   <p className="text-sm text-gray-500 mb-3">
                     Buy storage to activate your data compartment. Your files will be stored in Bunny CDN under
-                    <code className="bg-gray-200 px-1.5 py-0.5 rounded ml-1 text-blue-600 font-mono text-xs">
+                    <code className="bg-gray-200 px-1.5 py-0.5 rounded ml-1 text-indigo-600 font-mono text-xs">
                       users/{status?.compartment?.folderName || folderName}/
                     </code>
                   </p>
@@ -489,7 +489,7 @@ export default function CompartmentSetupModal({
                       { plan: 'growth', label: '2GB', price: '₹99' },
                       { plan: 'pro', label: '10GB', price: '₹349' },
                     ].map(({ plan, label, price }) => (
-                      <div key={plan} className="border border-gray-200 rounded-lg p-2 text-center hover:border-blue-400 transition cursor-pointer">
+                      <div key={plan} className="border border-gray-200 rounded-lg p-2 text-center hover:border-indigo-400 transition cursor-pointer">
                         <p className="font-bold text-gray-900 text-sm">{label}</p>
                         <p className="text-xs text-gray-500">{price}</p>
                       </div>
@@ -497,7 +497,7 @@ export default function CompartmentSetupModal({
                   </div>
                   <button
                     onClick={onStoragePurchase}
-                    className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-2.5 rounded-lg font-medium hover:shadow-lg transition flex items-center justify-center gap-2"
+                    className="w-full bg-gradient-to-r from-indigo-600 to-indigo-600 text-white py-2.5 rounded-lg font-medium hover:shadow-lg transition flex items-center justify-center gap-2"
                   >
                     <HardDrive className="h-4 w-4" />
                     Buy Storage Now
@@ -511,7 +511,7 @@ export default function CompartmentSetupModal({
                   <h4 className="font-semibold text-gray-900 mb-2">Create CDN Storage Folder</h4>
                   <p className="text-sm text-gray-500 mb-3">
                     Your isolated Bunny CDN folder will be created at:
-                    <code className="block bg-gray-200 px-2 py-1 rounded mt-1 text-blue-600 font-mono text-xs">
+                    <code className="block bg-gray-200 px-2 py-1 rounded mt-1 text-indigo-600 font-mono text-xs">
                       users/{status?.compartment?.folderName || folderName}/
                     </code>
                   </p>
@@ -603,8 +603,8 @@ export default function CompartmentSetupModal({
             </div>
 
             {/* Info box */}
-            <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
-              <p className="text-xs text-blue-700">
+            <div className="mt-4 bg-indigo-50 border border-indigo-200 rounded-lg p-3">
+              <p className="text-xs text-indigo-700">
                 <strong>Why compartment setup?</strong> Each user gets their own isolated data space.
                 Your leads, messages, templates, and files are completely separate from other users.
                 This ensures data privacy and security.

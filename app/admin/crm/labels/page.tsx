@@ -21,14 +21,14 @@ type BadgeTone = {
 };
 
 const COLOR_TOKENS: Record<LabelColor, BadgeTone> = {
-  blue: { bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-200' },
+  blue: { bg: 'bg-indigo-100', text: 'text-indigo-700', border: 'border-indigo-200' },
   yellow: { bg: 'bg-yellow-100', text: 'text-yellow-800', border: 'border-yellow-200' },
   green: { bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-200' },
   red: { bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-200' },
 };
 
 const COLOR_OPTIONS: Array<{ value: LabelColor; label: string; swatch: string }> = [
-  { value: 'blue', label: 'Blue (info)', swatch: 'bg-blue-500' },
+  { value: 'blue', label: 'Blue (info)', swatch: 'bg-indigo-500' },
   { value: 'yellow', label: 'Yellow (warm)', swatch: 'bg-yellow-500' },
   { value: 'green', label: 'Green (positive)', swatch: 'bg-emerald-500' },
   { value: 'red', label: 'Red (negative)', swatch: 'bg-red-500' },
@@ -288,7 +288,7 @@ export default function LabelsPage() {
               <button
                 onClick={handleInitializeDefaults}
                 disabled={addingLabel || loading}
-                className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-semibold transition-all text-sm"
+                className="px-6 py-3 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-semibold transition-all text-sm"
               >
                 {addingLabel ? 'Initializing...' : '🚀 Initialize Default Labels'}
               </button>

@@ -1085,7 +1085,7 @@ We're excited to have you as part of the Swar Yoga family. Namaste! 🙏`);
               onClick={() => { setActiveCategory('inbound'); setSelectedId(''); }}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                 activeCategory === 'inbound'
-                  ? 'bg-white text-blue-600 shadow-sm'
+                  ? 'bg-white text-indigo-600 shadow-sm'
                   : 'text-gray-400 hover:text-gray-600'
               }`}
             >
@@ -1522,7 +1522,7 @@ We're excited to have you as part of the Swar Yoga family. Namaste! 🙏`);
                       value={formDraft1}
                       onChange={e => setFormDraft1(e.target.value)}
                       rows={4}
-                      className="w-full px-4 py-3 text-sm rounded-xl border border-gray-200 focus:border-blue-300 focus:ring-2 focus:ring-blue-100 outline-none resize-y font-mono leading-relaxed"
+                      className="w-full px-4 py-3 text-sm rounded-xl border border-gray-200 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 outline-none resize-y font-mono leading-relaxed"
                       placeholder="Hello {{leadName}}, this is Sakshi from Swar Yoga...&#10;Write the opening greeting and introduction here."
                     />
                   </div>
@@ -1880,7 +1880,7 @@ We're excited to have you as part of the Swar Yoga family. Namaste! 🙏`);
                           <div className="bg-white rounded-xl border border-gray-100 p-4">
                             <div className="flex items-center gap-2 mb-2">
                               <div className="w-5 h-5 rounded-md flex items-center justify-center text-white text-[10px] font-bold" style={{ background: C.blue.main }}>2</div>
-                              <span className="text-xs font-bold text-blue-700">Main Content</span>
+                              <span className="text-xs font-bold text-indigo-700">Main Content</span>
                             </div>
                             <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{stage2}</p>
                           </div>
@@ -2360,7 +2360,7 @@ We're excited to have you as part of the Swar Yoga family. Namaste! 🙏`);
                           value={editStage2}
                           onChange={e => setEditStage2(e.target.value)}
                           rows={8}
-                          className="w-full px-4 py-3 text-sm font-mono leading-relaxed rounded-xl border border-blue-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none resize-y"
+                          className="w-full px-4 py-3 text-sm font-mono leading-relaxed rounded-xl border border-indigo-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none resize-y"
                           placeholder="Main conversation — purpose, questions, information..."
                         />
                       </div>
@@ -2404,10 +2404,10 @@ We're excited to have you as part of the Swar Yoga family. Namaste! 🙏`);
                               </div>
                             )}
                             {stage2 && (
-                              <div className="rounded-xl border border-blue-100 bg-blue-50/30 p-4">
+                              <div className="rounded-xl border border-indigo-100 bg-indigo-50/30 p-4">
                                 <div className="flex items-center gap-2 mb-2">
                                   <span className="inline-flex items-center justify-center w-5 h-5 rounded-md text-[10px] font-bold text-white" style={{ background: C.blue.main }}>2</span>
-                                  <span className="text-[10px] font-bold text-blue-700 uppercase">Main Content</span>
+                                  <span className="text-[10px] font-bold text-indigo-700 uppercase">Main Content</span>
                                 </div>
                                 <pre className="text-sm font-mono leading-relaxed text-gray-700 whitespace-pre-wrap break-words">{stage2}</pre>
                               </div>
@@ -2610,7 +2610,7 @@ We're excited to have you as part of the Swar Yoga family. Namaste! 🙏`);
       {/* ═══ DUPLICATE TEMPLATE MODAL ═══ */}
       {showDuplicateModal && duplicateSource && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 w-full max-w-md mx-4 overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-100 w-full max-w-md mx-4 overflow-hidden">
             {/* Modal Header */}
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between" style={{ background: `linear-gradient(135deg, ${C.violet.bg}, ${C.indigo.bg})` }}>
               <div className="flex items-center gap-3">
@@ -2670,7 +2670,7 @@ We're excited to have you as part of the Swar Yoga family. Namaste! 🙏`);
                   <select
                     value={dupLang}
                     onChange={e => setDupLang(e.target.value)}
-                    className="mt-2 w-full px-3 py-2 text-sm rounded-xl border border-gray-200 focus:border-blue-300 outline-none"
+                    className="mt-2 w-full px-3 py-2 text-sm rounded-xl border border-gray-200 focus:border-indigo-300 outline-none"
                   >
                     {ALL_LANGUAGES.map(l => (
                       <option key={l.key} value={l.key}>{l.flag} {l.label}</option>
@@ -2679,9 +2679,9 @@ We're excited to have you as part of the Swar Yoga family. Namaste! 🙏`);
                 )}
                 {/* Translation status */}
                 {dupTranslating && (
-                  <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-50 border border-blue-100">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-500" />
-                    <span className="text-xs font-medium text-blue-600">Translating script to {ALL_LANGUAGES.find(l => l.key === dupLang)?.label || dupLang}...</span>
+                  <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-indigo-50 border border-indigo-100">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-500" />
+                    <span className="text-xs font-medium text-indigo-600">Translating script to {ALL_LANGUAGES.find(l => l.key === dupLang)?.label || dupLang}...</span>
                   </div>
                 )}
                 {!dupTranslating && dupTranslatedPrompt && dupLang !== duplicateSource?.language && (

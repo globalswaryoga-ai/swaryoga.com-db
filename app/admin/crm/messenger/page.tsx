@@ -186,7 +186,7 @@ export default function MessengerInboxPage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search conversations..."
-                className="w-full pl-9 pr-3 py-2 rounded-lg bg-white/80 backdrop-blur-sm shadow-sm border border-blue-100 text-xs font-medium focus:ring-2 focus:ring-blue-300/30 focus:border-blue-400 outline-none transition-all"
+                className="w-full pl-9 pr-3 py-2 rounded-lg bg-white/80 backdrop-blur-sm shadow-sm border border-indigo-100 text-xs font-medium focus:ring-2 focus:ring-indigo-300/30 focus:border-indigo-400 outline-none transition-all"
               />
             </div>
           </div>
@@ -198,7 +198,7 @@ export default function MessengerInboxPage() {
             ) : filteredConversations.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 gap-3 text-slate-400">
                 <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, rgba(0,120,255,0.08), rgba(0,120,255,0.15))' }}>
-                  <i className="ph ph-messenger-logo text-3xl text-blue-400/60"></i>
+                  <i className="ph ph-messenger-logo text-3xl text-indigo-400/60"></i>
                 </div>
                 <p className="text-sm font-bold text-slate-500">No Messenger conversations yet</p>
                 <p className="text-xs text-slate-400 text-center px-8">Connect your Facebook Page to start receiving Messenger chats here.</p>
@@ -210,8 +210,8 @@ export default function MessengerInboxPage() {
                   onClick={() => handleSelectConversation(conv)}
                   className={`px-3 py-2.5 flex gap-2.5 items-start cursor-pointer transition-all duration-300 group relative ${
                     selected?._id === conv._id
-                      ? 'bg-blue-50 border border-blue-300/30 rounded-lg shadow-sm mx-1 my-0.5'
-                      : 'bg-white border border-blue-100/50 rounded-lg mx-1 my-0.5 hover:border-blue-300/30 hover:shadow-sm hover:translate-x-[2px]'
+                      ? 'bg-indigo-50 border border-indigo-300/30 rounded-lg shadow-sm mx-1 my-0.5'
+                      : 'bg-white border border-indigo-100/50 rounded-lg mx-1 my-0.5 hover:border-indigo-300/30 hover:shadow-sm hover:translate-x-[2px]'
                   }`}
                 >
                   <div className="h-9 w-9 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0" style={{ background: 'linear-gradient(135deg, #0078FF, #00A3FF)' }}>
@@ -245,7 +245,7 @@ export default function MessengerInboxPage() {
                 </div>
                 <div className="ml-auto">
                   <button
-                    className={`p-1.5 rounded-md transition-colors ${showSidebar ? 'bg-blue-50 text-blue-600' : 'text-slate-500 hover:bg-slate-50'}`}
+                    className={`p-1.5 rounded-md transition-colors ${showSidebar ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500 hover:bg-slate-50'}`}
                     onClick={() => setShowSidebar(!showSidebar)}
                   >
                     <i className={`ph ${showSidebar ? 'ph-sidebar-simple' : 'ph-sidebar'} text-sm`}></i>
@@ -260,7 +260,7 @@ export default function MessengerInboxPage() {
                 ) : messages.length === 0 ? (
                   <div className="flex-1 flex flex-col items-center justify-center text-slate-400 gap-3">
                     <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, rgba(0,120,255,0.08), rgba(0,120,255,0.15))' }}>
-                      <i className="ph ph-chat-circle-dots text-3xl text-blue-400/60"></i>
+                      <i className="ph ph-chat-circle-dots text-3xl text-indigo-400/60"></i>
                     </div>
                     <p className="text-sm font-bold text-slate-500">No messages yet</p>
                     <p className="text-xs text-slate-400">Messages will appear here once connected.</p>
@@ -272,7 +272,7 @@ export default function MessengerInboxPage() {
                         <div className={`max-w-[360px] rounded-lg text-[14px] px-3 py-2 ${
                           msg.direction === 'outbound'
                             ? 'text-white rounded-tr-sm shadow-sm'
-                            : 'bg-white text-slate-900 rounded-tl-sm shadow-sm border border-blue-100'
+                            : 'bg-white text-slate-900 rounded-tl-sm shadow-sm border border-indigo-100'
                         }`} style={msg.direction === 'outbound' ? { background: 'linear-gradient(135deg, #0078FF, #00A3FF)' } : {}}>
                           {msg.messageContent || ''}
                           <div className={`text-[9px] mt-1 ${msg.direction === 'outbound' ? 'text-white/60' : 'text-slate-400'}`}>
@@ -314,7 +314,7 @@ export default function MessengerInboxPage() {
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-slate-300 gap-4" style={{ background: 'linear-gradient(180deg, #FAFCFF 0%, #F0F4FF 100%)' }}>
               <div className="w-24 h-24 rounded-2xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, rgba(0,120,255,0.08) 0%, rgba(0,120,255,0.18) 100%)', boxShadow: '0 8px 24px rgba(0,120,255,0.1)' }}>
-                <i className="ph ph-messenger-logo text-6xl text-blue-400/40"></i>
+                <i className="ph ph-messenger-logo text-6xl text-indigo-400/40"></i>
               </div>
               <p className="font-bold text-lg text-slate-500">Messenger Inbox</p>
               <p className="text-xs text-slate-400 text-center max-w-xs">Connect your Facebook Page to receive Messenger conversations. Select a conversation to start chatting.</p>
@@ -346,7 +346,7 @@ export default function MessengerInboxPage() {
                   <div className="flex flex-col gap-1 text-sm py-1.5">
                     <span className="text-slate-500 text-[10px] uppercase font-extrabold opacity-70">Status</span>
                     <select
-                      className="w-full border rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-blue-300/20 focus:border-blue-400 outline-none font-semibold text-blue-600"
+                      className="w-full border rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-indigo-300/20 focus:border-indigo-400 outline-none font-semibold text-indigo-600"
                       style={{ background: 'rgba(249,250,255,0.8)', borderColor: 'rgba(0,120,255,0.15)' }}
                       value={sidebarData.status}
                       onChange={(e) => setSidebarData({ ...sidebarData, status: e.target.value })}
@@ -360,7 +360,7 @@ export default function MessengerInboxPage() {
                   <div className="flex flex-col gap-1 text-sm py-1.5">
                     <span className="text-slate-500 text-[10px] uppercase font-extrabold opacity-70">Notes</span>
                     <textarea
-                      className="w-full border rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-blue-300/20 focus:border-blue-400 outline-none resize-none"
+                      className="w-full border rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-indigo-300/20 focus:border-indigo-400 outline-none resize-none"
                       style={{ background: 'rgba(249,250,255,0.8)', borderColor: 'rgba(0,120,255,0.15)' }}
                       rows={3}
                       value={sidebarData.notes}

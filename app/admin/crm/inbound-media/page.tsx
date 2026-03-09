@@ -185,8 +185,8 @@ export default function InboundMediaPage() {
       <div className="bg-gray-800/50 px-6 py-4 border-b border-gray-700">
         <div className="flex flex-wrap gap-4 items-center justify-between">
           <div className="flex gap-4">
-            <div className="bg-blue-600/20 px-4 py-2 rounded-lg">
-              <span className="text-blue-400 font-semibold">🖼️ {stats.image || 0}</span>
+            <div className="bg-indigo-600/20 px-4 py-2 rounded-lg">
+              <span className="text-indigo-400 font-semibold">🖼️ {stats.image || 0}</span>
               <span className="text-gray-400 ml-1">Images</span>
             </div>
             <div className="bg-purple-600/20 px-4 py-2 rounded-lg">
@@ -242,7 +242,7 @@ export default function InboundMediaPage() {
       <div className="p-6">
         {loading ? (
           <div className="flex justify-center py-20">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500"></div>
           </div>
         ) : Object.keys(mediaByDate).length === 0 ? (
           <div className="text-center py-20 text-gray-400">
@@ -264,7 +264,7 @@ export default function InboundMediaPage() {
                       onClick={() => toggleSelect(item._id)}
                       className={`relative rounded-xl overflow-hidden cursor-pointer transition-all ${
                         selectedItems.has(item._id) 
-                          ? 'ring-4 ring-blue-500 scale-95' 
+                          ? 'ring-4 ring-indigo-500 scale-95' 
                           : 'hover:ring-2 hover:ring-gray-500'
                       }`}
                     >
@@ -272,7 +272,7 @@ export default function InboundMediaPage() {
                       <div className="absolute top-2 left-2 z-10">
                         <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
                           selectedItems.has(item._id) 
-                            ? 'bg-blue-500 border-blue-500' 
+                            ? 'bg-indigo-500 border-indigo-500' 
                             : 'border-white bg-black/50'
                         }`}>
                           {selectedItems.has(item._id) && <span>✓</span>}
@@ -379,7 +379,7 @@ export default function InboundMediaPage() {
               <li>✓ Keep your media library organized</li>
               <li>✓ Remove unnecessary files</li>
             </ul>
-            <p className="text-blue-400 text-sm mb-6">
+            <p className="text-indigo-400 text-sm mb-6">
               📊 You have <strong>{total}</strong> inbound media files stored.
             </p>
             <div className="flex gap-3">
@@ -391,7 +391,7 @@ export default function InboundMediaPage() {
               </button>
               <button
                 onClick={() => { dismissReminder(); }}
-                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg"
+                className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg"
               >
                 Start Cleanup
               </button>

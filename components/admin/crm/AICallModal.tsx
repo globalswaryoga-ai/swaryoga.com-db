@@ -296,7 +296,7 @@ export default function AICallModal({ leadId, leadName, leadPhone, token, onClos
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] flex flex-col overflow-hidden"
+        className="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4 max-h-[85vh] flex flex-col overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -319,7 +319,7 @@ export default function AICallModal({ leadId, leadName, leadPhone, token, onClos
             onClick={() => { setMode('pc'); setError(''); setCallResult(null); }}
             className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition ${
               mode === 'pc'
-                ? 'border-blue-400 bg-blue-50 text-blue-700'
+                ? 'border-indigo-400 bg-indigo-50 text-indigo-700'
                 : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
             }`}
           >
@@ -353,10 +353,10 @@ export default function AICallModal({ leadId, leadName, leadPhone, token, onClos
               )}
 
               {/* From number */}
-              <div className="mb-4 px-4 py-3 bg-blue-50 border border-blue-100 rounded-xl">
-                <p className="text-[10px] text-blue-400 font-semibold uppercase tracking-wider mb-1">Calling from</p>
-                <p className="text-sm font-bold text-blue-700">{PERSONAL_NUMBER_DISPLAY}</p>
-                <p className="text-[10px] text-blue-400 mt-0.5">Personal Number</p>
+              <div className="mb-4 px-4 py-3 bg-indigo-50 border border-indigo-100 rounded-xl">
+                <p className="text-[10px] text-indigo-400 font-semibold uppercase tracking-wider mb-1">Calling from</p>
+                <p className="text-sm font-bold text-indigo-700">{PERSONAL_NUMBER_DISPLAY}</p>
+                <p className="text-[10px] text-indigo-400 mt-0.5">Personal Number</p>
               </div>
 
               {/* Lead number display */}
@@ -434,7 +434,7 @@ export default function AICallModal({ leadId, leadName, leadPhone, token, onClos
                     <div className="flex gap-2">
                       <a
                         href={`tel:+${rawPhone}`}
-                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition"
+                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100 transition"
                       >
                         <Phone className="h-3 w-3" />
                         Phone (Charges)
@@ -673,7 +673,7 @@ export default function AICallModal({ leadId, leadName, leadPhone, token, onClos
                       {call.crmUpdates?.length > 0 && (
                         <div className="mt-1 flex flex-wrap gap-1">
                           {call.crmUpdates.map((u, i) => (
-                            <span key={i} className="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded text-[9px] font-medium">
+                            <span key={i} className="px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[9px] font-medium">
                               Updated: {u.field}
                             </span>
                           ))}

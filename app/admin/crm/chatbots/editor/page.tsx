@@ -410,7 +410,7 @@ export default function ChatbotEditorPage() {
                     <div className="flex gap-2 pt-4 border-t border-gray-100 mt-auto">
                       <button
                         onClick={() => openEdit(c)}
-                        className="flex-1 px-3 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-sm font-semibold transition-colors"
+                        className="flex-1 px-3 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg text-sm font-semibold transition-colors"
                       >
                         Edit
                       </button>

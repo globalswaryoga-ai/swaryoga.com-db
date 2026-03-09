@@ -307,7 +307,7 @@ function TemplateCard({
           {/* Tags */}
           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
             {template.language && (
-              <span className="text-[10px] px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded font-semibold">
+              <span className="text-[10px] px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded font-semibold">
                 {template.language.toUpperCase()}
               </span>
             )}
@@ -607,7 +607,7 @@ export default function TemplateSelector({
   if (mode === 'modal') {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[80vh] overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[80vh] overflow-hidden">
           {content}
         </div>
       </div>

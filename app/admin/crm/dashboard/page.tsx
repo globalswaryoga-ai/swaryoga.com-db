@@ -71,7 +71,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const QUICK_ACTIONS = [
-  { icon: Users, label: 'Add Lead', href: '/admin/crm/funnel', color: 'bg-blue-500', desc: 'Create new contact' },
+  { icon: Users, label: 'Add Lead', href: '/admin/crm/funnel', color: 'bg-indigo-500', desc: 'Create new contact' },
   { icon: MessageSquare, label: 'Send Message', href: '/admin/crm/whatsapp', color: 'bg-green-500', desc: 'WhatsApp chat' },
   { icon: Megaphone, label: 'Broadcast', href: '/admin/crm/broadcast', color: 'bg-purple-500', desc: 'Send bulk messages' },
   { icon: Bot, label: 'Chatbot', href: '/admin/crm/chatbots', color: 'bg-violet-500', desc: 'AI automation' },
@@ -219,7 +219,7 @@ export default function AnalyticsDashboard() {
           {
             icon: Users, label: 'Total Leads', value: summary.totalLeads,
             sub: `+${summary.newLeads} new`, growth: summary.growthRate,
-            bg: 'bg-blue-50', iconBg: 'bg-blue-100', iconColor: 'text-blue-600',
+            bg: 'bg-indigo-50', iconBg: 'bg-indigo-100', iconColor: 'text-indigo-600',
           },
           {
             icon: MessageSquare, label: 'Messages', value: summary.totalMessages,
@@ -410,7 +410,7 @@ export default function AnalyticsDashboard() {
         {/* Top Lead Sources */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
           <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <Globe className="w-5 h-5 text-blue-600" />
+            <Globe className="w-5 h-5 text-indigo-600" />
             Top Sources
           </h3>
           <div className="space-y-3">

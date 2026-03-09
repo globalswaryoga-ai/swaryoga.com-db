@@ -245,7 +245,7 @@ export default function BroadcastDashboardPage() {
   const statusOptions: { value: MessageStatus; label: string; color: string }[] = [
     { value: 'all', label: 'All', color: 'bg-slate-500' },
     { value: 'pending', label: 'Pending', color: 'bg-amber-500' },
-    { value: 'sent', label: 'Sent', color: 'bg-blue-500' },
+    { value: 'sent', label: 'Sent', color: 'bg-indigo-500' },
     { value: 'delivered', label: 'Delivered', color: 'bg-emerald-500' },
     { value: 'read', label: 'Read', color: 'bg-green-600' },
     { value: 'failed', label: 'Failed', color: 'bg-red-500' },
@@ -256,8 +256,8 @@ export default function BroadcastDashboardPage() {
     const statusClasses: Record<string, string> = {
       pending: 'bg-amber-100 text-amber-700 border-amber-200',
       queued: 'bg-amber-100 text-amber-700 border-amber-200',
-      sending: 'bg-blue-100 text-blue-700 border-blue-200',
-      sent: 'bg-blue-100 text-blue-700 border-blue-200',
+      sending: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+      sent: 'bg-indigo-100 text-indigo-700 border-indigo-200',
       delivered: 'bg-emerald-100 text-emerald-700 border-emerald-200',
       read: 'bg-green-100 text-green-700 border-green-200',
       failed: 'bg-red-100 text-red-700 border-red-200',
@@ -288,7 +288,7 @@ export default function BroadcastDashboardPage() {
           <div className="flex items-center gap-4">
             <Link
               href="/admin/crm/meta-dashboard"
-              className="p-2 text-slate-600 hover:text-blue-700 hover:bg-blue-50 rounded-xl transition-all"
+              className="p-2 text-slate-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-xl transition-all"
               title="Back to Dashboard"
             >
               <i className="ph ph-arrow-left text-xl"></i>
@@ -329,7 +329,7 @@ export default function BroadcastDashboardPage() {
             <button
               onClick={() => fetchMessages(pagination.page)}
               disabled={isLoading}
-              className="p-2 text-slate-600 hover:text-blue-700 hover:bg-blue-50 rounded-xl transition-all disabled:opacity-50"
+              className="p-2 text-slate-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-xl transition-all disabled:opacity-50"
               title="Refresh now"
             >
               <i className={`ph ph-arrows-clockwise text-lg ${isLoading ? 'animate-spin' : ''}`}></i>
@@ -343,7 +343,7 @@ export default function BroadcastDashboardPage() {
             </button>
             <button
               onClick={() => router.push('/admin/crm/broadcast')}
-              className="px-4 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all flex items-center gap-2"
+              className="px-4 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-all flex items-center gap-2"
             >
               <i className="ph ph-plus"></i>
               New Broadcast
@@ -364,9 +364,9 @@ export default function BroadcastDashboardPage() {
               <div className="text-3xl font-black text-amber-700">{stats.pending.toLocaleString()}</div>
               <div className="text-xs font-bold text-amber-600 uppercase mt-1">Pending</div>
             </div>
-            <div className="bg-blue-50 rounded-xl border border-blue-200 p-4 text-center">
-              <div className="text-3xl font-black text-blue-700">{stats.sent.toLocaleString()}</div>
-              <div className="text-xs font-bold text-blue-600 uppercase mt-1">Sent</div>
+            <div className="bg-indigo-50 rounded-xl border border-indigo-200 p-4 text-center">
+              <div className="text-3xl font-black text-indigo-700">{stats.sent.toLocaleString()}</div>
+              <div className="text-xs font-bold text-indigo-600 uppercase mt-1">Sent</div>
             </div>
             <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-4 text-center">
               <div className="text-3xl font-black text-emerald-700">{stats.delivered.toLocaleString()}</div>
@@ -396,7 +396,7 @@ export default function BroadcastDashboardPage() {
                     onClick={() => setPeriod(opt.value)}
                     className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
                       period === opt.value
-                        ? 'bg-white text-blue-700 shadow-md'
+                        ? 'bg-white text-indigo-700 shadow-md'
                         : 'text-slate-600 hover:text-slate-800'
                     }`}
                   >
@@ -413,14 +413,14 @@ export default function BroadcastDashboardPage() {
                   type="date"
                   value={customStartDate}
                   onChange={(e) => setCustomStartDate(e.target.value)}
-                  className="px-3 py-1.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="px-3 py-1.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
                 <span className="text-slate-400">to</span>
                 <input
                   type="date"
                   value={customEndDate}
                   onChange={(e) => setCustomEndDate(e.target.value)}
-                  className="px-3 py-1.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="px-3 py-1.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
             )}
@@ -431,7 +431,7 @@ export default function BroadcastDashboardPage() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as MessageStatus)}
-                className="px-3 py-1.5 text-sm font-medium border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                className="px-3 py-1.5 text-sm font-medium border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
               >
                 {statusOptions.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -447,7 +447,7 @@ export default function BroadcastDashboardPage() {
               <select
                 value={selectedUser}
                 onChange={(e) => setSelectedUser(e.target.value)}
-                className="px-3 py-1.5 text-sm font-medium border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white min-w-[140px]"
+                className="px-3 py-1.5 text-sm font-medium border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white min-w-[140px]"
               >
                 <option value="">All Users</option>
                 {adminUsers.map((user) => (
@@ -467,7 +467,7 @@ export default function BroadcastDashboardPage() {
                   placeholder="Search phone..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 pr-4 py-1.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 w-48"
+                  className="pl-9 pr-4 py-1.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 w-48"
                 />
               </div>
             </div>
@@ -476,9 +476,9 @@ export default function BroadcastDashboardPage() {
 
         {/* Bulk Actions */}
         {selectedMessages.size > 0 && (
-          <div className="bg-blue-50 rounded-xl border border-blue-200 p-4 mb-6 flex items-center justify-between">
+          <div className="bg-indigo-50 rounded-xl border border-indigo-200 p-4 mb-6 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <span className="text-sm font-bold text-blue-700">
+              <span className="text-sm font-bold text-indigo-700">
                 {selectedMessages.size} selected
               </span>
             </div>
@@ -535,7 +535,7 @@ export default function BroadcastDashboardPage() {
                           type="checkbox"
                           checked={selectAll}
                           onChange={(e) => setSelectAll(e.target.checked)}
-                          className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                          className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                         />
                       </th>
                       <th className="py-3 px-4 text-left text-xs font-bold text-slate-500 uppercase">Phone / Lead</th>
@@ -553,7 +553,7 @@ export default function BroadcastDashboardPage() {
                             type="checkbox"
                             checked={selectedMessages.has(msg._id)}
                             onChange={() => toggleSelect(msg._id)}
-                            className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                            className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                           />
                         </td>
                         <td className="py-3 px-4">
@@ -600,7 +600,7 @@ export default function BroadcastDashboardPage() {
                           <div className="flex items-center justify-center gap-1">
                             <button
                               onClick={() => setViewMessage(msg)}
-                              className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                              className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
                               title="View"
                             >
                               <i className="ph ph-eye"></i>
@@ -783,7 +783,7 @@ export default function BroadcastDashboardPage() {
           <div className={`px-4 py-3 rounded-xl shadow-lg flex items-center gap-3 ${
             toast.type === 'success' ? 'bg-green-500 text-white' :
             toast.type === 'error' ? 'bg-red-500 text-white' :
-            'bg-blue-500 text-white'
+            'bg-indigo-500 text-white'
           }`}>
             <i className={`ph ${
               toast.type === 'success' ? 'ph-check-circle' :

@@ -189,7 +189,7 @@ export default function InvestmentDashboard() {
   const totalShares = calculateTotalShares();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-indigo-50 to-purple-50 p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-10">
@@ -206,11 +206,11 @@ export default function InvestmentDashboard() {
             {/* Top KPI Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
               {/* Total Investments */}
-              <div className="bg-white rounded-lg shadow-lg p-6 border-t-4 border-blue-500">
+              <div className="bg-white rounded-lg shadow-lg p-6 border-t-4 border-indigo-500">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-gray-600 text-sm font-semibold uppercase">Total Investments</p>
-                    <p className="text-3xl font-bold text-blue-600 mt-2">{stats.totalInvestments}</p>
+                    <p className="text-3xl font-bold text-indigo-600 mt-2">{stats.totalInvestments}</p>
                   </div>
                   <div className="text-5xl opacity-20">📈</div>
                 </div>
@@ -339,7 +339,7 @@ export default function InvestmentDashboard() {
 
                   <div className="border-b pb-4">
                     <p className="text-gray-600 text-sm font-semibold uppercase">Number of Investors</p>
-                    <p className="text-3xl font-bold text-blue-600 mt-1">{stats.swarsakhiInvestors}</p>
+                    <p className="text-3xl font-bold text-indigo-600 mt-1">{stats.swarsakhiInvestors}</p>
                   </div>
 
                   <div className="bg-green-50 rounded-lg p-4">
@@ -375,7 +375,7 @@ export default function InvestmentDashboard() {
 
                   <div className="border-b pb-4">
                     <p className="text-gray-600 text-sm font-semibold uppercase">Number of Investors</p>
-                    <p className="text-3xl font-bold text-blue-600 mt-1">{stats.upamanyuInvestors}</p>
+                    <p className="text-3xl font-bold text-indigo-600 mt-1">{stats.upamanyuInvestors}</p>
                   </div>
 
                   <div className="bg-purple-50 rounded-lg p-4">
@@ -421,7 +421,7 @@ export default function InvestmentDashboard() {
                         <tr key={inv._id} className="hover:bg-gray-50 transition-colors">
                           <td className="px-6 py-4 text-sm font-medium text-gray-900">{inv.name}</td>
                           <td className="px-6 py-4 text-sm">
-                            <span className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold">
+                            <span className="inline-block px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-xs font-semibold">
                               {inv.entity === 'swar-sakshi' ? 'Swar Sakshi' : 'Upamanyu'}
                             </span>
                           </td>
@@ -461,7 +461,7 @@ export default function InvestmentDashboard() {
                       </div>
                       <div>
                         <p className="text-gray-600 text-sm font-semibold uppercase">Total Returns</p>
-                        <p className="text-2xl font-bold text-blue-600 mt-2">
+                        <p className="text-2xl font-bold text-indigo-600 mt-2">
                           {formatCurrency(
                             thisMonthMaturityInvestments.reduce(
                               (sum, inv) => sum + ((inv.maturityAmount || inv.amount) - inv.amount),
@@ -479,9 +479,9 @@ export default function InvestmentDashboard() {
             {/* Summary Statistics */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Active Investments */}
-              <div className="bg-white rounded-lg shadow-lg p-6 border-l-4 border-blue-500">
+              <div className="bg-white rounded-lg shadow-lg p-6 border-l-4 border-indigo-500">
                 <p className="text-gray-600 text-sm font-semibold uppercase mb-2">Active Investments</p>
-                <p className="text-4xl font-bold text-blue-600 mb-2">
+                <p className="text-4xl font-bold text-indigo-600 mb-2">
                   {investments.filter((inv) => inv.status === 'active').length}
                 </p>
                 <p className="text-gray-500 text-sm">

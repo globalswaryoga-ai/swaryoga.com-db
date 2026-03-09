@@ -77,7 +77,7 @@ const CAMPAIGN_TYPES = [
 
 const STATUS_COLORS: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-700',
-  scheduled: 'bg-blue-100 text-blue-700',
+  scheduled: 'bg-indigo-100 text-indigo-700',
   sending: 'bg-yellow-100 text-yellow-700',
   sent: 'bg-green-100 text-green-700',
   paused: 'bg-orange-100 text-orange-700',
@@ -367,7 +367,7 @@ export default function EmailCampaignsPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
       </div>
     );
   }
@@ -378,7 +378,7 @@ export default function EmailCampaignsPage() {
       <div className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <Mail className="w-8 h-8 text-blue-600" />
+            <Mail className="w-8 h-8 text-indigo-600" />
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Email Campaigns</h1>
               <p className="text-gray-600">Create and manage email marketing campaigns</p>
@@ -394,7 +394,7 @@ export default function EmailCampaignsPage() {
             <button
               onClick={() => setShowCreate(true)}
               disabled={!usage.canCreate}
-              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Plus className="w-4 h-4" />
               New Campaign
@@ -407,7 +407,7 @@ export default function EmailCampaignsPage() {
           <div className="bg-white rounded-xl p-4 border">
             <div className="flex items-center justify-between">
               <span className="text-gray-600">Campaigns</span>
-              <FileText className="w-5 h-5 text-blue-500" />
+              <FileText className="w-5 h-5 text-indigo-500" />
             </div>
             <p className="text-2xl font-bold mt-2">{usage.campaigns} / {usage.maxCampaigns}</p>
             <p className="text-sm text-gray-500">{plan} plan</p>
@@ -454,7 +454,7 @@ export default function EmailCampaignsPage() {
             <p className="text-gray-600 mb-4">Create your first email campaign to engage with your leads</p>
             <button
               onClick={() => setShowCreate(true)}
-              className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+              className="inline-flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
             >
               <Plus className="w-4 h-4" />
               Create Campaign
@@ -514,7 +514,7 @@ export default function EmailCampaignsPage() {
                         )}
                         <button
                           onClick={() => setShowStats(campaign)}
-                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
+                          className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded"
                           title="View Stats"
                         >
                           <BarChart3 className="w-4 h-4" />
@@ -577,7 +577,7 @@ export default function EmailCampaignsPage() {
                       type="text"
                       value={newCampaign.name}
                       onChange={(e) => setNewCampaign({ ...newCampaign, name: e.target.value })}
-                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
                       placeholder="e.g., March Newsletter"
                     />
                   </div>
@@ -587,7 +587,7 @@ export default function EmailCampaignsPage() {
                       type="text"
                       value={newCampaign.subject}
                       onChange={(e) => setNewCampaign({ ...newCampaign, subject: e.target.value })}
-                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
                       placeholder="e.g., Your Weekly Yoga Tips"
                     />
                   </div>
@@ -602,11 +602,11 @@ export default function EmailCampaignsPage() {
                             onClick={() => setNewCampaign({ ...newCampaign, type: type.id as any })}
                             className={`p-4 border rounded-xl text-left transition ${
                               newCampaign.type === type.id
-                                ? 'border-blue-500 bg-blue-50'
+                                ? 'border-indigo-500 bg-indigo-50'
                                 : 'hover:border-gray-300'
                             }`}
                           >
-                            <Icon className={`w-5 h-5 mb-2 ${newCampaign.type === type.id ? 'text-blue-600' : 'text-gray-400'}`} />
+                            <Icon className={`w-5 h-5 mb-2 ${newCampaign.type === type.id ? 'text-indigo-600' : 'text-gray-400'}`} />
                             <p className="font-medium text-gray-900">{type.name}</p>
                             <p className="text-xs text-gray-500">{type.description}</p>
                           </button>
@@ -634,7 +634,7 @@ export default function EmailCampaignsPage() {
                           subject: template?.subject || newCampaign.subject,
                         });
                       }}
-                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
                     >
                       <option value="">-- Choose a template --</option>
                       {templates.map((template) => (
@@ -652,7 +652,7 @@ export default function EmailCampaignsPage() {
                       value={newCampaign.htmlContent}
                       onChange={(e) => setNewCampaign({ ...newCampaign, htmlContent: e.target.value })}
                       rows={12}
-                      className="w-full px-3 py-2 border rounded-lg font-mono text-sm focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border rounded-lg font-mono text-sm focus:ring-2 focus:ring-indigo-500"
                       placeholder="<html>...</html>"
                     />
                     <p className="text-xs text-gray-500 mt-1">
@@ -670,10 +670,10 @@ export default function EmailCampaignsPage() {
                     <button
                       onClick={() => setNewCampaign({ ...newCampaign, audience: { type: 'all' } })}
                       className={`w-full p-4 border rounded-xl text-left flex items-center gap-4 ${
-                        newCampaign.audience.type === 'all' ? 'border-blue-500 bg-blue-50' : 'hover:border-gray-300'
+                        newCampaign.audience.type === 'all' ? 'border-indigo-500 bg-indigo-50' : 'hover:border-gray-300'
                       }`}
                     >
-                      <Users className={`w-6 h-6 ${newCampaign.audience.type === 'all' ? 'text-blue-600' : 'text-gray-400'}`} />
+                      <Users className={`w-6 h-6 ${newCampaign.audience.type === 'all' ? 'text-indigo-600' : 'text-gray-400'}`} />
                       <div>
                         <p className="font-medium text-gray-900">All Leads</p>
                         <p className="text-sm text-gray-500">Send to all active leads</p>
@@ -682,10 +682,10 @@ export default function EmailCampaignsPage() {
                     <button
                       onClick={() => setNewCampaign({ ...newCampaign, audience: { type: 'filtered', filters: { status: 'active' } } })}
                       className={`w-full p-4 border rounded-xl text-left flex items-center gap-4 ${
-                        newCampaign.audience.type === 'filtered' ? 'border-blue-500 bg-blue-50' : 'hover:border-gray-300'
+                        newCampaign.audience.type === 'filtered' ? 'border-indigo-500 bg-indigo-50' : 'hover:border-gray-300'
                       }`}
                     >
-                      <Settings className={`w-6 h-6 ${newCampaign.audience.type === 'filtered' ? 'text-blue-600' : 'text-gray-400'}`} />
+                      <Settings className={`w-6 h-6 ${newCampaign.audience.type === 'filtered' ? 'text-indigo-600' : 'text-gray-400'}`} />
                       <div>
                         <p className="font-medium text-gray-900">Filtered</p>
                         <p className="text-sm text-gray-500">Send to leads matching criteria</p>
@@ -703,7 +703,7 @@ export default function EmailCampaignsPage() {
                           ...newCampaign,
                           schedule: { ...newCampaign.schedule, sendAt: e.target.value }
                         })}
-                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
                       />
                     </div>
                   )}
@@ -768,7 +768,7 @@ export default function EmailCampaignsPage() {
                 <button
                   onClick={() => setCreateStep(createStep + 1)}
                   disabled={createStep === 1 && (!newCampaign.name || !newCampaign.subject)}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
                 >
                   Continue
                 </button>
@@ -776,7 +776,7 @@ export default function EmailCampaignsPage() {
                 <button
                   onClick={createCampaign}
                   disabled={saving}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                  className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2"
                 >
                   {saving && <Loader2 className="w-4 h-4 animate-spin" />}
                   Create Campaign
@@ -805,7 +805,7 @@ export default function EmailCampaignsPage() {
                   type="text"
                   value={showEdit.name}
                   onChange={(e) => setShowEdit({ ...showEdit, name: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
               <div>
@@ -814,7 +814,7 @@ export default function EmailCampaignsPage() {
                   type="text"
                   value={showEdit.subject}
                   onChange={(e) => setShowEdit({ ...showEdit, subject: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
               <div>
@@ -823,7 +823,7 @@ export default function EmailCampaignsPage() {
                   value={showEdit.htmlContent}
                   onChange={(e) => setShowEdit({ ...showEdit, htmlContent: e.target.value })}
                   rows={12}
-                  className="w-full px-3 py-2 border rounded-lg font-mono text-sm focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border rounded-lg font-mono text-sm focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
             </div>
@@ -838,7 +838,7 @@ export default function EmailCampaignsPage() {
               <button
                 onClick={updateCampaign}
                 disabled={saving}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2"
               >
                 {saving && <Loader2 className="w-4 h-4 animate-spin" />}
                 Save Changes
@@ -870,8 +870,8 @@ export default function EmailCampaignsPage() {
                   <p className="text-3xl font-bold text-green-600">{showStats.stats.delivered.toLocaleString()}</p>
                   <p className="text-sm text-gray-500">Delivered</p>
                 </div>
-                <div className="bg-blue-50 rounded-lg p-4 text-center">
-                  <p className="text-3xl font-bold text-blue-600">{showStats.stats.opened.toLocaleString()}</p>
+                <div className="bg-indigo-50 rounded-lg p-4 text-center">
+                  <p className="text-3xl font-bold text-indigo-600">{showStats.stats.opened.toLocaleString()}</p>
                   <p className="text-sm text-gray-500">Opened ({getOpenRate(showStats)}%)</p>
                 </div>
                 <div className="bg-purple-50 rounded-lg p-4 text-center">

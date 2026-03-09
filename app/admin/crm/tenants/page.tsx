@@ -54,7 +54,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 const PLAN_COLORS: Record<string, string> = {
   free: 'bg-gray-100 text-gray-700',
-  starter: 'bg-blue-100 text-blue-700',
+  starter: 'bg-indigo-100 text-indigo-700',
   growth: 'bg-purple-100 text-purple-700',
   professional: 'bg-amber-100 text-amber-700',
   enterprise: 'bg-rose-100 text-rose-700',

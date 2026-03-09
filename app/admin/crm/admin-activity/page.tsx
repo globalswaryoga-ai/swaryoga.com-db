@@ -82,7 +82,7 @@ function ProgressBar({ label, value, max, color = 'green' }: { label: string; va
   const colors: Record<string, string> = {
     green: 'bg-green-500',
     orange: 'bg-orange-500',
-    blue: 'bg-blue-500',
+    blue: 'bg-indigo-500',
     purple: 'bg-purple-500',
   };
   return (
@@ -305,7 +305,7 @@ export default function AdminActivityPage() {
               </button>
 
               {userDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-72 bg-slate-900 border-2 border-orange-500/40 rounded-2xl shadow-2xl shadow-orange-500/10 overflow-hidden z-50">
+                <div className="absolute right-0 mt-2 w-72 bg-slate-900 border-2 border-orange-500/40 rounded-2xl shadow-xl shadow-orange-500/10 overflow-hidden z-50">
                   <div className="p-3 border-b border-slate-800">
                     <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">Admin Users</div>
                   </div>
@@ -417,7 +417,7 @@ export default function AdminActivityPage() {
                       <div className="text-xs text-slate-500 mt-1">Total Sent</div>
                     </div>
                     <div className="bg-slate-800/50 rounded-xl p-4 text-center">
-                      <div className="text-3xl font-black text-blue-400">{activity.summary.messagesDelivered}</div>
+                      <div className="text-3xl font-black text-indigo-400">{activity.summary.messagesDelivered}</div>
                       <div className="text-xs text-slate-500 mt-1">Delivered</div>
                     </div>
                     <div className="bg-slate-800/50 rounded-xl p-4 text-center">
@@ -581,7 +581,7 @@ export default function AdminActivityPage() {
                 {/* Recent Followups */}
                 <div className="bg-slate-900/50 border-2 border-orange-500/30 rounded-2xl p-5 hover:border-orange-500/50 transition-all">
                   <h3 className="text-sm font-bold text-slate-400 mb-3 flex items-center gap-2">
-                    <i className="ph-bold ph-calendar-check text-blue-400"></i>
+                    <i className="ph-bold ph-calendar-check text-indigo-400"></i>
                     Recent Followups
                   </h3>
                   <div className="space-y-2 max-h-64 overflow-y-auto">

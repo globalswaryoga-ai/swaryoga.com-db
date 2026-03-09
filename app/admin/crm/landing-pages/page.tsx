@@ -355,7 +355,7 @@ export default function LandingPagesPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
       </div>
     );
   }
@@ -366,7 +366,7 @@ export default function LandingPagesPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <FileText className="w-8 h-8 text-blue-600" />
+            <FileText className="w-8 h-8 text-indigo-600" />
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Landing Pages</h1>
               <p className="text-gray-600">Create forms to capture leads</p>
@@ -382,7 +382,7 @@ export default function LandingPagesPage() {
             <button
               onClick={() => setShowCreate(true)}
               disabled={!usage.canCreate}
-              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Plus className="w-4 h-4" />
               New Page
@@ -395,7 +395,7 @@ export default function LandingPagesPage() {
           <div className="bg-white rounded-xl p-4 border">
             <div className="flex items-center justify-between">
               <span className="text-gray-600">Pages</span>
-              <FileText className="w-5 h-5 text-blue-500" />
+              <FileText className="w-5 h-5 text-indigo-500" />
             </div>
             <p className="text-2xl font-bold mt-2">{usage.pages} / {usage.maxPages}</p>
             <p className="text-sm text-gray-500">{plan} plan</p>
@@ -429,7 +429,7 @@ export default function LandingPagesPage() {
             <div className="flex flex-wrap justify-center gap-3">
               <button
                 onClick={() => setShowCreate(true)}
-                className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                className="inline-flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
               >
                 <Plus className="w-4 h-4" />
                 Create Page
@@ -503,7 +503,7 @@ export default function LandingPagesPage() {
                         href={`/lp/${page.slug}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                        className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg"
                         title="Open Page"
                       >
                         <ExternalLink className="w-4 h-4" />
@@ -542,7 +542,7 @@ export default function LandingPagesPage() {
                   type="text"
                   value={newPage.name}
                   onChange={(e) => setNewPage({ ...newPage, name: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
                   placeholder="e.g., Free Consultation"
                 />
               </div>
@@ -553,7 +553,7 @@ export default function LandingPagesPage() {
                   type="text"
                   value={newPage.title}
                   onChange={(e) => setNewPage({ ...newPage, title: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
                   placeholder="e.g., Get Your Free Consultation Today"
                 />
               </div>
@@ -564,7 +564,7 @@ export default function LandingPagesPage() {
                   type="text"
                   value={newPage.subtitle}
                   onChange={(e) => setNewPage({ ...newPage, subtitle: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
                   placeholder="e.g., Fill out the form below to get started"
                 />
               </div>
@@ -578,7 +578,7 @@ export default function LandingPagesPage() {
                       onClick={() => setNewPage({ ...newPage, template: template.id })}
                       className={`p-3 border rounded-lg text-left transition ${
                         newPage.template === template.id
-                          ? 'border-blue-500 bg-blue-50'
+                          ? 'border-indigo-500 bg-indigo-50'
                           : 'hover:border-gray-300'
                       }`}
                     >
@@ -600,7 +600,7 @@ export default function LandingPagesPage() {
               <button
                 onClick={createPage}
                 disabled={saving || !newPage.name.trim()}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2"
               >
                 {saving && <Loader2 className="w-4 h-4 animate-spin" />}
                 Create Page
@@ -642,7 +642,7 @@ export default function LandingPagesPage() {
                         type="text"
                         value={showEdit.name}
                         onChange={(e) => setShowEdit({ ...showEdit, name: e.target.value })}
-                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
                       />
                     </div>
                     <div>
@@ -650,7 +650,7 @@ export default function LandingPagesPage() {
                       <select
                         value={showEdit.status}
                         onChange={(e) => setShowEdit({ ...showEdit, status: e.target.value as any })}
-                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
                       >
                         <option value="draft">Draft</option>
                         <option value="published">Published</option>
@@ -663,7 +663,7 @@ export default function LandingPagesPage() {
                         type="text"
                         value={showEdit.title}
                         onChange={(e) => setShowEdit({ ...showEdit, title: e.target.value })}
-                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
                       />
                     </div>
                     <div className="col-span-2">
@@ -672,7 +672,7 @@ export default function LandingPagesPage() {
                         type="text"
                         value={showEdit.subtitle || ''}
                         onChange={(e) => setShowEdit({ ...showEdit, subtitle: e.target.value })}
-                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
                       />
                     </div>
                     <div>
@@ -702,7 +702,7 @@ export default function LandingPagesPage() {
                     <h3 className="font-semibold text-gray-900">Form Fields</h3>
                     <button
                       onClick={addFormField}
-                      className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700"
+                      className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-700"
                     >
                       <Plus className="w-4 h-4" />
                       Add Field
@@ -857,7 +857,7 @@ export default function LandingPagesPage() {
                 <button
                   onClick={() => updatePage(showEdit)}
                   disabled={saving}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                  className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2"
                 >
                   {saving && <Loader2 className="w-4 h-4 animate-spin" />}
                   Save Changes

@@ -55,7 +55,7 @@ type AdminUserOption = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  new_lead:      'bg-blue-50 text-blue-700 border-blue-200',
+  new_lead:      'bg-indigo-50 text-indigo-700 border-indigo-200',
   contacted:     'bg-cyan-50 text-cyan-700 border-cyan-200',
   interested:    'bg-violet-50 text-violet-700 border-violet-200',
   demo_trial:    'bg-amber-50 text-amber-700 border-amber-200',
@@ -66,7 +66,7 @@ const STATUS_COLORS: Record<string, string> = {
   repeater:      'bg-teal-50 text-teal-700 border-teal-200',
   old_sadhak:    'bg-pink-50 text-pink-700 border-pink-200',
   only_for_post: 'bg-purple-50 text-purple-700 border-purple-200',
-  lead:          'bg-blue-50 text-blue-700 border-blue-200',
+  lead:          'bg-indigo-50 text-indigo-700 border-indigo-200',
   hot:           'bg-red-50 text-red-700 border-red-200',
   prospect:      'bg-indigo-50 text-indigo-700 border-indigo-200',
   customer:      'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -468,7 +468,7 @@ export default function QRLeadsPage() {
                     .catch(() => {});
                 }
               }}
-              className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold flex items-center gap-1.5"
+              className="px-3 py-1.5 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold flex items-center gap-1.5"
             >
               <Upload className="w-3.5 h-3.5" /> Bulk Upload
             </button>
@@ -563,7 +563,7 @@ export default function QRLeadsPage() {
           onClick={() => { setMetaOnly24h(!metaOnly24h); setSkip(0); }}
           className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
             metaOnly24h
-              ? 'bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100'
+              ? 'bg-indigo-50 border-indigo-300 text-indigo-700 hover:bg-indigo-100'
               : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
           }`}
           title="Show only leads with Meta messages in last 24 hours"
@@ -715,7 +715,7 @@ export default function QRLeadsPage() {
                       <td className="px-3 py-2 text-gray-400 text-xs font-mono">{lead.leadNumber || skip + i + 1}</td>
                       {isSuperAdmin && (
                         <td className="px-3 py-2">
-                          <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                          <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
                             {getAssigneeLabel(lead.assignedToUserId) || 'Unassigned'}
                           </span>
                         </td>
@@ -774,8 +774,8 @@ export default function QRLeadsPage() {
                           <a href={`sms:${lead.phoneNumber || ''}`} className="p-1 rounded hover:bg-cyan-50" title="SMS">
                             <MessageSquare className="w-3.5 h-3.5 text-gray-400 hover:text-cyan-600" />
                           </a>
-                          <a href={`mailto:${lead.email || ''}`} className="p-1 rounded hover:bg-blue-50" title="Email">
-                            <Mail className="w-3.5 h-3.5 text-gray-400 hover:text-blue-600" />
+                          <a href={`mailto:${lead.email || ''}`} className="p-1 rounded hover:bg-indigo-50" title="Email">
+                            <Mail className="w-3.5 h-3.5 text-gray-400 hover:text-indigo-600" />
                           </a>
                           <button onClick={() => handleDeleteLead(lead._id)} className="p-1 rounded hover:bg-red-50" title="Delete">
                             <Trash2 className="w-3.5 h-3.5 text-gray-400 hover:text-red-500" />
@@ -829,7 +829,7 @@ export default function QRLeadsPage() {
       {/* ── Create Lead Modal ── */}
       {modal.isOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full space-y-4 shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-gray-900">Add QR Lead</h2>
               <button onClick={modal.close} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
@@ -889,7 +889,7 @@ export default function QRLeadsPage() {
       {/* ── Bulk Import Modal ── */}
       {bulkImportModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-2xl w-full space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl p-6 max-w-2xl w-full space-y-4 shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-gray-900">📄 Bulk Import QR Leads</h2>
               <button
@@ -899,11 +899,11 @@ export default function QRLeadsPage() {
             </div>
 
             {/* Template Download */}
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+            <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-blue-700">📥 Need a sample format?</p>
-                  <p className="text-xs text-blue-500">Download demo Excel template with required columns</p>
+                  <p className="text-sm font-semibold text-indigo-700">📥 Need a sample format?</p>
+                  <p className="text-xs text-indigo-500">Download demo Excel template with required columns</p>
                 </div>
                 <button
                   onClick={() => {
@@ -918,14 +918,14 @@ export default function QRLeadsPage() {
                     XLSX.utils.book_append_sheet(wb, ws, 'QR Leads');
                     XLSX.writeFile(wb, 'qr_leads_import_template.xlsx');
                   }}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700"
+                  className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-indigo-700"
                 >
                   ⬇️ Download Template
                 </button>
               </div>
-              <div className="mt-2 text-xs text-blue-500 space-y-0.5">
-                <p><strong className="text-blue-700">Required:</strong> Phone Number</p>
-                <p><strong className="text-blue-700">Optional:</strong> Name, Email, Status, Source, Workshop Name, Address, Labels</p>
+              <div className="mt-2 text-xs text-indigo-500 space-y-0.5">
+                <p><strong className="text-indigo-700">Required:</strong> Phone Number</p>
+                <p><strong className="text-indigo-700">Optional:</strong> Name, Email, Status, Source, Workshop Name, Address, Labels</p>
               </div>
             </div>
 

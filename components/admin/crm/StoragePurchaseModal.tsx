@@ -159,7 +159,7 @@ export default function StoragePurchaseModal({
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full overflow-hidden max-h-[90vh] overflow-y-auto"
+          className="bg-white rounded-2xl shadow-xl max-w-3xl w-full overflow-hidden max-h-[90vh] overflow-y-auto"
         >
           {/* Header */}
           <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 p-6 text-white sticky top-0">

@@ -341,7 +341,7 @@ export default function InstagramInboxPage() {
             </>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-slate-300 gap-4" style={{ background: 'linear-gradient(180deg, #FFFAFC 0%, #FFF0F5 100%)' }}>
-              <div className="w-24 h-24 rounded-3xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, rgba(131,58,180,0.1) 0%, rgba(193,53,132,0.15) 30%, rgba(225,48,108,0.12) 60%, rgba(247,119,55,0.1) 100%)', boxShadow: '0 8px 24px rgba(193,53,132,0.1)' }}>
+              <div className="w-24 h-24 rounded-2xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, rgba(131,58,180,0.1) 0%, rgba(193,53,132,0.15) 30%, rgba(225,48,108,0.12) 60%, rgba(247,119,55,0.1) 100%)', boxShadow: '0 8px 24px rgba(193,53,132,0.1)' }}>
                 <i className="ph ph-instagram-logo text-6xl" style={{ color: 'rgba(193,53,132,0.35)' }}></i>
               </div>
               <p className="font-bold text-lg text-slate-500">Instagram Inbox</p>

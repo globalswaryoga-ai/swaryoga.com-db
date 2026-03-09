@@ -8,7 +8,7 @@ export interface PageGuideData {
   title: string;
   description: string;
   icon?: LucideIcon;
-  color?: string; // gradient classes e.g. 'from-blue-600 to-indigo-600'
+  color?: string; // gradient classes e.g. 'from-indigo-600 to-indigo-600'
   steps?: string[];
   benefits?: string[];
   tips?: string[];
@@ -123,9 +123,9 @@ export default function PageGuide({ guide, defaultExpanded = false }: PageGuideP
 
             {/* Free plan note */}
             {guide.freePlanNote && (
-              <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl">
-                <p className="text-sm text-blue-800 flex items-start gap-2">
-                  <Info className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+              <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-xl">
+                <p className="text-sm text-indigo-800 flex items-start gap-2">
+                  <Info className="w-4 h-4 text-indigo-500 shrink-0 mt-0.5" />
                   <span><strong>Free Plan:</strong> {guide.freePlanNote}</span>
                 </p>
               </div>

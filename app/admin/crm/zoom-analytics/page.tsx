@@ -15,7 +15,7 @@ import {
 /* ── Colors ── */
 const GRADE_COLORS: Record<string, { bg: string; text: string; border: string; badge: string }> = {
   A: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', badge: 'bg-emerald-500' },
-  B: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', badge: 'bg-blue-500' },
+  B: { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200', badge: 'bg-indigo-500' },
   C: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', badge: 'bg-amber-500' },
   D: { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200', badge: 'bg-orange-500' },
   E: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', badge: 'bg-red-500' },
@@ -544,7 +544,7 @@ function ZoomAnalyticsPageInner() {
               <div className="mt-4 p-3 bg-gray-50 rounded-lg text-xs text-gray-500">
                 <strong>Grading Criteria:</strong>{' '}
                 <span className="text-emerald-600 font-semibold">A</span> = ≥90% attendance &nbsp;|&nbsp;
-                <span className="text-blue-600 font-semibold">B</span> = ≥70% &nbsp;|&nbsp;
+                <span className="text-indigo-600 font-semibold">B</span> = ≥70% &nbsp;|&nbsp;
                 <span className="text-amber-600 font-semibold">C</span> = ≥50% &nbsp;|&nbsp;
                 <span className="text-orange-600 font-semibold">D</span> = ≥30% &nbsp;|&nbsp;
                 <span className="text-red-600 font-semibold">E</span> = &lt;30%
@@ -858,7 +858,7 @@ function StatCard({ icon: Icon, label, value, color }: {
 }) {
   const colorMap: Record<string, string> = {
     indigo: 'bg-indigo-100 text-indigo-600',
-    blue: 'bg-blue-100 text-blue-600',
+    blue: 'bg-indigo-100 text-indigo-600',
     emerald: 'bg-emerald-100 text-emerald-600',
     green: 'bg-green-100 text-green-600',
   };

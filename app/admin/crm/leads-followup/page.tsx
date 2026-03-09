@@ -1204,8 +1204,8 @@ function LeadsFollowupPageContent() {
                 onClick={() => setActionMode('email')}
                 className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${
                   actionMode === 'email'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-blue-50 hover:bg-blue-100 text-blue-700'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700'
                 }`}
               >
                 📧 Email
@@ -1299,7 +1299,7 @@ function LeadsFollowupPageContent() {
                     setSearchQuery('');
                     setShowSearchPanel(!showSearchPanel);
                   }}
-                  className="w-full px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-blue-600 transition-all flex items-center gap-2 justify-between shadow-md"
+                  className="w-full px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 text-white rounded-lg font-semibold hover:from-indigo-700 hover:to-indigo-600 transition-all flex items-center gap-2 justify-between shadow-md"
                 >
                   <span>👨‍💼 Select Admin User</span>
                   <span className={`transform transition-transform ${showSearchPanel && searchFilterType === 'admin' ? 'rotate-180' : ''}`}>▼</span>
@@ -1370,11 +1370,11 @@ function LeadsFollowupPageContent() {
                                 setShowSearchPanel(false);
                               }}
                               className={`w-full text-left px-3 py-2.5 hover:bg-slate-100 rounded transition-colors border border-transparent hover:border-slate-200 ${
-                                searchFilterType === 'admin' ? 'hover:bg-blue-50' : ''
+                                searchFilterType === 'admin' ? 'hover:bg-indigo-50' : ''
                               }`}
                             >
                               <div className={`font-semibold text-sm ${
-                                searchFilterType === 'admin' ? 'text-blue-600' : 'text-slate-900'
+                                searchFilterType === 'admin' ? 'text-indigo-600' : 'text-slate-900'
                               }`}>
                                 {searchFilterType === 'admin' ? `👨‍💼 ${lead.name}` : lead.name}
                               </div>
@@ -1644,8 +1644,8 @@ function LeadsFollowupPageContent() {
                           onClick={() => setWhatsappType('image')}
                           className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${
                             whatsappType === 'image'
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-blue-50 hover:bg-blue-100 text-blue-700'
+                              ? 'bg-indigo-600 text-white'
+                              : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700'
                           }`}
                         >
                           🖼️ Image
@@ -1994,7 +1994,7 @@ function LeadsFollowupPageContent() {
                       </div>
 
                       {/* Send WhatsApp Now Button */}
-                      <div className="border-t-2 border-cyan-200 pt-4 bg-gradient-to-r from-cyan-50 to-blue-50 -mx-8 px-8 pb-4 -mb-8 rounded-b-xl">
+                      <div className="border-t-2 border-cyan-200 pt-4 bg-gradient-to-r from-cyan-50 to-indigo-50 -mx-8 px-8 pb-4 -mb-8 rounded-b-xl">
                         <button
                           type="button"
                           onClick={() => sendWhatsAppMessage()}
@@ -2086,7 +2086,7 @@ function LeadsFollowupPageContent() {
                       </div>
 
                       {/* Send Meta Message Now Button */}
-                      <div className="border-t-2 border-cyan-200 pt-4 bg-gradient-to-r from-cyan-50 to-blue-50 -mx-8 px-8 pb-4 -mb-8 rounded-b-xl">
+                      <div className="border-t-2 border-cyan-200 pt-4 bg-gradient-to-r from-cyan-50 to-indigo-50 -mx-8 px-8 pb-4 -mb-8 rounded-b-xl">
                         <button
                           type="button"
                           onClick={() => sendWhatsAppMessage()}
@@ -2176,7 +2176,7 @@ function LeadsFollowupPageContent() {
                             }
                           }}
                           disabled={emailSending || !emailSubject.trim() || !message.trim()}
-                          className="flex-1 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-bold transition-colors flex items-center justify-center gap-2"
+                          className="flex-1 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-bold transition-colors flex items-center justify-center gap-2"
                         >
                           {emailSending ? '📧 Sending...' : '📧 Send Email'}
                         </button>

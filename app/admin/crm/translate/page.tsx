@@ -268,7 +268,7 @@ export default function TranslationPage() {
                 </button>
                 <button
                   onClick={() => selectGroup(LANGUAGE_GROUPS.european)}
-                  className="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200"
+                  className="px-3 py-1 text-xs bg-indigo-100 text-indigo-700 rounded-full hover:bg-indigo-200"
                 >
                   + European
                 </button>

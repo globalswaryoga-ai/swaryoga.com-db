@@ -52,7 +52,7 @@ const ROLES = [
 const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
   owner: { bg: 'bg-amber-100', text: 'text-amber-700' },
   admin: { bg: 'bg-purple-100', text: 'text-purple-700' },
-  editor: { bg: 'bg-blue-100', text: 'text-blue-700' },
+  editor: { bg: 'bg-indigo-100', text: 'text-indigo-700' },
   viewer: { bg: 'bg-gray-100', text: 'text-gray-700' },
 };
 

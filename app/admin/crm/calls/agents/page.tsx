@@ -510,7 +510,7 @@ export default function AgentsPage() {
       {/* ── Create / Edit Modal ── */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto m-4" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto m-4" onClick={e => e.stopPropagation()}>
             <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
               <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                 <Bot className="h-5 w-5 text-indigo-500" />
@@ -693,7 +693,7 @@ export default function AgentsPage() {
       {/* ── Delete Confirmation ── */}
       {deleteAgentId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setDeleteAgentId(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md m-4 p-6" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md m-4 p-6" onClick={e => e.stopPropagation()}>
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center">
                 <AlertCircle className="h-5 w-5 text-red-500" />

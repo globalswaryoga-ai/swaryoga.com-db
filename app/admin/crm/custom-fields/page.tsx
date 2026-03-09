@@ -363,7 +363,7 @@ export default function CustomFieldsPage() {
         <button
           onClick={() => setShowCreateModal(true)}
           disabled={!!(limits && limits.remaining <= 0)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
         >
           <Plus className="w-4 h-4" />
           Add Field
@@ -372,19 +372,19 @@ export default function CustomFieldsPage() {
 
       {/* Limits Info */}
       {limits && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+        <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 mb-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="font-medium text-blue-900">
+              <p className="font-medium text-indigo-900">
                 {limits.used} / {limits.maxFields} custom fields used
               </p>
-              <p className="text-sm text-blue-700">
+              <p className="text-sm text-indigo-700">
                 {limits.remaining} fields remaining on your plan
               </p>
             </div>
-            <div className="w-48 bg-blue-200 rounded-full h-2">
+            <div className="w-48 bg-indigo-200 rounded-full h-2">
               <div 
-                className="bg-blue-600 rounded-full h-2"
+                className="bg-indigo-600 rounded-full h-2"
                 style={{ width: `${Math.min((limits.used / limits.maxFields) * 100, 100)}%` }}
               />
             </div>
@@ -401,7 +401,7 @@ export default function CustomFieldsPage() {
               onClick={() => setSelectedEntity(entity.id)}
               className={`py-2 px-4 border-b-2 font-medium text-sm transition-colors ${
                 selectedEntity === entity.id
-                  ? 'border-blue-500 text-blue-600'
+                  ? 'border-indigo-500 text-indigo-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
@@ -553,7 +553,7 @@ export default function CustomFieldsPage() {
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   placeholder="e.g., LinkedIn Profile"
                 />
               </div>
@@ -571,11 +571,11 @@ export default function CustomFieldsPage() {
                           onClick={() => setFormData(prev => ({ ...prev, type: type.id }))}
                           className={`p-3 border rounded-lg flex flex-col items-center gap-1 transition-colors ${
                             formData.type === type.id
-                              ? 'border-blue-500 bg-blue-50'
+                              ? 'border-indigo-500 bg-indigo-50'
                               : 'hover:bg-gray-50'
                           }`}
                         >
-                          <Icon className={`w-5 h-5 ${formData.type === type.id ? 'text-blue-600' : 'text-gray-500'}`} />
+                          <Icon className={`w-5 h-5 ${formData.type === type.id ? 'text-indigo-600' : 'text-gray-500'}`} />
                           <span className="text-xs">{type.name}</span>
                         </button>
                       );
@@ -590,7 +590,7 @@ export default function CustomFieldsPage() {
                 <textarea
                   value={formData.description}
                   onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
                   rows={2}
                   placeholder="Help text for this field"
                 />
@@ -629,7 +629,7 @@ export default function CustomFieldsPage() {
                     ))}
                     <button
                       onClick={addOption}
-                      className="text-sm text-blue-600 hover:underline"
+                      className="text-sm text-indigo-600 hover:underline"
                     >
                       + Add Option
                     </button>
@@ -731,7 +731,7 @@ export default function CustomFieldsPage() {
               </button>
               <button
                 onClick={editingField ? handleUpdate : handleCreate}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center gap-2"
               >
                 <Save className="w-4 h-4" />
                 {editingField ? 'Update' : 'Create'} Field

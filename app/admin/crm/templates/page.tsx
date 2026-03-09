@@ -227,7 +227,7 @@ export default function TemplatesPage() {
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
       draft: 'bg-yellow-100 text-yellow-800 border-yellow-300',
-      pending_approval: 'bg-blue-100 text-blue-800 border-blue-200',
+      pending_approval: 'bg-indigo-100 text-indigo-800 border-indigo-200',
       approved: 'bg-green-100 text-green-800 border-green-200',
       rejected: 'bg-red-100 text-red-800 border-red-200',
       disabled: 'bg-gray-100 text-gray-800 border-gray-200',
@@ -301,7 +301,7 @@ export default function TemplatesPage() {
                 onClick={handleSyncMetaTemplates}
                 disabled={syncLoading}
                 title="Sync Meta-approved templates into CRM and update their status"
-                className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-6 py-2 rounded-lg font-semibold transition-all shadow-md flex items-center justify-center gap-2"
+                className="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white px-6 py-2 rounded-lg font-semibold transition-all shadow-md flex items-center justify-center gap-2"
               >
                 <i className={`ph-bold ${syncLoading ? 'ph-spinner animate-spin' : 'ph-arrows-counterclockwise'} text-lg`}></i>
                 {syncLoading ? 'Syncing...' : 'Sync from Meta'}
@@ -335,7 +335,7 @@ export default function TemplatesPage() {
         </div>
 
         {/* Info Banner */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+        <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 text-sm text-indigo-800">
           <strong>💡 Workflow:</strong> New Meta templates require approval before use. Click the "Pending Approval" tab to review and approve/reject templates.
         </div>
 
@@ -605,7 +605,7 @@ export default function TemplatesPage() {
                                 {previewButtons.map((b, idx) => (
                                   <div
                                     key={`preview-btn-${idx}`}
-                                    className="w-full text-center text-sm font-medium text-blue-600 bg-gray-50 border border-gray-200 rounded-lg py-2"
+                                    className="w-full text-center text-sm font-medium text-indigo-600 bg-gray-50 border border-gray-200 rounded-lg py-2"
                                   >
                                     {b?.title || `Button ${idx + 1}`}
                                   </div>
@@ -648,7 +648,7 @@ export default function TemplatesPage() {
                             {(selectedTemplate.status === 'draft' || selectedTemplate.status === 'pending_approval') && (
                               <button
                                 onClick={() => router.push(`/admin/crm/templates/builder?templateId=${selectedTemplate._id}`)}
-                                className="flex-1 px-3 py-2.5 bg-blue-500 text-white rounded-lg text-sm font-semibold hover:bg-blue-600 transition-colors shadow-sm"
+                                className="flex-1 px-3 py-2.5 bg-indigo-500 text-white rounded-lg text-sm font-semibold hover:bg-indigo-600 transition-colors shadow-sm"
                               >
                                 📝 Builder
                               </button>

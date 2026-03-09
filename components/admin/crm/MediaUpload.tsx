@@ -272,7 +272,7 @@ export function MediaUpload({
     switch (accept) {
       case 'image': return <ImageIcon size={20} className="text-green-400" />;
       case 'video': return <Video size={20} className="text-purple-400" />;
-      case 'document': return <FileText size={20} className="text-blue-400" />;
+      case 'document': return <FileText size={20} className="text-indigo-400" />;
       default: return <Upload size={20} className="text-slate-400" />;
     }
   };
@@ -288,7 +288,7 @@ export function MediaUpload({
           className={`
             flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors
             ${disabled ? 'border-slate-700 text-slate-500 cursor-not-allowed' : 
-              'border-slate-600 text-slate-300 hover:border-blue-500 hover:text-blue-400'}
+              'border-slate-600 text-slate-300 hover:border-indigo-500 hover:text-indigo-400'}
           `}
         >
           {uploading ? (
@@ -325,14 +325,14 @@ export function MediaUpload({
         onClick={() => !disabled && !uploading && inputRef.current?.click()}
         className={`
           relative border-2 border-dashed rounded-xl p-6 text-center transition-all cursor-pointer
-          ${dragActive ? 'border-blue-500 bg-blue-500/10' : 
+          ${dragActive ? 'border-indigo-500 bg-indigo-500/10' : 
             disabled ? 'border-slate-700 bg-slate-800/50 cursor-not-allowed' :
             'border-slate-600 hover:border-slate-500 bg-slate-800/30'}
         `}
       >
         {uploading ? (
           <div className="py-4">
-            <Loader2 size={32} className="animate-spin mx-auto text-blue-400 mb-2" />
+            <Loader2 size={32} className="animate-spin mx-auto text-indigo-400 mb-2" />
             <p className="text-slate-300">Uploading...</p>
           </div>
         ) : (
@@ -369,7 +369,7 @@ export function MediaUpload({
         <div className="mt-3 space-y-2">
           {progress.map((p, i) => (
             <div key={i} className="flex items-center gap-2 text-sm">
-              {p.status === 'uploading' && <Loader2 size={14} className="animate-spin text-blue-400" />}
+              {p.status === 'uploading' && <Loader2 size={14} className="animate-spin text-indigo-400" />}
               {p.status === 'success' && <CheckCircle size={14} className="text-green-400" />}
               {p.status === 'error' && <AlertCircle size={14} className="text-red-400" />}
               <span className={`truncate flex-1 ${p.status === 'error' ? 'text-red-400' : 'text-slate-400'}`}>

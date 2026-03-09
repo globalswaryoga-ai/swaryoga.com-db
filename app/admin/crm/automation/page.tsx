@@ -386,7 +386,7 @@ export default function AutomationPage() {
         {/* Edit Rule Modal */}
         {showEditModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-            <div className="w-full max-w-2xl rounded-2xl border border-purple-500/30 bg-slate-900 shadow-2xl overflow-hidden">
+            <div className="w-full max-w-2xl rounded-2xl border border-purple-500/30 bg-slate-900 shadow-xl overflow-hidden">
               <div className="flex items-center justify-between px-6 py-4 border-b border-purple-500/20">
                 <div>
                   <h3 className="text-lg font-extrabold text-white">Edit Automation Rule</h3>
@@ -638,7 +638,7 @@ export default function AutomationPage() {
                         <button 
                           type="button"
                           onClick={() => handleEditRule(rule._id)}
-                          className="flex-1 px-3 py-1 bg-blue-500/20 text-blue-200 rounded-lg text-sm hover:bg-blue-500/30 transition-colors cursor-pointer"
+                          className="flex-1 px-3 py-1 bg-indigo-500/20 text-indigo-200 rounded-lg text-sm hover:bg-indigo-500/30 transition-colors cursor-pointer"
                         >
                           Edit
                         </button>
@@ -660,7 +660,7 @@ export default function AutomationPage() {
         {/* Keyword Triggers Tab */}
         {activeTab === 'keywords' && (
           <div className="space-y-6">
-            <div className="bg-gradient-to-r from-blue-500/20 to-cyan-500/20 border border-blue-500/30 rounded-xl p-6">
+            <div className="bg-gradient-to-r from-indigo-500/20 to-cyan-500/20 border border-indigo-500/30 rounded-xl p-6">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-xl font-bold text-white mb-2">🔑 Keyword Triggers</h3>
@@ -670,7 +670,7 @@ export default function AutomationPage() {
                 </div>
                 <button
                   onClick={() => setShowNewRuleModal(true)}
-                  className="px-6 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold transition-all"
+                  className="px-6 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold transition-all"
                 >
                   + Add Keyword Rule
                 </button>
@@ -691,7 +691,7 @@ export default function AutomationPage() {
                   .map((rule) => (
                     <div
                       key={rule._id}
-                      className="bg-slate-700/50 border border-blue-500/30 rounded-xl p-6 hover:border-blue-500/60 transition-colors"
+                      className="bg-slate-700/50 border border-indigo-500/30 rounded-xl p-6 hover:border-indigo-500/60 transition-colors"
                     >
                       <div className="flex justify-between items-start mb-4">
                         <h4 className="text-lg font-semibold text-white">{rule.name}</h4>
@@ -714,7 +714,7 @@ export default function AutomationPage() {
                           </p>
                           <div className="flex flex-wrap gap-2">
                             {rule.keywords.map((kw) => (
-                              <span key={kw} className="px-2 py-1 bg-blue-500/30 text-blue-200 rounded text-xs">
+                              <span key={kw} className="px-2 py-1 bg-indigo-500/30 text-indigo-200 rounded text-xs">
                                 {kw}
                               </span>
                             ))}
@@ -738,7 +738,7 @@ export default function AutomationPage() {
                         <button 
                           type="button"
                           onClick={() => handleEditRule(rule._id)}
-                          className="flex-1 px-3 py-1 bg-blue-500/20 text-blue-200 rounded-lg text-sm hover:bg-blue-500/30 transition-colors cursor-pointer"
+                          className="flex-1 px-3 py-1 bg-indigo-500/20 text-indigo-200 rounded-lg text-sm hover:bg-indigo-500/30 transition-colors cursor-pointer"
                         >
                           Edit
                         </button>
@@ -829,7 +829,7 @@ export default function AutomationPage() {
                                   : msg.status === 'active'
                                   ? 'bg-yellow-500/20 text-yellow-200'
                                   : msg.status === 'paused'
-                                  ? 'bg-blue-500/20 text-blue-200'
+                                  ? 'bg-indigo-500/20 text-indigo-200'
                                   : 'bg-red-500/20 text-red-200'
                               }`}
                             >
@@ -930,7 +930,7 @@ export default function AutomationPage() {
                       <button 
                         type="button"
                         onClick={() => window.location.href = `/admin/crm/broadcast?listId=${list._id}`}
-                        className="flex-1 px-3 py-2 bg-blue-500/20 text-blue-200 rounded-lg text-sm hover:bg-blue-500/30 transition-colors cursor-pointer"
+                        className="flex-1 px-3 py-2 bg-indigo-500/20 text-indigo-200 rounded-lg text-sm hover:bg-indigo-500/30 transition-colors cursor-pointer"
                       >
                         Send
                       </button>

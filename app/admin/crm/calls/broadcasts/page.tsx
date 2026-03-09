@@ -254,7 +254,7 @@ export default function BroadcastsPage() {
               return (
                 <div
                   key={b.batchName}
-                  className={`bg-white rounded-2xl border shadow-sm hover:shadow-md transition-all ${isActive ? 'border-blue-200' : 'border-gray-100'}`}
+                  className={`bg-white rounded-2xl border shadow-sm hover:shadow-md transition-all ${isActive ? 'border-indigo-200' : 'border-gray-100'}`}
                   style={isActive ? { background: 'linear-gradient(90deg, rgba(59,130,246,0.03), white)' } : undefined}
                 >
                   {/* Top row */}
@@ -278,7 +278,7 @@ export default function BroadcastsPage() {
                         <span className="flex items-center gap-1"><Phone className="h-3 w-3" /> {b.totalCalls} calls</span>
                         <span className="flex items-center gap-1 text-green-600"><CheckCircle className="h-3 w-3" /> {b.completed}</span>
                         <span className="flex items-center gap-1 text-red-500"><XCircle className="h-3 w-3" /> {b.failed}</span>
-                        {b.active > 0 && <span className="flex items-center gap-1 text-blue-500"><Clock className="h-3 w-3" /> {b.active} active</span>}
+                        {b.active > 0 && <span className="flex items-center gap-1 text-indigo-500"><Clock className="h-3 w-3" /> {b.active} active</span>}
                         <span className="flex items-center gap-1"><Timer className="h-3 w-3" /> {fmtDuration(b.totalDuration)}</span>
                         <span className="flex items-center gap-1 text-pink-600"><DollarSign className="h-3 w-3" /> ${b.totalCost.toFixed(2)}</span>
                       </div>
@@ -298,7 +298,7 @@ export default function BroadcastsPage() {
                       <div className="flex items-center gap-3 mt-1 text-[10px] text-gray-400">
                         <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500" /> Completed {Math.round(completedPct)}%</span>
                         <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500" /> Failed {Math.round(failedPct)}%</span>
-                        {activePct > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500" /> Active {Math.round(activePct)}%</span>}
+                        {activePct > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-indigo-500" /> Active {Math.round(activePct)}%</span>}
                         <span className="ml-auto">{fmtDate(b.createdAt)}</span>
                         {b.initiatedBy && <span>by {b.initiatedBy}</span>}
                       </div>
@@ -330,7 +330,7 @@ export default function BroadcastsPage() {
       {/* ═══ Drill-Down Modal ═══ */}
       {(drillDown || drillLoading) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col mx-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[85vh] flex flex-col mx-4">
             {/* Modal header */}
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
               <div>
