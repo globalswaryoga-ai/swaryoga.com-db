@@ -26,6 +26,10 @@ interface Lead {
   metadata?: any;
 }
 
+type ActivityItem =
+  | { kind: 'note'; _id: string; note: string; pinned?: boolean; metadata?: any; createdAt?: string; updatedAt?: string; }
+  | { kind: 'followup'; _id: string; title: string; description?: string; dueAt?: string; status?: string; createdAt?: string; updatedAt?: string; completedAt?: string; metadata?: any; };
+
 export default function LeadDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -39,6 +43,12 @@ export default function LeadDetailPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Lead>>({});
   const [hasMounted, setHasMounted] = useState(false);
+
+  // Activity panel state
+  const [activityItems, setActivityItems] = useState<ActivityItem[]>([]);
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [newNote, setNewNote] = useState('');
+  const [addingNote, setAddingNote] = useState(false);
 
   useEffect(() => {
     setHasMounted(true);
@@ -125,6 +135,82 @@ export default function LeadDetailPage() {
       setError(err instanceof Error ? err.message : 'Failed to update lead');
     }
   };
+
+  // Fetch activity (notes + followups) for this lead
+  const fetchActivity = async () => {
+    if (!id || !token) return;
+    setActivityLoading(true);
+    try {
+      const [notesRes, followupsRes] = await Promise.all([
+        fetch(`/api/admin/crm/leads/${id}/notes?limit=20`, {
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        }),
+        fetch(`/api/admin/crm/leads/${id}/followups?limit=20&status=all`, {
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        }),
+      ]);
+
+      const notesJson = await notesRes.json().catch(() => null);
+      const followupsJson = await followupsRes.json().catch(() => null);
+
+      const notes: ActivityItem[] = Array.isArray(notesJson?.data?.notes)
+        ? notesJson.data.notes.map((n: any) => ({
+            kind: 'note' as const, _id: String(n._id), note: String(n.note || ''),
+            pinned: Boolean(n.pinned), metadata: n.metadata, createdAt: n.createdAt, updatedAt: n.updatedAt,
+          }))
+        : [];
+
+      const followups: ActivityItem[] = Array.isArray(followupsJson?.data?.followups)
+        ? followupsJson.data.followups.map((f: any) => ({
+            kind: 'followup' as const, _id: String(f._id), title: String(f.title || 'Follow up'),
+            description: typeof f.description === 'string' ? f.description : undefined,
+            dueAt: f.dueAt, status: f.status, createdAt: f.createdAt, updatedAt: f.updatedAt,
+            completedAt: f.completedAt, metadata: f.metadata,
+          }))
+        : [];
+
+      const combined = [...notes, ...followups].sort((a, b) => {
+        const aTime = new Date((a as any).createdAt || 0).getTime();
+        const bTime = new Date((b as any).createdAt || 0).getTime();
+        return bTime - aTime;
+      });
+      setActivityItems(combined.slice(0, 30));
+    } catch {
+      // silently fail
+    } finally {
+      setActivityLoading(false);
+    }
+  };
+
+  // Add a quick note
+  const handleAddNote = async () => {
+    if (!id || !token || !newNote.trim()) return;
+    setAddingNote(true);
+    try {
+      const res = await fetch(`/api/admin/crm/leads/${id}/notes`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note: newNote.trim() }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => null);
+        throw new Error(json?.error || 'Failed to add note');
+      }
+      setNewNote('');
+      await fetchActivity();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add note');
+    } finally {
+      setAddingNote(false);
+    }
+  };
+
+  // Fetch activity on mount
+  useEffect(() => {
+    if (!id || !token) return;
+    fetchActivity();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, token]);
 
   if (!token) {
     return <AlertBox type="error" message="Authentication required" />;
@@ -439,7 +525,7 @@ export default function LeadDetailPage() {
               <div className="mt-6 lead-print-hide">
                 <div className="text-sm font-bold text-slate-900 mb-3">Quick status</div>
                 <div className="flex flex-wrap gap-3">
-                  {(['new_lead', 'contacted', 'interested', 'demo_trial', 'negotiation', 'enrolled', 'completed', 'inactive', 'repeater', 'old_sadhak', 'only_for_post'] as const).map((status) => (
+                  {(['new_lead', 'contacted', 'interested', 'demo_trial', 'negotiation', 'enrolled', 'completed', 'inactive', 'repeater', 'old_sadhak', 'only_for_post', 'lead', 'hot', 'prospect', 'customer'] as const).map((status) => (
                     <button
                       key={status}
                       onClick={() => handleStatusChange(status)}
@@ -453,6 +539,138 @@ export default function LeadDetailPage() {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* Quick Action Buttons */}
+              <div className="mt-6 lead-print-hide">
+                <div className="text-sm font-bold text-slate-900 mb-3">Quick Actions</div>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    onClick={() => router.push(`/admin/crm/leads-followup?leadId=${lead._id}`)}
+                    className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg font-semibold transition-colors text-sm flex items-center gap-2"
+                  >
+                    📝 Follow Up
+                  </button>
+                  <button
+                    onClick={() => router.push(`/admin/crm/meta?phone=${encodeURIComponent(displayPhone)}`)}
+                    className="px-5 py-2.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg font-semibold transition-colors text-sm flex items-center gap-2"
+                  >
+                    📱 Meta WhatsApp
+                  </button>
+                  <button
+                    onClick={() => router.push(`/admin/crm/qr?leadId=${encodeURIComponent(lead._id)}&phone=${encodeURIComponent(lead.phoneNumber || '')}&name=${encodeURIComponent(lead.name || '')}`)}
+                    className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-colors text-sm flex items-center gap-2"
+                  >
+                    💬 QR WhatsApp
+                  </button>
+                  {lead.email && (
+                    <button
+                      onClick={() => router.push(`/admin/crm/email?to=${encodeURIComponent(lead.email)}`)}
+                      className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold transition-colors text-sm flex items-center gap-2"
+                    >
+                      📧 Email
+                    </button>
+                  )}
+                  {lead.phoneNumber && (
+                    <a
+                      href={`tel:${lead.phoneNumber}`}
+                      className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-semibold transition-colors text-sm flex items-center gap-2"
+                    >
+                      📞 Call
+                    </a>
+                  )}
+                  <button
+                    onClick={() => router.push(`/admin/crm/broadcast`)}
+                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold transition-colors text-sm flex items-center gap-2"
+                  >
+                    📢 Broadcast
+                  </button>
+                </div>
+              </div>
+
+              {/* Activity Panel */}
+              <div className="mt-8 lead-print-hide">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="text-sm font-bold text-slate-900">Activity & Notes</div>
+                  <button
+                    onClick={fetchActivity}
+                    disabled={activityLoading}
+                    className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 transition-colors disabled:opacity-50"
+                  >
+                    {activityLoading ? 'Loading...' : '↻ Refresh'}
+                  </button>
+                </div>
+
+                {/* Quick Add Note */}
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-4">
+                  <textarea
+                    value={newNote}
+                    onChange={(e) => setNewNote(e.target.value)}
+                    placeholder="Add a quick note..."
+                    className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 resize-none text-sm"
+                    rows={3}
+                  />
+                  <div className="flex justify-end gap-2 mt-2">
+                    <button
+                      onClick={handleAddNote}
+                      disabled={addingNote || !newNote.trim()}
+                      className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg font-semibold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {addingNote ? '⏳ Saving...' : '💾 Save Note'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Activity List */}
+                {activityItems.length === 0 && !activityLoading ? (
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-8 text-center">
+                    <div className="text-3xl mb-2">📋</div>
+                    <p className="text-sm text-slate-600">No activity yet. Add a note above or use Follow Up.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {activityItems.map((item) => (
+                      <div key={`${item.kind}:${item._id}`} className="bg-white border border-slate-200 rounded-xl p-4 hover:shadow-sm transition-shadow">
+                        {item.kind === 'note' ? (
+                          <>
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm">📝</span>
+                                <span className="text-xs font-bold text-slate-600 uppercase">Note</span>
+                                {item.pinned && <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">📌 Pinned</span>}
+                              </div>
+                              <span className="text-xs text-slate-500" suppressHydrationWarning>
+                                {item.createdAt ? new Date(item.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
+                              </span>
+                            </div>
+                            <p className="mt-2 text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{item.note}</p>
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm">📅</span>
+                                <span className="text-xs font-bold text-slate-600 uppercase">Followup</span>
+                                <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
+                                  item.status === 'done' || item.status === 'completed'
+                                    ? 'bg-emerald-100 text-emerald-700'
+                                    : 'bg-amber-100 text-amber-700'
+                                }`}>
+                                  {item.status === 'done' || item.status === 'completed' ? '✅ Done' : '⏳ ' + (item.status || 'Open')}
+                                </span>
+                              </div>
+                              <span className="text-xs text-slate-500" suppressHydrationWarning>
+                                {item.dueAt ? 'Due: ' + new Date(item.dueAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}
+                              </span>
+                            </div>
+                            <p className="mt-2 text-sm font-semibold text-slate-900">{item.title}</p>
+                            {item.description && <p className="mt-1 text-sm text-slate-600 whitespace-pre-wrap">{item.description}</p>}
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
           </div>
         </div>

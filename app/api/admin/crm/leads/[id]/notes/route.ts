@@ -9,7 +9,7 @@ import {
   isValidObjectId,
   toObjectId,
 } from '@/lib/crm-handlers';
-import { LeadNote, Lead } from '@/lib/schemas/enterpriseSchemas';
+import { getLeadNote, getLead } from '@/lib/schemas/enterpriseSchemas';
 
 // Mark as dynamic since this route uses request.headers or request.url
 export const dynamic = 'force-dynamic';
@@ -24,6 +24,8 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
     if (!isValidObjectId(String(id))) return NextResponse.json({ error: 'Invalid lead id' }, { status: 400 });
 
     await connectDB();
+    const Lead = getLead();
+    const LeadNote = getLeadNote();
 
     const leadExists = await Lead.exists({ _id: toObjectId(String(id)) });
     if (!leadExists) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
@@ -53,6 +55,8 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
     if (!note) return NextResponse.json({ error: 'note is required' }, { status: 400 });
 
     await connectDB();
+    const Lead = getLead();
+    const LeadNote = getLeadNote();
 
     const leadExists = await Lead.exists({ _id: toObjectId(String(id)) });
     if (!leadExists) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
@@ -88,6 +92,7 @@ export async function PUT(request: NextRequest, ctx: { params: Promise<{ id: str
     if (Object.prototype.hasOwnProperty.call(body, 'pinned')) allowed.pinned = Boolean(body.pinned);
 
     await connectDB();
+    const LeadNote = getLeadNote();
 
     const updated = await LeadNote.findOneAndUpdate(
       { _id: toObjectId(noteId), leadId: toObjectId(String(id)), createdByUserId: String(userId) },
@@ -114,6 +119,7 @@ export async function DELETE(request: NextRequest, ctx: { params: Promise<{ id: 
     if (!noteId || !isValidObjectId(noteId)) return NextResponse.json({ error: 'Invalid noteId' }, { status: 400 });
 
     await connectDB();
+    const LeadNote = getLeadNote();
 
     const res = await LeadNote.deleteOne({
       _id: toObjectId(String(noteId)),

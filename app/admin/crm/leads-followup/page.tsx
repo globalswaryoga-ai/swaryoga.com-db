@@ -1851,6 +1851,9 @@ function LeadsFollowupPageContent() {
                       {/* Media Upload */}
                       {(whatsappType === 'image' || whatsappType === 'video' || whatsappType === 'document') && (
                         <div>
+                          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+                            <p className="text-xs font-semibold text-amber-800">⚠️ Media sending is not yet supported via the API. You can select a file for reference, but only text messages will be sent. Use the Media type on the Meta WhatsApp dashboard directly for media messages.</p>
+                          </div>
                           <label className="block text-sm font-semibold text-slate-900 mb-3">
                             {whatsappType === 'image' && '📷 Upload Image'}
                             {whatsappType === 'video' && '🎬 Upload Video'}
@@ -2194,6 +2197,9 @@ function LeadsFollowupPageContent() {
                   {/* SMS Form */}
                   {actionMode === 'sms' && (
                     <div>
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+                        <p className="text-xs font-semibold text-amber-800">⚠️ SMS integration is not yet connected. Your message will be saved as a note for this lead.</p>
+                      </div>
                       <label className="block text-sm font-semibold text-slate-900 mb-3">SMS Message</label>
                       <textarea
                         value={message}
@@ -2376,7 +2382,7 @@ function LeadsFollowupPageContent() {
                         }
                         className="flex-1 px-6 py-3 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-bold transition-colors"
                       >
-                        {loading ? '⏳ Saving...' : actionMode === 'notes' ? '💾 Save Notes' : actionMode === 'todos' ? '💾 Save Todos' : actionMode === 'reminder' ? '⏰ Set Reminder' : actionMode === 'nextFollowup' ? '📅 Schedule' : actionMode === 'labels' ? '🏷️ Apply Labels' : '📤 Send'}
+                        {loading ? '⏳ Saving...' : actionMode === 'notes' ? '💾 Save Notes' : actionMode === 'sms' ? '💾 Save as Note' : actionMode === 'todos' ? '💾 Save Todos' : actionMode === 'reminder' ? '⏰ Set Reminder' : actionMode === 'nextFollowup' ? '📅 Schedule' : actionMode === 'labels' ? '🏷️ Apply Labels' : '📤 Send'}
                       </button>
                       <button
                         onClick={() => {

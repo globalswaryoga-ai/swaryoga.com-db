@@ -887,6 +887,10 @@ export default function LeadsPage() {
                 <option value="repeater" className="bg-[#1a1a1a] text-white">Repeater ({statusCounts.repeater || 0})</option>
                 <option value="old_sadhak" className="bg-[#1a1a1a] text-white">Old Sadhak ({statusCounts.old_sadhak || 0})</option>
                 <option value="only_for_post" className="bg-[#1a1a1a] text-white">Only for Post ({statusCounts.only_for_post || 0})</option>
+                <option value="lead" className="bg-[#1a1a1a] text-white">Lead ({statusCounts.lead || 0})</option>
+                <option value="hot" className="bg-[#1a1a1a] text-white">Hot ({statusCounts.hot || 0})</option>
+                <option value="prospect" className="bg-[#1a1a1a] text-white">Prospect ({statusCounts.prospect || 0})</option>
+                <option value="customer" className="bg-[#1a1a1a] text-white">Customer ({statusCounts.customer || 0})</option>
               </select>
             </div>
 

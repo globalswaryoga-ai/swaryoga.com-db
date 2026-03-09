@@ -9,7 +9,7 @@ import {
   isValidObjectId,
   toObjectId,
 } from '@/lib/crm-handlers';
-import { LeadFollowUp, Lead } from '@/lib/schemas/enterpriseSchemas';
+import { getLeadFollowUp, getLead } from '@/lib/schemas/enterpriseSchemas';
 
 // Mark as dynamic since this route uses request.headers or request.url
 export const dynamic = 'force-dynamic';
@@ -27,6 +27,8 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
     const status = url.searchParams.get('status');
 
     await connectDB();
+    const Lead = getLead();
+    const LeadFollowUp = getLeadFollowUp();
 
     const leadExists = await Lead.exists({ _id: toObjectId(String(id)) });
     if (!leadExists) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
@@ -66,6 +68,8 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
     }
 
     await connectDB();
+    const Lead = getLead();
+    const LeadFollowUp = getLeadFollowUp();
 
     const leadExists = await Lead.exists({ _id: toObjectId(String(id)) });
     if (!leadExists) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
@@ -115,6 +119,7 @@ export async function PUT(request: NextRequest, ctx: { params: Promise<{ id: str
     if (allowed.status === 'done') allowed.completedAt = new Date();
 
     await connectDB();
+    const LeadFollowUp = getLeadFollowUp();
 
     const updated = await LeadFollowUp.findOneAndUpdate(
       {
@@ -148,6 +153,7 @@ export async function DELETE(request: NextRequest, ctx: { params: Promise<{ id: 
     }
 
     await connectDB();
+    const LeadFollowUp = getLeadFollowUp();
 
     const res = await LeadFollowUp.deleteOne({
       _id: toObjectId(String(followUpId)),

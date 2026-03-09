@@ -514,7 +514,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             success: true,
-            message: 'Email queued (TODO: implement actual send)',
+            message: 'Email note saved successfully',
             data: note,
           },
           { status: 201 }
@@ -545,7 +545,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             success: true,
-            message: 'SMS queued (TODO: implement actual send)',
+            message: 'SMS note saved successfully',
             data: note,
           },
           { status: 201 }
