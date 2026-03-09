@@ -54,7 +54,6 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
   const token = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-  const [isOwner, setIsOwner] = useState(false);
   const [userRole, setUserRole] = useState<string>('admin');
   const [permissionsV2, setPermissionsV2] = useState<any>(null);
   const [localCollapsed, setLocalCollapsed] = useState(false);
@@ -100,7 +99,6 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       pv2?.isSuperAdmin === true;
 
     setIsSuperAdmin(superAdmin);
-    setIsOwner(superAdmin || role === 'owner');
     setUserRole(role);
     setPermissionsV2(pv2);
   }, []);
@@ -234,7 +232,6 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
     planModule?: CrmModule;
     badge?: number;
     description?: string;
-    ownerOnly?: boolean;
   }[] = [
     {
       icon: LayoutDashboard,
@@ -323,7 +320,6 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       module: 'whatsapp',
       planModule: 'whatsapp',
       description: 'WhatsApp via QR code bridge',
-      ownerOnly: true,
     },
     {
       icon: Bot,
@@ -501,7 +497,6 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
         {/* Main Navigation */}
         <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
           {sidebarItems
-            .filter(item => !item.ownerOnly || isOwner)
             .map((item) => {
             const Icon = item.icon;
             const active = isActive(item.href);

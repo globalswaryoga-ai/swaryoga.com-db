@@ -7,13 +7,13 @@ import { useCRM } from '@/hooks/useCRM';
 import { useSearch } from '@/hooks/useSearch';
 import { useModal } from '@/hooks/useModal';
 import { useForm } from '@/hooks/useForm';
-import { useOwnerGuard } from '@/hooks/useOwnerGuard';
+
 import * as XLSX from 'xlsx';
 import { normalizePhoneForMeta } from '@/lib/utils/phone';
 import CSVUploadPanel from '@/components/admin/crm/CSVUploadPanel';
 import type { CSVContact, CSVColumnMap } from '@/components/admin/crm/CSVUploadPanel';
 import LeadDetailModal from '@/components/admin/crm/LeadDetailModal';
-import OwnerOnlyGuard from '@/components/admin/crm/OwnerOnlyGuard';
+
 import {
   Users, Search, RefreshCw, ChevronLeft, ChevronRight,
   Phone, Mail, Tag, Calendar, X, Eye, Trash2,
@@ -90,12 +90,6 @@ export default function QRLeadsPage() {
   const crm = useCRM({ token });
   const search = useSearch();
   const modal = useModal();
-  const { isOwner, checking: ownerChecking } = useOwnerGuard();
-
-  if (!ownerChecking && !isOwner) {
-    return <OwnerOnlyGuard pageName="QR Leads" />;
-  }
-
   const [leads, setLeads] = useState<Lead[]>([]);
   const [total, setTotal] = useState(0);
   const [limit, setLimit] = useState(20);

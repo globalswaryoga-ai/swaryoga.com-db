@@ -37,7 +37,7 @@ const PAGE_GUIDES: Record<string, PageGuideData> = {
       'Change the time period (7d/30d/90d) to see different trends.',
       'Click the refresh button to get the latest data.',
     ],
-    freePlanNote: 'Dashboard is available on all plans. Some metrics may be limited based on your plan features.',
+    freePlanNote: 'All dashboard features available. Upgrade to increase limits on leads, broadcasts, and storage.',
   },
 
   // ── Sales & Funnel ──
@@ -65,7 +65,7 @@ const PAGE_GUIDES: Record<string, PageGuideData> = {
       'Use tags to categorize leads (e.g., "hot", "cold", "VIP").',
       'Set follow-up reminders so no lead is forgotten.',
     ],
-    freePlanNote: 'Free plan includes up to 250 leads. Upgrade to Basic for 2,000 leads.',
+    freePlanNote: 'Free plan: up to 250 leads. Upgrade to Basic for 2,000 leads or Starter for 5,000.',
   },
 
   // ── WhatsApp / Meta ──
@@ -92,7 +92,7 @@ const PAGE_GUIDES: Record<string, PageGuideData> = {
       'Check webhook event logs if messages aren\'t being received.',
       'Use the diagnostics refresh to get real-time API status.',
     ],
-    freePlanNote: 'WhatsApp API requires Basic plan or higher. Free plan users can use QR WhatsApp instead.',
+    freePlanNote: 'Free plan: WhatsApp API included. Upgrade for higher message volumes and priority delivery.',
   },
 
   // ── WhatsApp Chat ──
@@ -144,7 +144,7 @@ const PAGE_GUIDES: Record<string, PageGuideData> = {
       'Use personalization (name, etc.) in templates for better engagement.',
       'Respect Meta\'s rate limits — spread large broadcasts over time.',
     ],
-    freePlanNote: 'Free plan allows 1 broadcast per day. Upgrade to Basic for 5/day.',
+    freePlanNote: 'Free plan: 1 broadcast/day. Upgrade to Basic for 5/day or Starter for 20/day.',
   },
 
   // ── Templates ──
@@ -171,7 +171,7 @@ const PAGE_GUIDES: Record<string, PageGuideData> = {
       'Use Utility category for order updates, appointments — they have higher approval rates.',
       'Include a clear call-to-action in marketing templates.',
     ],
-    freePlanNote: 'Templates require Basic plan or higher for WhatsApp API access.',
+    freePlanNote: 'Free plan: templates included. Upgrade for more templates and priority Meta approval.',
   },
 
   // ── QR WhatsApp ──
@@ -225,7 +225,7 @@ const PAGE_GUIDES: Record<string, PageGuideData> = {
       'Use the AI agent for questions that don\'t match any trigger.',
       'Test your chatbot flows before going live.',
     ],
-    freePlanNote: 'Free plan includes 1 chatbot flow. Upgrade to Basic for 5 flows.',
+    freePlanNote: 'Free plan: 1 chatbot flow. Upgrade to Basic for 5 flows or Growth for unlimited.',
   },
 
   // ── Email ──
@@ -252,7 +252,7 @@ const PAGE_GUIDES: Record<string, PageGuideData> = {
       'Always include an unsubscribe link (required by law).',
       'Send a test email to yourself before sending to your list.',
     ],
-    freePlanNote: 'Email marketing requires Starter plan or higher. Free plan: 100 emails/month.',
+    freePlanNote: 'Free plan: 100 emails/month. Upgrade to Basic for 1,000 or Starter for 5,000.',
   },
 
   // ── Community ──
@@ -279,7 +279,7 @@ const PAGE_GUIDES: Record<string, PageGuideData> = {
       'Encourage member participation with polls and Q&A sessions.',
       'Use moderation tools to keep discussions constructive.',
     ],
-    freePlanNote: 'Free plan includes 1 community. Upgrade to Growth for unlimited communities.',
+    freePlanNote: 'Free plan: 1 community. Upgrade to Basic for 2, Starter for 5, or Growth for 20.',
   },
 
   // ── Landing Pages ──
@@ -306,7 +306,7 @@ const PAGE_GUIDES: Record<string, PageGuideData> = {
       'Add social proof (testimonials, logos) to build trust.',
       'Test different headlines to see what converts best.',
     ],
-    freePlanNote: 'Free plan includes 1 landing page. Upgrade to Starter for 10 pages.',
+    freePlanNote: 'Free plan: 1 landing page. Upgrade to Basic for 3 or Starter for 10 pages.',
   },
 
   // ── Calls ──
@@ -332,7 +332,7 @@ const PAGE_GUIDES: Record<string, PageGuideData> = {
       'Write clear, natural-sounding scripts for the AI agent.',
       'Always comply with local calling regulations and consent requirements.',
     ],
-    freePlanNote: 'AI Calls require Growth plan or higher.',
+    freePlanNote: 'Free plan: AI calls included. Upgrade for higher call volume and recording storage.',
   },
 
   // ── SMS ──
@@ -376,10 +376,10 @@ const PAGE_GUIDES: Record<string, PageGuideData> = {
       'Plan-based report access — upgrade to unlock more',
     ],
     tips: [
-      'Free plan includes 2 basic reports. Upgrade to Starter for 7+ reports with export.',
+      'Free plan: 2 basic reports included. Upgrade to Starter for 7+ reports with CSV/JSON export.',
       'Use "Full CRM Export" to download all your leads, messages, and settings as a backup file.',
     ],
-    freePlanNote: 'Free plan includes Leads Overview and Lead Pipeline reports. Upgrade to Basic or Starter for CSV/JSON exports and more reports.',
+    freePlanNote: 'Free plan: basic reports included. Upgrade to Starter for CSV/JSON export and advanced analytics.',
   },
 
   // ── Analytics / Reports ──
@@ -400,7 +400,7 @@ const PAGE_GUIDES: Record<string, PageGuideData> = {
       'Export-ready reports',
       'Conversion funnel tracking',
     ],
-    freePlanNote: 'Reports require Starter plan or higher. Dashboard basic analytics are free.',
+    freePlanNote: 'Free plan: basic analytics included. Upgrade to Starter for full reports and export.',
   },
 
   // ── E-Learning ──
@@ -422,7 +422,7 @@ const PAGE_GUIDES: Record<string, PageGuideData> = {
       'Progress tracking and certificates',
       'Integrate with community for discussions',
     ],
-    freePlanNote: 'E-Learning requires Growth plan or higher.',
+    freePlanNote: 'Free plan: e-learning included. Upgrade for more courses, students, and storage.',
   },
 
   // ── Tally ──
@@ -533,7 +533,7 @@ const PAGE_GUIDES: Record<string, PageGuideData> = {
       'Performance tracking',
       'Customer satisfaction monitoring',
     ],
-    freePlanNote: 'Help desk requires Basic plan or higher.',
+    freePlanNote: 'Free plan: helpdesk included. Upgrade for more tickets, SLA, and team assignment.',
   },
 
   // ── Instagram ──
@@ -574,7 +574,7 @@ const PAGE_GUIDES: Record<string, PageGuideData> = {
       'Easy sharing and access control',
       'Searchable recording library',
     ],
-    freePlanNote: 'Recording management requires Growth plan or higher.',
+    freePlanNote: 'Free plan: recording management included. Upgrade for more storage and auto-sync.',
   },
 
   // ── Devices ──
