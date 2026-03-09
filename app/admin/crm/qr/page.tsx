@@ -7,7 +7,19 @@ import { QrCode, Wifi, WifiOff, RefreshCw, LogOut, Phone, PhoneCall, Send, Image
 import type { ConnectionStatus, BridgeStatus, QRResponse, FunnelStage, LabelPreset, ChatItem, MessageItem, ChatFilter, GroupParticipant, GroupInfo } from './types';
 import { formatPhoneNumber, getAvatarColor, linkifyText, getInitials, formatUptime } from './utils';
 import { FUNNEL_COLORS, LABEL_COLORS, EMOJI_LIST, QUICK_REPLIES, TEMPLATES, DEFAULT_FUNNEL_STAGES, DEFAULT_LABEL_PRESETS, REACTION_EMOJIS } from './constants';
-import { MessageTicks } from './components/MessageTicks';
+import {
+  MessageTicks,
+  StatusPanel,
+  ExtensionModal,
+  InstallGuideModal,
+  EditFunnelLabelModal,
+  StarPopup,
+  Lightbox,
+  GroupCreateModal,
+  ConnectionTab,
+  SettingsTab,
+  DetailsPanel,
+} from './components';
 
 export default function QRWhatsAppPage() {
   const token = useAuth();
@@ -1331,454 +1343,46 @@ export default function QRWhatsAppPage() {
       {/* ═══ CONNECTION TAB ═══ */}
       {/* ═══════════════════════════════════════════════════════ */}
       {!loading && tab === 'connection' && (
-        <div className="max-w-5xl mx-auto mt-6 px-6 pb-8 space-y-6">
-
-          {/* ── QR Scan Section (when disconnected with QR) ── */}
-          {!isConnected && qrData && (
-            <div className="bg-white rounded-2xl shadow-lg border overflow-hidden">
-              <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-4">
-                <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                  <QrCode className="w-5 h-5" />
-                  Scan QR Code to Connect
-                </h2>
-                <p className="text-green-100 text-sm mt-1">Link your WhatsApp account to start managing chats</p>
-              </div>
-              <div className="grid md:grid-cols-2 gap-0 divide-y md:divide-y-0 md:divide-x">
-                {/* QR Code */}
-                <div className="flex flex-col items-center justify-center p-8">
-                  <div className="p-4 bg-white rounded-2xl border-2 border-green-100 shadow-inner">
-                    <img src={qrData} alt="QR Code" className="w-64 h-64" />
-                  </div>
-                  <div className="flex items-center gap-3 mt-4">
-                    <p className="text-xs text-gray-400">Auto-refreshes every ~20 seconds</p>
-                    <button
-                      onClick={() => { handleReconnect(); }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 rounded-lg border border-green-200 transition"
-                      title="Refresh QR"
-                    >
-                      <RefreshCw className="w-3 h-3" /> Refresh
-                    </button>
-                  </div>
-                </div>
-                {/* Steps */}
-                <div className="p-8 flex flex-col justify-center">
-                  <h3 className="text-sm font-semibold text-gray-800 mb-4">How to connect:</h3>
-                  <div className="space-y-4">
-                    {[
-                      { step: '1', title: 'Open WhatsApp', desc: 'on your phone' },
-                      { step: '2', title: 'Go to Settings', desc: '→ Linked Devices' },
-                      { step: '3', title: 'Tap "Link a Device"', desc: 'and point your camera at this QR code' },
-                    ].map(s => (
-                      <div key={s.step} className="flex items-start gap-3">
-                        <div className="w-7 h-7 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-xs font-bold flex-shrink-0">{s.step}</div>
-                        <div>
-                          <p className="text-sm font-medium text-gray-800">{s.title}</p>
-                          <p className="text-xs text-gray-500">{s.desc}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-6 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
-                    <Info className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                    <p className="text-xs text-amber-700">Make sure your phone has an active internet connection while scanning</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ── Disconnected (No QR available) ── */}
-          {connState === 'disconnected' && !qrData && (
-            <div className="bg-white rounded-2xl shadow-lg border p-10 text-center max-w-lg mx-auto">
-              <div className="w-20 h-20 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-5">
-                <WifiOff className="w-10 h-10 text-red-300" />
-              </div>
-              <h2 className="text-xl font-bold text-gray-800 mb-2">WhatsApp Not Connected</h2>
-              <p className="text-sm text-gray-500 mb-6">
-                The bridge service may not be running, or your session has expired.
-              </p>
-              <button
-                onClick={handleReconnect}
-                className="px-8 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition font-semibold text-sm inline-flex items-center gap-2 shadow-md shadow-green-200"
-              >
-                <RefreshCw className="w-4 h-4" />
-                Try Reconnect
-              </button>
-              <div className="mt-8 p-4 bg-gray-50 rounded-xl text-left text-xs text-gray-500">
-                <p className="font-semibold text-gray-700 mb-2">Troubleshooting:</p>
-                <ul className="list-disc ml-4 space-y-1.5">
-                  <li>Make sure the Baileys bridge service is running</li>
-                  <li>Check <code className="bg-gray-200 px-1 rounded">WHATSAPP_BRIDGE_HTTP_URL</code> env var</li>
-                  <li>Go to <button onClick={() => setTab('settings')} className="text-green-600 hover:underline font-medium">Settings</button> to configure a custom bridge URL</li>
-                </ul>
-              </div>
-            </div>
-          )}
-
-          {/* ── Connected Dashboard ── */}
-          {isConnected && (
-            <div className="grid md:grid-cols-3 gap-6">
-              {/* Connected Status Card */}
-              <div className="md:col-span-2 bg-white rounded-2xl shadow-md border overflow-hidden">
-                <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-5">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
-                      <CheckCircle2 className="w-7 h-7 text-white" />
-                    </div>
-                    <div>
-                      <h2 className="text-lg font-bold text-white">WhatsApp Connected</h2>
-                      {status?.phone && (
-                        <p className="text-green-100 text-sm flex items-center gap-1.5">
-                          <Phone className="w-3.5 h-3.5" />
-                          {status.phone.name || status.phone.id}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <div className="p-6">
-                  <div className="grid grid-cols-3 gap-4 mb-6">
-                    <div className="text-center p-3 bg-gray-50 rounded-xl">
-                      <p className="text-2xl font-bold text-gray-900">{chats.length}</p>
-                      <p className="text-xs text-gray-500">Total Chats</p>
-                    </div>
-                    <div className="text-center p-3 bg-gray-50 rounded-xl">
-                      <p className="text-2xl font-bold text-green-600">{chats.filter(c => c.unreadCount > 0).length}</p>
-                      <p className="text-xs text-gray-500">Unread</p>
-                    </div>
-                    <div className="text-center p-3 bg-gray-50 rounded-xl">
-                      <p className="text-2xl font-bold text-gray-900">{status?.uptime ? formatUptime(status.uptime) : '—'}</p>
-                      <p className="text-xs text-gray-500">Uptime</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => { setTab('inbox'); fetchChats(); }}
-                      className="flex-1 px-5 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition font-semibold text-sm flex items-center justify-center gap-2 shadow-md shadow-green-100"
-                    >
-                      <MessageSquare className="w-4 h-4" /> Open Inbox
-                    </button>
-                    <button onClick={handleReconnect} className="p-3 rounded-xl hover:bg-gray-100 border transition" title="Reconnect"><RefreshCw className="w-4 h-4 text-gray-500" /></button>
-                    <button onClick={handleDisconnect} className="p-3 rounded-xl hover:bg-orange-50 border border-orange-200 transition" title="Disconnect"><Unplug className="w-4 h-4 text-orange-500" /></button>
-                    <button onClick={handleLogout} className="p-3 rounded-xl hover:bg-red-50 border border-red-200 transition" title="Logout"><LogOut className="w-4 h-4 text-red-500" /></button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Bridge Info Card */}
-              <div className="bg-white rounded-2xl shadow-md border p-5">
-                <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2 mb-4">
-                  <Wifi className="w-4 h-4 text-green-600" />
-                  Bridge Status
-                </h3>
-                <div className="space-y-3">
-                  {[
-                    { label: 'Connection', value: connState, color: 'text-green-600' },
-                    { label: 'Retry Count', value: String(status?.retryCount ?? '0'), color: 'text-gray-900' },
-                    { label: 'Uptime', value: status?.uptime ? formatUptime(status.uptime) : '—', color: 'text-gray-900' },
-                    { label: 'QR Available', value: qrData ? 'Yes' : 'No', color: 'text-gray-900' },
-                  ].map(item => (
-                    <div key={item.label} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
-                      <span className="text-xs text-gray-500">{item.label}</span>
-                      <span className={`text-xs font-semibold ${item.color}`}>{item.value}</span>
-                    </div>
-                  ))}
-                </div>
-                <button onClick={() => setTab('settings')} className="w-full mt-4 px-3 py-2 text-xs font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 rounded-lg border transition flex items-center justify-center gap-1.5">
-                  <Settings className="w-3 h-3" /> Bridge Settings
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* ── Recent Status Updates (when connected) ── */}
-          {isConnected && (
-            <div className="mt-6 bg-white rounded-xl border p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
-                  <Radio className="w-4 h-4 text-green-600" />
-                  Recent Status Updates
-                </h3>
-                <button
-                  onClick={fetchStatuses}
-                  className="text-xs text-green-600 hover:text-green-700 flex items-center gap-1"
-                >
-                  <RefreshCw className={`w-3 h-3 ${loadingStatuses ? 'animate-spin' : ''}`} />
-                  Refresh
-                </button>
-              </div>
-              {loadingStatuses ? (
-                <div className="flex items-center justify-center py-6">
-                  <Loader2 className="w-5 h-5 animate-spin text-green-500 mr-2" />
-                  <span className="text-sm text-gray-500">Loading statuses...</span>
-                </div>
-              ) : statusData.length === 0 ? (
-                <div className="py-6 text-center">
-                  <Eye className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                  <p className="text-sm text-gray-500">No recent status updates</p>
-                  <p className="text-[10px] text-gray-400 mt-1">Statuses from contacts will appear here as they are posted</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {statusData.slice(0, 8).map((user: any) => (
-                    <button
-                      key={user.senderJid}
-                      onClick={() => { setShowStatusPanel(true); setSelectedStatusUser(user); setCurrentStatusIndex(0); }}
-                      className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 rounded-lg text-left transition"
-                    >
-                      <div className="relative">
-                        <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-semibold ${getAvatarColor(user.senderPhone)} ring-2 ring-green-500 ring-offset-1`}>
-                          {user.senderPhone.slice(-2)}
-                        </div>
-                        <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-green-500 flex items-center justify-center">
-                          <span className="text-white text-[7px] font-bold">{user.statuses.length}</span>
-                        </span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium text-gray-900 truncate">{user.senderName}</p>
-                        <p className="text-[10px] text-gray-500">
-                          {user.statuses.length} status{user.statuses.length > 1 ? 'es' : ''} · {new Date(user.statuses[0].timestamp * 1000).toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-                        </p>
-                      </div>
-                      <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
-                    </button>
-                  ))}
-                  {statusData.length > 8 && (
-                    <button
-                      onClick={() => { setShowStatusPanel(true); fetchStatuses(); }}
-                      className="w-full text-center text-xs text-green-600 hover:text-green-700 py-2"
-                    >
-                      View all {statusData.length} status updates →
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ── Bridge Info (when disconnected — show below QR or disconnect card) ── */}
-          {!isConnected && (
-            <div className="bg-white rounded-xl border p-5">
-              <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2 mb-3">
-                <Wifi className="w-4 h-4 text-gray-500" />
-                Bridge Status
-              </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                {[
-                  { label: 'Connection', value: connState },
-                  { label: 'Retry Count', value: String(status?.retryCount ?? '0') },
-                  { label: 'Uptime', value: status?.uptime ? formatUptime(status.uptime) : '—' },
-                  { label: 'QR Available', value: qrData ? 'Yes' : 'No' },
-                ].map(item => (
-                  <div key={item.label} className="p-3 bg-gray-50 rounded-lg">
-                    <p className="text-[10px] text-gray-500 uppercase tracking-wide">{item.label}</p>
-                    <p className="text-sm font-semibold text-gray-800 mt-1">{item.value}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+        <ConnectionTab
+          isConnected={isConnected}
+          connState={connState}
+          qrData={qrData}
+          status={status}
+          chats={chats}
+          loadingStatuses={loadingStatuses}
+          statusData={statusData}
+          handleReconnect={handleReconnect}
+          handleDisconnect={handleDisconnect}
+          handleLogout={handleLogout}
+          setTab={setTab}
+          setShowGroupCreate={setShowGroupCreate}
+          setShowStatusPanel={setShowStatusPanel}
+          setSelectedStatusUser={setSelectedStatusUser}
+          setCurrentStatusIndex={setCurrentStatusIndex}
+          fetchStatuses={fetchStatuses}
+          fetchChats={fetchChats}
+        />
       )}
-
       {/* ═══════════════════════════════════════════════════════ */}
       {/* ═══ SETTINGS TAB ═══ */}
       {/* ═══════════════════════════════════════════════════════ */}
       {!loading && tab === 'settings' && (
-        <div className="max-w-4xl mx-auto mt-6 px-6 pb-8 space-y-6">
-
-          {/* ── Bridge Configuration ── */}
-          <div className="bg-white rounded-2xl shadow-md border overflow-hidden">
-            <div className="px-6 py-4 border-b bg-gray-50 flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center">
-                <Wifi className="w-4 h-4 text-green-600" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-gray-900">Bridge Configuration</h3>
-                <p className="text-xs text-gray-500">Connect to a custom WhatsApp bridge instance, or use the default shared bridge</p>
-              </div>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Bridge URL</label>
-                  <input
-                    type="url"
-                    placeholder="https://your-bridge.up.railway.app"
-                    value={bridgeUrlInput}
-                    onChange={e => setBridgeUrlInput(e.target.value)}
-                    className="w-full px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Bridge Secret</label>
-                  <input
-                    type="password"
-                    placeholder="your-bridge-secret"
-                    value={bridgeSecretInput}
-                    onChange={e => setBridgeSecretInput(e.target.value)}
-                    className="w-full px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
-                  />
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={saveBridgeConfig}
-                  disabled={savingBridge || !bridgeUrlInput.trim()}
-                  className="px-5 py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 flex items-center gap-2 transition"
-                >
-                  {savingBridge ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  {savingBridge ? 'Saving...' : 'Save & Connect'}
-                </button>
-                <p className="text-xs text-gray-400">Leave empty to use the default shared bridge</p>
-              </div>
-            </div>
-          </div>
-
-          {/* ── Funnel Stages Management ── */}
-          <div className="bg-white rounded-2xl shadow-md border overflow-hidden">
-            <div className="px-6 py-4 border-b bg-gray-50 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
-                  <Funnel className="w-4 h-4 text-indigo-600" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-gray-900">Funnel Stages</h3>
-                  <p className="text-xs text-gray-500">Organize chats into funnel stages for your sales pipeline</p>
-                </div>
-              </div>
-              <button
-                onClick={() => openEditModal('funnel', 'add')}
-                className="px-3 py-1.5 text-xs font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center gap-1.5 transition"
-              >
-                <Plus className="w-3.5 h-3.5" /> Add Stage
-              </button>
-            </div>
-            <div className="p-6">
-              <div className="flex flex-wrap gap-2">
-                {funnelStages.filter(s => s.key !== 'all').map(stage => (
-                  <button
-                    key={stage.key}
-                    onClick={() => openEditModal('funnel', 'edit', stage)}
-                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border transition hover:shadow-sm ${stage.color}`}
-                  >
-                    {stage.label}
-                    <Pencil className="w-3 h-3 opacity-50" />
-                  </button>
-                ))}
-              </div>
-              {funnelStages.filter(s => s.key !== 'all').length === 0 && (
-                <p className="text-sm text-gray-400 text-center py-4">No custom funnel stages yet. Click "Add Stage" to create one.</p>
-              )}
-            </div>
-          </div>
-
-          {/* ── Label Presets Management ── */}
-          <div className="bg-white rounded-2xl shadow-md border overflow-hidden">
-            <div className="px-6 py-4 border-b bg-gray-50 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
-                  <Tag className="w-4 h-4 text-amber-600" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-gray-900">Label Presets</h3>
-                  <p className="text-xs text-gray-500">Create labels to categorize and tag your chats</p>
-                </div>
-              </div>
-              <button
-                onClick={() => openEditModal('label', 'add')}
-                className="px-3 py-1.5 text-xs font-medium bg-amber-600 text-white rounded-lg hover:bg-amber-700 flex items-center gap-1.5 transition"
-              >
-                <Plus className="w-3.5 h-3.5" /> Add Label
-              </button>
-            </div>
-            <div className="p-6">
-              <div className="flex flex-wrap gap-2">
-                {labelPresets.map(label => (
-                  <button
-                    key={label.key}
-                    onClick={() => openEditModal('label', 'edit', label)}
-                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition hover:shadow-sm ${label.color}`}
-                  >
-                    {label.label}
-                    <Pencil className="w-3 h-3 opacity-50" />
-                  </button>
-                ))}
-              </div>
-              {labelPresets.length === 0 && (
-                <p className="text-sm text-gray-400 text-center py-4">No label presets yet. Click "Add Label" to create one.</p>
-              )}
-            </div>
-          </div>
-
-          {/* ── Connection Actions ── */}
-          <div className="bg-white rounded-2xl shadow-md border overflow-hidden">
-            <div className="px-6 py-4 border-b bg-gray-50 flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-gray-200 flex items-center justify-center">
-                <Settings className="w-4 h-4 text-gray-600" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-gray-900">Connection Actions</h3>
-                <p className="text-xs text-gray-500">Manage your WhatsApp connection and session</p>
-              </div>
-            </div>
-            <div className="p-6">
-              <div className="grid md:grid-cols-3 gap-4">
-                <button
-                  onClick={handleReconnect}
-                  className="p-4 rounded-xl border-2 border-dashed border-gray-200 hover:border-green-300 hover:bg-green-50 transition text-center group"
-                >
-                  <RefreshCw className="w-6 h-6 text-gray-400 group-hover:text-green-600 mx-auto mb-2 transition" />
-                  <p className="text-sm font-medium text-gray-700">Reconnect</p>
-                  <p className="text-[10px] text-gray-400 mt-1">Re-establish connection without losing session</p>
-                </button>
-                <button
-                  onClick={handleDisconnect}
-                  className="p-4 rounded-xl border-2 border-dashed border-gray-200 hover:border-orange-300 hover:bg-orange-50 transition text-center group"
-                >
-                  <Unplug className="w-6 h-6 text-gray-400 group-hover:text-orange-600 mx-auto mb-2 transition" />
-                  <p className="text-sm font-medium text-gray-700">Disconnect</p>
-                  <p className="text-[10px] text-gray-400 mt-1">Close connection, can reconnect without QR</p>
-                </button>
-                <button
-                  onClick={handleLogout}
-                  className="p-4 rounded-xl border-2 border-dashed border-gray-200 hover:border-red-300 hover:bg-red-50 transition text-center group"
-                >
-                  <LogOut className="w-6 h-6 text-gray-400 group-hover:text-red-600 mx-auto mb-2 transition" />
-                  <p className="text-sm font-medium text-gray-700">Logout</p>
-                  <p className="text-[10px] text-gray-400 mt-1">Clear session — will need to scan QR again</p>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* ── PC Extension ── */}
-          <div className="bg-white rounded-2xl shadow-md border overflow-hidden">
-            <div className="px-6 py-4 border-b bg-gray-50 flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
-                <span className="text-sm">📥</span>
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-gray-900">PC Extension</h3>
-                <p className="text-xs text-gray-500">Download the desktop extension for advanced features</p>
-              </div>
-            </div>
-            <div className="p-6 flex items-center gap-4">
-              <button
-                onClick={() => setShowExtensionModal(true)}
-                className="px-5 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 flex items-center gap-2 transition"
-              >
-                📥 Download Extension
-              </button>
-              <button
-                onClick={() => setShowInstallGuide(true)}
-                className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 flex items-center gap-2 transition"
-              >
-                📋 Installation Guide
-              </button>
-            </div>
-          </div>
-        </div>
+        <SettingsTab
+          bridgeUrlInput={bridgeUrlInput}
+          setBridgeUrlInput={setBridgeUrlInput}
+          bridgeSecretInput={bridgeSecretInput}
+          setBridgeSecretInput={setBridgeSecretInput}
+          savingBridge={savingBridge}
+          saveBridgeConfig={saveBridgeConfig}
+          funnelStages={funnelStages}
+          labelPresets={labelPresets}
+          openEditModal={openEditModal}
+          handleReconnect={handleReconnect}
+          handleDisconnect={handleDisconnect}
+          handleLogout={handleLogout}
+          setShowExtensionModal={setShowExtensionModal}
+          setShowInstallGuide={setShowInstallGuide}
+        />
       )}
 
       {/* ═══════════════════════════════════════════════════════ */}
@@ -2539,1036 +2143,100 @@ export default function QRWhatsAppPage() {
           </div>
 
           {/* Details Panel — slides in from right */}
-          {detailsPanel && selectedChat && (() => {
-            const selectedChatInfo = chats.find(c => c.id === selectedChat);
-            const isGroupChat = selectedChat.endsWith('@g.us') || selectedChat.endsWith('@lid');
-            const chatName = isGroupChat
-              ? (selectedChatInfo?.name || selectedChat.split('@')[0])
-              : selectedChat.replace('@s.whatsapp.net', '');
-            const avatarColor = getAvatarColor(chatName);
-            const initials = getInitials(chatName);
-            const stage = chatFunnels[selectedChat];
-            const stageInfo = funnelStages.find(s => s.key === stage);
-            const labels = chatLabels[selectedChat] || [];
-            const phone = selectedChat.replace('@s.whatsapp.net', '').replace('@g.us', '');
-
-            return (
-              <div className="w-80 border-l bg-white flex flex-col overflow-y-auto">
-                {/* Panel Header */}
-                <div className="px-4 py-3 border-b flex items-center justify-between bg-gray-50">
-                  <h3 className="text-sm font-semibold text-gray-700">{isGroupChat ? 'Group Info' : 'Contact Info'}</h3>
-                  <button onClick={() => setDetailsPanel(false)} className="p-1 rounded hover:bg-gray-200">
-                    <X className="w-4 h-4 text-gray-500" />
-                  </button>
-                </div>
-
-                {/* Profile Section */}
-                <div className="flex flex-col items-center py-6 px-4 border-b">
-                  {isGroupChat ? (
-                    <>
-                      {profilePics[selectedChat] ? (
-                        <img
-                          src={profilePics[selectedChat]!}
-                          alt={chatName}
-                          className="w-24 h-24 rounded-full object-cover cursor-pointer hover:opacity-80 transition ring-2 ring-white shadow-lg"
-                          onClick={() => setLightboxImage(profilePics[selectedChat]!)}
-                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }}
-                        />
-                      ) : null}
-                      <div className={`w-24 h-24 rounded-full flex items-center justify-center text-white ${avatarColor} ${profilePics[selectedChat] ? 'hidden' : ''}`}>
-                        <Users className="w-10 h-10" />
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      {profilePics[selectedChat] ? (
-                        <img
-                          src={profilePics[selectedChat]!}
-                          alt={chatName}
-                          className="w-24 h-24 rounded-full object-cover cursor-pointer hover:opacity-80 transition ring-2 ring-white shadow-lg"
-                          onClick={() => setLightboxImage(profilePics[selectedChat]!)}
-                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }}
-                        />
-                      ) : null}
-                      <div className={`w-24 h-24 rounded-full flex items-center justify-center text-white font-bold text-2xl ${avatarColor} ${profilePics[selectedChat] ? 'hidden' : ''}`}>
-                        {initials || '👤'}
-                      </div>
-                    </>
-                  )}
-                  <h4 className="mt-3 text-base font-semibold text-gray-900 text-center">
-                    {isGroupChat ? chatName : formatPhoneNumber(chatName)}
-                  </h4>
-                  {!isGroupChat && (
-                    <p className="text-xs text-gray-500 mt-0.5">+{phone}</p>
-                  )}
-                  {isGroupChat && groupInfo && (
-                    <p className="text-xs text-gray-500 mt-0.5">{groupInfo.size || groupInfo.participants?.length || 0} members visible</p>
-                  )}
-                  <span className={`mt-1 inline-flex items-center gap-1 text-[11px] font-medium ${isConnected ? 'text-green-600' : 'text-gray-400'}`}>
-                    <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-gray-400'}`}></span>
-                    {isConnected ? 'Online' : 'Offline'}
-                  </span>
-                </div>
-
-                {/* Call Buttons */}
-                <div className="flex items-center justify-center gap-6 py-4 border-b">
-                  <button
-                    onClick={() => window.open(`tel:+${phone}`, '_blank')}
-                    className="flex flex-col items-center gap-1 group"
-                    title="Voice Call"
-                  >
-                    <div className="w-10 h-10 rounded-full bg-green-50 group-hover:bg-green-100 flex items-center justify-center transition">
-                      <Phone className="w-5 h-5 text-green-600" />
-                    </div>
-                    <span className="text-[10px] text-gray-500">Audio</span>
-                  </button>
-                  <button
-                    onClick={() => window.open(`https://wa.me/${phone}?video=true`, '_blank')}
-                    className="flex flex-col items-center gap-1 group"
-                    title="Video Call"
-                  >
-                    <div className="w-10 h-10 rounded-full bg-indigo-50 group-hover:bg-indigo-100 flex items-center justify-center transition">
-                      <Video className="w-5 h-5 text-indigo-600" />
-                    </div>
-                    <span className="text-[10px] text-gray-500">Video</span>
-                  </button>
-                  <button
-                    onClick={() => window.open(`https://wa.me/${phone}`, '_blank')}
-                    className="flex flex-col items-center gap-1 group"
-                    title="Open in WhatsApp"
-                  >
-                    <div className="w-10 h-10 rounded-full bg-emerald-50 group-hover:bg-emerald-100 flex items-center justify-center transition">
-                      <MessageSquare className="w-5 h-5 text-emerald-600" />
-                    </div>
-                    <span className="text-[10px] text-gray-500">Chat</span>
-                  </button>
-                </div>
-
-                {/* Contact About / Bio */}
-                {!isGroupChat && contactAbout && (
-                  <div className="px-4 py-3 border-b">
-                    <h5 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">About</h5>
-                    <p className="text-sm text-gray-700">{contactAbout}</p>
-                  </div>
-                )}
-
-                {/* Details Section */}
-                <div className="px-4 py-3 border-b space-y-3">
-                  <h5 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Details</h5>
-                  {!isGroupChat && (
-                    <>
-                      <div className="flex items-center gap-3">
-                        <Phone className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                        <div>
-                          <p className="text-xs text-gray-500">Phone</p>
-                          <p className="text-sm text-gray-900 font-medium">{formatPhoneNumber(phone)}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <Hash className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                        <div>
-                          <p className="text-xs text-gray-500">WhatsApp JID</p>
-                          <p className="text-[11px] text-gray-600 font-mono">{selectedChat}</p>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                  {isGroupChat && groupInfo && (
-                    <>
-                      {/* Editable Group Description */}
-                      <div className="flex items-start gap-3">
-                        <Info className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <p className="text-xs text-gray-500">Description</p>
-                            {!editingDesc && (
-                              <button
-                                onClick={() => { setEditingDesc(true); setEditDescText(groupInfo.desc || ''); }}
-                                className="text-[10px] text-indigo-600 hover:text-indigo-700 font-medium"
-                              >
-                                Edit
-                              </button>
-                            )}
-                          </div>
-                          {editingDesc ? (
-                            <div className="mt-1 space-y-1.5">
-                              <textarea
-                                value={editDescText}
-                                onChange={(e) => setEditDescText(e.target.value)}
-                                rows={3}
-                                className="w-full text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none"
-                                placeholder="Group description..."
-                              />
-                              <div className="flex gap-1.5">
-                                <button
-                                  onClick={() => updateGroupDesc()}
-                                  disabled={savingDesc}
-                                  className="flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
-                                >
-                                  {savingDesc ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
-                                  Save
-                                </button>
-                                <button
-                                  onClick={() => setEditingDesc(false)}
-                                  className="text-[10px] px-2.5 py-1 rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200"
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <p className="text-sm text-gray-700 whitespace-pre-wrap mt-0.5">{groupInfo.desc || <span className="italic text-gray-400">No description</span>}</p>
-                          )}
-                        </div>
-                      </div>
-                      {groupInfo.creation && (
-                        <div className="flex items-center gap-3">
-                          <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                          <div>
-                            <p className="text-xs text-gray-500">Created</p>
-                            <p className="text-sm text-gray-700">{new Date(groupInfo.creation * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-                          </div>
-                        </div>
-                      )}
-                      <div className="flex items-center gap-3">
-                        <Hash className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                        <div>
-                          <p className="text-xs text-gray-500">Group JID</p>
-                          <p className="text-[11px] text-gray-600 font-mono">{selectedChat}</p>
-                        </div>
-                      </div>
-                      {/* Rename Group */}
-                      <div className="flex items-center gap-3">
-                        <Pencil className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                        <button
-                          onClick={() => {
-                            const newName = prompt('New group name:', groupInfo?.subject || '');
-                            if (newName && newName.trim()) handleRenameGroup(newName);
-                          }}
-                          className="text-xs text-indigo-600 hover:text-indigo-800 hover:underline"
-                        >
-                          Rename Group
-                        </button>
-                      </div>
-                      {/* Leave Group */}
-                      <div className="flex items-center gap-3">
-                        <LogOut className="w-4 h-4 text-red-400 flex-shrink-0" />
-                        <button
-                          onClick={handleLeaveGroup}
-                          className="text-xs text-red-600 hover:text-red-800 hover:underline"
-                        >
-                          Leave Group
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
-
-                {/* Group Invite Link */}
-                {isGroupChat && (
-                  <div className="px-4 py-3 border-b space-y-2">
-                    <h5 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Invite Link</h5>
-                    {groupInviteLink ? (
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-2.5 py-2">
-                          <Link2 className="w-3.5 h-3.5 text-green-600 flex-shrink-0" />
-                          <p className="text-[11px] text-gray-700 font-mono truncate flex-1">{groupInviteLink}</p>
-                        </div>
-                        <div className="flex gap-1.5">
-                          <button
-                            onClick={() => { navigator.clipboard.writeText(groupInviteLink); }}
-                            className="flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
-                          >
-                            <Copy className="w-3 h-3" /> Copy
-                          </button>
-                          <button
-                            onClick={() => revokeGroupInvite()}
-                            className="flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-md bg-red-50 text-red-600 hover:bg-red-100"
-                          >
-                            <RotateCcw className="w-3 h-3" /> Revoke
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => fetchGroupInvite()}
-                        disabled={loadingInvite}
-                        className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md bg-green-50 text-green-700 hover:bg-green-100 disabled:opacity-50"
-                      >
-                        {loadingInvite ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />}
-                        Get Invite Link
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                {/* Group Settings */}
-                {isGroupChat && (
-                  <div className="px-4 py-3 border-b space-y-2">
-                    <h5 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Group Settings</h5>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <MessageSquare className="w-3.5 h-3.5 text-gray-400" />
-                          <span className="text-xs text-gray-700">Only admins can send messages</span>
-                        </div>
-                        <button
-                          onClick={() => updateGroupSetting(groupInfo?.announce ? 'not_announcement' : 'announcement')}
-                          disabled={!!groupSettingsLoading}
-                          className={`relative w-9 h-5 rounded-full transition-colors ${groupInfo?.announce ? 'bg-green-500' : 'bg-gray-300'} ${groupSettingsLoading ? 'opacity-50' : ''}`}
-                        >
-                          <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${groupInfo?.announce ? 'translate-x-4' : 'translate-x-0'}`} />
-                        </button>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Lock className="w-3.5 h-3.5 text-gray-400" />
-                          <span className="text-xs text-gray-700">Only admins can edit group info</span>
-                        </div>
-                        <button
-                          onClick={() => updateGroupSetting(groupInfo?.restrict ? 'not_locked' : 'locked')}
-                          disabled={!!groupSettingsLoading}
-                          className={`relative w-9 h-5 rounded-full transition-colors ${groupInfo?.restrict ? 'bg-green-500' : 'bg-gray-300'} ${groupSettingsLoading ? 'opacity-50' : ''}`}
-                        >
-                          <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${groupInfo?.restrict ? 'translate-x-4' : 'translate-x-0'}`} />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Funnel & Labels */}
-                <div className="px-4 py-3 border-b space-y-2">
-                  <h5 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">CRM</h5>
-                  <div className="flex items-center gap-2">
-                    <Funnel className="w-3.5 h-3.5 text-gray-400" />
-                    <span className="text-xs text-gray-500">Stage:</span>
-                    {stageInfo ? (
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full border ${stageInfo.color}`}>{stageInfo.label}</span>
-                    ) : (
-                      <span className="text-[10px] text-gray-400 italic">None</span>
-                    )}
-                  </div>
-                  {labels.length > 0 && (
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Tag className="w-3.5 h-3.5 text-gray-400" />
-                      <span className="text-xs text-gray-500">Labels:</span>
-                      {labels.map(lbl => {
-                        const li = labelPresets.find(l => l.key === lbl);
-                        return li ? (
-                          <span key={lbl} className={`text-[9px] px-1.5 py-0.5 rounded ${li.color}`}>{li.label}</span>
-                        ) : null;
-                      })}
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2">
-                    <MessageSquare className="w-3.5 h-3.5 text-gray-400" />
-                    <span className="text-xs text-gray-500">Messages:</span>
-                    <span className="text-xs text-gray-700 font-medium">{messages.length}</span>
-                  </div>
-                  {/* Unread badge hidden for selected chat - already viewing it */}
-                </div>
-
-                {/* Group Participants */}
-                {isGroupChat && (
-                  <div className="px-4 py-3 space-y-2 flex-1">
-                    <h5 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
-                      Members ({groupInfo?.size || groupInfo?.participants?.length || 0} visible)
-                    </h5>
-                    {loadingGroupInfo ? (
-                      <div className="flex items-center justify-center py-6">
-                        <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
-                      </div>
-                    ) : groupInfo ? (
-                      <div className="space-y-1 max-h-64 overflow-y-auto">
-                        {groupInfo.participants.length <= 3 && (
-                          <p className="text-[10px] text-gray-400 italic px-2 pb-1">WhatsApp shows limited members for linked devices. More members appear as they send messages.</p>
-                        )}
-                        {groupInfo.participants
-                          .sort((a, b) => {
-                            const order = { superadmin: 0, admin: 1 };
-                            const aOrder = a.admin ? (order[a.admin] ?? 2) : 2;
-                            const bOrder = b.admin ? (order[b.admin] ?? 2) : 2;
-                            return aOrder - bOrder;
-                          })
-                          .map(p => {
-                            const pId = p.id || '';
-                            const isLidId = pId.endsWith('@lid');
-                            const pPhone = pId.replace('@s.whatsapp.net', '').replace('@lid', '');
-                            const pColor = getAvatarColor(pPhone);
-                            const displayName = isLidId ? `Member ${pPhone.slice(-4)}` : formatPhoneNumber(pPhone);
-                            const isSuperAdmin = p.admin === 'superadmin';
-                            const isAdmin = p.admin === 'admin';
-                            return (
-                              <div key={p.id} className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-gray-50 group/participant">
-                                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-semibold ${pColor}`}>
-                                  {pPhone.slice(-2)}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-xs text-gray-800 truncate">{displayName}</p>
-                                </div>
-                                {isSuperAdmin && (
-                                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 flex items-center gap-0.5">
-                                    <Crown className="w-2.5 h-2.5" /> Owner
-                                  </span>
-                                )}
-                                {isAdmin && (
-                                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 flex items-center gap-0.5">
-                                    <Shield className="w-2.5 h-2.5" /> Admin
-                                  </span>
-                                )}
-                                {/* Admin actions - visible on hover */}
-                                {!isSuperAdmin && (
-                                  <div className="hidden group-hover/participant:flex items-center gap-0.5">
-                                    {isAdmin ? (
-                                      <button
-                                        onClick={() => updateGroupParticipant(pId, 'demote')}
-                                        className="p-1 rounded hover:bg-orange-100 text-gray-400 hover:text-orange-600" title="Demote from admin"
-                                      >
-                                        <ChevronDown className="w-3 h-3" />
-                                      </button>
-                                    ) : (
-                                      <button
-                                        onClick={() => updateGroupParticipant(pId, 'promote')}
-                                        className="p-1 rounded hover:bg-indigo-100 text-gray-400 hover:text-indigo-600" title="Make admin"
-                                      >
-                                        <ChevronUp className="w-3 h-3" />
-                                      </button>
-                                    )}
-                                    <button
-                                      onClick={() => updateGroupParticipant(pId, 'remove')}
-                                      className="p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-600" title="Remove from group"
-                                    >
-                                      <UserMinus className="w-3 h-3" />
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-gray-400 text-center py-4">Could not load participants</p>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-        </div>
-      )}
-
-      {/* Status/Stories Panel */}
-      {showStatusPanel && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
-            {/* Header */}
-            <div className="bg-gradient-to-r from-green-600 to-green-700 text-white px-5 py-3 flex items-center justify-between flex-shrink-0">
-              <div className="flex items-center gap-2">
-                <Eye className="w-5 h-5" />
-                <h2 className="text-base font-semibold">Status Updates</h2>
-                {statusData.length > 0 && (
-                  <span className="text-[10px] bg-white bg-opacity-20 px-1.5 py-0.5 rounded-full">{statusData.length} contacts</span>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <button onClick={fetchStatuses} className="p-1 rounded hover:bg-white hover:bg-opacity-20" title="Refresh">
-                  <RefreshCw className={`w-4 h-4 ${loadingStatuses ? 'animate-spin' : ''}`} />
-                </button>
-                <button onClick={() => { setShowStatusPanel(false); setSelectedStatusUser(null); }} className="p-1 rounded hover:bg-white hover:bg-opacity-20">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto">
-              {loadingStatuses ? (
-                <div className="flex flex-col items-center justify-center py-16">
-                  <Loader2 className="w-8 h-8 animate-spin text-green-500 mb-3" />
-                  <p className="text-sm text-gray-500">Loading statuses...</p>
-                </div>
-              ) : selectedStatusUser ? (
-                /* Status Viewer */
-                <div className="flex flex-col h-full">
-                  {/* Viewer Header */}
-                  <div className="flex items-center gap-3 px-4 py-3 border-b bg-gray-50">
-                    <button onClick={() => { setSelectedStatusUser(null); setCurrentStatusIndex(0); }} className="p-1 rounded hover:bg-gray-200">
-                      <ArrowLeft className="w-4 h-4 text-gray-600" />
-                    </button>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold ${getAvatarColor(selectedStatusUser.senderPhone)}`}>
-                      {selectedStatusUser.senderPhone.slice(-2)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{selectedStatusUser.senderName}</p>
-                      <p className="text-[10px] text-gray-500">{selectedStatusUser.statuses.length} status{selectedStatusUser.statuses.length > 1 ? 'es' : ''}</p>
-                    </div>
-                    {selectedStatusUser.statuses.length > 1 && (
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => setCurrentStatusIndex(Math.max(0, currentStatusIndex - 1))}
-                          disabled={currentStatusIndex === 0}
-                          className="p-1 rounded hover:bg-gray-200 disabled:opacity-30"
-                        >
-                          <ChevronLeft className="w-4 h-4" />
-                        </button>
-                        <span className="text-[10px] text-gray-500">{currentStatusIndex + 1}/{selectedStatusUser.statuses.length}</span>
-                        <button
-                          onClick={() => setCurrentStatusIndex(Math.min(selectedStatusUser.statuses.length - 1, currentStatusIndex + 1))}
-                          disabled={currentStatusIndex >= selectedStatusUser.statuses.length - 1}
-                          className="p-1 rounded hover:bg-gray-200 disabled:opacity-30"
-                        >
-                          <ChevronRight className="w-4 h-4" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                  {/* Status Content */}
-                  {(() => {
-                    const status = selectedStatusUser.statuses[currentStatusIndex];
-                    if (!status) return null;
-                    return (
-                      <div className="flex-1 flex flex-col items-center justify-center p-6 min-h-[300px]">
-                        {/* Progress dots */}
-                        {selectedStatusUser.statuses.length > 1 && (
-                          <div className="flex gap-1 mb-4">
-                            {selectedStatusUser.statuses.map((_: any, i: number) => (
-                              <div
-                                key={i}
-                                className={`h-0.5 rounded-full transition-all ${i === currentStatusIndex ? 'w-6 bg-green-500' : 'w-3 bg-gray-300'}`}
-                              />
-                            ))}
-                          </div>
-                        )}
-                        {status.hasMedia ? (
-                          <div className="w-full max-w-sm">
-                            <img
-                              src={`/api/admin/crm/whatsapp/qr-bridge?path=${encodeURIComponent(`/media/${status.mediaMessageId}`)}`}
-                              alt="Status"
-                              className="w-full rounded-xl shadow-lg object-contain max-h-[400px]"
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).style.display = 'none';
-                                (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
-                              }}
-                            />
-                            <div className="hidden text-center py-8">
-                              <ImageIcon className="w-12 h-12 text-gray-300 mx-auto mb-2" />
-                              <p className="text-xs text-gray-400">Media not available</p>
-                            </div>
-                            {status.text && (
-                              <p className="text-sm text-gray-700 text-center mt-3">{status.text}</p>
-                            )}
-                          </div>
-                        ) : status.type === 'text' ? (
-                          <div className="w-full max-w-sm bg-gradient-to-br from-green-500 to-teal-600 rounded-xl p-8 shadow-lg">
-                            <p className="text-white text-lg text-center font-medium leading-relaxed">{status.text}</p>
-                          </div>
-                        ) : (
-                          <div className="text-center py-8">
-                            <Eye className="w-12 h-12 text-gray-300 mx-auto mb-2" />
-                            <p className="text-xs text-gray-400">Status type: {status.type}</p>
-                          </div>
-                        )}
-                        <p className="text-[10px] text-gray-400 mt-4">
-                          {new Date(status.timestamp * 1000).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                        </p>
-                      </div>
-                    );
-                  })()}
-                </div>
-              ) : statusData.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-16">
-                  <Eye className="w-12 h-12 text-gray-300 mb-3" />
-                  <p className="text-sm text-gray-500">No recent statuses</p>
-                  <p className="text-[10px] text-gray-400 mt-1">Statuses from contacts will appear here as they are posted</p>
-                </div>
-              ) : (
-                /* Status List */
-                <div className="divide-y">
-                  {statusData.map((user: any) => (
-                    <button
-                      key={user.senderJid}
-                      onClick={() => { setSelectedStatusUser(user); setCurrentStatusIndex(0); }}
-                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-left transition"
-                    >
-                      <div className="relative">
-                        <div className={`w-11 h-11 rounded-full flex items-center justify-center text-white text-sm font-semibold ${getAvatarColor(user.senderPhone)} ring-2 ring-green-500 ring-offset-2`}>
-                          {user.senderPhone.slice(-2)}
-                        </div>
-                        <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
-                          <span className="text-white text-[8px] font-bold">{user.statuses.length}</span>
-                        </span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{user.senderName}</p>
-                        <p className="text-[10px] text-gray-500">
-                          {user.statuses.length} status{user.statuses.length > 1 ? 'es' : ''} · {new Date(user.statuses[0].timestamp * 1000).toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-                        </p>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-gray-400" />
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Extension Modal */}
-      {showExtensionModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full max-h-[80vh] overflow-y-auto">
-            {/* Modal Header */}
-            <div className="sticky top-0 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white px-6 py-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">📥</span>
-                <h2 className="text-xl font-bold">QR WhatsApp PC Extension</h2>
-              </div>
-              <button
-                onClick={() => setShowExtensionModal(false)}
-                className="text-white hover:text-gray-200 text-2xl leading-none"
-              >
-                ×
-              </button>
-            </div>
-
-            {/* Modal Content */}
-            <div className="p-6 space-y-6">
-              {/* Overview */}
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  All-in-One WhatsApp Business Automation
-                </h3>
-                <p className="text-gray-600 text-sm leading-relaxed">
-                  Power up your WhatsApp management with a single Node.js script. Manage leads, labels, messaging, and automation—all from the command line.
-                </p>
-              </div>
-
-              {/* Features */}
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-3">✨ Key Features</h4>
-                <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <li className="flex items-start gap-2 text-sm text-gray-700">
-                    <span className="text-green-600 font-bold">✓</span>
-                    <span><strong>Funnel Management</strong> — Track leads through custom sales pipelines</span>
-                  </li>
-                  <li className="flex items-start gap-2 text-sm text-gray-700">
-                    <span className="text-green-600 font-bold">✓</span>
-                    <span><strong>Label System</strong> — Multi-label contact organization</span>
-                  </li>
-                  <li className="flex items-start gap-2 text-sm text-gray-700">
-                    <span className="text-green-600 font-bold">✓</span>
-                    <span><strong>Batch Messaging</strong> — Send to 10 people with smart delays</span>
-                  </li>
-                  <li className="flex items-start gap-2 text-sm text-gray-700">
-                    <span className="text-green-600 font-bold">✓</span>
-                    <span><strong>Category Management</strong> — Organize contacts by department</span>
-                  </li>
-                  <li className="flex items-start gap-2 text-sm text-gray-700">
-                    <span className="text-green-600 font-bold">✓</span>
-                    <span><strong>Date Filtering</strong> — View messages by time period</span>
-                  </li>
-                  <li className="flex items-start gap-2 text-sm text-gray-700">
-                    <span className="text-green-600 font-bold">✓</span>
-                    <span><strong>QR Code Scanning</strong> — Easy PC WhatsApp connection</span>
-                  </li>
-                </ul>
-              </div>
-
-              {/* Setup Steps */}
-              <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 space-y-3">
-                <h4 className="font-semibold text-gray-900">🚀 Quick Setup (3 Steps)</h4>
-                <ol className="space-y-2 text-sm text-gray-700">
-                  <li><strong>1. Download</strong> the script using the button below</li>
-                  <li><strong>2. Run</strong> <code className="bg-gray-100 px-2 py-1 rounded text-xs">node qr-whatsapp-pc-extension.js</code></li>
-                  <li><strong>3. Choose from 21 interactive menu options</strong></li>
-                </ol>
-              </div>
-
-              {/* Requirements */}
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-2">📋 Requirements</h4>
-                <ul className="text-sm text-gray-700 space-y-1 ml-4">
-                  <li>• Node.js 14+ installed</li>
-                  <li>• WhatsApp Bridge running (port 3333)</li>
-                  <li>• MongoDB connection configured</li>
-                  <li>• `.env.local` with credentials</li>
-                </ul>
-              </div>
-
-              {/* Usage Example */}
-              <div className="bg-gray-900 text-green-400 rounded-lg p-4 font-mono text-xs overflow-x-auto">
-                <p className="mb-2"># Launch interactive menu</p>
-                <p className="text-gray-300">$ node qr-whatsapp-pc-extension.js</p>
-                <p className="mt-3 mb-2"># Or run specific commands</p>
-                <p className="text-gray-300">$ node qr-whatsapp-pc-extension.js qr</p>
-                <p className="text-gray-300">$ node qr-whatsapp-pc-extension.js funnel:list</p>
-              </div>
-
-              {/* Documentation Link */}
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-900">
-                <p className="font-semibold mb-2">📚 Full Documentation Available</p>
-                <p>See <strong>QR_TOOL_COMPLETE_GUIDE.md</strong> or <strong>QR_WHATSAPP_PC_EXTENSION_GUIDE.md</strong> in your project root for detailed command reference.</p>
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="sticky bottom-0 bg-gray-50 border-t px-6 py-4 flex items-center justify-between gap-3">
-              <p className="text-xs text-gray-500">
-                v1.0 — Unified WhatsApp Business Automation
-              </p>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowExtensionModal(false)}
-                  className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleDownloadInstaller}
-                  disabled={downloadingExtension}
-                  className="px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition flex items-center gap-2"
-                >
-                  {downloadingExtension ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Downloading...
-                    </>
-                  ) : (
-                    <>
-                      <span>📥</span>
-                      Download & Install
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Simple Install Guide Modal */}
-      {showInstallGuide && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-xl w-full">
-            {/* Header */}
-            <div className="bg-gradient-to-r from-green-600 to-emerald-600 text-white p-6">
-              <h2 className="text-2xl font-bold">✅ Almost Done!</h2>
-              <p className="text-green-100 mt-1">Just 2 quick steps to run the extension</p>
-            </div>
-
-            {/* Content */}
-            <div className="p-6 space-y-6">
-              {/* Step 1 */}
-              <div>
-                <h3 className="font-bold text-lg mb-3">Step 1: Open Terminal</h3>
-                <p className="text-gray-700 mb-3">Open the Terminal app on your Mac</p>
-                <div className="bg-indigo-50 border border-indigo-200 rounded p-3 text-sm text-indigo-900">
-                  Press: <code className="bg-indigo-100 px-2 py-1 rounded font-mono">Cmd + Space</code> then type "Terminal"
-                </div>
-              </div>
-
-              {/* Step 2 */}
-              <div>
-                <h3 className="font-bold text-lg mb-3">Step 2: Run the Installer</h3>
-                <p className="text-gray-700 mb-3">Copy & paste this command in Terminal:</p>
-                <div className="bg-gray-900 text-gray-100 rounded p-4 text-sm font-mono overflow-x-auto flex items-center justify-between group hover:bg-gray-800 cursor-pointer transition">
-                  <code>cd ~/Downloads && chmod +x install.sh && ./install.sh</code>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText('cd ~/Downloads && chmod +x install.sh && ./install.sh');
-                      alert('✅ Copied to clipboard!');
-                    }}
-                    className="opacity-0 group-hover:opacity-100 transition bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs font-semibold flex-shrink-0 ml-2"
-                  >
-                    Copy
-                  </button>
-                </div>
-                <p className="text-gray-600 text-xs mt-2">The installer will automatically check Node.js, install dependencies, and run everything!</p>
-              </div>
-
-              {/* Info Box */}
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <p className="text-sm text-green-900">
-                  <strong>✨ That's it!</strong> The installer handles everything for you. Just copy the command and press Enter.
-                </p>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="bg-gray-100 border-t p-4 flex gap-3 justify-end">
-              <button
-                onClick={() => setShowInstallGuide(false)}
-                className="px-4 py-2 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition"
-              >
-                Close
-              </button>
-              <a
-                href="https://nodejs.org"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition text-sm"
-              >
-                Need Node.js?
-              </a>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Edit/Add Funnel or Label Modal */}
-      {editModal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setEditModal(null)}>
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-xs p-4" onClick={e => e.stopPropagation()}>
-            <h3 className="text-sm font-semibold text-gray-800 mb-3">
-              {editModal.mode === 'add' ? 'Add' : 'Edit'} {editModal.type === 'funnel' ? 'Funnel Stage' : 'Label'}
-            </h3>
-            <input
-              type="text"
-              value={editName}
-              onChange={e => setEditName(e.target.value)}
-              placeholder={editModal.type === 'funnel' ? 'Stage name...' : 'Label name...'}
-              className="w-full px-3 py-1.5 border rounded-lg text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-indigo-300"
-              autoFocus
-              onKeyDown={e => e.key === 'Enter' && saveEditModal()}
+          {detailsPanel && selectedChat && (
+            <DetailsPanel
+              selectedChat={selectedChat}
+              chats={chats}
+              messages={messages}
+              profilePics={profilePics}
+              isConnected={isConnected}
+              contactAbout={contactAbout}
+              chatFunnels={chatFunnels}
+              chatLabels={chatLabels}
+              funnelStages={funnelStages}
+              labelPresets={labelPresets}
+              groupInfo={groupInfo}
+              loadingGroupInfo={loadingGroupInfo}
+              editingDesc={editingDesc}
+              setEditingDesc={setEditingDesc}
+              editDescText={editDescText}
+              setEditDescText={setEditDescText}
+              savingDesc={savingDesc}
+              updateGroupDesc={updateGroupDesc}
+              groupInviteLink={groupInviteLink}
+              loadingInvite={loadingInvite}
+              fetchGroupInvite={fetchGroupInvite}
+              revokeGroupInvite={revokeGroupInvite}
+              groupSettingsLoading={groupSettingsLoading}
+              updateGroupSetting={updateGroupSetting}
+              updateGroupParticipant={updateGroupParticipant}
+              handleRenameGroup={handleRenameGroup}
+              handleLeaveGroup={handleLeaveGroup}
+              setDetailsPanel={setDetailsPanel}
+              setLightboxImage={setLightboxImage}
             />
-            <p className="text-[10px] text-gray-500 mb-1.5">Color</p>
-            <div className="flex flex-wrap gap-1.5 mb-4">
-              {(editModal.type === 'funnel' ? FUNNEL_COLORS : LABEL_COLORS).map(c => (
-                <button
-                  key={c}
-                  onClick={() => setEditColor(c)}
-                  className={`w-6 h-6 rounded-full border-2 transition ${c.split(' ')[0]} ${editColor === c ? 'border-gray-800 scale-110' : 'border-transparent hover:border-gray-400'}`}
-                  title={c}
-                />
-              ))}
-            </div>
-            <div className="flex items-center justify-between gap-2">
-              {editModal.mode === 'edit' && editModal.item?.key !== 'all' ? (
-                <button onClick={deleteFromModal} className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1">
-                  <Trash2 className="w-3 h-3" /> Delete
-                </button>
-              ) : <div />}
-              <div className="flex gap-2">
-                <button onClick={() => setEditModal(null)} className="px-3 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded">Cancel</button>
-                <button
-                  onClick={saveEditModal}
-                  disabled={!editName.trim()}
-                  className="px-3 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-40"
-                >
-                  {editModal.mode === 'add' ? 'Add' : 'Save'}
-                </button>
-              </div>
-            </div>
-          </div>
+          )}
         </div>
       )}
 
-      {/* Star Popup — Quick Actions */}
-      {showStarPopup && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowStarPopup(false)}>
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
-            {/* Header */}
-            <div className="px-4 py-3 border-b flex items-center justify-between bg-gradient-to-r from-yellow-500 to-orange-500 rounded-t-xl">
-              <div className="flex items-center gap-2 text-white">
-                <Star className="w-5 h-5" />
-                <h3 className="font-semibold">Quick Actions</h3>
-              </div>
-              <button onClick={() => setShowStarPopup(false)} className="text-white/80 hover:text-white"><X className="w-5 h-5" /></button>
-            </div>
-
-            {/* Tabs */}
-            <div className="flex border-b">
-              {(['quick', 'template', 'broadcast'] as const).map(t => (
-                <button key={t} onClick={() => setStarTab(t)} className={`flex-1 px-4 py-2.5 text-sm font-medium transition ${
-                  starTab === t ? 'text-yellow-600 border-b-2 border-yellow-500 bg-yellow-50' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-                }`}>
-                  {t === 'quick' && '⚡ Quick Reply'}
-                  {t === 'template' && '📋 Templates'}
-                  {t === 'broadcast' && '📢 Broadcast'}
-                </button>
-              ))}
-            </div>
-
-            {/* Tab Content */}
-            <div className="flex-1 overflow-y-auto p-4">
-              {/* Quick Reply Tab */}
-              {starTab === 'quick' && (
-                <div className="space-y-2">
-                  <p className="text-xs text-gray-500 mb-3">Click to insert into message box</p>
-                  {QUICK_REPLIES.map((reply, i) => (
-                    <button key={i} onClick={() => { setComposerText(prev => prev ? prev + ' ' + reply : reply); setShowStarPopup(false); }} className="w-full text-left px-3 py-2.5 bg-gray-50 hover:bg-green-50 border rounded-lg text-sm text-gray-700 hover:text-green-700 hover:border-green-300 transition">
-                      {reply}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* Template Tab */}
-              {starTab === 'template' && (
-                <div className="space-y-3">
-                  <p className="text-xs text-gray-500 mb-3">Click to load template into message box</p>
-                  {TEMPLATES.map((tpl, i) => (
-                    <button key={i} onClick={() => { setComposerText(tpl.text); setShowStarPopup(false); }} className="w-full text-left px-4 py-3 bg-gray-50 hover:bg-indigo-50 border rounded-lg hover:border-indigo-300 transition">
-                      <p className="text-sm font-semibold text-gray-800 mb-1">{tpl.name}</p>
-                      <p className="text-xs text-gray-500 line-clamp-2">{tpl.text}</p>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* Broadcast Tab */}
-              {starTab === 'broadcast' && (
-                <div className="space-y-3">
-                  <p className="text-xs text-gray-500">Send one message to up to 10 contacts at once</p>
-
-                  {/* Message */}
-                  <textarea
-                    value={broadcastText}
-                    onChange={e => setBroadcastText(e.target.value)}
-                    placeholder="Type your broadcast message..."
-                    className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-yellow-300 resize-none"
-                    rows={3}
-                  />
-
-                  {/* Contact Search */}
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-                    <input
-                      type="text"
-                      value={broadcastSearch}
-                      onChange={e => setBroadcastSearch(e.target.value)}
-                      placeholder="Search contacts..."
-                      className="w-full pl-8 pr-3 py-2 text-xs bg-gray-100 rounded-lg border-0 focus:ring-1 focus:ring-yellow-400 outline-none"
-                    />
-                  </div>
-
-                  {/* Selected count */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-500">{broadcastChats.size}/10 selected</span>
-                    {broadcastChats.size > 0 && (
-                      <button onClick={() => setBroadcastChats(new Set())} className="text-xs text-red-500 hover:text-red-700">Clear all</button>
-                    )}
-                  </div>
-
-                  {/* Contact list */}
-                  <div className="max-h-40 overflow-y-auto border rounded-lg divide-y">
-                    {chats
-                      .filter(c => !c.isGroup)
-                      .filter(c => {
-                        if (!broadcastSearch.trim()) return true;
-                        const q = broadcastSearch.toLowerCase();
-                        return (c.name || '').toLowerCase().includes(q) || (c.resolvedPhone || c.id).toLowerCase().includes(q);
-                      })
-                      .slice(0, 50)
-                      .map(c => {
-                        const checked = broadcastChats.has(c.id);
-                        return (
-                          <div
-                            key={c.id}
-                            onClick={() => {
-                              setBroadcastChats(prev => {
-                                const next = new Set(prev);
-                                if (next.has(c.id)) { next.delete(c.id); }
-                                else if (next.size < 10) { next.add(c.id); }
-                                return next;
-                              });
-                            }}
-                            className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 transition ${checked ? 'bg-yellow-50' : ''}`}
-                          >
-                            {checked ? <CheckSquare className="w-4 h-4 text-yellow-600 flex-shrink-0" /> : <Square className="w-4 h-4 text-gray-300 flex-shrink-0" />}
-                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-semibold flex-shrink-0 ${getAvatarColor(c.name)}`}>
-                              {getInitials(c.name)}
-                            </div>
-                            <span className="text-xs text-gray-700 truncate">{c.resolvedPhone ? formatPhoneNumber(c.resolvedPhone) : c.name}</span>
-                          </div>
-                        );
-                      })}
-                  </div>
-
-                  {/* Send Button */}
-                  <button
-                    onClick={handleBroadcastSend}
-                    disabled={broadcastChats.size === 0 || !broadcastText.trim() || broadcastSending}
-                    className="w-full py-2.5 bg-yellow-500 text-white rounded-lg font-medium hover:bg-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2"
-                  >
-                    {broadcastSending ? (
-                      <><Loader2 className="w-4 h-4 animate-spin" /> Sending...</>
-                    ) : (
-                      <><Send className="w-4 h-4" /> Send to {broadcastChats.size} contacts</>
-                    )}
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Image Lightbox */}
-      {lightboxImage && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setLightboxImage(null)}>
-          <div className="relative max-w-4xl max-h-screen flex items-center justify-center" onClick={e => e.stopPropagation()}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img 
-              src={lightboxImage} 
-              alt="Full-screen" 
-              className="max-w-full max-h-screen object-contain rounded-lg"
-            />
-            <button 
-              onClick={() => setLightboxImage(null)}
-              className="absolute top-4 right-4 bg-white/10 hover:bg-white/20 text-white p-2 rounded-full transition"
-              title="Close"
-            >
-              <X className="w-6 h-6" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Group Creation Modal */}
-      {showGroupCreate && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setShowGroupCreate(false)}>
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4 mx-4" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <Users className="w-5 h-5 text-purple-600" /> New Group
-              </h3>
-              <button onClick={() => setShowGroupCreate(false)} className="p-1 hover:bg-gray-100 rounded"><X className="w-5 h-5 text-gray-400" /></button>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Group Name</label>
-              <input
-                type="text"
-                value={newGroupName}
-                onChange={e => setNewGroupName(e.target.value)}
-                placeholder="Enter group name"
-                className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Members (phone numbers, one per line)</label>
-              <textarea
-                value={newGroupMembers}
-                onChange={e => setNewGroupMembers(e.target.value)}
-                placeholder={"919876543210\n919876543211\n919876543212"}
-                rows={4}
-                className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none resize-none"
-              />
-              <p className="text-[10px] text-gray-400 mt-1">Use full phone numbers with country code (e.g. 919876543210)</p>
-            </div>
-            <button
-              onClick={handleCreateGroup}
-              disabled={creatingGroup || !newGroupName.trim()}
-              className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {creatingGroup ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-              {creatingGroup ? 'Creating...' : 'Create Group'}
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Extracted Modals / Panels */}
+      {/* Extracted Modals / Panels */}
+      <StatusPanel
+        showStatusPanel={showStatusPanel}
+        setShowStatusPanel={setShowStatusPanel}
+        statusData={statusData}
+        loadingStatuses={loadingStatuses}
+        fetchStatuses={fetchStatuses}
+        selectedStatusUser={selectedStatusUser}
+        setSelectedStatusUser={setSelectedStatusUser}
+        currentStatusIndex={currentStatusIndex}
+        setCurrentStatusIndex={setCurrentStatusIndex}
+        token={token}
+      />
+      <ExtensionModal
+        showExtensionModal={showExtensionModal}
+        setShowExtensionModal={setShowExtensionModal}
+        handleDownloadInstaller={handleDownloadInstaller}
+        downloadingExtension={downloadingExtension}
+      />
+      <InstallGuideModal showInstallGuide={showInstallGuide} setShowInstallGuide={setShowInstallGuide} />
+      <EditFunnelLabelModal
+        editModal={editModal}
+        setEditModal={setEditModal}
+        editName={editName}
+        setEditName={setEditName}
+        editColor={editColor}
+        setEditColor={setEditColor}
+        saveEditModal={saveEditModal}
+        deleteFromModal={deleteFromModal}
+      />
+      <StarPopup
+        showStarPopup={showStarPopup}
+        setShowStarPopup={setShowStarPopup}
+        starTab={starTab}
+        setStarTab={setStarTab}
+        setComposerText={setComposerText}
+        broadcastChats={broadcastChats}
+        setBroadcastChats={setBroadcastChats}
+        broadcastText={broadcastText}
+        setBroadcastText={setBroadcastText}
+        broadcastSending={broadcastSending}
+        broadcastSearch={broadcastSearch}
+        setBroadcastSearch={setBroadcastSearch}
+        chats={chats}
+        handleBroadcastSend={handleBroadcastSend}
+      />
+      <Lightbox lightboxImage={lightboxImage} setLightboxImage={setLightboxImage} />
+      <GroupCreateModal
+        showGroupCreate={showGroupCreate}
+        setShowGroupCreate={setShowGroupCreate}
+        newGroupName={newGroupName}
+        setNewGroupName={setNewGroupName}
+        newGroupMembers={newGroupMembers}
+        setNewGroupMembers={setNewGroupMembers}
+        creatingGroup={creatingGroup}
+        handleCreateGroup={handleCreateGroup}
+      />
     </div>
   );
 
