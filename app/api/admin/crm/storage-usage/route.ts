@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { getViewerUserId, isSuperAdmin } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,89 +33,128 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
 
-    const db = mongoose.connection.db;
+    const crmDbName = process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm';
+    const db = mongoose.connection.useDb(crmDbName).db;
     if (!db) {
       return NextResponse.json({ error: 'Database not connected' }, { status: 500 });
     }
 
-    // Get database stats
-    const stats = await db.stats();
-    
-    // Get collection stats for breakdown
-    const collections = await db.listCollections().toArray();
-    const collectionStats = await Promise.all(
-      collections.map(async (col) => {
-        try {
-          const colStats = await db.command({ collStats: col.name });
-          return {
-            name: col.name,
-            size: colStats.size || 0,
-            storageSize: colStats.storageSize || 0,
-            count: colStats.count || 0,
-            avgObjSize: colStats.avgObjSize || 0,
-          };
-        } catch {
-          return {
-            name: col.name,
-            size: 0,
-            storageSize: 0,
-            count: 0,
-            avgObjSize: 0,
-          };
-        }
-      })
-    );
+    const ownerId = getViewerUserId(decoded);
+    const isSuper = isSuperAdmin(decoded);
 
-    // Sort by size descending
-    collectionStats.sort((a, b) => b.size - a.size);
+    // Tenant-scoped collections that store user data
+    const tenantCollections = [
+      'crm_leads',
+      'crm_whatsapp_messages',
+      'crm_whatsapp_templates',
+      'crm_broadcast_runs',
+      'crm_chatbot_flows',
+      'crm_email_campaigns',
+      'crm_auto_configs',
+      'crm_sales_reports',
+      'crm_community_posts',
+      'crm_landing_pages',
+    ];
 
-    // Calculate totals
-    const totalDataSize = stats.dataSize || 0;
-    const totalStorageSize = stats.storageSize || 0;
-    const totalIndexSize = stats.indexSize || 0;
+    // For super admin: show full DB stats. For regular users: estimate from their docs.
+    let totalDataSize = 0;
+    let totalDocCount = 0;
+    const topCollections: { name: string; size: { value: number; unit: string; display: string }; count: number }[] = [];
 
-    // Top 5 collections by size
-    const topCollections = collectionStats.slice(0, 5).map(col => ({
-      name: col.name,
-      size: formatBytes(col.size),
-      count: col.count,
-    }));
+    if (isSuper) {
+      // Super admin sees whole database
+      const stats = await db.stats();
+      totalDataSize = stats.storageSize || stats.dataSize || 0;
+      totalDocCount = stats.objects || 0;
+
+      const collections = await db.listCollections().toArray();
+      const colStats = await Promise.all(
+        collections.map(async (col) => {
+          try {
+            const cs = await db.command({ collStats: col.name });
+            return { name: col.name, size: cs.size || 0, count: cs.count || 0 };
+          } catch { return { name: col.name, size: 0, count: 0 }; }
+        })
+      );
+      colStats.sort((a, b) => b.size - a.size);
+      topCollections.push(
+        ...colStats.slice(0, 5).map(c => ({ name: c.name, size: formatBytes(c.size), count: c.count }))
+      );
+    } else {
+      // Regular user: count only their own documents per collection
+      const results = await Promise.all(
+        tenantCollections.map(async (colName) => {
+          try {
+            const col = db.collection(colName);
+            const count = await col.countDocuments({ ownerId });
+            // Estimate avg doc size from a small sample
+            let avgSize = 500; // default estimate 500 bytes
+            if (count > 0) {
+              const sample = await col.find({ ownerId }).limit(5).toArray();
+              if (sample.length > 0) {
+                const totalSampleSize = sample.reduce((sum, doc) => sum + JSON.stringify(doc).length, 0);
+                avgSize = totalSampleSize / sample.length;
+              }
+            }
+            const estimatedSize = count * avgSize;
+            return { name: colName, count, size: estimatedSize };
+          } catch {
+            return { name: colName, count: 0, size: 0 };
+          }
+        })
+      );
+
+      results.sort((a, b) => b.size - a.size);
+      for (const r of results) {
+        totalDataSize += r.size;
+        totalDocCount += r.count;
+      }
+      topCollections.push(
+        ...results.filter(r => r.count > 0).slice(0, 5).map(r => ({
+          name: r.name.replace('crm_', ''),
+          size: formatBytes(r.size),
+          count: r.count,
+        }))
+      );
+    }
 
     // Cost calculation (₹35 per GB per month, ~$0.42/GB)
-    const totalGB = totalStorageSize / (1024 * 1024 * 1024);
-    const monthlyCost = Math.ceil(totalGB * 35); // INR
-    const monthlyCostUSD = Math.ceil(totalGB * 0.42 * 100) / 100; // USD with 2 decimal places
+    const totalGB = totalDataSize / (1024 * 1024 * 1024);
+    const monthlyCost = Math.max(1, Math.ceil(totalGB * 35)); // INR, min ₹1
+    const monthlyCostUSD = Math.max(0.01, Math.ceil(totalGB * 0.42 * 100) / 100);
 
     return NextResponse.json({
       success: true,
       data: {
         // Total sizes
         dataSize: formatBytes(totalDataSize),
-        storageSize: formatBytes(totalStorageSize),
-        indexSize: formatBytes(totalIndexSize),
-        totalSize: formatBytes(totalDataSize + totalIndexSize),
+        storageSize: formatBytes(totalDataSize),
+        indexSize: formatBytes(0),
+        totalSize: formatBytes(totalDataSize),
         
-        // Raw bytes for progress bars
+        // Raw bytes
         dataSizeBytes: totalDataSize,
-        storageSizeBytes: totalStorageSize,
-        indexSizeBytes: totalIndexSize,
-        totalSizeBytes: totalDataSize + totalIndexSize,
+        storageSizeBytes: totalDataSize,
+        indexSizeBytes: 0,
+        totalSizeBytes: totalDataSize,
         
         // GB value for cost
         totalGB: parseFloat(totalGB.toFixed(3)),
         
-        // Cost in both currencies
-        monthlyCost, // INR
+        // Cost
+        monthlyCost,
         monthlyCostUSD,
-        costPerGB: 35, // INR
-        costPerGBUSD: 0.42, // USD
+        costPerGB: 35,
+        costPerGBUSD: 0.42,
         
         // Collections
-        collectionCount: collections.length,
+        collectionCount: topCollections.length,
         topCollections,
+        documentCount: totalDocCount,
         
         // Database info
-        dbName: db.databaseName,
+        dbName: crmDbName,
+        scope: isSuper ? 'global' : 'user',
       },
     });
   } catch (error) {
