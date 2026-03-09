@@ -89,10 +89,13 @@ export default function AutoConfigSettingsPage() {
   // Read tab from URL query params
   useEffect(() => {
     const tab = searchParams.get('tab');
+    // Redirect billing/payments to their dedicated pages
+    if (tab === 'billing') { router.replace('/admin/crm/billing'); return; }
+    if (tab === 'payments') { router.replace('/admin/crm/payment-details'); return; }
     if (tab && ['general', 'hours', 'replies', 'ai', 'leads', 'notifications', 'storage'].includes(tab)) {
       setActiveTab(tab as Tab);
     }
-  }, [searchParams]);
+  }, [searchParams, router]);
 
   const getToken = () => {
     if (typeof window === 'undefined') return null;

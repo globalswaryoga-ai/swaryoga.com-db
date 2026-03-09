@@ -83,6 +83,7 @@ function ProfileDropdown({ onLogout }: { onLogout: () => void }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
+  const [profilePhoto, setProfilePhoto] = useState('');
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -96,8 +97,30 @@ function ProfileDropdown({ onLogout }: { onLogout: () => void }) {
     }
     const crmName = localStorage.getItem('crm_user_name');
     const crmEmail = localStorage.getItem('crm_user_email');
+    const crmPhoto = localStorage.getItem('crm_profile_photo');
     if (crmName) setUserName(crmName);
     if (crmEmail) setUserEmail(crmEmail);
+    if (crmPhoto) setProfilePhoto(crmPhoto);
+
+    // Fetch latest profile photo from API (async)
+    const token = localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
+    if (token) {
+      fetch('/api/crm-site/account', { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data?.profile) {
+            if (data.profile.profilePhoto) {
+              setProfilePhoto(data.profile.profilePhoto);
+              localStorage.setItem('crm_profile_photo', data.profile.profilePhoto);
+            }
+            if (data.profile.name) {
+              setUserName(data.profile.name);
+              localStorage.setItem('crm_user_name', data.profile.name);
+            }
+          }
+        })
+        .catch(() => { /* ignore */ });
+    }
   }, []);
 
   // Close on outside click
@@ -120,10 +143,30 @@ function ProfileDropdown({ onLogout }: { onLogout: () => void }) {
   const menuItems = [
     { label: 'Plan Details', icon: Crown, href: '/admin/crm/subscription', color: 'text-purple-600' },
     { label: 'Upgrade', icon: ArrowUpRight, href: '/admin/crm/subscription', color: 'text-indigo-600' },
-    { label: 'Billing', icon: Receipt, href: '/admin/crm/settings?tab=billing', color: 'text-green-600' },
-    { label: 'Payment / Bank Details', icon: Landmark, href: '/admin/crm/settings?tab=payments', color: 'text-indigo-600' },
+    { label: 'Billing', icon: Receipt, href: '/admin/crm/billing', color: 'text-green-600' },
+    { label: 'Payment / Bank Details', icon: Landmark, href: '/admin/crm/payment-details', color: 'text-indigo-600' },
     { label: 'Settings', icon: Settings, href: '/admin/crm/settings', color: 'text-gray-600' },
   ];
+
+  // Avatar renderer (photo or initials)
+  const Avatar = ({ size = 'sm' }: { size?: 'sm' | 'md' }) => {
+    const dim = size === 'md' ? 'w-10 h-10' : 'w-7 h-7';
+    const textSize = size === 'md' ? 'text-sm' : 'text-[11px]';
+    if (profilePhoto) {
+      return (
+        <img
+          src={profilePhoto}
+          alt={userName || 'Profile'}
+          className={`${dim} rounded-full object-cover border-2 border-indigo-100 flex-shrink-0`}
+        />
+      );
+    }
+    return (
+      <div className={`${dim} rounded-full bg-indigo-600 flex items-center justify-center text-white ${textSize} font-bold flex-shrink-0`}>
+        {initials}
+      </div>
+    );
+  };
 
   return (
     <div className="relative">
@@ -133,9 +176,7 @@ function ProfileDropdown({ onLogout }: { onLogout: () => void }) {
         className="flex items-center gap-2 p-1 rounded-lg hover:bg-gray-100 transition"
         title="Account"
       >
-        <div className="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center text-white text-[11px] font-bold">
-          {initials}
-        </div>
+        <Avatar size="sm" />
         <ChevronDown className={`h-3 w-3 text-gray-400 transition-transform hidden sm:block ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
@@ -144,20 +185,23 @@ function ProfileDropdown({ onLogout }: { onLogout: () => void }) {
           ref={panelRef}
           className="absolute right-0 top-full mt-1.5 w-64 bg-white border border-gray-200 rounded-lg shadow-lg py-2 z-[9999]"
         >
-          {/* User info header */}
-          <div className="px-4 py-3 border-b border-gray-100">
+          {/* User info header - clickable to go to profile */}
+          <Link
+            href="/admin/crm/account"
+            onClick={() => setIsOpen(false)}
+            className="block px-4 py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors"
+          >
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-                {initials}
-              </div>
+              <Avatar size="md" />
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-gray-900 truncate">{userName || 'Admin'}</p>
                 {userEmail && (
                   <p className="text-xs text-gray-500 truncate">{userEmail}</p>
                 )}
+                <p className="text-[10px] text-indigo-600 mt-0.5">View Profile →</p>
               </div>
             </div>
-          </div>
+          </Link>
 
           {/* Menu items */}
           <div className="py-1.5">

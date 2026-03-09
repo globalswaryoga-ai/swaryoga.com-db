@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
-import { Send, Search, Users, Clock, AlertTriangle, CheckCircle2, X, Loader2, Calendar, Radio, Pause, Play, Eye, FileText, Plus, Trash2, ChevronDown, ChevronUp, RefreshCw, Zap, Shield, Timer } from 'lucide-react';
+import { Send, Search, Users, Clock, AlertTriangle, CheckCircle2, X, Loader2, Calendar, Radio, Pause, Play, Eye, FileText, Plus, Trash2, ChevronDown, ChevronUp, RefreshCw, Zap, Shield, Timer, BarChart3 } from 'lucide-react';
 
 // ── Rate Limiting Constants ──
 const BATCH_SIZE = 10;           // Max 10 messages per batch
@@ -437,6 +438,9 @@ export default function QRBroadcastPage() {
                 <div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${(dailySent / DAILY_LIMIT) * 100}%` }} />
               </div>
             </div>
+            <Link href="/admin/crm/qr/broadcast-report" className="px-4 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5 transition">
+              <BarChart3 className="w-4 h-4" /> Report
+            </Link>
             <button
               onClick={() => { setComposeOpen(true); setActiveTab('compose'); }}
               disabled={remainingToday === 0}

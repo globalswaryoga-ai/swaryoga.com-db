@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
-import { Search, Plus, Pencil, Trash2, X, Eye, Copy, Bold, Italic, Strikethrough, Smile, ChevronLeft, Loader2, FileText, Image as ImageIcon, Video, Phone, ExternalLink, Tag } from 'lucide-react';
+import { Search, Plus, Pencil, Trash2, X, Eye, Copy, Bold, Italic, Strikethrough, Smile, ChevronLeft, Loader2, FileText, Image as ImageIcon, Video, Phone, ExternalLink, Tag, Upload, File, Play } from 'lucide-react';
 
 // ── WhatsApp Template Limits ──
 const LIMITS = {
@@ -29,6 +29,8 @@ function CharCount({ current, max }: { current: number; max: number }) {
 type ButtonType = 'QUICK_REPLY' | 'URL' | 'PHONE_NUMBER';
 type TemplateButton = { type: ButtonType; title: string; url?: string; phoneNumber?: string };
 
+type HeaderType = 'NONE' | 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT';
+
 type Template = {
   _id: string;
   templateName: string;
@@ -44,6 +46,7 @@ type Template = {
   buttons?: TemplateButton[];
   imageFile?: { url: string; fileName: string; mimeType: string; sizeBytes: number };
   videoUrl?: string;
+  documents?: Array<{ url: string; fileName: string; mimeType: string; sizeBytes: number }>;
 };
 
 function formatWA(text: string): string {
@@ -88,6 +91,14 @@ export default function QRTemplatesPage() {
   const [saving, setSaving] = useState(false);
   const [previewOpen, setPreviewOpen] = useState<string | null>(null);
 
+  // Media state
+  const [headerType, setHeaderType] = useState<HeaderType>('NONE');
+  const [mediaUrl, setMediaUrl] = useState('');
+  const [mediaFileName, setMediaFileName] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
   const bodyRef = useRef<HTMLTextAreaElement | null>(null);
 
   // ── Fetch templates (QR provider only) ──
@@ -119,6 +130,7 @@ export default function QRTemplatesPage() {
     setTemplateName(''); setLanguage('en'); setCategory('MARKETING');
     setHeaderText(''); setBodyText(''); setFooterText('');
     setButtons([]); setEditingId(null);
+    setHeaderType('NONE'); setMediaUrl(''); setMediaFileName('');
   };
 
   const openCreate = () => { resetForm(); setMode('create'); };
@@ -128,10 +140,22 @@ export default function QRTemplatesPage() {
     setTemplateName(t.templateName);
     setLanguage(t.language || 'en');
     setCategory(t.category || 'MARKETING');
-    setHeaderText(t.headerContent && !t.headerContent.startsWith('http') ? t.headerContent : '');
     setBodyText(t.templateContent || '');
     setFooterText(t.footerText || '');
     setButtons(t.buttons?.length ? t.buttons : []);
+    // Determine header type from existing template
+    const fmt = (t.headerFormat || '').toUpperCase();
+    if (fmt === 'IMAGE' && (t.imageFile?.url || (t.headerContent && t.headerContent.startsWith('http')))) {
+      setHeaderType('IMAGE'); setMediaUrl(t.imageFile?.url || t.headerContent || ''); setMediaFileName(t.imageFile?.fileName || 'image'); setHeaderText('');
+    } else if (fmt === 'VIDEO' && (t.videoUrl || (t.headerContent && t.headerContent.startsWith('http')))) {
+      setHeaderType('VIDEO'); setMediaUrl(t.videoUrl || t.headerContent || ''); setMediaFileName('video'); setHeaderText('');
+    } else if (fmt === 'DOCUMENT' && t.documents?.length) {
+      setHeaderType('DOCUMENT'); setMediaUrl(t.documents[0].url || ''); setMediaFileName(t.documents[0].fileName || 'document'); setHeaderText('');
+    } else if (t.headerContent && !t.headerContent.startsWith('http')) {
+      setHeaderType('TEXT'); setHeaderText(t.headerContent); setMediaUrl(''); setMediaFileName('');
+    } else {
+      setHeaderType('NONE'); setHeaderText(''); setMediaUrl(''); setMediaFileName('');
+    }
     setMode('edit');
   };
 
@@ -151,9 +175,7 @@ export default function QRTemplatesPage() {
         language,
         templateContent: bodyText.trim(),
         provider: 'qr',
-        status: 'approved', // QR templates auto-approved
-        headerFormat: headerText.trim() ? 'TEXT' : undefined,
-        headerContent: headerText.trim() || undefined,
+        status: 'approved',
         footerText: footerText.trim() || undefined,
         buttons: buttons.filter(b => b.title.trim()).map(b => ({
           type: b.type,
@@ -162,6 +184,24 @@ export default function QRTemplatesPage() {
           ...(b.type === 'PHONE_NUMBER' && b.phoneNumber ? { phoneNumber: b.phoneNumber } : {}),
         })),
       };
+
+      // Set header based on type
+      if (headerType === 'TEXT' && headerText.trim()) {
+        body.headerFormat = 'TEXT';
+        body.headerContent = headerText.trim();
+      } else if (headerType === 'IMAGE' && mediaUrl) {
+        body.headerFormat = 'IMAGE';
+        body.headerContent = mediaUrl;
+        body.imageFile = { url: mediaUrl, fileName: mediaFileName, mimeType: 'image/jpeg', sizeBytes: 0 };
+      } else if (headerType === 'VIDEO' && mediaUrl) {
+        body.headerFormat = 'VIDEO';
+        body.headerContent = mediaUrl;
+        body.videoUrl = mediaUrl;
+      } else if (headerType === 'DOCUMENT' && mediaUrl) {
+        body.headerFormat = 'DOCUMENT';
+        body.headerContent = mediaUrl;
+        body.documents = [{ url: mediaUrl, fileName: mediaFileName, mimeType: 'application/pdf', sizeBytes: 0 }];
+      }
 
       if (mode === 'edit' && editingId) {
         await crmFetch(`/api/admin/crm/templates/${editingId}`, { method: 'PUT', body });
@@ -199,7 +239,60 @@ export default function QRTemplatesPage() {
     setBodyText(t.templateContent || '');
     setFooterText(t.footerText || '');
     setButtons(t.buttons?.length ? [...t.buttons] : []);
+    // Copy media
+    const fmt = (t.headerFormat || '').toUpperCase();
+    if (fmt === 'IMAGE') { setHeaderType('IMAGE'); setMediaUrl(t.imageFile?.url || t.headerContent || ''); setMediaFileName(t.imageFile?.fileName || 'image'); setHeaderText(''); }
+    else if (fmt === 'VIDEO') { setHeaderType('VIDEO'); setMediaUrl(t.videoUrl || t.headerContent || ''); setMediaFileName('video'); setHeaderText(''); }
+    else if (fmt === 'DOCUMENT' && t.documents?.length) { setHeaderType('DOCUMENT'); setMediaUrl(t.documents[0].url); setMediaFileName(t.documents[0].fileName || 'document'); setHeaderText(''); }
+    else if (t.headerContent && !t.headerContent.startsWith('http')) { setHeaderType('TEXT'); setHeaderText(t.headerContent); setMediaUrl(''); }
+    else { setHeaderType('NONE'); setHeaderText(''); setMediaUrl(''); }
     setMode('create');
+  };
+
+  // ── Media upload handler ──
+  const handleMediaUpload = async (file: globalThis.File) => {
+    const maxSize = 25 * 1024 * 1024; // 25MB
+    if (file.size > maxSize) { setError('File too large. Max 25MB.'); return; }
+
+    setUploading(true);
+    setUploadProgress(10);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      setUploadProgress(30);
+
+      const res = await fetch('/api/admin/crm/whatsapp/media-upload', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      setUploadProgress(80);
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Upload failed' }));
+        throw new Error(err.error || 'Upload failed');
+      }
+
+      const data = await res.json();
+      setMediaUrl(data.url);
+      setMediaFileName(file.name);
+      setUploadProgress(100);
+      setSuccess('Media uploaded!');
+      setTimeout(() => setSuccess(null), 2000);
+    } catch (e: any) {
+      setError(e.message || 'Failed to upload media');
+    } finally {
+      setUploading(false);
+      setTimeout(() => setUploadProgress(0), 1000);
+    }
+  };
+
+  const getAcceptTypes = () => {
+    if (headerType === 'IMAGE') return 'image/jpeg,image/png,image/webp,image/gif';
+    if (headerType === 'VIDEO') return 'video/mp4,video/quicktime,video/webm';
+    if (headerType === 'DOCUMENT') return 'application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    return '';
   };
 
   const applyFormat = (l: string, r: string) => {
@@ -288,18 +381,128 @@ export default function QRTemplatesPage() {
                 </div>
               </div>
 
-              {/* Header */}
+              {/* Header Type Selector */}
               <div>
-                <label className="block text-sm font-semibold text-gray-800 mb-1">Header Text</label>
-                <input
-                  type="text"
-                  value={headerText}
-                  onChange={e => setHeaderText(e.target.value)}
-                  placeholder="Optional header"
-                  className="w-full px-3 py-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  maxLength={LIMITS.HEADER_TEXT + 10}
-                />
-                <div className="flex justify-end mt-0.5"><CharCount current={headerText.length} max={LIMITS.HEADER_TEXT} /></div>
+                <label className="block text-sm font-semibold text-gray-800 mb-2">Header (optional)</label>
+                <div className="flex items-center gap-2 mb-3">
+                  {(['NONE', 'TEXT', 'IMAGE', 'VIDEO', 'DOCUMENT'] as HeaderType[]).map(type => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => { setHeaderType(type); if (type !== headerType) { setMediaUrl(''); setMediaFileName(''); setHeaderText(''); } }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition flex items-center gap-1.5 ${headerType === type ? 'border-green-500 bg-green-50 text-green-700 ring-1 ring-green-500' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                    >
+                      {type === 'NONE' && <X className="w-3 h-3" />}
+                      {type === 'TEXT' && <FileText className="w-3 h-3" />}
+                      {type === 'IMAGE' && <ImageIcon className="w-3 h-3" />}
+                      {type === 'VIDEO' && <Video className="w-3 h-3" />}
+                      {type === 'DOCUMENT' && <File className="w-3 h-3" />}
+                      {type === 'NONE' ? 'None' : type.charAt(0) + type.slice(1).toLowerCase()}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Text Header */}
+                {headerType === 'TEXT' && (
+                  <div>
+                    <input
+                      type="text"
+                      value={headerText}
+                      onChange={e => setHeaderText(e.target.value)}
+                      placeholder="Header text"
+                      className="w-full px-3 py-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                      maxLength={LIMITS.HEADER_TEXT + 10}
+                    />
+                    <div className="flex justify-end mt-0.5"><CharCount current={headerText.length} max={LIMITS.HEADER_TEXT} /></div>
+                  </div>
+                )}
+
+                {/* Media Upload (Image / Video / Document) */}
+                {(headerType === 'IMAGE' || headerType === 'VIDEO' || headerType === 'DOCUMENT') && (
+                  <div className="space-y-3">
+                    {/* Upload area */}
+                    {!mediaUrl ? (
+                      <div
+                        onClick={() => fileInputRef.current?.click()}
+                        className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:border-green-400 hover:bg-green-50/30 transition"
+                      >
+                        <Upload className="w-8 h-8 mx-auto text-gray-400 mb-2" />
+                        <p className="text-sm font-medium text-gray-600">
+                          Click to upload {headerType === 'IMAGE' ? 'an image' : headerType === 'VIDEO' ? 'a video' : 'a document'}
+                        </p>
+                        <p className="text-[10px] text-gray-400 mt-1">
+                          {headerType === 'IMAGE' ? 'JPG, PNG, WebP, GIF · Max 25MB' : headerType === 'VIDEO' ? 'MP4, MOV, WebM · Max 25MB' : 'PDF, DOC, DOCX · Max 25MB'}
+                        </p>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept={getAcceptTypes()}
+                          onChange={e => { const f = e.target.files?.[0]; if (f) handleMediaUpload(f); e.target.value = ''; }}
+                          className="hidden"
+                        />
+                      </div>
+                    ) : (
+                      <div className="border rounded-xl overflow-hidden">
+                        {/* Preview */}
+                        {headerType === 'IMAGE' && (
+                          <div className="bg-gray-100 flex items-center justify-center p-2">
+                            <img src={mediaUrl} alt="Header" className="max-h-40 rounded-lg object-contain" />
+                          </div>
+                        )}
+                        {headerType === 'VIDEO' && (
+                          <div className="bg-black flex items-center justify-center">
+                            <video src={mediaUrl} controls className="max-h-40 w-full" />
+                          </div>
+                        )}
+                        {headerType === 'DOCUMENT' && (
+                          <div className="bg-gray-50 p-4 flex items-center gap-3">
+                            <File className="w-8 h-8 text-red-500" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-800 truncate">{mediaFileName}</p>
+                              <p className="text-[10px] text-gray-400">Document attached</p>
+                            </div>
+                          </div>
+                        )}
+                        {/* File info + remove */}
+                        <div className="px-4 py-2 bg-gray-50 border-t flex items-center justify-between">
+                          <span className="text-xs text-gray-600 truncate flex-1">{mediaFileName}</span>
+                          <button
+                            type="button"
+                            onClick={() => { setMediaUrl(''); setMediaFileName(''); }}
+                            className="text-xs text-red-500 hover:text-red-700 font-medium ml-2 flex items-center gap-1"
+                          >
+                            <Trash2 className="w-3 h-3" /> Remove
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Upload progress */}
+                    {uploading && (
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="w-4 h-4 animate-spin text-green-600" />
+                          <span className="text-xs text-gray-600">Uploading…</span>
+                        </div>
+                        <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                          <div className="h-full bg-green-500 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Or paste URL */}
+                    <div>
+                      <label className="block text-[11px] text-gray-500 mb-1">Or paste a URL directly</label>
+                      <input
+                        type="url"
+                        value={mediaUrl}
+                        onChange={e => { setMediaUrl(e.target.value); setMediaFileName(e.target.value.split('/').pop() || 'media'); }}
+                        placeholder={headerType === 'IMAGE' ? 'https://example.com/image.jpg' : headerType === 'VIDEO' ? 'https://example.com/video.mp4' : 'https://example.com/doc.pdf'}
+                        className="w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Body */}
@@ -411,11 +614,31 @@ export default function QRTemplatesPage() {
                 <p className="text-[10px] text-gray-500">Live preview of your template</p>
               </div>
               <div className="p-4" style={{ background: '#E5DDD5' }}>
-                <div className="max-w-[92%] bg-white rounded-2xl px-4 py-3 shadow-sm">
-                  {headerText.trim() && <div className="text-xs font-bold text-gray-900 mb-2">{headerText}</div>}
-                  <div className="text-sm text-gray-800 whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: formatWA(bodyText || 'Your message…') }} />
-                  {footerText.trim() && <div className="mt-2 pt-2 border-t text-[11px] text-gray-500">{footerText}</div>}
-                  <div className="text-[10px] text-gray-400 mt-1 text-right">12:00 pm ✓✓</div>
+                <div className="max-w-[92%] bg-white rounded-2xl overflow-hidden shadow-sm">
+                  {/* Media header preview */}
+                  {headerType === 'IMAGE' && mediaUrl && (
+                    <img src={mediaUrl} alt="Header" className="w-full max-h-40 object-cover" />
+                  )}
+                  {headerType === 'VIDEO' && mediaUrl && (
+                    <div className="bg-black relative flex items-center justify-center h-32">
+                      <video src={mediaUrl} className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="w-10 h-10 rounded-full bg-white/80 flex items-center justify-center"><Play className="w-5 h-5 text-gray-700 ml-0.5" /></div>
+                      </div>
+                    </div>
+                  )}
+                  {headerType === 'DOCUMENT' && mediaUrl && (
+                    <div className="bg-gray-100 px-4 py-3 flex items-center gap-2 border-b">
+                      <File className="w-5 h-5 text-red-500" />
+                      <span className="text-xs text-gray-700 truncate">{mediaFileName}</span>
+                    </div>
+                  )}
+                  <div className="px-4 py-3">
+                    {headerType === 'TEXT' && headerText.trim() && <div className="text-xs font-bold text-gray-900 mb-2">{headerText}</div>}
+                    <div className="text-sm text-gray-800 whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: formatWA(bodyText || 'Your message…') }} />
+                    {footerText.trim() && <div className="mt-2 pt-2 border-t text-[11px] text-gray-500">{footerText}</div>}
+                    <div className="text-[10px] text-gray-400 mt-1 text-right">12:00 pm ✓✓</div>
+                  </div>
                 </div>
                 {buttons.filter(b => b.title.trim()).length > 0 && (
                   <div className="mt-2 max-w-[92%] space-y-1.5">
@@ -515,6 +738,15 @@ export default function QRTemplatesPage() {
                       }`}>{t.category}</span>
                       <span className="text-[10px] text-gray-400">{t.language === 'hi' ? 'HI' : t.language === 'mr' ? 'MR' : 'EN'}</span>
                       <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">Approved</span>
+                      {t.headerFormat && t.headerFormat !== 'TEXT' && (
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                          t.headerFormat === 'IMAGE' ? 'bg-sky-100 text-sky-700' :
+                          t.headerFormat === 'VIDEO' ? 'bg-pink-100 text-pink-700' :
+                          'bg-amber-100 text-amber-700'
+                        }`}>
+                          {t.headerFormat === 'IMAGE' ? '📷' : t.headerFormat === 'VIDEO' ? '🎬' : '📄'} {t.headerFormat}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition">
@@ -549,11 +781,29 @@ export default function QRTemplatesPage() {
                 {/* Inline Preview */}
                 {previewOpen === t._id && (
                   <div className="border-t p-4" style={{ background: '#E5DDD5' }}>
-                    <div className="max-w-[90%] bg-white rounded-2xl px-4 py-3 shadow-sm">
-                      {t.headerContent && !t.headerContent.startsWith('http') && <div className="text-xs font-bold text-gray-900 mb-2">{t.headerContent}</div>}
-                      <div className="text-sm text-gray-800 whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: formatWA(t.templateContent || '') }} />
-                      {t.footerText && <div className="mt-2 pt-2 border-t text-[11px] text-gray-500">{t.footerText}</div>}
-                      <div className="text-[10px] text-gray-400 mt-1 text-right">12:00 pm ✓✓</div>
+                    <div className="max-w-[90%] bg-white rounded-2xl overflow-hidden shadow-sm">
+                      {/* Media in preview */}
+                      {t.headerFormat === 'IMAGE' && (t.imageFile?.url || (t.headerContent && t.headerContent.startsWith('http'))) && (
+                        <img src={t.imageFile?.url || t.headerContent} alt="" className="w-full max-h-36 object-cover" />
+                      )}
+                      {t.headerFormat === 'VIDEO' && (t.videoUrl || (t.headerContent && t.headerContent.startsWith('http'))) && (
+                        <div className="bg-black relative flex items-center justify-center h-28">
+                          <video src={t.videoUrl || t.headerContent} className="w-full h-full object-cover" />
+                          <div className="absolute inset-0 flex items-center justify-center"><div className="w-8 h-8 rounded-full bg-white/80 flex items-center justify-center"><Play className="w-4 h-4 text-gray-700 ml-0.5" /></div></div>
+                        </div>
+                      )}
+                      {t.headerFormat === 'DOCUMENT' && t.documents?.[0] && (
+                        <div className="bg-gray-100 px-3 py-2 flex items-center gap-2 border-b">
+                          <File className="w-5 h-5 text-red-500" />
+                          <span className="text-xs text-gray-700 truncate">{t.documents[0].fileName || 'Document'}</span>
+                        </div>
+                      )}
+                      <div className="px-4 py-3">
+                        {t.headerContent && !t.headerContent.startsWith('http') && <div className="text-xs font-bold text-gray-900 mb-2">{t.headerContent}</div>}
+                        <div className="text-sm text-gray-800 whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: formatWA(t.templateContent || '') }} />
+                        {t.footerText && <div className="mt-2 pt-2 border-t text-[11px] text-gray-500">{t.footerText}</div>}
+                        <div className="text-[10px] text-gray-400 mt-1 text-right">12:00 pm ✓✓</div>
+                      </div>
                     </div>
                     {t.buttons && t.buttons.filter((b: any) => b.title?.trim()).length > 0 && (
                       <div className="mt-2 max-w-[90%] space-y-1">
