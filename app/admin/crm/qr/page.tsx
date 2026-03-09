@@ -98,6 +98,10 @@ export default function QRWhatsAppPage() {
   const [bridgeConfigured, setBridgeConfigured] = useState<boolean | null>(null); // null = loading
   const [savingBridge, setSavingBridge] = useState(false);
   const [showBridgeSettings, setShowBridgeSettings] = useState(false);
+  // User compartment / access control state
+  const [currentUserId, setCurrentUserId] = useState('');
+  const [isSuperAdminUser, setIsSuperAdminUser] = useState(false);
+  const [qrAccessDenied, setQrAccessDenied] = useState(false); // true if user has no bridge and no access
   // Reply / Reaction / Delete state
   const [replyingTo, setReplyingTo] = useState<MessageItem | null>(null);
   const [reactingToMsg, setReactingToMsg] = useState<string | null>(null); // message ID
@@ -165,6 +169,24 @@ export default function QRWhatsAppPage() {
     if (!token) return;
     let cancelled = false;
 
+    // Determine current user identity from localStorage
+    let resolvedUserId = '';
+    let superAdmin = false;
+    try {
+      const userStr = typeof window !== 'undefined' ? localStorage.getItem('admin_user') : null;
+      resolvedUserId = (typeof window !== 'undefined' ? localStorage.getItem('adminUser') : '') || '';
+      if (userStr) {
+        const u = JSON.parse(userStr);
+        resolvedUserId = u?.userId || resolvedUserId;
+        const perms = Array.isArray(u?.permissions) ? u.permissions : [];
+        const pv2 = u?.permissionsV2 || null;
+        superAdmin = resolvedUserId === 'admin' || resolvedUserId === 'admincrm'
+          || perms.includes('all') || pv2?.isSuperAdmin === true;
+      }
+    } catch {}
+    setCurrentUserId(resolvedUserId);
+    setIsSuperAdminUser(superAdmin);
+
     const loadFromDB = async () => {
       try {
         // Load ALL QR settings from crm_user_settings (independent from leads/manage funnel)
@@ -190,18 +212,46 @@ export default function QRWhatsAppPage() {
           if (settingsRes.labelPresets?.length > 0) {
             setLabelPresets(settingsRes.labelPresets);
           }
-          // Load per-user bridge URL
-          if (settingsRes.qrBridgeUrl) {
-            setBridgeUrlInput(settingsRes.qrBridgeUrl);
-            setBridgeSecretInput(settingsRes.qrBridgeSecret || '');
+          // ── Auto-fill bridge URL and secret for every user ──
+          // Secret is auto-generated server-side (unique per user).
+          // URL is pre-filled from user's saved config or the shared default.
+          const savedUrl = settingsRes.qrBridgeUrl || '';
+          const savedSecret = settingsRes.qrBridgeSecret || '';
+          const defaultUrl = settingsRes.defaultBridgeUrl || '';
+
+          // Always populate the inputs with auto-generated / saved values
+          setBridgeUrlInput(savedUrl || defaultUrl);
+          setBridgeSecretInput(savedSecret);
+
+          // Auto-save the default URL if user had no URL yet (so it's persisted)
+          if (!savedUrl && defaultUrl && savedSecret) {
+            // Save immediately so the user's config is unique & persisted
+            try {
+              await crmFetch('/api/admin/crm/settings', {
+                method: 'PUT',
+                body: { qrBridgeUrl: defaultUrl, qrBridgeSecret: savedSecret },
+                silent: true,
+              });
+              console.log('[QR] Auto-saved default bridge config for new user');
+            } catch (e) {
+              console.warn('[QR] Failed to auto-save bridge config:', e);
+            }
+          }
+
+          // Determine access
+          if (savedUrl || defaultUrl) {
+            // User has a bridge URL (own or auto-filled default)
+            setBridgeConfigured(true);
+          } else if (superAdmin) {
+            setBridgeConfigured(true);
+          } else if (settingsRes.qrWhatsappEnabled) {
             setBridgeConfigured(true);
           } else {
-            // No per-user bridge in DB — all users use the shared bridge.
-            // Server-side proxy auto-falls back to env-var bridge URL,
-            // so users can scan QR directly without manual bridge setup.
-            setBridgeConfigured(true);
+            // PRIVACY COMPARTMENT: No bridge and not enabled
+            setBridgeConfigured(false);
+            setQrAccessDenied(true);
           }
-          console.log('[QR] ✅ Loaded settings from MongoDB — funnels:', settingsRes.qrFunnelStages?.length || 0, 'chatFunnels:', Object.keys(settingsRes.chatFunnels || {}).length, 'chatLabels:', Object.keys(settingsRes.chatLabels || {}).length, 'labels:', settingsRes.labelPresets?.length || 0, 'bridge:', settingsRes.qrBridgeUrl ? 'configured' : 'not set');
+          console.log('[QR] ✅ Loaded settings from MongoDB — funnels:', settingsRes.qrFunnelStages?.length || 0, 'chatFunnels:', Object.keys(settingsRes.chatFunnels || {}).length, 'chatLabels:', Object.keys(settingsRes.chatLabels || {}).length, 'labels:', settingsRes.labelPresets?.length || 0, 'bridge:', settingsRes.qrBridgeUrl ? 'configured' : 'not set', 'qrEnabled:', settingsRes.qrWhatsappEnabled || false, 'isSuperAdmin:', superAdmin);
         }
       } catch (e) {
         console.warn('[QR] Failed to load CRM settings, using localStorage cache:', e);
@@ -1227,12 +1277,84 @@ export default function QRWhatsAppPage() {
     );
   }
 
+  // ── PRIVACY COMPARTMENT: Access denied screen for users without bridge/permission ──
+  if (qrAccessDenied && !isSuperAdminUser) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <div className="max-w-lg w-full bg-white rounded-2xl shadow-lg border overflow-hidden">
+          <div className="bg-gradient-to-r from-red-600 to-orange-600 px-6 py-5">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                <Shield className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-white">QR WhatsApp - Access Required</h2>
+                <p className="text-red-100 text-sm">Your account needs setup before using QR WhatsApp</p>
+              </div>
+            </div>
+          </div>
+          <div className="p-6 space-y-5">
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-amber-800">Privacy Protection Active</p>
+                  <p className="text-xs text-amber-700 mt-1">
+                    For security and privacy, each user must have their own WhatsApp bridge configured, 
+                    or be explicitly granted access by a super admin. This prevents unauthorized access to other users&apos; chats.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-gray-800">To get started, you need one of:</h3>
+              <div className="space-y-2.5">
+                <div className="flex items-start gap-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="w-6 h-6 rounded-full bg-green-600 text-white flex items-center justify-center text-xs font-bold flex-shrink-0">1</div>
+                  <div>
+                    <p className="text-sm font-medium text-green-800">Your Own Bridge Instance</p>
+                    <p className="text-xs text-green-700 mt-0.5">Set up your personal WhatsApp bridge server and configure it in Settings.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold flex-shrink-0">2</div>
+                  <div>
+                    <p className="text-sm font-medium text-blue-800">Super Admin Approval</p>
+                    <p className="text-xs text-blue-700 mt-0.5">Ask your super admin to enable QR WhatsApp access for your account.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                onClick={() => { setQrAccessDenied(false); setBridgeConfigured(true); setShowBridgeSettings(true); setTab('settings'); }}
+                className="px-5 py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 flex items-center gap-2 transition"
+              >
+                <Settings className="w-4 h-4" /> Configure My Bridge
+              </button>
+              <span className="text-xs text-gray-400">or contact your super admin</span>
+            </div>
+
+            <div className="pt-3 border-t">
+              <p className="text-xs text-gray-400 flex items-center gap-1.5">
+                <Lock className="w-3 h-3" />
+                Logged in as: <span className="font-mono text-gray-600">{currentUserId}</span>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* ═══ Page Header ═══ */}
       <div className="bg-white border-b shadow-sm">
         <div className="px-4 py-3 flex items-center justify-between">
-          {/* Left: Title + Status Badge */}
+          {/* Left: Title + Status Badge + Compartment */}
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-green-600 flex items-center justify-center">
@@ -1249,6 +1371,11 @@ export default function QRWhatsAppPage() {
                connState === 'connecting' ? <Loader2 className="w-3 h-3 animate-spin" /> :
                <WifiOff className="w-3 h-3" />}
               {isConnected ? 'Connected' : connState === 'connecting' ? 'Connecting...' : 'Offline'}
+            </div>
+            {/* User Compartment Indicator */}
+            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-500 ring-1 ring-gray-200" title={`Logged in as ${currentUserId}`}>
+              <Lock className="w-2.5 h-2.5" />
+              {isSuperAdminUser ? '👑 Admin' : currentUserId || 'User'}
             </div>
           </div>
           {/* Right: Quick Actions */}
@@ -1382,6 +1509,9 @@ export default function QRWhatsAppPage() {
           handleLogout={handleLogout}
           setShowExtensionModal={setShowExtensionModal}
           setShowInstallGuide={setShowInstallGuide}
+          isSuperAdmin={isSuperAdminUser}
+          currentUserId={currentUserId}
+          crmFetch={crmFetch}
         />
       )}
 

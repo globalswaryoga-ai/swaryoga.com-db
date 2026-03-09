@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { getLead } from '@/lib/schemas/enterpriseSchemas';
+import { getLead, getCRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
 import { getViewerUserId, isSuperAdmin } from '@/lib/crm-handlers';
 
 const BRIDGE_URL = process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL || 'http://localhost:3333';
@@ -23,10 +23,47 @@ export async function GET(req: NextRequest) {
     const viewerUserId = getViewerUserId(decoded);
     const superAdmin = isSuperAdmin(decoded);
 
+    await connectDB();
+
+    // ── PRIVACY COMPARTMENT CHECK ──
+    // Non-super-admin users must have their own bridge OR be explicitly enabled
+    if (!superAdmin) {
+      const CRMUserSettings = getCRMUserSettings();
+      const userSettings = await CRMUserSettings.findOne(
+        { userId: viewerUserId },
+        { qrBridgeUrl: 1, qrWhatsappEnabled: 1 }
+      ).lean();
+      
+      if (!userSettings?.qrBridgeUrl && !userSettings?.qrWhatsappEnabled) {
+        return NextResponse.json({ 
+          success: false, 
+          error: 'QR WhatsApp access not configured. Contact your super admin or set up your own bridge.' 
+        }, { status: 403 });
+      }
+    }
+
+    // Determine bridge URL for this user
+    let bridgeUrl = BRIDGE_URL;
+    let bridgeSecret = BRIDGE_SECRET;
+    if (!superAdmin) {
+      const CRMUserSettings = getCRMUserSettings();
+      const userSettings = await CRMUserSettings.findOne(
+        { userId: viewerUserId },
+        { qrBridgeUrl: 1, qrBridgeSecret: 1 }
+      ).lean();
+      if (userSettings?.qrBridgeUrl) {
+        bridgeUrl = userSettings.qrBridgeUrl;
+        bridgeSecret = userSettings.qrBridgeSecret || BRIDGE_SECRET;
+      }
+    }
+
     // 1. Fetch from bridge
-    const res = await fetch(`${BRIDGE_URL}/chats`, {
+    const res = await fetch(`${bridgeUrl}/chats`, {
       method: 'GET',
-      headers: { 'x-bridge-secret': BRIDGE_SECRET }
+      headers: { 
+        'x-bridge-secret': bridgeSecret,
+        'x-user-id': viewerUserId,
+      }
     });
     
     if (!res.ok) {
@@ -44,7 +81,6 @@ export async function GET(req: NextRequest) {
     }
 
     // 3. Filter for regular admins: Show their assigned leads OR leads they created (user compartment).
-    await connectDB();
     const Lead = getLead();
     
     // Extract phone numbers from bridge chats

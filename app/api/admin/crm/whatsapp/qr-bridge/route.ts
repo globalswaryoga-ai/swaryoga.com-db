@@ -35,29 +35,52 @@ export const maxDuration = 60; // 60s function timeout for Vercel
 /**
  * Resolve the bridge URL and secret for the authenticated user.
  * Returns per-user bridge from crm_user_settings if configured.
- * Returns null if user has no bridge configured (prevents data leakage between accounts).
+ * 
+ * PRIVACY COMPARTMENT:
+ * - Super admins: Always have access (fall back to shared bridge).
+ * - Non-super-admin users WITH their own bridge URL: Use their own bridge.
+ * - Non-super-admin users WITH qrWhatsappEnabled=true (but no own bridge): Use shared bridge with user isolation.
+ * - Non-super-admin users WITHOUT qrWhatsappEnabled and WITHOUT own bridge: BLOCKED (returns null).
+ * 
+ * This prevents non-super-admin users from seeing the super admin's WhatsApp chats.
  */
 async function resolveUserBridge(authHeader: string | null): Promise<{ url: string; secret: string; userId: string } | null> {
   try {
     const decoded = verifyToken(authHeader || '');
     if (decoded?.userId && decoded?.isAdmin) {
+      const superAdmin = isSuperAdmin(decoded);
+      
       await connectDB();
       const CRMUserSettings = getCRMUserSettings();
       const settings = await CRMUserSettings.findOne(
         { userId: decoded.userId },
-        { qrBridgeUrl: 1, qrBridgeSecret: 1 }
+        { qrBridgeUrl: 1, qrBridgeSecret: 1, qrWhatsappEnabled: 1 }
       ).lean();
+
       if (settings?.qrBridgeUrl) {
-        // User has their own bridge configured — use it
+        // User has their own bridge configured — use it (fully isolated)
         return {
           url: settings.qrBridgeUrl,
           secret: settings.qrBridgeSecret || FALLBACK_BRIDGE_SECRET,
           userId: decoded.userId,
         };
       }
-      // No per-user bridge configured — use shared bridge.
-      // The bridge handles multi-user sessions via x-user-id header.
-      return { url: FALLBACK_BRIDGE_URL, secret: FALLBACK_BRIDGE_SECRET, userId: decoded.userId };
+
+      // No per-user bridge configured — check access rights
+      if (superAdmin) {
+        // Super admin always has access to the shared bridge
+        return { url: FALLBACK_BRIDGE_URL, secret: FALLBACK_BRIDGE_SECRET, userId: decoded.userId };
+      }
+
+      // Non-super-admin: only allow shared bridge if explicitly enabled by super admin
+      if (settings?.qrWhatsappEnabled) {
+        return { url: FALLBACK_BRIDGE_URL, secret: FALLBACK_BRIDGE_SECRET, userId: decoded.userId };
+      }
+
+      // BLOCKED: Non-super-admin user without own bridge and not enabled
+      // This is the critical privacy fix — prevents seeing super admin's chats
+      console.warn(`[QR Bridge Proxy] BLOCKED: User ${decoded.userId} has no bridge configured and qrWhatsappEnabled=false`);
+      return null;
     }
   } catch (e) {
     console.warn('[QR Bridge Proxy] Failed to resolve user bridge:', (e as Error).message);

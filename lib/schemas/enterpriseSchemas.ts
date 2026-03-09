@@ -3159,6 +3159,9 @@ const CRMUserSettingsSchema = new mongoose.Schema(
     // Per-user QR WhatsApp bridge connection (each user runs their own bridge instance)
     qrBridgeUrl: { type: String, default: '' },      // e.g. https://my-bridge.up.railway.app
     qrBridgeSecret: { type: String, default: '' },    // bridge auth secret
+    // QR WhatsApp access control — only super admin can enable this for each user
+    // When false/unset, non-super-admin users cannot access the shared bridge (privacy compartment)
+    qrWhatsappEnabled: { type: Boolean, default: false },
     metadata: mongoose.Schema.Types.Mixed,
   },
   { timestamps: true, collection: 'crm_user_settings' }
