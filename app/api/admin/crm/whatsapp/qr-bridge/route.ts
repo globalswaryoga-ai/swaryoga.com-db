@@ -144,6 +144,24 @@ export async function POST(req: NextRequest) {
     // Decode the path to handle double-encoded values like %2540 (@)
     const decodedPath = decodePathFully(path);
 
+    // ── MULTI-TENANT: Block non-super-admin from accessing other users' chats ──
+    // For paths like /messages/:jid or /send, verify the JID belongs to this user
+    if (!superAdmin) {
+      const jidMatch = decodedPath.match(/^\/(messages|send|profile-pic|contact)\/([\d]+@[a-z.]+)/i)
+        || decodedPath.match(/^\/(messages|send|profile-pic|contact)\/(.+)/);
+      if (jidMatch) {
+        const jid = decodeURIComponent(jidMatch[2]);
+        const allowed = await isJidAllowedForUser(jid, userId);
+        if (!allowed) {
+          console.warn(`[QR Bridge Proxy] BLOCKED: User ${userId} tried to access JID ${jid} (not their lead)`);
+          return NextResponse.json(
+            { error: 'Access denied: This contact is not in your CRM leads.' },
+            { status: 403 }
+          );
+        }
+      }
+    }
+
     const method = (action || 'GET').toUpperCase();
     const bridgeUrl = `${BRIDGE_URL}${decodedPath}`;
 
@@ -249,6 +267,23 @@ export async function GET(req: NextRequest) {
     
     // Decode the path to handle double-encoded values like %2540 (@)
     path = decodePathFully(path);
+
+    // ── MULTI-TENANT: Block non-super-admin from accessing other users' chats via GET ──
+    if (!superAdmin) {
+      const jidMatch = path.match(/^\/(messages|media|profile-pic|contact)\/([\d]+@[a-z.]+)/i)
+        || path.match(/^\/(messages|media|profile-pic|contact)\/(.+)/);
+      if (jidMatch) {
+        const jid = decodeURIComponent(jidMatch[2]);
+        const allowed = await isJidAllowedForUser(jid, userId);
+        if (!allowed) {
+          console.warn(`[QR Bridge Proxy] BLOCKED GET: User ${userId} tried to access JID ${jid}`);
+          return NextResponse.json(
+            { error: 'Access denied: This contact is not in your CRM leads.' },
+            { status: 403 }
+          );
+        }
+      }
+    }
 
     const bridgeUrl = `${BRIDGE_URL}${path}`;
 
@@ -421,6 +456,32 @@ async function filterChatsForUser(chats: any[], userId: string): Promise<any[]> 
     console.error('[QR Bridge Proxy] Chat filter error:', (e as Error).message);
     // On error, return empty to be safe (don't leak admin data)
     return [];
+  }
+}
+
+/**
+ * MULTI-TENANT: Verify that a non-super-admin user on the shared bridge
+ * is allowed to access the specified JID (phone number).
+ * Returns true if the user owns a CRM lead for that phone, false otherwise.
+ */
+async function isJidAllowedForUser(jid: string, userId: string): Promise<boolean> {
+  try {
+    // Extract phone from JID  (e.g. "919876543210@s.whatsapp.net" → "919876543210")
+    const phone = jid.split('@')[0];
+    if (!phone || !/^\d+$/.test(phone)) return false;
+
+    await connectDB();
+    const Lead = getLead();
+
+    const lead = await Lead.findOne({
+      phoneNumber: phone,
+      $or: [{ assignedToUserId: userId }, { createdByUserId: userId }],
+    }).select('_id').lean();
+
+    return !!lead;
+  } catch (e) {
+    console.error('[QR Bridge Proxy] JID access check error:', (e as Error).message);
+    return false; // Fail closed — deny access on error
   }
 }
 

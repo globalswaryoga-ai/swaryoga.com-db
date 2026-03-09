@@ -402,40 +402,50 @@ export default function QRWhatsAppPage() {
       const isSuperUser = isSuperAdminRef.current;
       const userId = currentUserIdRef.current;
 
-      // For non-super-admin users, explicitly filter leads by their userId
-      // (The API also filters server-side via JWT, but this is belt-and-suspenders)
-      const leadsUrl = isSuperUser
-        ? '/api/admin/crm/leads?selectAll=true&limit=5000'
-        : `/api/admin/crm/leads?selectAll=true&limit=5000&userId=${encodeURIComponent(userId)}`;
+      // ── STEP 1: Fetch bridge chats (with error handling for blocked users) ──
+      let data: any = null;
+      try {
+        data = await bridgeCall('/chats');
+      } catch (bridgeErr: any) {
+        // If bridge returns 422 (no access), show 0 chats — do NOT fall through to leads
+        const msg = bridgeErr?.message || String(bridgeErr);
+        if (msg.includes('422') || msg.includes('No WhatsApp bridge') || msg.includes('bridge configured')) {
+          console.log('[QR] Bridge access denied for user — showing 0 chats');
+          setChats([]);
+          setError(null);
+          return; // EXIT EARLY — no leads, no chats, nothing
+        }
+        throw bridgeErr; // Re-throw other errors
+      }
 
-      // Fetch bridge chats and CRM leads in parallel
-      const [data, leadsRes] = await Promise.all([
-        bridgeCall('/chats'),
-        crmFetch(leadsUrl, { silent: true }).catch(() => null),
-      ]);
-
-      // Build CRM leads phone→name map
+      // ── STEP 2: MULTI-TENANT — Only super admins get CRM lead enrichment ──
+      // Non-super-admin users ONLY see chats returned by the bridge (already filtered server-side)
       const crmLeadMap = new Map<string, { name: string; phone: string; funnelStage?: string; labels?: string[] }>();
-      if (leadsRes?.data?.leads) {
-        for (const lead of leadsRes.data.leads) {
-          if (lead.phoneNumber) {
-            // Normalize: strip non-digits, remove leading 91 for 12-digit Indian numbers
-            let p = lead.phoneNumber.replace(/[^0-9]/g, '');
-            if (p.length === 12 && p.startsWith('91')) p = p; // keep as-is for matching
-            crmLeadMap.set(p, {
-              name: lead.name || lead.phoneNumber,
-              phone: p,
-              funnelStage: lead.funnelStage,
-              labels: lead.labels,
-            });
-            // Also store 10-digit version for Indian numbers
-            if (p.length === 12 && p.startsWith('91')) {
-              crmLeadMap.set(p.slice(2), { name: lead.name || lead.phoneNumber, phone: p, funnelStage: lead.funnelStage, labels: lead.labels });
-            }
-            if (p.length === 10) {
-              crmLeadMap.set('91' + p, { name: lead.name || lead.phoneNumber, phone: '91' + p, funnelStage: lead.funnelStage, labels: lead.labels });
+      if (isSuperUser) {
+        try {
+          const leadsRes = await crmFetch('/api/admin/crm/leads?selectAll=true&limit=5000', { silent: true });
+          if (leadsRes?.data?.leads) {
+            for (const lead of leadsRes.data.leads) {
+              if (lead.phoneNumber) {
+                let p = lead.phoneNumber.replace(/[^0-9]/g, '');
+                if (p.length === 12 && p.startsWith('91')) p = p;
+                crmLeadMap.set(p, {
+                  name: lead.name || lead.phoneNumber,
+                  phone: p,
+                  funnelStage: lead.funnelStage,
+                  labels: lead.labels,
+                });
+                if (p.length === 12 && p.startsWith('91')) {
+                  crmLeadMap.set(p.slice(2), { name: lead.name || lead.phoneNumber, phone: p, funnelStage: lead.funnelStage, labels: lead.labels });
+                }
+                if (p.length === 10) {
+                  crmLeadMap.set('91' + p, { name: lead.name || lead.phoneNumber, phone: '91' + p, funnelStage: lead.funnelStage, labels: lead.labels });
+                }
+              }
             }
           }
+        } catch {
+          // Leads fetch failed — continue without enrichment
         }
       }
 
@@ -501,34 +511,32 @@ export default function QRWhatsAppPage() {
           }
         }
 
-        // Add CRM leads that don't have a matching QR chat
-        // NOTE: For non-super-admin users, leadsRes only contains leads assigned to THEM
-        // (filtered server-side by the leads API). For super admins, it contains ALL leads.
-        console.log(`[QR] CRM leads to merge: ${crmLeadMap.size} leads, ${matchedCrmPhones.size} already matched, user=${currentUserIdRef.current}, superAdmin=${isSuperAdminRef.current}`);
-        for (const [phone, lead] of crmLeadMap) {
-          if (matchedCrmPhones.has(phone)) continue;
-          // Skip variant keys (10-digit/12-digit duplicates we added)
-          if (phone.length === 10 && matchedCrmPhones.has('91' + phone)) continue;
-          if (phone.length === 12 && phone.startsWith('91') && matchedCrmPhones.has(phone.slice(2))) continue;
-          // Only add each unique lead once (prefer 12-digit version)
-          if (phone.length === 10 && crmLeadMap.has('91' + phone)) continue;
-          
-          matchedCrmPhones.add(phone);
-          if (phone.length === 12 && phone.startsWith('91')) matchedCrmPhones.add(phone.slice(2));
-          if (phone.length === 10) matchedCrmPhones.add('91' + phone);
-          
-          const jid = (phone.length === 10 ? '91' + phone : phone) + '@s.whatsapp.net';
-          deduped.push({
-            id: jid,
-            name: lead.name,
-            isGroup: false,
-            resolvedPhone: lead.phone,
-            unreadCount: 0,
-            lastMessageTime: null,
-            lastMessage: '',
-            funnelStage: lead.funnelStage,
-            labels: lead.labels,
-          });
+        // MULTI-TENANT: Only super admins get CRM lead injection into chat list
+        // Non-super-admin users ONLY see bridge-returned chats (already filtered server-side)
+        if (isSuperUser) {
+          for (const [phone, lead] of crmLeadMap) {
+            if (matchedCrmPhones.has(phone)) continue;
+            if (phone.length === 10 && matchedCrmPhones.has('91' + phone)) continue;
+            if (phone.length === 12 && phone.startsWith('91') && matchedCrmPhones.has(phone.slice(2))) continue;
+            if (phone.length === 10 && crmLeadMap.has('91' + phone)) continue;
+            
+            matchedCrmPhones.add(phone);
+            if (phone.length === 12 && phone.startsWith('91')) matchedCrmPhones.add(phone.slice(2));
+            if (phone.length === 10) matchedCrmPhones.add('91' + phone);
+            
+            const jid = (phone.length === 10 ? '91' + phone : phone) + '@s.whatsapp.net';
+            deduped.push({
+              id: jid,
+              name: lead.name,
+              isGroup: false,
+              resolvedPhone: lead.phone,
+              unreadCount: 0,
+              lastMessageTime: null,
+              lastMessage: '',
+              funnelStage: lead.funnelStage,
+              labels: lead.labels,
+            });
+          }
         }
 
         // Preserve unreadCount=0 only if no NEW messages arrived since the user read the chat
