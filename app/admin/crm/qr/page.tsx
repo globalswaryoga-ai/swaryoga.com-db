@@ -228,6 +228,7 @@ export default function QRWhatsAppPage() {
   const [downloadingExtension, setDownloadingExtension] = useState(false);
   const [showInstallGuide, setShowInstallGuide] = useState(false);
   const [activeFunnel, setActiveFunnel] = useState<string>('all');
+  const [activeLabel, setActiveLabel] = useState<string>('all');
   const [selectedChats, setSelectedChats] = useState<Set<string>>(new Set());
   const [selectionMode, setSelectionMode] = useState(false);
   const [showBulkFunnel, setShowBulkFunnel] = useState(false);
@@ -1317,10 +1318,15 @@ export default function QRWhatsAppPage() {
     setEditModal(null);
   }, [editModal, activeFunnel]);
 
-  // ── Filter chats by funnel + chatFilter + search ──
+  // ── Filter chats by funnel + label + chatFilter + search ──
   const filteredChats = chats.filter(c => {
     // Apply funnel filter
     if (activeFunnel !== 'all' && chatFunnels[c.id] !== activeFunnel) return false;
+    // Apply label filter
+    if (activeLabel !== 'all') {
+      const cls = chatLabels[c.id] || [];
+      if (!cls.includes(activeLabel)) return false;
+    }
     // Apply chat filter (read/unread/groups)
     switch (chatFilter) {
       case 'unread': if (c.unreadCount <= 0) return false; break;
@@ -2028,6 +2034,43 @@ export default function QRWhatsAppPage() {
                 )}
               </div>
             </div>
+            {/* Label filter pills */}
+            {labelPresets.length > 0 && (
+              <div className="px-2 py-1 border-b flex items-center gap-1 overflow-x-auto scrollbar-hide bg-gray-50/50">
+                <button
+                  onClick={() => setActiveLabel('all')}
+                  className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border whitespace-nowrap transition flex-shrink-0 ${
+                    activeLabel === 'all'
+                      ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
+                      : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  <Tag className="w-2.5 h-2.5" />
+                  All Labels
+                  <span className={`text-[9px] px-1 rounded-full ${activeLabel === 'all' ? 'bg-white/30' : 'bg-gray-100'}`}>
+                    {Object.values(chatLabels).filter(l => l.length > 0).length}
+                  </span>
+                </button>
+                {labelPresets.map(lp => {
+                  const count = Object.values(chatLabels).filter(labels => labels.includes(lp.key)).length;
+                  return (
+                    <button
+                      key={lp.key}
+                      onClick={() => setActiveLabel(activeLabel === lp.key ? 'all' : lp.key)}
+                      className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border whitespace-nowrap transition flex-shrink-0 ${
+                        activeLabel === lp.key
+                          ? lp.color + ' ring-1 ring-offset-1 ring-current border-current'
+                          : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${lp.color.split(' ')[0]}`} />
+                      {lp.label}
+                      <span className={`text-[9px] px-1 rounded-full ${activeLabel === lp.key ? 'bg-white/60' : 'bg-gray-100'}`}>{count}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             {/* Chat list header with actions */}
             <div className="px-2 py-1.5 border-b flex items-center justify-between gap-1">
               <div className="flex items-center gap-1">
@@ -2191,6 +2234,26 @@ export default function QRWhatsAppPage() {
                           }
                         </span>
                         <div className="flex items-center gap-1 flex-shrink-0">
+                          {/* Label dots — colored circles, hover to see name */}
+                          {chatLabelList.length > 0 && (
+                            <div className="flex items-center -space-x-0.5">
+                              {chatLabelList.slice(0, 3).map(lbl => {
+                                const li = labelPresets.find(l => l.key === lbl);
+                                if (!li) return null;
+                                return (
+                                  <span
+                                    key={lbl}
+                                    title={li.label}
+                                    onClick={(e) => { e.stopPropagation(); setActiveLabel(activeLabel === li.key ? 'all' : li.key); }}
+                                    className={`w-3 h-3 rounded-full border border-white cursor-pointer hover:scale-125 transition-transform ${li.color.split(' ')[0]}`}
+                                  />
+                                );
+                              })}
+                              {chatLabelList.length > 3 && (
+                                <span className="text-[8px] text-gray-400 ml-0.5">+{chatLabelList.length - 3}</span>
+                              )}
+                            </div>
+                          )}
                           {chat.unreadCount > 0 && chat.id !== selectedChat && (
                             <span className="bg-green-500 text-white text-[9px] rounded-full px-1.5 py-0.5 min-w-[18px] text-center font-medium">
                               {chat.unreadCount}
