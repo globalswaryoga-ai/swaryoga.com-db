@@ -58,7 +58,23 @@ async function resolveUserBridge(authHeader: string | null): Promise<{ url: stri
       ).lean();
 
       if (settings?.qrBridgeUrl) {
-        // User has their own bridge configured — use it (fully isolated)
+        // Check if user's "own" bridge is actually the shared admin bridge
+        const isSharedBridge = settings.qrBridgeUrl === FALLBACK_BRIDGE_URL
+          || settings.qrBridgeUrl === process.env.WHATSAPP_BRIDGE_HTTP_URL
+          || settings.qrBridgeUrl === process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL;
+        
+        if (isSharedBridge && !superAdmin) {
+          // User was incorrectly given the admin's bridge URL — treat as shared bridge
+          // Apply chat filtering (superAdmin=false ensures filtering happens)
+          return {
+            url: settings.qrBridgeUrl,
+            secret: settings.qrBridgeSecret || FALLBACK_BRIDGE_SECRET,
+            userId: decoded.userId,
+            superAdmin: false,
+          };
+        }
+        
+        // User has their own DISTINCT bridge configured — use it (fully isolated)
         return {
           url: settings.qrBridgeUrl,
           secret: settings.qrBridgeSecret || FALLBACK_BRIDGE_SECRET,

@@ -212,37 +212,19 @@ export default function QRWhatsAppPage() {
           if (settingsRes.labelPresets?.length > 0) {
             setLabelPresets(settingsRes.labelPresets);
           }
-          // ── Auto-fill bridge URL and secret for every user ──
-          // Secret is auto-generated server-side (unique per user).
-          // URL is pre-filled from user's saved config or the shared default.
+          // ── Load bridge URL and secret ──
           const savedUrl = settingsRes.qrBridgeUrl || '';
           const savedSecret = settingsRes.qrBridgeSecret || '';
-          const defaultUrl = settingsRes.defaultBridgeUrl || '';
 
-          // Always populate the inputs with auto-generated / saved values
-          setBridgeUrlInput(savedUrl || defaultUrl);
+          // Populate the settings inputs
+          setBridgeUrlInput(savedUrl);
           setBridgeSecretInput(savedSecret);
 
-          // Auto-save the default URL if user had no URL yet (so it's persisted)
-          if (!savedUrl && defaultUrl && savedSecret) {
-            // Save immediately so the user's config is unique & persisted
-            try {
-              await crmFetch('/api/admin/crm/settings', {
-                method: 'PUT',
-                body: { qrBridgeUrl: defaultUrl, qrBridgeSecret: savedSecret },
-                silent: true,
-              });
-              console.log('[QR] Auto-saved default bridge config for new user');
-            } catch (e) {
-              console.warn('[QR] Failed to auto-save bridge config:', e);
-            }
-          }
-
-          // Determine access
-          if (savedUrl || defaultUrl) {
-            // User has a bridge URL (own or auto-filled default)
+          // Determine access — super admin always has access, others need own bridge or explicit enable
+          if (superAdmin) {
             setBridgeConfigured(true);
-          } else if (superAdmin) {
+          } else if (savedUrl) {
+            // User has their own bridge configured
             setBridgeConfigured(true);
           } else if (settingsRes.qrWhatsappEnabled) {
             setBridgeConfigured(true);

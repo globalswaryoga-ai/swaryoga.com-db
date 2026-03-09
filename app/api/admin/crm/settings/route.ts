@@ -15,13 +15,6 @@ function generateUniqueBridgeSecret(userId: string): string {
   return `swar-${prefix}-${rand}`;
 }
 
-// Default/shared bridge URL from env (for auto-fill)
-const DEFAULT_BRIDGE_URL =
-  process.env.WHATSAPP_BRIDGE_HTTP_URL ||
-  process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL ||
-  process.env.WHATSAPP_BRIDGE_URL ||
-  '';
-
 // GET /api/admin/crm/settings - Load current user's CRM settings
 export async function GET(req: NextRequest) {
   try {
@@ -58,8 +51,6 @@ export async function GET(req: NextRequest) {
       qrBridgeUrl: settings?.qrBridgeUrl || '',
       qrBridgeSecret: settings?.qrBridgeSecret || '',
       qrWhatsappEnabled: settings?.qrWhatsappEnabled || false,
-      // Expose shared bridge URL so frontend can auto-fill for new users
-      defaultBridgeUrl: DEFAULT_BRIDGE_URL,
     });
   } catch (err) {
     console.error('[crm-settings GET]', err);
