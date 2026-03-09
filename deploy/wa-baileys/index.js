@@ -1252,6 +1252,14 @@ app.get('/chats', async (req, res) => {
           if (cached) chat.name = cached.notify || cached.name || cached.verifiedName || chat.name;
         }
       }
+      // Resolve contact names for regular @s.whatsapp.net chats that only show phone numbers
+      if (!chat.isGroup && chat.id.endsWith('@s.whatsapp.net') && /^\d+$/.test(chat.name)) {
+        const cached = session.contactsCache.get(chat.id);
+        if (cached) {
+          const contactName = cached.notify || cached.name || cached.verifiedName;
+          if (contactName && !/^\d+$/.test(contactName)) chat.name = contactName;
+        }
+      }
     }
     const sorted = chats.sort((a, b) => {
       const ta = a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0;
