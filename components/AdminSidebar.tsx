@@ -37,6 +37,7 @@ import {
   LogOut,
   Plug,
   Zap,
+  Send,
 } from 'lucide-react';
 import { PlanBadge, SidebarLock } from './admin/crm/PlanComponents';
 import type { CrmModule } from '@/lib/crm-site/planConfig';
@@ -325,6 +326,15 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       module: 'whatsapp',
       planModule: 'whatsapp',
       description: 'WhatsApp via QR code bridge',
+    },
+    {
+      icon: Send,
+      label: 'Telegram',
+      href: '/admin/crm/telegram',
+      color: 'text-gray-400',
+      module: 'whatsapp',
+      planModule: 'whatsapp',
+      description: 'Telegram Bot messaging & broadcasts',
     },
     {
       icon: Bot,

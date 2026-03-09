@@ -435,6 +435,7 @@ export const PATH_TO_MODULE: Record<string, CrmModule> = {
   '/admin/crm/meta': 'whatsapp',
   '/admin/crm/whatsapp-meta': 'whatsapp',
   '/admin/crm/qr': 'whatsapp',
+  '/admin/crm/telegram': 'whatsapp',
   '/admin/crm/broadcast': 'broadcasting',
   '/admin/crm/broadcast-dashboard': 'broadcasting',
   '/admin/crm/scheduled-messages': 'broadcasting',

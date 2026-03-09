@@ -300,6 +300,20 @@ export const sectionConfigs: SectionConfig[] = [
     prefixes: ['/admin/crm/qr'],
   },
 
+  // 7b. Telegram Bot
+  {
+    key: 'telegram',
+    title: 'Telegram',
+    icon: Send,
+    items: [
+      { label: 'Telegram', href: '/admin/crm/telegram', icon: Send },
+      { label: 'Templates', href: '/admin/crm/telegram/templates', icon: FileEdit },
+      { label: 'Broadcast', href: '/admin/crm/telegram/broadcast', icon: Radio },
+    ],
+    moreItems: [],
+    prefixes: ['/admin/crm/telegram'],
+  },
+
   // 8. AI & Chatbot
   {
     key: 'chatbot',

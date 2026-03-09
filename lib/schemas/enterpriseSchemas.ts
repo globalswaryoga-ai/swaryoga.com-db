@@ -611,9 +611,10 @@ const WhatsAppTemplateSchema = new mongoose.Schema(
     templateName: { type: String, required: true, index: true },
     // Provider: 'meta' = Meta-approved templates (can use in both Meta & QR)
     //           'qr' = QR-only templates (no Meta approval needed, only for QR WhatsApp)
+    //           'telegram' = Telegram-only templates (for Telegram Bot broadcasts)
     provider: {
       type: String,
-      enum: ['meta', 'qr'],
+      enum: ['meta', 'qr', 'telegram'],
       default: 'meta',
       index: true,
     },
@@ -3162,6 +3163,14 @@ const CRMUserSettingsSchema = new mongoose.Schema(
     // QR WhatsApp access control — only super admin can enable this for each user
     // When false/unset, non-super-admin users cannot access the shared bridge (privacy compartment)
     qrWhatsappEnabled: { type: Boolean, default: false },
+    // Per-user Telegram Bot configuration
+    telegramBotToken: { type: String, default: '' },       // Bot token from @BotFather
+    telegramBotUsername: { type: String, default: '' },     // e.g. 'my_bot'
+    telegramBotName: { type: String, default: '' },         // e.g. 'My Bot'
+    telegramBotId: { type: Number },                        // Telegram bot user ID
+    telegramWebhookSet: { type: Boolean, default: false },  // Whether webhook is configured
+    telegramWebhookSecret: { type: String, default: '' },   // Secret token for webhook verification
+    telegramEnabled: { type: Boolean, default: false },     // Whether Telegram is enabled for this user
     metadata: mongoose.Schema.Types.Mixed,
   },
   { timestamps: true, collection: 'crm_user_settings' }
@@ -3441,3 +3450,62 @@ ServiceConnectionSchema.index({ ownerId: 1 }, { unique: true });
 
 export function getServiceConnection() { return getModel('ServiceConnection', ServiceConnectionSchema); }
 export const ServiceConnection = createModelProxy('ServiceConnection', ServiceConnectionSchema);
+
+// ============================================================================
+// TELEGRAM CONTACT — Tracks users who messaged a Telegram bot
+// ============================================================================
+const TelegramContactSchema = new mongoose.Schema(
+  {
+    ownerId: { type: String, required: true, index: true }, // CRM user who owns the bot
+    chatId: { type: Number, required: true, index: true },  // Telegram chat ID
+    firstName: { type: String, default: '' },
+    lastName: { type: String, default: '' },
+    username: { type: String, default: '' },
+    chatType: { type: String, enum: ['private', 'group', 'supergroup', 'channel'], default: 'private' },
+    groupTitle: { type: String, default: '' },              // For group/channel chats
+    lastMessageAt: { type: Date },
+    lastMessageText: { type: String, default: '' },
+    messageCount: { type: Number, default: 0 },
+    isBlocked: { type: Boolean, default: false },
+    labels: [{ type: String }],                            // User-defined labels
+    notes: { type: String, default: '' },
+    metadata: mongoose.Schema.Types.Mixed,
+  },
+  { timestamps: true, collection: 'telegram_contacts' }
+);
+TelegramContactSchema.index({ ownerId: 1, chatId: 1 }, { unique: true });
+TelegramContactSchema.index({ ownerId: 1, lastMessageAt: -1 });
+
+export function getTelegramContact() { return getModel('TelegramContact', TelegramContactSchema); }
+
+// ============================================================================
+// TELEGRAM MESSAGE — Individual messages sent/received via Telegram bot
+// ============================================================================
+const TelegramMessageSchema = new mongoose.Schema(
+  {
+    ownerId: { type: String, required: true, index: true },   // CRM user who owns the bot
+    chatId: { type: Number, required: true, index: true },     // Telegram chat ID
+    messageId: { type: Number },                               // Telegram message_id
+    direction: { type: String, enum: ['inbound', 'outbound'], required: true },
+    text: { type: String, default: '' },
+    mediaType: { type: String, enum: ['none', 'photo', 'video', 'document', 'audio', 'voice', 'sticker'], default: 'none' },
+    mediaUrl: { type: String, default: '' },
+    mediaFileId: { type: String, default: '' },                // Telegram file_id
+    mediaFileName: { type: String, default: '' },
+    mediaMimeType: { type: String, default: '' },
+    caption: { type: String, default: '' },
+    fromName: { type: String, default: '' },
+    fromUsername: { type: String, default: '' },
+    status: { type: String, enum: ['sent', 'delivered', 'failed', 'pending'], default: 'sent' },
+    errorMessage: { type: String, default: '' },
+    broadcastRunId: { type: String },                          // If sent via broadcast
+    templateId: { type: String },                              // If sent via template
+    metadata: mongoose.Schema.Types.Mixed,
+  },
+  { timestamps: true, collection: 'telegram_messages' }
+);
+TelegramMessageSchema.index({ ownerId: 1, chatId: 1, createdAt: -1 });
+TelegramMessageSchema.index({ ownerId: 1, createdAt: -1 });
+TelegramMessageSchema.index({ broadcastRunId: 1 });
+
+export function getTelegramMessage() { return getModel('TelegramMessage', TelegramMessageSchema); }
