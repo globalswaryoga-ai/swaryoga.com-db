@@ -423,4 +423,5 @@ export const PATH_TO_MODULE: Record<string, CrmModule> = {
   '/admin/landing-pages': 'landingPages',
   '/admin/crm/helpdesk': 'helpdesk',
   '/admin/crm/funnel': 'leads',
+  '/admin/crm/leads': 'leads',
 };

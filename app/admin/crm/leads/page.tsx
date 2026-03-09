@@ -2,7 +2,8 @@
 
 import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth, getLoginPath } from '@/hooks/useAuth';
+import { useAuth } from '@/hooks/useAuth';
+import { usePlan } from '@/components/admin/crm/hooks/usePlan';
 import { useCRM } from '@/hooks/useCRM';
 import { useSearch } from '@/hooks/useSearch';
 import { useModal } from '@/hooks/useModal';
@@ -58,11 +59,14 @@ type AdminUserOption = {
 export default function LeadsPage() {
   const router = useRouter();
   const token = useAuth();
+  const planCtx = usePlan();
 
   const enableMetaWhatsApp = (process.env.NEXT_PUBLIC_ENABLE_META_WHATSAPP || '').toLowerCase() === 'true';
   const crm = useCRM({ token });
   const search = useSearch();
   const modal = useModal();
+
+  const [addingSample, setAddingSample] = useState(false);
 
   const [leads, setLeads] = useState<Lead[]>([]);
   const [total, setTotal] = useState(0);
@@ -304,12 +308,9 @@ export default function LeadsPage() {
   });
 
   useEffect(() => {
-    if (!token) {
-      router.push(getLoginPath());
-      return;
-    }
+    if (!token) return;
     fetchMetadata();
-  }, [token, router, fetchMetadata]);
+  }, [token, fetchMetadata]);
 
   useEffect(() => {
     if (token) {
@@ -693,6 +694,45 @@ export default function LeadsPage() {
     }
   };
 
+  // Add a sample lead so the page isn't empty for new users
+  const handleAddSampleLead = async () => {
+    if (!token || addingSample) return;
+    try {
+      setAddingSample(true);
+      const res = await fetch('/api/admin/crm/leads', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: 'Sample Lead',
+          email: 'sample@example.com',
+          phoneNumber: '9876543210',
+          source: 'website',
+          status: 'new_lead',
+          workshopName: 'Demo Workshop',
+          labels: ['New'],
+        }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || 'Failed to create sample lead');
+      }
+      fetchMetadata();
+      fetchLeads();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create sample lead');
+    } finally {
+      setAddingSample(false);
+    }
+  };
+
+  // Plan-based leads limit
+  const leadsUsed = planCtx.usage.leads || total;
+  const leadsMax = planCtx.limits.maxLeads;
+  const leadsPercent = leadsMax >= 999999 ? 0 : Math.min(100, Math.round((leadsUsed / leadsMax) * 100));
+
   if (!hasMounted) return null;
 
   return (
@@ -717,6 +757,26 @@ export default function LeadsPage() {
                 <p className="text-gray-400 text-base md:text-lg">Manage and track all customer leads efficiently</p>
               </div>
             </div>
+            {/* Leads usage / limit badge */}
+            {!planCtx.loading && (
+              <div className="flex items-center gap-3 mt-1">
+                <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-4 py-2">
+                  <span className="text-xs text-gray-400">Leads</span>
+                  <span className="text-sm font-bold text-white">{leadsUsed}</span>
+                  <span className="text-xs text-gray-500">/</span>
+                  <span className="text-sm font-semibold text-gray-300">{leadsMax >= 999999 ? '∞' : leadsMax.toLocaleString()}</span>
+                  {leadsMax < 999999 && (
+                    <div className="w-16 h-1.5 bg-white/10 rounded-full overflow-hidden ml-1">
+                      <div
+                        className={`h-full rounded-full transition-all ${leadsPercent >= 90 ? 'bg-red-500' : leadsPercent >= 70 ? 'bg-amber-500' : 'bg-green-500'}`}
+                        style={{ width: `${leadsPercent}%` }}
+                      />
+                    </div>
+                  )}
+                  <span className="text-[10px] text-gray-500 uppercase tracking-wider ml-1">{planCtx.planName}</span>
+                </div>
+              </div>
+            )}
           </div>
           <div className="flex gap-3 flex-wrap justify-end">
             <button
@@ -919,12 +979,21 @@ export default function LeadsPage() {
             <div className="text-5xl mb-4">📊</div>
             <h3 className="text-xl font-semibold text-white mb-2">No leads found</h3>
             <p className="text-gray-400 mb-6">Start by adding a new lead or uploading from a file</p>
-            <button
-              onClick={modal.open}
-              className="bg-green-500 hover:bg-green-400 text-white px-6 py-2.5 rounded-xl font-bold transition-all duration-300 shadow-lg shadow-green-500/20 hover:shadow-xl hover:shadow-green-500/30"
-            >
-              + Add Your First Lead
-            </button>
+            <div className="flex flex-wrap justify-center gap-3">
+              <button
+                onClick={modal.open}
+                className="bg-green-500 hover:bg-green-400 text-white px-6 py-2.5 rounded-xl font-bold transition-all duration-300 shadow-lg shadow-green-500/20 hover:shadow-xl hover:shadow-green-500/30"
+              >
+                + Add Your First Lead
+              </button>
+              <button
+                onClick={handleAddSampleLead}
+                disabled={addingSample}
+                className="bg-white/10 hover:bg-white/20 text-white px-6 py-2.5 rounded-xl font-semibold transition-all duration-300 border border-white/20 hover:border-white/40 disabled:opacity-50"
+              >
+                {addingSample ? '⏳ Creating…' : '✨ Add Sample Lead'}
+              </button>
+            </div>
           </div>
         ) : (
           <>
