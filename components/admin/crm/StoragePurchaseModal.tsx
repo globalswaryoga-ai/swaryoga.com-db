@@ -31,8 +31,8 @@ const STORAGE_PLANS: StoragePlan[] = [
     price: 30,
     features: [
       '500MB cloud storage',
-      'Basic lead management',
-      'WhatsApp messaging',
+      'Monthly billing',
+      'Balance rollover to next month',
       'Email support',
     ],
   },
@@ -45,9 +45,8 @@ const STORAGE_PLANS: StoragePlan[] = [
     popular: true,
     features: [
       '2GB cloud storage',
-      'Advanced lead tracking',
-      'WhatsApp broadcasts',
-      'Analytics dashboard',
+      'Monthly billing',
+      'Unused balance rolls over',
       'Priority support',
     ],
   },
@@ -59,10 +58,8 @@ const STORAGE_PLANS: StoragePlan[] = [
     price: 349,
     features: [
       '10GB cloud storage',
-      'Unlimited leads',
-      'All WhatsApp features',
-      'Advanced analytics',
-      'AI-powered insights',
+      'Monthly billing',
+      'Unused balance rolls over',
       'Dedicated support',
     ],
   },
@@ -168,7 +165,7 @@ export default function StoragePurchaseModal({
                 <Server className="h-8 w-8" />
                 <div>
                   <h2 className="text-xl font-bold">Choose Your Storage Plan</h2>
-                  <p className="text-indigo-100 text-sm">Secure cloud storage for your business data</p>
+                  <p className="text-indigo-100 text-sm">Everyone needs storage — starts at ₹30/month for 500MB</p>
                 </div>
               </div>
               <button
@@ -215,7 +212,7 @@ export default function StoragePurchaseModal({
                     <h3 className="text-lg font-semibold text-gray-900">{plan.name}</h3>
                     <div className="text-3xl font-bold text-gray-900 mt-2">
                       ₹{plan.price}
-                      <span className="text-sm font-normal text-gray-500">/one-time</span>
+                      <span className="text-sm font-normal text-gray-500">/month</span>
                     </div>
                     <div className="text-indigo-600 font-medium mt-1">{plan.storage}</div>
                   </div>
@@ -301,7 +298,7 @@ export default function StoragePurchaseModal({
             </div>
 
             <p className="text-center text-xs text-gray-500 mt-4">
-              Secure payment via Cashfree. All plans include lifetime access.
+              Secure payment via Cashfree. Billed monthly — unused balance rolls over to next month.
             </p>
           </div>
         </motion.div>

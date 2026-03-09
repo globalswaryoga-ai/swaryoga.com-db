@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   FileText,
   Plus,
@@ -94,6 +94,7 @@ export default function LandingPagesPage() {
   const [plan, setPlan] = useState('free');
   const [tenantSlug, setTenantSlug] = useState('');
   const [creatingSample, setCreatingSample] = useState(false);
+  const autoSampleRef = useRef(false);
 
   // Modal states
   const [showCreate, setShowCreate] = useState(false);
@@ -138,6 +139,15 @@ export default function LandingPagesPage() {
       setLoading(false);
     }
   };
+
+  // Auto-create a sample draft landing page for free plan users on first visit
+  useEffect(() => {
+    if (loading || autoSampleRef.current || creatingSample) return;
+    if (pages.length === 0 && tenantSlug) {
+      autoSampleRef.current = true;
+      createSampleDarkPage();
+    }
+  }, [loading, pages.length, tenantSlug]);
 
   const createPage = async () => {
     if (!newPage.name.trim()) {

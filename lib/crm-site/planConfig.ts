@@ -149,7 +149,7 @@ export const PLAN_MODULES: Record<PlanTier, Record<CrmModule, boolean>> = {
     automation: true,
     helpdesk: true,
     api: true,
-    customDomain: false, // Pro only
+    customDomain: true, // Available as ₹999 add-on for all plans
   },
   basic: {
     leads: true,
@@ -166,7 +166,7 @@ export const PLAN_MODULES: Record<PlanTier, Record<CrmModule, boolean>> = {
     automation: true,
     helpdesk: true,
     api: true,
-    customDomain: false,
+    customDomain: true,
   },
   starter: {
     leads: true,
@@ -183,7 +183,7 @@ export const PLAN_MODULES: Record<PlanTier, Record<CrmModule, boolean>> = {
     automation: true,
     helpdesk: true,
     api: true,
-    customDomain: false,
+    customDomain: true,
   },
   growth: {
     leads: true,
@@ -248,7 +248,7 @@ export const FEATURE_CATALOG: PlanFeatureDisplay[] = [
   { name: 'Call Recording', description: 'Record and review calls', module: 'callRecording', icon: 'Mic', minimumPlan: 'free' },
   { name: 'Automation', description: 'Workflow automations and triggers', module: 'automation', icon: 'Workflow', minimumPlan: 'free' },
   { name: 'API Access', description: 'REST API and webhook integrations', module: 'api', icon: 'Code', minimumPlan: 'free' },
-  { name: 'Custom Domain', description: 'Use your own domain for CRM', module: 'customDomain', icon: 'Globe', minimumPlan: 'growth' },
+  { name: 'Custom Domain', description: 'Use your own domain (₹999 add-on)', module: 'customDomain', icon: 'Globe', minimumPlan: 'free' },
 ];
 
 // ============================================================================
@@ -323,6 +323,34 @@ export const PLAN_DISPLAY: Record<PlanTier, PlanDisplayInfo> = {
     badge: 'PRO',
     popular: false,
   },
+};
+
+// ============================================================================
+// ADD-ON PRICING
+// ============================================================================
+
+export const ADDON_PRICING = {
+  customDomain: {
+    price: 999,        // ₹999 one-time for custom domain
+    currency: 'INR',
+    description: 'Use your own domain for CRM',
+    availableFor: ['free', 'basic', 'starter', 'growth', 'professional'] as PlanTier[],
+  },
+};
+
+// ============================================================================
+// STORAGE BILLING
+// ============================================================================
+
+export const STORAGE_BILLING = {
+  /** Everyone must purchase storage — minimum 500MB at ₹30/month */
+  required: true,
+  minStorageMB: 500,
+  minPriceINR: 30,
+  /** Paid users: unused balance rolls over to next month */
+  balanceRollover: true,
+  /** Billing is calculated monthly */
+  billingCycle: 'monthly' as const,
 };
 
 // ============================================================================

@@ -2,9 +2,9 @@
  * CRM Storage & Billing Configuration
  * 
  * Storage Pricing:
- * - Free plan: ₹30/500MB (minimum required)
- * - Basic (₹999): ₹50/1GB
- * - Starter (₹1,999+): ₹35/GB per month
+ * - All plans: minimum 500MB at ₹30/month
+ * - Everyone must buy storage (required for all plans)
+ * - Paid users: purchased data calculated monthly, remaining balance rolls over
  * 
  * Payment Methods:
  * - UPI (PhonePe, Google Pay, Paytm)
@@ -16,28 +16,53 @@ export const STORAGE_PRICING = {
   free: {
     minStorageMB: 500,
     pricePerGB: 60, // ₹30/500MB = ₹60/GB
-    minPrice: 30,   // ₹30 minimum for 500MB
+    minPrice: 30,   // ₹30 minimum for 500MB/month
+    billing: 'monthly' as const,
   },
   basic: {
-    minStorageMB: 1000,
+    minStorageMB: 500,
     pricePerGB: 50, // ₹50/1GB
-    minPrice: 50,
+    minPrice: 30,   // ₹30 minimum for 500MB/month
+    billing: 'monthly' as const,
   },
   starter: {
-    minStorageMB: 1000,
+    minStorageMB: 500,
     pricePerGB: 35, // ₹35/GB
-    minPrice: 35,
+    minPrice: 30,
+    billing: 'monthly' as const,
   },
   growth: {
-    minStorageMB: 1000,
+    minStorageMB: 500,
     pricePerGB: 35,
-    minPrice: 35,
+    minPrice: 30,
+    billing: 'monthly' as const,
   },
   professional: {
-    minStorageMB: 1000,
+    minStorageMB: 500,
     pricePerGB: 35,
-    minPrice: 35,
+    minPrice: 30,
+    billing: 'monthly' as const,
   },
+};
+
+/**
+ * Balance rollover policy for paid users:
+ * - Purchased storage is calculated monthly
+ * - Unused balance from current month transfers to next month
+ * - Rollover applies only to paid plans (basic+)
+ */
+export const ROLLOVER_POLICY = {
+  enabled: true,
+  maxRolloverMonths: 3,  // Balance can accumulate up to 3 months
+  appliesTo: ['basic', 'starter', 'growth', 'professional'],
+};
+
+/** Custom domain add-on */
+export const CUSTOM_DOMAIN_ADDON = {
+  price: 999,          // ₹999 one-time
+  currency: 'INR',
+  description: 'Connect your own domain to CRM',
+  availableForAll: true, // Any plan can purchase
 };
 
 export const PLAN_PRICING = {
