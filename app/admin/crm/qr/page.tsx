@@ -360,22 +360,10 @@ export default function QRWhatsAppPage() {
             setBridgeSecretInput(settingsRes.qrBridgeSecret || '');
             setBridgeConfigured(true);
           } else {
-            // No per-user bridge in DB.
-            // Check if this user is superadmin — superadmins use the shared
-            // env-var bridge so they can skip the setup modal.
-            // Regular CRM users need their own bridge to avoid sharing the
-            // admin's WhatsApp session.
-            try {
-              const userStr = localStorage.getItem('admin_user');
-              const u = userStr ? JSON.parse(userStr) : null;
-              const userId = u?.userId || localStorage.getItem('adminUser') || '';
-              const perms: string[] = Array.isArray(u?.permissions) ? u.permissions : [];
-              const superAdmin = userId === 'admin' || userId === 'admincrm' ||
-                u?.role === 'superadmin' || perms.includes('all');
-              setBridgeConfigured(superAdmin ? true : false);
-            } catch {
-              setBridgeConfigured(false);
-            }
+            // No per-user bridge in DB — all users use the shared bridge.
+            // Server-side proxy auto-falls back to env-var bridge URL,
+            // so users can scan QR directly without manual bridge setup.
+            setBridgeConfigured(true);
           }
           console.log('[QR] ✅ Loaded settings from MongoDB — funnels:', settingsRes.qrFunnelStages?.length || 0, 'chatFunnels:', Object.keys(settingsRes.chatFunnels || {}).length, 'chatLabels:', Object.keys(settingsRes.chatLabels || {}).length, 'labels:', settingsRes.labelPresets?.length || 0, 'bridge:', settingsRes.qrBridgeUrl ? 'configured' : 'not set');
         }
@@ -1371,20 +1359,21 @@ export default function QRWhatsAppPage() {
     );
   }
 
-  if (bridgeConfigured === false || showBridgeSettings) {
+  {/* Bridge settings modal — only shown when user explicitly clicks gear icon */}
+  if (showBridgeSettings) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-xl shadow-lg max-w-md w-full p-6 space-y-5">
           <div className="text-center">
             <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-green-50 mb-3">
-              <QrCode className="w-7 h-7 text-green-600" />
+              <Settings className="w-7 h-7 text-green-600" />
             </div>
             <h2 className="text-xl font-bold text-gray-900">
-              {showBridgeSettings ? 'WhatsApp Bridge Settings' : 'Connect Your WhatsApp'}
+              WhatsApp Bridge Settings
             </h2>
             <p className="text-sm text-gray-500 mt-1">
-              Enter the URL and secret of your WhatsApp bridge instance.
-              Each CRM account connects its own WhatsApp number.
+              Advanced: connect a custom WhatsApp bridge instance.
+              Leave empty to use the default shared bridge.
             </p>
           </div>
 
@@ -1412,14 +1401,12 @@ export default function QRWhatsAppPage() {
           </div>
 
           <div className="flex gap-2">
-            {showBridgeSettings && (
-              <button
-                onClick={() => setShowBridgeSettings(false)}
-                className="flex-1 px-4 py-2 border rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-            )}
+            <button
+              onClick={() => setShowBridgeSettings(false)}
+              className="flex-1 px-4 py-2 border rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
             <button
               onClick={saveBridgeConfig}
               disabled={savingBridge || !bridgeUrlInput.trim()}

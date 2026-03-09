@@ -54,16 +54,10 @@ async function resolveUserBridge(authHeader: string | null): Promise<{ url: stri
           secret: settings.qrBridgeSecret || FALLBACK_BRIDGE_SECRET,
         };
       }
-      // No per-user bridge configured.
-      // Only superadmins fall back to the shared env var bridge.
-      // Regular CRM users must set up their own bridge to avoid
-      // accidentally sharing the admin's WhatsApp session.
-      if (isSuperAdmin(decoded)) {
-        return { url: FALLBACK_BRIDGE_URL, secret: FALLBACK_BRIDGE_SECRET };
-      }
-      // Non-superadmin without own bridge — return null so the frontend
-      // shows the bridge-setup modal instead of the admin's inbox.
-      return null;
+      // No per-user bridge configured — all admin users fall back
+      // to the shared env-var bridge so they can scan QR directly
+      // without needing to enter a bridge URL manually.
+      return { url: FALLBACK_BRIDGE_URL, secret: FALLBACK_BRIDGE_SECRET };
     }
   } catch (e) {
     console.warn('[QR Bridge Proxy] Failed to resolve user bridge:', (e as Error).message);
