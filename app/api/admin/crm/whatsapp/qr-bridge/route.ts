@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
-import { getCRMUserSettings, getLead } from '@/lib/schemas/enterpriseSchemas';
+import { getCRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
 import { verifyToken } from '@/lib/auth';
-import { isSuperAdmin } from '@/lib/crm-handlers';
 
 /**
  * WhatsApp QR Bridge Proxy Endpoint
- * Proxies requests to the user's own WhatsApp bridge service (Baileys).
- * Each CRM user has their own bridge instance — URL stored in crm_user_settings.
+ * Proxies requests to the WhatsApp bridge service (Baileys).
  * 
- * Fallback: uses WHATSAPP_BRIDGE_HTTP_URL env var (for legacy / superadmin bridge).
+ * MULTI-TENANT: Every authenticated CRM user gets access.
+ * The bridge handles per-user isolation via x-user-id header — each user gets
+ * their own Baileys session, QR code, chats, and messages.
+ * No server-side chat/JID filtering needed — the bridge IS the isolation layer.
  */
 
 // Fallback: env var or local dev
@@ -34,75 +35,40 @@ export const maxDuration = 60; // 60s function timeout for Vercel
 
 /**
  * Resolve the bridge URL and secret for the authenticated user.
- * Returns per-user bridge from crm_user_settings if configured.
  * 
- * PRIVACY COMPARTMENT:
- * - Super admins: Always have access (fall back to shared bridge).
- * - Non-super-admin users WITH their own bridge URL: Use their own bridge.
- * - Non-super-admin users WITH qrWhatsappEnabled=true (but no own bridge): Use shared bridge with user isolation.
- * - Non-super-admin users WITHOUT qrWhatsappEnabled and WITHOUT own bridge: BLOCKED (returns null).
+ * MULTI-TENANT: ALL authenticated admin users get bridge access.
+ * The bridge handles per-user isolation via x-user-id header.
+ * Each user gets their own Baileys session, QR code, chats, etc.
  * 
- * This prevents non-super-admin users from seeing the super admin's WhatsApp chats.
+ * If user has a custom bridge URL in settings, use that.
+ * Otherwise use the shared bridge (isolation via x-user-id).
  */
-async function resolveUserBridge(authHeader: string | null): Promise<{ url: string; secret: string; userId: string; superAdmin: boolean } | null> {
+async function resolveUserBridge(authHeader: string | null): Promise<{ url: string; secret: string; userId: string } | null> {
   try {
     const decoded = verifyToken(authHeader || '');
     if (decoded?.userId && decoded?.isAdmin) {
-      const superAdmin = isSuperAdmin(decoded);
-      
+      // Check if user has a custom bridge URL
       await connectDB();
       const CRMUserSettings = getCRMUserSettings();
       const settings = await CRMUserSettings.findOne(
         { userId: decoded.userId },
-        { qrBridgeUrl: 1, qrBridgeSecret: 1, qrWhatsappEnabled: 1 }
+        { qrBridgeUrl: 1, qrBridgeSecret: 1 }
       ).lean();
 
       if (settings?.qrBridgeUrl) {
-        // Check if user's "own" bridge is actually the shared admin bridge
-        const isSharedBridge = settings.qrBridgeUrl === FALLBACK_BRIDGE_URL
-          || settings.qrBridgeUrl === process.env.WHATSAPP_BRIDGE_HTTP_URL
-          || settings.qrBridgeUrl === process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL;
-        
-        if (isSharedBridge && !superAdmin) {
-          // User was incorrectly given the admin's bridge URL — treat as shared bridge
-          // Apply chat filtering (superAdmin=false ensures filtering happens)
-          return {
-            url: settings.qrBridgeUrl,
-            secret: settings.qrBridgeSecret || FALLBACK_BRIDGE_SECRET,
-            userId: decoded.userId,
-            superAdmin: false,
-          };
-        }
-        
-        // User has their own DISTINCT bridge configured — use it (fully isolated)
         return {
           url: settings.qrBridgeUrl,
           secret: settings.qrBridgeSecret || FALLBACK_BRIDGE_SECRET,
           userId: decoded.userId,
-          superAdmin,
         };
       }
 
-      // No per-user bridge configured — check access rights
-      if (superAdmin) {
-        // Super admin always has access to the shared bridge
-        return { url: FALLBACK_BRIDGE_URL, secret: FALLBACK_BRIDGE_SECRET, userId: decoded.userId, superAdmin: true };
-      }
-
-      // Non-super-admin: only allow shared bridge if explicitly enabled by super admin
-      if (settings?.qrWhatsappEnabled) {
-        return { url: FALLBACK_BRIDGE_URL, secret: FALLBACK_BRIDGE_SECRET, userId: decoded.userId, superAdmin: false };
-      }
-
-      // BLOCKED: Non-super-admin user without own bridge and not enabled
-      // This is the critical privacy fix — prevents seeing super admin's chats
-      console.warn(`[QR Bridge Proxy] BLOCKED: User ${decoded.userId} has no bridge configured and qrWhatsappEnabled=false`);
-      return null;
+      // Use shared bridge — per-user isolation handled by x-user-id header
+      return { url: FALLBACK_BRIDGE_URL, secret: FALLBACK_BRIDGE_SECRET, userId: decoded.userId };
     }
   } catch (e) {
     console.warn('[QR Bridge Proxy] Failed to resolve user bridge:', (e as Error).message);
   }
-  // Auth failed — no bridge access
   return null;
 }
 
@@ -133,7 +99,7 @@ export async function POST(req: NextRequest) {
         { status: 422 }
       );
     }
-    const { url: BRIDGE_URL, secret: BRIDGE_SECRET, userId, superAdmin } = resolved;
+    const { url: BRIDGE_URL, secret: BRIDGE_SECRET, userId } = resolved;
 
     const { action, path, body } = await req.json();
 
@@ -143,24 +109,6 @@ export async function POST(req: NextRequest) {
 
     // Decode the path to handle double-encoded values like %2540 (@)
     const decodedPath = decodePathFully(path);
-
-    // ── MULTI-TENANT: Block non-super-admin from accessing other users' chats ──
-    // For paths like /messages/:jid or /send, verify the JID belongs to this user
-    if (!superAdmin) {
-      const jidMatch = decodedPath.match(/^\/(messages|send|profile-pic|contact)\/([\d]+@[a-z.]+)/i)
-        || decodedPath.match(/^\/(messages|send|profile-pic|contact)\/(.+)/);
-      if (jidMatch) {
-        const jid = decodeURIComponent(jidMatch[2]);
-        const allowed = await isJidAllowedForUser(jid, userId);
-        if (!allowed) {
-          console.warn(`[QR Bridge Proxy] BLOCKED: User ${userId} tried to access JID ${jid} (not their lead)`);
-          return NextResponse.json(
-            { error: 'Access denied: This contact is not in your CRM leads.' },
-            { status: 403 }
-          );
-        }
-      }
-    }
 
     const method = (action || 'GET').toUpperCase();
     const bridgeUrl = `${BRIDGE_URL}${decodedPath}`;
@@ -235,23 +183,6 @@ export async function POST(req: NextRequest) {
         { status: res.status }
       );
     }
-    // ── CHAT COMPARTMENT: Filter /chats response for non-super-admin users ──
-    if (decodedPath === '/chats' && !superAdmin && data?.chats) {
-      data.chats = await filterChatsForUser(data.chats, userId);
-    }
-
-    // ── MULTI-TENANT: Sanitize /status for non-super-admin users on shared bridge ──
-    if ((decodedPath === '/status' || decodedPath === '/') && !superAdmin) {
-      data = {
-        connected: data?.connected || false,
-        status: data?.status || 'disconnected',
-        qrAvailable: data?.qrAvailable || false,
-        chatCount: 0,
-        uptime: data?.uptime || 0,
-        phone: null,
-      };
-    }
-
     // Wrap in { success, data } so useCRM hook accepts the response
     return NextResponse.json({ success: true, data }, { status: res.status });
   } catch (err) {
@@ -273,29 +204,12 @@ export async function GET(req: NextRequest) {
         { status: 422 }
       );
     }
-    const { url: BRIDGE_URL, secret: BRIDGE_SECRET, userId, superAdmin } = resolved;
+    const { url: BRIDGE_URL, secret: BRIDGE_SECRET, userId } = resolved;
 
     let path = req.nextUrl.searchParams.get('path') || '/status';
     
     // Decode the path to handle double-encoded values like %2540 (@)
     path = decodePathFully(path);
-
-    // ── MULTI-TENANT: Block non-super-admin from accessing other users' chats via GET ──
-    if (!superAdmin) {
-      const jidMatch = path.match(/^\/(messages|media|profile-pic|contact)\/([\d]+@[a-z.]+)/i)
-        || path.match(/^\/(messages|media|profile-pic|contact)\/(.+)/);
-      if (jidMatch) {
-        const jid = decodeURIComponent(jidMatch[2]);
-        const allowed = await isJidAllowedForUser(jid, userId);
-        if (!allowed) {
-          console.warn(`[QR Bridge Proxy] BLOCKED GET: User ${userId} tried to access JID ${jid}`);
-          return NextResponse.json(
-            { error: 'Access denied: This contact is not in your CRM leads.' },
-            { status: 403 }
-          );
-        }
-      }
-    }
 
     const bridgeUrl = `${BRIDGE_URL}${path}`;
 
@@ -401,27 +315,6 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // ── CHAT COMPARTMENT: Filter /chats response for non-super-admin users ──
-    if (path === '/chats' && !superAdmin && data?.chats) {
-      data.chats = await filterChatsForUser(data.chats, userId);
-    }
-
-    // ── MULTI-TENANT: Sanitize /status for non-super-admin users on shared bridge ──
-    // Don't expose the admin's WhatsApp phone name, chat count, or session details
-    if ((path === '/status' || path === '/') && !superAdmin) {
-      // Keep connection status but hide admin-specific details
-      data = {
-        connected: data?.connected || false,
-        status: data?.status || 'disconnected',
-        qrAvailable: data?.qrAvailable || false,
-        // Show 0 chats — their actual chat count comes from filtered /chats
-        chatCount: 0,
-        uptime: data?.uptime || 0,
-        // Remove admin's phone info
-        phone: null,
-      };
-    }
-
     // Wrap in { success, data } so useCRM hook accepts the response
     return NextResponse.json({ success: true, data }, { status: res.status });
   } catch (err) {
@@ -433,83 +326,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-/**
- * Filter bridge chats for a non-super-admin user.
- * Only returns chats where:
- * - A CRM lead exists with that phone number AND is assigned to / created by this user
- * - Or the user has their own bridge (already isolated at session level)
- *
- * This prevents users on the shared bridge from seeing the super admin's private chat list.
- */
-async function filterChatsForUser(chats: any[], userId: string): Promise<any[]> {
-  try {
-    await connectDB();
-    const Lead = getLead();
-
-    // Extract phone numbers from bridge chats
-    const phoneNumbers = chats.map((c: any) => {
-      const idStr = typeof c.id === 'string' ? c.id : (c.id?._serialized || '');
-      return idStr.split('@')[0];
-    }).filter(Boolean);
-
-    if (phoneNumbers.length === 0) return [];
-
-    // Find all leads for these phone numbers
-    const leads = await Lead.find({
-      phoneNumber: { $in: phoneNumbers }
-    }).select('phoneNumber assignedToUserId createdByUserId').lean();
-
-    const leadMap = new Map<string, { assignedToUserId?: string; createdByUserId?: string }>();
-    for (const l of leads) {
-      leadMap.set(l.phoneNumber, {
-        assignedToUserId: l.assignedToUserId,
-        createdByUserId: l.createdByUserId,
-      });
-    }
-
-    // Filter: only chats matching this user's leads
-    const filtered = chats.filter((c: any) => {
-      const idStr = typeof c.id === 'string' ? c.id : (c.id?._serialized || '');
-      const phone = idStr.split('@')[0];
-
-      const leadInfo = leadMap.get(phone);
-      if (!leadInfo) return false; // No CRM lead = not visible to this user
-
-      return leadInfo.assignedToUserId === userId || leadInfo.createdByUserId === userId;
-    });
-
-    console.log(`[QR Bridge Proxy] Chat filter for ${userId}: ${chats.length} total → ${filtered.length} visible`);
-    return filtered;
-  } catch (e) {
-    console.error('[QR Bridge Proxy] Chat filter error:', (e as Error).message);
-    // On error, return empty to be safe (don't leak admin data)
-    return [];
-  }
-}
-
-/**
- * MULTI-TENANT: Verify that a non-super-admin user on the shared bridge
- * is allowed to access the specified JID (phone number).
- * Returns true if the user owns a CRM lead for that phone, false otherwise.
- */
-async function isJidAllowedForUser(jid: string, userId: string): Promise<boolean> {
-  try {
-    // Extract phone from JID  (e.g. "919876543210@s.whatsapp.net" → "919876543210")
-    const phone = jid.split('@')[0];
-    if (!phone || !/^\d+$/.test(phone)) return false;
-
-    await connectDB();
-    const Lead = getLead();
-
-    const lead = await Lead.findOne({
-      phoneNumber: phone,
-      $or: [{ assignedToUserId: userId }, { createdByUserId: userId }],
-    }).select('_id').lean();
-
-    return !!lead;
-  } catch (e) {
-    console.error('[QR Bridge Proxy] JID access check error:', (e as Error).message);
-    return false; // Fail closed — deny access on error
-  }
-}
+// No server-side chat/JID filtering needed.
+// The bridge handles per-user isolation via x-user-id header.
+// Each user has their own Baileys session with their own QR, chats, and messages.
 

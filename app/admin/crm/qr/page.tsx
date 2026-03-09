@@ -101,7 +101,6 @@ export default function QRWhatsAppPage() {
   // User compartment / access control state
   const [currentUserId, setCurrentUserId] = useState('');
   const [isSuperAdminUser, setIsSuperAdminUser] = useState(false);
-  const [qrAccessDenied, setQrAccessDenied] = useState(false); // true if user has no bridge and no access
   // Reply / Reaction / Delete state
   const [replyingTo, setReplyingTo] = useState<MessageItem | null>(null);
   const [reactingToMsg, setReactingToMsg] = useState<string | null>(null); // message ID
@@ -225,20 +224,10 @@ export default function QRWhatsAppPage() {
           setBridgeUrlInput(savedUrl);
           setBridgeSecretInput(savedSecret);
 
-          // Determine access — super admin always has access, others need own bridge or explicit enable
-          if (superAdmin) {
-            setBridgeConfigured(true);
-          } else if (savedUrl) {
-            // User has their own bridge configured
-            setBridgeConfigured(true);
-          } else if (settingsRes.qrWhatsappEnabled) {
-            setBridgeConfigured(true);
-          } else {
-            // PRIVACY COMPARTMENT: No bridge and not enabled
-            setBridgeConfigured(false);
-            setQrAccessDenied(true);
-          }
-          console.log('[QR] ✅ Loaded settings from MongoDB — funnels:', settingsRes.qrFunnelStages?.length || 0, 'chatFunnels:', Object.keys(settingsRes.chatFunnels || {}).length, 'chatLabels:', Object.keys(settingsRes.chatLabels || {}).length, 'labels:', settingsRes.labelPresets?.length || 0, 'bridge:', settingsRes.qrBridgeUrl ? 'configured' : 'not set', 'qrEnabled:', settingsRes.qrWhatsappEnabled || false, 'isSuperAdmin:', superAdmin);
+          // All authenticated admin users can use QR WhatsApp
+          // Bridge handles per-user isolation via x-user-id header
+          setBridgeConfigured(true);
+          console.log('[QR] ✅ Loaded settings from MongoDB — funnels:', settingsRes.qrFunnelStages?.length || 0, 'chatFunnels:', Object.keys(settingsRes.chatFunnels || {}).length, 'chatLabels:', Object.keys(settingsRes.chatLabels || {}).length, 'labels:', settingsRes.labelPresets?.length || 0, 'bridge:', settingsRes.qrBridgeUrl ? 'custom' : 'shared', 'user:', resolvedUserId);
         }
       } catch (e) {
         console.warn('[QR] Failed to load CRM settings, using localStorage cache:', e);
@@ -402,51 +391,40 @@ export default function QRWhatsAppPage() {
       const isSuperUser = isSuperAdminRef.current;
       const userId = currentUserIdRef.current;
 
-      // ── STEP 1: Fetch bridge chats (with error handling for blocked users) ──
+      // ── STEP 1: Fetch bridge chats (with error handling) ──
       let data: any = null;
       try {
         data = await bridgeCall('/chats');
       } catch (bridgeErr: any) {
-        // If bridge returns 422 (no access), show 0 chats — do NOT fall through to leads
-        const msg = bridgeErr?.message || String(bridgeErr);
-        if (msg.includes('422') || msg.includes('No WhatsApp bridge') || msg.includes('bridge configured')) {
-          console.log('[QR] Bridge access denied for user — showing 0 chats');
-          setChats([]);
-          setError(null);
-          return; // EXIT EARLY — no leads, no chats, nothing
-        }
-        throw bridgeErr; // Re-throw other errors
+        throw bridgeErr;
       }
 
-      // ── STEP 2: MULTI-TENANT — Only super admins get CRM lead enrichment ──
-      // Non-super-admin users ONLY see chats returned by the bridge (already filtered server-side)
+      // ── STEP 2: Fetch CRM leads for enrichment (leads API filters per-user automatically) ──
       const crmLeadMap = new Map<string, { name: string; phone: string; funnelStage?: string; labels?: string[] }>();
-      if (isSuperUser) {
-        try {
-          const leadsRes = await crmFetch('/api/admin/crm/leads?selectAll=true&limit=5000', { silent: true });
-          if (leadsRes?.data?.leads) {
-            for (const lead of leadsRes.data.leads) {
-              if (lead.phoneNumber) {
-                let p = lead.phoneNumber.replace(/[^0-9]/g, '');
-                if (p.length === 12 && p.startsWith('91')) p = p;
-                crmLeadMap.set(p, {
-                  name: lead.name || lead.phoneNumber,
-                  phone: p,
-                  funnelStage: lead.funnelStage,
-                  labels: lead.labels,
-                });
-                if (p.length === 12 && p.startsWith('91')) {
-                  crmLeadMap.set(p.slice(2), { name: lead.name || lead.phoneNumber, phone: p, funnelStage: lead.funnelStage, labels: lead.labels });
-                }
-                if (p.length === 10) {
-                  crmLeadMap.set('91' + p, { name: lead.name || lead.phoneNumber, phone: '91' + p, funnelStage: lead.funnelStage, labels: lead.labels });
-                }
+      try {
+        const leadsRes = await crmFetch('/api/admin/crm/leads?selectAll=true&limit=5000', { silent: true });
+        if (leadsRes?.data?.leads) {
+          for (const lead of leadsRes.data.leads) {
+            if (lead.phoneNumber) {
+              let p = lead.phoneNumber.replace(/[^0-9]/g, '');
+              if (p.length === 12 && p.startsWith('91')) p = p;
+              crmLeadMap.set(p, {
+                name: lead.name || lead.phoneNumber,
+                phone: p,
+                funnelStage: lead.funnelStage,
+                labels: lead.labels,
+              });
+              if (p.length === 12 && p.startsWith('91')) {
+                crmLeadMap.set(p.slice(2), { name: lead.name || lead.phoneNumber, phone: p, funnelStage: lead.funnelStage, labels: lead.labels });
+              }
+              if (p.length === 10) {
+                crmLeadMap.set('91' + p, { name: lead.name || lead.phoneNumber, phone: '91' + p, funnelStage: lead.funnelStage, labels: lead.labels });
               }
             }
           }
-        } catch {
-          // Leads fetch failed — continue without enrichment
         }
+      } catch {
+        // Leads fetch failed — continue without enrichment
       }
 
       if (data?.chats) {
@@ -511,32 +489,29 @@ export default function QRWhatsAppPage() {
           }
         }
 
-        // MULTI-TENANT: Only super admins get CRM lead injection into chat list
-        // Non-super-admin users ONLY see bridge-returned chats (already filtered server-side)
-        if (isSuperUser) {
-          for (const [phone, lead] of crmLeadMap) {
-            if (matchedCrmPhones.has(phone)) continue;
-            if (phone.length === 10 && matchedCrmPhones.has('91' + phone)) continue;
-            if (phone.length === 12 && phone.startsWith('91') && matchedCrmPhones.has(phone.slice(2))) continue;
-            if (phone.length === 10 && crmLeadMap.has('91' + phone)) continue;
-            
-            matchedCrmPhones.add(phone);
-            if (phone.length === 12 && phone.startsWith('91')) matchedCrmPhones.add(phone.slice(2));
-            if (phone.length === 10) matchedCrmPhones.add('91' + phone);
-            
-            const jid = (phone.length === 10 ? '91' + phone : phone) + '@s.whatsapp.net';
-            deduped.push({
-              id: jid,
-              name: lead.name,
-              isGroup: false,
-              resolvedPhone: lead.phone,
-              unreadCount: 0,
-              lastMessageTime: null,
-              lastMessage: '',
-              funnelStage: lead.funnelStage,
-              labels: lead.labels,
-            });
-          }
+        // Add CRM leads that don't have a matching QR chat as placeholder items
+        for (const [phone, lead] of crmLeadMap) {
+          if (matchedCrmPhones.has(phone)) continue;
+          if (phone.length === 10 && matchedCrmPhones.has('91' + phone)) continue;
+          if (phone.length === 12 && phone.startsWith('91') && matchedCrmPhones.has(phone.slice(2))) continue;
+          if (phone.length === 10 && crmLeadMap.has('91' + phone)) continue;
+          
+          matchedCrmPhones.add(phone);
+          if (phone.length === 12 && phone.startsWith('91')) matchedCrmPhones.add(phone.slice(2));
+          if (phone.length === 10) matchedCrmPhones.add('91' + phone);
+          
+          const jid = (phone.length === 10 ? '91' + phone : phone) + '@s.whatsapp.net';
+          deduped.push({
+            id: jid,
+            name: lead.name,
+            isGroup: false,
+            resolvedPhone: lead.phone,
+            unreadCount: 0,
+            lastMessageTime: null,
+            lastMessage: '',
+            funnelStage: lead.funnelStage,
+            labels: lead.labels,
+          });
         }
 
         // Preserve unreadCount=0 only if no NEW messages arrived since the user read the chat
@@ -1284,77 +1259,7 @@ export default function QRWhatsAppPage() {
     );
   }
 
-  // ── PRIVACY COMPARTMENT: Access denied screen for users without bridge/permission ──
-  if (qrAccessDenied && !isSuperAdminUser) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
-        <div className="max-w-lg w-full bg-white rounded-2xl shadow-lg border overflow-hidden">
-          <div className="bg-gradient-to-r from-red-600 to-orange-600 px-6 py-5">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
-                <Shield className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-white">QR WhatsApp - Access Required</h2>
-                <p className="text-red-100 text-sm">Your account needs setup before using QR WhatsApp</p>
-              </div>
-            </div>
-          </div>
-          <div className="p-6 space-y-5">
-            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium text-amber-800">Privacy Protection Active</p>
-                  <p className="text-xs text-amber-700 mt-1">
-                    For security and privacy, each user must have their own WhatsApp bridge configured, 
-                    or be explicitly granted access by a super admin. This prevents unauthorized access to other users&apos; chats.
-                  </p>
-                </div>
-              </div>
-            </div>
 
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-gray-800">To get started, you need one of:</h3>
-              <div className="space-y-2.5">
-                <div className="flex items-start gap-3 p-3 bg-green-50 border border-green-200 rounded-lg">
-                  <div className="w-6 h-6 rounded-full bg-green-600 text-white flex items-center justify-center text-xs font-bold flex-shrink-0">1</div>
-                  <div>
-                    <p className="text-sm font-medium text-green-800">Your Own Bridge Instance</p>
-                    <p className="text-xs text-green-700 mt-0.5">Set up your personal WhatsApp bridge server and configure it in Settings.</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <div className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold flex-shrink-0">2</div>
-                  <div>
-                    <p className="text-sm font-medium text-blue-800">Super Admin Approval</p>
-                    <p className="text-xs text-blue-700 mt-0.5">Ask your super admin to enable QR WhatsApp access for your account.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 pt-2">
-              <button
-                onClick={() => { setQrAccessDenied(false); setBridgeConfigured(true); setShowBridgeSettings(true); setTab('settings'); }}
-                className="px-5 py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 flex items-center gap-2 transition"
-              >
-                <Settings className="w-4 h-4" /> Configure My Bridge
-              </button>
-              <span className="text-xs text-gray-400">or contact your super admin</span>
-            </div>
-
-            <div className="pt-3 border-t">
-              <p className="text-xs text-gray-400 flex items-center gap-1.5">
-                <Lock className="w-3 h-3" />
-                Logged in as: <span className="font-mono text-gray-600">{currentUserId}</span>
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gray-50">
