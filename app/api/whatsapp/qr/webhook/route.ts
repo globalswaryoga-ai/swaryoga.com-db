@@ -187,7 +187,12 @@ async function ingestQRPayload(payload: any) {
             source: 'qr_whatsapp',
             labels: ['whatsapp', 'qr'],
             status: 'lead',
-            leadNumber
+            leadNumber,
+            // Assign to the bridge user who received the message
+            ...(payload.bridgeUserId && {
+              assignedToUserId: payload.bridgeUserId,
+              createdByUserId: payload.bridgeUserId,
+            }),
         });
     } else {
         // Add 'whatsapp' label if not already there

@@ -98,6 +98,7 @@ const LeadSchema = new mongoose.Schema(
         'api',
         'manual',
         'whatsapp',
+        'qr_whatsapp',
         'workshop_payment',
         'meta_leadgen',
         'referral',
