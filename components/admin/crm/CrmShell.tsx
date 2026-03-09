@@ -188,18 +188,7 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
             </div>
           ) : (
           <div className="animate-fade-in">
-          {(!loading && status && !status.isSuperAdmin && !status.compartmentReady) ? (
-            <CompartmentGuard
-              pageName={section?.title || 'CRM'}
-              onStoragePurchase={handleStoragePurchase}
-            >
-              {currentModule ? (
-                <PlanGate module={currentModule} variant="page">
-                  {children}
-                </PlanGate>
-              ) : children}
-            </CompartmentGuard>
-          ) : currentModule ? (
+          {currentModule ? (
             <PlanGate module={currentModule} variant="page">
               {children}
             </PlanGate>
