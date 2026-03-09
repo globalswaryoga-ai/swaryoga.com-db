@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import { useOwnerGuard } from '@/hooks/useOwnerGuard';
 import {
   Sparkles, Phone, Heart, Play, Handshake, CheckCircle, Trophy,
   Users, Send, Mail, Eye, Search, RefreshCw, ChevronDown, ChevronRight,
@@ -13,6 +14,7 @@ import {
   MessageCircle, ArrowDown, ArrowUp, QrCode, AlertTriangle,
 } from 'lucide-react';
 import LeadDetailModal from '@/components/admin/crm/LeadDetailModal';
+import OwnerOnlyGuard from '@/components/admin/crm/OwnerOnlyGuard';
 import ReceiptPreviewModal from '@/components/admin/crm/ReceiptPreviewModal';
 import ChatbotFlowModal from '@/components/admin/crm/ChatbotFlowModal';
 import AICallModal from '@/components/admin/crm/AICallModal';
@@ -85,6 +87,11 @@ const DEFAULT_CONNECTIONS = [
 export default function QRManagePage() {
   const router = useRouter();
   const token = useAuth();
+  const { isOwner, checking: ownerChecking } = useOwnerGuard();
+
+  if (!ownerChecking && !isOwner) {
+    return <OwnerOnlyGuard pageName="QR Funnel Manager" />;
+  }
 
   // Data
   const [stages, setStages] = useState<FunnelStage[]>([]);

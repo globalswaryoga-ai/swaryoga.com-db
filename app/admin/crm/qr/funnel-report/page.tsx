@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useOwnerGuard } from '@/hooks/useOwnerGuard';
+import OwnerOnlyGuard from '@/components/admin/crm/OwnerOnlyGuard';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell,
@@ -50,6 +52,11 @@ interface Lead {
 
 export default function QRFunnelReportPage() {
   const token = useAuth();
+  const { isOwner, checking: ownerChecking } = useOwnerGuard();
+
+  if (!ownerChecking && !isOwner) {
+    return <OwnerOnlyGuard pageName="QR Funnel Report" />;
+  }
 
   const [stages, setStages] = useState<FunnelStage[]>([]);
   const [stageCounts, setStageCounts] = useState<Record<string, number>>({});

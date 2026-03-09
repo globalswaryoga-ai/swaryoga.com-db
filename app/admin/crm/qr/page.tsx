@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
+import { useOwnerGuard } from '@/hooks/useOwnerGuard';
+import OwnerOnlyGuard from '@/components/admin/crm/OwnerOnlyGuard';
 import { QrCode, Wifi, WifiOff, RefreshCw, LogOut, Phone, PhoneCall, Send, Image as ImageIcon, FileText, Mic, ArrowLeft, Loader2, AlertTriangle, CheckCircle2, Unplug, Funnel, Plus, Tag, CheckSquare, Square, X, Paperclip, Video, File, Pencil, Trash2, Users, Mail, MailOpen, Radio, Info, Shield, Crown, Calendar, MessageSquare, Hash, UserCircle, PhoneOff, Search, Star, Bold, Italic, Strikethrough, Smile, Zap, Type, Link2, Copy, RotateCcw, Lock, Unlock, UserMinus, ChevronUp, ChevronDown, Save, Settings, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
 
 type ConnectionStatus = 'disconnected' | 'connecting' | 'connected';
@@ -199,6 +201,12 @@ type GroupInfo = {
 export default function QRWhatsAppPage() {
   const token = useAuth();
   const { fetch: crmFetch } = useCRM({ token });
+  const { isOwner, checking: ownerChecking } = useOwnerGuard();
+
+  // Block non-owner users from accessing QR WhatsApp (privacy-sensitive)
+  if (!ownerChecking && !isOwner) {
+    return <OwnerOnlyGuard pageName="QR WhatsApp" />;
+  }
 
   // State
   const [status, setStatus] = useState<BridgeStatus | null>(null);
