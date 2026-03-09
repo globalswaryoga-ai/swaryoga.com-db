@@ -387,7 +387,23 @@ export const sectionConfigs: SectionConfig[] = [
     ],
   },
 
-  // 12. Tenants (Multi-Tenant SaaS — superadmin only)
+  // 12. Super Admin (superadmin only — full platform management)
+  {
+    key: 'super-admin',
+    title: 'Super Admin',
+    icon: Shield,
+    items: [
+      { label: 'Dashboard', href: '/admin/crm/super-admin', icon: LayoutDashboard },
+      { label: 'All Users', href: '/admin/crm/super-admin/users', icon: Users },
+      { label: 'Payments', href: '/admin/crm/super-admin/payments', icon: CreditCard },
+      { label: 'Signin Logs', href: '/admin/crm/super-admin/signins', icon: LogIn },
+      { label: 'Reports', href: '/admin/crm/super-admin/reports', icon: BarChart3 },
+    ],
+    moreItems: [],
+    prefixes: ['/admin/crm/super-admin'],
+  },
+
+  // 13. Tenants (Multi-Tenant SaaS — superadmin only)
   {
     key: 'tenants',
     title: 'Tenants',

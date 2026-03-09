@@ -401,6 +401,12 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
   // Super admin only items
   const superAdminItems = [
     {
+      icon: Shield,
+      label: 'Super Admin',
+      href: '/admin/crm/super-admin',
+      color: 'text-gray-400',
+    },
+    {
       icon: GraduationCap,
       label: 'E-Learning',
       href: '/admin/crm/e-learning',
