@@ -111,6 +111,17 @@ export default function LeadsPage() {
   const [broadcastModalOpen, setBroadcastModalOpen] = useState(false);
   const [leadsForBroadcast, setLeadsForBroadcast] = useState<Lead[]>([]);
 
+  // Settings modal state
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsLoading, setSettingsLoading] = useState(false);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsWorkshops, setSettingsWorkshops] = useState<string[]>([]);
+  const [settingsLabels, setSettingsLabels] = useState<string[]>([]);
+  const [settingsLeadStart, setSettingsLeadStart] = useState<string>('');
+  const [settingsCurrentSeq, setSettingsCurrentSeq] = useState<number>(0);
+  const [settingsNewWorkshop, setSettingsNewWorkshop] = useState('');
+  const [settingsNewLabel, setSettingsNewLabel] = useState('');
+
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [viewerUserId, setViewerUserId] = useState<string>('');
   const [userFilter, setUserFilter] = useState<string>('');
@@ -318,6 +329,12 @@ export default function LeadsPage() {
     }
   }, [token, fetchLeads]);
 
+  // Load settings once on mount so custom workshops/labels are available in dropdowns
+  useEffect(() => {
+    if (token) loadSettings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
   const handleDeleteLead = async (leadId: string) => {
     if (!confirm('Are you sure you want to delete this lead?')) return;
     try {
@@ -352,6 +369,59 @@ export default function LeadsPage() {
       setError(err instanceof Error ? err.message : 'Failed to update');
     }
   };
+
+  // ── Load / Save settings ──
+  const loadSettings = async () => {
+    if (!token) return;
+    try {
+      setSettingsLoading(true);
+      const res = await fetch('/api/admin/crm/leads/settings', { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const d = await res.json();
+        setSettingsWorkshops(d.data?.workshopNames || []);
+        setSettingsLabels(d.data?.labelNames || []);
+        setSettingsLeadStart(d.data?.leadNumberStart ? String(d.data.leadNumberStart) : '');
+        setSettingsCurrentSeq(d.data?.currentLeadNumberSeq || 0);
+      }
+    } catch (err) {
+      console.error('Failed to load settings', err);
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
+
+  const saveSettings = async () => {
+    if (!token) return;
+    try {
+      setSettingsSaving(true);
+      const body: any = { workshopNames: settingsWorkshops, labelNames: settingsLabels };
+      const start = parseInt(settingsLeadStart, 10);
+      if (!isNaN(start) && start >= 0) body.leadNumberStart = start;
+      const res = await fetch('/api/admin/crm/leads/settings', {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || 'Save failed');
+      }
+      const d = await res.json();
+      setSettingsCurrentSeq(d.data?.currentLeadNumberSeq || settingsCurrentSeq);
+      setSettingsOpen(false);
+      // Refresh metadata to pick up any workshop changes
+      fetchMetadata();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to save settings');
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
+
+  // Merge settings workshops into filter list
+  const allWorkshops = Array.from(new Set([...workshops, ...settingsWorkshops]));
+  // Merge settings labels into predefined list
+  const allLabels = Array.from(new Set([...PREDEFINED_LABELS, ...settingsLabels]));
 
   const downloadExcel = () => {
     if (leads.length === 0) {
@@ -780,6 +850,13 @@ export default function LeadsPage() {
           </div>
           <div className="flex gap-3 flex-wrap justify-end">
             <button
+              onClick={() => { setSettingsOpen(true); loadSettings(); }}
+              className="bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white px-4 py-2.5 rounded-xl transition-all duration-300 font-semibold border border-white/20 hover:border-white/40 flex items-center gap-2"
+              title="Lead Settings"
+            >
+              ⚙️ Settings
+            </button>
+            <button
               onClick={() => router.push('/admin/crm/leads/deleted')}
               className="bg-red-500/10 hover:bg-red-500/20 text-red-400 px-4 py-2.5 rounded-xl transition-all duration-300 font-semibold border border-red-500/30 hover:border-red-500/60 flex items-center gap-2 hover:shadow-lg hover:shadow-red-500/10"
             >
@@ -908,7 +985,7 @@ export default function LeadsPage() {
                 className="w-full bg-white/5 border border-white/20 rounded-xl px-4 py-2.5 text-white font-medium focus:outline-none focus:border-green-400 focus:ring-1 focus:ring-green-400 transition-all hover:border-white/40"
               >
                 <option value="" className="bg-[#1a1a1a] text-white">All Programs</option>
-                {workshops.map((workshop) => (
+                {allWorkshops.map((workshop) => (
                   <option key={workshop} value={workshop} className="bg-[#1a1a1a] text-white">
                     {workshop} ({workshopCounts[workshop] || 0})
                   </option>
@@ -1096,7 +1173,7 @@ export default function LeadsPage() {
                     className="bg-white/5 border border-white/20 rounded-xl px-3 py-2 text-white font-semibold placeholder-gray-500 focus:border-green-400 transition-all"
                   />
                   <datalist id="bulk-labels-list">
-                    {PREDEFINED_LABELS.map(label => (
+                    {allLabels.map(label => (
                         <option key={label} value={label} />
                     ))}
                   </datalist>
@@ -1949,6 +2026,160 @@ export default function LeadsPage() {
                 className="px-4 py-2 rounded-xl text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 transition flex items-center gap-1.5"
               >
                 {bulkDeleting ? '⏳ Deleting…' : `🗑️ Delete ${selectedLeadIds.size} Leads`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ── Settings Modal ── */}
+      {settingsOpen && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#1a1a2e] border border-white/10 rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="sticky top-0 bg-[#1a1a2e] border-b border-white/10 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">⚙️ Lead Settings</h2>
+              <button onClick={() => setSettingsOpen(false)} className="text-gray-400 hover:text-white text-xl transition">✕</button>
+            </div>
+
+            {settingsLoading ? (
+              <div className="flex items-center justify-center py-16 text-gray-400">Loading settings…</div>
+            ) : (
+              <div className="px-6 py-5 space-y-6">
+                {/* ─ Lead ID Start Number ─ */}
+                <div>
+                  <label className="block text-sm font-semibold text-green-400 mb-2">Lead ID Start Number</label>
+                  <p className="text-xs text-gray-400 mb-2">
+                    Current counter: <strong className="text-white">{String(settingsCurrentSeq).padStart(6, '0')}</strong>. New leads will start from this number.
+                  </p>
+                  <input
+                    type="number"
+                    min={0}
+                    value={settingsLeadStart}
+                    onChange={(e) => setSettingsLeadStart(e.target.value)}
+                    placeholder="e.g. 1000"
+                    className="w-full bg-white/5 border border-white/20 rounded-xl px-4 py-2.5 text-white placeholder-gray-500 focus:border-green-400 focus:ring-1 focus:ring-green-400 transition"
+                  />
+                  <p className="text-[10px] text-gray-500 mt-1">Format: 6-digit zero-padded (e.g. 001000). Only takes effect if higher than current counter.</p>
+                </div>
+
+                {/* ─ Workshop / Program Names ─ */}
+                <div>
+                  <label className="block text-sm font-semibold text-green-400 mb-2">Workshop / Program Names</label>
+                  <p className="text-xs text-gray-400 mb-2">Add custom workshop names that appear in dropdowns across the CRM.</p>
+                  <div className="flex gap-2 mb-3">
+                    <input
+                      type="text"
+                      value={settingsNewWorkshop}
+                      onChange={(e) => setSettingsNewWorkshop(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && settingsNewWorkshop.trim()) {
+                          e.preventDefault();
+                          if (!settingsWorkshops.includes(settingsNewWorkshop.trim())) {
+                            setSettingsWorkshops([...settingsWorkshops, settingsNewWorkshop.trim()]);
+                          }
+                          setSettingsNewWorkshop('');
+                        }
+                      }}
+                      placeholder="Type workshop name & press Enter"
+                      className="flex-1 bg-white/5 border border-white/20 rounded-xl px-4 py-2 text-white placeholder-gray-500 focus:border-green-400 transition text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (settingsNewWorkshop.trim() && !settingsWorkshops.includes(settingsNewWorkshop.trim())) {
+                          setSettingsWorkshops([...settingsWorkshops, settingsNewWorkshop.trim()]);
+                        }
+                        setSettingsNewWorkshop('');
+                      }}
+                      className="bg-green-500/20 border border-green-500/40 text-green-400 px-3 py-2 rounded-xl text-sm font-semibold hover:bg-green-500/30 transition"
+                    >
+                      + Add
+                    </button>
+                  </div>
+                  {settingsWorkshops.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {settingsWorkshops.map((w) => (
+                        <span key={w} className="inline-flex items-center gap-1 bg-white/10 border border-white/20 text-white text-xs font-medium px-3 py-1.5 rounded-full">
+                          {w}
+                          <button onClick={() => setSettingsWorkshops(settingsWorkshops.filter(x => x !== w))} className="text-red-400 hover:text-red-300 ml-1">✕</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* ─ Label Names ─ */}
+                <div>
+                  <label className="block text-sm font-semibold text-green-400 mb-2">Label Names</label>
+                  <p className="text-xs text-gray-400 mb-2">Add custom labels for tagging leads. These merge with default labels.</p>
+                  <div className="flex gap-2 mb-3">
+                    <input
+                      type="text"
+                      value={settingsNewLabel}
+                      onChange={(e) => setSettingsNewLabel(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && settingsNewLabel.trim()) {
+                          e.preventDefault();
+                          if (!settingsLabels.includes(settingsNewLabel.trim())) {
+                            setSettingsLabels([...settingsLabels, settingsNewLabel.trim()]);
+                          }
+                          setSettingsNewLabel('');
+                        }
+                      }}
+                      placeholder="Type label name & press Enter"
+                      className="flex-1 bg-white/5 border border-white/20 rounded-xl px-4 py-2 text-white placeholder-gray-500 focus:border-green-400 transition text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (settingsNewLabel.trim() && !settingsLabels.includes(settingsNewLabel.trim())) {
+                          setSettingsLabels([...settingsLabels, settingsNewLabel.trim()]);
+                        }
+                        setSettingsNewLabel('');
+                      }}
+                      className="bg-green-500/20 border border-green-500/40 text-green-400 px-3 py-2 rounded-xl text-sm font-semibold hover:bg-green-500/30 transition"
+                    >
+                      + Add
+                    </button>
+                  </div>
+                  {settingsLabels.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {settingsLabels.map((l) => (
+                        <span key={l} className="inline-flex items-center gap-1 bg-blue-500/10 border border-blue-500/30 text-blue-300 text-xs font-medium px-3 py-1.5 rounded-full">
+                          {l}
+                          <button onClick={() => setSettingsLabels(settingsLabels.filter(x => x !== l))} className="text-red-400 hover:text-red-300 ml-1">✕</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* ─ Default labels preview ─ */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-400 mb-2">Default Labels (always available)</label>
+                  <div className="flex flex-wrap gap-2">
+                    {PREDEFINED_LABELS.map((l) => (
+                      <span key={l} className="bg-white/5 border border-white/10 text-gray-400 text-xs px-3 py-1.5 rounded-full">{l}</span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Footer */}
+            <div className="sticky bottom-0 bg-[#1a1a2e] border-t border-white/10 px-6 py-4 flex items-center justify-end gap-3 rounded-b-2xl">
+              <button
+                onClick={() => setSettingsOpen(false)}
+                className="px-5 py-2.5 rounded-xl text-sm font-semibold text-gray-400 hover:text-white hover:bg-white/10 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveSettings}
+                disabled={settingsSaving}
+                className="px-6 py-2.5 rounded-xl text-sm font-bold text-white bg-green-500 hover:bg-green-400 disabled:opacity-50 transition shadow-lg shadow-green-500/20"
+              >
+                {settingsSaving ? '⏳ Saving…' : '💾 Save Settings'}
               </button>
             </div>
           </div>

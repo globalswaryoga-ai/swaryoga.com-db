@@ -2141,11 +2141,13 @@ export default function QRWhatsAppPage() {
                           {chat.isGroup && <Users className="w-3 h-3 text-indigo-500 flex-shrink-0" />}
                           {chat.isGroup
                             ? (/^\d+$/.test(chat.name) ? `Group ${chat.name.slice(0, 8)}...` : chat.name)
-                            : (chat.resolvedPhone
-                              ? formatPhoneNumber(chat.resolvedPhone)
-                              : (/^\d{14,}$/.test(chat.name)
-                                ? `~ Contact ${chat.name.slice(-4)}`
-                                : (/^\d+$/.test(chat.name) ? formatPhoneNumber(chat.name) : (chat.name.includes('@') ? formatPhoneNumber(chat.name.split('@')[0]) : (/^[A-Za-z]/.test(chat.name) && chat.name !== 'Swar Yoga' ? chat.name : formatPhoneNumber(chat.id.split('@')[0]))))))
+                            : (chat.name && !/^\d+$/.test(chat.name) && chat.name !== 'Swar Yoga' && !chat.name.includes('@')
+                              ? chat.name
+                              : (chat.resolvedPhone
+                                ? formatPhoneNumber(chat.resolvedPhone)
+                                : (/^\d{14,}$/.test(chat.name)
+                                  ? `~ Contact ${chat.name.slice(-4)}`
+                                  : (/^\d+$/.test(chat.name) ? formatPhoneNumber(chat.name) : formatPhoneNumber(chat.id.split('@')[0])))))
                           }
                         </span>
                         <div className="flex items-center gap-1 flex-shrink-0">
@@ -2212,12 +2214,14 @@ export default function QRWhatsAppPage() {
                     {(() => {
                       const selectedChatInfo = chats.find(c => c.id === selectedChat);
                       const isGroupChat = selectedChat.endsWith('@g.us') || selectedChat.endsWith('@lid');
+                      // For non-group chats: prefer CRM lead name (set during enrichment) over raw phone
+                      const crmName = selectedChatInfo?.name && !/^\d+$/.test(selectedChatInfo.name) ? selectedChatInfo.name : null;
                       const headerDisplayName = isGroupChat
                         ? (selectedChatInfo?.name || selectedChat.split('@')[0])
-                        : (selectedChatInfo?.resolvedPhone || selectedChat.replace('@s.whatsapp.net', ''));
+                        : (crmName || selectedChatInfo?.resolvedPhone || selectedChat.replace('@s.whatsapp.net', ''));
                       const chatName = isGroupChat
                         ? (selectedChatInfo?.name || selectedChat.split('@')[0])
-                        : selectedChat.replace('@s.whatsapp.net', '');
+                        : (crmName || selectedChat.replace('@s.whatsapp.net', ''));
                       const avatarColor = getAvatarColor(chatName);
                       const initials = getInitials(chatName);
                       const stage = chatFunnels[selectedChat];

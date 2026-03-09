@@ -2427,6 +2427,23 @@ const CRMFilterOptionSchema = new mongoose.Schema(
 CRMFilterOptionSchema.index({ category: 1, value: 1 }, { unique: true });
 
 
+// ─── CRM Lead Settings (per-user configurable settings for leads module) ───
+const CrmLeadSettingsSchema = new mongoose.Schema(
+  {
+    userId: { type: String, required: true, unique: true, index: true, trim: true },
+    // Custom workshop names (user-defined list for dropdowns)
+    workshopNames: { type: [String], default: [] },
+    // Custom label names (user-defined list for dropdowns)
+    labelNames: { type: [String], default: [] },
+    // Lead ID number start (e.g., 1 means IDs start from 000001)
+    leadNumberStart: { type: Number, default: null },
+    // Custom admin user display names (map userId -> displayName)
+    adminUserNames: { type: Map, of: String, default: {} },
+  },
+  { timestamps: true, collection: 'crm_lead_settings' }
+);
+
+
 // ─── AI Call Log (Retell.ai voice agent calls) ───
 const AICallLogSchema = new mongoose.Schema(
   {
@@ -2807,6 +2824,7 @@ export function getFunnelConfig() { return getModel('FunnelConfig', FunnelConfig
 export function getAdminSession() { return getModel('AdminSession', AdminSessionSchema); }
 export function getFunnelStageHistory() { return getModel('FunnelStageHistory', FunnelStageHistorySchema); }
 export function getCRMFilterOption() { return getModel('CRMFilterOption', CRMFilterOptionSchema); }
+export function getCrmLeadSettings() { return getModel('CrmLeadSettings', CrmLeadSettingsSchema); }
 export function getAICallLog() { return getModel('AICallLog', AICallLogSchema); }
 export function getCallWorkflow() { return getModel('CallWorkflow', CallWorkflowSchema); }
 
