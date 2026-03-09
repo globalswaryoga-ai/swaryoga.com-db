@@ -3,7 +3,7 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { getEmailSettings } from '@/lib/schemas/enterpriseSchemas';
-import { tenantFilter, getViewerUserId } from '@/lib/crm-handlers';
+import { tenantFilter, getViewerUserId, isSuperAdmin } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,7 +48,8 @@ export async function GET(request: NextRequest) {
     const envSmtpConfigured = !!(process.env.SMTP_HOST && envSmtpUser && process.env.SMTP_PASS);
 
     // If no settings exist but env SMTP is configured, auto-create the record
-    if (settings.length === 0 && envSmtpConfigured) {
+    // ONLY for super admin — new users should NOT inherit the server's shared SMTP.
+    if (settings.length === 0 && envSmtpConfigured && isSuperAdmin(decoded)) {
       const doc = await EmailSettings.create({
         senderEmail: envSmtpUser!.toLowerCase(),
         senderName: 'Swar Yoga',
@@ -67,6 +68,11 @@ export async function GET(request: NextRequest) {
       });
       const masked = { ...doc.toObject(), smtpPass: '••••••••', resendApiKey: '' };
       return apiSuccess({ settings: [masked] });
+    }
+
+    // For non-super-admin with no settings: return empty (show "Email Not Connected")
+    if (settings.length === 0) {
+      return apiSuccess({ settings: [] });
     }
 
     // Auto-heal existing records: if SMTP env matches a sender stuck as unverified, fix it

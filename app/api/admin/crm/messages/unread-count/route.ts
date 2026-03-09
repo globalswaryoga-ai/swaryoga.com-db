@@ -36,16 +36,20 @@ export async function GET(request: NextRequest) {
     if (superAdmin) {
       unreadCount = await WhatsAppMessage.countDocuments(filter);
     } else {
-      // Only count messages whose lead is assigned to or created by this admin
-      const unreadMessages = await WhatsAppMessage.find(filter)
-        .populate('leadId', 'assignedToUserId createdByUserId')
-        .lean();
+      // First, find leads that belong to this user (assigned or created)
+      const userLeadIds = await Lead.find(
+        { $or: [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }] },
+        { _id: 1 }
+      ).lean();
 
-      unreadCount = unreadMessages.filter(
-        (m: any) => 
-          String(m?.leadId?.assignedToUserId || '') === viewerUserId ||
-          String(m?.leadId?.createdByUserId || '') === viewerUserId
-      ).length;
+      if (userLeadIds.length > 0) {
+        // Only count messages for this user's leads — no cross-user leakage
+        unreadCount = await WhatsAppMessage.countDocuments({
+          ...filter,
+          leadId: { $in: userLeadIds.map((l: any) => l._id) },
+        });
+      }
+      // If user has no leads, unreadCount stays 0
     }
 
     return formatCrmSuccess(
