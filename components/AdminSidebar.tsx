@@ -35,6 +35,8 @@ import {
   Languages,
   Lock,
   LogOut,
+  Plug,
+  Zap,
 } from 'lucide-react';
 import { PlanBadge, SidebarLock } from './admin/crm/PlanComponents';
 import type { CrmModule } from '@/lib/crm-site/planConfig';
@@ -354,6 +356,22 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       module: 'analytics',
       planModule: 'reports',
       description: 'Analytics & performance dashboards',
+    },
+    {
+      icon: Plug,
+      label: 'Connections',
+      href: '/admin/crm/connections',
+      color: 'text-amber-400',
+      module: 'dashboard' as CrmModule,
+      description: 'Configure all service credentials',
+    },
+    {
+      icon: Zap,
+      label: 'Integrations',
+      href: '/admin/crm/integration-hub',
+      color: 'text-violet-400',
+      module: 'dashboard' as CrmModule,
+      description: 'Chatbot, templates, campaigns & more',
     },
     {
       icon: Languages,

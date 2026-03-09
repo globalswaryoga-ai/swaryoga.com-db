@@ -52,6 +52,8 @@ import {
   Monitor,
   Clock,
   Puzzle,
+  CreditCard,
+  Plug,
 } from 'lucide-react';
 
 import type { SubNavItem } from './CrmSubNav';
@@ -387,18 +389,64 @@ export const sectionConfigs: SectionConfig[] = [
     ],
   },
 
-  // 13. Settings
+  // 13. Connections Hub (all service credentials in one place)
+  {
+    key: 'connections',
+    title: 'Connections',
+    icon: Plug,
+    items: [
+      { label: 'All Connections', href: '/admin/crm/connections', icon: Plug },
+      { label: 'QR WhatsApp', href: '/admin/crm/qr', icon: QrCode },
+      { label: 'WA Settings', href: '/admin/crm/whatsapp/settings', icon: MessageCircle },
+      { label: 'Email', href: '/admin/crm/email', icon: Mail },
+    ],
+    moreItems: [
+      { label: 'Tally', href: '/admin/crm/tally', icon: Calculator },
+      { label: 'Devices', href: '/admin/crm/devices', icon: Smartphone },
+      { label: 'Payment', href: '/admin/crm/payments', icon: CreditCard },
+    ],
+    prefixes: [
+      '/admin/crm/connections',
+    ],
+  },
+
+  // 14. Integration Hub (chatbot, templates, broadcast, email, SMS, community, e-learning, recordings)
+  {
+    key: 'integration-hub',
+    title: 'Integrations',
+    icon: Zap,
+    items: [
+      { label: 'All Integrations', href: '/admin/crm/integration-hub', icon: Zap },
+      { label: 'Chatbot Builder', href: '/admin/crm/chatbot-builder', icon: Bot },
+      { label: 'Templates', href: '/admin/crm/templates', icon: FileText },
+      { label: 'Broadcast', href: '/admin/crm/broadcast', icon: Radio },
+    ],
+    moreItems: [
+      { label: 'AI Agents', href: '/admin/crm/ai-agents', icon: Cpu },
+      { label: 'Knowledge Base', href: '/admin/crm/knowledge-base', icon: BookOpen },
+      { label: 'Automation', href: '/admin/crm/automation', icon: Zap },
+      { label: 'Community', href: '/admin/crm/community', icon: Globe },
+      { label: 'Recordings', href: '/admin/crm/recording-management', icon: Video },
+    ],
+    prefixes: [
+      '/admin/crm/integration-hub',
+    ],
+  },
+
+  // 15. Settings
   {
     key: 'settings',
     title: 'Settings',
     icon: Settings,
     items: [
       { label: 'Auto Config', href: '/admin/crm/settings', icon: Sliders },
-      { label: 'WA Settings', href: '/admin/crm/whatsapp/settings', icon: MessageCircle },
+      { label: 'Connections', href: '/admin/crm/connections', icon: Plug },
+      { label: 'Integrations', href: '/admin/crm/integration-hub', icon: Zap },
       { label: 'Devices', href: '/admin/crm/devices', icon: Smartphone },
     ],
     moreItems: [
       { label: 'Tally', href: '/admin/crm/tally', icon: Calculator },
+      { label: 'WA Settings', href: '/admin/crm/whatsapp/settings', icon: MessageCircle },
       { label: 'User Profile', href: '/admin/crm/users/profile', icon: User },
       { label: 'Lead Assignment', href: '/admin/crm/lead-assignment-settings', icon: Users },
       { label: 'Media Settings', href: '/admin/crm/media/settings', icon: Image },
@@ -411,7 +459,7 @@ export const sectionConfigs: SectionConfig[] = [
     ],
   },
 
-  // 14. Addons & Extensions
+  // 16. Addons & Extensions
   {
     key: 'addons',
     title: 'Extensions',

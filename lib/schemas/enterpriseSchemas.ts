@@ -3287,3 +3287,135 @@ PendingPaymentSchema.index({ phone: 1, productId: 1 });
 
 export function getPendingPayment() { return getModel('PendingPayment', PendingPaymentSchema); }
 export const PendingPayment = createModelProxy('PendingPayment', PendingPaymentSchema);
+
+// ============================================================================
+// SERVICE CONNECTIONS — Central hub for all third-party service credentials
+// ============================================================================
+const ServiceConnectionSchema = new mongoose.Schema(
+  {
+    ownerId: { type: String, required: true, index: true },
+
+    // ---- User / Business Details ----
+    userDetails: {
+      businessName: { type: String, default: '' },
+      contactName: { type: String, default: '' },
+      contactPhone: { type: String, default: '' },
+      contactEmail: { type: String, default: '' },
+      address: { type: String, default: '' },
+      connected: { type: Boolean, default: false },
+    },
+
+    // ---- Email Service ----
+    email: {
+      provider: { type: String, enum: ['smtp', 'sendgrid', 'mailgun', 'ses', 'other'], default: 'smtp' },
+      smtpHost: { type: String, default: '' },
+      smtpPort: { type: Number, default: 587 },
+      smtpUser: { type: String, default: '' },
+      smtpPass: { type: String, default: '' },
+      fromEmail: { type: String, default: '' },
+      fromName: { type: String, default: '' },
+      apiKey: { type: String, default: '' },
+      connected: { type: Boolean, default: false },
+      lastTestedAt: { type: Date },
+      error: { type: String, default: '' },
+    },
+
+    // ---- Meta WhatsApp (Cloud API) ----
+    metaWhatsApp: {
+      phoneNumberId: { type: String, default: '' },
+      accessToken: { type: String, default: '' },
+      businessAccountId: { type: String, default: '' },
+      webhookVerifyToken: { type: String, default: '' },
+      appId: { type: String, default: '' },
+      connected: { type: Boolean, default: false },
+      lastTestedAt: { type: Date },
+      error: { type: String, default: '' },
+    },
+
+    // ---- Community ----
+    community: {
+      groupName: { type: String, default: '' },
+      platform: { type: String, enum: ['whatsapp', 'telegram', 'discord', 'other'], default: 'whatsapp' },
+      groupLink: { type: String, default: '' },
+      connected: { type: Boolean, default: false },
+      error: { type: String, default: '' },
+    },
+
+    // ---- Domain ----
+    domain: {
+      existingDomain: { type: String, default: '' },
+      wantToBuy: { type: Boolean, default: false },
+      desiredDomain: { type: String, default: '' },
+      status: { type: String, enum: ['not-configured', 'connected', 'pending-purchase', 'pending-dns'], default: 'not-configured' },
+      connected: { type: Boolean, default: false },
+      error: { type: String, default: '' },
+    },
+
+    // ---- SMS Service ----
+    sms: {
+      provider: { type: String, enum: ['twilio', 'msg91', 'textlocal', 'other'], default: 'msg91' },
+      apiKey: { type: String, default: '' },
+      senderId: { type: String, default: '' },
+      panNumber: { type: String, default: '' },
+      panName: { type: String, default: '' },
+      entityId: { type: String, default: '' },
+      connected: { type: Boolean, default: false },
+      lastTestedAt: { type: Date },
+      error: { type: String, default: '' },
+    },
+
+    // ---- Call Service ----
+    call: {
+      provider: { type: String, enum: ['exotel', 'knowlarity', 'twilio', 'other'], default: 'exotel' },
+      apiKey: { type: String, default: '' },
+      apiSecret: { type: String, default: '' },
+      callerId: { type: String, default: '' },
+      sipDomain: { type: String, default: '' },
+      virtualNumber: { type: String, default: '' },
+      connected: { type: Boolean, default: false },
+      lastTestedAt: { type: Date },
+      error: { type: String, default: '' },
+    },
+
+    // ---- QR WhatsApp (Baileys bridge) ----
+    qrWhatsApp: {
+      bridgeUrl: { type: String, default: '' },
+      bridgeSecret: { type: String, default: '' },
+      connected: { type: Boolean, default: false },
+      lastTestedAt: { type: Date },
+      error: { type: String, default: '' },
+    },
+
+    // ---- Tally (Accounting) ----
+    tally: {
+      companyName: { type: String, default: '' },
+      gstRegistered: { type: Boolean, default: false },
+      gstNumber: { type: String, default: '' },
+      tallySerialNumber: { type: String, default: '' },
+      tallyLicenseKey: { type: String, default: '' },
+      // GST: ₹250/mo extra plan ; Non-GST: no fees
+      billingPlan: { type: String, enum: ['non-gst-free', 'gst-monthly-250'], default: 'non-gst-free' },
+      connected: { type: Boolean, default: false },
+      lastTestedAt: { type: Date },
+      error: { type: String, default: '' },
+    },
+
+    // ---- Payment Gateway ----
+    payment: {
+      provider: { type: String, enum: ['cashfree', 'payu', 'razorpay', 'stripe', 'other'], default: 'cashfree' },
+      apiKey: { type: String, default: '' },
+      apiSecret: { type: String, default: '' },
+      merchantId: { type: String, default: '' },
+      connected: { type: Boolean, default: false },
+      lastTestedAt: { type: Date },
+      error: { type: String, default: '' },
+    },
+
+    metadata: mongoose.Schema.Types.Mixed,
+  },
+  { timestamps: true, collection: 'service_connections' }
+);
+ServiceConnectionSchema.index({ ownerId: 1 }, { unique: true });
+
+export function getServiceConnection() { return getModel('ServiceConnection', ServiceConnectionSchema); }
+export const ServiceConnection = createModelProxy('ServiceConnection', ServiceConnectionSchema);
