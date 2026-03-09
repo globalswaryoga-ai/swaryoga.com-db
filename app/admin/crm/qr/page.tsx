@@ -112,6 +112,19 @@ export default function QRWhatsAppPage() {
   const [creatingGroup, setCreatingGroup] = useState(false);
   // Contact about/bio
   const [contactAbout, setContactAbout] = useState<string | null>(null);
+  // Pinned chats (max 5)
+  const [pinnedChats, setPinnedChats] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') { try { const v = localStorage.getItem('crm_pinnedChats'); if (v) return JSON.parse(v); } catch {} } return [];
+  });
+  // Resizable sidebar
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    if (typeof window !== 'undefined') { try { const v = localStorage.getItem('crm_sidebarWidth'); if (v) return parseInt(v, 10); } catch {} } return 416;
+  });
+  const isResizing = useRef(false);
+  // Sender display name (shown below every sent message)
+  const [senderDisplayName, setSenderDisplayName] = useState(() => {
+    if (typeof window !== 'undefined') { try { return localStorage.getItem('crm_senderDisplayName') || ''; } catch {} } return '';
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
   const profilePicLoadedRef = useRef<Set<string>>(new Set());
@@ -123,6 +136,8 @@ export default function QRWhatsAppPage() {
   currentUserIdRef.current = currentUserId;
   const isSuperAdminRef = useRef(isSuperAdminUser);
   isSuperAdminRef.current = isSuperAdminUser;
+  const pinnedChatsRef = useRef(pinnedChats);
+  pinnedChatsRef.current = pinnedChats;
   const messengerRef = useRef<HTMLDivElement>(null);
   const composerInputRef = useRef<HTMLInputElement>(null);
   const tabRef = useRef(tab);
@@ -216,6 +231,14 @@ export default function QRWhatsAppPage() {
           if (settingsRes.labelPresets?.length > 0) {
             setLabelPresets(settingsRes.labelPresets);
           }
+          // Load pinned chats
+          if (settingsRes.pinnedChats?.length > 0) {
+            setPinnedChats(settingsRes.pinnedChats);
+          }
+          // Load sender display name
+          if (settingsRes.senderDisplayName) {
+            setSenderDisplayName(settingsRes.senderDisplayName);
+          }
           // ── Load bridge URL and secret ──
           const savedUrl = settingsRes.qrBridgeUrl || '';
           const savedSecret = settingsRes.qrBridgeSecret || '';
@@ -261,6 +284,17 @@ export default function QRWhatsAppPage() {
     try { localStorage.setItem('crm_labelPresets', JSON.stringify(labelPresets)); } catch {}
     if (dbLoadedRef.current) saveToMongoDB({ labelPresets });
   }, [labelPresets, saveToMongoDB]);
+  useEffect(() => {
+    try { localStorage.setItem('crm_pinnedChats', JSON.stringify(pinnedChats)); } catch {}
+    if (dbLoadedRef.current) saveToMongoDB({ pinnedChats });
+  }, [pinnedChats, saveToMongoDB]);
+  useEffect(() => {
+    try { localStorage.setItem('crm_senderDisplayName', senderDisplayName); } catch {}
+    if (dbLoadedRef.current) saveToMongoDB({ senderDisplayName });
+  }, [senderDisplayName, saveToMongoDB]);
+  useEffect(() => {
+    try { localStorage.setItem('crm_sidebarWidth', String(sidebarWidth)); } catch {}
+  }, [sidebarWidth]);
 
   // ── Save bridge URL to user settings ──
   const saveBridgeConfig = useCallback(async () => {
@@ -534,7 +568,11 @@ export default function QRWhatsAppPage() {
         }
 
         const sorted = deduped.sort((a, b) => {
-          // Unread chats always float to top
+          // Pinned chats always on top
+          const pa = pinnedChatsRef.current.includes(a.id) ? 1 : 0;
+          const pb = pinnedChatsRef.current.includes(b.id) ? 1 : 0;
+          if (pa !== pb) return pb - pa;
+          // Unread chats float below pinned but above read
           const ua = (a.unreadCount || 0) > 0 ? 1 : 0;
           const ub = (b.unreadCount || 0) > 0 ? 1 : 0;
           if (ua !== ub) return ub - ua;
@@ -754,6 +792,9 @@ export default function QRWhatsAppPage() {
     setChats(prev => {
       const updated = prev.map(c => c.id === jid ? { ...c, unreadCount: 0 } : c);
       return updated.sort((a, b) => {
+        const pa = pinnedChatsRef.current.includes(a.id) ? 1 : 0;
+        const pb = pinnedChatsRef.current.includes(b.id) ? 1 : 0;
+        if (pa !== pb) return pb - pa;
         const ua = (a.unreadCount || 0) > 0 ? 1 : 0;
         const ub = (b.unreadCount || 0) > 0 ? 1 : 0;
         if (ua !== ub) return ub - ua;
@@ -1172,6 +1213,15 @@ export default function QRWhatsAppPage() {
     setEditModal(null);
   }, [editModal, activeFunnel]);
 
+  // ── Pin / Unpin chat (max 5) ──
+  const togglePinChat = useCallback((chatId: string) => {
+    setPinnedChats(prev => {
+      if (prev.includes(chatId)) return prev.filter(id => id !== chatId);
+      if (prev.length >= 5) return prev; // max 5 pinned
+      return [...prev, chatId];
+    });
+  }, []);
+
   // ── Filter chats by funnel + label + chatFilter + search ──
   const filteredChats = chats.filter(c => {
     // Apply funnel filter
@@ -1424,6 +1474,8 @@ export default function QRWhatsAppPage() {
           isSuperAdmin={isSuperAdminUser}
           currentUserId={currentUserId}
           crmFetch={crmFetch}
+          senderDisplayName={senderDisplayName}
+          setSenderDisplayName={setSenderDisplayName}
         />
       )}
 
@@ -1447,8 +1499,11 @@ export default function QRWhatsAppPage() {
       )}
       {!loading && tab === 'inbox' && isConnected && (
         <div className="flex h-[calc(100vh-105px)]">
-          {/* Chat List — full width on mobile, fixed sidebar on lg+ */}
-          <div className={`w-full lg:w-[26rem] border-r bg-white flex flex-col ${selectedChat ? 'hidden lg:flex' : 'flex'}`}>
+          {/* Chat List — full width on mobile, resizable sidebar on lg+ */}
+          <div
+            className={`bg-white flex flex-col border-r ${selectedChat ? 'hidden lg:flex' : 'flex'}`}
+            style={{ width: typeof window !== 'undefined' && window.innerWidth >= 1024 ? sidebarWidth : '100%', minWidth: 280, maxWidth: 600, flexShrink: 0 }}
+          >
             {/* Chat filter tabs: All | Unread | Read | Groups */}
             <div className="px-2 py-1 border-b flex items-center gap-0.5 bg-gray-50">
               {([
@@ -1640,7 +1695,7 @@ export default function QRWhatsAppPage() {
                 return (
                   <div
                     key={chat.id}
-                    className={`w-full text-left px-2 py-2 border-b hover:bg-gray-50 transition flex items-center gap-2 cursor-pointer ${
+                    className={`group w-full text-left px-2 py-2 border-b hover:bg-gray-50 transition flex items-center gap-2 cursor-pointer ${
                       selectedChat === chat.id ? 'bg-green-50 border-l-4 border-l-green-500' : ''
                     }`}
                     onClick={() => selectChat(chat.id)}
@@ -1737,10 +1792,18 @@ export default function QRWhatsAppPage() {
                           ) : null;
                         })}
                         {!stageInfo && chatLabelList.length === 0 && chat.lastMessage && (
-                          <p className="text-[10px] text-gray-400 truncate">
+                          <p className="text-[10px] text-gray-400 truncate flex-1">
                             {chat.lastMessage.substring(0, 35)}
                           </p>
                         )}
+                        {/* Pin/unpin button */}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); togglePinChat(chat.id); }}
+                          className={`ml-auto flex-shrink-0 p-0.5 rounded hover:bg-gray-200 transition ${pinnedChats.includes(chat.id) ? 'text-green-600' : 'text-gray-300 opacity-0 group-hover:opacity-100'}`}
+                          title={pinnedChats.includes(chat.id) ? 'Unpin chat' : (pinnedChats.length >= 5 ? 'Max 5 pinned chats' : 'Pin chat')}
+                        >
+                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 16 16"><path d="M4.146.146A.5.5 0 0 1 4.5 0h7a.5.5 0 0 1 .5.5c0 .68-.342 1.174-.646 1.479-.126.125-.25.224-.354.298v4.431l.078.048c.203.127.476.314.751.555C12.36 7.775 13 8.527 13 9.5a.5.5 0 0 1-.5.5h-4v4.5a.5.5 0 0 1-1 0V10h-4A.5.5 0 0 1 3 9.5c0-.973.64-1.725 1.17-2.189A5.921 5.921 0 0 1 5 6.708V2.277a2.77 2.77 0 0 1-.354-.298C4.342 1.674 4 1.179 4 .5a.5.5 0 0 1 .146-.354z"/></svg>
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -1748,6 +1811,33 @@ export default function QRWhatsAppPage() {
               })}
             </div>
           </div>
+
+          {/* Resize handle between sidebar and message area */}
+          <div
+            className="hidden lg:block w-1 hover:w-1.5 bg-gray-200 hover:bg-green-400 cursor-col-resize transition-all flex-shrink-0"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              isResizing.current = true;
+              document.body.style.cursor = 'col-resize';
+              document.body.style.userSelect = 'none';
+              const startX = e.clientX;
+              const startWidth = sidebarWidth;
+              const onMouseMove = (ev: MouseEvent) => {
+                if (!isResizing.current) return;
+                const newWidth = Math.min(600, Math.max(280, startWidth + ev.clientX - startX));
+                setSidebarWidth(newWidth);
+              };
+              const onMouseUp = () => {
+                isResizing.current = false;
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('mouseup', onMouseUp);
+              };
+              document.addEventListener('mousemove', onMouseMove);
+              document.addEventListener('mouseup', onMouseUp);
+            }}
+          />
 
           {/* Message Area — hidden on mobile when no chat selected */}
           <div className={`flex-1 flex flex-col bg-gray-100 ${!selectedChat ? 'hidden lg:flex' : 'flex'}`}>
@@ -2033,6 +2123,12 @@ export default function QRWhatsAppPage() {
                         )}
 
                         <div className="text-[10px] text-gray-400 mt-1 text-right flex items-center justify-end gap-0.5">
+                          {msg.fromMe && senderDisplayName && (
+                            <>
+                              <span className="font-bold text-gray-900 text-[11px]">{senderDisplayName}</span>
+                              <span className="mx-0.5">·</span>
+                            </>
+                          )}
                           {msg.timestamp
                             ? new Date(typeof msg.timestamp === 'number' && msg.timestamp < 10000000000
                                 ? msg.timestamp * 1000

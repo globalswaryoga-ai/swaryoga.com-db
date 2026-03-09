@@ -33,6 +33,9 @@ export interface SettingsTabProps {
   isSuperAdmin?: boolean;
   currentUserId?: string;
   crmFetch?: (url: string, opts?: any) => Promise<any>;
+  // Sender display name
+  senderDisplayName?: string;
+  setSenderDisplayName?: (v: string) => void;
 }
 
 export function SettingsTab({
@@ -43,6 +46,7 @@ export function SettingsTab({
   handleReconnect, handleDisconnect, handleLogout,
   setShowExtensionModal, setShowInstallGuide,
   isSuperAdmin, currentUserId, crmFetch,
+  senderDisplayName, setSenderDisplayName,
 }: SettingsTabProps) {
   // ── QR Access Management State (super admin only) ──
   const [qrAccessUsers, setQrAccessUsers] = useState<QRAccessUser[]>([]);
@@ -193,6 +197,47 @@ export function SettingsTab({
           </div>
           {funnelStages.filter(s => s.key !== 'all').length === 0 && (
             <p className="text-sm text-gray-400 text-center py-4">No custom funnel stages yet. Click &quot;Add Stage&quot; to create one.</p>
+          )}
+        </div>
+      </div>
+
+      {/* ── Sender Display Name ── */}
+      <div className="bg-white rounded-2xl shadow-md border overflow-hidden">
+        <div className="px-6 py-4 border-b bg-gray-50 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+            <Settings className="w-4 h-4 text-blue-600" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-gray-900">Sender Display Name</h3>
+            <p className="text-xs text-gray-500">Shown in bold below every message you send</p>
+          </div>
+        </div>
+        <div className="p-6 space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">Display Name</label>
+            <input
+              type="text"
+              placeholder="e.g. Swar Yoga, Support Team"
+              value={senderDisplayName || ''}
+              onChange={(e) => setSenderDisplayName?.(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition"
+              maxLength={50}
+            />
+          </div>
+          <p className="text-[11px] text-gray-400">
+            This name appears in <strong>bold</strong> next to the timestamp on your sent messages — just like the Meta WhatsApp inbox.
+            Leave empty to hide.
+          </p>
+          {senderDisplayName && (
+            <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+              <p className="text-xs text-gray-500 mb-1">Preview:</p>
+              <div className="flex items-center gap-1 text-[10px] text-gray-400">
+                <span className="font-bold text-gray-900 text-[11px]">{senderDisplayName}</span>
+                <span className="mx-0.5">·</span>
+                <span>12:00 pm</span>
+                <span className="text-blue-500">✓✓</span>
+              </div>
+            </div>
           )}
         </div>
       </div>
