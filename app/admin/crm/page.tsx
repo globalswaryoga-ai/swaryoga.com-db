@@ -19,6 +19,7 @@ import {
   ArrowUpRight,
   AlertCircle,
   Settings,
+  QrCode,
 } from 'lucide-react';
 
 interface CRMStats {
@@ -497,6 +498,13 @@ export default function CRMDashboard() {
                   href="/admin/crm/meta"
                 />
                 <BigStatCard
+                  label="QR Messages"
+                  value={stats?.qrWhatsappMessagesSent || 0}
+                  icon={QrCode}
+                  color="teal"
+                  href="/admin/crm/whatsapp"
+                />
+                <BigStatCard
                   label="Conversion Rate"
                   value={`${stats?.conversionRate || 0}%`}
                   icon={TrendingUp}
@@ -562,14 +570,15 @@ function BigStatCard({
   label: string;
   value: string | number;
   icon: React.ElementType;
-  color: 'blue' | 'green' | 'purple' | 'orange';
+  color: 'blue' | 'green' | 'purple' | 'orange' | 'teal';
   href: string;
 }) {
-  const iconBg = {
+  const iconBg: Record<string, string> = {
     blue: 'bg-indigo-50 text-indigo-600',
     green: 'bg-emerald-50 text-emerald-600',
     purple: 'bg-purple-50 text-purple-600',
     orange: 'bg-amber-50 text-amber-600',
+    teal: 'bg-teal-50 text-teal-600',
   };
 
   return (
