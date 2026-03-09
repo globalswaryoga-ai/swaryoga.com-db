@@ -1,11 +1,14 @@
-// CRM Admin Components - Main Export File
-// Import all components from this file for convenience
+// ============================================================
+// CRM Admin Components - Barrel Export
+// ============================================================
+// Organized by domain. When adding new components, place them
+// under the appropriate section header.
+// ============================================================
 
+// ── Core UI Primitives ──────────────────────────────────────
 export { DataTable, DataTableHeader, DataTableFooter } from './DataTable';
 export { Modal, FormModal, ConfirmModal } from './Modal';
 export { Form, FormField, FormGroup, FormActions } from './Form';
-export { BulkActionsModal } from './BulkActionsModal';
-export { AddToBroadcastModal } from './AddToBroadcastModal';
 export {
   StatusBadge,
   StatCard,
@@ -29,7 +32,12 @@ export {
   ResponsiveModal,
   ResponsiveStat,
 } from './Responsive';
-// Media components
+
+// ── Lead Management ─────────────────────────────────────────
+export { BulkActionsModal } from './BulkActionsModal';
+export { AddToBroadcastModal } from './AddToBroadcastModal';
+
+// ── WhatsApp / Messaging ────────────────────────────────────
 export {
   MediaPreview,
   InlineMediaPreview,
@@ -40,7 +48,6 @@ export {
   type MediaType,
   type MediaPreviewProps,
 } from './MediaPreview';
-
 export {
   MediaUpload,
   type UploadedFile,
@@ -48,15 +55,11 @@ export {
   type UploadFileType,
   type AccessLevel,
 } from './MediaUpload';
-
-// Template Selector component for WhatsApp templates
 export {
   default as TemplateSelector,
   type WhatsAppTemplate,
   formatWhatsAppText,
 } from './TemplateSelector';
-
-// Chat Status Badge component for conversation status display
 export {
   default as ChatStatusBadge,
   ChatStatusDot,
@@ -65,7 +68,7 @@ export {
   type ChatStatusBadgeProps,
 } from './ChatStatusBadge';
 
-// Tenant Setup Dashboard and Forms
+// ── Tenant / Setup ──────────────────────────────────────────
 export { default as TenantSetupDashboard } from './TenantSetupDashboard';
 export {
   BusinessSetupForm,
@@ -82,8 +85,6 @@ export {
   default as TenantSetupModal,
   SetupChecklistInline,
 } from './TenantSetupModal';
-
-// New User Onboarding Components
 export { default as WelcomeModal } from './WelcomeModal';
 export { default as CompartmentSetupModal } from './CompartmentSetupModal';
 export { default as CompartmentGuard } from './CompartmentGuard';
@@ -93,7 +94,7 @@ export {
   PAGE_SETUP_CONFIG,
 } from './PageSetupChecklist';
 
-// Plan & Subscription Components
+// ── Plan & Subscription ────────────────────────────────────
 // DO NOT re-export from barrel — causes webpack TDZ errors (circular init order).
 // Import directly:
 //   import { PlanProvider, usePlan } from '@/components/admin/crm/hooks/usePlan';

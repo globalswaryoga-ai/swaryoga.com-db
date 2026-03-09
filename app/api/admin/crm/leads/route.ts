@@ -12,6 +12,7 @@ import {
   normalizePhone 
 } from '@/lib/crm-handlers';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
+import { logger } from '@/lib/logger';
 
 // Mark as dynamic since this route uses request.headers or request.url
 export const dynamic = 'force-dynamic';
@@ -175,9 +176,15 @@ export async function GET(request: NextRequest) {
 
     const total = await Lead.countDocuments(filter);
 
-    return NextResponse.json({ success: true, data: { leads, total, limit, skip } }, { status: 200 });
+    return NextResponse.json(
+      { success: true, data: { leads, total, limit, skip } },
+      {
+        status: 200,
+        headers: { 'Cache-Control': 'private, max-age=10, stale-while-revalidate=30' },
+      },
+    );
   } catch (error) {
-    console.error('❌ GET /api/admin/crm/leads error:', error);
+    logger.error('leads', 'GET /api/admin/crm/leads failed', error);
     const message = error instanceof Error ? error.message : 'Failed to load leads';
     return NextResponse.json({ error: message }, { status: 500 });
   }
@@ -281,7 +288,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: lead }, { status: 201 });
   } catch (error) {
-    console.error('❌ POST /api/admin/crm/leads error:', error);
+    logger.error('leads', 'POST /api/admin/crm/leads failed', error);
     const message = error instanceof Error ? error.message : 'Failed to create lead';
     return NextResponse.json({ error: message }, { status: 500 });
   }

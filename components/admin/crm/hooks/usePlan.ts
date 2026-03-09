@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, createContext, useContext } from 'react';
+import React, { useState, useEffect, useCallback, createContext, useContext } from 'react';
 import {
   PlanTier,
   CrmModule,
@@ -205,11 +205,7 @@ export function PlanProvider({ children }: { children: React.ReactNode }) {
     refresh: fetchPlan,
   };
 
-  return (
-    <PlanContext.Provider value={value}>
-      {children}
-    </PlanContext.Provider>
-  );
+  return React.createElement(PlanContext.Provider, { value }, children);
 }
 
 // ============================================================================

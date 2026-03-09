@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
 import { connectDB } from '@/lib/db';
+import { logger } from '@/lib/logger';
 import { ConsentManager } from '@/lib/consentManager';
 // NOTE: Models are imported DYNAMICALLY after connectDB() is called in the handler
 // to avoid calling mongoose.model() before the connection is established
@@ -203,17 +204,17 @@ export async function POST(request: NextRequest) {
       const expected = crypto.createHmac(algo === 'sha1' ? 'sha1' : 'sha256', appSecret).update(rawBody, 'utf8').digest('hex');
 
       if (provided !== expected) {
-        console.error('Signature Mismatch!');
+        logger.warn('meta-webhook', 'Signature mismatch — rejecting request');
         return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
       }
-      console.log('✅ Signature Verified');
+      logger.debug('meta-webhook', 'Signature verified');
     }
 
     // Process the payload
     const res = await handleWebhookPayload(payload);
     return res;
   } catch (error) {
-    console.error('CRITICAL Webhook Error:', error);
+    logger.error('meta-webhook', 'CRITICAL Webhook Error', error);
     return NextResponse.json({ error: (error as Error).message || 'Internal Error' }, { status: 500 });
   }
 }
@@ -286,7 +287,7 @@ async function handleWebhookPayload(payload: any) {
     console.log('[WEBHOOK DEBUG] Models loaded');
     
     if (!WhatsAppMessage || !Lead) {
-      console.error('[WEBHOOK ERROR] Models not initialized');
+      logger.error('meta-webhook', 'Models not initialized after connectDB');
       return NextResponse.json({ error: 'Database models not ready' }, { status: 500 });
     }
 

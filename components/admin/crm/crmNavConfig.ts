@@ -33,7 +33,6 @@ import {
   Calendar,
   Share2,
   Wrench,
-  Brain,
   Cpu,
   Zap,
   BookOpen,
@@ -312,13 +311,9 @@ export const sectionConfigs: SectionConfig[] = [
     moreItems: [
       { label: 'Automation', href: '/admin/crm/automation', icon: Zap },
       { label: 'Chatbot Settings', href: '/admin/crm/chatbot-settings', icon: Settings },
-      { label: 'Legacy Chatbot', href: '/admin/crm/chatbot', icon: Brain },
-      { label: 'Legacy Builder', href: '/admin/crm/chatbot-builder', icon: FileEdit },
     ],
     prefixes: [
       '/admin/crm/chatbots',
-      '/admin/crm/chatbot',
-      '/admin/crm/chatbot-builder',
       '/admin/crm/chatbot-settings',
       '/admin/crm/knowledge-base',
       '/admin/crm/ai-agents',

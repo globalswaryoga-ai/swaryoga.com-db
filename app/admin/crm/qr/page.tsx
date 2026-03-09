@@ -4,208 +4,10 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import { QrCode, Wifi, WifiOff, RefreshCw, LogOut, Phone, PhoneCall, Send, Image as ImageIcon, FileText, Mic, ArrowLeft, Loader2, AlertTriangle, CheckCircle2, Unplug, Funnel, Plus, Tag, CheckSquare, Square, X, Paperclip, Video, File, Pencil, Trash2, Users, Mail, MailOpen, Radio, Info, Shield, Crown, Calendar, MessageSquare, Hash, UserCircle, PhoneOff, Search, Star, Bold, Italic, Strikethrough, Smile, Zap, Type, Link2, Copy, RotateCcw, Lock, Unlock, UserMinus, ChevronUp, ChevronDown, Save, Settings, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
-
-type ConnectionStatus = 'disconnected' | 'connecting' | 'connected';
-
-type BridgeStatus = {
-  connected: boolean;
-  status: ConnectionStatus;
-  phone?: { id: string; name: string } | null;
-  qrAvailable?: boolean;
-  retryCount?: number;
-  uptime?: number;
-};
-
-type QRResponse = {
-  connected: boolean;
-  qr: string | null;
-  qrString?: string;
-  message?: string;
-};
-
-// Format phone number to readable format
-const formatPhoneNumber = (phone: string): string => {
-  const cleaned = phone.replace(/[^0-9]/g, '');
-  // LID internal IDs are 14+ digits — NOT phone numbers, don't format them
-  if (cleaned.length >= 14) return phone;
-  // Indian numbers
-  if (cleaned.length === 10) return `+91 ${cleaned.slice(0, 5)} ${cleaned.slice(5)}`;
-  if (cleaned.length === 12 && cleaned.startsWith('91')) return `+91 ${cleaned.slice(2, 7)} ${cleaned.slice(7)}`;
-  if (cleaned.length === 13 && cleaned.startsWith('91')) return `+91 ${cleaned.slice(2, 7)} ${cleaned.slice(7)}`;
-  // Other international numbers — add + prefix and space after country code
-  if (cleaned.length >= 11 && cleaned.length <= 13) return `+${cleaned}`;
-  // Fallback
-  return phone;
-};
-
-// Get avatar color based on name/id
-const getAvatarColor = (name: string): string => {
-  const colors = ['bg-indigo-500', 'bg-green-500', 'bg-purple-500', 'bg-pink-500', 'bg-yellow-500', 'bg-red-500', 'bg-indigo-500', 'bg-cyan-500'];
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return colors[Math.abs(hash) % colors.length];
-};
-
-// Convert URLs in text to clickable links
-const URL_REGEX = /(https?:\/\/[^\s<>"']+)/gi;
-const linkifyText = (text: string): React.ReactNode[] => {
-  const parts = text.split(URL_REGEX);
-  return parts.map((part, i) =>
-    URL_REGEX.test(part)
-      ? <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-800 underline break-all">{part}</a>
-      : <React.Fragment key={i}>{part}</React.Fragment>
-  );
-};
-
-// Get initials from name
-const getInitials = (name: string): string => {
-  return name
-    .split(' ')
-    .slice(0, 2)
-    .map(n => n[0])
-    .join('')
-    .toUpperCase();
-};
-
-// Funnel color palette for new stages
-const FUNNEL_COLORS = [
-  'bg-indigo-50 text-indigo-700 border-indigo-300',
-  'bg-green-50 text-green-700 border-green-300',
-  'bg-red-50 text-red-700 border-red-300',
-  'bg-purple-50 text-purple-700 border-purple-300',
-  'bg-yellow-50 text-yellow-700 border-yellow-300',
-  'bg-orange-50 text-orange-700 border-orange-300',
-  'bg-pink-50 text-pink-700 border-pink-300',
-  'bg-teal-50 text-teal-700 border-teal-300',
-  'bg-cyan-50 text-cyan-700 border-cyan-300',
-  'bg-indigo-50 text-indigo-700 border-indigo-300',
-];
-
-// Label color palette for new labels
-const LABEL_COLORS = [
-  'bg-amber-100 text-amber-800',
-  'bg-cyan-100 text-cyan-800',
-  'bg-emerald-100 text-emerald-800',
-  'bg-orange-100 text-orange-800',
-  'bg-indigo-100 text-indigo-800',
-  'bg-pink-100 text-pink-800',
-  'bg-violet-100 text-violet-800',
-  'bg-rose-100 text-rose-800',
-  'bg-lime-100 text-lime-800',
-  'bg-sky-100 text-sky-800',
-];
-
-// Common emoji grid for quick picker
-const EMOJI_LIST = [
-  '😀','😃','😄','😁','😆','😅','🤣','😂','🙂','😊',
-  '😇','🥰','😍','🤩','😘','😗','😚','😙','🥲','😋',
-  '🤔','🤫','🤭','😏','😌','😔','😪','🤤','😴','🤧',
-  '🙏','👍','👎','👏','🤝','✌️','🤞','❤️','🔥','⭐',
-  '💯','✅','❌','⚠️','📌','🎯','💪','🏆','🎉','🙌',
-  '👋','🤙','📞','📱','💬','📝','📅','🕐','💰','🧘',
-];
-
-// Quick reply presets
-const QUICK_REPLIES = [
-  'Thank you for your interest! 🙏',
-  'Please share your details.',
-  'Our classes start at 6 AM and 7 PM.',
-  'Visit swaryoga.com for more info.',
-  'I will get back to you shortly.',
-  'Namaste! How can I help you? 🙏',
-  'Would you like to join a free demo class?',
-  'Payment received. Thank you! ✅',
-];
-
-// Template presets
-const TEMPLATES = [
-  { name: '🙏 Welcome', text: 'Welcome to Swar Yoga! 🙏 We are glad to have you. Our classes are available online and offline. Visit swaryoga.com for details.' },
-  { name: '📞 Follow Up', text: 'Hi! Just checking in. Would you like to know more about our yoga programs? Feel free to ask any questions.' },
-  { name: '💰 Payment Reminder', text: 'Gentle reminder: Your payment is due. Please complete it at your earliest convenience. Thank you! 🙏' },
-  { name: '📅 Class Schedule', text: 'Our class schedule:\n🌅 Morning: 6:00 AM - 7:00 AM\n🌙 Evening: 7:00 PM - 8:00 PM\n\nJoin us! 🧘' },
-  { name: '🎉 Special Offer', text: 'Special offer! Enroll now and get 20% off on our annual yoga program. Limited time only! 🎯' },
-];
-
-type FunnelStage = { key: string; label: string; color: string };
-type LabelPreset = { key: string; label: string; color: string };
-
-const DEFAULT_FUNNEL_STAGES: FunnelStage[] = [
-  { key: 'all', label: 'All', color: 'bg-gray-100 text-gray-700 border-gray-300' },
-  { key: 'new_lead', label: 'New Lead', color: 'bg-indigo-50 text-indigo-700 border-indigo-300' },
-  { key: 'contacted', label: 'Contacted', color: 'bg-sky-50 text-sky-700 border-sky-300' },
-  { key: 'interested', label: 'Interested', color: 'bg-cyan-50 text-cyan-700 border-cyan-300' },
-  { key: 'demo_trial', label: 'Demo / Trial', color: 'bg-purple-50 text-purple-700 border-purple-300' },
-  { key: 'negotiation', label: 'Negotiation', color: 'bg-amber-50 text-amber-700 border-amber-300' },
-  { key: 'enrolled', label: 'Enrolled', color: 'bg-emerald-50 text-emerald-700 border-emerald-300' },
-  { key: 'completed', label: 'Completed', color: 'bg-rose-50 text-rose-700 border-rose-300' },
-  { key: 'inactive', label: 'Inactive', color: 'bg-gray-50 text-gray-600 border-gray-300' },
-  { key: 'repeater', label: 'Repeater', color: 'bg-orange-50 text-orange-700 border-orange-300' },
-  { key: 'old_sadhak', label: 'Old Sadhak', color: 'bg-teal-50 text-teal-700 border-teal-300' },
-  { key: 'only_for_post', label: 'Only for Post', color: 'bg-indigo-50 text-indigo-700 border-indigo-300' },
-];
-
-const DEFAULT_LABEL_PRESETS: LabelPreset[] = [
-  { key: 'vip', label: 'VIP', color: 'bg-amber-100 text-amber-800' },
-  { key: 'follow_up', label: 'Follow Up', color: 'bg-cyan-100 text-cyan-800' },
-  { key: 'paid', label: 'Paid', color: 'bg-emerald-100 text-emerald-800' },
-  { key: 'pending', label: 'Pending', color: 'bg-orange-100 text-orange-800' },
-  { key: 'new', label: 'New', color: 'bg-indigo-100 text-indigo-800' },
-];
-
-type ChatItem = {
-  id: string;
-  name: string;
-  isGroup: boolean;
-  isLid?: boolean;
-  resolvedPhone?: string;
-  unreadCount: number;
-  lastMessageTime: string | null;
-  lastMessage?: string;
-  funnelStage?: string;
-  labels?: string[];
-};
-
-type MessageItem = {
-  id: string;
-  from: string;
-  fromMe: boolean;
-  text: string;
-  type: string;
-  timestamp: number;
-  status: number;
-  participant?: string;
-  pushName?: string;
-  hasMedia?: boolean;
-  mediaUrl?: string | null;
-  mediaMimetype?: string | null;
-  mediaFileName?: string | null;
-  quoted?: { id: string; participant?: string; text: string } | null;
-  reactions?: Record<string, string>; // jid → emoji
-  quotedId?: string;
-};
-
-const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
-
-/** Message delivery tick marks (Baileys status codes) */
-function MessageTicks({ status }: { status?: number }) {
-  if (status === undefined || status === null) return null;
-  // 0=error, 1=pending, 2=server_ack (sent), 3=delivery_ack, 4=read, 5=played
-  if (status <= 1) return <span className="inline-block ml-1" title="Sending"><svg width="14" height="10" viewBox="0 0 16 11" fill="none"><path d="M1 5.5L5.5 10L14.5 1" stroke="#999" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg></span>;
-  if (status === 2) return <span className="inline-block ml-1" title="Sent"><svg width="14" height="10" viewBox="0 0 16 11" fill="none"><path d="M1 5.5L5.5 10L14.5 1" stroke="#667781" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg></span>;
-  if (status === 3) return <span className="inline-block ml-1" title="Delivered"><svg width="18" height="10" viewBox="0 0 21 11" fill="none"><path d="M1 5.5L5.5 10L14.5 1" stroke="#667781" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/><path d="M6 5.5L10.5 10L19.5 1" stroke="#667781" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg></span>;
-  // status >= 4 (read/played)
-  return <span className="inline-block ml-1" title="Read"><svg width="18" height="10" viewBox="0 0 21 11" fill="none"><path d="M1 5.5L5.5 10L14.5 1" stroke="#53bdeb" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/><path d="M6 5.5L10.5 10L19.5 1" stroke="#53bdeb" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg></span>;
-}
-
-type ChatFilter = 'all' | 'unread' | 'read' | 'groups';
-
-type GroupParticipant = { id: string; lid?: string; admin: 'admin' | 'superadmin' | null };
-type GroupInfo = {
-  id: string; subject: string; subjectOwner?: string;
-  desc: string; owner?: string; creation?: number;
-  size: number; participants: GroupParticipant[];
-  announce?: boolean; restrict?: boolean;
-};
+import type { ConnectionStatus, BridgeStatus, QRResponse, FunnelStage, LabelPreset, ChatItem, MessageItem, ChatFilter, GroupParticipant, GroupInfo } from './types';
+import { formatPhoneNumber, getAvatarColor, linkifyText, getInitials, formatUptime } from './utils';
+import { FUNNEL_COLORS, LABEL_COLORS, EMOJI_LIST, QUICK_REPLIES, TEMPLATES, DEFAULT_FUNNEL_STAGES, DEFAULT_LABEL_PRESETS, REACTION_EMOJIS } from './constants';
+import { MessageTicks } from './components/MessageTicks';
 
 export default function QRWhatsAppPage() {
   const token = useAuth();
@@ -305,6 +107,14 @@ export default function QRWhatsAppPage() {
   const composerInputRef = useRef<HTMLInputElement>(null);
   const tabRef = useRef(tab);
   tabRef.current = tab;
+
+  // ── Pause polling when browser tab is hidden (saves bandwidth & API calls) ──
+  const [isPageVisible, setIsPageVisible] = useState(true);
+  useEffect(() => {
+    const handleVisibility = () => setIsPageVisible(!document.hidden);
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, []);
 
   // ── Load QR settings (funnel stages, labels, chat mappings) from MongoDB on mount ──
   // All QR funnel/label data is stored independently in crm_user_settings (NOT shared funnel_configs)
@@ -699,16 +509,16 @@ export default function QRWhatsAppPage() {
     }
   }, [bridgeCall, crmFetch, fetchProfilePic]);
 
-  // ── Auto-refresh chat list every 15s when connected & on inbox tab ──
+  // ── Auto-refresh chat list every 15s when connected, on inbox tab & page visible ──
   const chatPollRef = useRef<NodeJS.Timeout | null>(null);
   useEffect(() => {
-    if (tab === 'inbox' && status?.connected) {
+    if (tab === 'inbox' && status?.connected && isPageVisible) {
       chatPollRef.current = setInterval(fetchChats, 15000);
     } else {
       if (chatPollRef.current) { clearInterval(chatPollRef.current); chatPollRef.current = null; }
     }
     return () => { if (chatPollRef.current) { clearInterval(chatPollRef.current); chatPollRef.current = null; } };
-  }, [tab, status?.connected, fetchChats]);
+  }, [tab, status?.connected, fetchChats, isPageVisible]);
 
   // ── Fetch messages ──
   const fetchMessages = useCallback(async (jid: string) => {
@@ -725,16 +535,16 @@ export default function QRWhatsAppPage() {
     }
   }, [bridgeCall]);
 
-  // ── Auto-refresh messages every 8s for active conversation ──
+  // ── Auto-refresh messages every 8s for active conversation (paused when tab hidden) ──
   const msgPollRef = useRef<NodeJS.Timeout | null>(null);
   useEffect(() => {
-    if (selectedChat && status?.connected) {
+    if (selectedChat && status?.connected && isPageVisible) {
       msgPollRef.current = setInterval(() => fetchMessages(selectedChat), 8000);
     } else {
       if (msgPollRef.current) { clearInterval(msgPollRef.current); msgPollRef.current = null; }
     }
     return () => { if (msgPollRef.current) { clearInterval(msgPollRef.current); msgPollRef.current = null; } };
-  }, [selectedChat, status?.connected, fetchMessages]);
+  }, [selectedChat, status?.connected, fetchMessages, isPageVisible]);
 
   // ── Poll presence for active non-group chat ──
   const presencePollRef = useRef<NodeJS.Timeout | null>(null);
@@ -1991,8 +1801,8 @@ export default function QRWhatsAppPage() {
       )}
       {!loading && tab === 'inbox' && isConnected && (
         <div className="flex h-[calc(100vh-105px)]">
-          {/* Chat List */}
-          <div className="w-[26rem] border-r bg-white flex flex-col">
+          {/* Chat List — full width on mobile, fixed sidebar on lg+ */}
+          <div className={`w-full lg:w-[26rem] border-r bg-white flex flex-col ${selectedChat ? 'hidden lg:flex' : 'flex'}`}>
             {/* Chat filter tabs: All | Unread | Read | Groups */}
             <div className="px-2 py-1 border-b flex items-center gap-0.5 bg-gray-50">
               {([
@@ -2293,8 +2103,8 @@ export default function QRWhatsAppPage() {
             </div>
           </div>
 
-          {/* Message Area */}
-          <div className="flex-1 flex flex-col bg-gray-100">
+          {/* Message Area — hidden on mobile when no chat selected */}
+          <div className={`flex-1 flex flex-col bg-gray-100 ${!selectedChat ? 'hidden lg:flex' : 'flex'}`}>
             {!selectedChat ? (
               <div className="flex-1 flex items-center justify-center text-gray-400">
                 <div className="text-center">
@@ -2464,7 +2274,7 @@ export default function QRWhatsAppPage() {
                           ))}
                         </div>
                       )}
-                      <div className={`${hasOnlyMedia && isImage ? 'max-w-[320px]' : 'max-w-[65%] min-w-[120px]'} px-2.5 py-1.5 rounded-2xl text-sm shadow-sm ${
+                      <div className={`${hasOnlyMedia && isImage ? 'max-w-[240px] sm:max-w-[320px]' : 'max-w-[85%] sm:max-w-[65%] min-w-[100px] sm:min-w-[120px]'} px-2.5 py-1.5 rounded-2xl text-sm shadow-sm ${
                         msg.fromMe
                           ? 'bg-[#d9fdd3] text-gray-900 rounded-br-md'
                           : 'bg-white text-gray-900 rounded-bl-md'
@@ -3762,11 +3572,4 @@ export default function QRWhatsAppPage() {
     </div>
   );
 
-}
-
-function formatUptime(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
 }
