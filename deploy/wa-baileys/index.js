@@ -298,13 +298,13 @@ async function loadChatsFromDB(session) {
       provider: { $in: ['whatsapp_web_bridge', 'whatsapp_qr', null] },
       sentAt: { $gte: cutoff },
     };
-    // If the user is not 'default', try to filter by bridgeUserId/ownerId
+    // Only load messages that belong to this specific user
+    // CRITICAL: Do NOT include legacy untagged messages for non-admin users
+    // as that would leak the super admin's chat data to other users.
     if (session.userId !== 'default') {
       filter.$or = [
         { bridgeUserId: session.userId },
         { ownerId: session.userId },
-        // Include messages without any user tag (legacy data)
-        { bridgeUserId: { $exists: false }, ownerId: { $exists: false } },
       ];
     }
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
-import { getCRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
+import { getCRMUserSettings, getLead } from '@/lib/schemas/enterpriseSchemas';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 
@@ -44,7 +44,7 @@ export const maxDuration = 60; // 60s function timeout for Vercel
  * 
  * This prevents non-super-admin users from seeing the super admin's WhatsApp chats.
  */
-async function resolveUserBridge(authHeader: string | null): Promise<{ url: string; secret: string; userId: string } | null> {
+async function resolveUserBridge(authHeader: string | null): Promise<{ url: string; secret: string; userId: string; superAdmin: boolean } | null> {
   try {
     const decoded = verifyToken(authHeader || '');
     if (decoded?.userId && decoded?.isAdmin) {
@@ -63,18 +63,19 @@ async function resolveUserBridge(authHeader: string | null): Promise<{ url: stri
           url: settings.qrBridgeUrl,
           secret: settings.qrBridgeSecret || FALLBACK_BRIDGE_SECRET,
           userId: decoded.userId,
+          superAdmin,
         };
       }
 
       // No per-user bridge configured — check access rights
       if (superAdmin) {
         // Super admin always has access to the shared bridge
-        return { url: FALLBACK_BRIDGE_URL, secret: FALLBACK_BRIDGE_SECRET, userId: decoded.userId };
+        return { url: FALLBACK_BRIDGE_URL, secret: FALLBACK_BRIDGE_SECRET, userId: decoded.userId, superAdmin: true };
       }
 
       // Non-super-admin: only allow shared bridge if explicitly enabled by super admin
       if (settings?.qrWhatsappEnabled) {
-        return { url: FALLBACK_BRIDGE_URL, secret: FALLBACK_BRIDGE_SECRET, userId: decoded.userId };
+        return { url: FALLBACK_BRIDGE_URL, secret: FALLBACK_BRIDGE_SECRET, userId: decoded.userId, superAdmin: false };
       }
 
       // BLOCKED: Non-super-admin user without own bridge and not enabled
@@ -116,7 +117,7 @@ export async function POST(req: NextRequest) {
         { status: 422 }
       );
     }
-    const { url: BRIDGE_URL, secret: BRIDGE_SECRET, userId } = resolved;
+    const { url: BRIDGE_URL, secret: BRIDGE_SECRET, userId, superAdmin } = resolved;
 
     const { action, path, body } = await req.json();
 
@@ -200,6 +201,11 @@ export async function POST(req: NextRequest) {
         { status: res.status }
       );
     }
+    // ── CHAT COMPARTMENT: Filter /chats response for non-super-admin users ──
+    if (decodedPath === '/chats' && !superAdmin && data?.chats) {
+      data.chats = await filterChatsForUser(data.chats, userId);
+    }
+
     // Wrap in { success, data } so useCRM hook accepts the response
     return NextResponse.json({ success: true, data }, { status: res.status });
   } catch (err) {
@@ -221,7 +227,7 @@ export async function GET(req: NextRequest) {
         { status: 422 }
       );
     }
-    const { url: BRIDGE_URL, secret: BRIDGE_SECRET, userId } = resolved;
+    const { url: BRIDGE_URL, secret: BRIDGE_SECRET, userId, superAdmin } = resolved;
 
     let path = req.nextUrl.searchParams.get('path') || '/status';
     
@@ -331,6 +337,12 @@ export async function GET(req: NextRequest) {
         );
       }
     }
+
+    // ── CHAT COMPARTMENT: Filter /chats response for non-super-admin users ──
+    if (path === '/chats' && !superAdmin && data?.chats) {
+      data.chats = await filterChatsForUser(data.chats, userId);
+    }
+
     // Wrap in { success, data } so useCRM hook accepts the response
     return NextResponse.json({ success: true, data }, { status: res.status });
   } catch (err) {
@@ -339,6 +351,60 @@ export async function GET(req: NextRequest) {
       { success: false, error: err instanceof Error ? err.message : 'Bridge proxy error' },
       { status: 500 }
     );
+  }
+}
+
+/**
+ * Filter bridge chats for a non-super-admin user.
+ * Only returns chats where:
+ * - A CRM lead exists with that phone number AND is assigned to / created by this user
+ * - Or the user has their own bridge (already isolated at session level)
+ *
+ * This prevents users on the shared bridge from seeing the super admin's private chat list.
+ */
+async function filterChatsForUser(chats: any[], userId: string): Promise<any[]> {
+  try {
+    await connectDB();
+    const Lead = getLead();
+
+    // Extract phone numbers from bridge chats
+    const phoneNumbers = chats.map((c: any) => {
+      const idStr = typeof c.id === 'string' ? c.id : (c.id?._serialized || '');
+      return idStr.split('@')[0];
+    }).filter(Boolean);
+
+    if (phoneNumbers.length === 0) return [];
+
+    // Find all leads for these phone numbers
+    const leads = await Lead.find({
+      phoneNumber: { $in: phoneNumbers }
+    }).select('phoneNumber assignedToUserId createdByUserId').lean();
+
+    const leadMap = new Map<string, { assignedToUserId?: string; createdByUserId?: string }>();
+    for (const l of leads) {
+      leadMap.set(l.phoneNumber, {
+        assignedToUserId: l.assignedToUserId,
+        createdByUserId: l.createdByUserId,
+      });
+    }
+
+    // Filter: only chats matching this user's leads
+    const filtered = chats.filter((c: any) => {
+      const idStr = typeof c.id === 'string' ? c.id : (c.id?._serialized || '');
+      const phone = idStr.split('@')[0];
+
+      const leadInfo = leadMap.get(phone);
+      if (!leadInfo) return false; // No CRM lead = not visible to this user
+
+      return leadInfo.assignedToUserId === userId || leadInfo.createdByUserId === userId;
+    });
+
+    console.log(`[QR Bridge Proxy] Chat filter for ${userId}: ${chats.length} total → ${filtered.length} visible`);
+    return filtered;
+  } catch (e) {
+    console.error('[QR Bridge Proxy] Chat filter error:', (e as Error).message);
+    // On error, return empty to be safe (don't leak admin data)
+    return [];
   }
 }
 
