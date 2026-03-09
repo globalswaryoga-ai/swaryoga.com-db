@@ -198,6 +198,10 @@ module.exports = {
           '0%': { opacity: '0', transform: 'translateY(20px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
         },
+        'fade-in': {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
         'soft-pulse': {
           '0%, 100%': { transform: 'scale(1)' },
           '50%': { transform: 'scale(1.02)' },
@@ -215,6 +219,7 @@ module.exports = {
       },
       animation: {
         'fade-in-up': 'fade-in-up 0.8s ease-out forwards',
+        'fade-in': 'fade-in 0.3s ease-out',
         'soft-pulse': 'soft-pulse 4s ease-in-out infinite',
         'float': 'float 6s ease-in-out infinite',
         'social-dance': 'social-dance 12s ease-in-out infinite',

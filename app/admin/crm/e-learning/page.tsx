@@ -60,15 +60,10 @@ export default function DLearningPage() {
       pv2?.isSuperAdmin === true;
     setIsSuperAdmin(superAdmin);
     setAuthChecked(true);
-    
-    // Redirect non-superadmin users
-    if (!superAdmin) {
-      router.replace('/admin/crm');
-    }
   }, [router]);
 
   const fetchCourses = useCallback(async () => {
-    if (!token || !isSuperAdmin) return;
+    if (!token) return;
     
     try {
       setLoading(true);
@@ -90,11 +85,11 @@ export default function DLearningPage() {
     } finally {
       setLoading(false);
     }
-  }, [token, isSuperAdmin]);
+  }, [token]);
 
   useEffect(() => {
-    if (token && isSuperAdmin) fetchCourses();
-  }, [token, isSuperAdmin, fetchCourses]);
+    if (token) fetchCourses();
+  }, [token, fetchCourses]);
 
   const togglePublish = async (course: Course) => {
     if (!token) return;

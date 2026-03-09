@@ -168,6 +168,26 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
           {/* Page Guide — auto-detected from pathname */}
           {pageGuide && <PageGuide guide={pageGuide} />}
 
+          {/* Global loading skeleton while onboarding status is being resolved */}
+          {loading ? (
+            <div className="p-6 space-y-6 animate-pulse">
+              <div className="h-8 w-48 bg-gray-200 rounded-lg" />
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {[1,2,3,4].map(i => (
+                  <div key={i} className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="w-12 h-12 bg-gray-100 rounded-xl" />
+                      <div className="w-5 h-5 bg-gray-100 rounded" />
+                    </div>
+                    <div className="h-8 w-20 bg-gray-200 rounded mb-2" />
+                    <div className="h-4 w-28 bg-gray-100 rounded" />
+                  </div>
+                ))}
+              </div>
+              <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm h-64" />
+            </div>
+          ) : (
+          <div className="animate-fade-in">
           {(!loading && status && !status.isSuperAdmin && !status.compartmentReady) ? (
             <CompartmentGuard
               pageName={section?.title || 'CRM'}
@@ -185,6 +205,8 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
             </PlanGate>
           ) : (
             children
+          )}
+          </div>
           )}
         </main>
       </div>

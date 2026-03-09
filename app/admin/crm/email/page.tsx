@@ -212,8 +212,9 @@ export default function EmailAutomationPage() {
     setIsSuperAdmin(superAdmin);
     setUserPermissions(permissions);
 
-    // Check email permissions
+    // Check email permissions — allow if superAdmin, no permissionsV2 set, or has email read
     const hasEmailAccess = superAdmin || 
+                          !permissions ||
                           legacyPerms.includes('email') ||
                           hasPermission(permissions, 'email', 'read');
 

@@ -69,15 +69,10 @@ export default function VideosPage({ params }: { params: { courseId: string } })
       pv2?.isSuperAdmin === true;
     setIsSuperAdmin(superAdmin);
     setAuthChecked(true);
-    
-    // Redirect non-superadmin users
-    if (!superAdmin) {
-      router.replace('/admin/crm');
-    }
   }, [router]);
 
   const fetchData = useCallback(async () => {
-    if (!token || !courseId || !isSuperAdmin) return;
+    if (!token || !courseId) return;
     
     try {
       setLoading(true);
@@ -112,11 +107,11 @@ export default function VideosPage({ params }: { params: { courseId: string } })
     } finally {
       setLoading(false);
     }
-  }, [token, courseId, isSuperAdmin]);
+  }, [token, courseId]);
 
   useEffect(() => {
-    if (token && isSuperAdmin) fetchData();
-  }, [token, isSuperAdmin, fetchData]);
+    if (token) fetchData();
+  }, [token, fetchData]);
 
   const deleteVideo = async (videoId: string) => {
     if (!token || !confirm('Delete this video?')) return;
