@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
     const WhatsAppWebhookEvent = getWhatsAppWebhookEvent();
 
     // Tenant isolation: scope to decoded user's tenant
-    const tenantId = decoded.tenantId || decoded.userId || 'admin';
+    const tenantId = decoded?.tenantId || decoded?.userId || 'admin';
     const tf = { tenantId };
 
     // Fetch global events if requested (scoped to tenant)
