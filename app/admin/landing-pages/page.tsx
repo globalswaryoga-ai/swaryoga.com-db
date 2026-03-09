@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import AdminSidebar from '@/components/AdminSidebar';
 
@@ -561,6 +561,32 @@ export default function AdminLandingPagesPage() {
   useEffect(() => {
     loadLandingPages();
   }, [loadLandingPages]);
+
+  // Auto-create one sample landing page in draft when the list is empty
+  const autoSampleRef = useRef(false);
+  useEffect(() => {
+    if (!adminToken || loading || autoSampleRef.current) return;
+    if (landingPages.length > 0) return;
+    autoSampleRef.current = true;
+    const tpl = SAMPLE_TEMPLATES.find(t => t.id === 'zen-dark') || SAMPLE_TEMPLATES[0];
+    if (!tpl) return;
+    const sampleBody = {
+      name: tpl.name + ' (Sample)',
+      slug: 'sample-' + tpl.id,
+      status: 'draft' as const,
+      theme: tpl.theme,
+      heroHeading: tpl.data.heroHeading || '',
+      heroSubheading: tpl.data.heroSubheading || '',
+      heroCTA: tpl.data.heroCTA || '',
+      benefits: tpl.data.benefits || [],
+      socialProof: tpl.data.socialProof || {},
+    };
+    fetch('/api/admin/landing-pages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify(sampleBody),
+    }).then(() => loadLandingPages()).catch(() => {});
+  }, [adminToken, loading, landingPages.length, loadLandingPages]);
 
   const openCreate = () => {
     setShowTemplates(true);

@@ -210,7 +210,7 @@ export default function QRWhatsAppPage() {
   const [messages, setMessages] = useState<MessageItem[]>([]);
   const [composerText, setComposerText] = useState('');
   const [sending, setSending] = useState(false);
-  const [tab, setTab] = useState<'status' | 'inbox'>('status');
+  const [tab, setTab] = useState<'connection' | 'inbox' | 'settings'>('connection');
   const [showExtensionModal, setShowExtensionModal] = useState(false);
   const [downloadingExtension, setDownloadingExtension] = useState(false);
   const [showInstallGuide, setShowInstallGuide] = useState(false);
@@ -413,6 +413,7 @@ export default function QRWhatsAppPage() {
       });
       setBridgeConfigured(true);
       setShowBridgeSettings(false);
+      setTab('connection');
       setError(null);
       // Force re-render so poll effect picks up the new bridge URL
       setLoading(true);
@@ -461,9 +462,8 @@ export default function QRWhatsAppPage() {
       if (data?.connected) {
         // Connected — clear QR
         setQrData(null);
-        // Auto-switch to inbox (use ref to avoid re-creating this callback on tab changes)
-        if (tabRef.current === 'status') {
-          setTab('inbox');
+        // Pre-fetch chats so inbox is ready when user switches
+        if (tabRef.current === 'connection') {
           fetchChats();
         }
       } else if (data?.qrAvailable) {
@@ -506,7 +506,7 @@ export default function QRWhatsAppPage() {
 
   // ── Auto-fetch WhatsApp statuses when connected and on status tab ──
   useEffect(() => {
-    if (status?.connected && tab === 'status' && statusData.length === 0) {
+    if (status?.connected && tab === 'connection' && statusData.length === 0) {
       fetchStatuses();
     }
   }, [status?.connected, tab]);
@@ -1121,7 +1121,7 @@ export default function QRWhatsAppPage() {
     try {
       await bridgeCall('/disconnect', 'POST');
       setStatus({ connected: false, status: 'disconnected' });
-      setTab('status');
+      setTab('connection');
       setChats([]);
       setSelectedChat(null);
       setMessages([]);
@@ -1137,7 +1137,7 @@ export default function QRWhatsAppPage() {
     try {
       await bridgeCall('/logout', 'POST');
       setStatus({ connected: false, status: 'disconnected' });
-      setTab('status');
+      setTab('connection');
       setChats([]);
       setSelectedChat(null);
       setMessages([]);
@@ -1359,239 +1359,283 @@ export default function QRWhatsAppPage() {
     );
   }
 
-  {/* Bridge settings modal — only shown when user explicitly clicks gear icon */}
-  if (showBridgeSettings) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-xl shadow-lg max-w-md w-full p-6 space-y-5">
-          <div className="text-center">
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-green-50 mb-3">
-              <Settings className="w-7 h-7 text-green-600" />
-            </div>
-            <h2 className="text-xl font-bold text-gray-900">
-              WhatsApp Bridge Settings
-            </h2>
-            <p className="text-sm text-gray-500 mt-1">
-              Advanced: connect a custom WhatsApp bridge instance.
-              Leave empty to use the default shared bridge.
-            </p>
-          </div>
-
-          <div className="space-y-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Bridge URL</label>
-              <input
-                type="url"
-                placeholder="https://your-bridge.up.railway.app"
-                value={bridgeUrlInput}
-                onChange={e => setBridgeUrlInput(e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Bridge Secret</label>
-              <input
-                type="password"
-                placeholder="your-bridge-secret"
-                value={bridgeSecretInput}
-                onChange={e => setBridgeSecretInput(e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
-              />
-            </div>
-          </div>
-
-          <div className="flex gap-2">
-            <button
-              onClick={() => setShowBridgeSettings(false)}
-              className="flex-1 px-4 py-2 border rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={saveBridgeConfig}
-              disabled={savingBridge || !bridgeUrlInput.trim()}
-              className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {savingBridge ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              {savingBridge ? 'Saving...' : 'Save & Connect'}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Single-row header: status + tabs + funnel pills + actions */}
-      <div className="bg-white border-b px-3 py-1 flex items-center gap-2">
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium whitespace-nowrap ${
-            isConnected ? 'bg-green-50 text-green-700' :
-            connState === 'connecting' ? 'bg-yellow-50 text-yellow-700' :
-            'bg-red-50 text-red-700'
-          }`}>
-            {isConnected ? <Wifi className="w-2.5 h-2.5" /> :
-             connState === 'connecting' ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> :
-             <WifiOff className="w-2.5 h-2.5" />}
-            <span>{isConnected ? 'Connected' : connState === 'connecting' ? '...' : 'Offline'}</span>
+      {/* ═══ Page Header ═══ */}
+      <div className="bg-white border-b shadow-sm">
+        <div className="px-4 py-3 flex items-center justify-between">
+          {/* Left: Title + Status Badge */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-green-600 flex items-center justify-center">
+                <QrCode className="w-4.5 h-4.5 text-white" />
+              </div>
+              <h1 className="text-lg font-bold text-gray-900">QR WhatsApp</h1>
+            </div>
+            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
+              isConnected ? 'bg-green-50 text-green-700 ring-1 ring-green-200' :
+              connState === 'connecting' ? 'bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200' :
+              'bg-red-50 text-red-700 ring-1 ring-red-200'
+            }`}>
+              {isConnected ? <Wifi className="w-3 h-3" /> :
+               connState === 'connecting' ? <Loader2 className="w-3 h-3 animate-spin" /> :
+               <WifiOff className="w-3 h-3" />}
+              {isConnected ? 'Connected' : connState === 'connecting' ? 'Connecting...' : 'Offline'}
+            </div>
           </div>
-          <div className="flex bg-gray-100 rounded p-0.5 gap-0.5">
-            <button onClick={() => setTab('status')} className={`px-2 py-0.5 text-[10px] rounded transition ${tab === 'status' ? 'bg-white shadow text-gray-900' : 'text-gray-500'}`}>Status</button>
-            <button onClick={() => { setTab('inbox'); if (isConnected) fetchChats(); }} className={`px-2 py-0.5 text-[10px] rounded transition ${tab === 'inbox' ? 'bg-white shadow text-gray-900' : 'text-gray-500'}`}>Inbox</button>
+          {/* Right: Quick Actions */}
+          <div className="flex items-center gap-2">
+            {isConnected && (
+              <button onClick={() => setShowGroupCreate(true)} className="px-3 py-1.5 text-xs font-medium bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 border border-purple-200 flex items-center gap-1.5 transition" title="New Group">
+                <Users className="w-3.5 h-3.5" /> New Group
+              </button>
+            )}
+            <button onClick={() => { setShowStatusPanel(true); fetchStatuses(); }} className="px-3 py-1.5 text-xs font-medium bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 border border-emerald-200 flex items-center gap-1.5 transition" title="View Statuses">
+              <Radio className="w-3.5 h-3.5" /> Stories
+            </button>
           </div>
         </div>
-        {/* Inline funnel pills */}
-        {tab === 'inbox' && (
-          <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide min-w-0 flex-1">
-            {funnelStages.map(stage => {
-              const count = stage.key === 'all'
-                ? chats.length
-                : chats.filter(c => chatFunnels[c.id] === stage.key).length;
-              return (
-                <div key={stage.key} className="flex items-center flex-shrink-0 group">
-                  <button
-                    onClick={() => { setActiveFunnel(stage.key); setSelectedChats(new Set()); }}
-                    className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium border whitespace-nowrap transition ${activeFunnel === stage.key ? stage.color + ' ring-1 ring-offset-1 ring-current' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}
-                  >
-                    {stage.label}
-                    <span className={`text-[9px] px-0.5 rounded-full ${activeFunnel === stage.key ? 'bg-white/60' : 'bg-gray-100'}`}>{count}</span>
-                  </button>
-                  {stage.key !== 'all' && (
-                    <button onClick={() => openEditModal('funnel', 'edit', stage)} className="ml-0.5 p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-gray-200 transition" title="Edit">
-                      <Pencil className="w-2 h-2 text-gray-400" />
+
+        {/* ═══ Tab Navigation ═══ */}
+        <div className="px-4 flex items-center gap-1 border-t bg-gray-50/50">
+          {([
+            { key: 'connection' as const, label: 'Connection', icon: <QrCode className="w-3.5 h-3.5" />, desc: 'QR & Status' },
+            { key: 'inbox' as const, label: 'Inbox', icon: <MessageSquare className="w-3.5 h-3.5" />, desc: `${chats.length} chats`, badge: chats.filter(c => c.unreadCount > 0).length },
+            { key: 'settings' as const, label: 'Settings', icon: <Settings className="w-3.5 h-3.5" />, desc: 'Configure' },
+          ]).map(t => (
+            <button
+              key={t.key}
+              onClick={() => { setTab(t.key); if (t.key === 'inbox' && isConnected) fetchChats(); }}
+              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-all ${
+                tab === t.key
+                  ? 'border-green-600 text-green-700 bg-white'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              {t.icon}
+              <span>{t.label}</span>
+              {t.key === 'inbox' && (t.badge ?? 0) > 0 && (
+                <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-green-600 text-white font-semibold">{t.badge}</span>
+              )}
+            </button>
+          ))}
+
+          {/* Funnel pills — visible only on inbox tab */}
+          {tab === 'inbox' && (
+            <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide ml-4 flex-1">
+              {funnelStages.map(stage => {
+                const count = stage.key === 'all'
+                  ? chats.length
+                  : chats.filter(c => chatFunnels[c.id] === stage.key).length;
+                return (
+                  <div key={stage.key} className="flex items-center flex-shrink-0 group">
+                    <button
+                      onClick={() => { setActiveFunnel(stage.key); setSelectedChats(new Set()); }}
+                      className={`flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium border whitespace-nowrap transition ${activeFunnel === stage.key ? stage.color + ' ring-1 ring-offset-1 ring-current' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}
+                    >
+                      {stage.label}
+                      <span className={`text-[10px] px-1 rounded-full ${activeFunnel === stage.key ? 'bg-white/60' : 'bg-gray-100'}`}>{count}</span>
                     </button>
-                  )}
-                </div>
-              );
-            })}
-            <button onClick={() => openEditModal('funnel', 'add')} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium border border-dashed border-gray-300 text-gray-400 hover:text-gray-600 hover:border-gray-400 whitespace-nowrap transition flex-shrink-0" title="Add funnel stage">
-              <Plus className="w-2.5 h-2.5" /> Add
-            </button>
-          </div>
-        )}
-        <div className="flex items-center gap-1 flex-shrink-0">
-          {isConnected && (
-            <button onClick={() => setShowGroupCreate(true)} className="px-1.5 py-0.5 text-[10px] font-medium bg-purple-50 text-purple-700 rounded hover:bg-purple-100 border border-purple-200 flex items-center gap-0.5" title="New Group">
-              <Users className="w-3 h-3" /> Group
-            </button>
-          )}
-          <button onClick={() => { setShowStatusPanel(true); fetchStatuses(); }} className="px-1.5 py-0.5 text-[10px] font-medium bg-green-50 text-green-700 rounded hover:bg-green-100 border border-green-200 flex items-center gap-0.5" title="View Statuses">
-            <Eye className="w-3 h-3" /> Status
-          </button>
-          <button onClick={() => setShowBridgeSettings(true)} className="p-0.5 rounded hover:bg-gray-100" title="Bridge Settings"><Settings className="w-3 h-3 text-gray-500" /></button>
-          <button onClick={() => setShowExtensionModal(true)} className="px-1.5 py-0.5 text-[10px] font-medium bg-indigo-50 text-indigo-700 rounded hover:bg-indigo-100 border border-indigo-200" title="Download">📥</button>
-          {isConnected && (
-            <>
-              <button onClick={handleReconnect} className="p-0.5 rounded hover:bg-gray-100" title="Reconnect"><RefreshCw className="w-3 h-3 text-gray-500" /></button>
-              <button onClick={handleDisconnect} className="p-0.5 rounded hover:bg-orange-50" title="Disconnect"><Unplug className="w-3 h-3 text-orange-500" /></button>
-              <button onClick={handleLogout} className="p-0.5 rounded hover:bg-red-50" title="Logout"><LogOut className="w-3 h-3 text-red-500" /></button>
-            </>
+                    {stage.key !== 'all' && (
+                      <button onClick={() => openEditModal('funnel', 'edit', stage)} className="ml-0.5 p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-gray-200 transition" title="Edit">
+                        <Pencil className="w-2.5 h-2.5 text-gray-400" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+              <button onClick={() => openEditModal('funnel', 'add')} className="flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium border border-dashed border-gray-300 text-gray-400 hover:text-gray-600 hover:border-gray-400 whitespace-nowrap transition flex-shrink-0" title="Add funnel stage">
+                <Plus className="w-3 h-3" /> Add
+              </button>
+            </div>
           )}
         </div>
       </div>
 
       {/* Error Banner */}
       {error && (
-        <div className="mx-6 mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
+        <div className="mx-4 mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
           <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
           <p className="text-sm text-red-700">{error}</p>
-          <button onClick={() => setError(null)} className="ml-auto text-red-400 hover:text-red-600 text-sm">×</button>
+          <button onClick={() => setError(null)} className="ml-auto text-red-400 hover:text-red-600 text-sm font-medium">×</button>
         </div>
       )}
 
       {/* Loading */}
       {loading && (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-8 h-8 animate-spin text-green-600" />
-          <span className="ml-3 text-gray-500">Connecting to WhatsApp bridge...</span>
+        <div className="flex flex-col items-center justify-center py-24 gap-3">
+          <div className="w-16 h-16 rounded-2xl bg-green-50 flex items-center justify-center">
+            <Loader2 className="w-8 h-8 animate-spin text-green-600" />
+          </div>
+          <p className="text-sm text-gray-500 font-medium">Connecting to WhatsApp bridge...</p>
         </div>
       )}
 
-      {/* Status Tab */}
-      {!loading && tab === 'status' && (
-        <div className="max-w-2xl mx-auto mt-8 px-6">
-          {/* QR Code — show whenever we have QR data and not connected */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* ═══ CONNECTION TAB ═══ */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      {!loading && tab === 'connection' && (
+        <div className="max-w-5xl mx-auto mt-6 px-6 pb-8 space-y-6">
+
+          {/* ── QR Scan Section (when disconnected with QR) ── */}
           {!isConnected && qrData && (
-            <div className="bg-white rounded-2xl shadow-md border p-8 text-center">
-              <div className="flex items-center justify-center gap-3 mb-2">
-                <h2 className="text-lg font-semibold text-gray-800">Scan QR Code</h2>
-                <button
-                  onClick={() => { handleReconnect(); }}
-                  className="p-1.5 rounded-lg hover:bg-gray-100 transition"
-                  title="Refresh QR"
-                >
-                  <RefreshCw className="w-4 h-4 text-gray-400 hover:text-green-600" />
-                </button>
+            <div className="bg-white rounded-2xl shadow-lg border overflow-hidden">
+              <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-4">
+                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                  <QrCode className="w-5 h-5" />
+                  Scan QR Code to Connect
+                </h2>
+                <p className="text-green-100 text-sm mt-1">Link your WhatsApp account to start managing chats</p>
               </div>
-              <p className="text-sm text-gray-500 mb-6">
-                Open WhatsApp on your phone → Settings → Linked Devices → Link a Device
-              </p>
-              <div className="inline-block p-4 bg-white rounded-xl border-2 border-green-100 relative">
-                <img src={qrData} alt="QR Code" className="w-64 h-64" />
+              <div className="grid md:grid-cols-2 gap-0 divide-y md:divide-y-0 md:divide-x">
+                {/* QR Code */}
+                <div className="flex flex-col items-center justify-center p-8">
+                  <div className="p-4 bg-white rounded-2xl border-2 border-green-100 shadow-inner">
+                    <img src={qrData} alt="QR Code" className="w-64 h-64" />
+                  </div>
+                  <div className="flex items-center gap-3 mt-4">
+                    <p className="text-xs text-gray-400">Auto-refreshes every ~20 seconds</p>
+                    <button
+                      onClick={() => { handleReconnect(); }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 rounded-lg border border-green-200 transition"
+                      title="Refresh QR"
+                    >
+                      <RefreshCw className="w-3 h-3" /> Refresh
+                    </button>
+                  </div>
+                </div>
+                {/* Steps */}
+                <div className="p-8 flex flex-col justify-center">
+                  <h3 className="text-sm font-semibold text-gray-800 mb-4">How to connect:</h3>
+                  <div className="space-y-4">
+                    {[
+                      { step: '1', title: 'Open WhatsApp', desc: 'on your phone' },
+                      { step: '2', title: 'Go to Settings', desc: '→ Linked Devices' },
+                      { step: '3', title: 'Tap "Link a Device"', desc: 'and point your camera at this QR code' },
+                    ].map(s => (
+                      <div key={s.step} className="flex items-start gap-3">
+                        <div className="w-7 h-7 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-xs font-bold flex-shrink-0">{s.step}</div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-800">{s.title}</p>
+                          <p className="text-xs text-gray-500">{s.desc}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-6 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
+                    <Info className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-amber-700">Make sure your phone has an active internet connection while scanning</p>
+                  </div>
+                </div>
               </div>
-              <p className="mt-4 text-xs text-gray-400">QR refreshes automatically every ~20 seconds</p>
             </div>
           )}
 
-          {/* Disconnected */}
+          {/* ── Disconnected (No QR available) ── */}
           {connState === 'disconnected' && !qrData && (
-            <div className="bg-white rounded-2xl shadow-md border p-8 text-center">
-              <WifiOff className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <h2 className="text-lg font-semibold text-gray-800 mb-2">WhatsApp Not Connected</h2>
+            <div className="bg-white rounded-2xl shadow-lg border p-10 text-center max-w-lg mx-auto">
+              <div className="w-20 h-20 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-5">
+                <WifiOff className="w-10 h-10 text-red-300" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-800 mb-2">WhatsApp Not Connected</h2>
               <p className="text-sm text-gray-500 mb-6">
-                The Baileys bridge service may not be running, or WhatsApp session expired.
+                The bridge service may not be running, or your session has expired.
               </p>
               <button
                 onClick={handleReconnect}
-                className="px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium"
+                className="px-8 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition font-semibold text-sm inline-flex items-center gap-2 shadow-md shadow-green-200"
               >
-                <RefreshCw className="w-4 h-4 inline mr-2" />
+                <RefreshCw className="w-4 h-4" />
                 Try Reconnect
               </button>
-              <div className="mt-6 p-4 bg-gray-50 rounded-lg text-left text-xs text-gray-500">
-                <p className="font-medium text-gray-700 mb-1">Troubleshooting:</p>
-                <ul className="list-disc ml-4 space-y-1">
+              <div className="mt-8 p-4 bg-gray-50 rounded-xl text-left text-xs text-gray-500">
+                <p className="font-semibold text-gray-700 mb-2">Troubleshooting:</p>
+                <ul className="list-disc ml-4 space-y-1.5">
                   <li>Make sure the Baileys bridge service is running</li>
-                  <li>Check that <code>WHATSAPP_BRIDGE_HTTP_URL</code> env var points to the bridge</li>
-                  <li>If on Railway, check the service logs</li>
+                  <li>Check <code className="bg-gray-200 px-1 rounded">WHATSAPP_BRIDGE_HTTP_URL</code> env var</li>
+                  <li>Go to <button onClick={() => setTab('settings')} className="text-green-600 hover:underline font-medium">Settings</button> to configure a custom bridge URL</li>
                 </ul>
               </div>
             </div>
           )}
 
-          {/* Connected Info */}
+          {/* ── Connected Dashboard ── */}
           {isConnected && (
-            <div className="bg-white rounded-2xl shadow-md border p-8 text-center">
-              <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-4" />
-              <h2 className="text-lg font-semibold text-gray-800 mb-2">WhatsApp Connected</h2>
-              {status?.phone && (
-                <p className="text-sm text-gray-600 mb-1">
-                  <Phone className="w-4 h-4 inline mr-1" />
-                  {status.phone.name || status.phone.id}
-                </p>
-              )}
-              <p className="text-xs text-gray-400 mb-6">
-                Uptime: {status?.uptime ? formatUptime(status.uptime) : 'unknown'}
-              </p>
-              <div className="flex items-center gap-3 justify-center">
-                <button
-                  onClick={() => { setTab('inbox'); fetchChats(); }}
-                  className="px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium"
-                >
-                  Open Inbox →
-                </button>
-                <button
-                  onClick={() => { setShowStatusPanel(true); fetchStatuses(); }}
-                  className="px-6 py-2.5 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 transition font-medium border border-emerald-200"
-                >
-                  <Eye className="w-4 h-4 inline mr-1" /> View Stories
+            <div className="grid md:grid-cols-3 gap-6">
+              {/* Connected Status Card */}
+              <div className="md:col-span-2 bg-white rounded-2xl shadow-md border overflow-hidden">
+                <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-5">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
+                      <CheckCircle2 className="w-7 h-7 text-white" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold text-white">WhatsApp Connected</h2>
+                      {status?.phone && (
+                        <p className="text-green-100 text-sm flex items-center gap-1.5">
+                          <Phone className="w-3.5 h-3.5" />
+                          {status.phone.name || status.phone.id}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="p-6">
+                  <div className="grid grid-cols-3 gap-4 mb-6">
+                    <div className="text-center p-3 bg-gray-50 rounded-xl">
+                      <p className="text-2xl font-bold text-gray-900">{chats.length}</p>
+                      <p className="text-xs text-gray-500">Total Chats</p>
+                    </div>
+                    <div className="text-center p-3 bg-gray-50 rounded-xl">
+                      <p className="text-2xl font-bold text-green-600">{chats.filter(c => c.unreadCount > 0).length}</p>
+                      <p className="text-xs text-gray-500">Unread</p>
+                    </div>
+                    <div className="text-center p-3 bg-gray-50 rounded-xl">
+                      <p className="text-2xl font-bold text-gray-900">{status?.uptime ? formatUptime(status.uptime) : '—'}</p>
+                      <p className="text-xs text-gray-500">Uptime</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => { setTab('inbox'); fetchChats(); }}
+                      className="flex-1 px-5 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition font-semibold text-sm flex items-center justify-center gap-2 shadow-md shadow-green-100"
+                    >
+                      <MessageSquare className="w-4 h-4" /> Open Inbox
+                    </button>
+                    <button onClick={handleReconnect} className="p-3 rounded-xl hover:bg-gray-100 border transition" title="Reconnect"><RefreshCw className="w-4 h-4 text-gray-500" /></button>
+                    <button onClick={handleDisconnect} className="p-3 rounded-xl hover:bg-orange-50 border border-orange-200 transition" title="Disconnect"><Unplug className="w-4 h-4 text-orange-500" /></button>
+                    <button onClick={handleLogout} className="p-3 rounded-xl hover:bg-red-50 border border-red-200 transition" title="Logout"><LogOut className="w-4 h-4 text-red-500" /></button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bridge Info Card */}
+              <div className="bg-white rounded-2xl shadow-md border p-5">
+                <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2 mb-4">
+                  <Wifi className="w-4 h-4 text-green-600" />
+                  Bridge Status
+                </h3>
+                <div className="space-y-3">
+                  {[
+                    { label: 'Connection', value: connState, color: 'text-green-600' },
+                    { label: 'Retry Count', value: String(status?.retryCount ?? '0'), color: 'text-gray-900' },
+                    { label: 'Uptime', value: status?.uptime ? formatUptime(status.uptime) : '—', color: 'text-gray-900' },
+                    { label: 'QR Available', value: qrData ? 'Yes' : 'No', color: 'text-gray-900' },
+                  ].map(item => (
+                    <div key={item.label} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+                      <span className="text-xs text-gray-500">{item.label}</span>
+                      <span className={`text-xs font-semibold ${item.color}`}>{item.value}</span>
+                    </div>
+                  ))}
+                </div>
+                <button onClick={() => setTab('settings')} className="w-full mt-4 px-3 py-2 text-xs font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 rounded-lg border transition flex items-center justify-center gap-1.5">
+                  <Settings className="w-3 h-3" /> Bridge Settings
                 </button>
               </div>
             </div>
           )}
 
-          {/* WhatsApp Status Stories — shown inline when connected */}
+          {/* ── Recent Status Updates (when connected) ── */}
           {isConnected && (
             <div className="mt-6 bg-white rounded-xl border p-4">
               <div className="flex items-center justify-between mb-3">
@@ -1656,26 +1700,251 @@ export default function QRWhatsAppPage() {
             </div>
           )}
 
-          {/* Bridge Info */}
-          <div className="mt-6 bg-white rounded-xl border p-4">
-            <h3 className="text-sm font-semibold text-gray-700 mb-2">Bridge Status</h3>
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div className="text-gray-500">Connection</div>
-              <div className="font-medium">{connState}</div>
-              <div className="text-gray-500">Retry Count</div>
-              <div className="font-medium">{status?.retryCount ?? '—'}</div>
-              <div className="text-gray-500">Uptime</div>
-              <div className="font-medium">{status?.uptime ? formatUptime(status.uptime) : '—'}</div>
-              <div className="text-gray-500">QR Available</div>
-              <div className="font-medium">{qrData ? 'Yes' : 'No'}</div>
+          {/* ── Bridge Info (when disconnected — show below QR or disconnect card) ── */}
+          {!isConnected && (
+            <div className="bg-white rounded-xl border p-5">
+              <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2 mb-3">
+                <Wifi className="w-4 h-4 text-gray-500" />
+                Bridge Status
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {[
+                  { label: 'Connection', value: connState },
+                  { label: 'Retry Count', value: String(status?.retryCount ?? '0') },
+                  { label: 'Uptime', value: status?.uptime ? formatUptime(status.uptime) : '—' },
+                  { label: 'QR Available', value: qrData ? 'Yes' : 'No' },
+                ].map(item => (
+                  <div key={item.label} className="p-3 bg-gray-50 rounded-lg">
+                    <p className="text-[10px] text-gray-500 uppercase tracking-wide">{item.label}</p>
+                    <p className="text-sm font-semibold text-gray-800 mt-1">{item.value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* ═══ SETTINGS TAB ═══ */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      {!loading && tab === 'settings' && (
+        <div className="max-w-4xl mx-auto mt-6 px-6 pb-8 space-y-6">
+
+          {/* ── Bridge Configuration ── */}
+          <div className="bg-white rounded-2xl shadow-md border overflow-hidden">
+            <div className="px-6 py-4 border-b bg-gray-50 flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center">
+                <Wifi className="w-4 h-4 text-green-600" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-gray-900">Bridge Configuration</h3>
+                <p className="text-xs text-gray-500">Connect to a custom WhatsApp bridge instance, or use the default shared bridge</p>
+              </div>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Bridge URL</label>
+                  <input
+                    type="url"
+                    placeholder="https://your-bridge.up.railway.app"
+                    value={bridgeUrlInput}
+                    onChange={e => setBridgeUrlInput(e.target.value)}
+                    className="w-full px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Bridge Secret</label>
+                  <input
+                    type="password"
+                    placeholder="your-bridge-secret"
+                    value={bridgeSecretInput}
+                    onChange={e => setBridgeSecretInput(e.target.value)}
+                    className="w-full px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={saveBridgeConfig}
+                  disabled={savingBridge || !bridgeUrlInput.trim()}
+                  className="px-5 py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 flex items-center gap-2 transition"
+                >
+                  {savingBridge ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  {savingBridge ? 'Saving...' : 'Save & Connect'}
+                </button>
+                <p className="text-xs text-gray-400">Leave empty to use the default shared bridge</p>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Funnel Stages Management ── */}
+          <div className="bg-white rounded-2xl shadow-md border overflow-hidden">
+            <div className="px-6 py-4 border-b bg-gray-50 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
+                  <Funnel className="w-4 h-4 text-indigo-600" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900">Funnel Stages</h3>
+                  <p className="text-xs text-gray-500">Organize chats into funnel stages for your sales pipeline</p>
+                </div>
+              </div>
+              <button
+                onClick={() => openEditModal('funnel', 'add')}
+                className="px-3 py-1.5 text-xs font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center gap-1.5 transition"
+              >
+                <Plus className="w-3.5 h-3.5" /> Add Stage
+              </button>
+            </div>
+            <div className="p-6">
+              <div className="flex flex-wrap gap-2">
+                {funnelStages.filter(s => s.key !== 'all').map(stage => (
+                  <button
+                    key={stage.key}
+                    onClick={() => openEditModal('funnel', 'edit', stage)}
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border transition hover:shadow-sm ${stage.color}`}
+                  >
+                    {stage.label}
+                    <Pencil className="w-3 h-3 opacity-50" />
+                  </button>
+                ))}
+              </div>
+              {funnelStages.filter(s => s.key !== 'all').length === 0 && (
+                <p className="text-sm text-gray-400 text-center py-4">No custom funnel stages yet. Click "Add Stage" to create one.</p>
+              )}
+            </div>
+          </div>
+
+          {/* ── Label Presets Management ── */}
+          <div className="bg-white rounded-2xl shadow-md border overflow-hidden">
+            <div className="px-6 py-4 border-b bg-gray-50 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
+                  <Tag className="w-4 h-4 text-amber-600" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900">Label Presets</h3>
+                  <p className="text-xs text-gray-500">Create labels to categorize and tag your chats</p>
+                </div>
+              </div>
+              <button
+                onClick={() => openEditModal('label', 'add')}
+                className="px-3 py-1.5 text-xs font-medium bg-amber-600 text-white rounded-lg hover:bg-amber-700 flex items-center gap-1.5 transition"
+              >
+                <Plus className="w-3.5 h-3.5" /> Add Label
+              </button>
+            </div>
+            <div className="p-6">
+              <div className="flex flex-wrap gap-2">
+                {labelPresets.map(label => (
+                  <button
+                    key={label.key}
+                    onClick={() => openEditModal('label', 'edit', label)}
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition hover:shadow-sm ${label.color}`}
+                  >
+                    {label.label}
+                    <Pencil className="w-3 h-3 opacity-50" />
+                  </button>
+                ))}
+              </div>
+              {labelPresets.length === 0 && (
+                <p className="text-sm text-gray-400 text-center py-4">No label presets yet. Click "Add Label" to create one.</p>
+              )}
+            </div>
+          </div>
+
+          {/* ── Connection Actions ── */}
+          <div className="bg-white rounded-2xl shadow-md border overflow-hidden">
+            <div className="px-6 py-4 border-b bg-gray-50 flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-gray-200 flex items-center justify-center">
+                <Settings className="w-4 h-4 text-gray-600" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-gray-900">Connection Actions</h3>
+                <p className="text-xs text-gray-500">Manage your WhatsApp connection and session</p>
+              </div>
+            </div>
+            <div className="p-6">
+              <div className="grid md:grid-cols-3 gap-4">
+                <button
+                  onClick={handleReconnect}
+                  className="p-4 rounded-xl border-2 border-dashed border-gray-200 hover:border-green-300 hover:bg-green-50 transition text-center group"
+                >
+                  <RefreshCw className="w-6 h-6 text-gray-400 group-hover:text-green-600 mx-auto mb-2 transition" />
+                  <p className="text-sm font-medium text-gray-700">Reconnect</p>
+                  <p className="text-[10px] text-gray-400 mt-1">Re-establish connection without losing session</p>
+                </button>
+                <button
+                  onClick={handleDisconnect}
+                  className="p-4 rounded-xl border-2 border-dashed border-gray-200 hover:border-orange-300 hover:bg-orange-50 transition text-center group"
+                >
+                  <Unplug className="w-6 h-6 text-gray-400 group-hover:text-orange-600 mx-auto mb-2 transition" />
+                  <p className="text-sm font-medium text-gray-700">Disconnect</p>
+                  <p className="text-[10px] text-gray-400 mt-1">Close connection, can reconnect without QR</p>
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="p-4 rounded-xl border-2 border-dashed border-gray-200 hover:border-red-300 hover:bg-red-50 transition text-center group"
+                >
+                  <LogOut className="w-6 h-6 text-gray-400 group-hover:text-red-600 mx-auto mb-2 transition" />
+                  <p className="text-sm font-medium text-gray-700">Logout</p>
+                  <p className="text-[10px] text-gray-400 mt-1">Clear session — will need to scan QR again</p>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* ── PC Extension ── */}
+          <div className="bg-white rounded-2xl shadow-md border overflow-hidden">
+            <div className="px-6 py-4 border-b bg-gray-50 flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
+                <span className="text-sm">📥</span>
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-gray-900">PC Extension</h3>
+                <p className="text-xs text-gray-500">Download the desktop extension for advanced features</p>
+              </div>
+            </div>
+            <div className="p-6 flex items-center gap-4">
+              <button
+                onClick={() => setShowExtensionModal(true)}
+                className="px-5 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 flex items-center gap-2 transition"
+              >
+                📥 Download Extension
+              </button>
+              <button
+                onClick={() => setShowInstallGuide(true)}
+                className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 flex items-center gap-2 transition"
+              >
+                📋 Installation Guide
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Inbox Tab */}
-      {!loading && tab === 'inbox' && (
-        <div className="flex h-[calc(100vh-80px)]">
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* ═══ INBOX TAB ═══ */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      {!loading && tab === 'inbox' && !isConnected && (
+        <div className="flex flex-col items-center justify-center py-24 gap-4">
+          <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center">
+            <WifiOff className="w-10 h-10 text-gray-300" />
+          </div>
+          <h2 className="text-lg font-bold text-gray-700">WhatsApp Not Connected</h2>
+          <p className="text-sm text-gray-500">Connect your WhatsApp first to access the inbox</p>
+          <button
+            onClick={() => setTab('connection')}
+            className="px-6 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-700 transition font-medium text-sm flex items-center gap-2"
+          >
+            <QrCode className="w-4 h-4" /> Go to Connection
+          </button>
+        </div>
+      )}
+      {!loading && tab === 'inbox' && isConnected && (
+        <div className="flex h-[calc(100vh-105px)]">
           {/* Chat List */}
           <div className="w-[26rem] border-r bg-white flex flex-col">
             {/* Chat filter tabs: All | Unread | Read | Groups */}
