@@ -107,12 +107,15 @@ async function ingestQRPayload(payload: any) {
       waMessageId: m.messageId,
       // sentAt is used widely for sorting.
       sentAt: m.timestamp || new Date(),
+      // Tag with bridge user for multi-user session isolation
+      ...(payload.bridgeUserId && { bridgeUserId: payload.bridgeUserId, ownerId: payload.bridgeUserId }),
       // Keep raw/provider details in metadata.
       metadata: {
         channel: 'qr',
         rawProvider: 'waofficialapi',
         instanceId: process.env.QR_CHAT_INSTANCE_ID || undefined,
         to: m.to,
+        bridgeUserId: payload.bridgeUserId || undefined,
       },
     };
 

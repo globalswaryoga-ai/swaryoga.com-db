@@ -37,7 +37,7 @@ export const maxDuration = 60; // 60s function timeout for Vercel
  * Returns per-user bridge from crm_user_settings if configured.
  * Returns null if user has no bridge configured (prevents data leakage between accounts).
  */
-async function resolveUserBridge(authHeader: string | null): Promise<{ url: string; secret: string } | null> {
+async function resolveUserBridge(authHeader: string | null): Promise<{ url: string; secret: string; userId: string } | null> {
   try {
     const decoded = verifyToken(authHeader || '');
     if (decoded?.userId && decoded?.isAdmin) {
@@ -52,12 +52,12 @@ async function resolveUserBridge(authHeader: string | null): Promise<{ url: stri
         return {
           url: settings.qrBridgeUrl,
           secret: settings.qrBridgeSecret || FALLBACK_BRIDGE_SECRET,
+          userId: decoded.userId,
         };
       }
-      // No per-user bridge configured — all admin users fall back
-      // to the shared env-var bridge so they can scan QR directly
-      // without needing to enter a bridge URL manually.
-      return { url: FALLBACK_BRIDGE_URL, secret: FALLBACK_BRIDGE_SECRET };
+      // No per-user bridge configured — use shared bridge.
+      // The bridge handles multi-user sessions via x-user-id header.
+      return { url: FALLBACK_BRIDGE_URL, secret: FALLBACK_BRIDGE_SECRET, userId: decoded.userId };
     }
   } catch (e) {
     console.warn('[QR Bridge Proxy] Failed to resolve user bridge:', (e as Error).message);
@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
         { status: 422 }
       );
     }
-    const { url: BRIDGE_URL, secret: BRIDGE_SECRET } = resolved;
+    const { url: BRIDGE_URL, secret: BRIDGE_SECRET, userId } = resolved;
 
     const { action, path, body } = await req.json();
 
@@ -125,6 +125,7 @@ export async function POST(req: NextRequest) {
       method,
       headers: {
         'x-bridge-secret': BRIDGE_SECRET,
+        'x-user-id': userId,
         'Content-Type': 'application/json',
         'ngrok-skip-browser-warning': 'true',
         'User-Agent': 'SwarYoga-Bridge-Proxy/1.0'
@@ -197,7 +198,7 @@ export async function GET(req: NextRequest) {
         { status: 422 }
       );
     }
-    const { url: BRIDGE_URL, secret: BRIDGE_SECRET } = resolved;
+    const { url: BRIDGE_URL, secret: BRIDGE_SECRET, userId } = resolved;
 
     let path = req.nextUrl.searchParams.get('path') || '/status';
     
@@ -220,7 +221,7 @@ export async function GET(req: NextRequest) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
-    console.log(`[QR Bridge Proxy] GET ${bridgeUrl} (timeout: ${timeoutMs}ms)`);
+    console.log(`[QR Bridge Proxy] GET ${bridgeUrl} user=${userId} (timeout: ${timeoutMs}ms)`);
 
     let res;
     try {
@@ -228,6 +229,7 @@ export async function GET(req: NextRequest) {
         method: 'GET',
         headers: {
           'x-bridge-secret': BRIDGE_SECRET,
+          'x-user-id': userId,
           'ngrok-skip-browser-warning': 'true',
           'User-Agent': 'SwarYoga-Bridge-Proxy/1.0'
         },
