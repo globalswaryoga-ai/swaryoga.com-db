@@ -98,7 +98,7 @@ export function useOnboarding(): UseOnboardingReturn {
 
   const fetchStatus = useCallback(async () => {
     try {
-      const token = localStorage.getItem('crm_token');
+      const token = localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
       if (!token) {
         setLoading(false);
         return;

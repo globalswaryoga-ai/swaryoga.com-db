@@ -85,7 +85,7 @@ export default function CompartmentSetupModal({
   // Fetch compartment status
   const fetchStatus = useCallback(async () => {
     try {
-      const token = localStorage.getItem('crm_token');
+      const token = localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
       if (!token) return;
 
       const res = await fetch('/api/crm-site/compartment', {
@@ -146,7 +146,7 @@ export default function CompartmentSetupModal({
 
     setActionLoading(true);
     try {
-      const token = localStorage.getItem('crm_token');
+      const token = localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
       const res = await fetch('/api/crm-site/compartment', {
         method: 'POST',
         headers: {
@@ -176,7 +176,7 @@ export default function CompartmentSetupModal({
     setActionLoading(true);
     setActionError('');
     try {
-      const token = localStorage.getItem('crm_token');
+      const token = localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
       const res = await fetch('/api/crm-site/compartment', {
         method: 'POST',
         headers: {
@@ -206,7 +206,7 @@ export default function CompartmentSetupModal({
     setActionLoading(true);
     setActionError('');
     try {
-      const token = localStorage.getItem('crm_token');
+      const token = localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
       const res = await fetch('/api/crm-site/compartment', {
         method: 'POST',
         headers: {
@@ -237,7 +237,7 @@ export default function CompartmentSetupModal({
     setActionError('');
     setActionMessage('');
     try {
-      const token = localStorage.getItem('crm_token');
+      const token = localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
       const res = await fetch('/api/crm-site/compartment', {
         method: 'POST',
         headers: {

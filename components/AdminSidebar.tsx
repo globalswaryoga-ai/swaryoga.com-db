@@ -65,6 +65,8 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
     monthlyCostINR: number;
     monthlyCostUSD: number;
     percentage: number;
+    billingDaysRemaining: number;
+    storagePlan: string;
   } | null>(null);
   const [storageHidden, setStorageHidden] = useState(false);
   const [isIndiaUser, setIsIndiaUser] = useState(true);
@@ -181,9 +183,11 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
           setStorageUsage({
             display: json.data.storageSize?.display || '0 MB',
             totalGB: json.data.totalGB,
-            monthlyCostINR: json.data.monthlyCost || 0,
+            monthlyCostINR: json.data.monthlyCost || 30,
             monthlyCostUSD: json.data.monthlyCostUSD || Math.ceil(json.data.totalGB * 0.42), // ~$0.42/GB
             percentage,
+            billingDaysRemaining: json.data.billingCycleDaysRemaining ?? 30,
+            storagePlan: json.data.storagePlan || 'free',
           });
         }
       } catch {
@@ -629,6 +633,26 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
                   {isIndiaUser ? `₹${storageUsage.monthlyCostINR}` : `$${storageUsage.monthlyCostUSD}`}/mo
                 </span>
               </div>
+              {/* Billing countdown for free users */}
+              {!isSuperAdmin && storageUsage.storagePlan === 'free' && (
+                <div className={`flex items-center justify-center gap-1 mt-2 px-2 py-1 rounded-lg text-[9px] font-medium ${
+                  storageUsage.billingDaysRemaining <= 5 
+                    ? 'bg-red-900/40 text-red-300 border border-red-700/50' 
+                    : storageUsage.billingDaysRemaining <= 10
+                    ? 'bg-amber-900/30 text-amber-300 border border-amber-700/40'
+                    : 'bg-cyan-900/20 text-cyan-300 border border-cyan-700/30'
+                }`}>
+                  <span>⏱</span>
+                  <span>
+                    {storageUsage.billingDaysRemaining <= 0 
+                      ? 'Payment due now' 
+                      : `${storageUsage.billingDaysRemaining}d until next billing`}
+                  </span>
+                  <span className="text-[8px] opacity-70">
+                    (min {isIndiaUser ? '₹30' : '$0.36'})
+                  </span>
+                </div>
+              )}
               <div className="text-[8px] text-gray-500 text-center mt-1.5 hover:text-cyan-400">
                 Click for details →
               </div>
@@ -650,6 +674,9 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
               <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-lg border border-gray-700 transition-opacity">
                 <div className="font-medium">{storageUsage.display}</div>
                 <div className="text-amber-400 text-[10px]">{isIndiaUser ? `₹${storageUsage.monthlyCostINR}` : `$${storageUsage.monthlyCostUSD}`}/mo</div>
+                {!isSuperAdmin && storageUsage.storagePlan === 'free' && (
+                  <div className="text-cyan-400 text-[10px]">{storageUsage.billingDaysRemaining}d remaining</div>
+                )}
               </div>
             </Link>
           )}

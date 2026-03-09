@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth, getLoginPath } from '@/hooks/useAuth';
+import { checkIsSuperAdmin } from '@/lib/client-auth';
 import {
   DataTable,
   PageHeader,
@@ -55,7 +56,7 @@ export default function DeletedLeadsPage() {
     try {
       const u = JSON.parse(userStr);
       const perms: string[] = Array.isArray(u?.permissions) ? u.permissions : [];
-      setIsSuperAdmin(u?.userId === 'admin' || perms.includes('all'));
+      setIsSuperAdmin(checkIsSuperAdmin());
     } catch {
       setIsSuperAdmin(false);
     }

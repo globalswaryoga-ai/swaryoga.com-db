@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import { checkIsSuperAdmin } from '@/lib/client-auth';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, AreaChart, Area, RadialBarChart, RadialBar,
@@ -491,9 +492,7 @@ export default function FunnelDashboardPage() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
-      const u = JSON.parse(localStorage.getItem('admin_user') || '{}');
-      const perms: string[] = Array.isArray(u?.permissions) ? u.permissions : [];
-      setIsSuperAdmin((u?.userId === 'admin' || u?.userId === 'admincrm') || perms.includes('all'));
+      setIsSuperAdmin(checkIsSuperAdmin());
     } catch { setIsSuperAdmin(false); }
   }, []);
 

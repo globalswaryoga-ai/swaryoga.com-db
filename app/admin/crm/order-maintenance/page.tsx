@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import { checkIsSuperAdmin } from '@/lib/client-auth';
 import { Trash2, Clock, AlertTriangle } from 'lucide-react';
 
 export default function OrderMaintenancePage() {
@@ -27,21 +28,7 @@ export default function OrderMaintenancePage() {
   const [expireMsg, setExpireMsg] = useState('');
 
   useEffect(() => {
-    try {
-      const userStr = localStorage.getItem('admin_user');
-      const fallbackUserId = localStorage.getItem('adminUser') || localStorage.getItem('adminUserId') || '';
-      if (!userStr) {
-        setIsSuperAdmin(fallbackUserId === 'admin');
-        return;
-      }
-      const u = JSON.parse(userStr);
-      const userId = (u?.userId as string) || fallbackUserId;
-      const permissions: string[] = Array.isArray(u?.permissions) ? u.permissions : [];
-      setIsSuperAdmin(userId === 'admin' || permissions.includes('all'));
-    } catch {
-      const fallbackUserId = localStorage.getItem('adminUser') || localStorage.getItem('adminUserId') || '';
-      setIsSuperAdmin(fallbackUserId === 'admin');
-    }
+    setIsSuperAdmin(checkIsSuperAdmin());
   }, []);
 
   const previewPurge = useCallback(async () => {

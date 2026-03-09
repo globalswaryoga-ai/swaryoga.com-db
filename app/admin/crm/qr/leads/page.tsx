@@ -3,6 +3,7 @@
 import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth, getLoginPath } from '@/hooks/useAuth';
+import { checkIsSuperAdmin } from '@/lib/client-auth';
 import { useCRM } from '@/hooks/useCRM';
 import { useSearch } from '@/hooks/useSearch';
 import { useModal } from '@/hooks/useModal';
@@ -141,7 +142,7 @@ export default function QRLeadsPage() {
       const u = JSON.parse(userStr);
       const perms: string[] = Array.isArray(u?.permissions) ? u.permissions : [];
       setViewerUserId(u?.userId || '');
-      setIsSuperAdmin((u?.userId === 'admin' || u?.userId === 'admincrm') || perms.includes('all'));
+      setIsSuperAdmin(checkIsSuperAdmin());
     } catch { setIsSuperAdmin(false); }
   }, []);
 

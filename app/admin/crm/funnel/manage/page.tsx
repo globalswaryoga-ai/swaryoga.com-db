@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import { checkIsSuperAdmin } from '@/lib/client-auth';
 import {
   Sparkles, Phone, Heart, Play, Handshake, CheckCircle, Trophy,
   Users, Send, Mail, Eye, Search, RefreshCw, ChevronDown, ChevronRight,
@@ -177,9 +178,7 @@ export default function FunnelManagePage() {
 
   useEffect(() => {
     try {
-      const u = JSON.parse(localStorage.getItem('admin_user') || '{}');
-      const perms: string[] = Array.isArray(u?.permissions) ? u.permissions : [];
-      setIsSuperAdmin((u?.userId === 'admin' || u?.userId === 'admincrm') || perms.includes('all'));
+      setIsSuperAdmin(checkIsSuperAdmin());
     } catch { setIsSuperAdmin(false); }
   }, []);
 

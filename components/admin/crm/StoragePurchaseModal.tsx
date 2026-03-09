@@ -95,7 +95,7 @@ export default function StoragePurchaseModal({
     setError(null);
 
     try {
-      const token = localStorage.getItem('crm_token');
+      const token = localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
       const response = await fetch('/api/crm-site/setup-payment', {
         method: 'POST',
         headers: {

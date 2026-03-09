@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth, getLoginPath } from '@/hooks/useAuth';
+import { checkIsSuperAdmin } from '@/lib/client-auth';
 import WelcomeModal from '@/components/admin/crm/WelcomeModal';
 import PageSetupChecklist from '@/components/admin/crm/PageSetupChecklist';
 import {
@@ -84,19 +85,18 @@ export default function CRMDashboard() {
       const fallbackUserId = localStorage.getItem('adminUser') || localStorage.getItem('adminUserId') || '';
 
       if (!userStr) {
-        setIsSuperAdmin(fallbackUserId === 'admin');
+        setIsSuperAdmin(checkIsSuperAdmin());
         setUserName(fallbackUserId || 'there');
         return;
       }
 
       const u = JSON.parse(userStr);
       const userId = (u?.userId as string) || fallbackUserId;
-      const permissions: string[] = Array.isArray(u?.permissions) ? u.permissions : [];
-      setIsSuperAdmin(userId === 'admin' || permissions.includes('all'));
+      setIsSuperAdmin(checkIsSuperAdmin());
       setUserName(u?.name || u?.userId || fallbackUserId || 'there');
     } catch {
       const fallbackUserId = localStorage.getItem('adminUser') || localStorage.getItem('adminUserId') || '';
-      setIsSuperAdmin(fallbackUserId === 'admin');
+      setIsSuperAdmin(checkIsSuperAdmin());
       setUserName(fallbackUserId || 'there');
     }
   }, []);

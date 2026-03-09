@@ -53,7 +53,7 @@ export default function TranslationPage() {
 
   // Check auth
   useEffect(() => {
-    const token = localStorage.getItem('admin_token');
+    const token = localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
     if (!token) {
       router.push(getLoginPath());
       return;
@@ -64,7 +64,7 @@ export default function TranslationPage() {
 
   const fetchLanguages = async () => {
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
       const res = await fetch('/api/admin/translate', {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -94,7 +94,7 @@ export default function TranslationPage() {
     setResults([]);
 
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
       const res = await fetch('/api/admin/translate', {
         method: 'POST',
         headers: {

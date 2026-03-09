@@ -118,10 +118,47 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Cost calculation (₹35 per GB per month, ~$0.42/GB)
+    // Cost calculation (₹35 per GB per month, ~$0.42/GB, minimum ₹30/mo for free users)
     const totalGB = totalDataSize / (1024 * 1024 * 1024);
-    const monthlyCost = Math.max(1, Math.ceil(totalGB * 35)); // INR, min ₹1
-    const monthlyCostUSD = Math.max(0.01, Math.ceil(totalGB * 0.42 * 100) / 100);
+    const rawCostINR = Math.ceil(totalGB * 35);
+    const monthlyCost = Math.max(30, rawCostINR); // Minimum ₹30/month for storage
+    const monthlyCostUSD = Math.max(0.36, Math.ceil(totalGB * 0.42 * 100) / 100);
+
+    // Billing cycle: calculate days remaining in current 30-day billing cycle
+    // Based on user creation date or current month cycle
+    let billingCycleDaysRemaining = 0;
+    let billingCycleEndDate: string | null = null;
+    let storagePlan: string = 'free';
+
+    if (!isSuper) {
+      try {
+        // Get user creation date for billing cycle calculation
+        const adminUser = await db.collection('admin_users').findOne(
+          { $or: [{ userId: ownerId }, { email: decoded.email }] },
+          { projection: { createdAt: 1, storagePaidUntil: 1, planId: 1 } }
+        );
+        
+        storagePlan = adminUser?.planId || 'free';
+        const now = new Date();
+        
+        if (adminUser?.storagePaidUntil) {
+          // If there's a specific paid-until date, use that
+          const paidUntil = new Date(adminUser.storagePaidUntil);
+          billingCycleDaysRemaining = Math.max(0, Math.ceil((paidUntil.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+          billingCycleEndDate = paidUntil.toISOString();
+        } else {
+          // Calculate based on monthly cycle from account creation
+          const createdAt = adminUser?.createdAt ? new Date(adminUser.createdAt) : now;
+          const daysSinceCreation = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
+          const currentCycleDay = daysSinceCreation % 30;
+          billingCycleDaysRemaining = Math.max(0, Math.ceil(30 - currentCycleDay));
+          const cycleEnd = new Date(now.getTime() + billingCycleDaysRemaining * 24 * 60 * 60 * 1000);
+          billingCycleEndDate = cycleEnd.toISOString();
+        }
+      } catch {
+        billingCycleDaysRemaining = 30;
+      }
+    }
 
     return NextResponse.json({
       success: true,
@@ -155,6 +192,13 @@ export async function GET(request: NextRequest) {
         // Database info
         dbName: crmDbName,
         scope: isSuper ? 'global' : 'user',
+        
+        // Billing cycle info (for free/regular users)
+        billingCycleDaysRemaining,
+        billingCycleEndDate,
+        storagePlan,
+        minimumMonthlyINR: 30,
+        isSuperAdmin: isSuper,
       },
     });
   } catch (error) {

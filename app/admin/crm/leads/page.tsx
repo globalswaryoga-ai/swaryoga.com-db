@@ -3,6 +3,7 @@
 import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import { checkIsSuperAdmin } from '@/lib/client-auth';
 import { usePlan } from '@/components/admin/crm/hooks/usePlan';
 import { useCRM } from '@/hooks/useCRM';
 import { useSearch } from '@/hooks/useSearch';
@@ -160,7 +161,7 @@ export default function LeadsPage() {
       const u = JSON.parse(userStr);
       const perms: string[] = Array.isArray(u?.permissions) ? u.permissions : [];
       setViewerUserId(u?.userId || '');
-      setIsSuperAdmin((u?.userId === 'admin' || u?.userId === 'admincrm') || perms.includes('all'));
+      setIsSuperAdmin(checkIsSuperAdmin());
     } catch {
       setIsSuperAdmin(false);
     }

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth, getLoginPath } from '@/hooks/useAuth';
+import { checkIsSuperAdmin } from '@/lib/client-auth';
 import { useCRM } from '@/hooks/useCRM';
 import { normalizePhoneForMeta } from '@/lib/utils/phone';
 import CSVUploadPanel from '@/components/admin/crm/CSVUploadPanel';
@@ -135,9 +136,8 @@ export default function SalesPage() {
         });
         const json = await res.json();
         const u = json?.data;
-        const perms = Array.isArray(u?.permissions) ? u.permissions : [];
         setViewerUserId(u?.userId || '');
-        setIsSuperAdmin((u?.userId === 'admin' || u?.userId === 'admincrm') || perms.includes('all'));
+        setIsSuperAdmin(checkIsSuperAdmin());
       } catch {
         setIsSuperAdmin(false);
       }
