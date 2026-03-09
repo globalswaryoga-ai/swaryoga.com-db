@@ -2902,7 +2902,7 @@ export default function MetaInboxPage() {
                               <div className="flex items-center ml-1" title={msg.status}>
                                 {msg.status === 'failed' ? (
                                   <i className="ph ph-x text-xs text-red-500"></i>
-                                ) : msg.status === 'queued' || msg.status === 'sending' ? (
+                                ) : msg.status === 'queued' || (msg.status as string) === 'sending' ? (
                                   <i className="ph ph-clock text-xs text-gray-400"></i>
                                 ) : msg.status === 'sent' ? (
                                   <i className="ph ph-check text-xs text-gray-400"></i>

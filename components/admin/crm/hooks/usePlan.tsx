@@ -231,7 +231,7 @@ export function usePlan(): PlanContextValue {
  * Fetches plan data independently.
  */
 function usePlanStandalone(): PlanContextValue {
-  const [state, setState] = useState<PlanState>(DEFAULT_STATE);
+  const [state, setState] = useState<PlanState>(getDefaultState);
 
   const fetchPlan = useCallback(async () => {
     try {

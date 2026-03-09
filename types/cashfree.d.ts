@@ -6,6 +6,11 @@ declare global {
       checkout: (opts: { paymentSessionId: string; redirectTarget?: string }) => Promise<unknown>;
     }) & {
       checkout?: (opts: { paymentSessionId: string; redirectTarget?: string }) => Promise<unknown> | unknown;
+      PG?: {
+        checkout: (opts: { paymentSessionId: string; redirectTarget?: string }) => {
+          redirect: () => void;
+        };
+      };
     };
   }
 }
