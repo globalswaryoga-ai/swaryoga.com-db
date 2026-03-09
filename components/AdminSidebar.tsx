@@ -57,8 +57,6 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
   const [userRole, setUserRole] = useState<string>('admin');
   const [permissionsV2, setPermissionsV2] = useState<any>(null);
   const [localCollapsed, setLocalCollapsed] = useState(false);
-  const [userName, setUserName] = useState('');
-  const [userEmail, setUserEmail] = useState('');
   
   // Storage usage state
   const [storageUsage, setStorageUsage] = useState<{
@@ -104,22 +102,6 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
     setUserRole(role);
     setPermissionsV2(pv2);
 
-    // User profile info
-    const crmName = localStorage.getItem('crm_user_name') || '';
-    const crmEmail = localStorage.getItem('crm_user_email') || '';
-    if (userStr) {
-      try {
-        const u = JSON.parse(userStr);
-        setUserName(u?.name || u?.userId || crmName || 'Admin');
-        setUserEmail(u?.email || crmEmail || '');
-      } catch {
-        setUserName(crmName || 'Admin');
-        setUserEmail(crmEmail || '');
-      }
-    } else {
-      setUserName(crmName || 'Admin');
-      setUserEmail(crmEmail || '');
-    }
   }, []);
 
   // Fetch unread message count
@@ -681,27 +663,6 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
               <Eye className="h-3 w-3" />
               <span>Show storage</span>
             </button>
-          )}
-
-          {/* User Profile Card */}
-          {userName && (
-            <div className={`mb-3 ${isCollapsed ? 'flex justify-center' : 'px-3 py-2.5 bg-gray-800/60 rounded-xl'}`}>
-              {isCollapsed ? (
-                <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs font-bold" title={userName}>
-                  {userName.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase()}
-                </div>
-              ) : (
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                    {userName.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase()}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-white truncate">{userName}</p>
-                    {userEmail && <p className="text-[10px] text-gray-400 truncate">{userEmail}</p>}
-                  </div>
-                </div>
-              )}
-            </div>
           )}
 
           {/* Plan Badge */}
