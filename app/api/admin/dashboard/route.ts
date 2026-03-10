@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Super admin gate: dashboard is for the main admin only.
-    const isSuperAdmin = decoded.userId === 'admin' || (Array.isArray(decoded.permissions) && decoded.permissions.includes('all'));
+    const isSuperAdmin = decoded.userId === 'admin' || decoded.userId === 'admincrm' || (Array.isArray(decoded.permissions) && decoded.permissions.includes('all'));
     if (!isSuperAdmin) {
       return NextResponse.json({ error: 'Super admin access required' }, { status: 403 });
     }

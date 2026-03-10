@@ -268,9 +268,9 @@ export default function QRLeadsPage() {
   });
 
   useEffect(() => {
-    if (!token) { router.push(getLoginPath()); return; }
+    if (!token) return; // Wait for useAuth to resolve; it handles redirect.
     fetchMetadata();
-  }, [token, router, fetchMetadata]);
+  }, [token, fetchMetadata]);
 
   useEffect(() => {
     if (token) fetchLeads();

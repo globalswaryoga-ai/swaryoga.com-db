@@ -99,13 +99,13 @@ export default function AutoConfigSettingsPage() {
 
   const getToken = () => {
     if (typeof window === 'undefined') return null;
-    return localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
+    return localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
   };
 
   // Load config on mount
   useEffect(() => {
     const token = getToken();
-    if (!token) { router.push(getLoginPath()); return; }
+    if (!token) return; // Wait for token; useAuth handles redirect.
 
     (async () => {
       try {
