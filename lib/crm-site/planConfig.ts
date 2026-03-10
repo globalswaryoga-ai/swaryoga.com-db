@@ -59,7 +59,7 @@ export const PLAN_LIMITS: Record<PlanTier, PlanLimits> = {
     maxLeads: 250,
     maxUsers: 1,
     maxChatbotFlows: 1,
-    storageQuotaMB: 100,
+    storageQuotaMB: 1024,
     maxBroadcastsPerDay: 1,
     maxEmailsPerMonth: 100,
     maxLandingPages: 1,

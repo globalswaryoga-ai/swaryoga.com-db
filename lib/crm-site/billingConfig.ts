@@ -14,9 +14,11 @@
 
 export const STORAGE_PRICING = {
   free: {
-    minStorageMB: 500,
-    pricePerGB: 60, // ₹30/500MB = ₹60/GB
-    minPrice: 30,   // ₹30 minimum for 500MB/month
+    minStorageMB: 1024,
+    pricePerGB: 60, // ₹60/GB (₹30/500MB)
+    pricePerGBUSD: 1, // $1/GB/month for out of India
+    minPrice: 30,   // ₹30 minimum for 1GB/month
+    minPriceUSD: 1, // $1 minimum for 1GB/month
     billing: 'monthly' as const,
   },
   basic: {

@@ -43,6 +43,7 @@ import {
   Wrench,
   PieChart,
   Users,
+  UsersRound,
 } from 'lucide-react';
 import { PlanBadge, SidebarLock } from './admin/crm/PlanComponents';
 import type { CrmModule } from '@/lib/crm-site/planConfig';
@@ -380,6 +381,15 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
           module: 'whatsapp',
           planModule: 'whatsapp',
           description: 'Leads from QR WhatsApp chats',
+        },
+        {
+          icon: UsersRound,
+          label: 'Group Contacts',
+          href: '/admin/crm/qr/group-contacts',
+          color: 'text-gray-400',
+          module: 'whatsapp',
+          planModule: 'whatsapp',
+          description: 'Collect & export WhatsApp group contacts',
         },
         {
           icon: Send,
