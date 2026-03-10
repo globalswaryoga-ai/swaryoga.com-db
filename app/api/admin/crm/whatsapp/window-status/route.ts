@@ -43,6 +43,7 @@ export async function GET(request: NextRequest) {
         $match: {
           leadId: { $in: limitedIds.map(id => new mongoose.Types.ObjectId(id)) },
           direction: 'inbound',
+          provider: 'meta',
           sentAt: { $gte: cutoff },
           ...tf,
         },
