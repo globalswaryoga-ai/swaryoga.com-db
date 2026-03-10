@@ -2,17 +2,13 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 // ===========================================================================
-// MULTI-LAYER PROTECTION SYSTEM — swaryoga.com & crm.swaryoga.com
+// PROTECTION SYSTEM — swaryoga.com & crm.swaryoga.com
 // ===========================================================================
 // Layer 1  — Suspicious request blocking (path traversal, injection)
-// Layer 2  — IP auto-ban for repeat offenders
-// Layer 3  — Bot & scanner detection (UA + header fingerprint)
 // Layer 4  — Rate limiting (per-IP, per-bucket, sliding window)
 // Layer 5  — CORS strict-mode (block disallowed origins)
 // Layer 6  — Security headers (HSTS, CSP, XSS, clickjack, MIME)
 // Layer 7  — Request ID tracing (X-Request-Id on every response)
-// Layer 8  — IP reputation scoring (behavioural risk profiling)
-// Layer 9  — Adaptive rate limiting (attack-pattern driven)
 // ===========================================================================
 
 // ---------------------------------------------------------------------------
@@ -39,7 +35,7 @@ function extractTenantSlugEdge(headers: Headers, hostname: string): string | nul
 // ---------------------------------------------------------------------------
 const SUSPICIOUS_PATH_PATTERNS = [
   /\.\.[/\\]/,                       // path traversal
-  /[<>'"`;|]/,                       // injection chars in URL (& and $ removed – valid in query strings)
+  /[<>'"`;|]/,                       // injection chars in URL
   /\.(php|asp|aspx|cgi|pl|py)$/i,   // probing for non-Next.js backends
   /\/wp-(admin|login|content|includes)/i, // WordPress probes
   /\/phpmyadmin|\/adminer|\/mysql/i, // DB admin probes
@@ -54,247 +50,14 @@ function isSuspiciousRequest(pathname: string, search: string): boolean {
   try {
     return SUSPICIOUS_PATH_PATTERNS.some(p => p.test(decodeURIComponent(full).replace(/\+/g, ' ')));
   } catch {
-    // Malformed URI encoding is itself suspicious
     return true;
   }
 }
 
 // ---------------------------------------------------------------------------
-// LAYER 2 — Auto-ban store (IP gets banned after too many violations)
+// LAYER 4 — Rate limiting (sliding window, per-bucket)
 // ---------------------------------------------------------------------------
-const MAX_MAP_SIZE = 50_000;              // hard cap to prevent OOM
-const BAN_THRESHOLD = 5;                  // violations before auto-ban
-const BAN_DURATION_MS = 15 * 60 * 1000;  // 15-minute ban
-
-interface BanRecord { until: number; violations: number }
-const banMap = new Map<string, BanRecord>();
-
-function recordViolation(ip: string): void {
-  const rec = banMap.get(ip) || { until: 0, violations: 0 };
-  rec.violations++;
-  if (rec.violations >= BAN_THRESHOLD) {
-    rec.until = Date.now() + BAN_DURATION_MS;
-  }
-  banMap.set(ip, rec);
-  // Also bump IP reputation score
-  ipReputationHit(ip, 20);
-}
-
-function isBanned(ip: string): boolean {
-  const rec = banMap.get(ip);
-  if (!rec) return false;
-  if (rec.until > Date.now()) return true;
-  banMap.delete(ip);
-  return false;
-}
-
-// ---------------------------------------------------------------------------
-// LAYER 3 — Bot / scanner detection (UA + header fingerprint)
-// ---------------------------------------------------------------------------
-const BOT_UA_PATTERNS = [
-  /sqlmap|nikto|nmap|masscan|dirbuster|gobuster|wfuzz|ffuf/i,
-  /havij|acunetix|nessus|burp\s?suite|owasp[_-]?zap/i,
-  /python-requests\/|python-urllib|curl\/|wget\//i,
-  /go-http-client|java\/|httpclient/i,
-  /scrapy|phantom|headless|selenium|puppeteer/i,
-  /ahrefsbot|semrushbot|dotbot|mj12bot/i,
-];
-
-function isMaliciousBot(ua: string | null, isProduction: boolean): boolean {
-  if (!ua) return false;
-  if (!isProduction && /python-requests|curl\//i.test(ua)) return false;
-  return BOT_UA_PATTERNS.some(p => p.test(ua));
-}
-
-// ---------------------------------------------------------------------------
-// LAYER 8 — IP Reputation Scoring (behavioural risk profiling)
-// ---------------------------------------------------------------------------
-// Every IP starts at score 0 (clean). Points accumulate for bad behaviour.
-// Points decay over time. High-score IPs get throttled or blocked.
-//
-// Score thresholds:
-//   0–29   → clean (normal limits)
-//   30–59  → suspicious (rate limits halved)
-//   60–89  → high-risk (rate limits quartered)
-//   90+    → blocked (403 until score decays)
-//
-// Scoring events:
-//   +20  suspicious-request blocked
-//   +15  rate-limit exceeded
-//   +25  malicious bot UA
-//   +10  missing core headers on API call (no UA + no Accept)
-//   +5   non-standard HTTP method on non-API path
-//   −1   per clean request (decay, min 0)
-// ---------------------------------------------------------------------------
-interface IPReputation {
-  score: number;
-  lastSeen: number;
-  hitCount: number;          // total requests from this IP
-  distinctPaths: number;     // unique paths hit (capped tracking)
-  pathSet?: Set<string>;     // track unique paths (up to 50)
-}
-
-const reputationMap = new Map<string, IPReputation>();
-const REPUTATION_BLOCK_THRESHOLD = 150;  // Increased from 90 to reduce false positives
-const REPUTATION_HIGH_RISK = 100;
-const REPUTATION_SUSPICIOUS = 50;
-const REPUTATION_DECAY_PER_REQ = 2;      // how much score drops per clean req (faster decay)
-const REPUTATION_DECAY_INTERVAL_MS = 3 * 60 * 1000; // score decays 10 pts per 3min idle (more aggressive decay)
-
-function getReputation(ip: string): IPReputation {
-  let rep = reputationMap.get(ip);
-  if (!rep) {
-    rep = { score: 0, lastSeen: Date.now(), hitCount: 0, distinctPaths: 0, pathSet: new Set() };
-    reputationMap.set(ip, rep);
-    return rep;
-  }
-  // Time-based decay: reduce score by 10 for every 5 min of inactivity
-  const idle = Date.now() - rep.lastSeen;
-  if (idle > REPUTATION_DECAY_INTERVAL_MS) {
-    const decayRounds = Math.floor(idle / REPUTATION_DECAY_INTERVAL_MS);
-    rep.score = Math.max(0, rep.score - decayRounds * 10);
-  }
-  rep.lastSeen = Date.now();
-  return rep;
-}
-
-function ipReputationHit(ip: string, points: number): void {
-  const rep = getReputation(ip);
-  rep.score = Math.min(200, rep.score + points); // cap at 200
-}
-
-function ipReputationDecay(ip: string): void {
-  const rep = getReputation(ip);
-  rep.score = Math.max(0, rep.score - REPUTATION_DECAY_PER_REQ);
-  rep.hitCount++;
-}
-
-/** Fingerprint-based detection: missing headers that real browsers always send */
-function computeHeaderRiskSignals(headers: Headers): number {
-  let risk = 0;
-  const ua = headers.get('user-agent');
-  const accept = headers.get('accept');
-  const acceptLang = headers.get('accept-language');
-  const acceptEnc = headers.get('accept-encoding');
-
-  // Real browsers always send UA + Accept
-  if (!ua && !accept) risk += 10;
-  // No Accept-Language is uncommon for browsers (bots often omit this)
-  if (!acceptLang && !acceptEnc) risk += 3;
-  // Suspiciously short UA (under 15 chars) is unusual for real browsers
-  if (ua && ua.length < 15 && ua.length > 0) risk += 5;
-
-  return risk;
-}
-
-/** Path-diversity detection: IPs that hit many different paths quickly are likely scanning */
-function trackPathDiversity(rep: IPReputation, path: string): number {
-  if (!rep.pathSet) rep.pathSet = new Set();
-  if (rep.pathSet.size < 50) rep.pathSet.add(path);
-  rep.distinctPaths = rep.pathSet.size;
-
-  // Scanning signature: 20+ unique paths in a session
-  if (rep.distinctPaths >= 30) return 15;
-  if (rep.distinctPaths >= 20) return 5;
-  return 0;
-}
-
-// ---------------------------------------------------------------------------
-// LAYER 9 — Adaptive Rate Limiting (attack-pattern driven)
-// ---------------------------------------------------------------------------
-// Monitors global request patterns. When an attack wave is detected
-// (spike in 429s, spike in distinct IPs, spike in blocked requests),
-// all rate limits tighten automatically and relax after a cooldown.
-//
-// This is a lightweight "circuit breaker" for the API.
-// ---------------------------------------------------------------------------
-interface AttackWindow {
-  windowStart: number;
-  blocked429Count: number;   // how many 429s fired in window
-  blockedSuspicious: number; // how many 403s (suspicious/bot) in window
-  uniqueIPs: Set<string>;   // distinct IPs making requests
-}
-
-const ADAPTIVE_WINDOW_MS = 60 * 1000; // 1-minute observation window
-let attackWindow: AttackWindow = {
-  windowStart: Date.now(),
-  blocked429Count: 0,
-  blockedSuspicious: 0,
-  uniqueIPs: new Set(),
-};
-
-// Thresholds that trigger tightening
-const ADAPTIVE_429_SPIKE = 30;         // 30+ rate-limited responses in 1 min → attack mode
-const ADAPTIVE_SUSPICIOUS_SPIKE = 20;  // 20+ suspicious blocks in 1 min → attack mode
-const ADAPTIVE_IP_SPIKE = 200;         // 200+ unique IPs in 1 min → DDoS indicator
-
-// When attack mode activates, limits are multiplied by this factor
-let adaptiveMultiplier = 1.0;          // 1.0 = normal, <1.0 = tighter
-let adaptiveModeUntil = 0;            // timestamp when attack mode expires
-const ADAPTIVE_COOLDOWN_MS = 3 * 60 * 1000; // attack mode lasts 3 minutes then relaxes
-
-function resetAttackWindow(now: number): void {
-  attackWindow = {
-    windowStart: now,
-    blocked429Count: 0,
-    blockedSuspicious: 0,
-    uniqueIPs: new Set(),
-  };
-}
-
-function recordAdaptiveEvent(ip: string, type: '429' | 'suspicious'): void {
-  const now = Date.now();
-  // Roll window if expired
-  if (now - attackWindow.windowStart > ADAPTIVE_WINDOW_MS) {
-    resetAttackWindow(now);
-  }
-
-  attackWindow.uniqueIPs.add(ip);
-  if (type === '429') attackWindow.blocked429Count++;
-  if (type === 'suspicious') attackWindow.blockedSuspicious++;
-
-  // Check if we should activate attack mode
-  const isSpike =
-    attackWindow.blocked429Count >= ADAPTIVE_429_SPIKE ||
-    attackWindow.blockedSuspicious >= ADAPTIVE_SUSPICIOUS_SPIKE ||
-    attackWindow.uniqueIPs.size >= ADAPTIVE_IP_SPIKE;
-
-  if (isSpike && now > adaptiveModeUntil) {
-    adaptiveMultiplier = 0.5; // halve all rate limits
-    adaptiveModeUntil = now + ADAPTIVE_COOLDOWN_MS;
-  }
-}
-
-function getAdaptiveMultiplier(): number {
-  const now = Date.now();
-  if (now > adaptiveModeUntil) {
-    // Attack mode expired — relax
-    adaptiveMultiplier = 1.0;
-  }
-  return adaptiveMultiplier;
-}
-
-/** Get the effective rate limit for an IP after applying reputation + adaptive factors */
-function effectiveLimit(baseLimit: number, ipScore: number): number {
-  let limit = baseLimit;
-
-  // Reputation-based throttling
-  if (ipScore >= REPUTATION_HIGH_RISK) {
-    limit = Math.ceil(limit * 0.25); // quarter the limit
-  } else if (ipScore >= REPUTATION_SUSPICIOUS) {
-    limit = Math.ceil(limit * 0.5);  // halve the limit
-  }
-
-  // Global adaptive multiplier
-  limit = Math.ceil(limit * getAdaptiveMultiplier());
-
-  // Ensure at least 1 request allowed
-  return Math.max(1, limit);
-}
-
-// ---------------------------------------------------------------------------
-// LAYER 4 — Rate limiting (sliding window, per-bucket, with map cleanup)
-// ---------------------------------------------------------------------------
+const MAX_MAP_SIZE = 50_000;
 interface RateEntry { count: number; startTime: number }
 const rateLimitMap = new Map<string, RateEntry>();
 
@@ -304,45 +67,21 @@ const CLEANUP_INTERVAL_MS = 2 * 60 * 1000;
 function cleanupMaps(now: number, windowMs: number): void {
   if (now - lastCleanup < CLEANUP_INTERVAL_MS) return;
   lastCleanup = now;
-
-  // Evict expired rate-limit entries
   for (const [k, v] of rateLimitMap) {
     if (now - v.startTime > windowMs * 2) rateLimitMap.delete(k);
   }
-
-  // Evict expired bans
-  for (const [k, v] of banMap) {
-    if (v.until > 0 && v.until < now) banMap.delete(k);
-  }
-
-  // Evict stale reputation entries (not seen in 30 min and score 0)
-  for (const [k, v] of reputationMap) {
-    if (v.score === 0 && now - v.lastSeen > 30 * 60 * 1000) reputationMap.delete(k);
-  }
-
-  // Hard cap eviction — trim oldest entries from all maps
-  trimMap(rateLimitMap, MAX_MAP_SIZE);
-  trimMap(banMap, MAX_MAP_SIZE);
-  trimMap(reputationMap, MAX_MAP_SIZE);
-
-  // Reset attack window unique IPs set to prevent unbounded growth
-  if (attackWindow.uniqueIPs.size > 10_000) {
-    resetAttackWindow(now);
-  }
-}
-
-function trimMap<V>(map: Map<string, V>, maxSize: number): void {
-  if (map.size <= maxSize) return;
-  const excess = map.size - maxSize;
-  const iter = map.keys();
-  for (let i = 0; i < excess; i++) {
-    const k = iter.next().value;
-    if (k) map.delete(k);
+  if (rateLimitMap.size > MAX_MAP_SIZE) {
+    const excess = rateLimitMap.size - MAX_MAP_SIZE;
+    const iter = rateLimitMap.keys();
+    for (let i = 0; i < excess; i++) {
+      const k = iter.next().value;
+      if (k) rateLimitMap.delete(k);
+    }
   }
 }
 
 // ---------------------------------------------------------------------------
-// LAYER 7 — Request ID generator (Edge-compatible, no crypto.randomUUID)
+// LAYER 7 — Request ID generator
 // ---------------------------------------------------------------------------
 function generateRequestId(): string {
   const ts = Date.now().toString(36);
@@ -366,15 +105,13 @@ const ALLOWED_ORIGINS = [
 ];
 
 function isOriginAllowed(origin: string | null): boolean {
-  if (!origin) return true; // same-origin requests have no Origin header
+  if (!origin) return true;
   return ALLOWED_ORIGINS.includes(origin);
 }
 
 // ---------------------------------------------------------------------------
 // LAYER 6 — Security headers
 // ---------------------------------------------------------------------------
-// Toggle: Set STRICT_CSP=true in env to enable strict protection
-// For development: STRICT_CSP=false or not set
 const STRICT_CSP_ENABLED = process.env.STRICT_CSP === 'true';
 
 const STRICT_CSP_RULES = [
@@ -407,11 +144,8 @@ const CSP = STRICT_CSP_ENABLED ? STRICT_CSP_RULES : RELAXED_CSP_RULES;
 
 function applySecurityHeaders(res: NextResponse, requestId: string, pathname: string, searchParams: URLSearchParams): void {
   res.headers.set('X-Request-Id', requestId);
-  
-  // Allow same-origin iframe embedding for landing page previews in admin
   const isLandingPagePreview = pathname.startsWith('/lp/') && searchParams.get('preview') === 'true';
   res.headers.set('X-Frame-Options', isLandingPagePreview ? 'SAMEORIGIN' : 'DENY');
-  
   res.headers.set('X-Content-Type-Options', 'nosniff');
   res.headers.set('X-XSS-Protection', '1; mode=block');
   res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
@@ -423,12 +157,11 @@ function applySecurityHeaders(res: NextResponse, requestId: string, pathname: st
 // ===========================================================================
 // MAIN MIDDLEWARE
 // ===========================================================================
-const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
 export function middleware(request: NextRequest) {
   const requestId = generateRequestId();
 
-  // ── 0. Tenant Detection (Edge-safe — no DB call) ──
+  // ── 0. Tenant Detection ──
   const hostname = request.nextUrl.hostname || request.headers.get('host') || '';
   const tenantSlug = extractTenantSlugEdge(request.headers, hostname);
 
@@ -436,7 +169,6 @@ export function middleware(request: NextRequest) {
   const lowerHost = hostname.toLowerCase().split(':')[0];
   if (lowerHost === CRM_SITE_DOMAIN || lowerHost === 'crm.localhost') {
     const p = request.nextUrl.pathname;
-    // Don't rewrite API routes, admin routes, static files, or crm-site paths
     if (!p.startsWith('/crm-site') && !p.startsWith('/api') && !p.startsWith('/admin') && !p.startsWith('/_next') && !p.startsWith('/favicon') && !p.startsWith('/logo')) {
       const rewriteUrl = request.nextUrl.clone();
       rewriteUrl.pathname = `/crm-site${p === '/' ? '' : p}`;
@@ -460,77 +192,14 @@ export function middleware(request: NextRequest) {
 
   // ── LAYER 1: Suspicious request blocking ──
   if (isSuspiciousRequest(path, search)) {
-    recordViolation(ip);
-    recordAdaptiveEvent(ip, 'suspicious');
     return new NextResponse(
       JSON.stringify({ error: 'Blocked', code: 'SUSPICIOUS_REQUEST' }),
       { status: 403, headers: { 'Content-Type': 'application/json', 'X-Request-Id': requestId } }
     );
   }
 
-  // ── Localhost bypass for development ──
-  const isLocalDev = !IS_PRODUCTION && (ip === '127.0.0.1' || ip === '::1' || ip === 'unknown' || ip === 'localhost');
-  
-  // Admin/CRM routes should bypass security blocks (they have their own auth)
-  const isAdminPath = path.startsWith('/admin') || path.startsWith('/api/admin') || 
-                      path.startsWith('/crm-site') || path.startsWith('/api/crm-site');
-
-  // Skip ALL security layers for localhost development
-  if (isLocalDev) {
-    // Just add security headers and pass through
-    const response = NextResponse.next();
-    if (tenantSlug) {
-      response.headers.set(TENANT_HEADER, tenantSlug);
-      response.headers.set(TENANT_RESPONSE_HEADER, tenantSlug);
-    }
-    applySecurityHeaders(response, requestId, path, request.nextUrl.searchParams);
-    return response;
-  }
-
-  // ── LAYER 2: Auto-ban check (skip for admin routes) ──
-  if (!isLocalDev && !isAdminPath && isBanned(ip)) {
-    return new NextResponse(
-      JSON.stringify({ error: 'Access temporarily blocked', code: 'IP_BANNED' }),
-      { status: 403, headers: { 'Content-Type': 'application/json', 'X-Request-Id': requestId } }
-    );
-  }
-
-  // ── LAYER 8: IP reputation check ──
-  const rep = getReputation(ip);
-  
-  // Block IPs with reputation score ≥ 90 (skip in local dev and admin routes)
-  if (!isLocalDev && !isAdminPath && rep.score >= REPUTATION_BLOCK_THRESHOLD) {
-    return new NextResponse(
-      JSON.stringify({ error: 'Access denied', code: 'REPUTATION_BLOCKED' }),
-      { status: 403, headers: { 'Content-Type': 'application/json', 'X-Request-Id': requestId } }
-    );
-  }
-
-  // Accumulate header-based risk signals (bots often omit standard headers)
-  const headerRisk = computeHeaderRiskSignals(request.headers);
-  if (headerRisk > 0) ipReputationHit(ip, headerRisk);
-
-  // Track path diversity (scanners hit many unique paths rapidly)
-  const pathDiversityRisk = trackPathDiversity(rep, path);
-  if (pathDiversityRisk > 0) ipReputationHit(ip, pathDiversityRisk);
-
-  // ── LAYER 3: Bot detection (API routes only) ──
-  if (path.startsWith('/api/')) {
-    const ua = request.headers.get('user-agent');
-    if (isMaliciousBot(ua, IS_PRODUCTION)) {
-      recordViolation(ip);
-      ipReputationHit(ip, 25);
-      recordAdaptiveEvent(ip, 'suspicious');
-      return new NextResponse(
-        JSON.stringify({ error: 'Blocked', code: 'BOT_DETECTED' }),
-        { status: 403, headers: { 'Content-Type': 'application/json', 'X-Request-Id': requestId } }
-      );
-    }
-  }
-
   // ── Non-API requests — security headers only ──
   if (!path.startsWith('/api/')) {
-    ipReputationDecay(ip); // clean request → decay score
     const response = NextResponse.next();
     if (tenantSlug) {
       response.headers.set(TENANT_HEADER, tenantSlug);
@@ -540,42 +209,42 @@ export function middleware(request: NextRequest) {
     return response;
   }
 
-  // ── Cleanup stale map entries (runs at most once every 2 min) ──
+  // ── Cleanup stale map entries ──
   cleanupMaps(now, windowMs);
 
-  // ── LAYER 4 + LAYER 9: Rate limiting with adaptive + reputation modifiers ──
+  // ── LAYER 4: Rate limiting ──
   const hasAuthHeader = Boolean(request.headers.get('authorization'));
-  let baseLimit = 30;
+  let baseLimit = 60;
   let bucket = 'api';
 
   if (path.startsWith('/api/admin/crm/whatsapp/')) {
     bucket = 'crm_whatsapp';
-    baseLimit = hasAuthHeader ? 600 : 60;
+    baseLimit = hasAuthHeader ? 600 : 120;
   } else if (path.startsWith('/api/admin/crm/messages')) {
     bucket = 'crm_messages';
-    baseLimit = hasAuthHeader ? 240 : 60;
+    baseLimit = hasAuthHeader ? 300 : 120;
   } else if (path.startsWith('/api/admin/crm/')) {
     bucket = 'crm_admin';
-    baseLimit = hasAuthHeader ? 180 : 60;
+    baseLimit = hasAuthHeader ? 300 : 120;
+  } else if (path.startsWith('/api/crm-site/')) {
+    bucket = 'crm_site';
+    baseLimit = 60;
   } else if (path.startsWith('/api/admin/recorded-courses')) {
     bucket = 'admin_courses';
-    baseLimit = hasAuthHeader ? 120 : 30;
+    baseLimit = hasAuthHeader ? 120 : 60;
   } else if (path.startsWith('/api/admin/')) {
     bucket = 'admin_general';
-    baseLimit = hasAuthHeader ? 120 : 30;
+    baseLimit = hasAuthHeader ? 120 : 60;
   } else if (path.startsWith('/api/auth/admin-login')) {
     bucket = 'admin_login';
-    baseLimit = 5;
+    baseLimit = 10;
   } else if (path.startsWith('/api/auth/')) {
     bucket = 'auth';
-    baseLimit = 15;
+    baseLimit = 30;
   } else if (path.startsWith('/api/payments/')) {
     bucket = 'payments';
-    baseLimit = 10;
+    baseLimit = 20;
   }
-
-  // Apply reputation + adaptive multipliers
-  const limit = effectiveLimit(baseLimit, rep.score);
 
   const key = `${ip}:${bucket}`;
   const entry = rateLimitMap.get(key) || { count: 0, startTime: now };
@@ -587,12 +256,9 @@ export function middleware(request: NextRequest) {
   }
   rateLimitMap.set(key, entry);
 
-  const remaining = Math.max(0, limit - entry.count);
+  const remaining = Math.max(0, baseLimit - entry.count);
 
-  if (entry.count > limit) {
-    recordViolation(ip);
-    ipReputationHit(ip, 15); // rate-limit violation → reputation hit
-    recordAdaptiveEvent(ip, '429');
+  if (entry.count > baseLimit) {
     const retryAfter = Math.max(1, Math.ceil((windowMs - (now - entry.startTime)) / 1000));
     return new NextResponse(
       JSON.stringify({ error: 'Too many requests. Please try again later.' }),
@@ -601,7 +267,7 @@ export function middleware(request: NextRequest) {
         headers: {
           'Content-Type': 'application/json',
           'Retry-After': String(retryAfter),
-          'RateLimit-Limit': String(limit),
+          'RateLimit-Limit': String(baseLimit),
           'RateLimit-Remaining': '0',
           'X-RateLimit-Bucket': bucket,
           'X-Request-Id': requestId,
@@ -610,20 +276,13 @@ export function middleware(request: NextRequest) {
     );
   }
 
-  // Clean request passed all checks → decay reputation
-  ipReputationDecay(ip);
-
   // ── LAYER 5: CORS strict-mode ──
   const origin = request.headers.get('origin');
   const originOk = isOriginAllowed(origin);
 
-  // Preflight
   if (request.method === 'OPTIONS') {
     if (!originOk) {
-      return new NextResponse(null, {
-        status: 403,
-        headers: { 'X-Request-Id': requestId },
-      });
+      return new NextResponse(null, { status: 403, headers: { 'X-Request-Id': requestId } });
     }
     return new NextResponse(null, {
       status: 200,
@@ -641,7 +300,6 @@ export function middleware(request: NextRequest) {
   // ── LAYER 6: Build response with security headers ──
   const response = NextResponse.next();
 
-  // Tenant slug injection
   if (tenantSlug) {
     response.headers.set(TENANT_HEADER, tenantSlug);
     response.headers.set(TENANT_RESPONSE_HEADER, tenantSlug);
@@ -649,27 +307,18 @@ export function middleware(request: NextRequest) {
 
   applySecurityHeaders(response, requestId, path, request.nextUrl.searchParams);
 
-  // CORS headers for API routes
   if (originOk && origin) {
     response.headers.set('Access-Control-Allow-Origin', origin);
     response.headers.set('Access-Control-Allow-Credentials', 'true');
   }
-  // If origin is NOT allowed, omit Access-Control-Allow-Origin → browser blocks
 
-  // Rate limit info headers
-  response.headers.set('RateLimit-Limit', String(limit));
+  response.headers.set('RateLimit-Limit', String(baseLimit));
   response.headers.set('RateLimit-Remaining', String(remaining));
   response.headers.set('X-RateLimit-Bucket', bucket);
-
-  // Adaptive mode indicator (lets monitoring see when system is in attack mode)
-  if (getAdaptiveMultiplier() < 1.0) {
-    response.headers.set('X-Adaptive-Mode', 'active');
-  }
 
   return response;
 }
 
-// Apply middleware to API routes + all page routes (for subdomain rewriting)
 export const config = {
   matcher: [
     '/api/:path*',
