@@ -34,6 +34,7 @@ export type ChatItem = {
   lastMessage?: string;
   funnelStage?: string;
   labels?: string[];
+  leadStatus?: string; // CRM lead status (new_lead, contacted, enrolled, etc.)
 };
 
 export type MessageItem = {

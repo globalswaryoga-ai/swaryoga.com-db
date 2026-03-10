@@ -17,6 +17,7 @@ import BackupReminder from './BackupReminder';
 import PageGuide from './PageGuide';
 import PAGE_GUIDES from './pageGuideData';
 import { ToastProvider } from './ui/Toast';
+import AiGuideChat from '@/components/crm-site/AiGuideChat';
 
 /**
  * CrmShell wraps all CRM pages with:
@@ -203,6 +204,9 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
 
     {/* 7-day backup reminder popup */}
     <BackupReminder />
+    
+    {/* AI Guide Chat support widget */}
+    <AiGuideChat />
     </ToastProvider>
     </PlanProvider>
   );

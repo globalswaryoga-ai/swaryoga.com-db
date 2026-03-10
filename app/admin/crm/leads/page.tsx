@@ -74,6 +74,7 @@ export default function LeadsPage() {
   const [limit, setLimit] = useState(20);
   const [skip, setSkip] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [loadingLeads, setLoadingLeads] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>('');
   const [filterWorkshop, setFilterWorkshop] = useState<string>('');
   const [workshops, setWorkshops] = useState<string[]>([]);
@@ -232,6 +233,7 @@ export default function LeadsPage() {
     lastFetchTimeRef.current = now;
 
     try {
+      setLoadingLeads(true);
       const params: Record<string, any> = { limit, skip };
       if (filterStatus) params.status = filterStatus;
       if (filterWorkshop) params.workshop = filterWorkshop;
@@ -253,6 +255,7 @@ export default function LeadsPage() {
         // Log error response for debugging
         const errorData = await response.json().catch(() => ({ error: response.statusText }));
         console.error(`Failed to fetch leads (${response.status}):`, errorData);
+        setError(errorData.error || 'Failed to fetch leads');
         // Only retry on certain status codes (not 400/401/403)
         if (response.status >= 500) {
           console.warn('Server error (5xx) - data may be temporarily unavailable');
@@ -260,6 +263,9 @@ export default function LeadsPage() {
       }
     } catch (err) {
       console.error('Failed to fetch leads', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch leads');
+    } finally {
+      setLoadingLeads(false);
     }
   }, [token, limit, skip, filterStatus, filterWorkshop, search.query, isSuperAdmin, userFilter]);
 
@@ -805,6 +811,18 @@ export default function LeadsPage() {
   const leadsPercent = leadsMax >= 999999 ? 0 : Math.min(100, Math.round((leadsUsed / leadsMax) * 100));
 
   if (!hasMounted) return null;
+  
+  // Show loading spinner while token is being retrieved or data is loading
+  if (!token || (loadingLeads && leads.length === 0)) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#0a0a0a] via-[#111111] to-[#0a0a0a] flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-green-500/30 border-t-green-500 rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-gray-400">Loading leads...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0a0a0a] via-[#111111] to-[#0a0a0a] flex p-4 md:p-6 lg:p-8">

@@ -400,6 +400,17 @@ export default function QRWhatsAppPage() {
     };
   }, [token, fetchStatus, bridgeConfigured]);
 
+  // ── Auto-switch to inbox when connected ──
+  const hasAutoSwitchedRef = useRef(false);
+  useEffect(() => {
+    // Only auto-switch once per session when first connected
+    if (status?.connected && tab === 'connection' && !hasAutoSwitchedRef.current) {
+      hasAutoSwitchedRef.current = true;
+      fetchChats();
+      setTab('inbox');
+    }
+  }, [status?.connected, tab]);
+
   // ── Auto-fetch WhatsApp statuses when connected and on status tab ──
   useEffect(() => {
     if (status?.connected && tab === 'connection' && statusData.length === 0) {
@@ -434,31 +445,59 @@ export default function QRWhatsAppPage() {
       }
 
       // ── STEP 2: Fetch CRM leads for enrichment (leads API filters per-user automatically) ──
-      const crmLeadMap = new Map<string, { name: string; phone: string; funnelStage?: string; labels?: string[] }>();
+      const crmLeadMap = new Map<string, { name: string; phone: string; funnelStage?: string; labels?: string[]; status?: string }>();
       try {
         const leadsRes = await crmFetch('/api/admin/crm/leads?selectAll=true&limit=5000', { silent: true });
+        console.log('[QR] Fetched CRM leads for enrichment:', leadsRes?.data?.leads?.length || 0);
         if (leadsRes?.data?.leads) {
           for (const lead of leadsRes.data.leads) {
             if (lead.phoneNumber) {
-              let p = lead.phoneNumber.replace(/[^0-9]/g, '');
-              if (p.length === 12 && p.startsWith('91')) p = p;
-              crmLeadMap.set(p, {
-                name: lead.name || lead.phoneNumber,
-                phone: p,
-                funnelStage: lead.funnelStage,
-                labels: lead.labels,
-              });
-              if (p.length === 12 && p.startsWith('91')) {
-                crmLeadMap.set(p.slice(2), { name: lead.name || lead.phoneNumber, phone: p, funnelStage: lead.funnelStage, labels: lead.labels });
-              }
+              // Normalize phone: strip all non-digits
+              let p = String(lead.phoneNumber).replace(/[^0-9]/g, '');
+              // Handle various formats
+              if (p.startsWith('0')) p = p.slice(1); // Remove leading 0
               if (p.length === 10) {
-                crmLeadMap.set('91' + p, { name: lead.name || lead.phoneNumber, phone: '91' + p, funnelStage: lead.funnelStage, labels: lead.labels });
+                // 10-digit Indian number without country code
+                crmLeadMap.set(p, {
+                  name: lead.name || lead.phoneNumber,
+                  phone: p,
+                  funnelStage: lead.funnelStage,
+                  labels: lead.labels,
+                  status: lead.status,
+                });
+                crmLeadMap.set('91' + p, { name: lead.name || lead.phoneNumber, phone: '91' + p, funnelStage: lead.funnelStage, labels: lead.labels, status: lead.status });
+              } else if (p.length === 12 && p.startsWith('91')) {
+                // 12-digit with 91 prefix
+                crmLeadMap.set(p, {
+                  name: lead.name || lead.phoneNumber,
+                  phone: p,
+                  funnelStage: lead.funnelStage,
+                  labels: lead.labels,
+                  status: lead.status,
+                });
+                crmLeadMap.set(p.slice(2), { name: lead.name || lead.phoneNumber, phone: p, funnelStage: lead.funnelStage, labels: lead.labels, status: lead.status });
+              } else if (p.length === 11 && p.startsWith('0')) {
+                // 11-digit starting with 0 (old format)
+                const tenDigit = p.slice(1);
+                crmLeadMap.set(tenDigit, { name: lead.name || lead.phoneNumber, phone: tenDigit, funnelStage: lead.funnelStage, labels: lead.labels, status: lead.status });
+                crmLeadMap.set('91' + tenDigit, { name: lead.name || lead.phoneNumber, phone: '91' + tenDigit, funnelStage: lead.funnelStage, labels: lead.labels, status: lead.status });
+              } else {
+                // Other formats - just store as-is
+                crmLeadMap.set(p, {
+                  name: lead.name || lead.phoneNumber,
+                  phone: p,
+                  funnelStage: lead.funnelStage,
+                  labels: lead.labels,
+                  status: lead.status,
+                });
               }
             }
           }
         }
-      } catch {
-        // Leads fetch failed — continue without enrichment
+        console.log('[QR] CRM lead map entries:', crmLeadMap.size);
+      } catch (e) {
+        console.error('[QR] Failed to fetch CRM leads for enrichment:', e);
+        // Continue without enrichment
       }
 
       if (data?.chats) {
@@ -486,6 +525,7 @@ export default function QRWhatsAppPage() {
               }
               if (crmLead.funnelStage) c.funnelStage = crmLead.funnelStage;
               if (crmLead.labels?.length) c.labels = crmLead.labels;
+              if (crmLead.status) c.leadStatus = crmLead.status;
               matchedCrmPhones.add(phone);
               // Mark other phone variants as matched
               if (phone.length === 12 && phone.startsWith('91')) matchedCrmPhones.add(phone.slice(2));
@@ -1773,8 +1813,22 @@ export default function QRWhatsAppPage() {
                           {timeStr && <span className="text-[10px] text-gray-400 whitespace-nowrap">{timeStr}</span>}
                         </div>
                       </div>
-                      {/* Funnel stage + labels row */}
+                      {/* Funnel stage + labels + lead status row */}
                       <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                        {/* Lead status badge */}
+                        {chat.leadStatus && (
+                          <span className={`text-[9px] px-1.5 py-0 rounded-full font-medium ${
+                            chat.leadStatus === 'enrolled' ? 'bg-green-100 text-green-700 border border-green-300' :
+                            chat.leadStatus === 'interested' || chat.leadStatus === 'hot' ? 'bg-orange-100 text-orange-700 border border-orange-300' :
+                            chat.leadStatus === 'contacted' ? 'bg-blue-100 text-blue-700 border border-blue-300' :
+                            chat.leadStatus === 'new_lead' || chat.leadStatus === 'lead' ? 'bg-purple-100 text-purple-700 border border-purple-300' :
+                            chat.leadStatus === 'prospect' ? 'bg-yellow-100 text-yellow-700 border border-yellow-300' :
+                            chat.leadStatus === 'inactive' ? 'bg-gray-100 text-gray-500 border border-gray-300' :
+                            'bg-gray-100 text-gray-600 border border-gray-300'
+                          }`}>
+                            {chat.leadStatus.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                          </span>
+                        )}
                         {stageInfo && (
                           <span className={`text-[9px] px-1.5 py-0 rounded-full border ${stageInfo.color}`}>
                             {stageInfo.label}
