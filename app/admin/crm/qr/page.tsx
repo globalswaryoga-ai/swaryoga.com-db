@@ -87,7 +87,7 @@ export default function QRWhatsAppPage() {
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   // Star popup state
   const [showStarPopup, setShowStarPopup] = useState(false);
-  const [starTab, setStarTab] = useState<'quick' | 'template' | 'broadcast'>('quick');
+  const [starTab, setStarTab] = useState<'quick' | 'template' | 'broadcast' | 'schedule' | 'repeat'>('quick');
   const [broadcastChats, setBroadcastChats] = useState<Set<string>>(new Set());
   const [broadcastText, setBroadcastText] = useState('');
   const [broadcastSending, setBroadcastSending] = useState(false);
@@ -110,6 +110,9 @@ export default function QRWhatsAppPage() {
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupMembers, setNewGroupMembers] = useState('');
   const [creatingGroup, setCreatingGroup] = useState(false);
+  // New chat state
+  const [showNewChat, setShowNewChat] = useState(false);
+  const [newChatPhone, setNewChatPhone] = useState('');
   // Contact about/bio
   const [contactAbout, setContactAbout] = useState<string | null>(null);
   // Pinned chats (max 5)
@@ -1011,6 +1014,22 @@ export default function QRWhatsAppPage() {
     }
   }, [newGroupName, newGroupMembers, creatingGroup, bridgeCall, fetchChats, selectChat]);
 
+  // ── Start a new chat with phone number ──
+  const handleStartNewChat = useCallback(() => {
+    if (!newChatPhone.trim()) return;
+    // Normalize phone: remove non-digits, add 91 if 10 digits
+    let phone = newChatPhone.replace(/\D/g, '');
+    if (phone.length === 10) phone = '91' + phone;
+    if (phone.length < 10) { setError('Invalid phone number'); return; }
+    // Select this chat (will create if not exists when user sends a message)
+    const chatId = phone + '@c.us';
+    setSelectedChat(chatId);
+    setShowNewChat(false);
+    setNewChatPhone('');
+    // Try to fetch messages (might be empty for new chat)
+    fetchMessages(chatId);
+  }, [newChatPhone, fetchMessages]);
+
   // ── Leave group ──
   const handleLeaveGroup = useCallback(async () => {
     if (!selectedChat?.endsWith('@g.us')) return;
@@ -1383,9 +1402,14 @@ export default function QRWhatsAppPage() {
           {/* Right: Quick Actions */}
           <div className="flex items-center gap-2">
             {isConnected && (
-              <button onClick={() => setShowGroupCreate(true)} className="px-3 py-1.5 text-xs font-medium bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 border border-purple-200 flex items-center gap-1.5 transition" title="New Group">
-                <Users className="w-3.5 h-3.5" /> New Group
-              </button>
+              <>
+                <button onClick={() => setShowNewChat(true)} className="px-3 py-1.5 text-xs font-medium bg-green-50 text-green-700 rounded-lg hover:bg-green-100 border border-green-200 flex items-center gap-1.5 transition" title="New Chat">
+                  <Plus className="w-3.5 h-3.5" /> New Chat
+                </button>
+                <button onClick={() => setShowGroupCreate(true)} className="px-3 py-1.5 text-xs font-medium bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 border border-purple-200 flex items-center gap-1.5 transition" title="New Group">
+                  <Users className="w-3.5 h-3.5" /> New Group
+                </button>
+              </>
             )}
             <button onClick={() => { setShowStatusPanel(true); fetchStatuses(); }} className="px-3 py-1.5 text-xs font-medium bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 border border-emerald-200 flex items-center gap-1.5 transition" title="View Statuses">
               <Radio className="w-3.5 h-3.5" /> Stories
@@ -2417,6 +2441,9 @@ export default function QRWhatsAppPage() {
         setBroadcastSearch={setBroadcastSearch}
         chats={chats}
         handleBroadcastSend={handleBroadcastSend}
+        selectedChat={selectedChat}
+        token={token}
+        crmFetch={crmFetch}
       />
       <Lightbox lightboxImage={lightboxImage} setLightboxImage={setLightboxImage} />
       <GroupCreateModal
@@ -2429,6 +2456,37 @@ export default function QRWhatsAppPage() {
         creatingGroup={creatingGroup}
         handleCreateGroup={handleCreateGroup}
       />
+      {/* New Chat Modal */}
+      {showNewChat && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowNewChat(false)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <div className="px-4 py-3 border-b flex items-center justify-between bg-gradient-to-r from-green-500 to-emerald-500 rounded-t-xl">
+              <h3 className="font-semibold text-white flex items-center gap-2"><Plus className="w-5 h-5" /> New Chat</h3>
+              <button onClick={() => setShowNewChat(false)} className="text-white/80 hover:text-white"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-4 space-y-3">
+              <p className="text-xs text-gray-500">Enter phone number to start a new chat</p>
+              <input
+                type="tel"
+                autoFocus
+                value={newChatPhone}
+                onChange={e => setNewChatPhone(e.target.value)}
+                placeholder="Phone number (e.g., 919876543210)"
+                className="w-full px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                onKeyDown={e => { if (e.key === 'Enter') handleStartNewChat(); }}
+              />
+              <p className="text-[10px] text-gray-400">10 digits will auto-prefix with 91 (India)</p>
+              <button
+                onClick={handleStartNewChat}
+                disabled={!newChatPhone.trim()}
+                className="w-full py-2.5 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2"
+              >
+                <MessageSquare className="w-4 h-4" /> Start Chat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 

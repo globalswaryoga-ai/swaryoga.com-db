@@ -2643,6 +2643,19 @@ const ScheduledMessageSchema = new mongoose.Schema(
     campaignName: { type: String, trim: true }, // Optional: part of a campaign
     tags: { type: [String], default: [] },
     
+    // Recurring/Repeat settings
+    isRecurring: { type: Boolean, default: false, index: true },
+    recurrenceType: {
+      type: String,
+      enum: ['daily', 'weekly', 'monthly', 'yearly', 'custom'],
+    },
+    recurrenceInterval: { type: Number, default: 1 }, // Every X days/weeks/months/years
+    customCronExpression: { type: String }, // For advanced custom schedules
+    recurrenceEndDate: { type: Date }, // Stop recurring after this date
+    recurrenceCount: { type: Number }, // OR stop after X executions
+    executedCount: { type: Number, default: 0 }, // How many times this recurring message has been sent
+    nextExecutionAt: { type: Date, index: true }, // Next scheduled execution for recurring
+    
     metadata: mongoose.Schema.Types.Mixed,
   },
   { timestamps: true, collection: 'scheduled_messages' }
@@ -2650,6 +2663,7 @@ const ScheduledMessageSchema = new mongoose.Schema(
 ScheduledMessageSchema.index({ status: 1, scheduledFor: 1 });
 ScheduledMessageSchema.index({ createdByUserId: 1, createdAt: -1 });
 ScheduledMessageSchema.index({ processedAt: 1 });
+ScheduledMessageSchema.index({ isRecurring: 1, nextExecutionAt: 1 });
 
 // ============================================================================
 // MODEL INITIALIZATION (LAZY - DEFERRED TO FIRST USE)
