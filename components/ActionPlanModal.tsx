@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { VISION_CATEGORIES } from '@/lib/types/lifePlanner';
 import type { ActionPlan, ActionPlanGoal, Milestone, Vision, MiniTodo, MiniReminder } from '@/lib/types/lifePlanner';
 import GoalSection from '@/components/GoalSection';
+import type { ActionPlanGoal } from '@/lib/types/lifePlanner';
 
 interface ActionPlanModalProps {
   isOpen: boolean;
@@ -444,112 +445,9 @@ export default function ActionPlanModal({
             </div>
           </div>
 
-          {/* Goals Section */}
-          <div className="border-t-2 pt-6">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-swar-text">Goals</h3>
-              <button
-                onClick={handleAddGoal}
-                className="px-4 py-2 bg-swar-primary text-white rounded-lg hover:opacity-90 transition-colors"
-              >
-                + Add Goal
-              </button>
-            </div>
 
-            <div className="space-y-4">
-              {goals.map((goal, index) => (
-                <GoalSection
-                  key={goal.id}
-                  goal={goal}
-                  index={index}
-                  onUpdate={handleUpdateGoal}
-                  onDelete={handleDeleteGoal}
-                />
-              ))}
-            </div>
-          </div>
 
-          {/* Todos Section */}
-          <div className="border-t-2 pt-6">
-            <div className="flex justify-between items-center mb-4">
-              <div>
-                <h3 className="text-lg font-bold text-swar-text">Todos</h3>
-                <p className="text-xs text-swar-text-secondary">Small checkbox items under this action plan.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowTodosEditor(v => !v)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                {showTodosEditor ? 'Hide Todos' : '+ Todos'}
-              </button>
-            </div>
 
-            {showTodosEditor && (
-              <div className="space-y-3">
-                {/* Add todo (2-line layout) */}
-                <div className="rounded-xl border border-blue-200 bg-blue-50 p-3">
-                  <input
-                    type="text"
-                    value={newTodoTitle}
-                    onChange={(e) => setNewTodoTitle(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        addTodo();
-                      }
-                    }}
-                    className="w-full px-4 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-                    placeholder="Todo title"
-                  />
-
-                  <div className="mt-2 flex flex-col md:flex-row gap-2">
-                    <input
-                      type="date"
-                      value={newTodoDueDate || endDate || ''}
-                      onChange={(e) => setNewTodoDueDate(e.target.value)}
-                      className="w-full md:w-auto md:flex-1 px-4 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-                      title="Due date"
-                    />
-                    <input
-                      type="time"
-                      value={newTodoDueTime}
-                      onChange={(e) => setNewTodoDueTime(e.target.value)}
-                      className="w-full md:w-44 px-4 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-                      title="Due time (default 11:00)"
-                    />
-                    <button
-                      type="button"
-                      onClick={addTodo}
-                      className="w-full md:w-28 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-                    >
-                      Add
-                    </button>
-                  </div>
-                </div>
-
-                {todos.length === 0 ? (
-                  <div className="text-sm text-blue-800 bg-white border border-blue-200 rounded-lg px-4 py-3">
-                    No todos yet.
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {todos.map((todo) => (
-                      <ActionTodoCard
-                        key={todo.id}
-                        todo={todo}
-                        onToggle={toggleTodo}
-                        onUpdate={updateTodo}
-                        onDelete={deleteTodo}
-                        onAddReminder={addReminderToActionTodo}
-                        onDeleteReminder={deleteReminderFromActionTodo}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
 
           {/* Action Buttons */}
           <div className="flex gap-4 border-t-2 pt-6">
@@ -587,6 +485,45 @@ function MilestoneCard({
   onUpdate: (id: string, milestone: Milestone) => void;
   onDelete: (id: string) => void;
 }) {
+  const milestoneGoals = milestone.goals || [];
+
+  const handleAddGoal = () => {
+    const newGoal: ActionPlanGoal = {
+      id: Date.now().toString(),
+      title: '',
+      description: '',
+      startDate: milestone.startDate,
+      endDate: milestone.endDate,
+      workingTimeStart: milestone.workingHoursStart || '11:00',
+      workingTimeEnd: milestone.workingHoursEnd || '11:00',
+      place: milestone.place || '',
+      expectedAmount: 0,
+      status: 'not-started',
+      priority: 'medium',
+      progress: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    onUpdate(milestone.id, {
+      ...milestone,
+      goals: [...milestoneGoals, newGoal],
+    });
+  };
+
+  const handleUpdateGoal = (goalId: string, updatedGoal: ActionPlanGoal) => {
+    onUpdate(milestone.id, {
+      ...milestone,
+      goals: milestoneGoals.map(g => (g.id === goalId ? updatedGoal : g)),
+    });
+  };
+
+  const handleDeleteGoal = (goalId: string) => {
+    onUpdate(milestone.id, {
+      ...milestone,
+      goals: milestoneGoals.filter(g => g.id !== goalId),
+    });
+  };
+
   return (
     <div className="bg-swar-bg p-4 rounded-lg border-2 border-swar-border">
       <div className="flex justify-between items-center mb-3">
@@ -611,7 +548,7 @@ function MilestoneCard({
                 title: e.target.value,
               })
             }
-            placeholder="Milestone title (optional)"
+            placeholder="Milestone title"
             className="w-full px-3 py-2 border border-swar-border rounded text-sm focus:outline-none focus:border-blue-500"
           />
         </div>
@@ -696,6 +633,36 @@ function MilestoneCard({
             placeholder="Working location"
             className="w-full px-3 py-2 border border-swar-border rounded text-sm focus:outline-none focus:border-blue-500"
           />
+        </div>
+
+        {/* Goals nested under this Milestone */}
+        <div className="mt-4 border-t border-swar-border pt-3">
+          <div className="flex justify-between items-center mb-3">
+            <h5 className="text-sm font-bold text-swar-text">Goals</h5>
+            <button
+              type="button"
+              onClick={handleAddGoal}
+              className="px-3 py-1.5 text-sm bg-swar-primary text-white rounded-lg hover:opacity-90 transition-colors"
+            >
+              + Add Goal
+            </button>
+          </div>
+
+          {milestoneGoals.length === 0 ? (
+            <p className="text-xs text-swar-text-secondary italic">No goals yet. Add a goal under this milestone.</p>
+          ) : (
+            <div className="space-y-3">
+              {milestoneGoals.map((goal, gIdx) => (
+                <GoalSection
+                  key={goal.id}
+                  goal={goal}
+                  index={gIdx}
+                  onUpdate={handleUpdateGoal}
+                  onDelete={handleDeleteGoal}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

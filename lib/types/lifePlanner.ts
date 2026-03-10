@@ -76,6 +76,7 @@ export interface Milestone {
   workingHoursEnd?: string;
   place?: string;
   status?: 'not-started' | 'in-progress' | 'completed' | 'on-hold';
+  goals?: ActionPlanGoal[];
   createdAt: string;
   updatedAt: string;
 }
