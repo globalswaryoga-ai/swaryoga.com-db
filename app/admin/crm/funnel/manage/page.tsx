@@ -162,6 +162,8 @@ export default function FunnelManagePage() {
   const [deleting, setDeleting] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [showBulkAssign, setShowBulkAssign] = useState(false);
+  const [bulkAssigning, setBulkAssigning] = useState(false);
 
   // Tick every second for countdown timers
   const windowTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -401,6 +403,25 @@ export default function FunnelManagePage() {
       setBulkStageTarget('');
       fetchLeads();
     } catch (e) { console.error(e); }
+  };
+
+  // Bulk assign admin
+  const bulkAssignAdmin = async (userId: string) => {
+    if (!token || selectedLeadIds.size === 0) return;
+    setBulkAssigning(true);
+    try {
+      const res = await fetch('/api/admin/crm/leads/bulk-update', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadIds: Array.from(selectedLeadIds), assignedToUserId: userId }),
+      });
+      if (res.ok) {
+        setSelectedLeadIds(new Set());
+        setShowBulkAssign(false);
+        fetchLeads();
+      }
+    } catch (e) { console.error(e); }
+    setBulkAssigning(false);
   };
 
   const toggleSelectAll = () => {
@@ -754,6 +775,38 @@ export default function FunnelManagePage() {
                             </button>
                           );
                         })}
+                      </div>
+                    )}
+                  </div>
+                  {/* Assign Admin */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowBulkAssign(!showBulkAssign)}
+                      disabled={bulkAssigning}
+                      title="Assign admin user"
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium bg-teal-50 text-teal-600 hover:bg-teal-100 transition disabled:opacity-50"
+                    >
+                      <UserPlus className="h-3 w-3" /> Assign {bulkAssigning && '...'} <ChevronDown className="h-2.5 w-2.5" />
+                    </button>
+                    {showBulkAssign && (
+                      <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-xl shadow-xl border border-gray-100 py-1 z-50 max-h-60 overflow-y-auto">
+                        <div className="px-3 py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Assign to admin</div>
+                        {adminUsers.map(a => (
+                          <button
+                            key={a.userId}
+                            onClick={() => { bulkAssignAdmin(a.userId); setShowBulkAssign(false); }}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-teal-50 transition"
+                          >
+                            <div className="w-6 h-6 rounded-full bg-teal-100 text-teal-600 flex items-center justify-center text-[10px] font-bold flex-shrink-0">
+                              {(a.name || a.userId || '?')[0].toUpperCase()}
+                            </div>
+                            <div className="text-left">
+                              <div className="font-medium">{a.name || a.userId}</div>
+                              {a.email && <div className="text-[10px] text-gray-400">{a.email}</div>}
+                            </div>
+                          </button>
+                        ))}
+                        {adminUsers.length === 0 && <div className="px-3 py-2 text-xs text-gray-400">No admin users found</div>}
                       </div>
                     )}
                   </div>
