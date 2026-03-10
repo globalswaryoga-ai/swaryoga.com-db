@@ -8,14 +8,15 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 import { securityLog } from '@/lib/security/monitor';
 
 export async function GET(request: NextRequest) {
-  // Verify admin auth
+  // Verify super admin auth
   const authHeader = request.headers.get('authorization');
   const decoded = verifyToken(authHeader || undefined);
-  if (!decoded?.isAdmin) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!decoded?.isAdmin || !isSuperAdmin(decoded)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   const summary = securityLog.getSummary(60);

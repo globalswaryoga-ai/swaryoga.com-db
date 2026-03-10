@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth, getLoginPath } from '@/hooks/useAuth';
+import { checkIsSuperAdmin } from '@/lib/client-auth';
 import { useCRM } from '@/hooks/useCRM';
 import {
   DataTable,
@@ -34,6 +35,8 @@ export default function ConsentPage() {
   const router = useRouter();
   const token = useAuth();
   const crm = useCRM({ token });
+
+  useEffect(() => { if (!checkIsSuperAdmin()) router.replace('/admin/crm'); }, [router]);
 
   const [consents, setConsents] = useState<ConsentRecord[]>([]);
   const [error, setError] = useState<string | null>(null);

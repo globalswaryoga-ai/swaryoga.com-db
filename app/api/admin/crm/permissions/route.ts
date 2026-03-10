@@ -8,9 +8,11 @@ import {
   buildMetadata,
   isValidObjectId,
   toObjectId,
+  isSuperAdmin,
 } from '@/lib/crm-handlers';
 import { Permission } from '@/lib/schemas/enterpriseSchemas';
 import mongoose from 'mongoose';
+import { verifyToken } from '@/lib/auth';
 
 /**
  * Permission and role management API
@@ -74,6 +76,11 @@ const getRoleModel = () =>
 export async function GET(request: NextRequest) {
   try {
     verifyAdminAccess(request);
+    const token = request.headers.get('authorization')?.replace('Bearer ', '') || '';
+    const decoded = verifyToken(token);
+    if (!isSuperAdmin(decoded)) {
+      return NextResponse.json({ error: 'Super admin access required' }, { status: 403 });
+    }
     const url = new URL(request.url);
     const type = url.searchParams.get('type');
     const roleId = url.searchParams.get('roleId');

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth, getLoginPath } from '@/hooks/useAuth';
+import { checkIsSuperAdmin } from '@/lib/client-auth';
 import {
   Settings, Mail, MessageCircle, Globe, Link2, SmartphoneNfc,
   Phone, QrCode, Calculator, CreditCard, User, CheckCircle2,
@@ -80,6 +81,9 @@ type ServiceKey = keyof ConnectionData;
 export default function ConnectionsHubPage() {
   const token = useAuth();
   const router = useRouter();
+
+  useEffect(() => { if (!checkIsSuperAdmin()) router.replace('/admin/crm'); }, [router]);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [data, setData] = useState<ConnectionData>(DEFAULTS);

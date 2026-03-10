@@ -10,6 +10,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 
 const BRIDGE_URL = process.env.WHATSAPP_BRIDGE_HTTP_URL || 'http://52.91.198.23:3333';
 const BRIDGE_SECRET = process.env.WHATSAPP_BRIDGE_SECRET || 'swar-bridge-secret-2024';
@@ -108,6 +110,11 @@ async function waitForNewQR(maxWaitMs = 20000): Promise<string | null> {
 }
 
 export async function POST(request: NextRequest) {
+  const token = request.headers.get('authorization')?.slice('Bearer '.length);
+  const decoded = verifyToken(token);
+  if (!decoded?.isAdmin || !isSuperAdmin(decoded)) {
+    return NextResponse.json({ error: 'Super admin access required' }, { status: 403 });
+  }
   console.log('[Force Reset] === Starting force reset process ===');
   
   const results: any = {
@@ -181,6 +188,11 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  const tokenG = request.headers.get('authorization')?.slice('Bearer '.length);
+  const decodedG = verifyToken(tokenG);
+  if (!decodedG?.isAdmin || !isSuperAdmin(decodedG)) {
+    return NextResponse.json({ error: 'Super admin access required' }, { status: 403 });
+  }
   // GET just returns current status
   try {
     const controller = new AbortController();

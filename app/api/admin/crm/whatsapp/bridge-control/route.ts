@@ -5,8 +5,19 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { execSync } from 'child_process';
+import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
+
+function requireSuperAdmin(request: NextRequest) {
+  const token = request.headers.get('authorization')?.slice('Bearer '.length);
+  const decoded = verifyToken(token);
+  if (!decoded?.isAdmin || !isSuperAdmin(decoded)) {
+    return NextResponse.json({ error: 'Super admin access required' }, { status: 403 });
+  }
+  return null;
+}
 
 const BRIDGE_URL = process.env.WHATSAPP_BRIDGE_HTTP_URL || 'http://52.91.198.23:3333';
 
@@ -63,6 +74,8 @@ async function restartBridgeService(): Promise<{ success: boolean; message: stri
 }
 
 export async function POST(request: NextRequest) {
+  const authErr = requireSuperAdmin(request);
+  if (authErr) return authErr;
   try {
     const { action } = await request.json();
 
@@ -133,9 +146,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  const authErr = requireSuperAdmin(request);
+  if (authErr) return authErr;
   try {
-    const searchParams = request.nextUrl.searchParams;
-    const action = searchParams.get('action') || 'status';
 
     if (action === 'status') {
       const isHealthy = await checkBridgeStatus();

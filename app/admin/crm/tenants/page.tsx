@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import { checkIsSuperAdmin } from '@/lib/client-auth';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -65,7 +67,10 @@ const PLAN_COLORS: Record<string, string> = {
 // ---------------------------------------------------------------------------
 
 export default function TenantsPage() {
+  const router = useRouter();
   const token = useAuth();
+
+  useEffect(() => { if (!checkIsSuperAdmin()) router.replace('/admin/crm'); }, [router]);
 
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [pagination, setPagination] = useState<Pagination | null>(null);

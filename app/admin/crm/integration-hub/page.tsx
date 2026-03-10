@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import { checkIsSuperAdmin } from '@/lib/client-auth';
 import {
   Zap, Bot, MessageCircle, Send, Mail, SmartphoneNfc, Globe,
   BookOpen, Video, FileText, Radio, Loader2, CheckCircle2,
@@ -163,7 +165,11 @@ type SectionKey = keyof IntegrationData;
 // Main Page
 // ============================================================================
 export default function IntegrationHubPage() {
+  const router = useRouter();
   const token = useAuth();
+
+  useEffect(() => { if (!checkIsSuperAdmin()) router.replace('/admin/crm'); }, [router]);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [data, setData] = useState<IntegrationData>(DEFAULTS);

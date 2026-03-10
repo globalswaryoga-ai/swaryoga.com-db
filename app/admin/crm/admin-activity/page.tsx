@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import { checkIsSuperAdmin } from '@/lib/client-auth';
 
 interface AdminUser {
   userId: string;
@@ -163,6 +164,8 @@ function ActivityChart({ data, height = 150 }: { data: Array<{ date: string; cou
 export default function AdminActivityPage() {
   const router = useRouter();
   const token = useAuth();
+
+  useEffect(() => { if (!checkIsSuperAdmin()) router.replace('/admin/crm'); }, [router]);
 
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string>('');

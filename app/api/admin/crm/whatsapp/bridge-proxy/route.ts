@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 
 const BRIDGE_SECRET =
   process.env.WHATSAPP_BRIDGE_SECRET ||
@@ -12,6 +14,12 @@ const BRIDGE_SECRET =
  */
 export async function GET(request: NextRequest) {
   try {
+    const token = request.headers.get('authorization')?.slice('Bearer '.length);
+    const decoded = verifyToken(token);
+    if (!decoded?.isAdmin || !isSuperAdmin(decoded)) {
+      return NextResponse.json({ error: 'Super admin access required' }, { status: 403 });
+    }
+
     const { searchParams } = new URL(request.url);
     const path = searchParams.get('path') || '/status';
     const bridgeUrl = `http://52.91.198.23:3333${path}`;

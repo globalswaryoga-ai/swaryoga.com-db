@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 import { connectDB } from '@/lib/db';
 import { getWhatsAppWebhookEvent } from '@/lib/schemas/enterpriseSchemas';
 import { generateAppSecretProof } from '@/lib/whatsapp';
@@ -33,6 +34,9 @@ export async function GET(request: NextRequest) {
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!isSuperAdmin(decoded)) {
+      return NextResponse.json({ error: 'Super admin access required' }, { status: 403 });
     }
 
     await connectDB();

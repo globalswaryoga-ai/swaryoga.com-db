@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 import { S3Client, HeadBucketCommand } from '@aws-sdk/client-s3';
 
 export const dynamic = 'force-dynamic';
@@ -18,6 +19,13 @@ export async function GET(request: NextRequest) {
     if (!decoded?.isAdmin) {
       return NextResponse.json(
         { error: 'Unauthorized: Admin access required' },
+        { status: 403 }
+      );
+    }
+
+    if (!isSuperAdmin(decoded)) {
+      return NextResponse.json(
+        { error: 'Super admin access required' },
         { status: 403 }
       );
     }
