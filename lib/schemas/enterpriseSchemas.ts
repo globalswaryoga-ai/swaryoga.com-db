@@ -3509,3 +3509,163 @@ TelegramMessageSchema.index({ ownerId: 1, createdAt: -1 });
 TelegramMessageSchema.index({ broadcastRunId: 1 });
 
 export function getTelegramMessage() { return getModel('TelegramMessage', TelegramMessageSchema); }
+
+// ============================================================================
+// AFFILIATE PROGRAM - Referral & profit sharing
+// ============================================================================
+const AffiliateSchema = new mongoose.Schema(
+  {
+    // Affiliate user info
+    userId: { type: String, required: true, index: true },          // CRM user who is the affiliate
+    affiliateCode: { type: String, required: true, unique: true },  // Unique referral code
+    name: { type: String, default: '' },
+    email: { type: String, default: '' },
+    phone: { type: String, default: '' },
+    
+    // Commission settings
+    commissionPercent: { type: Number, default: 10 },               // Default 10% commission
+    commissionType: { 
+      type: String, 
+      enum: ['percentage', 'fixed'], 
+      default: 'percentage' 
+    },
+    fixedCommission: { type: Number, default: 0 },                  // Fixed amount per sale (if type is 'fixed')
+    
+    // Status
+    status: { 
+      type: String, 
+      enum: ['pending', 'approved', 'suspended', 'rejected'], 
+      default: 'pending' 
+    },
+    approvedAt: { type: Date },
+    approvedBy: { type: String },
+    
+    // Banking / Payment info
+    paymentMethod: { 
+      type: String, 
+      enum: ['bank_transfer', 'upi', 'paypal', 'other'], 
+      default: 'upi' 
+    },
+    bankDetails: {
+      accountName: { type: String, default: '' },
+      accountNumber: { type: String, default: '' },
+      bankName: { type: String, default: '' },
+      ifscCode: { type: String, default: '' },
+      upiId: { type: String, default: '' },
+      paypalEmail: { type: String, default: '' },
+    },
+    
+    // Stats (denormalized for quick display)
+    totalReferrals: { type: Number, default: 0 },
+    totalSales: { type: Number, default: 0 },                       // Total sales amount (INR)
+    totalEarnings: { type: Number, default: 0 },                    // Total commission earned
+    pendingEarnings: { type: Number, default: 0 },                  // Pending payout
+    paidEarnings: { type: Number, default: 0 },                     // Already paid out
+    
+    // Landing page / link
+    customLandingPage: { type: String, default: '' },               // Custom landing page URL
+    utmSource: { type: String, default: '' },
+    utmMedium: { type: String, default: '' },
+    utmCampaign: { type: String, default: '' },
+    
+    // Terms accepted
+    termsAccepted: { type: Boolean, default: false },
+    termsAcceptedAt: { type: Date },
+    
+    notes: { type: String, default: '' },
+    metadata: mongoose.Schema.Types.Mixed,
+  },
+  { timestamps: true, collection: 'affiliates' }
+);
+AffiliateSchema.index({ affiliateCode: 1 });
+AffiliateSchema.index({ status: 1 });
+AffiliateSchema.index({ email: 1 });
+
+export function getAffiliate() { return getModel('Affiliate', AffiliateSchema); }
+export const Affiliate = createModelProxy('Affiliate', AffiliateSchema);
+
+// Affiliate Referrals - Track individual referrals/sales
+const AffiliateReferralSchema = new mongoose.Schema(
+  {
+    affiliateId: { type: mongoose.Schema.Types.ObjectId, ref: 'Affiliate', required: true, index: true },
+    affiliateCode: { type: String, required: true, index: true },
+    
+    // Referred customer
+    leadId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lead' },
+    customerName: { type: String, default: '' },
+    customerEmail: { type: String, default: '' },
+    customerPhone: { type: String, default: '' },
+    
+    // Sale details
+    saleAmount: { type: Number, default: 0 },
+    currency: { type: String, default: 'INR' },
+    productName: { type: String, default: '' },
+    orderId: { type: String, default: '' },
+    transactionId: { type: String, default: '' },
+    
+    // Commission
+    commissionPercent: { type: Number, default: 0 },
+    commissionAmount: { type: Number, default: 0 },
+    
+    // Status
+    status: { 
+      type: String, 
+      enum: ['pending', 'confirmed', 'paid', 'cancelled', 'refunded'], 
+      default: 'pending' 
+    },
+    confirmedAt: { type: Date },
+    paidAt: { type: Date },
+    
+    // Tracking
+    referralSource: { type: String, default: '' },                  // landing_page, direct_link, etc.
+    utmParams: mongoose.Schema.Types.Mixed,
+    ipAddress: { type: String, default: '' },
+    userAgent: { type: String, default: '' },
+    
+    notes: { type: String, default: '' },
+    metadata: mongoose.Schema.Types.Mixed,
+  },
+  { timestamps: true, collection: 'affiliate_referrals' }
+);
+AffiliateReferralSchema.index({ affiliateId: 1, createdAt: -1 });
+AffiliateReferralSchema.index({ status: 1 });
+AffiliateReferralSchema.index({ orderId: 1 });
+
+export function getAffiliateReferral() { return getModel('AffiliateReferral', AffiliateReferralSchema); }
+export const AffiliateReferral = createModelProxy('AffiliateReferral', AffiliateReferralSchema);
+
+// Affiliate Payouts - Track commission payouts
+const AffiliatePayoutSchema = new mongoose.Schema(
+  {
+    affiliateId: { type: mongoose.Schema.Types.ObjectId, ref: 'Affiliate', required: true, index: true },
+    
+    // Payout details
+    amount: { type: Number, required: true },
+    currency: { type: String, default: 'INR' },
+    
+    // Payment method used
+    paymentMethod: { type: String, default: '' },
+    transactionId: { type: String, default: '' },
+    
+    // Status
+    status: { 
+      type: String, 
+      enum: ['pending', 'processing', 'completed', 'failed'], 
+      default: 'pending' 
+    },
+    processedAt: { type: Date },
+    processedBy: { type: String },
+    
+    // Reference to referrals included in this payout
+    referralIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'AffiliateReferral' }],
+    
+    notes: { type: String, default: '' },
+    metadata: mongoose.Schema.Types.Mixed,
+  },
+  { timestamps: true, collection: 'affiliate_payouts' }
+);
+AffiliatePayoutSchema.index({ affiliateId: 1, createdAt: -1 });
+AffiliatePayoutSchema.index({ status: 1 });
+
+export function getAffiliatePayout() { return getModel('AffiliatePayout', AffiliatePayoutSchema); }
+export const AffiliatePayout = createModelProxy('AffiliatePayout', AffiliatePayoutSchema);

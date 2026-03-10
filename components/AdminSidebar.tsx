@@ -338,6 +338,14 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
           planModule: 'community',
           description: 'Courses, forums & community hub',
         },
+        {
+          icon: Users,
+          label: 'Affiliate',
+          href: '/admin/crm/affiliate',
+          color: 'text-gray-400',
+          module: 'dashboard',
+          description: 'Referral program & profit sharing',
+        },
       ],
     },
     {
