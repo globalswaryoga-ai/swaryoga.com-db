@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
+import { checkIsSuperAdmin } from '@/lib/client-auth';
 import { QrCode, Wifi, WifiOff, RefreshCw, LogOut, Phone, PhoneCall, Send, Image as ImageIcon, FileText, Mic, ArrowLeft, Loader2, AlertTriangle, CheckCircle2, Unplug, Funnel, Plus, Tag, CheckSquare, Square, X, Paperclip, Video, File, Pencil, Trash2, Users, Mail, MailOpen, Radio, Info, Shield, Crown, Calendar, MessageSquare, Hash, UserCircle, PhoneOff, Search, Star, Bold, Italic, Strikethrough, Smile, Zap, Type, Link2, Copy, RotateCcw, Lock, Unlock, UserMinus, ChevronUp, ChevronDown, Save, Settings, Eye, ChevronLeft, ChevronRight, Merge } from 'lucide-react';
 import type { ConnectionStatus, BridgeStatus, QRResponse, FunnelStage, LabelPreset, ChatItem, MessageItem, ChatFilter, GroupParticipant, GroupInfo } from './types';
 import { formatPhoneNumber, getAvatarColor, linkifyText, getInitials, formatUptime } from './utils';
@@ -23,7 +25,16 @@ import {
 
 export default function QRWhatsAppPage() {
   const token = useAuth();
+  const router = useRouter();
   const { fetch: crmFetch } = useCRM({ token });
+
+  // Block non-super-admins from accessing this page
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!checkIsSuperAdmin()) {
+      router.replace('/admin/crm');
+    }
+  }, [router]);
 
   // State
   const [status, setStatus] = useState<BridgeStatus | null>(null);

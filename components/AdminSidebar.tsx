@@ -372,6 +372,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
           module: 'whatsapp',
           planModule: 'whatsapp',
           description: 'WhatsApp via QR code bridge',
+          superAdminOnly: true,
         },
         {
           icon: Users,
@@ -381,6 +382,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
           module: 'whatsapp',
           planModule: 'whatsapp',
           description: 'Leads from QR WhatsApp chats',
+          superAdminOnly: true,
         },
         {
           icon: UsersRound,
@@ -390,6 +392,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
           module: 'whatsapp',
           planModule: 'whatsapp',
           description: 'Collect & export WhatsApp group contacts',
+          superAdminOnly: true,
         },
         {
           icon: Send,
@@ -692,7 +695,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
                 {/* Category Items - collapsible */}
                 {(isExpanded || isCollapsed) && (
                   <div className={`${isCollapsed ? '' : 'ml-2 border-l border-gray-800 pl-2'} space-y-0.5 mt-0.5`}>
-                    {category.items.map((item) => {
+                    {category.items.filter((item) => !item.superAdminOnly || isSuperAdmin).map((item) => {
                       const Icon = item.icon;
                       const active = isActive(item.href);
                       return (
