@@ -16,12 +16,19 @@ export default function LifePlannerDashboardLayout({ children }: { children: Rea
   });
   const [isAuthenticated, setIsAuthenticated] = useState(true); // Default to true to avoid redirect on initial load
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [isCrmAccess, setIsCrmAccess] = useState(false);
 
   useEffect(() => {
     // Check if we're on the client side and have a valid session
     if (typeof window === 'undefined') {
       setIsCheckingAuth(false);
       return;
+    }
+
+    // Detect if accessed from CRM domain — hide main site navbar
+    const host = window.location.hostname;
+    if (host === 'crm.swaryoga.com' || host.startsWith('crm.')) {
+      setIsCrmAccess(true);
     }
 
     // Life Planner historically used its own keys, but the rest of the app uses the unified session manager
@@ -113,8 +120,8 @@ export default function LifePlannerDashboardLayout({ children }: { children: Rea
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
-      {/* Main website header always on top */}
-      <Navigation />
+      {/* Main website header — hidden when accessed from CRM */}
+      {!isCrmAccess && <Navigation />}
 
       {/* Life Planner UI sits below website header */}
       <div className="flex flex-1 min-h-0 bg-white">
