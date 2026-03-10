@@ -17,6 +17,13 @@ import {
   AlertCircle,
   UsersRound,
   Hash,
+  CheckSquare,
+  Square,
+  Merge,
+  MessageSquare,
+  Send,
+  X,
+  Plus,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -79,6 +86,25 @@ export default function QRGroupContactsPage() {
   // LID map for resolving phone numbers
   const [lidMap, setLidMap] = useState<Record<string, string>>({});
 
+  // Multi-select groups
+  const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set());
+  const [multiSelectMode, setMultiSelectMode] = useState(false);
+
+  // Merge modal
+  const [showMergeModal, setShowMergeModal] = useState(false);
+  const [mergeNewGroupName, setMergeNewGroupName] = useState('');
+  const [merging, setMerging] = useState(false);
+  const [mergeProgress, setMergeProgress] = useState('');
+
+  // Message modal
+  const [showMessageModal, setShowMessageModal] = useState(false);
+  const [messageText, setMessageText] = useState('');
+  const [sending, setSending] = useState(false);
+  const [sendProgress, setSendProgress] = useState('');
+
+  // Success message
+  const [successMsg, setSuccessMsg] = useState('');
+
   // Bridge proxy helper
   const bridgeCall = useCallback(
     async (path: string, method = 'GET', body?: any) => {
@@ -97,6 +123,126 @@ export default function QRGroupContactsPage() {
     },
     [token]
   );
+
+  // Toggle group selection
+  const toggleGroupSelect = (groupId: string) => {
+    setSelectedGroupIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
+      return next;
+    });
+  };
+
+  const selectedGroupsList = groups.filter((g) => selectedGroupIds.has(g.id));
+
+  // Helper: resolve phone from participant
+  const resolvePhone = (p: GroupParticipant): string => {
+    const phone = phoneFromJid(p.id);
+    if (phone) return phone;
+    const lidJid = p.lid || p.id;
+    const resolved = lidMap[lidJid] || lidMap[`${lidJid.split('@')[0]}@lid`] || lidMap[`${lidJid.split('@')[0]}@s.whatsapp.net`];
+    if (resolved) {
+      const rp = resolved.split('@')[0];
+      if (!/^\d{14,}$/.test(rp)) return rp;
+    }
+    return '';
+  };
+
+  // Merge: collect all contacts from selected groups → create new WhatsApp group
+  const handleMergeGroups = async () => {
+    if (!mergeNewGroupName.trim()) { setError('Please enter a group name'); return; }
+    if (selectedGroupIds.size < 2) { setError('Select at least 2 groups to merge'); return; }
+    try {
+      setMerging(true);
+      setError('');
+      setMergeProgress('Collecting contacts from groups…');
+
+      const uniqueJids = new Set<string>();
+      let fetchedCount = 0;
+
+      for (const group of selectedGroupsList) {
+        fetchedCount++;
+        setMergeProgress(`Fetching group ${fetchedCount}/${selectedGroupsList.length}: ${group.name}`);
+        try {
+          const info: GroupInfo = await bridgeCall(`/group-info/${encodeURIComponent(group.id)}`);
+          if (info?.participants) {
+            for (const p of info.participants) {
+              const phone = resolvePhone(p);
+              if (phone) {
+                uniqueJids.add(`${phone}@s.whatsapp.net`);
+              } else if (p.id && !p.id.endsWith('@g.us')) {
+                uniqueJids.add(p.id);
+              }
+            }
+          }
+        } catch { /* skip failed groups */ }
+      }
+
+      if (uniqueJids.size === 0) {
+        setError('No contacts found in selected groups');
+        return;
+      }
+
+      const participants = Array.from(uniqueJids);
+      setMergeProgress(`Creating group "${mergeNewGroupName}" with ${participants.length} contacts…`);
+
+      await bridgeCall('/group-create', 'POST', {
+        subject: mergeNewGroupName.trim(),
+        participants,
+      });
+
+      setSuccessMsg(`Group "${mergeNewGroupName}" created with ${participants.length} contacts from ${selectedGroupsList.length} groups!`);
+      setShowMergeModal(false);
+      setMergeNewGroupName('');
+      setSelectedGroupIds(new Set());
+      setMultiSelectMode(false);
+      setTimeout(() => setSuccessMsg(''), 5000);
+      fetchGroups(); // Refresh to see new group
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to merge groups');
+    } finally {
+      setMerging(false);
+      setMergeProgress('');
+    }
+  };
+
+  // Send message to all selected groups
+  const handleSendToGroups = async () => {
+    if (!messageText.trim()) { setError('Please enter a message'); return; }
+    if (selectedGroupIds.size === 0) { setError('Select at least 1 group'); return; }
+    try {
+      setSending(true);
+      setError('');
+      let sentCount = 0;
+      let failedCount = 0;
+
+      for (const group of selectedGroupsList) {
+        setSendProgress(`Sending to ${group.name} (${sentCount + 1}/${selectedGroupsList.length})…`);
+        try {
+          await bridgeCall('/send', 'POST', {
+            to: group.id,
+            message: messageText.trim(),
+          });
+          sentCount++;
+        } catch {
+          failedCount++;
+        }
+      }
+
+      setSuccessMsg(`Message sent to ${sentCount} group${sentCount !== 1 ? 's' : ''}${failedCount ? ` (${failedCount} failed)` : ''}!`);
+      setShowMessageModal(false);
+      setMessageText('');
+      setSelectedGroupIds(new Set());
+      setMultiSelectMode(false);
+      setTimeout(() => setSuccessMsg(''), 5000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send messages');
+    } finally {
+      setSending(false);
+      setSendProgress('');
+    }
+  };
 
   // Fetch groups from bridge
   const fetchGroups = useCallback(async () => {
@@ -306,10 +452,86 @@ export default function QRGroupContactsPage() {
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            {/* Multi-select toggle */}
+            {!selectedGroup && groups.length > 0 && (
+              <button
+                onClick={() => {
+                  setMultiSelectMode(!multiSelectMode);
+                  if (multiSelectMode) setSelectedGroupIds(new Set());
+                }}
+                className={`px-3 py-1.5 text-sm border rounded-lg flex items-center gap-1.5 ${multiSelectMode ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'border-gray-200 hover:bg-gray-50'}`}
+              >
+                <CheckSquare className="w-3.5 h-3.5" /> {multiSelectMode ? 'Cancel Select' : 'Select Groups'}
+              </button>
+            )}
+            {/* Actions when groups selected */}
+            {multiSelectMode && selectedGroupIds.size > 0 && (
+              <>
+                <span className="text-sm font-medium text-indigo-600">{selectedGroupIds.size} selected</span>
+                <button
+                  onClick={() => setShowMergeModal(true)}
+                  className="px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold flex items-center gap-1.5"
+                >
+                  <Merge className="w-3.5 h-3.5" /> Merge to New Group
+                </button>
+                <button
+                  onClick={() => setShowMessageModal(true)}
+                  className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold flex items-center gap-1.5"
+                >
+                  <Send className="w-3.5 h-3.5" /> Send Message
+                </button>
+                <button
+                  onClick={() => {
+                    // Export selected groups merged
+                    setExportingAll(true);
+                    (async () => {
+                      try {
+                        const allRows: any[] = [];
+                        const uniquePhones = new Set<string>();
+                        for (const group of selectedGroupsList) {
+                          try {
+                            const info: GroupInfo = await bridgeCall(`/group-info/${encodeURIComponent(group.id)}`);
+                            if (!info?.participants) continue;
+                            for (const p of info.participants) {
+                              const phone = resolvePhone(p);
+                              if (phone && !uniquePhones.has(phone)) {
+                                uniquePhones.add(phone);
+                                allRows.push({
+                                  'Phone Number': formatPhone(phone),
+                                  'Raw Number': phone,
+                                  JID: p.id,
+                                  Role: p.admin === 'superadmin' ? 'Super Admin' : p.admin === 'admin' ? 'Admin' : 'Member',
+                                  'Group Name': group.name || info.subject || '',
+                                });
+                              }
+                            }
+                          } catch { /* skip */ }
+                        }
+                        if (allRows.length === 0) { alert('No contacts found'); return; }
+                        const ws = XLSX.utils.json_to_sheet(allRows);
+                        const wb = XLSX.utils.book_new();
+                        XLSX.utils.book_append_sheet(wb, ws, 'Selected Groups');
+                        ws['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 30 }, { wch: 12 }, { wch: 25 }];
+                        XLSX.writeFile(wb, `selected_groups_contacts_${new Date().toISOString().split('T')[0]}.xlsx`);
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : 'Export failed');
+                      } finally {
+                        setExportingAll(false);
+                      }
+                    })();
+                  }}
+                  disabled={exportingAll}
+                  className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold flex items-center gap-1.5 disabled:opacity-60"
+                >
+                  <Download className="w-3.5 h-3.5" /> Export Selected
+                </button>
+              </>
+            )}
             <button
               onClick={() => {
                 setSelectedGroup(null);
                 setGroupInfo(null);
+                setSelectedGroupIds(new Set());
                 fetchGroups();
               }}
               className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 flex items-center gap-1.5"
@@ -385,31 +607,53 @@ export default function QRGroupContactsPage() {
                 </div>
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {filteredGroups.map((group) => (
-                    <button
-                      key={group.id}
-                      onClick={() => fetchGroupInfo(group)}
-                      className="bg-white border border-gray-200 rounded-xl p-4 text-left hover:border-green-300 hover:shadow-md transition-all group"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-10 h-10 bg-green-50 rounded-full flex items-center justify-center shrink-0">
-                            <Users className="w-5 h-5 text-green-600" />
+                  {filteredGroups.map((group) => {
+                    const isSelected = selectedGroupIds.has(group.id);
+                    return (
+                      <button
+                        key={group.id}
+                        onClick={() => {
+                          if (multiSelectMode) {
+                            toggleGroupSelect(group.id);
+                          } else {
+                            fetchGroupInfo(group);
+                          }
+                        }}
+                        className={`bg-white border rounded-xl p-4 text-left hover:shadow-md transition-all group ${
+                          isSelected ? 'border-indigo-400 bg-indigo-50 ring-1 ring-indigo-300' : 'border-gray-200 hover:border-green-300'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center gap-3 min-w-0">
+                            {multiSelectMode && (
+                              <div className="shrink-0">
+                                {isSelected ? (
+                                  <CheckSquare className="w-5 h-5 text-indigo-600" />
+                                ) : (
+                                  <Square className="w-5 h-5 text-gray-300" />
+                                )}
+                              </div>
+                            )}
+                            <div className="w-10 h-10 bg-green-50 rounded-full flex items-center justify-center shrink-0">
+                              <Users className="w-5 h-5 text-green-600" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-semibold text-gray-900 truncate">{group.name || 'Unnamed Group'}</p>
+                              <p className="text-xs text-gray-400 mt-0.5 truncate">{group.id}</p>
+                            </div>
                           </div>
-                          <div className="min-w-0">
-                            <p className="font-semibold text-gray-900 truncate">{group.name || 'Unnamed Group'}</p>
-                            <p className="text-xs text-gray-400 mt-0.5 truncate">{group.id}</p>
-                          </div>
+                          {!multiSelectMode && (
+                            <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-green-500 shrink-0 mt-1" />
+                          )}
                         </div>
-                        <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-green-500 shrink-0 mt-1" />
-                      </div>
-                      {group.lastMessageTime && (
-                        <p className="text-xs text-gray-400 mt-2">
-                          Last activity: {new Date(group.lastMessageTime).toLocaleDateString()}
-                        </p>
-                      )}
-                    </button>
-                  ))}
+                        {group.lastMessageTime && (
+                          <p className="text-xs text-gray-400 mt-2">
+                            Last activity: {new Date(group.lastMessageTime).toLocaleDateString()}
+                          </p>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </>
@@ -551,6 +795,146 @@ export default function QRGroupContactsPage() {
               ) : null}
             </>
           )}
+        </div>
+      )}
+
+      {/* ── SUCCESS TOAST ── */}
+      {successMsg && (
+        <div className="fixed bottom-6 right-6 bg-green-600 text-white px-4 py-3 rounded-xl shadow-lg flex items-center gap-2 z-50 animate-in slide-in-from-bottom-5">
+          <CheckSquare className="w-4 h-4" />
+          <span className="text-sm font-medium">{successMsg}</span>
+          <button onClick={() => setSuccessMsg('')} className="ml-2 hover:text-green-200">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* ── MERGE MODAL ── */}
+      {showMergeModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full">
+            <div className="px-6 py-4 border-b flex items-center justify-between">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <Merge className="w-5 h-5 text-purple-600" />
+                Merge Groups → New Group
+              </h3>
+              <button onClick={() => { setShowMergeModal(false); setMergeProgress(''); }} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div>
+                <p className="text-sm text-gray-600 mb-3">
+                  All contacts from <span className="font-semibold text-purple-600">{selectedGroupIds.size} groups</span> will be merged into a new WhatsApp group.
+                </p>
+                <div className="flex flex-wrap gap-1.5 mb-4">
+                  {selectedGroupsList.map((g) => (
+                    <span key={g.id} className="px-2 py-0.5 bg-purple-50 text-purple-700 rounded-full text-xs font-medium">
+                      {g.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">New Group Name *</label>
+                <input
+                  type="text"
+                  value={mergeNewGroupName}
+                  onChange={(e) => setMergeNewGroupName(e.target.value)}
+                  placeholder="e.g., Swar Yoga All Members"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  disabled={merging}
+                />
+              </div>
+              {mergeProgress && (
+                <div className="flex items-center gap-2 text-sm text-purple-600">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  {mergeProgress}
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t bg-gray-50 rounded-b-2xl flex justify-end gap-2">
+              <button
+                onClick={() => { setShowMergeModal(false); setMergeProgress(''); }}
+                disabled={merging}
+                className="px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleMergeGroups}
+                disabled={merging || !mergeNewGroupName.trim()}
+                className="px-4 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {merging ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Merging…</> : <><Plus className="w-3.5 h-3.5" /> Create Merged Group</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── SEND MESSAGE MODAL ── */}
+      {showMessageModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full">
+            <div className="px-6 py-4 border-b flex items-center justify-between">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <MessageSquare className="w-5 h-5 text-green-600" />
+                Send Message to Groups
+              </h3>
+              <button onClick={() => { setShowMessageModal(false); setSendProgress(''); }} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div>
+                <p className="text-sm text-gray-600 mb-3">
+                  This message will be sent to <span className="font-semibold text-green-600">{selectedGroupIds.size} group{selectedGroupIds.size !== 1 ? 's' : ''}</span>:
+                </p>
+                <div className="flex flex-wrap gap-1.5 mb-4">
+                  {selectedGroupsList.map((g) => (
+                    <span key={g.id} className="px-2 py-0.5 bg-green-50 text-green-700 rounded-full text-xs font-medium">
+                      {g.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Message *</label>
+                <textarea
+                  value={messageText}
+                  onChange={(e) => setMessageText(e.target.value)}
+                  placeholder="Type your message here…"
+                  rows={5}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
+                  disabled={sending}
+                />
+                <p className="text-xs text-gray-400 mt-1">{messageText.length} characters</p>
+              </div>
+              {sendProgress && (
+                <div className="flex items-center gap-2 text-sm text-green-600">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  {sendProgress}
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t bg-gray-50 rounded-b-2xl flex justify-end gap-2">
+              <button
+                onClick={() => { setShowMessageModal(false); setSendProgress(''); }}
+                disabled={sending}
+                className="px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSendToGroups}
+                disabled={sending || !messageText.trim()}
+                className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {sending ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Sending…</> : <><Send className="w-3.5 h-3.5" /> Send to All</>}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
