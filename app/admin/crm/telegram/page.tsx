@@ -141,8 +141,7 @@ export default function TelegramPage() {
     try {
       const res = await crmFetch('/api/admin/crm/telegram/config', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ botToken: botTokenInput.trim() }),
+        body: { botToken: botTokenInput.trim() },
       });
       const data = await res.json();
       if (!res.ok || data.error) {
@@ -184,8 +183,7 @@ export default function TelegramPage() {
     try {
       const res = await crmFetch('/api/admin/crm/telegram/send', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chatId: selectedContact.chatId, text: messageText.trim() }),
+        body: { chatId: selectedContact.chatId, text: messageText.trim() },
       });
       const data = await res.json();
       if (!res.ok || data.error) {

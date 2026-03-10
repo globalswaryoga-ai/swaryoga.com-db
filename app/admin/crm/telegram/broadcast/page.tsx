@@ -205,15 +205,14 @@ export default function TelegramBroadcastPage() {
       // Send Telegram broadcast
       const res = await crmFetch('/api/admin/crm/telegram/broadcast', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           chatIds,
           text: messageText,
           imageUrl: imageUrl || undefined,
           videoUrl: videoUrl || undefined,
           templateId: selectedTemplate || undefined,
           broadcastRunId: newRun.id,
-        }),
+        },
       });
       const data = await res.json();
 
@@ -234,11 +233,10 @@ export default function TelegramBroadcastPage() {
         try {
           const qrRes = await crmFetch('/api/admin/crm/whatsapp/qr/broadcast', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+            body: {
               message: messageText,
               imageUrl: imageUrl || undefined,
-            }),
+            },
           });
           const qrData = await qrRes.json();
           newRun.whatsAppSent = qrData.sent || 0;

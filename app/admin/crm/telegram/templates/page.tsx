@@ -330,8 +330,7 @@ export default function TelegramTemplatesPage() {
 
       const res = await crmFetch('/api/admin/crm/templates', {
         method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: payload,
       });
       const data = await res.json();
       if (!res.ok) {
@@ -354,8 +353,7 @@ export default function TelegramTemplatesPage() {
     try {
       const res = await crmFetch('/api/admin/crm/templates', {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
+        body: { id },
       });
       if (res.ok) {
         loadTemplates();
