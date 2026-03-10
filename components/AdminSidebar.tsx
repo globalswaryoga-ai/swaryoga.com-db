@@ -14,6 +14,7 @@ import {
   BarChart3,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   DollarSign,
   Globe,
   Settings,
@@ -38,6 +39,10 @@ import {
   Plug,
   Zap,
   Send,
+  Megaphone,
+  Wrench,
+  PieChart,
+  Users,
 } from 'lucide-react';
 import { PlanBadge, SidebarLock } from './admin/crm/PlanComponents';
 import type { CrmModule } from '@/lib/crm-site/planConfig';
@@ -59,6 +64,16 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
   const [permissionsV2, setPermissionsV2] = useState<any>(null);
   const [localCollapsed, setLocalCollapsed] = useState(false);
   
+  // Category expansion state (persisted in localStorage)
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({
+    home: true,
+    sales: true,
+    messaging: true,
+    automation: false,
+    reports: false,
+    tools: false,
+  });
+  
   // Storage usage state
   const [storageUsage, setStorageUsage] = useState<{
     display: string;
@@ -74,6 +89,26 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
 
   const isCollapsed = onToggleCollapse ? collapsed : localCollapsed;
   const toggleCollapse = onToggleCollapse || (() => setLocalCollapsed(!localCollapsed));
+
+  // Load persisted category expansion state
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const saved = localStorage.getItem('crm_sidebar_expanded');
+    if (saved) {
+      try {
+        setExpandedCategories(JSON.parse(saved));
+      } catch {}
+    }
+  }, []);
+
+  // Toggle category expansion
+  const toggleCategory = (category: string) => {
+    setExpandedCategories((prev) => {
+      const next = { ...prev, [category]: !prev[category] };
+      localStorage.setItem('crm_sidebar_expanded', JSON.stringify(next));
+      return next;
+    });
+  };
 
   // Determine super-admin status and permissions
   useEffect(() => {
@@ -228,8 +263,8 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
     return Object.values(modulePerms).some((v: any) => v === true);
   };
 
-  // ===== MAIN SIDEBAR ITEMS =====
-  const sidebarItems: {
+  // ===== CATEGORIZED SIDEBAR ITEMS =====
+  type SidebarItem = {
     icon: React.ElementType;
     label: string;
     href: string;
@@ -238,163 +273,214 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
     planModule?: CrmModule;
     badge?: number;
     description?: string;
-  }[] = [
+  };
+
+  type SidebarCategory = {
+    key: string;
+    label: string;
+    icon: React.ElementType;
+    items: SidebarItem[];
+  };
+
+  const sidebarCategories: SidebarCategory[] = [
     {
-      icon: LayoutDashboard,
-      label: 'Dashboard',
-      href: '/admin/crm',
-      color: 'text-gray-400',
-      module: 'dashboard',
-      description: 'Overview of your CRM activity',
+      key: 'home',
+      label: 'Home',
+      icon: Home,
+      items: [
+        {
+          icon: LayoutDashboard,
+          label: 'Dashboard',
+          href: '/admin/crm',
+          color: 'text-gray-400',
+          module: 'dashboard',
+          description: 'Overview of your CRM activity',
+        },
+        {
+          icon: Monitor,
+          label: 'Web Admin',
+          href: '/admin/crm/web-admin',
+          color: 'text-gray-400',
+          module: 'dashboard',
+          description: 'Manage your website content',
+        },
+      ],
     },
     {
-      icon: Monitor,
-      label: 'Web Admin',
-      href: '/admin/crm/web-admin',
-      color: 'text-gray-400',
-      module: 'dashboard',
-      description: 'Manage your website content',
-    },
-    {
-      icon: FileText,
-      label: 'Landing Pages',
-      href: '/admin/landing-pages',
-      color: 'text-gray-400',
-      module: 'dashboard',
-      planModule: 'landingPages',
-      description: 'Build lead capture pages & forms',
-    },
-    {
-      icon: Calculator,
-      label: 'Tally',
-      href: '/admin/crm/tally',
-      color: 'text-gray-400',
-      module: 'dashboard',
-      description: 'Invoice & accounting management',
-    },
-    {
+      key: 'sales',
+      label: 'Sales',
       icon: DollarSign,
-      label: 'Sales & Funnel',
-      href: '/admin/crm/funnel/manage',
-      color: 'text-gray-400',
-      module: 'payments',
-      planModule: 'leads',
-      description: 'Track leads through your sales pipeline',
+      items: [
+        {
+          icon: DollarSign,
+          label: 'Sales & Funnel',
+          href: '/admin/crm/funnel/manage',
+          color: 'text-gray-400',
+          module: 'payments',
+          planModule: 'leads',
+          description: 'Track leads through your sales pipeline',
+        },
+        {
+          icon: FileText,
+          label: 'Landing Pages',
+          href: '/admin/landing-pages',
+          color: 'text-gray-400',
+          module: 'dashboard',
+          planModule: 'landingPages',
+          description: 'Build lead capture pages & forms',
+        },
+        {
+          icon: Globe,
+          label: 'Community',
+          href: '/admin/crm/community',
+          color: 'text-gray-400',
+          module: 'community',
+          planModule: 'community',
+          description: 'Courses, forums & community hub',
+        },
+      ],
     },
     {
+      key: 'messaging',
+      label: 'Messaging',
       icon: MessageCircle,
-      label: 'Meta WhatsApp',
-      href: '/admin/crm/meta',
-      color: 'text-gray-400',
-      module: 'whatsapp',
-      planModule: 'whatsapp',
-      badge: unreadCount,
-      description: 'WhatsApp Business API messaging',
+      items: [
+        {
+          icon: MessageCircle,
+          label: 'Meta WhatsApp',
+          href: '/admin/crm/meta',
+          color: 'text-gray-400',
+          module: 'whatsapp',
+          planModule: 'whatsapp',
+          badge: unreadCount,
+          description: 'WhatsApp Business API messaging',
+        },
+        {
+          icon: QrCode,
+          label: 'QR WhatsApp',
+          href: '/admin/crm/qr',
+          color: 'text-gray-400',
+          module: 'whatsapp',
+          planModule: 'whatsapp',
+          description: 'WhatsApp via QR code bridge',
+        },
+        {
+          icon: Send,
+          label: 'Telegram',
+          href: '/admin/crm/telegram',
+          color: 'text-gray-400',
+          module: 'whatsapp',
+          planModule: 'whatsapp',
+          description: 'Telegram Bot messaging & broadcasts',
+        },
+        {
+          icon: Mail,
+          label: 'Email',
+          href: '/admin/crm/email',
+          color: 'text-gray-400',
+          module: 'email',
+          planModule: 'emailMarketing',
+          description: 'Email campaigns & drip sequences',
+        },
+        {
+          icon: SmartphoneNfc,
+          label: 'SMS',
+          href: '/admin/crm/messages',
+          color: 'text-gray-400',
+          module: 'messages',
+          planModule: 'whatsapp',
+          description: 'Message inbox & management',
+        },
+        {
+          icon: Radio,
+          label: 'Broadcast',
+          href: '/admin/crm/broadcast',
+          color: 'text-gray-400',
+          module: 'broadcasts',
+          planModule: 'broadcasting',
+          description: 'Send bulk WhatsApp campaigns',
+        },
+      ],
     },
     {
-      icon: Radio,
-      label: 'Broadcast',
-      href: '/admin/crm/broadcast',
-      color: 'text-gray-400',
-      module: 'broadcasts',
-      planModule: 'broadcasting',
-      description: 'Send bulk WhatsApp campaigns',
-    },
-    {
-      icon: Mail,
-      label: 'Email',
-      href: '/admin/crm/email',
-      color: 'text-gray-400',
-      module: 'email',
-      planModule: 'emailMarketing',
-      description: 'Email campaigns & drip sequences',
-    },
-    {
-      icon: Globe,
-      label: 'Community',
-      href: '/admin/crm/community',
-      color: 'text-gray-400',
-      module: 'community',
-      planModule: 'community',
-      description: 'Courses, forums & community hub',
-    },
-    {
-      icon: QrCode,
-      label: 'QR WhatsApp',
-      href: '/admin/crm/qr',
-      color: 'text-gray-400',
-      module: 'whatsapp',
-      planModule: 'whatsapp',
-      description: 'WhatsApp via QR code bridge',
-    },
-    {
-      icon: Send,
-      label: 'Telegram',
-      href: '/admin/crm/telegram',
-      color: 'text-gray-400',
-      module: 'whatsapp',
-      planModule: 'whatsapp',
-      description: 'Telegram Bot messaging & broadcasts',
-    },
-    {
+      key: 'automation',
+      label: 'Automation',
       icon: Bot,
-      label: 'AI & Chatbot',
-      href: '/admin/crm/chatbots',
-      color: 'text-gray-400',
-      module: 'whatsapp',
-      planModule: 'chatbot',
-      description: 'Automated conversation flows',
+      items: [
+        {
+          icon: Bot,
+          label: 'AI & Chatbot',
+          href: '/admin/crm/chatbots',
+          color: 'text-gray-400',
+          module: 'whatsapp',
+          planModule: 'chatbot',
+          description: 'Automated conversation flows',
+        },
+        {
+          icon: Phone,
+          label: 'AI Calls',
+          href: '/admin/crm/calls',
+          color: 'text-gray-400',
+          module: 'calls',
+          planModule: 'aiCalls',
+          description: 'AI-powered voice calling',
+        },
+      ],
     },
     {
-      icon: Phone,
-      label: 'Call',
-      href: '/admin/crm/calls',
-      color: 'text-gray-400',
-      module: 'calls',
-      planModule: 'aiCalls',
-      description: 'AI-powered voice calling',
+      key: 'reports',
+      label: 'Reports',
+      icon: PieChart,
+      items: [
+        {
+          icon: BarChart3,
+          label: 'All Reports',
+          href: '/admin/crm/reports',
+          color: 'text-gray-400',
+          module: 'analytics',
+          planModule: 'reports',
+          description: 'All reports, analytics & exports',
+        },
+        {
+          icon: Calculator,
+          label: 'Tally',
+          href: '/admin/crm/tally',
+          color: 'text-gray-400',
+          module: 'dashboard',
+          description: 'Invoice & accounting management',
+        },
+      ],
     },
     {
-      icon: SmartphoneNfc,
-      label: 'SMS Management',
-      href: '/admin/crm/messages',
-      color: 'text-gray-400',
-      module: 'messages',
-      planModule: 'whatsapp',
-      description: 'Message inbox & management',
-    },
-    {
-      icon: BarChart3,
-      label: 'All Reports',
-      href: '/admin/crm/reports',
-      color: 'text-gray-400',
-      module: 'analytics',
-      planModule: 'reports',
-      description: 'All reports, analytics & exports',
-    },
-    {
-      icon: Plug,
-      label: 'Connections',
-      href: '/admin/crm/connections',
-      color: 'text-gray-400',
-      module: 'dashboard' as CrmModule,
-      description: 'Configure all service credentials',
-    },
-    {
-      icon: Zap,
-      label: 'Integrations',
-      href: '/admin/crm/integration-hub',
-      color: 'text-gray-400',
-      module: 'dashboard' as CrmModule,
-      description: 'Chatbot, templates, campaigns & more',
-    },
-    {
-      icon: Languages,
-      label: 'Translator',
-      href: '/admin/crm/translate',
-      color: 'text-gray-400',
-      module: 'translate',
-      description: 'Multi-language content translation',
+      key: 'tools',
+      label: 'Tools',
+      icon: Wrench,
+      items: [
+        {
+          icon: Plug,
+          label: 'Connections',
+          href: '/admin/crm/connections',
+          color: 'text-gray-400',
+          module: 'dashboard' as CrmModule,
+          description: 'Configure all service credentials',
+        },
+        {
+          icon: Zap,
+          label: 'Integrations',
+          href: '/admin/crm/integration-hub',
+          color: 'text-gray-400',
+          module: 'dashboard' as CrmModule,
+          description: 'Chatbot, templates, campaigns & more',
+        },
+        {
+          icon: Languages,
+          label: 'Translator',
+          href: '/admin/crm/translate',
+          color: 'text-gray-400',
+          module: 'translate',
+          description: 'Multi-language content translation',
+        },
+      ],
     },
   ];
 
@@ -515,51 +601,103 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
           </button>
         </div>
 
-        {/* Main Navigation */}
-        <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
-          {sidebarItems
-            .map((item) => {
-            const Icon = item.icon;
-            const active = isActive(item.href);
+        {/* Main Navigation - Categorized */}
+        <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
+          {sidebarCategories.map((category) => {
+            const CategoryIcon = category.icon;
+            const isExpanded = expandedCategories[category.key] ?? true;
+            // Check if any item in category is active
+            const hasActiveItem = category.items.some((item) => isActive(item.href));
+            // Count badges in category
+            const totalBadges = category.items.reduce((sum, item) => sum + (item.badge || 0), 0);
+
             return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={handleNavClick}
-                title={isCollapsed ? item.label : undefined}
-                className={`flex items-center ${isCollapsed ? 'justify-center' : ''} gap-3 px-3 py-2.5 rounded-xl transition-all group relative ${
-                  active
-                    ? 'bg-indigo-600/15 border-l-[3px] border-indigo-500'
-                    : 'hover:bg-gray-800/60'
-                }`}
-              >
-                <Icon className={`h-[18px] w-[18px] flex-shrink-0 transition-colors ${active ? 'text-indigo-400' : 'text-gray-400 group-hover:text-gray-200'}`} />
-                {!isCollapsed && (
-                  <span className={`font-medium text-sm truncate ${active ? 'text-white' : 'text-gray-300 group-hover:text-white'}`}>
-                    {item.label}
-                  </span>
-                )}
-                {item.badge && item.badge > 0 && (
-                  <span className={`${isCollapsed ? 'absolute -top-0.5 -right-0.5 w-4 h-4 text-[10px]' : 'ml-auto w-5 h-5 text-xs'} bg-red-500 text-white font-bold rounded-full flex items-center justify-center flex-shrink-0`}>
-                    {item.badge > 99 ? '99+' : item.badge}
-                  </span>
-                )}
-                {/* Plan lock icon for gated modules */}
-                {!isCollapsed && item.planModule && !item.badge && (
-                  <span className="ml-auto">
-                    <SidebarLock module={item.planModule} />
-                  </span>
-                )}
-                {/* Tooltip when collapsed */}
-                {isCollapsed && (
-                  <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-lg border border-gray-700 transition-opacity">
-                    <div className="font-medium">{item.label}</div>
-                    {item.description && (
-                      <div className="text-[10px] text-gray-400 mt-0.5">{item.description}</div>
+              <div key={category.key}>
+                {/* Category Header */}
+                <button
+                  onClick={() => !isCollapsed && toggleCategory(category.key)}
+                  className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} gap-2 px-3 py-2 rounded-lg transition-all group ${
+                    hasActiveItem ? 'bg-indigo-600/10' : 'hover:bg-gray-800/40'
+                  }`}
+                  title={isCollapsed ? category.label : undefined}
+                >
+                  <div className="flex items-center gap-2">
+                    <CategoryIcon className={`h-4 w-4 flex-shrink-0 ${hasActiveItem ? 'text-indigo-400' : 'text-gray-500 group-hover:text-gray-300'}`} />
+                    {!isCollapsed && (
+                      <span className={`text-xs font-semibold uppercase tracking-wider ${hasActiveItem ? 'text-indigo-300' : 'text-gray-500 group-hover:text-gray-300'}`}>
+                        {category.label}
+                      </span>
                     )}
                   </div>
+                  {!isCollapsed && (
+                    <div className="flex items-center gap-1">
+                      {totalBadges > 0 && (
+                        <span className="w-5 h-5 text-[10px] bg-red-500 text-white font-bold rounded-full flex items-center justify-center">
+                          {totalBadges > 99 ? '99+' : totalBadges}
+                        </span>
+                      )}
+                      <ChevronDown className={`h-3.5 w-3.5 text-gray-500 transition-transform ${isExpanded ? '' : '-rotate-90'}`} />
+                    </div>
+                  )}
+                  {/* Tooltip when collapsed */}
+                  {isCollapsed && (
+                    <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-lg border border-gray-700 transition-opacity">
+                      <div className="font-medium">{category.label}</div>
+                      <div className="text-[10px] text-gray-400">{category.items.length} items</div>
+                    </div>
+                  )}
+                </button>
+
+                {/* Category Items - collapsible */}
+                {(isExpanded || isCollapsed) && (
+                  <div className={`${isCollapsed ? '' : 'ml-2 border-l border-gray-800 pl-2'} space-y-0.5 mt-0.5`}>
+                    {category.items.map((item) => {
+                      const Icon = item.icon;
+                      const active = isActive(item.href);
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          onClick={handleNavClick}
+                          title={isCollapsed ? item.label : undefined}
+                          className={`flex items-center ${isCollapsed ? 'justify-center' : ''} gap-3 px-3 py-2 rounded-lg transition-all group relative ${
+                            active
+                              ? 'bg-indigo-600/15 border-l-2 border-indigo-500 -ml-[2px]'
+                              : 'hover:bg-gray-800/60'
+                          }`}
+                        >
+                          <Icon className={`h-[16px] w-[16px] flex-shrink-0 transition-colors ${active ? 'text-indigo-400' : 'text-gray-400 group-hover:text-gray-200'}`} />
+                          {!isCollapsed && (
+                            <span className={`font-medium text-[13px] truncate ${active ? 'text-white' : 'text-gray-300 group-hover:text-white'}`}>
+                              {item.label}
+                            </span>
+                          )}
+                          {item.badge && item.badge > 0 && (
+                            <span className={`${isCollapsed ? 'absolute -top-0.5 -right-0.5 w-4 h-4 text-[10px]' : 'ml-auto w-5 h-5 text-xs'} bg-red-500 text-white font-bold rounded-full flex items-center justify-center flex-shrink-0`}>
+                              {item.badge > 99 ? '99+' : item.badge}
+                            </span>
+                          )}
+                          {/* Plan lock icon for gated modules */}
+                          {!isCollapsed && item.planModule && !item.badge && (
+                            <span className="ml-auto">
+                              <SidebarLock module={item.planModule} />
+                            </span>
+                          )}
+                          {/* Tooltip when collapsed */}
+                          {isCollapsed && (
+                            <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-lg border border-gray-700 transition-opacity">
+                              <div className="font-medium">{item.label}</div>
+                              {item.description && (
+                                <div className="text-[10px] text-gray-400 mt-0.5">{item.description}</div>
+                              )}
+                            </div>
+                          )}
+                        </Link>
+                      );
+                    })}
+                  </div>
                 )}
-              </Link>
+              </div>
             );
           })}
 

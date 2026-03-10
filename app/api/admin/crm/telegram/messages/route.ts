@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
       .limit(limit)
       .lean();
 
-    return NextResponse.json({ messages: messages.reverse() });
+    return NextResponse.json({ success: true, messages: messages.reverse() });
   } catch (err: any) {
     console.error('[Telegram Messages GET]', err.message);
     return NextResponse.json({ error: err.message }, { status: 500 });

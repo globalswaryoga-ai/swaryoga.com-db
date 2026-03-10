@@ -82,12 +82,9 @@ export default function TelegramPage() {
   const loadConfig = useCallback(async () => {
     if (!token) return;
     try {
-      const res = await crmFetch('/api/admin/crm/telegram/config');
-      if (res.ok) {
-        const data = await res.json();
-        setBotConfig(data);
-        if (!data.configured) setShowSetup(true);
-      }
+      const data = await crmFetch('/api/admin/crm/telegram/config');
+      setBotConfig(data);
+      if (!data.configured) setShowSetup(true);
     } catch {}
   }, [token, crmFetch]);
 
@@ -95,11 +92,8 @@ export default function TelegramPage() {
   const loadContacts = useCallback(async () => {
     if (!token) return;
     try {
-      const res = await crmFetch(`/api/admin/crm/telegram/contacts?search=${encodeURIComponent(contactSearch)}`);
-      if (res.ok) {
-        const data = await res.json();
-        setContacts(data.contacts || []);
-      }
+      const data = await crmFetch(`/api/admin/crm/telegram/contacts?search=${encodeURIComponent(contactSearch)}`);
+      setContacts(data.contacts || []);
     } catch {}
     setLoading(false);
   }, [token, crmFetch, contactSearch]);
@@ -109,11 +103,8 @@ export default function TelegramPage() {
     if (!token) return;
     setMsgLoading(true);
     try {
-      const res = await crmFetch(`/api/admin/crm/telegram/messages?chatId=${chatId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setMessages(data.messages || []);
-      }
+      const data = await crmFetch(`/api/admin/crm/telegram/messages?chatId=${chatId}`);
+      setMessages(data.messages || []);
     } catch {}
     setMsgLoading(false);
   }, [token, crmFetch]);
@@ -139,28 +130,24 @@ export default function TelegramPage() {
     setSetupLoading(true);
     setSetupError('');
     try {
-      const res = await crmFetch('/api/admin/crm/telegram/config', {
+      const data = await crmFetch('/api/admin/crm/telegram/config', {
         method: 'POST',
         body: { botToken: botTokenInput.trim() },
       });
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        setSetupError(data.error || 'Setup failed');
-      } else {
-        setBotConfig({
-          configured: true,
-          botToken: botTokenInput.slice(0, 10) + '...',
-          botUsername: data.botUsername,
-          botName: data.botName,
-          botId: data.botId,
-          webhookSet: data.webhookSet,
-          enabled: true,
-        });
-        setShowSetup(false);
-        setBotTokenInput('');
-      }
+      // crmFetch returns parsed data directly and throws on error
+      setBotConfig({
+        configured: true,
+        botToken: botTokenInput.slice(0, 10) + '...',
+        botUsername: data.botUsername,
+        botName: data.botName,
+        botId: data.botId,
+        webhookSet: data.webhookSet,
+        enabled: true,
+      });
+      setShowSetup(false);
+      setBotTokenInput('');
     } catch (err: any) {
-      setSetupError(err.message);
+      setSetupError(err.message || 'Setup failed');
     }
     setSetupLoading(false);
   };
@@ -181,19 +168,15 @@ export default function TelegramPage() {
     setSending(true);
     setSendError('');
     try {
-      const res = await crmFetch('/api/admin/crm/telegram/send', {
+      await crmFetch('/api/admin/crm/telegram/send', {
         method: 'POST',
         body: { chatId: selectedContact.chatId, text: messageText.trim() },
       });
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        setSendError(data.error || 'Send failed');
-      } else {
-        setMessageText('');
-        loadMessages(selectedContact.chatId);
-      }
+      // Success - crmFetch throws on error
+      setMessageText('');
+      loadMessages(selectedContact.chatId);
     } catch (err: any) {
-      setSendError(err.message);
+      setSendError(err.message || 'Send failed');
     }
     setSending(false);
   };

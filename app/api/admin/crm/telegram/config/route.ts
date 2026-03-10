@@ -35,6 +35,7 @@ export async function GET(req: NextRequest) {
 
     if (!settings) {
       return NextResponse.json({
+        success: true,
         configured: false,
         botToken: '',
         botUsername: '',
@@ -51,6 +52,7 @@ export async function GET(req: NextRequest) {
       : '';
 
     return NextResponse.json({
+      success: true,
       configured: !!rawToken,
       botToken: maskedToken,
       botUsername: (settings as any).telegramBotUsername || '',

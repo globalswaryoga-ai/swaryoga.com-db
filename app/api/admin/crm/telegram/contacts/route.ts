@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
       TelegramContact.countDocuments(filter),
     ]);
 
-    return NextResponse.json({ contacts, total });
+    return NextResponse.json({ success: true, contacts, total });
   } catch (err: any) {
     console.error('[Telegram Contacts GET]', err.message);
     return NextResponse.json({ error: err.message }, { status: 500 });
