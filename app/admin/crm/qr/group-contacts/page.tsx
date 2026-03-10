@@ -95,6 +95,8 @@ export default function QRGroupContactsPage() {
   const [mergeNewGroupName, setMergeNewGroupName] = useState('');
   const [merging, setMerging] = useState(false);
   const [mergeProgress, setMergeProgress] = useState('');
+  const [mergeMode, setMergeMode] = useState<'new' | 'existing'>('existing'); // default to existing
+  const [mergeTargetGroupId, setMergeTargetGroupId] = useState('');
 
   // Message modal
   const [showMessageModal, setShowMessageModal] = useState(false);
@@ -149,30 +151,48 @@ export default function QRGroupContactsPage() {
     return '';
   };
 
-  // Merge: collect all contacts from selected groups → create new WhatsApp group
+  // Merge: collect all contacts from selected groups → add to existing group OR create new
   const handleMergeGroups = async () => {
-    if (!mergeNewGroupName.trim()) { setError('Please enter a group name'); return; }
-    if (selectedGroupIds.size < 2) { setError('Select at least 2 groups to merge'); return; }
+    if (mergeMode === 'new' && !mergeNewGroupName.trim()) { setError('Please enter a group name'); return; }
+    if (mergeMode === 'existing' && !mergeTargetGroupId) { setError('Please select a target group'); return; }
+    if (selectedGroupIds.size < 1) { setError('Select at least 1 group'); return; }
     try {
       setMerging(true);
       setError('');
       setMergeProgress('Collecting contacts from groups…');
 
+      // Get existing members of target group (to avoid adding duplicates)
+      const existingJids = new Set<string>();
+      if (mergeMode === 'existing') {
+        try {
+          setMergeProgress('Fetching target group members…');
+          const targetInfo: GroupInfo = await bridgeCall(`/group-info/${encodeURIComponent(mergeTargetGroupId)}`);
+          if (targetInfo?.participants) {
+            for (const p of targetInfo.participants) {
+              existingJids.add(p.id);
+              const phone = resolvePhone(p);
+              if (phone) existingJids.add(`${phone}@s.whatsapp.net`);
+            }
+          }
+        } catch { /* continue */ }
+      }
+
       const uniqueJids = new Set<string>();
       let fetchedCount = 0;
 
-      for (const group of selectedGroupsList) {
+      // Collect contacts from source groups (skip the target group itself)
+      const sourceGroups = selectedGroupsList.filter((g) => g.id !== mergeTargetGroupId);
+      for (const group of sourceGroups) {
         fetchedCount++;
-        setMergeProgress(`Fetching group ${fetchedCount}/${selectedGroupsList.length}: ${group.name}`);
+        setMergeProgress(`Fetching group ${fetchedCount}/${sourceGroups.length}: ${group.name}`);
         try {
           const info: GroupInfo = await bridgeCall(`/group-info/${encodeURIComponent(group.id)}`);
           if (info?.participants) {
             for (const p of info.participants) {
               const phone = resolvePhone(p);
-              if (phone) {
-                uniqueJids.add(`${phone}@s.whatsapp.net`);
-              } else if (p.id && !p.id.endsWith('@g.us')) {
-                uniqueJids.add(p.id);
+              const jid = phone ? `${phone}@s.whatsapp.net` : p.id;
+              if (jid && !jid.endsWith('@g.us') && !existingJids.has(jid)) {
+                uniqueJids.add(jid);
               }
             }
           }
@@ -180,25 +200,50 @@ export default function QRGroupContactsPage() {
       }
 
       if (uniqueJids.size === 0) {
-        setError('No contacts found in selected groups');
+        setError('No new contacts to add (all contacts already in target group)');
         return;
       }
 
       const participants = Array.from(uniqueJids);
-      setMergeProgress(`Creating group "${mergeNewGroupName}" with ${participants.length} contacts…`);
 
-      await bridgeCall('/group-create', 'POST', {
-        subject: mergeNewGroupName.trim(),
-        participants,
-      });
+      if (mergeMode === 'existing') {
+        // Add participants to existing group in batches (WhatsApp limits)
+        const targetGroup = groups.find((g) => g.id === mergeTargetGroupId);
+        const targetName = targetGroup?.name || 'target group';
+        const BATCH_SIZE = 20; // WhatsApp limits add operations
+        let addedCount = 0;
+        for (let i = 0; i < participants.length; i += BATCH_SIZE) {
+          const batch = participants.slice(i, i + BATCH_SIZE);
+          setMergeProgress(`Adding contacts to "${targetName}" (${Math.min(i + BATCH_SIZE, participants.length)}/${participants.length})…`);
+          try {
+            await bridgeCall(`/group-participants/${encodeURIComponent(mergeTargetGroupId)}`, 'POST', {
+              action: 'add',
+              participants: batch,
+            });
+            addedCount += batch.length;
+          } catch (err) {
+            console.warn('Batch add failed:', err);
+            // Continue with next batch
+          }
+        }
+        setSuccessMsg(`Added ${addedCount} new contacts to "${targetName}" from ${sourceGroups.length} group${sourceGroups.length !== 1 ? 's' : ''}!`);
+      } else {
+        // Create new group
+        setMergeProgress(`Creating group "${mergeNewGroupName}" with ${participants.length} contacts…`);
+        await bridgeCall('/group-create', 'POST', {
+          subject: mergeNewGroupName.trim(),
+          participants,
+        });
+        setSuccessMsg(`Group "${mergeNewGroupName}" created with ${participants.length} contacts from ${sourceGroups.length} groups!`);
+      }
 
-      setSuccessMsg(`Group "${mergeNewGroupName}" created with ${participants.length} contacts from ${selectedGroupsList.length} groups!`);
       setShowMergeModal(false);
       setMergeNewGroupName('');
+      setMergeTargetGroupId('');
       setSelectedGroupIds(new Set());
       setMultiSelectMode(false);
       setTimeout(() => setSuccessMsg(''), 5000);
-      fetchGroups(); // Refresh to see new group
+      fetchGroups(); // Refresh
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to merge groups');
     } finally {
@@ -816,36 +861,104 @@ export default function QRGroupContactsPage() {
             <div className="px-6 py-4 border-b flex items-center justify-between">
               <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                 <Merge className="w-5 h-5 text-purple-600" />
-                Merge Groups → New Group
+                Merge Groups
               </h3>
               <button onClick={() => { setShowMergeModal(false); setMergeProgress(''); }} className="text-gray-400 hover:text-gray-600">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="px-6 py-5 space-y-4">
+              {/* Source groups */}
               <div>
-                <p className="text-sm text-gray-600 mb-3">
-                  All contacts from <span className="font-semibold text-purple-600">{selectedGroupIds.size} groups</span> will be merged into a new WhatsApp group.
+                <p className="text-sm text-gray-600 mb-2">
+                  Contacts from <span className="font-semibold text-purple-600">{selectedGroupIds.size} selected group{selectedGroupIds.size !== 1 ? 's' : ''}</span>:
                 </p>
                 <div className="flex flex-wrap gap-1.5 mb-4">
                   {selectedGroupsList.map((g) => (
-                    <span key={g.id} className="px-2 py-0.5 bg-purple-50 text-purple-700 rounded-full text-xs font-medium">
-                      {g.name}
+                    <span key={g.id} className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                      mergeMode === 'existing' && g.id === mergeTargetGroupId
+                        ? 'bg-amber-50 text-amber-700 ring-1 ring-amber-300'
+                        : 'bg-purple-50 text-purple-700'
+                    }`}>
+                      {g.name} {mergeMode === 'existing' && g.id === mergeTargetGroupId && '← target'}
                     </span>
                   ))}
                 </div>
               </div>
+
+              {/* Mode toggle */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">New Group Name *</label>
-                <input
-                  type="text"
-                  value={mergeNewGroupName}
-                  onChange={(e) => setMergeNewGroupName(e.target.value)}
-                  placeholder="e.g., Swar Yoga All Members"
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  disabled={merging}
-                />
+                <label className="block text-sm font-medium text-gray-700 mb-2">Merge into:</label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setMergeMode('existing'); setMergeNewGroupName(''); }}
+                    className={`flex-1 px-3 py-2 text-sm rounded-lg border font-medium transition ${
+                      mergeMode === 'existing'
+                        ? 'bg-purple-50 border-purple-300 text-purple-700 ring-1 ring-purple-300'
+                        : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                    }`}
+                    disabled={merging}
+                  >
+                    Existing Group
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setMergeMode('new'); setMergeTargetGroupId(''); }}
+                    className={`flex-1 px-3 py-2 text-sm rounded-lg border font-medium transition ${
+                      mergeMode === 'new'
+                        ? 'bg-purple-50 border-purple-300 text-purple-700 ring-1 ring-purple-300'
+                        : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                    }`}
+                    disabled={merging}
+                  >
+                    New Group
+                  </button>
+                </div>
               </div>
+
+              {/* Existing group selector */}
+              {mergeMode === 'existing' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Select target group *</label>
+                  <p className="text-xs text-gray-400 mb-2">All other selected groups' contacts will be added to this group</p>
+                  <select
+                    value={mergeTargetGroupId}
+                    onChange={(e) => setMergeTargetGroupId(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    disabled={merging}
+                  >
+                    <option value="">— Choose target group —</option>
+                    {selectedGroupsList.map((g) => (
+                      <option key={g.id} value={g.id}>{g.name}</option>
+                    ))}
+                    {/* Also show non-selected groups */}
+                    {groups.filter((g) => !selectedGroupIds.has(g.id)).length > 0 && (
+                      <optgroup label="Other groups">
+                        {groups.filter((g) => !selectedGroupIds.has(g.id)).map((g) => (
+                          <option key={g.id} value={g.id}>{g.name}</option>
+                        ))}
+                      </optgroup>
+                    )}
+                  </select>
+                </div>
+              )}
+
+              {/* New group name */}
+              {mergeMode === 'new' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">New Group Name *</label>
+                  <input
+                    type="text"
+                    value={mergeNewGroupName}
+                    onChange={(e) => setMergeNewGroupName(e.target.value)}
+                    placeholder="e.g., Swar Yoga All Members"
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    disabled={merging}
+                  />
+                </div>
+              )}
+
               {mergeProgress && (
                 <div className="flex items-center gap-2 text-sm text-purple-600">
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -863,10 +976,14 @@ export default function QRGroupContactsPage() {
               </button>
               <button
                 onClick={handleMergeGroups}
-                disabled={merging || !mergeNewGroupName.trim()}
+                disabled={merging || (mergeMode === 'new' ? !mergeNewGroupName.trim() : !mergeTargetGroupId)}
                 className="px-4 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold disabled:opacity-50 flex items-center gap-1.5"
               >
-                {merging ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Merging…</> : <><Plus className="w-3.5 h-3.5" /> Create Merged Group</>}
+                {merging
+                  ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Merging…</>
+                  : mergeMode === 'existing'
+                    ? <><Merge className="w-3.5 h-3.5" /> Add to Group</>
+                    : <><Plus className="w-3.5 h-3.5" /> Create Merged Group</>}
               </button>
             </div>
           </div>
