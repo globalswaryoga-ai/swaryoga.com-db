@@ -414,6 +414,21 @@ export default function QRWhatsAppPage() {
     }
   }, [status?.connected, tab]);
 
+  // ── Save connected phone number to settings ──
+  const savedPhoneRef = useRef<string | null>(null);
+  useEffect(() => {
+    // When status shows we're connected AND has phone info, save it
+    if (status?.connected && status?.phone?.id && status.phone.id !== savedPhoneRef.current) {
+      savedPhoneRef.current = status.phone.id;
+      // Save to DB in background
+      crmFetchRef.current('/api/admin/crm/settings', {
+        method: 'PUT',
+        body: { qrConnectedPhoneNumber: status.phone.id },
+        silent: true,
+      }).catch(e => console.warn('[QR] Failed to save connected phone:', e));
+    }
+  }, [status?.connected, status?.phone?.id]);
+
   // ── Auto-fetch WhatsApp statuses when connected and on status tab ──
   useEffect(() => {
     if (status?.connected && tab === 'connection' && statusData.length === 0) {

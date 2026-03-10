@@ -373,6 +373,15 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
           description: 'WhatsApp via QR code bridge',
         },
         {
+          icon: Users,
+          label: 'QR Leads',
+          href: '/admin/crm/qr/leads',
+          color: 'text-gray-400',
+          module: 'whatsapp',
+          planModule: 'whatsapp',
+          description: 'Leads from QR WhatsApp chats',
+        },
+        {
           icon: Send,
           label: 'Telegram',
           href: '/admin/crm/telegram',
@@ -498,6 +507,12 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       icon: Shield,
       label: 'Super Admin',
       href: '/admin/crm/super-admin',
+      color: 'text-gray-400',
+    },
+    {
+      icon: Users,
+      label: 'CRM Users',
+      href: '/admin/crm/crm-users',
       color: 'text-gray-400',
     },
     {

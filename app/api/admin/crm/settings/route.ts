@@ -78,6 +78,7 @@ export async function PUT(req: NextRequest) {
     if (body.qrBridgeUrl !== undefined) update.qrBridgeUrl = body.qrBridgeUrl;
     if (body.qrBridgeSecret !== undefined) update.qrBridgeSecret = body.qrBridgeSecret;
     if (body.qrWhatsappEnabled !== undefined) update.qrWhatsappEnabled = body.qrWhatsappEnabled;
+    if (body.qrConnectedPhoneNumber !== undefined) update.qrConnectedPhoneNumber = body.qrConnectedPhoneNumber;
 
     if (Object.keys(update).length === 0) {
       return apiError('No settings to update', 400);
