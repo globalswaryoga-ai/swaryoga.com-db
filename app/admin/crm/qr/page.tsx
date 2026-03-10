@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
-import { QrCode, Wifi, WifiOff, RefreshCw, LogOut, Phone, PhoneCall, Send, Image as ImageIcon, FileText, Mic, ArrowLeft, Loader2, AlertTriangle, CheckCircle2, Unplug, Funnel, Plus, Tag, CheckSquare, Square, X, Paperclip, Video, File, Pencil, Trash2, Users, Mail, MailOpen, Radio, Info, Shield, Crown, Calendar, MessageSquare, Hash, UserCircle, PhoneOff, Search, Star, Bold, Italic, Strikethrough, Smile, Zap, Type, Link2, Copy, RotateCcw, Lock, Unlock, UserMinus, ChevronUp, ChevronDown, Save, Settings, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
+import { QrCode, Wifi, WifiOff, RefreshCw, LogOut, Phone, PhoneCall, Send, Image as ImageIcon, FileText, Mic, ArrowLeft, Loader2, AlertTriangle, CheckCircle2, Unplug, Funnel, Plus, Tag, CheckSquare, Square, X, Paperclip, Video, File, Pencil, Trash2, Users, Mail, MailOpen, Radio, Info, Shield, Crown, Calendar, MessageSquare, Hash, UserCircle, PhoneOff, Search, Star, Bold, Italic, Strikethrough, Smile, Zap, Type, Link2, Copy, RotateCcw, Lock, Unlock, UserMinus, ChevronUp, ChevronDown, Save, Settings, Eye, ChevronLeft, ChevronRight, Merge } from 'lucide-react';
 import type { ConnectionStatus, BridgeStatus, QRResponse, FunnelStage, LabelPreset, ChatItem, MessageItem, ChatFilter, GroupParticipant, GroupInfo } from './types';
 import { formatPhoneNumber, getAvatarColor, linkifyText, getInitials, formatUptime } from './utils';
 import { FUNNEL_COLORS, LABEL_COLORS, EMOJI_LIST, QUICK_REPLIES, TEMPLATES, DEFAULT_FUNNEL_STAGES, DEFAULT_LABEL_PRESETS, REACTION_EMOJIS } from './constants';
@@ -115,6 +115,14 @@ export default function QRWhatsAppPage() {
   const [newChatPhone, setNewChatPhone] = useState('');
   // Contact about/bio
   const [contactAbout, setContactAbout] = useState<string | null>(null);
+  // Merge groups state
+  const [showMergeGroups, setShowMergeGroups] = useState(false);
+  const [mergeTargetId, setMergeTargetId] = useState('');
+  const [mergeSourceIds, setMergeSourceIds] = useState<Set<string>>(new Set());
+  const [mergeBusy, setMergeBusy] = useState(false);
+  const [mergeProgress, setMergeProgress] = useState(0);
+  const [mergeProgressText, setMergeProgressText] = useState('');
+  const [mergeResult, setMergeResult] = useState<{ targetName: string; existingCount: number; newCount: number } | null>(null);
   // Pinned chats (max 5)
   const [pinnedChats, setPinnedChats] = useState<string[]>(() => {
     if (typeof window !== 'undefined') { try { const v = localStorage.getItem('crm_pinnedChats'); if (v) return JSON.parse(v); } catch {} } return [];
@@ -1029,6 +1037,77 @@ export default function QRWhatsAppPage() {
     }
   }, [newGroupName, newGroupMembers, creatingGroup, bridgeCall, fetchChats, selectChat]);
 
+  // ── Merge groups into a target group ──
+  const handleMergeGroups = useCallback(async () => {
+    if (!mergeTargetId || mergeSourceIds.size === 0 || mergeBusy) return;
+    setMergeBusy(true);
+    setMergeProgress(0);
+    setMergeProgressText('Fetching target group info…');
+    setMergeResult(null);
+    try {
+      // 1. Get target group info & existing participants
+      const targetInfo = await bridgeCall(`/group-info/${mergeTargetId}`) as { subject?: string; participants?: { id: string }[] };
+      const targetName = targetInfo?.subject || 'Target Group';
+      const existingIds = new Set((targetInfo?.participants || []).map((p: { id: string }) => p.id));
+      const existingCount = existingIds.size;
+      setMergeProgress(10);
+
+      // 2. Collect unique participants from all source groups
+      const sourceArr = Array.from(mergeSourceIds).filter(id => id !== mergeTargetId);
+      const allNewJids: string[] = [];
+      for (let i = 0; i < sourceArr.length; i++) {
+        setMergeProgressText(`Fetching group ${i + 1}/${sourceArr.length}…`);
+        try {
+          const info = await bridgeCall(`/group-info/${sourceArr[i]}`) as { participants?: { id: string }[] };
+          const members = (info?.participants || []).map((p: { id: string }) => p.id);
+          for (const jid of members) {
+            if (!existingIds.has(jid) && !allNewJids.includes(jid)) {
+              allNewJids.push(jid);
+            }
+          }
+        } catch {
+          // skip failed group
+        }
+        setMergeProgress(10 + Math.round(((i + 1) / sourceArr.length) * 40));
+      }
+
+      if (allNewJids.length === 0) {
+        setMergeResult({ targetName, existingCount, newCount: 0 });
+        setMergeProgress(100);
+        setMergeProgressText('Done — no new members to add.');
+        setMergeBusy(false);
+        return;
+      }
+
+      // 3. Add participants in batches of 20
+      const batchSize = 20;
+      let added = 0;
+      for (let i = 0; i < allNewJids.length; i += batchSize) {
+        const batch = allNewJids.slice(i, i + batchSize);
+        setMergeProgressText(`Adding members ${i + 1}–${Math.min(i + batchSize, allNewJids.length)} of ${allNewJids.length}…`);
+        try {
+          await bridgeCall(`/group-participants/${mergeTargetId}`, 'POST', {
+            action: 'add',
+            participants: batch,
+          });
+          added += batch.length;
+        } catch {
+          // some may fail (privacy settings etc)
+        }
+        setMergeProgress(50 + Math.round(((i + batchSize) / allNewJids.length) * 50));
+      }
+
+      setMergeProgress(100);
+      setMergeProgressText('Merge complete!');
+      setMergeResult({ targetName, existingCount, newCount: added });
+      fetchChats();
+    } catch (e: any) {
+      setMergeProgressText(`Error: ${e.message || 'Merge failed'}`);
+    } finally {
+      setMergeBusy(false);
+    }
+  }, [mergeTargetId, mergeSourceIds, mergeBusy, bridgeCall, fetchChats]);
+
   // ── Start a new chat with phone number ──
   const handleStartNewChat = useCallback(() => {
     if (!newChatPhone.trim()) return;
@@ -1423,6 +1502,9 @@ export default function QRWhatsAppPage() {
                 </button>
                 <button onClick={() => setShowGroupCreate(true)} className="px-3 py-1.5 text-xs font-medium bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 border border-purple-200 flex items-center gap-1.5 transition" title="New Group">
                   <Users className="w-3.5 h-3.5" /> New Group
+                </button>
+                <button onClick={() => { setShowMergeGroups(true); setMergeTargetId(''); setMergeSourceIds(new Set()); setMergeResult(null); setMergeProgress(0); setMergeProgressText(''); }} className="px-3 py-1.5 text-xs font-medium bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 border border-amber-200 flex items-center gap-1.5 transition" title="Merge Groups">
+                  <Merge className="w-3.5 h-3.5" /> Merge Group
                 </button>
               </>
             )}
@@ -2471,6 +2553,96 @@ export default function QRWhatsAppPage() {
         creatingGroup={creatingGroup}
         handleCreateGroup={handleCreateGroup}
       />
+      {/* Merge Groups Modal */}
+      {showMergeGroups && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => { if (!mergeBusy) { setShowMergeGroups(false); setMergeResult(null); setMergeProgress(0); setMergeSourceIds(new Set()); setMergeTargetId(''); } }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="px-5 py-3.5 border-b flex items-center justify-between bg-gradient-to-r from-amber-500 to-orange-500 rounded-t-2xl">
+              <h3 className="font-semibold text-white flex items-center gap-2"><Merge className="w-5 h-5" /> Merge Groups</h3>
+              <button onClick={() => { if (!mergeBusy) { setShowMergeGroups(false); setMergeResult(null); setMergeProgress(0); setMergeSourceIds(new Set()); setMergeTargetId(''); } }} className="text-white/80 hover:text-white"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-5 space-y-4 overflow-y-auto flex-1">
+              {/* Result Summary */}
+              {mergeResult && (
+                <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center space-y-1">
+                  <div className="text-green-700 font-bold text-lg">✅ Successfully Merged!</div>
+                  <div className="text-sm text-green-800"><span className="font-semibold">{mergeResult.targetName}</span> had <span className="font-bold">{mergeResult.existingCount}</span> users</div>
+                  <div className="text-sm text-green-800"><span className="font-bold text-green-600">{mergeResult.newCount}</span> new members added from other groups</div>
+                  <button onClick={() => { setShowMergeGroups(false); setMergeResult(null); setMergeProgress(0); setMergeSourceIds(new Set()); setMergeTargetId(''); }} className="mt-3 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition">Done</button>
+                </div>
+              )}
+              {/* Select target group */}
+              {!mergeResult && (
+                <>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Merge Into (Target Group)</label>
+                    <select
+                      value={mergeTargetId}
+                      onChange={e => setMergeTargetId(e.target.value)}
+                      disabled={mergeBusy}
+                      className="w-full px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white disabled:opacity-50"
+                    >
+                      <option value="">— Select target group —</option>
+                      {chats.filter(c => c.isGroup).sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(g => (
+                        <option key={g.id} value={g.id}>{g.name || g.id}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {/* Select source groups */}
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Select Groups to Merge From ({mergeSourceIds.size} selected)</label>
+                    <div className="border rounded-lg max-h-52 overflow-y-auto divide-y">
+                      {chats.filter(c => c.isGroup && c.id !== mergeTargetId).sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(g => (
+                        <label key={g.id} className={`flex items-center gap-3 px-3 py-2.5 hover:bg-amber-50 cursor-pointer transition ${mergeSourceIds.has(g.id) ? 'bg-amber-50' : ''}`}>
+                          <input
+                            type="checkbox"
+                            checked={mergeSourceIds.has(g.id)}
+                            disabled={mergeBusy}
+                            onChange={() => {
+                              setMergeSourceIds(prev => {
+                                const next = new Set(prev);
+                                if (next.has(g.id)) next.delete(g.id); else next.add(g.id);
+                                return next;
+                              });
+                            }}
+                            className="accent-amber-500 w-4 h-4"
+                          />
+                          <span className="text-sm text-gray-700 truncate">{g.name || g.id}</span>
+                        </label>
+                      ))}
+                      {chats.filter(c => c.isGroup && c.id !== mergeTargetId).length === 0 && (
+                        <div className="px-3 py-4 text-center text-gray-400 text-sm">No other groups found</div>
+                      )}
+                    </div>
+                  </div>
+                  {/* Progress bar */}
+                  {mergeBusy && (
+                    <div className="space-y-2">
+                      <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                        <div className="bg-gradient-to-r from-amber-400 to-orange-500 h-3 rounded-full transition-all duration-300" style={{ width: `${mergeProgress}%` }} />
+                      </div>
+                      <p className="text-xs text-gray-500 text-center">{mergeProgressText}</p>
+                    </div>
+                  )}
+                  {/* Submit */}
+                  <button
+                    onClick={handleMergeGroups}
+                    disabled={!mergeTargetId || mergeSourceIds.size === 0 || mergeBusy}
+                    className="w-full py-2.5 bg-amber-600 text-white rounded-lg font-medium hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2"
+                  >
+                    {mergeBusy ? (
+                      <><span className="animate-spin rounded-full h-4 w-4 border-2 border-white/30 border-t-white" /> Merging…</>
+                    ) : (
+                      <><Merge className="w-4 h-4" /> Merge {mergeSourceIds.size} Group{mergeSourceIds.size !== 1 ? 's' : ''} into Target</>
+                    )}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       {/* New Chat Modal */}
       {showNewChat && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowNewChat(false)}>
