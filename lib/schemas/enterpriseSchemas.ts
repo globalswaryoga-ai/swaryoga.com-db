@@ -632,7 +632,10 @@ const WhatsAppTemplateSchema = new mongoose.Schema(
     // This is optional for backwards compatibility.
     buttons: [
       {
+        type: { type: String, enum: ['QUICK_REPLY', 'URL', 'PHONE_NUMBER'], default: 'QUICK_REPLY' },
         title: { type: String },
+        url: { type: String },         // For URL buttons
+        phoneNumber: { type: String }, // For PHONE_NUMBER buttons
       },
     ],
     // Media fields - images (JPG/PNG/WebP), documents (PDF/Word/Excel/PowerPoint/ZIP), videos (URL only)

@@ -756,6 +756,32 @@ export default function QRTemplatesPage() {
                     <button onClick={() => deleteTemplate(t._id)} className="p-1.5 hover:bg-red-50 rounded-lg" title="Delete"><Trash2 className="w-3.5 h-3.5 text-red-500" /></button>
                   </div>
                 </div>
+                {/* Image Preview Thumbnail */}
+                {t.headerFormat === 'IMAGE' && (t.imageFile?.url || (t.headerContent && t.headerContent.startsWith('http'))) && (
+                  <div className="relative w-full h-28 bg-gray-100 overflow-hidden">
+                    <img 
+                      src={t.imageFile?.url || t.headerContent} 
+                      alt="" 
+                      className="w-full h-full object-cover"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    />
+                  </div>
+                )}
+                {/* Video Preview Thumbnail */}
+                {t.headerFormat === 'VIDEO' && (t.videoUrl || (t.headerContent && t.headerContent.startsWith('http'))) && (
+                  <div className="relative w-full h-28 bg-gray-900 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                      <Play className="w-5 h-5 text-white ml-0.5" />
+                    </div>
+                  </div>
+                )}
+                {/* Document Preview */}
+                {t.headerFormat === 'DOCUMENT' && t.documents?.[0] && (
+                  <div className="bg-gray-100 px-4 py-3 flex items-center gap-2 border-b">
+                    <File className="w-6 h-6 text-red-500" />
+                    <span className="text-xs text-gray-700 truncate flex-1">{t.documents[0].fileName || 'Document'}</span>
+                  </div>
+                )}
                 {/* Card Body - Content Preview */}
                 <div className="px-4 py-3">
                   {t.headerContent && !t.headerContent.startsWith('http') && (

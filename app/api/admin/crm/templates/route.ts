@@ -152,13 +152,19 @@ export async function POST(request: NextRequest) {
           }
         : null;
 
-    // Normalize buttons to schema: [{ title }]
+    // Normalize buttons to schema: [{ type, title, url, phoneNumber }]
     const normalizedButtons = Array.isArray(buttons)
       ? buttons
           .map((b: any) => {
             if (!b) return null;
             const title = String(b.title || b.label || b.text || '').trim();
-            return title ? ({ title } as any) : null;
+            if (!title) return null;
+            const buttonObj: any = { title };
+            // Preserve type, url, and phoneNumber for QR templates
+            if (b.type) buttonObj.type = String(b.type).toUpperCase();
+            if (b.url) buttonObj.url = String(b.url).trim();
+            if (b.phoneNumber) buttonObj.phoneNumber = String(b.phoneNumber).trim();
+            return buttonObj;
           })
           .filter(Boolean)
       : undefined;

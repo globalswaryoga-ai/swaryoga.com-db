@@ -120,11 +120,19 @@ export async function PUT(
       updates.headerMedia = derivedHeaderMedia;
     }
 
+    // Normalize buttons preserving type, url, phoneNumber
     if (Array.isArray(updates?.buttons)) {
       updates.buttons = updates.buttons
-        .map((b: any) =>
-          b && typeof b === 'object' ? { title: String(b.title || '').trim() || 'Button' } : null
-        )
+        .map((b: any) => {
+          if (!b || typeof b !== 'object') return null;
+          const title = String(b.title || '').trim();
+          if (!title) return null;
+          const buttonObj: any = { title };
+          if (b.type) buttonObj.type = String(b.type).toUpperCase();
+          if (b.url) buttonObj.url = String(b.url).trim();
+          if (b.phoneNumber) buttonObj.phoneNumber = String(b.phoneNumber).trim();
+          return buttonObj;
+        })
         .filter(Boolean);
     }
 
