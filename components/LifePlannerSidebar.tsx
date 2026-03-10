@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
 import { clearSession } from '@/lib/sessionManager';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 interface LifePlannerSidebarProps {
   isOpen: boolean;
@@ -31,6 +31,13 @@ interface LifePlannerSidebarProps {
 export default function LifePlannerSidebar({ isOpen, onClose }: LifePlannerSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const [isCrm, setIsCrm] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.hostname.startsWith('crm.')) {
+      setIsCrm(true);
+    }
+  }, []);
   
   // Close sidebar on route change (mobile)
   useEffect(() => {
@@ -59,8 +66,8 @@ export default function LifePlannerSidebar({ isOpen, onClose }: LifePlannerSideb
   };
   
   const items = [
-    // User requested: Life Planner "Home" should go to main website homepage
-    { href: '/', label: 'Home', icon: Home },
+    // On CRM domain, Home goes to CRM dashboard; on main site, to website homepage
+    { href: isCrm ? '/admin/crm' : '/', label: 'Home', icon: Home },
     // Keep a dedicated link to open the Life Planner dashboard
     { href: '/life-planner/dashboard', label: 'Life Planner', icon: LayoutDashboard },
     { href: '/life-planner/dashboard/vision', label: 'Vision Plan', icon: Target },
