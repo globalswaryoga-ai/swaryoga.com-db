@@ -497,6 +497,14 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
           module: 'translate',
           description: 'Multi-language content translation',
         },
+        {
+          icon: Calculator,
+          label: 'Life Planner',
+          href: '/life-planner/dashboard',
+          color: 'text-gray-400',
+          module: 'dashboard' as CrmModule,
+          description: 'Daily tasks, goals & routines',
+        },
       ],
     },
   ];
