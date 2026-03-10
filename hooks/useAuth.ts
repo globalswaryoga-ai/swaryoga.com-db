@@ -3,7 +3,7 @@ import { useRouter, usePathname } from 'next/navigation';
 
 function getStoredAdminToken() {
   if (typeof window === 'undefined') return null;
-  const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
+  const token = localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
   if (token === 'null' || token === 'undefined' || !token) return null;
   return token;
 }

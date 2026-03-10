@@ -56,6 +56,7 @@ export function useCRM(options: UseCRMOptions = {}) {
   const handleUnauthorized = () => {
     if (typeof window === 'undefined') return;
     // Clear both legacy + current token keys used across the repo.
+    localStorage.removeItem('crm_token');
     localStorage.removeItem('adminToken');
     localStorage.removeItem('admin_token');
     localStorage.removeItem('adminUser');
