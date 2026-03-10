@@ -4,6 +4,7 @@ import { connectDB } from '@/lib/db';
 import { getCRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 
 /**
  * Generate a unique bridge secret for a user.
@@ -43,15 +44,22 @@ export async function GET(req: NextRequest) {
       console.log(`[crm-settings] Auto-generated unique bridge secret for user ${decoded.userId}`);
     }
 
-    return apiSuccess({
+    // Base settings visible to all admin users
+    const response: Record<string, any> = {
       chatFunnels: settings?.chatFunnels || {},
       chatLabels: settings?.chatLabels || {},
       labelPresets: settings?.labelPresets || [],
       qrFunnelStages: settings?.qrFunnelStages || [],
-      qrBridgeUrl: settings?.qrBridgeUrl || '',
-      qrBridgeSecret: settings?.qrBridgeSecret || '',
-      qrWhatsappEnabled: settings?.qrWhatsappEnabled || false,
-    });
+    };
+
+    // QR bridge data is VIP — only super admins can see it
+    if (isSuperAdmin(decoded)) {
+      response.qrBridgeUrl = settings?.qrBridgeUrl || '';
+      response.qrBridgeSecret = settings?.qrBridgeSecret || '';
+      response.qrWhatsappEnabled = settings?.qrWhatsappEnabled || false;
+    }
+
+    return apiSuccess(response);
   } catch (err) {
     console.error('[crm-settings GET]', err);
     return apiError('Failed to load settings', 500);
@@ -75,10 +83,13 @@ export async function PUT(req: NextRequest) {
     if (body.chatLabels !== undefined) update.chatLabels = body.chatLabels;
     if (body.labelPresets !== undefined) update.labelPresets = body.labelPresets;
     if (body.qrFunnelStages !== undefined) update.qrFunnelStages = body.qrFunnelStages;
-    if (body.qrBridgeUrl !== undefined) update.qrBridgeUrl = body.qrBridgeUrl;
-    if (body.qrBridgeSecret !== undefined) update.qrBridgeSecret = body.qrBridgeSecret;
-    if (body.qrWhatsappEnabled !== undefined) update.qrWhatsappEnabled = body.qrWhatsappEnabled;
-    if (body.qrConnectedPhoneNumber !== undefined) update.qrConnectedPhoneNumber = body.qrConnectedPhoneNumber;
+    // QR bridge settings — super admin only
+    if (isSuperAdmin(decoded)) {
+      if (body.qrBridgeUrl !== undefined) update.qrBridgeUrl = body.qrBridgeUrl;
+      if (body.qrBridgeSecret !== undefined) update.qrBridgeSecret = body.qrBridgeSecret;
+      if (body.qrWhatsappEnabled !== undefined) update.qrWhatsappEnabled = body.qrWhatsappEnabled;
+      if (body.qrConnectedPhoneNumber !== undefined) update.qrConnectedPhoneNumber = body.qrConnectedPhoneNumber;
+    }
 
     if (Object.keys(update).length === 0) {
       return apiError('No settings to update', 400);

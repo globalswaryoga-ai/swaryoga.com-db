@@ -169,11 +169,13 @@ export async function GET(request: NextRequest) {
         indexSize: formatBytes(0),
         totalSize: formatBytes(totalDataSize),
         
-        // Raw bytes
-        dataSizeBytes: totalDataSize,
-        storageSizeBytes: totalDataSize,
-        indexSizeBytes: 0,
-        totalSizeBytes: totalDataSize,
+        // Raw bytes (super admin only)
+        ...(isSuper ? {
+          dataSizeBytes: totalDataSize,
+          storageSizeBytes: totalDataSize,
+          indexSizeBytes: 0,
+          totalSizeBytes: totalDataSize,
+        } : {}),
         
         // GB value for cost
         totalGB: parseFloat(totalGB.toFixed(3)),
@@ -181,16 +183,14 @@ export async function GET(request: NextRequest) {
         // Cost
         monthlyCost,
         monthlyCostUSD,
-        costPerGB: 35,
-        costPerGBUSD: 0.42,
+        ...(isSuper ? { costPerGB: 35, costPerGBUSD: 0.42 } : {}),
         
-        // Collections
+        // Collections (details super admin only)
         collectionCount: topCollections.length,
-        topCollections,
-        documentCount: totalDocCount,
+        ...(isSuper ? { topCollections, documentCount: totalDocCount } : {}),
         
-        // Database info
-        dbName: crmDbName,
+        // Database info (name hidden for non-super-admins)
+        ...(isSuper ? { dbName: crmDbName } : {}),
         scope: isSuper ? 'global' : 'user',
         
         // Billing cycle info (for free/regular users)

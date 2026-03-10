@@ -1,5 +1,6 @@
 'use client';
 import { getLoginPath } from '@/hooks/useAuth';
+import { checkIsSuperAdmin } from '@/lib/client-auth';
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -163,16 +164,19 @@ export default function AutoConfigSettingsPage() {
     setConfig(prev => ({ ...prev, [key]: value }));
   };
 
-  // ---- Tab definitions ----
-  const tabs: { id: Tab; label: string; icon: string }[] = [
+  const isSuperAdminUser = checkIsSuperAdmin();
+
+  // ---- Tab definitions (AI & Storage are super admin only) ----
+  const allTabs: { id: Tab; label: string; icon: string; superAdminOnly?: boolean }[] = [
     { id: 'general', label: 'General', icon: '⚙️' },
     { id: 'hours', label: 'Working Hours', icon: '🕐' },
     { id: 'replies', label: 'Auto Replies', icon: '💬' },
-    { id: 'ai', label: 'AI Agent', icon: '🤖' },
+    { id: 'ai', label: 'AI Agent', icon: '🤖', superAdminOnly: true },
     { id: 'leads', label: 'Lead Mgmt', icon: '👥' },
     { id: 'notifications', label: 'Notifications', icon: '🔔' },
-    { id: 'storage', label: 'Storage', icon: '💾' },
+    { id: 'storage', label: 'Storage', icon: '💾', superAdminOnly: true },
   ];
+  const tabs = allTabs.filter(t => !t.superAdminOnly || isSuperAdminUser);
 
   // Fetch storage data when storage tab is active
   useEffect(() => {

@@ -187,9 +187,9 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
     };
   }, [token]);
 
-  // Fetch storage usage
+  // Fetch storage usage (super admin only — VIP data)
   useEffect(() => {
-    if (!token) return;
+    if (!token || !isSuperAdmin) return;
     
     // Check if hidden in this session
     const hidden = sessionStorage.getItem('storageUsageHidden') === 'true';
@@ -235,7 +235,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
     // Fetch after a delay to not block initial render
     const timeout = setTimeout(fetchStorageUsage, 2000);
     return () => clearTimeout(timeout);
-  }, [token]);
+  }, [token, isSuperAdmin]);
 
   // Hide storage usage for this session
   const hideStorageUsage = () => {
