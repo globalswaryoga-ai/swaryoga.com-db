@@ -372,7 +372,6 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
           module: 'whatsapp',
           planModule: 'whatsapp',
           description: 'WhatsApp via QR code bridge',
-          superAdminOnly: true,
         },
         {
           icon: Users,
@@ -382,7 +381,6 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
           module: 'whatsapp',
           planModule: 'whatsapp',
           description: 'Leads from QR WhatsApp chats',
-          superAdminOnly: true,
         },
         {
           icon: UsersRound,

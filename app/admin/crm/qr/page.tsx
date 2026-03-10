@@ -28,13 +28,7 @@ export default function QRWhatsAppPage() {
   const router = useRouter();
   const { fetch: crmFetch } = useCRM({ token });
 
-  // Block non-super-admins from accessing this page
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (!checkIsSuperAdmin()) {
-      router.replace('/admin/crm');
-    }
-  }, [router]);
+  // No longer block non-super-admins — QR WhatsApp is for all CRM users
 
   // State
   const [status, setStatus] = useState<BridgeStatus | null>(null);
