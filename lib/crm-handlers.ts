@@ -107,7 +107,12 @@ export const getViewerUserId = (decoded: any): string => {
  * Check if the current user is a Super Admin (owner of CRM — full access to everything).
  * 
  * Super Admin = Owner of CRM and swaryoga.com.
- * Identified by: userId 'admin' or 'admincrm', role 'superadmin', or permissions ['all'].
+ * Identified ONLY by userId: 'admin' or 'admincrm'.
+ * 
+ * IMPORTANT: We do NOT check role === 'superadmin' or permissions.includes('all')
+ * because those can be set on tenant admin users in the database, which would
+ * incorrectly grant them super admin access (bypassing chat privacy filters, etc.).
+ * Only the hardcoded user IDs below are true super admins.
  * 
  * Other roles (NOT super admin):
  *   Super Admin Team  = team users under super admin (qrWhatsappEnabled, see assigned leads only)
@@ -115,13 +120,11 @@ export const getViewerUserId = (decoded: any): string => {
  *   CRM Admin Team    = team users added by a CRM Admin
  *   Leads             = end-users / contacts (not admin users)
  */
+const SUPER_ADMIN_IDS = new Set(['admin', 'admincrm']);
+
 export const isSuperAdmin = (decoded: any): boolean => {
-  return (
-    decoded?.userId === 'admincrm' ||
-    decoded?.userId === 'admin' ||
-    decoded?.role === 'superadmin' ||
-    (Array.isArray(decoded?.permissions) && decoded.permissions.includes('all'))
-  );
+  const uid = String(decoded?.userId || '').trim();
+  return SUPER_ADMIN_IDS.has(uid);
 };
 
 /**
