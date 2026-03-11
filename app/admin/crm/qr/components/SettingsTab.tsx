@@ -56,6 +56,7 @@ export function SettingsTab({
   const [accessError, setAccessError] = useState<string | null>(null);
   const [visibleSecrets, setVisibleSecrets] = useState<Set<string>>(new Set());
   const [copiedSecret, setCopiedSecret] = useState<string | null>(null);
+  const [showBridgeSecret, setShowBridgeSecret] = useState(false);
 
   // Toggle bridge secret visibility for a user
   const toggleSecretVisibility = (userId: string) => {
@@ -165,15 +166,27 @@ export function SettingsTab({
               <label className="block text-xs font-medium text-gray-700 mb-1.5">Bridge Secret <span className="text-green-600 font-normal">(unique)</span></label>
               <div className="relative">
                 <input
-                  type="password"
+                  type={showBridgeSecret ? 'text' : 'password'}
                   placeholder="Auto-generated unique secret"
                   value={bridgeSecretInput}
                   onChange={e => setBridgeSecretInput(e.target.value)}
-                  className="w-full px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none pr-16"
+                  className="w-full px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none pr-24"
                 />
-                {bridgeSecretInput && (
-                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700 font-medium">Unique</span>
-                )}
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                  {bridgeSecretInput && (
+                    <button
+                      type="button"
+                      onClick={() => setShowBridgeSecret(v => !v)}
+                      className="p-1 rounded hover:bg-gray-100 transition"
+                      title={showBridgeSecret ? 'Hide secret' : 'Show secret'}
+                    >
+                      {showBridgeSecret ? <EyeOff className="w-4 h-4 text-gray-400" /> : <Eye className="w-4 h-4 text-gray-400" />}
+                    </button>
+                  )}
+                  {bridgeSecretInput && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700 font-medium">Unique</span>
+                  )}
+                </div>
               </div>
               <p className="text-[10px] text-gray-400 mt-1">Auto-generated per user — guaranteed unique across all accounts</p>
             </div>
