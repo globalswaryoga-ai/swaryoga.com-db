@@ -13,17 +13,22 @@ import mongoose from 'mongoose';
  * ── USER ROLES ──
  * Super Admin:          Owner of CRM (userId: 'admin' | 'admincrm'). Owns the shared bridge session.
  * Super Admin Team:     Team users under super admin. Have qrWhatsappEnabled=true. Use shared bridge.
- * CRM Admin (Tenant):   Independent users who signed up at crm.swaryoga.com. Have their own bridge.
+ * CRM Admin (Tenant):   Independent users who signed up at crm.swaryoga.com. Have UNIQUE bridge URL per tenant.
  * CRM Admin Team:       Team users added by a CRM Admin. Use that admin's bridge.
  * Leads:                End-users / contacts. Not CRM users.
  *
+ * ── BRIDGE URL ARCHITECTURE ──
+ * Super Admin:          http://localhost:3333 (single shared WhatsApp session)
+ * Each CRM Admin:       http://localhost:3333/tenant/{uniqueId} (isolated WhatsApp session per tenant)
+ *                       This pattern allows 1000+ CRM accounts with separate WhatsApp sessions
+ *
  * ── ACCESS CONTROL ──
  * resolveUserBridge() is the SOLE gate:
- *   - Super Admin → shared bridge (full access, sees all chats)
+ *   - Super Admin → shared bridge at localhost:3333 (full access, sees all chats)
  *   - Super Admin Team (qrWhatsappEnabled, NOT tenant owner) → shared bridge (filtered: only assigned/created leads)
- *   - CRM Admin (own qrBridgeUrl) → personal bridge (full access to own bridge)
+ *   - CRM Admin (own qrBridgeUrl) → unique tenant bridge at localhost:3333/tenant/{id} (full access to own session)
  *   - CRM Admin Team (qrWhatsappEnabled under tenant) → tenant's bridge (filtered)
- *   - CRM Admin WITHOUT qrBridgeUrl → BLOCKED (even if qrWhatsappEnabled — tenant owners can never use shared bridge)
+ *   - CRM Admin WITHOUT qrBridgeUrl → BLOCKED (auto-provision generates one on first access)
  *   - No qrBridgeUrl AND no qrWhatsappEnabled → BLOCKED (returns {ok:false} → 422)
  *
  * ── CHAT PRIVACY FILTER ──
@@ -66,7 +71,7 @@ export const maxDuration = 60; // 60s function timeout for Vercel
 const SUPER_ADMIN_IDS = new Set(['admin', 'admincrm']);
 
 type BridgeResolution = 
-  | { ok: true; url: string; secret: string; userId: string; isSuperAdmin: boolean; hasOwnBridge: boolean; storedPhone: string; phoneChangedAt: Date | null; senderDisplayName: string }
+  | { ok: true; url: string; secret: string; userId: string; isSuperAdmin: boolean; hasOwnBridge: boolean; storedPhone: string; phoneChangedAt: Date | null; senderDisplayName: string; tenantId?: string }
   | { ok: false; reason: 'no_bridge' | 'unauthorized' };
 
 async function resolveUserBridge(authHeader: string | null): Promise<BridgeResolution> {
@@ -75,12 +80,12 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
     if (decoded?.userId && decoded?.isAdmin) {
       const superAdmin = checkSuperAdmin(decoded);
 
-      // Check if user has a custom bridge URL
+      // Check if user has a custom bridge URL or permanent tenant ID
       await connectDB();
       const CRMUserSettings = getCRMUserSettings();
       const settings = await CRMUserSettings.findOne(
         { userId: decoded.userId },
-        { qrBridgeUrl: 1, qrBridgeSecret: 1, qrWhatsappEnabled: 1, qrConnectedPhoneNumber: 1, qrPhoneChangedAt: 1, senderDisplayName: 1 }
+        { permanentTenantId: 1, qrBridgeUrl: 1, qrBridgeSecret: 1, qrWhatsappEnabled: 1, qrConnectedPhoneNumber: 1, qrPhoneChangedAt: 1, senderDisplayName: 1 }
       ).lean();
 
       const rawStoredPhone = (settings as any)?.qrConnectedPhoneNumber || '';
@@ -88,7 +93,46 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
       const storedPhone = String(rawStoredPhone).split(':')[0].split('@')[0].replace(/\D/g, '');
       const phoneChangedAt = (settings as any)?.qrPhoneChangedAt || null;
       const senderDisplayName = (settings as any)?.senderDisplayName || '';
+      const permanentTenantId = (settings as any)?.permanentTenantId || '';
 
+      // ── SUPER ADMIN: always use shared bridge (no tenant prefix) ──
+      // Super Admin owns the single shared bridge at localhost:3333.
+      // Even though Super Admin has a permanentTenantId, the bridge does NOT
+      // use tenant routing for the admin — it's the primary session.
+      if (superAdmin) {
+        return {
+          ok: true,
+          url: FALLBACK_BRIDGE_URL,
+          secret: settings?.qrBridgeSecret || FALLBACK_BRIDGE_SECRET,
+          userId: decoded.userId,
+          isSuperAdmin: true,
+          hasOwnBridge: false,
+          storedPhone,
+          phoneChangedAt,
+          senderDisplayName,
+        };
+      }
+
+      // ── PERMANENT TENANT ID (for non-Super-Admin CRM tenants) ──
+      // Each CRM tenant gets a permanent ID (e.g. 0002456).
+      // Bridge path: http://localhost:3333/tenant/0002456
+      // NOTE: Bridge service MUST support /tenant/{id} routing for this to work.
+      if (permanentTenantId) {
+        return {
+          ok: true,
+          url: `${FALLBACK_BRIDGE_URL}/tenant/${permanentTenantId}`,
+          secret: settings?.qrBridgeSecret || FALLBACK_BRIDGE_SECRET,
+          userId: decoded.userId,
+          isSuperAdmin: superAdmin,
+          hasOwnBridge: true,
+          storedPhone,
+          phoneChangedAt,
+          senderDisplayName,
+          tenantId: permanentTenantId,
+        };
+      }
+
+      // ── LEGACY: Custom qrBridgeUrl (backward compatibility) ──
       if (settings?.qrBridgeUrl) {
         return {
           ok: true,

@@ -55,13 +55,38 @@ export function useCRM(options: UseCRMOptions = {}) {
 
   const handleUnauthorized = () => {
     if (typeof window === 'undefined') return;
-    // Clear both legacy + current token keys used across the repo.
+
+    // ── SMART TOKEN CHECK ──
+    // Before clearing the session, check if the JWT is actually expired.
+    // A 401 from a specific API endpoint may mean "no permission for this feature"
+    // (endpoint-level access control), NOT "your session is invalid".
+    // Only nuke the session if the token is genuinely expired or undecodable.
+    const existingToken = localStorage.getItem('crm_token')
+      || localStorage.getItem('adminToken')
+      || localStorage.getItem('admin_token');
+
+    if (existingToken) {
+      try {
+        const parts = existingToken.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(atob(parts[1]));
+          if (payload.exp && (Date.now() / 1000) < payload.exp) {
+            // Token is NOT expired — 401 came from endpoint-level access control
+            console.warn('[useCRM] 401 received but JWT still valid — endpoint access denied (not clearing session)');
+            return;
+          }
+        }
+      } catch {
+        // Can't decode token — treat as expired, fall through to clear
+      }
+    }
+
+    // Token is expired, missing, or undecodable — clear and redirect.
     localStorage.removeItem('crm_token');
     localStorage.removeItem('adminToken');
     localStorage.removeItem('admin_token');
     localStorage.removeItem('adminUser');
     localStorage.removeItem('admin_user');
-    // Redirect to login immediately so the user doesn't stay on a broken page.
     const isCrm = window.location.hostname === 'crm.swaryoga.com' ||
       window.location.hostname.startsWith('crm.');
     const loginPath = isCrm ? '/crm-site/login' : '/admin/login';

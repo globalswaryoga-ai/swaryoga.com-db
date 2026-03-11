@@ -3157,6 +3157,12 @@ export const AutoConfig = createModelProxy('AutoConfig', AutoConfigSchema);
 const CRMUserSettingsSchema = new mongoose.Schema(
   {
     userId: { type: String, required: true, unique: true, index: true },
+    // ── PERMANENT TENANT ID ──
+    // Persistent user identifier (e.g., "USER0001", "USER0002")
+    // Generated once when user first accesses CRM, never changes
+    // Used in bridge path: http://localhost:3333/tenant/USER0001
+    // Linked to: email, mobile, WhatsApp number scanned via QR
+    permanentTenantId: { type: String, unique: true, sparse: true, index: true },  // e.g. "USER0001"
     chatFunnels: { type: mongoose.Schema.Types.Mixed, default: {} },   // { chatJid: stageKey }
     chatLabels: { type: mongoose.Schema.Types.Mixed, default: {} },    // { chatJid: [label1, label2] }
     labelPresets: [
@@ -3175,7 +3181,8 @@ const CRMUserSettingsSchema = new mongoose.Schema(
       },
     ],
     // Per-user QR WhatsApp bridge connection (each user runs their own bridge instance)
-    qrBridgeUrl: { type: String, default: '' },      // e.g. https://my-bridge.up.railway.app
+    // DEPRECATED: Old UUID-based URLs replaced by permanentTenantId
+    qrBridgeUrl: { type: String, default: '' },      // e.g. https://my-bridge.up.railway.app (legacy)
     qrBridgeSecret: { type: String, default: '' },    // bridge auth secret
     // QR WhatsApp access control — only super admin can enable this for each user
     // When false/unset, non-super-admin users cannot access the shared bridge (privacy compartment)

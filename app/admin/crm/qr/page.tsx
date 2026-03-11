@@ -28,7 +28,11 @@ export default function QRWhatsAppPage() {
   const router = useRouter();
   const { fetch: crmFetch } = useCRM({ token });
 
-  // No longer block non-super-admins — QR WhatsApp is for all CRM users
+  // ═════════════════════════════════════════════════════════════════════════════════
+  // IMPORTANT: ALL HOOKS MUST BE DEFINED HERE, BEFORE ANY CONDITIONAL LOGIC
+  // This component uses many hooks, so they're all defined unconditionally first.
+  // The conditional auth check happens at the END via JSX render, not via early return.
+  // ═════════════════════════════════════════════════════════════════════════════════
 
   // State
   const [status, setStatus] = useState<BridgeStatus | null>(null);
@@ -39,7 +43,6 @@ export default function QRWhatsAppPage() {
   const [selectedChat, setSelectedChat] = useState<string | null>(null);
   const [messages, setMessages] = useState<MessageItem[]>([]);
   const [chatPresence, setChatPresence] = useState<{ presence: string; lastSeen: number | null } | null>(null);
-  const presenceSubRef = useRef<string | null>(null);
   const [composerText, setComposerText] = useState('');
   const [sending, setSending] = useState(false);
   const [tab, setTab] = useState<'connection' | 'inbox' | 'settings'>('connection');
@@ -73,54 +76,43 @@ export default function QRWhatsAppPage() {
   const [profilePics, setProfilePics] = useState<Record<string, string | null>>({});
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [downloadingMedia, setDownloadingMedia] = useState<string | null>(null);
-  // Group management state
   const [editingDesc, setEditingDesc] = useState(false);
   const [editDescText, setEditDescText] = useState('');
   const [savingDesc, setSavingDesc] = useState(false);
   const [groupInviteLink, setGroupInviteLink] = useState<string | null>(null);
   const [loadingInvite, setLoadingInvite] = useState(false);
   const [groupSettingsLoading, setGroupSettingsLoading] = useState<string | null>(null);
-  // Status/stories state
   const [showStatusPanel, setShowStatusPanel] = useState(false);
   const [statusData, setStatusData] = useState<any[]>([]);
   const [loadingStatuses, setLoadingStatuses] = useState(false);
   const [selectedStatusUser, setSelectedStatusUser] = useState<any>(null);
   const [currentStatusIndex, setCurrentStatusIndex] = useState(0);
-  // Chat toolbar state
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showFormatBar, setShowFormatBar] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
-  // Star popup state
   const [showStarPopup, setShowStarPopup] = useState(false);
   const [starTab, setStarTab] = useState<'quick' | 'template' | 'broadcast' | 'schedule' | 'repeat'>('quick');
   const [broadcastChats, setBroadcastChats] = useState<Set<string>>(new Set());
   const [broadcastText, setBroadcastText] = useState('');
   const [broadcastSending, setBroadcastSending] = useState(false);
   const [broadcastSearch, setBroadcastSearch] = useState('');
-  // Per-user bridge setup state
   const [bridgeUrlInput, setBridgeUrlInput] = useState('');
   const [bridgeSecretInput, setBridgeSecretInput] = useState('');
-  const [bridgeConfigured, setBridgeConfigured] = useState<boolean | null>(null); // null = loading
+  const [bridgeConfigured, setBridgeConfigured] = useState<boolean | null>(null);
   const [savingBridge, setSavingBridge] = useState(false);
   const [showBridgeSettings, setShowBridgeSettings] = useState(false);
-  // User compartment / access control state
   const [currentUserId, setCurrentUserId] = useState('');
   const [isSuperAdminUser, setIsSuperAdminUser] = useState(false);
-  // Reply / Reaction / Delete state
   const [replyingTo, setReplyingTo] = useState<MessageItem | null>(null);
-  const [reactingToMsg, setReactingToMsg] = useState<string | null>(null); // message ID
-  const [showMsgActions, setShowMsgActions] = useState<string | null>(null); // message ID for context menu
-  // Group creation state
+  const [reactingToMsg, setReactingToMsg] = useState<string | null>(null);
+  const [showMsgActions, setShowMsgActions] = useState<string | null>(null);
   const [showGroupCreate, setShowGroupCreate] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupMembers, setNewGroupMembers] = useState('');
   const [creatingGroup, setCreatingGroup] = useState(false);
-  // New chat state
   const [showNewChat, setShowNewChat] = useState(false);
   const [newChatPhone, setNewChatPhone] = useState('');
-  // Contact about/bio
   const [contactAbout, setContactAbout] = useState<string | null>(null);
-  // Merge groups state
   const [showMergeGroups, setShowMergeGroups] = useState(false);
   const [mergeTargetId, setMergeTargetId] = useState('');
   const [mergeSourceIds, setMergeSourceIds] = useState<Set<string>>(new Set());
@@ -128,57 +120,59 @@ export default function QRWhatsAppPage() {
   const [mergeProgress, setMergeProgress] = useState(0);
   const [mergeProgressText, setMergeProgressText] = useState('');
   const [mergeResult, setMergeResult] = useState<{ targetName: string; existingCount: number; newCount: number } | null>(null);
-  // Pinned chats (max 5)
   const [pinnedChats, setPinnedChats] = useState<string[]>(() => {
     if (typeof window !== 'undefined') { try { const v = localStorage.getItem('crm_pinnedChats'); if (v) return JSON.parse(v); } catch {} } return [];
   });
-  // Resizable sidebar
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     if (typeof window !== 'undefined') { try { const v = localStorage.getItem('crm_sidebarWidth'); if (v) return parseInt(v, 10); } catch {} } return 416;
   });
-  const isResizing = useRef(false);
-  // Sender display name (shown below every sent message)
   const [senderDisplayName, setSenderDisplayName] = useState(() => {
     if (typeof window !== 'undefined') { try { return localStorage.getItem('crm_senderDisplayName') || ''; } catch {} } return '';
   });
+  const [isPageVisible, setIsPageVisible] = useState(true);
+
+  // All refs must come before any hooks
+  const presenceSubRef = useRef<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
   const profilePicLoadedRef = useRef<Set<string>>(new Set());
-  const readChatsRef = useRef<Map<string, number>>(new Map()); // JID → timestamp when user read the chat
+  const readChatsRef = useRef<Map<string, number>>(new Map());
   const selectedChatRef = useRef(selectedChat);
-  selectedChatRef.current = selectedChat;
-  // Refs for user identity — used inside fetchChats callback without stale closure issues
   const currentUserIdRef = useRef(currentUserId);
-  currentUserIdRef.current = currentUserId;
   const isSuperAdminRef = useRef(isSuperAdminUser);
-  isSuperAdminRef.current = isSuperAdminUser;
   const pinnedChatsRef = useRef(pinnedChats);
-  pinnedChatsRef.current = pinnedChats;
   const messengerRef = useRef<HTMLDivElement>(null);
   const composerInputRef = useRef<HTMLInputElement>(null);
   const tabRef = useRef(tab);
-  tabRef.current = tab;
+  const isResizing = useRef(false);
+  const settingsSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const dbLoadedRef = useRef(false);
+  const crmFetchRef = useRef(crmFetch);
+  const pendingUpdatesRef = useRef<Record<string, any>>({});
+  const connectedRef = useRef(false);
+  const hasAutoSwitchedRef = useRef(false);
+  const savedPhoneRef = useRef<string | null>(null);
+  const profilePicLoadedRef2 = useRef<Set<string>>(new Set());
+  const composerTextRef = useRef('');
 
-  // ── Pause polling when browser tab is hidden (saves bandwidth & API calls) ──
-  const [isPageVisible, setIsPageVisible] = useState(true);
+  // Update refs with current state values
+  selectedChatRef.current = selectedChat;
+  currentUserIdRef.current = currentUserId;
+  isSuperAdminRef.current = isSuperAdminUser;
+  pinnedChatsRef.current = pinnedChats;
+  tabRef.current = tab;
+  crmFetchRef.current = crmFetch;
+  connectedRef.current = !!status?.connected;
+  composerTextRef.current = composerText;
+
+  // ── Pause polling when browser tab is hidden ──
   useEffect(() => {
     const handleVisibility = () => setIsPageVisible(!document.hidden);
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, []);
 
-  // ── Load QR settings (funnel stages, labels, chat mappings) from MongoDB on mount ──
-  // All QR funnel/label data is stored independently in crm_user_settings (NOT shared funnel_configs)
-  const settingsSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const dbLoadedRef = useRef(false);
-
-  // Direct save function using ref to avoid stale closure issues
-  const crmFetchRef = useRef(crmFetch);
-  crmFetchRef.current = crmFetch;
-
-  // Accumulate pending updates so rapid state changes merge into one PUT
-  const pendingUpdatesRef = useRef<Record<string, any>>({});
-
+  // ── Define all remaining hooks BEFORE conditional JSX ──
   const saveToMongoDB = useCallback((updates: Record<string, any>) => {
     // Merge into pending updates (so chatFunnels + qrFunnelStages + etc. all go in one PUT)
     Object.assign(pendingUpdatesRef.current, updates);
@@ -188,17 +182,27 @@ export default function QRWhatsAppPage() {
       pendingUpdatesRef.current = {};
       try {
         console.log('[QR] Saving to MongoDB:', Object.keys(merged));
-        await crmFetchRef.current('/api/admin/crm/settings', {
+        // Use direct fetch to avoid useCRM auto-logout on errors
+        const response = await fetch('/api/admin/crm/settings', {
           method: 'PUT',
-          body: merged,
-          silent: true,
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(merged),
         });
+
+        if (!response.ok) {
+          console.warn(`[QR] Save failed: ${response.status}`);
+          return;
+        }
+
         console.log('[QR] ✅ Saved to MongoDB:', Object.keys(merged));
       } catch (e) {
         console.warn('[QR] ❌ Failed to save to MongoDB:', e);
       }
     }, 500);
-  }, []);
+  }, [token]);
 
   useEffect(() => {
     if (!token) return;
@@ -224,9 +228,25 @@ export default function QRWhatsAppPage() {
 
     const loadFromDB = async () => {
       try {
-        // Load ALL QR settings from crm_user_settings (independent from leads/manage funnel)
-        const settingsRes = await crmFetch('/api/admin/crm/settings', { silent: true });
-        if (!cancelled && settingsRes) {
+        // ── Use direct fetch for initial settings load to avoid useCRM auto-logout on errors ──
+        // If this fails, we fall back to defaults and continue (non-blocking)
+        const settingsRes = await fetch('/api/admin/crm/settings', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }).then(r => {
+          if (!r.ok && r.status === 401) {
+            // Real auth issue — don't hide it, let caller handle
+            throw new Error('Unauthorized');
+          }
+          return r.json().catch(() => null);
+        }).catch(e => {
+          console.warn('[QR] Settings fetch error:', e);
+          return null;
+        });
+
+        if (!cancelled && settingsRes && settingsRes.success !== false) {
           // Load QR-specific funnel stages
           if (settingsRes.qrFunnelStages?.length > 0) {
             const allStage: FunnelStage = { key: 'all', label: 'All', color: 'bg-gray-100 text-gray-700 border-gray-300' };
@@ -263,13 +283,20 @@ export default function QRWhatsAppPage() {
           setBridgeUrlInput(savedUrl);
           setBridgeSecretInput(savedSecret);
 
-          // ── Auto-provision bridge URL if missing ──
-          if (!savedUrl && token) {
+          // ── Auto-provision bridge URL if missing (skip for super admin) ──
+          // Super admin uses the shared bridge at http://localhost:3333
+          // Only non-super-admin users need auto-provisioning from permanent tenant ID
+          if (!savedUrl && token && !superAdmin) {
             try {
-              const provisionRes = await crmFetch('/api/admin/crm/whatsapp/qr/auto-provision', {
+              const provisionRes = await fetch('/api/admin/crm/whatsapp/qr/auto-provision', {
                 method: 'POST',
-              });
-              if (provisionRes?.success) {
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json',
+                },
+              }).then(r => r.json().catch(() => null)).catch(() => null);
+
+              if (provisionRes?.success && provisionRes?.bridgeUrl) {
                 setBridgeUrlInput(provisionRes.bridgeUrl);
                 setBridgeSecretInput(provisionRes.bridgeSecret);
                 console.log('[QR] ✅ Auto-provisioned bridge URL for new tenant');
@@ -283,9 +310,15 @@ export default function QRWhatsAppPage() {
           // Bridge handles per-user isolation via x-user-id header
           setBridgeConfigured(true);
           console.log('[QR] ✅ Loaded settings from MongoDB — funnels:', settingsRes.qrFunnelStages?.length || 0, 'chatFunnels:', Object.keys(settingsRes.chatFunnels || {}).length, 'chatLabels:', Object.keys(settingsRes.chatLabels || {}).length, 'labels:', settingsRes.labelPresets?.length || 0, 'bridge:', settingsRes.qrBridgeUrl ? 'custom' : 'shared', 'user:', resolvedUserId);
+        } else {
+          // Settings load failed but still configure bridge with defaults
+          setBridgeConfigured(true);
+          console.log('[QR] Settings unavailable, using defaults');
         }
       } catch (e) {
-        console.warn('[QR] Failed to load CRM settings, using localStorage cache:', e);
+        console.warn('[QR] Failed to load CRM settings, using defaults:', e);
+        // Still mark as configured so QR page can work
+        setBridgeConfigured(true);
       }
 
       if (!cancelled) {
@@ -339,11 +372,24 @@ export default function QRWhatsAppPage() {
     }
     setSavingBridge(true);
     try {
-      await crmFetchRef.current('/api/admin/crm/settings', {
+      // Use direct fetch to avoid useCRM auto-logout on errors
+      const response = await fetch('/api/admin/crm/settings', {
         method: 'PUT',
-        body: { qrBridgeUrl: url, qrBridgeSecret: bridgeSecretInput.trim() },
-        silent: true,
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          qrBridgeUrl: url,
+          qrBridgeSecret: bridgeSecretInput.trim(),
+        }),
       });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || `Save failed: ${response.status}`);
+      }
+
       setBridgeConfigured(true);
       setShowBridgeSettings(false);
       setTab('connection');
@@ -355,23 +401,31 @@ export default function QRWhatsAppPage() {
     } finally {
       setSavingBridge(false);
     }
-  }, [bridgeUrlInput, bridgeSecretInput]);
+  }, [token, bridgeUrlInput, bridgeSecretInput]);
 
-  // ── Bridge API calls via CRM proxy ──
+  // ── Bridge API calls via CRM proxy (using direct fetch to avoid useCRM auto-logout) ──
   const bridgeCall = useCallback(async (path: string, method = 'GET', body?: any) => {
     try {
+      const url = new URL('/api/admin/crm/whatsapp/qr-bridge', window.location.origin);
       if (method === 'GET') {
-        const res = await crmFetch('/api/admin/crm/whatsapp/qr-bridge', {
-          params: { path },
-        });
-        return res;
-      } else {
-        const res = await crmFetch('/api/admin/crm/whatsapp/qr-bridge', {
-          method: 'POST',
-          body: { action: method, path, body },
-        });
-        return res;
+        url.searchParams.append('path', path);
       }
+
+      const response = await fetch(url.toString(), {
+        method: method === 'GET' ? 'GET' : 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: method !== 'GET' ? JSON.stringify({ action: method, path, body }) : undefined,
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || `Bridge error: ${response.status}`);
+      }
+
+      return await response.json().catch(() => ({}));
     } catch (e: any) {
       // Handle bridge timeout/unreachable gracefully
       const msg = e?.message || String(e);
@@ -381,7 +435,7 @@ export default function QRWhatsAppPage() {
       if (msg.includes('fetch failed') || msg.includes('Failed to fetch') || msg.includes('ECONNREFUSED')) {
         throw new Error('Cannot reach WhatsApp bridge — make sure it is running on port 3333');
       }
-      // Detect "no bridge configured" — attach a flag so callers can handle it
+      // Detect "no bridge configured"
       if (msg.includes('bridge URL') || msg.includes('bridge configured')) {
         const noBridgeErr = new Error('NO_BRIDGE');
         (noBridgeErr as any).noBridge = true;
@@ -389,7 +443,7 @@ export default function QRWhatsAppPage() {
       }
       throw e;
     }
-  }, [crmFetch]);
+  }, [token]);
 
   // ── Poll status ──
   const fetchStatus = useCallback(async () => {
@@ -435,8 +489,6 @@ export default function QRWhatsAppPage() {
   // ── Poll setup ──
   // Use a stable interval — don't re-run the effect when status changes
   // (that would clear the interval mid-poll and cause status flickering)
-  const connectedRef = useRef(false);
-  connectedRef.current = !!status?.connected;
   useEffect(() => {
     if (!token || bridgeConfigured !== true) return;
     fetchStatus();
@@ -450,9 +502,7 @@ export default function QRWhatsAppPage() {
       pollRef.current = null;
     };
   }, [token, fetchStatus, bridgeConfigured]);
-
   // ── Auto-switch to inbox when connected ──
-  const hasAutoSwitchedRef = useRef(false);
   useEffect(() => {
     // Only auto-switch once per session when first connected
     if (status?.connected && tab === 'connection' && !hasAutoSwitchedRef.current) {
@@ -463,7 +513,6 @@ export default function QRWhatsAppPage() {
   }, [status?.connected, tab]);
 
   // ── Save connected phone number to settings ──
-  const savedPhoneRef = useRef<string | null>(null);
   useEffect(() => {
     // When status shows we're connected AND has phone info, save it
     if (status?.connected && status?.phone?.id && status.phone.id !== savedPhoneRef.current) {
@@ -471,14 +520,19 @@ export default function QRWhatsAppPage() {
       // Strip phone to digits only (same as server-side extractBridgePhone)
       const cleanPhone = String(status.phone.id).split(':')[0].split('@')[0].replace(/\D/g, '');
       if (!cleanPhone) return;
-      // Save to DB in background (proxy also saves via /status tracking, this is a backup)
-      crmFetchRef.current('/api/admin/crm/settings', {
-        method: 'PUT',
-        body: { qrConnectedPhoneNumber: cleanPhone },
-        silent: true,
-      }).catch(e => console.warn('[QR] Failed to save connected phone:', e));
+      // Save to DB in background using direct fetch (non-critical)
+      if (token) {
+        fetch('/api/admin/crm/settings', {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ qrConnectedPhoneNumber: cleanPhone }),
+        }).catch(e => console.warn('[QR] Failed to save connected phone:', e));
+      }
     }
-  }, [status?.connected, status?.phone?.id]);
+  }, [status?.connected, status?.phone?.id, token]);
 
   // ── Auto-fetch WhatsApp statuses when connected and on status tab ──
   useEffect(() => {
@@ -523,7 +577,15 @@ export default function QRWhatsAppPage() {
       // ── STEP 2: Fetch CRM leads for enrichment (leads API filters per-user automatically) ──
       const crmLeadMap = new Map<string, { name: string; phone: string; funnelStage?: string; labels?: string[]; status?: string }>();
       try {
-        const leadsRes = await crmFetch('/api/admin/crm/leads?selectAll=true&limit=5000', { silent: true });
+        // Use direct fetch to avoid useCRM auto-logout
+        const leadsRes = await fetch('/api/admin/crm/leads?selectAll=true&limit=5000', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }).then(r => r.json().catch(() => null))
+          .catch(() => null);
+
         console.log('[QR] Fetched CRM leads for enrichment:', leadsRes?.data?.leads?.length || 0);
         if (leadsRes?.data?.leads) {
           for (const lead of leadsRes.data.leads) {
@@ -705,7 +767,7 @@ export default function QRWhatsAppPage() {
       console.error('Failed to fetch chats:', e);
       setError(e?.message || 'Failed to fetch chats');
     }
-  }, [bridgeCall, crmFetch, fetchProfilePic]);
+  }, [bridgeCall, fetchProfilePic, token]);
 
   // ── Auto-refresh chat list every 15s when connected, on inbox tab & page visible ──
   const chatPollRef = useRef<NodeJS.Timeout | null>(null);

@@ -1,14 +1,14 @@
 /**
  * Auto-provision bridge URL + secret for QR WhatsApp tenants
- * Called on first access to QR page — silently generates & saves if not already configured
+ * Called on first access to QR page — uses permanent tenant ID
  * 
  * POST /api/admin/crm/whatsapp/qr/auto-provision
- * Returns: { success: boolean, bridgeUrl?: string, bridgeSecret?: string }
+ * Returns: { success: boolean, bridgeUrl?: string, bridgeSecret?: string, permanentTenantId?: string }
  */
 
 import { NextRequest } from 'next/server';
 import mongoose from 'mongoose';
-import { v4 as uuidv4 } from 'uuid';
+import { randomBytes } from 'crypto';
 import { connectDB } from '@/lib/db';
 import { getCRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
 import { apiError, apiSuccess } from '@/lib/api-error';
@@ -46,49 +46,50 @@ export async function POST(req: NextRequest) {
     const CRMUserSettings = getCRMUserSettings();
 
     // ══════════════════════════════════════════════════════════════════════════
-    // AUTO-PROVISION: Check if already configured, if not generate + save
+    // AUTO-PROVISION: Check if permanent tenant ID & secret exist
     // ══════════════════════════════════════════════════════════════════════════
     let settings = await CRMUserSettings.findOne({ userId });
 
-    if (settings?.qrBridgeUrl) {
-      // Already configured — return it
+    // ── PERMANENT TENANT ID (NEW METHOD) ──
+    // Each user has a permanent 7-digit ID (e.g., "0002456")
+    // Bridge path is automatically: http://localhost:3333/tenant/0002456
+    // No need to store qrBridgeUrl anymore — it's derived from permanentTenantId
+    if (settings?.permanentTenantId) {
+      const bridgeUrl = `${BRIDGE_BASE_URL}/tenant/${settings.permanentTenantId}`;
+      const existingSecret = settings.qrBridgeSecret;
+      
+      // Ensure secret exists (generate if missing)
+      let bridgeSecret = existingSecret;
+      if (!bridgeSecret) {
+        bridgeSecret = randomBytes(16).toString('hex');
+        await CRMUserSettings.updateOne(
+          { userId },
+          { $set: { qrBridgeSecret: bridgeSecret } }
+        );
+      }
+
+      console.log(`[QR Auto-Provision] ════════════════════════════════════════`);
+      console.log(`[QR Auto-Provision] userId=${userId}`);
+      console.log(`[QR Auto-Provision] permanentTenantId=${settings.permanentTenantId}`);
+      console.log(`[QR Auto-Provision] Derived bridgeUrl=${bridgeUrl}`);
+      console.log(`[QR Auto-Provision] ════════════════════════════════════════`);
+
       return apiSuccess({
         success: true,
-        bridgeUrl: settings.qrBridgeUrl,
-        bridgeSecret: settings.qrBridgeSecret,
-        created: false, // was already configured
+        bridgeUrl,
+        bridgeSecret,
+        permanentTenantId: settings.permanentTenantId,
+        created: false, // already provisioned
       });
     }
 
-    // Not configured — auto-generate unique bridge secret
-    // NOTE: Bridge URL is shared for all users. User isolation happens via x-user-id + x-bridge-secret headers.
-    // See qr-bridge/route.ts for how headers are sent to the bridge.
-    const bridgeUrl = BRIDGE_BASE_URL; // Shared bridge URL (e.g. http://localhost:3333)
-    const bridgeSecret = uuidv4(); // Unique per-user secret for authentication
-
-    console.log(`[QR Auto-Provision] ════════════════════════════════════════`);
-    console.log(`[QR Auto-Provision] userId=${userId}`);
-    console.log(`[QR Auto-Provision] BRIDGE_BASE_URL (from env)=${BRIDGE_BASE_URL}`);
-    console.log(`[QR Auto-Provision] Generated bridgeUrl=${bridgeUrl}`);
-    console.log(`[QR Auto-Provision] Generated bridgeSecret=${bridgeSecret}`);
-    console.log(`[QR Auto-Provision] ════════════════════════════════════════`);
-
-    // Save to crm_user_settings
-    if (!settings) {
-      settings = new CRMUserSettings({ userId });
-    }
-    settings.qrBridgeUrl = bridgeUrl;
-    settings.qrBridgeSecret = bridgeSecret;
-    await settings.save();
-
-    console.log(`[QR Auto-Provision] userId=${userId} — generated bridgeUrl=${bridgeUrl}`);
-
-    return apiSuccess({
-      success: true,
-      bridgeUrl,
-      bridgeSecret,
-      created: true, // newly created
-    });
+    // Fallback: If somehow permanentTenantId doesn't exist (shouldn't happen)
+    // Return error asking user to contact admin
+    console.warn(`[QR Auto-Provision] BLOCKED: User ${userId} has no permanentTenantId`);
+    return apiError(
+      'Permanent tenant ID not found. Please contact support.',
+      422
+    );
   } catch (error: any) {
     const msg = error?.message || 'Unknown error';
     console.error('[QR Auto-Provision] Error:', msg, error);

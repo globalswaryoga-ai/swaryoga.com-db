@@ -52,10 +52,19 @@ export async function GET(req: NextRequest) {
       qrFunnelStages: settings?.qrFunnelStages || [],
     };
 
-    // QR bridge data is VIP — only super admins can see it
+    // QR bridge data: return for all admin users
+    // Derive bridge URL from permanentTenantId, fallback to stored qrBridgeUrl
+    let derivedUrl = '';
+    if (settings?.permanentTenantId) {
+      const bridgeBase = process.env.WHATSAPP_BRIDGE_HTTP_URL || process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL || process.env.WHATSAPP_BRIDGE_URL || 'http://localhost:3333';
+      derivedUrl = `${bridgeBase}/tenant/${settings.permanentTenantId}`;
+    }
+    response.qrBridgeUrl = derivedUrl || settings?.qrBridgeUrl || '';
+    response.qrBridgeSecret = settings?.qrBridgeSecret || '';
+    response.permanentTenantId = settings?.permanentTenantId || null;
+
+    // Only super admin sees qrWhatsappEnabled (team access flag)
     if (isSuperAdmin(decoded)) {
-      response.qrBridgeUrl = settings?.qrBridgeUrl || '';
-      response.qrBridgeSecret = settings?.qrBridgeSecret || '';
       response.qrWhatsappEnabled = settings?.qrWhatsappEnabled || false;
     }
 
