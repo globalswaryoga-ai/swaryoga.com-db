@@ -433,10 +433,13 @@ export default function QRWhatsAppPage() {
     // When status shows we're connected AND has phone info, save it
     if (status?.connected && status?.phone?.id && status.phone.id !== savedPhoneRef.current) {
       savedPhoneRef.current = status.phone.id;
-      // Save to DB in background
+      // Strip phone to digits only (same as server-side extractBridgePhone)
+      const cleanPhone = String(status.phone.id).split(':')[0].split('@')[0].replace(/\D/g, '');
+      if (!cleanPhone) return;
+      // Save to DB in background (proxy also saves via /status tracking, this is a backup)
       crmFetchRef.current('/api/admin/crm/settings', {
         method: 'PUT',
-        body: { qrConnectedPhoneNumber: status.phone.id },
+        body: { qrConnectedPhoneNumber: cleanPhone },
         silent: true,
       }).catch(e => console.warn('[QR] Failed to save connected phone:', e));
     }
@@ -473,6 +476,13 @@ export default function QRWhatsAppPage() {
         data = await bridgeCall('/chats');
       } catch (bridgeErr: any) {
         throw bridgeErr;
+      }
+
+      // ── SESSION CHANGED: server detected phone change, chats cleared ──
+      if (data?.sessionChanged) {
+        console.log('[QR] Session changed detected — chats cleared by server. Reload to see new chats.');
+        setChats([]);
+        return;
       }
 
       // ── STEP 2: Fetch CRM leads for enrichment (leads API filters per-user automatically) ──

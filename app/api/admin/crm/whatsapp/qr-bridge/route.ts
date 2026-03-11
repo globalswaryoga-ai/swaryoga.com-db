@@ -63,7 +63,7 @@ export const maxDuration = 60; // 60s function timeout for Vercel
 // Super Admin user IDs — these users own the shared bridge session
 const SUPER_ADMIN_IDS = new Set(['admin', 'admincrm']);
 
-async function resolveUserBridge(authHeader: string | null): Promise<{ url: string; secret: string; userId: string; isSuperAdmin: boolean; hasOwnBridge: boolean; storedPhone: string; senderDisplayName: string } | null> {
+async function resolveUserBridge(authHeader: string | null): Promise<{ url: string; secret: string; userId: string; isSuperAdmin: boolean; hasOwnBridge: boolean; storedPhone: string; phoneChangedAt: Date | null; senderDisplayName: string } | null> {
   try {
     const decoded = verifyToken(authHeader || '');
     if (decoded?.userId && decoded?.isAdmin) {
@@ -74,10 +74,13 @@ async function resolveUserBridge(authHeader: string | null): Promise<{ url: stri
       const CRMUserSettings = getCRMUserSettings();
       const settings = await CRMUserSettings.findOne(
         { userId: decoded.userId },
-        { qrBridgeUrl: 1, qrBridgeSecret: 1, qrWhatsappEnabled: 1, qrConnectedPhoneNumber: 1, senderDisplayName: 1 }
+        { qrBridgeUrl: 1, qrBridgeSecret: 1, qrWhatsappEnabled: 1, qrConnectedPhoneNumber: 1, qrPhoneChangedAt: 1, senderDisplayName: 1 }
       ).lean();
 
-      const storedPhone = (settings as any)?.qrConnectedPhoneNumber || '';
+      const rawStoredPhone = (settings as any)?.qrConnectedPhoneNumber || '';
+      // Normalize stored phone the same way extractBridgePhone does (digits only)
+      const storedPhone = String(rawStoredPhone).split(':')[0].split('@')[0].replace(/\D/g, '');
+      const phoneChangedAt = (settings as any)?.qrPhoneChangedAt || null;
       const senderDisplayName = (settings as any)?.senderDisplayName || '';
 
       if (settings?.qrBridgeUrl) {
@@ -88,6 +91,7 @@ async function resolveUserBridge(authHeader: string | null): Promise<{ url: stri
           isSuperAdmin: superAdmin,
           hasOwnBridge: true,
           storedPhone,
+          phoneChangedAt,
           senderDisplayName,
         };
       }
@@ -105,7 +109,7 @@ async function resolveUserBridge(authHeader: string | null): Promise<{ url: stri
       }
 
       // Use shared bridge — only super admin or explicitly enabled users
-      return { url: FALLBACK_BRIDGE_URL, secret: FALLBACK_BRIDGE_SECRET, userId: decoded.userId, isSuperAdmin: superAdmin, hasOwnBridge: false, storedPhone, senderDisplayName };
+      return { url: FALLBACK_BRIDGE_URL, secret: FALLBACK_BRIDGE_SECRET, userId: decoded.userId, isSuperAdmin: superAdmin, hasOwnBridge: false, storedPhone, phoneChangedAt, senderDisplayName };
     }
   } catch (e) {
     console.warn('[QR Bridge Proxy] Failed to resolve user bridge:', (e as Error).message);
@@ -114,23 +118,42 @@ async function resolveUserBridge(authHeader: string | null): Promise<{ url: stri
 }
 
 /**
- * Save the currently connected WhatsApp phone number to CRM user settings.
- * Called when /status returns a connected session with a phone ID.
+ * Save the connected phone AND mark the change timestamp.
+ * @param isChange - true when the phone CHANGED (different from stored). Sets qrPhoneChangedAt.
  */
-async function saveConnectedPhone(userId: string, phoneId: string): Promise<void> {
+async function saveConnectedPhone(userId: string, phoneId: string, isChange = false): Promise<void> {
   try {
     // Strip the @s.whatsapp.net suffix if present: "919876543210:xx@s.whatsapp.net" → "919876543210"
     const phone = phoneId.split(':')[0].split('@')[0].replace(/\D/g, '');
     if (!phone) return;
     const CRMUserSettings = getCRMUserSettings();
+    const update: any = { qrConnectedPhoneNumber: phone };
+    if (isChange) {
+      update.qrPhoneChangedAt = new Date();
+    }
     await CRMUserSettings.updateOne(
       { userId },
-      { $set: { qrConnectedPhoneNumber: phone } },
+      { $set: update },
       { upsert: true }
     );
-    console.log(`[QR Bridge Proxy] Saved connected phone ${phone} for user ${userId}`);
+    console.log(`[QR Bridge Proxy] Saved connected phone ${phone} for user ${userId}${isChange ? ' (PHONE CHANGED)' : ''}`);
   } catch (e) {
     console.warn('[QR Bridge Proxy] Failed to save connected phone:', (e as Error).message);
+  }
+}
+
+/**
+ * Clear the phoneChangedAt flag (called after chats have been cleared once).
+ */
+async function clearPhoneChangedFlag(userId: string): Promise<void> {
+  try {
+    const CRMUserSettings = getCRMUserSettings();
+    await CRMUserSettings.updateOne(
+      { userId },
+      { $unset: { qrPhoneChangedAt: 1 } }
+    );
+  } catch (e) {
+    console.warn('[QR Bridge Proxy] Failed to clear phoneChangedAt:', (e as Error).message);
   }
 }
 
@@ -280,33 +303,31 @@ export async function POST(req: NextRequest) {
     if (decodedPath === '/status' && data?.connected) {
       const bridgePhone = extractBridgePhone(data);
       if (bridgePhone && bridgePhone !== resolved.storedPhone) {
-        saveConnectedPhone(userId, bridgePhone).catch(() => {});
+        // Phone CHANGED → save with timestamp so /chats can detect stale data
+        saveConnectedPhone(userId, bridgePhone, true).catch(() => {});
+        console.log(`[QR Bridge Proxy POST /status] Phone changed: ${resolved.storedPhone} → ${bridgePhone}`);
+      } else if (bridgePhone && !resolved.storedPhone) {
+        // First-time save (no previous phone)
+        saveConnectedPhone(userId, bridgePhone, false).catch(() => {});
       }
     }
 
     // ── SESSION ISOLATION (POST /chats) ──
-    // If user has a stored connected phone, verify bridge chats belong to the current session.
-    // When a new WhatsApp number is scanned, old chats from the previous number must not show.
-    // Applies to ALL users (shared + own bridge) — not gated on hasOwnBridge.
-    if (decodedPath === '/chats' && resolved.storedPhone) {
-      const chats = data?.chats || (Array.isArray(data) ? data : []);
-      if (chats.length > 0) {
-        try {
-          // Fetch current bridge status to get the connected phone
-          const statusRes = await fetch(`${BRIDGE_URL}/status`, {
-            headers: { 'x-bridge-secret': BRIDGE_SECRET, 'x-user-id': userId },
-          });
-          const statusJson = await statusRes.json();
-          const currentPhone = extractBridgePhone(statusJson);
-
-          if (currentPhone && currentPhone !== resolved.storedPhone) {
-            console.log(`[QR Bridge Proxy POST] Session phone changed: stored=${resolved.storedPhone}, current=${currentPhone}. Updating and returning empty.`);
-            saveConnectedPhone(userId, currentPhone).catch(() => {});
-            const emptyData = data?.chats ? { ...data, chats: [] } : [];
-            return NextResponse.json({ success: true, data: emptyData, sessionChanged: true, newPhone: currentPhone }, { status: 200 });
-          }
-        } catch (e) {
-          console.warn('[QR Bridge Proxy POST] Session isolation check failed:', (e as Error).message);
+    // Uses qrPhoneChangedAt timestamp to detect recent phone changes.
+    // The old approach (comparing stored vs current phone) had a race condition:
+    // /status polling would update the stored phone BEFORE /chats ran, so they always matched.
+    // Now we check the timestamp: if phoneChangedAt is recent (<2h), the bridge may still
+    // be serving cached chats from the old session → return empty.
+    if (decodedPath === '/chats') {
+      if (resolved.phoneChangedAt) {
+        const ageMs = Date.now() - new Date(resolved.phoneChangedAt).getTime();
+        const TWO_HOURS = 2 * 60 * 60 * 1000;
+        if (ageMs < TWO_HOURS) {
+          console.log(`[QR Bridge Proxy POST /chats] Phone changed ${Math.round(ageMs / 1000)}s ago. Returning empty to prevent stale chats.`);
+          // Clear the flag so the NEXT request (after a page reload) will show chats
+          clearPhoneChangedFlag(userId).catch(() => {});
+          const emptyData = data?.chats ? { ...data, chats: [], sessionChanged: true, sessionMessage: 'Phone number changed. Please reload to see your chats.' } : { chats: [], sessionChanged: true };
+          return NextResponse.json({ success: true, data: emptyData }, { status: 200 });
         }
       }
     }
@@ -490,39 +511,29 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // ── SESSION PHONE TRACKING ──
-    // When /status returns a connected session, save the phone number to DB.
-    // This enables session isolation: old chats from a previous phone won't show.
+    // ── SESSION PHONE TRACKING (GET) ──
     if (path === '/status' && data?.connected) {
       const bridgePhone = extractBridgePhone(data);
       if (bridgePhone && bridgePhone !== resolved.storedPhone) {
-        // Phone changed — save the new one (fire-and-forget)
-        saveConnectedPhone(userId, bridgePhone).catch(() => {});
+        // Phone CHANGED → save with timestamp so /chats can detect stale data
+        saveConnectedPhone(userId, bridgePhone, true).catch(() => {});
+        console.log(`[QR Bridge Proxy GET /status] Phone changed: ${resolved.storedPhone} → ${bridgePhone}`);
+      } else if (bridgePhone && !resolved.storedPhone) {
+        saveConnectedPhone(userId, bridgePhone, false).catch(() => {});
       }
     }
 
     // ── SESSION ISOLATION (GET /chats) ──
-    // If user has a stored phone number, verify the current bridge session matches.
-    // Prevents old chats from a previously connected WhatsApp number from appearing
-    // when a new number is scanned. Applies to ALL users (shared + own bridge).
-    if (path === '/chats' && resolved.storedPhone) {
-      const chats = data?.chats || (Array.isArray(data) ? data : []);
-      if (chats.length > 0) {
-        try {
-          const statusRes = await fetch(`${BRIDGE_URL}/status`, {
-            headers: { 'x-bridge-secret': BRIDGE_SECRET, 'x-user-id': userId },
-          });
-          const statusJson = await statusRes.json();
-          const currentPhone = extractBridgePhone(statusJson);
-
-          if (currentPhone && currentPhone !== resolved.storedPhone) {
-            console.log(`[QR Bridge Proxy] Session phone changed: stored=${resolved.storedPhone}, current=${currentPhone}. Updating and returning empty.`);
-            saveConnectedPhone(userId, currentPhone).catch(() => {});
-            const emptyData = data?.chats ? { ...data, chats: [] } : [];
-            return NextResponse.json({ success: true, data: emptyData, sessionChanged: true, newPhone: currentPhone }, { status: 200 });
-          }
-        } catch (e) {
-          console.warn('[QR Bridge Proxy] Session isolation check failed:', (e as Error).message);
+    // Uses qrPhoneChangedAt timestamp — immune to the /status race condition.
+    if (path === '/chats') {
+      if (resolved.phoneChangedAt) {
+        const ageMs = Date.now() - new Date(resolved.phoneChangedAt).getTime();
+        const TWO_HOURS = 2 * 60 * 60 * 1000;
+        if (ageMs < TWO_HOURS) {
+          console.log(`[QR Bridge Proxy GET /chats] Phone changed ${Math.round(ageMs / 1000)}s ago. Returning empty to prevent stale chats.`);
+          clearPhoneChangedFlag(userId).catch(() => {});
+          const emptyData = data?.chats ? { ...data, chats: [], sessionChanged: true, sessionMessage: 'Phone number changed. Please reload to see your chats.' } : { chats: [], sessionChanged: true };
+          return NextResponse.json({ success: true, data: emptyData }, { status: 200 });
         }
       }
     }
