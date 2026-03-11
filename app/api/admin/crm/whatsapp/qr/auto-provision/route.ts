@@ -14,7 +14,13 @@ import { getCRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { verifyToken } from '@/lib/auth';
 
-const BRIDGE_BASE_URL = process.env.FALLBACK_BRIDGE_URL || 'https://bridge.swaryoga.com';
+// Use same bridge URL config as qr-bridge/route.ts
+const DEFAULT_BRIDGE_URL = 'http://localhost:3333';
+const BRIDGE_BASE_URL =
+  process.env.WHATSAPP_BRIDGE_HTTP_URL ||
+  process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL ||
+  process.env.WHATSAPP_BRIDGE_URL ||
+  DEFAULT_BRIDGE_URL;
 
 export async function POST(req: NextRequest) {
   try {
@@ -54,10 +60,11 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Not configured — auto-generate unique bridge URL + secret
-    const uniqueId = uuidv4().substring(0, 8); // short unique ID for bridge path
-    const bridgeUrl = `${BRIDGE_BASE_URL}/user/${userId}/${uniqueId}`;
-    const bridgeSecret = uuidv4(); // random secret
+    // Not configured — auto-generate unique bridge secret
+    // NOTE: Bridge URL is shared for all users. User isolation happens via x-user-id + x-bridge-secret headers.
+    // See qr-bridge/route.ts for how headers are sent to the bridge.
+    const bridgeUrl = BRIDGE_BASE_URL; // Shared bridge URL (e.g. http://localhost:3333)
+    const bridgeSecret = uuidv4(); // Unique per-user secret for authentication
 
     // Save to crm_user_settings
     if (!settings) {
