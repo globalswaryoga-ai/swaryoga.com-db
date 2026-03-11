@@ -119,17 +119,10 @@ export async function POST(req: NextRequest) {
         { status: 422 }
       );
     }
-    const { url: BRIDGE_URL, secret: BRIDGE_SECRET, userId, isSuperAdmin: isSA, hasOwnBridge } = resolved;
+    const { url: BRIDGE_URL, secret: BRIDGE_SECRET, userId } = resolved;
 
-    // ── LAYER 2: Block reading super admin chats via shared bridge ──
-    // Non-super-admin on shared bridge must not read/send messages to chats
-    // that belong to the super admin's session
-    if (!isSA && !hasOwnBridge) {
-      return NextResponse.json(
-        { error: 'Access denied. You need your own WhatsApp bridge to use QR WhatsApp.' },
-        { status: 403 }
-      );
-    }
+    // Access control is handled by resolveUserBridge() — it returns null for unauthorized users.
+    // Users reach here only if they are: (a) super admin, (b) have own bridge, or (c) have qrWhatsappEnabled.
 
     const { action, path, body } = await req.json();
 
@@ -234,15 +227,9 @@ export async function GET(req: NextRequest) {
         { status: 422 }
       );
     }
-    const { url: BRIDGE_URL, secret: BRIDGE_SECRET, userId, isSuperAdmin: isSA, hasOwnBridge } = resolved;
+    const { url: BRIDGE_URL, secret: BRIDGE_SECRET, userId } = resolved;
 
-    // ── LAYER 2: Block non-super-admin from seeing super admin's session ──
-    if (!isSA && !hasOwnBridge) {
-      return NextResponse.json(
-        { error: 'Access denied. You need your own WhatsApp bridge to use QR WhatsApp.' },
-        { status: 403 }
-      );
-    }
+    // Access control is handled by resolveUserBridge() — it returns null for unauthorized users.
 
     let path = req.nextUrl.searchParams.get('path') || '/status';
     
