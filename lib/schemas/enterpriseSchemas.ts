@@ -3180,6 +3180,10 @@ const CRMUserSettingsSchema = new mongoose.Schema(
     // QR WhatsApp access control — only super admin can enable this for each user
     // When false/unset, non-super-admin users cannot access the shared bridge (privacy compartment)
     qrWhatsappEnabled: { type: Boolean, default: false },
+    // Currently connected WhatsApp phone number (e.g. '919876543210')
+    // Saved automatically when QR scan connects. Used for session isolation:
+    // if bridge returns chats from a different phone, old chats are NOT shown.
+    qrConnectedPhoneNumber: { type: String, default: '' },
     // Per-user Telegram Bot configuration
     telegramBotToken: { type: String, default: '' },       // Bot token from @BotFather
     telegramBotUsername: { type: String, default: '' },     // e.g. 'my_bot'

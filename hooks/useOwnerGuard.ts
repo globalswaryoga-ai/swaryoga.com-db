@@ -36,12 +36,12 @@ export function useOwnerGuard() {
         const legacyPerms: string[] = Array.isArray(u?.permissions) ? u.permissions : [];
         const pv2 = u?.permissionsV2 || null;
 
+        // Super Admin = ONLY userId 'admin' or 'admincrm' (hardcoded).
+        // Do NOT use role or permissions — those can be set on tenant users.
         const ownerOrSuper =
           role === 'owner' ||
           userId === 'admin' ||
-          userId === 'admincrm' ||
-          legacyPerms.includes('all') ||
-          pv2?.isSuperAdmin === true;
+          userId === 'admincrm';
 
         setIsOwner(ownerOrSuper);
         setUserName(u?.name || u?.email || userId || '');

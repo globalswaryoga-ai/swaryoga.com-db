@@ -131,11 +131,11 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       }
     }
 
+    // Super Admin = ONLY userId 'admin' or 'admincrm' (hardcoded).
+    // Do NOT use role or permissions — those can be set on tenant users.
     const superAdmin =
       resolvedUserId === 'admin' ||
-      resolvedUserId === 'admincrm' ||
-      legacyPerms.includes('all') ||
-      pv2?.isSuperAdmin === true;
+      resolvedUserId === 'admincrm';
 
     setIsSuperAdmin(superAdmin);
     setUserRole(role);

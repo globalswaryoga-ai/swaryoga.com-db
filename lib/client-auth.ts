@@ -21,11 +21,9 @@ export function getToken(): string | null {
 /**
  * Check if current user is a super admin based on localStorage data.
  * 
- * Checks all possible indicators:
- * - userId === 'admin' or 'admincrm'
- * - role === 'superadmin'
- * - legacy permissions includes 'all'
- * - permissionsV2.isSuperAdmin === true
+ * Super Admin = ONLY userId 'admin' or 'admincrm' (hardcoded).
+ * Do NOT check role or permissions — those can be set on tenant users
+ * and would incorrectly grant super admin access.
  */
 export function checkIsSuperAdmin(): boolean {
   if (typeof window === 'undefined') return false;
@@ -34,18 +32,9 @@ export function checkIsSuperAdmin(): boolean {
     if (!userStr) return false;
 
     const u = JSON.parse(userStr);
-    const userId = u?.userId || '';
-    const role = u?.role || '';
-    const perms: string[] = Array.isArray(u?.permissions) ? u.permissions : [];
-    const pv2 = u?.permissionsV2;
+    const userId = String(u?.userId || '').trim();
 
-    return (
-      userId === 'admin' ||
-      userId === 'admincrm' ||
-      role === 'superadmin' ||
-      perms.includes('all') ||
-      pv2?.isSuperAdmin === true
-    );
+    return userId === 'admin' || userId === 'admincrm';
   } catch {
     return false;
   }
@@ -74,12 +63,11 @@ export function getStoredUser(): {
     const permissions: string[] = Array.isArray(u?.permissions) ? u.permissions : [];
     const permissionsV2 = u?.permissionsV2 || null;
 
+    // Super Admin = ONLY userId 'admin' or 'admincrm' (hardcoded).
+    // Do NOT use role or permissions — those can be set on tenant users.
     const isSuperAdmin =
       userId === 'admin' ||
-      userId === 'admincrm' ||
-      role === 'superadmin' ||
-      permissions.includes('all') ||
-      permissionsV2?.isSuperAdmin === true;
+      userId === 'admincrm';
 
     return { userId, role, permissions, permissionsV2, isSuperAdmin };
   } catch {

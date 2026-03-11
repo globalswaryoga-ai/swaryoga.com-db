@@ -62,7 +62,7 @@ export const maxDuration = 60; // 60s function timeout for Vercel
 // Super Admin user IDs — these users own the shared bridge session
 const SUPER_ADMIN_IDS = new Set(['admin', 'admincrm']);
 
-async function resolveUserBridge(authHeader: string | null): Promise<{ url: string; secret: string; userId: string; isSuperAdmin: boolean; hasOwnBridge: boolean } | null> {
+async function resolveUserBridge(authHeader: string | null): Promise<{ url: string; secret: string; userId: string; isSuperAdmin: boolean; hasOwnBridge: boolean; storedPhone: string } | null> {
   try {
     const decoded = verifyToken(authHeader || '');
     if (decoded?.userId && decoded?.isAdmin) {
@@ -73,8 +73,10 @@ async function resolveUserBridge(authHeader: string | null): Promise<{ url: stri
       const CRMUserSettings = getCRMUserSettings();
       const settings = await CRMUserSettings.findOne(
         { userId: decoded.userId },
-        { qrBridgeUrl: 1, qrBridgeSecret: 1, qrWhatsappEnabled: 1 }
+        { qrBridgeUrl: 1, qrBridgeSecret: 1, qrWhatsappEnabled: 1, qrConnectedPhoneNumber: 1 }
       ).lean();
+
+      const storedPhone = (settings as any)?.qrConnectedPhoneNumber || '';
 
       if (settings?.qrBridgeUrl) {
         return {
@@ -83,6 +85,7 @@ async function resolveUserBridge(authHeader: string | null): Promise<{ url: stri
           userId: decoded.userId,
           isSuperAdmin: superAdmin,
           hasOwnBridge: true,
+          storedPhone,
         };
       }
 
@@ -99,12 +102,42 @@ async function resolveUserBridge(authHeader: string | null): Promise<{ url: stri
       }
 
       // Use shared bridge — only super admin or explicitly enabled users
-      return { url: FALLBACK_BRIDGE_URL, secret: FALLBACK_BRIDGE_SECRET, userId: decoded.userId, isSuperAdmin: superAdmin, hasOwnBridge: false };
+      return { url: FALLBACK_BRIDGE_URL, secret: FALLBACK_BRIDGE_SECRET, userId: decoded.userId, isSuperAdmin: superAdmin, hasOwnBridge: false, storedPhone };
     }
   } catch (e) {
     console.warn('[QR Bridge Proxy] Failed to resolve user bridge:', (e as Error).message);
   }
   return null;
+}
+
+/**
+ * Save the currently connected WhatsApp phone number to CRM user settings.
+ * Called when /status returns a connected session with a phone ID.
+ */
+async function saveConnectedPhone(userId: string, phoneId: string): Promise<void> {
+  try {
+    // Strip the @s.whatsapp.net suffix if present: "919876543210:xx@s.whatsapp.net" → "919876543210"
+    const phone = phoneId.split(':')[0].split('@')[0].replace(/\D/g, '');
+    if (!phone) return;
+    const CRMUserSettings = getCRMUserSettings();
+    await CRMUserSettings.updateOne(
+      { userId },
+      { $set: { qrConnectedPhoneNumber: phone } },
+      { upsert: true }
+    );
+    console.log(`[QR Bridge Proxy] Saved connected phone ${phone} for user ${userId}`);
+  } catch (e) {
+    console.warn('[QR Bridge Proxy] Failed to save connected phone:', (e as Error).message);
+  }
+}
+
+/**
+ * Extract the connected phone number from bridge /status response.
+ * Returns digits-only phone number or empty string.
+ */
+function extractBridgePhone(statusData: any): string {
+  const raw = statusData?.phone?.id || statusData?.me?.id || statusData?.phoneNumber || '';
+  return String(raw).split(':')[0].split('@')[0].replace(/\D/g, '');
 }
 
 function decodePathFully(rawPath: string): string {
@@ -220,6 +253,40 @@ export async function POST(req: NextRequest) {
         { success: true, data: text, note: 'Response was not JSON' },
         { status: res.status }
       );
+    }
+
+    // ── SESSION PHONE TRACKING (POST) ──
+    if (decodedPath === '/status' && data?.connected) {
+      const bridgePhone = extractBridgePhone(data);
+      if (bridgePhone && bridgePhone !== resolved.storedPhone) {
+        saveConnectedPhone(userId, bridgePhone).catch(() => {});
+      }
+    }
+
+    // ── SESSION ISOLATION (POST /chats) ──
+    // If user has a stored connected phone, verify bridge chats belong to the current session.
+    // When a new WhatsApp number is scanned, old chats from the previous number must not show.
+    if (decodedPath === '/chats' && resolved.hasOwnBridge && resolved.storedPhone) {
+      const chats = data?.chats || (Array.isArray(data) ? data : []);
+      if (chats.length > 0) {
+        try {
+          // Fetch current bridge status to get the connected phone
+          const statusRes = await fetch(`${BRIDGE_URL}/status`, {
+            headers: { 'x-bridge-secret': BRIDGE_SECRET, 'x-user-id': userId },
+          });
+          const statusJson = await statusRes.json();
+          const currentPhone = extractBridgePhone(statusJson);
+
+          if (currentPhone && currentPhone !== resolved.storedPhone) {
+            console.log(`[QR Bridge Proxy POST] Session phone changed: stored=${resolved.storedPhone}, current=${currentPhone}. Updating and returning empty.`);
+            saveConnectedPhone(userId, currentPhone).catch(() => {});
+            const emptyData = data?.chats ? { ...data, chats: [] } : [];
+            return NextResponse.json({ success: true, data: emptyData, sessionChanged: true, newPhone: currentPhone }, { status: 200 });
+          }
+        } catch (e) {
+          console.warn('[QR Bridge Proxy POST] Session isolation check failed:', (e as Error).message);
+        }
+      }
     }
 
     // ── CHAT PRIVACY FILTER (POST handler) ──
@@ -397,6 +464,43 @@ export async function GET(req: NextRequest) {
           { success: true, data: 'Unable to read response', note: 'Response body unavailable' },
           { status: res.status }
         );
+      }
+    }
+
+    // ── SESSION PHONE TRACKING ──
+    // When /status returns a connected session, save the phone number to DB.
+    // This enables session isolation: old chats from a previous phone won't show.
+    if (path === '/status' && data?.connected) {
+      const bridgePhone = extractBridgePhone(data);
+      if (bridgePhone && bridgePhone !== resolved.storedPhone) {
+        // Phone changed — save the new one (fire-and-forget)
+        saveConnectedPhone(userId, bridgePhone).catch(() => {});
+      }
+    }
+
+    // ── SESSION ISOLATION (GET /chats) ──
+    // If user has their own bridge with a stored phone number, verify the current session
+    // matches. Prevents old chats from a previously connected WhatsApp number from appearing
+    // when a new number is scanned.
+    if (path === '/chats' && resolved.hasOwnBridge && resolved.storedPhone) {
+      const chats = data?.chats || (Array.isArray(data) ? data : []);
+      if (chats.length > 0) {
+        try {
+          const statusRes = await fetch(`${BRIDGE_URL}/status`, {
+            headers: { 'x-bridge-secret': BRIDGE_SECRET, 'x-user-id': userId },
+          });
+          const statusJson = await statusRes.json();
+          const currentPhone = extractBridgePhone(statusJson);
+
+          if (currentPhone && currentPhone !== resolved.storedPhone) {
+            console.log(`[QR Bridge Proxy] Session phone changed: stored=${resolved.storedPhone}, current=${currentPhone}. Updating and returning empty.`);
+            saveConnectedPhone(userId, currentPhone).catch(() => {});
+            const emptyData = data?.chats ? { ...data, chats: [] } : [];
+            return NextResponse.json({ success: true, data: emptyData, sessionChanged: true, newPhone: currentPhone }, { status: 200 });
+          }
+        } catch (e) {
+          console.warn('[QR Bridge Proxy] Session isolation check failed:', (e as Error).message);
+        }
       }
     }
 

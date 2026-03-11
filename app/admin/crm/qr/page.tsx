@@ -215,8 +215,8 @@ export default function QRWhatsAppPage() {
         resolvedUserId = u?.userId || resolvedUserId;
         const perms = Array.isArray(u?.permissions) ? u.permissions : [];
         const pv2 = u?.permissionsV2 || null;
-        superAdmin = resolvedUserId === 'admin' || resolvedUserId === 'admincrm'
-          || perms.includes('all') || pv2?.isSuperAdmin === true;
+        // Super Admin = ONLY userId 'admin' or 'admincrm' (hardcoded)
+        superAdmin = resolvedUserId === 'admin' || resolvedUserId === 'admincrm';
       }
     } catch {}
     setCurrentUserId(resolvedUserId);

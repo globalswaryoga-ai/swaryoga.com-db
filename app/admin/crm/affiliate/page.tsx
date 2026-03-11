@@ -111,11 +111,10 @@ export default function AffiliatePage() {
         const resolvedUserId = u?.userId || '';
         const legacyPerms = Array.isArray(u?.permissions) ? u.permissions : [];
         const pv2 = u?.permissionsV2 || null;
+        // Super Admin = ONLY userId 'admin' or 'admincrm' (hardcoded)
         const superAdmin =
           resolvedUserId === 'admin' ||
-          resolvedUserId === 'admincrm' ||
-          legacyPerms.includes('all') ||
-          pv2?.isSuperAdmin === true;
+          resolvedUserId === 'admincrm';
         setIsSuperAdmin(superAdmin);
         // Pre-fill form with user info
         if (u?.name) setFormData(prev => ({ ...prev, name: u.name }));
