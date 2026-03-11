@@ -62,7 +62,7 @@ export const maxDuration = 60; // 60s function timeout for Vercel
 // Super Admin user IDs — these users own the shared bridge session
 const SUPER_ADMIN_IDS = new Set(['admin', 'admincrm']);
 
-async function resolveUserBridge(authHeader: string | null): Promise<{ url: string; secret: string; userId: string; isSuperAdmin: boolean; hasOwnBridge: boolean; storedPhone: string } | null> {
+async function resolveUserBridge(authHeader: string | null): Promise<{ url: string; secret: string; userId: string; isSuperAdmin: boolean; hasOwnBridge: boolean; storedPhone: string; senderDisplayName: string } | null> {
   try {
     const decoded = verifyToken(authHeader || '');
     if (decoded?.userId && decoded?.isAdmin) {
@@ -73,10 +73,11 @@ async function resolveUserBridge(authHeader: string | null): Promise<{ url: stri
       const CRMUserSettings = getCRMUserSettings();
       const settings = await CRMUserSettings.findOne(
         { userId: decoded.userId },
-        { qrBridgeUrl: 1, qrBridgeSecret: 1, qrWhatsappEnabled: 1, qrConnectedPhoneNumber: 1 }
+        { qrBridgeUrl: 1, qrBridgeSecret: 1, qrWhatsappEnabled: 1, qrConnectedPhoneNumber: 1, senderDisplayName: 1 }
       ).lean();
 
       const storedPhone = (settings as any)?.qrConnectedPhoneNumber || '';
+      const senderDisplayName = (settings as any)?.senderDisplayName || '';
 
       if (settings?.qrBridgeUrl) {
         return {
@@ -86,6 +87,7 @@ async function resolveUserBridge(authHeader: string | null): Promise<{ url: stri
           isSuperAdmin: superAdmin,
           hasOwnBridge: true,
           storedPhone,
+          senderDisplayName,
         };
       }
 
@@ -102,7 +104,7 @@ async function resolveUserBridge(authHeader: string | null): Promise<{ url: stri
       }
 
       // Use shared bridge — only super admin or explicitly enabled users
-      return { url: FALLBACK_BRIDGE_URL, secret: FALLBACK_BRIDGE_SECRET, userId: decoded.userId, isSuperAdmin: superAdmin, hasOwnBridge: false, storedPhone };
+      return { url: FALLBACK_BRIDGE_URL, secret: FALLBACK_BRIDGE_SECRET, userId: decoded.userId, isSuperAdmin: superAdmin, hasOwnBridge: false, storedPhone, senderDisplayName };
     }
   } catch (e) {
     console.warn('[QR Bridge Proxy] Failed to resolve user bridge:', (e as Error).message);
@@ -180,6 +182,24 @@ export async function POST(req: NextRequest) {
 
     // Decode the path to handle double-encoded values like %2540 (@)
     const decodedPath = decodePathFully(path);
+
+    // ── SENDER DISPLAY NAME SIGNATURE ──
+    // Append the user's configured display name (e.g. "Swar Yoga") as a bold
+    // signature at the bottom of every sent text/media message so the recipient
+    // can see who sent it — just like Meta WhatsApp's sender name feature.
+    if ((decodedPath === '/send' || decodedPath.startsWith('/send') || decodedPath === '/reply' || decodedPath.startsWith('/reply')) && body && resolved.senderDisplayName) {
+      const sig = `\n\n*${resolved.senderDisplayName}*`;
+      if (body.message && typeof body.message === 'string') {
+        body.message = body.message + sig;
+      }
+      if (body.caption && typeof body.caption === 'string') {
+        body.caption = body.caption + sig;
+      }
+      // For text messages without body.message but with body.text
+      if (body.text && typeof body.text === 'string') {
+        body.text = body.text + sig;
+      }
+    }
 
     const method = (action || 'GET').toUpperCase();
     const bridgeUrl = `${BRIDGE_URL}${decodedPath}`;
