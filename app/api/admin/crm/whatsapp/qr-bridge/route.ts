@@ -96,13 +96,15 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
 
       // ── PERMANENT TENANT ID (ALL users including Super Admin) ──
       // Each user gets a permanent 7-digit ID (e.g. 0002456).
-      // Bridge path: {BRIDGE_BASE_URL}/tenant/{permanentTenantId}
-      // Each user has their own isolated WhatsApp session on the bridge.
+      // When bridge supports tenant routing: {BRIDGE_BASE_URL}/tenant/{permanentTenantId}
+      // Until then: use FALLBACK_BRIDGE_URL directly (single shared bridge instance).
+      // Bridge secret: use FALLBACK_BRIDGE_SECRET (env var) — it's what the bridge validates.
+      // Per-user qrBridgeSecret is stored for future multi-tenant bridge support.
       if (permanentTenantId) {
         return {
           ok: true,
-          url: `${FALLBACK_BRIDGE_URL}/tenant/${permanentTenantId}`,
-          secret: settings?.qrBridgeSecret || FALLBACK_BRIDGE_SECRET,
+          url: FALLBACK_BRIDGE_URL,
+          secret: FALLBACK_BRIDGE_SECRET,
           userId: decoded.userId,
           isSuperAdmin: superAdmin,
           hasOwnBridge: true,
