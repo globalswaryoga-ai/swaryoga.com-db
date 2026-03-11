@@ -3,6 +3,7 @@ import Script from 'next/script';
 import './globals.css';
 import WhatsAppWidget from '@/components/WhatsAppWidget';
 import AppInitializer from '@/components/AppInitializer';
+import ErrorCatcher from '@/components/ErrorCatcher';
 import { CartProvider } from '@/lib/context/CartContext';
 import { Space_Grotesk } from 'next/font/google';
 import { siteConfig } from '@/lib/seo';
@@ -169,6 +170,7 @@ export default function RootLayout({
         <WebsiteJsonLd />
         
         <CartProvider>
+          <ErrorCatcher />
           <AppInitializer />
           {children}
           <WhatsAppWidget />

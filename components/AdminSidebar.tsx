@@ -20,6 +20,7 @@ import {
   Settings,
   Phone,
   Bot,
+  Bug,
   Activity,
   Shield,
   Mail,
@@ -274,6 +275,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
     planModule?: CrmModule;
     badge?: number;
     description?: string;
+    superAdminOnly?: boolean;
   };
 
   type SidebarCategory = {
@@ -532,6 +534,12 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       icon: UsersRound,
       label: 'CRM Users',
       href: '/admin/crm/crm-users',
+      color: 'text-gray-400',
+    },
+    {
+      icon: Bug,
+      label: 'Error Logs',
+      href: '/admin/crm/error-logs',
       color: 'text-gray-400',
     },
     {

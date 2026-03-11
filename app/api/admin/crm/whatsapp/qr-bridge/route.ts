@@ -3,6 +3,7 @@ import { connectDB } from '@/lib/db';
 import { getCRMUserSettings, getLead } from '@/lib/schemas/enterpriseSchemas';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin as checkSuperAdmin } from '@/lib/crm-handlers';
+import { logApiError } from '@/lib/error-logger';
 
 /**
  * WhatsApp QR Bridge Proxy Endpoint
@@ -286,7 +287,8 @@ export async function POST(req: NextRequest) {
     // ── SESSION ISOLATION (POST /chats) ──
     // If user has a stored connected phone, verify bridge chats belong to the current session.
     // When a new WhatsApp number is scanned, old chats from the previous number must not show.
-    if (decodedPath === '/chats' && resolved.hasOwnBridge && resolved.storedPhone) {
+    // Applies to ALL users (shared + own bridge) — not gated on hasOwnBridge.
+    if (decodedPath === '/chats' && resolved.storedPhone) {
       const chats = data?.chats || (Array.isArray(data) ? data : []);
       if (chats.length > 0) {
         try {
@@ -357,6 +359,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, data }, { status: res.status });
   } catch (err) {
     console.error('[QR Bridge Proxy] Error:', err);
+    logApiError('qr-bridge/POST', err, { method: 'POST' }).catch(() => {});
     return NextResponse.json(
       { success: false, error: err instanceof Error ? err.message : 'Bridge proxy error' },
       { status: 500 }
@@ -499,10 +502,10 @@ export async function GET(req: NextRequest) {
     }
 
     // ── SESSION ISOLATION (GET /chats) ──
-    // If user has their own bridge with a stored phone number, verify the current session
-    // matches. Prevents old chats from a previously connected WhatsApp number from appearing
-    // when a new number is scanned.
-    if (path === '/chats' && resolved.hasOwnBridge && resolved.storedPhone) {
+    // If user has a stored phone number, verify the current bridge session matches.
+    // Prevents old chats from a previously connected WhatsApp number from appearing
+    // when a new number is scanned. Applies to ALL users (shared + own bridge).
+    if (path === '/chats' && resolved.storedPhone) {
       const chats = data?.chats || (Array.isArray(data) ? data : []);
       if (chats.length > 0) {
         try {
@@ -575,6 +578,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: true, data }, { status: res.status });
   } catch (err) {
     console.error('[QR Bridge Proxy] Error:', err);
+    logApiError('qr-bridge/GET', err, { method: 'GET' }).catch(() => {});
     return NextResponse.json(
       { success: false, error: err instanceof Error ? err.message : 'Bridge proxy error' },
       { status: 500 }
