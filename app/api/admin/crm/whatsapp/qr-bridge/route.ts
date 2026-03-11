@@ -370,8 +370,18 @@ export async function POST(req: NextRequest) {
     }
 
     // ── CHAT PRIVACY FILTER (POST handler) ──
-    // Same filter as GET: non-super-admin on shared bridge only sees assigned/created chats
-    if (decodedPath === '/chats' && !resolved.isSuperAdmin && !resolved.hasOwnBridge) {
+    // SECURITY FIX: Applied to ALL users on shared bridge (Super Admin + Team users).
+    // 
+    // ISSUE FIXED: Super Admin's old test chats were visible to newly added team members.
+    // CAUSE: Previous logic exempted Super Admin from filtering (!resolved.isSuperAdmin check).
+    //        When team users accessed shared bridge, they got ALL chats including Super Admin's orphaned test chats.
+    // 
+    // SOLUTION: Filter everyone on shared bridge — only show chats for leads assigned/created by the current user.
+    // - Super Admin sees only chats for their assigned leads
+    // - Team users see only chats for their assigned leads  
+    // - Orphaned chats (no lead record) are blocked for everyone (fail-safe, prevent data leak)
+    // - Users with own bridge (!hasOwnBridge = false) are NOT filtered (they control their own bridge)
+    if (decodedPath === '/chats' && !resolved.hasOwnBridge) {
       const chats = data?.chats || (Array.isArray(data) ? data : []);
       if (chats.length > 0) {
         try {
@@ -583,9 +593,10 @@ export async function GET(req: NextRequest) {
     }
 
     // ── CHAT PRIVACY FILTER ──
-    // For /chats endpoint: non-super-admin users on shared bridge
-    // must only see chats for leads assigned to or created by them.
-    if (path === '/chats' && !resolved.isSuperAdmin && !resolved.hasOwnBridge) {
+    // SECURITY FIX: Applied to ALL users on shared bridge (Super Admin + Team users).
+    // Prevents Super Admin's old test chats from leaking to team members.
+    // Only show chats for leads assigned/created by the current user.
+    if (path === '/chats' && !resolved.hasOwnBridge) {
       const chats = data?.chats || (Array.isArray(data) ? data : []);
       if (chats.length > 0) {
         try {
