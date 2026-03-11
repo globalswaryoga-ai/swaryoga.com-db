@@ -265,6 +265,15 @@ export async function POST(req: NextRequest) {
     const method = (action || 'GET').toUpperCase();
     const bridgeUrl = `${BRIDGE_URL}${decodedPath}`;
 
+    // Diagnostic logs
+    console.log(`[QR Bridge Proxy] ════════════════════════════════════════`);
+    console.log(`[QR Bridge Proxy] userId=${userId}`);
+    console.log(`[QR Bridge Proxy] isSuperAdmin=${resolved.isSuperAdmin}, hasOwnBridge=${resolved.hasOwnBridge}`);
+    console.log(`[QR Bridge Proxy] BRIDGE_URL=${BRIDGE_URL}`);
+    console.log(`[QR Bridge Proxy] decodedPath=${decodedPath}`);
+    console.log(`[QR Bridge Proxy] Final bridgeUrl=${bridgeUrl}`);
+    console.log(`[QR Bridge Proxy] ════════════════════════════════════════`);
+
     // Determine timeout based on endpoint type
     // /send with media: 45s (large base64 payloads)
     // Messages polling: 12s (can be slow, needs more time)
@@ -463,6 +472,15 @@ export async function GET(req: NextRequest) {
 
     const bridgeUrl = `${BRIDGE_URL}${path}`;
 
+    // Diagnostic logs
+    console.log(`[QR Bridge Proxy GET] ════════════════════════════════════════`);
+    console.log(`[QR Bridge Proxy GET] userId=${userId}`);
+    console.log(`[QR Bridge Proxy GET] isSuperAdmin=${resolved.isSuperAdmin}, hasOwnBridge=${resolved.hasOwnBridge}`);
+    console.log(`[QR Bridge Proxy GET] BRIDGE_URL=${BRIDGE_URL}`);
+    console.log(`[QR Bridge Proxy GET] path=${path}`);
+    console.log(`[QR Bridge Proxy GET] Final bridgeUrl=${bridgeUrl}`);
+    console.log(`[QR Bridge Proxy GET] ════════════════════════════════════════`);
+
     // Determine timeout based on endpoint type
     // Media downloads: 30s (can be large files)
     // Messages polling: 12s (can be slow, needs more time)
@@ -477,7 +495,7 @@ export async function GET(req: NextRequest) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
-    console.log(`[QR Bridge Proxy] GET ${bridgeUrl} user=${userId} (timeout: ${timeoutMs}ms)`);
+    console.log(`[QR Bridge Proxy GET] ${path} for user=${userId} (timeout: ${timeoutMs}ms)`);
 
     let res;
     try {

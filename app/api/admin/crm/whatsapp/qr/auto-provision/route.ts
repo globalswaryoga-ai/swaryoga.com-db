@@ -66,6 +66,13 @@ export async function POST(req: NextRequest) {
     const bridgeUrl = BRIDGE_BASE_URL; // Shared bridge URL (e.g. http://localhost:3333)
     const bridgeSecret = uuidv4(); // Unique per-user secret for authentication
 
+    console.log(`[QR Auto-Provision] ════════════════════════════════════════`);
+    console.log(`[QR Auto-Provision] userId=${userId}`);
+    console.log(`[QR Auto-Provision] BRIDGE_BASE_URL (from env)=${BRIDGE_BASE_URL}`);
+    console.log(`[QR Auto-Provision] Generated bridgeUrl=${bridgeUrl}`);
+    console.log(`[QR Auto-Provision] Generated bridgeSecret=${bridgeSecret}`);
+    console.log(`[QR Auto-Provision] ════════════════════════════════════════`);
+
     // Save to crm_user_settings
     if (!settings) {
       settings = new CRMUserSettings({ userId });
