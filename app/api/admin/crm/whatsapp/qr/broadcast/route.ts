@@ -50,6 +50,30 @@ export async function POST(request: NextRequest) {
           error: 'Access denied. You need your own WhatsApp bridge configured to use broadcasts.'
         }, { status: 403 });
       }
+
+      // Tenant owners with qrWhatsappEnabled must NOT use the shared bridge.
+      if (!userSettings?.qrBridgeUrl && userSettings?.qrWhatsappEnabled) {
+        try {
+          const mongoose = (await import('mongoose')).default;
+          const db = mongoose.connection.db;
+          if (db) {
+            const tenantDoc = await db.collection('tenants').findOne({
+              $or: [
+                { ownerUserId: viewerUserId },
+                { adminUserId: viewerUserId },
+              ],
+            }, { projection: { _id: 1 } });
+            if (tenantDoc) {
+              return NextResponse.json({
+                success: false,
+                error: 'Access denied. CRM tenants must configure their own WhatsApp bridge.'
+              }, { status: 403 });
+            }
+          }
+        } catch {
+          return NextResponse.json({ success: false, error: 'Bridge access check failed' }, { status: 500 });
+        }
+      }
     }
 
     const body = await request.json();

@@ -21,6 +21,7 @@ import { verifyToken } from '@/lib/auth';
 import { getWhatsAppMessage, getLead, getCRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
 import { getViewerUserId, isSuperAdmin as checkSuperAdmin } from '@/lib/crm-handlers';
 import { getPublicMediaUrl } from '@/lib/whatsapp';
+import mongoose from 'mongoose';
 
 // Use the same defaults/precedence as the QR bridge proxy. These are server-side routes,
 // so prefer server-only env vars and only fall back to NEXT_PUBLIC_* if needed.
@@ -70,6 +71,32 @@ export async function POST(req: NextRequest) {
           success: false,
           error: 'Access denied. You need your own WhatsApp bridge configured to send QR messages.'
         }, { status: 403 });
+      }
+
+      // Tenant owners with qrWhatsappEnabled must NOT use the shared bridge.
+      // They must configure their own bridge URL.
+      if (!userSettings?.qrBridgeUrl && userSettings?.qrWhatsappEnabled) {
+        try {
+          const db = mongoose.connection.db;
+          if (db) {
+            const tenantDoc = await db.collection('tenants').findOne({
+              $or: [
+                { ownerUserId: viewerUserId },
+                { adminUserId: viewerUserId },
+                { ownerEmail: decoded.email || viewerUserId },
+              ],
+            }, { projection: { _id: 1 } });
+            if (tenantDoc) {
+              return NextResponse.json({
+                success: false,
+                error: 'Access denied. CRM tenants must configure their own WhatsApp bridge.'
+              }, { status: 403 });
+            }
+          }
+        } catch {
+          // Fail-safe: block on error
+          return NextResponse.json({ success: false, error: 'Bridge access check failed' }, { status: 500 });
+        }
       }
     }
 

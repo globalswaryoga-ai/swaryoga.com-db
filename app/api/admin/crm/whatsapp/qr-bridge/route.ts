@@ -4,6 +4,7 @@ import { getCRMUserSettings, getLead } from '@/lib/schemas/enterpriseSchemas';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin as checkSuperAdmin } from '@/lib/crm-handlers';
 import { logApiError } from '@/lib/error-logger';
+import mongoose from 'mongoose';
 
 /**
  * WhatsApp QR Bridge Proxy Endpoint
@@ -19,10 +20,11 @@ import { logApiError } from '@/lib/error-logger';
  * ── ACCESS CONTROL ──
  * resolveUserBridge() is the SOLE gate:
  *   - Super Admin → shared bridge (full access, sees all chats)
- *   - Super Admin Team (qrWhatsappEnabled) → shared bridge (filtered: only assigned/created leads)
+ *   - Super Admin Team (qrWhatsappEnabled, NOT tenant owner) → shared bridge (filtered: only assigned/created leads)
  *   - CRM Admin (own qrBridgeUrl) → personal bridge (full access to own bridge)
  *   - CRM Admin Team (qrWhatsappEnabled under tenant) → tenant's bridge (filtered)
- *   - No qrBridgeUrl AND no qrWhatsappEnabled → BLOCKED (returns null → 422)
+ *   - CRM Admin WITHOUT qrBridgeUrl → BLOCKED (even if qrWhatsappEnabled — tenant owners can never use shared bridge)
+ *   - No qrBridgeUrl AND no qrWhatsappEnabled → BLOCKED (returns {ok:false} → 422)
  *
  * ── CHAT PRIVACY FILTER ──
  * For /chats endpoint: non-super-admin on shared bridge only sees chats
@@ -104,11 +106,34 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
       // ── SUPER ADMIN PROTECTION ──
       // Non-super-admin users without their own bridge MUST NOT access
       // the shared/default bridge (which is the super admin's WhatsApp session).
-      // They need either: (a) their own qrBridgeUrl, or (b) explicit qrWhatsappEnabled.
+      // They need either: (a) their own qrBridgeUrl, or (b) explicit qrWhatsappEnabled
+      // AND they must NOT be a tenant owner (tenant owners must use their own bridge).
       if (!superAdmin) {
-        // Only allow if explicitly enabled by super admin
         if (!settings?.qrWhatsappEnabled) {
           console.warn(`[QR Bridge Proxy] BLOCKED: User ${decoded.userId} — no bridge URL configured and not enabled for shared bridge`);
+          return { ok: false, reason: 'no_bridge' };
+        }
+
+        // Even with qrWhatsappEnabled, tenant owners MUST NOT use the shared bridge.
+        // Only Super Admin Team members (non-tenant users explicitly enabled) may access it.
+        try {
+          const db = mongoose.connection.db;
+          if (db) {
+            const tenantDoc = await db.collection('tenants').findOne({
+              $or: [
+                { ownerUserId: decoded.userId },
+                { adminUserId: decoded.userId },
+                { ownerEmail: decoded.email || decoded.userId },
+              ],
+            }, { projection: { _id: 1 } });
+            if (tenantDoc) {
+              console.warn(`[QR Bridge Proxy] BLOCKED: Tenant owner ${decoded.userId} — cannot use shared bridge, must configure own bridge`);
+              return { ok: false, reason: 'no_bridge' };
+            }
+          }
+        } catch (tenantCheckErr) {
+          // Fail-safe: if tenant check fails, still block (don't leak shared bridge)
+          console.error('[QR Bridge Proxy] Tenant check error (blocking as precaution):', tenantCheckErr);
           return { ok: false, reason: 'no_bridge' };
         }
       }
