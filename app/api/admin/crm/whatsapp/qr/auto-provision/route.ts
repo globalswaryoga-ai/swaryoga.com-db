@@ -1,6 +1,7 @@
 /**
  * Auto-provision bridge URL + secret for QR WhatsApp tenants
  * Called on first access to QR page — uses permanent tenant ID
+ * ALL users (including Super Admin) use /tenant/{permanentTenantId} pattern
  * 
  * POST /api/admin/crm/whatsapp/qr/auto-provision
  * Returns: { success: boolean, bridgeUrl?: string, bridgeSecret?: string, permanentTenantId?: string }
@@ -32,12 +33,6 @@ export async function POST(req: NextRequest) {
       return apiError('Unauthorized', 403);
     }
     const userId = decoded.userId;
-
-    // Guard: super admin cannot use this endpoint (they have shared bridge)
-    const SUPER_ADMIN_IDS = new Set(['admin', 'admincrm']);
-    if (SUPER_ADMIN_IDS.has(userId)) {
-      return apiError('Super admin uses shared bridge, not auto-provisioned', 400);
-    }
 
     // ══════════════════════════════════════════════════════════════════════════
     // DATABASE CONNECTION

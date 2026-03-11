@@ -11,29 +11,29 @@ import mongoose from 'mongoose';
  * Proxies requests to the WhatsApp bridge service (Baileys).
  *
  * ── USER ROLES ──
- * Super Admin:          Owner of CRM (userId: 'admin' | 'admincrm'). Owns the shared bridge session.
- * Super Admin Team:     Team users under super admin. Have qrWhatsappEnabled=true. Use shared bridge.
- * CRM Admin (Tenant):   Independent users who signed up at crm.swaryoga.com. Have UNIQUE bridge URL per tenant.
- * CRM Admin Team:       Team users added by a CRM Admin. Use that admin's bridge.
+ * Super Admin:          Owner of CRM (userId: 'admin' | 'admincrm').
+ * Super Admin Team:     Team users under super admin. Have qrWhatsappEnabled=true.
+ * CRM Admin (Tenant):   Independent users who signed up at crm.swaryoga.com.
+ * CRM Admin Team:       Team users added by a CRM Admin.
  * Leads:                End-users / contacts. Not CRM users.
  *
- * ── BRIDGE URL ARCHITECTURE ──
- * Super Admin:          http://localhost:3333 (single shared WhatsApp session)
- * Each CRM Admin:       http://localhost:3333/tenant/{uniqueId} (isolated WhatsApp session per tenant)
- *                       This pattern allows 1000+ CRM accounts with separate WhatsApp sessions
+ * ── BRIDGE URL ARCHITECTURE (Permanent Tenant ID) ──
+ * ALL users:            {BRIDGE_BASE_URL}/tenant/{permanentTenantId}
+ *                       Each user has a unique 7-digit permanentTenantId (e.g. 0002456)
+ *                       Each user has a unique qrBridgeSecret for authentication
+ *                       This allows 1000+ simultaneous WhatsApp sessions on one bridge instance
  *
  * ── ACCESS CONTROL ──
  * resolveUserBridge() is the SOLE gate:
- *   - Super Admin → shared bridge at localhost:3333 (full access, sees all chats)
- *   - Super Admin Team (qrWhatsappEnabled, NOT tenant owner) → shared bridge (filtered: only assigned/created leads)
- *   - CRM Admin (own qrBridgeUrl) → unique tenant bridge at localhost:3333/tenant/{id} (full access to own session)
- *   - CRM Admin Team (qrWhatsappEnabled under tenant) → tenant's bridge (filtered)
- *   - CRM Admin WITHOUT qrBridgeUrl → BLOCKED (auto-provision generates one on first access)
- *   - No qrBridgeUrl AND no qrWhatsappEnabled → BLOCKED (returns {ok:false} → 422)
+ *   - Any user with permanentTenantId → /tenant/{id} bridge (own isolated session)
+ *   - Legacy qrBridgeUrl (backward compat) → custom bridge URL
+ *   - Super Admin Team (qrWhatsappEnabled, no permanentTenantId) → shared bridge (filtered)
+ *   - No permanentTenantId AND no qrWhatsappEnabled → BLOCKED (returns {ok:false} → 422)
  *
  * ── CHAT PRIVACY FILTER ──
- * For /chats endpoint: non-super-admin on shared bridge only sees chats
+ * For /chats endpoint on shared bridge (hasOwnBridge=false): user only sees chats
  * where the phone matches a Lead with assignedToUserId or createdByUserId = their userId.
+ * Users with hasOwnBridge=true (permanentTenantId or own qrBridgeUrl) are NOT filtered.
  * On filter error → returns empty (fail-safe, never leaks chats).
  */
 
@@ -61,11 +61,10 @@ export const maxDuration = 60; // 60s function timeout for Vercel
  * Resolve the bridge URL and secret for the authenticated user.
  *
  * Access matrix:
- *   Super Admin        → shared bridge, isSuperAdmin=true
- *   Super Admin Team   → shared bridge (if qrWhatsappEnabled), isSuperAdmin=false
- *   CRM Admin (tenant) → own qrBridgeUrl, hasOwnBridge=true
- *   CRM Admin Team     → own bridge via tenant OR qrWhatsappEnabled
- *   Unauthorized       → returns null (blocked)
+ *   Any user with permanentTenantId → /tenant/{id} bridge (own session, hasOwnBridge=true)
+ *   Legacy qrBridgeUrl             → custom bridge URL (hasOwnBridge=true)
+ *   Super Admin Team (qrWhatsappEnabled) → shared bridge (hasOwnBridge=false, chat filter applied)
+ *   No access                      → returns null (blocked)
  */
 // Super Admin user IDs — these users own the shared bridge session
 const SUPER_ADMIN_IDS = new Set(['admin', 'admincrm']);
@@ -95,28 +94,10 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
       const senderDisplayName = (settings as any)?.senderDisplayName || '';
       const permanentTenantId = (settings as any)?.permanentTenantId || '';
 
-      // ── SUPER ADMIN: always use shared bridge (no tenant prefix) ──
-      // Super Admin owns the single shared bridge at localhost:3333.
-      // Even though Super Admin has a permanentTenantId, the bridge does NOT
-      // use tenant routing for the admin — it's the primary session.
-      if (superAdmin) {
-        return {
-          ok: true,
-          url: FALLBACK_BRIDGE_URL,
-          secret: settings?.qrBridgeSecret || FALLBACK_BRIDGE_SECRET,
-          userId: decoded.userId,
-          isSuperAdmin: true,
-          hasOwnBridge: false,
-          storedPhone,
-          phoneChangedAt,
-          senderDisplayName,
-        };
-      }
-
-      // ── PERMANENT TENANT ID (for non-Super-Admin CRM tenants) ──
-      // Each CRM tenant gets a permanent ID (e.g. 0002456).
-      // Bridge path: http://localhost:3333/tenant/0002456
-      // NOTE: Bridge service MUST support /tenant/{id} routing for this to work.
+      // ── PERMANENT TENANT ID (ALL users including Super Admin) ──
+      // Each user gets a permanent 7-digit ID (e.g. 0002456).
+      // Bridge path: {BRIDGE_BASE_URL}/tenant/{permanentTenantId}
+      // Each user has their own isolated WhatsApp session on the bridge.
       if (permanentTenantId) {
         return {
           ok: true,
