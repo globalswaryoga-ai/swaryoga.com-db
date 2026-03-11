@@ -529,7 +529,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       color: 'text-gray-400',
     },
     {
-      icon: Users,
+      icon: UsersRound,
       label: 'CRM Users',
       href: '/admin/crm/crm-users',
       color: 'text-gray-400',

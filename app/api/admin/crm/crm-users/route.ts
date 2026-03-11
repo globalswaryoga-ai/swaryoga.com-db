@@ -69,11 +69,24 @@ export async function GET(req: NextRequest) {
       settingsMap.set(s.userId, s);
     }
 
+    // Storage plan → monthly cost mapping (INR)
+    const PLAN_COST: Record<string, number> = {
+      free: 30,
+      starter: 30,
+      basic: 30,
+      growth: 99,
+      professional: 349,
+      pro: 349,
+    };
+
     // Build response
     const users = adminUsers.map((u: any) => {
       const tenant = tenantMap.get(u.email) || tenantMap.get(u.userId) || tenantMap.get(`slug:${u.tenantSlug}`);
       const settings = settingsMap.get(u.userId) || settingsMap.get(u.email);
-      
+
+      const storagePlan = u.planId || tenant?.plan || 'free';
+      const monthlyCost = PLAN_COST[storagePlan] ?? 30;
+
       return {
         _id: u._id?.toString(),
         userId: u.userId || u.email,
@@ -91,6 +104,10 @@ export async function GET(req: NextRequest) {
         hasOwnBridge: !!settings?.qrBridgeUrl,
         createdAt: u.createdAt || null,
         lastLogin: u.lastLogin || null,
+        // Billing / storage info
+        storagePlan,
+        monthlyCost,
+        storagePaidUntil: u.storagePaidUntil || null,
       };
     });
 
