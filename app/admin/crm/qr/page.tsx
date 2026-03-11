@@ -396,7 +396,8 @@ export default function QRWhatsAppPage() {
       // Don't clear QR when status is briefly 'disconnected' during reconnect
     } catch (e: any) {
       // ── No bridge configured → show Settings tab instead of error ──
-      if (e?.noBridge) {
+      const msg = e?.message || '';
+      if (msg === 'NO_BRIDGE' || msg.includes('bridge configured') || msg.includes('bridge URL') || e?.noBridge) {
         setBridgeConfigured(false);
         setTab('settings');
         setError(null);
@@ -404,7 +405,7 @@ export default function QRWhatsAppPage() {
         return;
       }
       // Don't clear QR on network errors — keep showing it
-      setError(e.message || 'Cannot reach WhatsApp bridge');
+      setError(msg || 'Cannot reach WhatsApp bridge');
       setStatus(prev => prev || { connected: false, status: 'disconnected' });
     } finally {
       setLoading(false);
@@ -1600,7 +1601,7 @@ export default function QRWhatsAppPage() {
       </div>
 
       {/* Error Banner */}
-      {error && (
+      {error && error !== 'NO_BRIDGE' && !error.includes('bridge configured') && (
         <div className="mx-4 mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
           <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
           <p className="text-sm text-red-700">{error}</p>
