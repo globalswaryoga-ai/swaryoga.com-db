@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Wifi, Loader2, Save, Funnel, Plus, Pencil, Tag, Settings, RefreshCw, Unplug, LogOut, Shield, Users, Check, X, Lock } from 'lucide-react';
+import { Wifi, Loader2, Save, Funnel, Plus, Pencil, Tag, Settings, RefreshCw, Unplug, LogOut, Shield, Users, Check, X, Lock, Eye, EyeOff, Copy, ClipboardCheck, Key } from 'lucide-react';
 import type { FunnelStage, LabelPreset } from '../types';
 
 type QRAccessUser = {
@@ -12,6 +12,7 @@ type QRAccessUser = {
   qrWhatsappEnabled: boolean;
   hasOwnBridge: boolean;
   bridgeUrl: string;
+  bridgeSecret: string;
 };
 
 export interface SettingsTabProps {
@@ -53,6 +54,37 @@ export function SettingsTab({
   const [loadingAccess, setLoadingAccess] = useState(false);
   const [togglingUser, setTogglingUser] = useState<string | null>(null);
   const [accessError, setAccessError] = useState<string | null>(null);
+  const [visibleSecrets, setVisibleSecrets] = useState<Set<string>>(new Set());
+  const [copiedSecret, setCopiedSecret] = useState<string | null>(null);
+
+  // Toggle bridge secret visibility for a user
+  const toggleSecretVisibility = (userId: string) => {
+    setVisibleSecrets(prev => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
+      return next;
+    });
+  };
+
+  // Copy bridge secret to clipboard
+  const copySecret = async (userId: string, secret: string) => {
+    try {
+      await navigator.clipboard.writeText(secret);
+      setCopiedSecret(userId);
+      setTimeout(() => setCopiedSecret(null), 2000);
+    } catch {
+      // Fallback
+      const ta = document.createElement('textarea');
+      ta.value = secret;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      setCopiedSecret(userId);
+      setTimeout(() => setCopiedSecret(null), 2000);
+    }
+  };
 
   // Load QR access users when super admin opens settings
   useEffect(() => {
@@ -387,10 +419,11 @@ export function SettingsTab({
               <div className="divide-y border rounded-xl overflow-hidden">
                 {/* Header */}
                 <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-gray-50 text-xs font-semibold text-gray-500">
-                  <div className="col-span-3">User</div>
-                  <div className="col-span-3">Role</div>
-                  <div className="col-span-3">Bridge Status</div>
-                  <div className="col-span-3 text-center">QR Access</div>
+                  <div className="col-span-2">User</div>
+                  <div className="col-span-2">Role</div>
+                  <div className="col-span-2">Bridge</div>
+                  <div className="col-span-4">Bridge Secret</div>
+                  <div className="col-span-2 text-center">QR Access</div>
                 </div>
                 {/* User rows */}
                 {qrAccessUsers
@@ -399,11 +432,11 @@ export function SettingsTab({
                     const isSelf = user.userId === 'admin' || user.userId === 'admincrm';
                     return (
                       <div key={user.userId} className="grid grid-cols-12 gap-2 px-4 py-3 items-center hover:bg-gray-50 transition">
-                        <div className="col-span-3">
+                        <div className="col-span-2">
                           <p className="text-sm font-medium text-gray-800 truncate">{user.name}</p>
                           {user.email && <p className="text-[10px] text-gray-400 truncate">{user.email}</p>}
                         </div>
-                        <div className="col-span-3">
+                        <div className="col-span-2">
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
                             isSelf ? 'bg-purple-100 text-purple-700' :
                             user.role === 'manager' ? 'bg-blue-100 text-blue-700' :
@@ -412,18 +445,52 @@ export function SettingsTab({
                             {isSelf ? '👑 Super Admin' : user.role || 'admin'}
                           </span>
                         </div>
-                        <div className="col-span-3">
+                        <div className="col-span-2">
                           {user.hasOwnBridge ? (
                             <span className="inline-flex items-center gap-1 text-xs text-green-700">
-                              <Check className="w-3 h-3" /> Own Bridge
+                              <Check className="w-3 h-3" /> Own
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-1 text-xs text-gray-400">
-                              <X className="w-3 h-3" /> Shared Bridge
+                              <X className="w-3 h-3" /> Shared
                             </span>
                           )}
                         </div>
-                        <div className="col-span-3 flex justify-center">
+                        <div className="col-span-4">
+                          {user.bridgeSecret ? (
+                            <div className="flex items-center gap-1">
+                              <Key className="w-3 h-3 text-amber-500 flex-shrink-0" />
+                              <code className="text-[10px] font-mono text-gray-600 truncate max-w-[120px]">
+                                {visibleSecrets.has(user.userId) ? user.bridgeSecret : '••••••••••••'}
+                              </code>
+                              <button
+                                onClick={() => toggleSecretVisibility(user.userId)}
+                                className="p-0.5 hover:bg-gray-100 rounded transition"
+                                title={visibleSecrets.has(user.userId) ? 'Hide secret' : 'Show secret'}
+                              >
+                                {visibleSecrets.has(user.userId) ? (
+                                  <EyeOff className="w-3 h-3 text-gray-400" />
+                                ) : (
+                                  <Eye className="w-3 h-3 text-gray-400" />
+                                )}
+                              </button>
+                              <button
+                                onClick={() => copySecret(user.userId, user.bridgeSecret)}
+                                className="p-0.5 hover:bg-gray-100 rounded transition"
+                                title="Copy secret"
+                              >
+                                {copiedSecret === user.userId ? (
+                                  <ClipboardCheck className="w-3 h-3 text-green-500" />
+                                ) : (
+                                  <Copy className="w-3 h-3 text-gray-400" />
+                                )}
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-gray-300">—</span>
+                          )}
+                        </div>
+                        <div className="col-span-2 flex justify-center">
                           {isSelf ? (
                             <span className="text-[10px] text-purple-500 font-medium">Always On</span>
                           ) : user.hasOwnBridge ? (

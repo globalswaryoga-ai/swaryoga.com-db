@@ -31,6 +31,7 @@ export async function GET(req: NextRequest) {
         userId: 1,
         qrWhatsappEnabled: 1,
         qrBridgeUrl: 1,
+        qrBridgeSecret: 1,
         updatedAt: 1,
       }
     ).lean();
@@ -69,6 +70,7 @@ export async function GET(req: NextRequest) {
         qrWhatsappEnabled: settings?.qrWhatsappEnabled || false,
         hasOwnBridge: !!settings?.qrBridgeUrl,
         bridgeUrl: settings?.qrBridgeUrl || '',
+        bridgeSecret: settings?.qrBridgeSecret || '',
       };
     });
 
@@ -83,6 +85,7 @@ export async function GET(req: NextRequest) {
           qrWhatsappEnabled: s.qrWhatsappEnabled || false,
           hasOwnBridge: !!s.qrBridgeUrl,
           bridgeUrl: s.qrBridgeUrl || '',
+          bridgeSecret: s.qrBridgeSecret || '',
         });
       }
     }
