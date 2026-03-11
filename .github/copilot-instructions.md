@@ -172,6 +172,19 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### Chat Privacy Leak Fix: Super Admin Chats Isolation (Session: March 11, 2026 — Phase 23) — Commit `4e7e2017`
+
+1. **Critical Security Fix: Prevent Super Admin Old Chats from Leaking to Team Users** — `qr-bridge/route.ts`
+   - **Issue**: Super Admin's old test/orphaned chats were visible to newly added CRM team members on shared bridge
+   - **Root Cause**: Previous filter had `!resolved.isSuperAdmin` exemption — Super Admin was NOT being filtered
+   - **Impact**: When team users accessed shared bridge with `qrWhatsappEnabled: true`, they could see ALL chats including Super Admin's test data
+   - **Fix**: Removed Super Admin exemption from chat privacy filter
+     - Now applies to ALL users on shared bridge: `if (path === '/chats' && !resolved.hasOwnBridge)`
+     - Both Super Admin and Team users only see chats for leads assigned/created by them
+     - Orphaned chats (no lead record) blocked for everyone (fail-safe)
+     - Users with own bridge (hasOwnBridge=true) remain unfiltered
+   - **Result**: Super Admin and team users now have isolated chat views, no cross-contamination
+
 ### QR WhatsApp Tenant Onboarding & Auto-Provisioning (Session: March 11, 2026 — Phases 18–22)
 
 1. **No WhatsApp Bridge Configured Error Fix** — Commit `2ab1d5d6`
