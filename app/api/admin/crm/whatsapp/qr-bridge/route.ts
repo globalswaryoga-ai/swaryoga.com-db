@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
-import { getCRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
+import { getCRMUserSettings, getLead } from '@/lib/schemas/enterpriseSchemas';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin as checkSuperAdmin } from '@/lib/crm-handlers';
 
@@ -206,6 +206,51 @@ export async function POST(req: NextRequest) {
         { status: res.status }
       );
     }
+
+    // ── CHAT PRIVACY FILTER (POST handler) ──
+    // Same filter as GET: non-super-admin on shared bridge only sees assigned/created chats
+    if (decodedPath === '/chats' && !resolved.isSuperAdmin && !resolved.hasOwnBridge) {
+      const chats = data?.chats || (Array.isArray(data) ? data : []);
+      if (chats.length > 0) {
+        try {
+          const Lead = getLead();
+          const phoneNumbers = chats.map((c: any) => {
+            const idStr = typeof c.id === 'string' ? c.id : (c.id?._serialized || '');
+            return idStr.split('@')[0];
+          }).filter(Boolean);
+
+          const leads = await Lead.find(
+            { phoneNumber: { $in: phoneNumbers } },
+            { phoneNumber: 1, assignedToUserId: 1, createdByUserId: 1 }
+          ).lean();
+
+          const leadMap = new Map<string, { assignedToUserId?: string; createdByUserId?: string }>();
+          for (const l of leads) {
+            leadMap.set((l as any).phoneNumber, {
+              assignedToUserId: (l as any).assignedToUserId,
+              createdByUserId: (l as any).createdByUserId,
+            });
+          }
+
+          const filteredChats = chats.filter((c: any) => {
+            const idStr = typeof c.id === 'string' ? c.id : (c.id?._serialized || '');
+            const phone = idStr.split('@')[0];
+            const leadInfo = leadMap.get(phone);
+            if (!leadInfo) return false;
+            return leadInfo.assignedToUserId === userId || leadInfo.createdByUserId === userId;
+          });
+
+          console.log(`[QR Bridge Proxy POST] Chat filter for ${userId}: ${chats.length} total → ${filteredChats.length} visible`);
+          const filteredData = data?.chats ? { ...data, chats: filteredChats } : filteredChats;
+          return NextResponse.json({ success: true, data: filteredData }, { status: res.status });
+        } catch (filterErr) {
+          console.error('[QR Bridge Proxy POST] Chat filter error:', filterErr);
+          const emptyData = data?.chats ? { ...data, chats: [] } : [];
+          return NextResponse.json({ success: true, data: emptyData }, { status: res.status });
+        }
+      }
+    }
+
     // Wrap in { success, data } so useCRM hook accepts the response
     return NextResponse.json({ success: true, data }, { status: res.status });
   } catch (err) {
@@ -340,6 +385,53 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // ── CHAT PRIVACY FILTER ──
+    // For /chats endpoint: non-super-admin users on shared bridge
+    // must only see chats for leads assigned to or created by them.
+    if (path === '/chats' && !resolved.isSuperAdmin && !resolved.hasOwnBridge) {
+      const chats = data?.chats || (Array.isArray(data) ? data : []);
+      if (chats.length > 0) {
+        try {
+          const Lead = getLead();
+          const phoneNumbers = chats.map((c: any) => {
+            const idStr = typeof c.id === 'string' ? c.id : (c.id?._serialized || '');
+            return idStr.split('@')[0];
+          }).filter(Boolean);
+
+          const leads = await Lead.find(
+            { phoneNumber: { $in: phoneNumbers } },
+            { phoneNumber: 1, assignedToUserId: 1, createdByUserId: 1 }
+          ).lean();
+
+          const leadMap = new Map<string, { assignedToUserId?: string; createdByUserId?: string }>();
+          for (const l of leads) {
+            leadMap.set((l as any).phoneNumber, {
+              assignedToUserId: (l as any).assignedToUserId,
+              createdByUserId: (l as any).createdByUserId,
+            });
+          }
+
+          const filteredChats = chats.filter((c: any) => {
+            const idStr = typeof c.id === 'string' ? c.id : (c.id?._serialized || '');
+            const phone = idStr.split('@')[0];
+            const leadInfo = leadMap.get(phone);
+            if (!leadInfo) return false;
+            return leadInfo.assignedToUserId === userId || leadInfo.createdByUserId === userId;
+          });
+
+          console.log(`[QR Bridge Proxy] Chat filter for ${userId}: ${chats.length} total → ${filteredChats.length} visible`);
+
+          const filteredData = data?.chats ? { ...data, chats: filteredChats } : filteredChats;
+          return NextResponse.json({ success: true, data: filteredData }, { status: res.status });
+        } catch (filterErr) {
+          console.error('[QR Bridge Proxy] Chat filter error:', filterErr);
+          // On filter error, return empty for safety (don't leak super admin chats)
+          const emptyData = data?.chats ? { ...data, chats: [] } : [];
+          return NextResponse.json({ success: true, data: emptyData }, { status: res.status });
+        }
+      }
+    }
+
     // Wrap in { success, data } so useCRM hook accepts the response
     return NextResponse.json({ success: true, data }, { status: res.status });
   } catch (err) {
@@ -350,8 +442,4 @@ export async function GET(req: NextRequest) {
     );
   }
 }
-
-// No server-side chat/JID filtering needed.
-// The bridge handles per-user isolation via x-user-id header.
-// Each user has their own Baileys session with their own QR, chats, and messages.
 
