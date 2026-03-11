@@ -108,6 +108,10 @@ export async function GET(req: NextRequest) {
         storagePlan,
         monthlyCost,
         storagePaidUntil: u.storagePaidUntil || null,
+        // Payment tracking
+        receivedAmount: u.receivedAmount ?? 0,
+        paymentNote: u.paymentNote || '',
+        paymentDate: u.paymentDate || null,
       };
     });
 
@@ -145,7 +149,7 @@ export async function PUT(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { targetUserId, qrWhatsappEnabled, qrConnectedPhoneNumber } = body;
+    const { targetUserId, qrWhatsappEnabled, qrConnectedPhoneNumber, receivedAmount, paymentNote, paymentDate } = body;
 
     if (!targetUserId) {
       return apiError('targetUserId is required', 400);
@@ -155,17 +159,38 @@ export async function PUT(req: NextRequest) {
     const { default: mongoose } = await import('mongoose');
     const db = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
 
-    const update: Record<string, any> = { updatedAt: new Date() };
-    if (qrWhatsappEnabled !== undefined) update.qrWhatsappEnabled = !!qrWhatsappEnabled;
-    if (qrConnectedPhoneNumber !== undefined) update.qrConnectedPhoneNumber = qrConnectedPhoneNumber;
+    // CRM user settings updates (QR access)
+    const settingsUpdate: Record<string, any> = { updatedAt: new Date() };
+    let hasSettingsUpdate = false;
+    if (qrWhatsappEnabled !== undefined) { settingsUpdate.qrWhatsappEnabled = !!qrWhatsappEnabled; hasSettingsUpdate = true; }
+    if (qrConnectedPhoneNumber !== undefined) { settingsUpdate.qrConnectedPhoneNumber = qrConnectedPhoneNumber; hasSettingsUpdate = true; }
 
-    await db.collection('crm_user_settings').updateOne(
-      { userId: targetUserId },
-      { $set: update },
-      { upsert: true }
-    );
+    if (hasSettingsUpdate) {
+      await db.collection('crm_user_settings').updateOne(
+        { userId: targetUserId },
+        { $set: settingsUpdate },
+        { upsert: true }
+      );
+    }
 
-    console.log(`[crm-users] Super admin ${decoded.userId} updated ${targetUserId}:`, update);
+    // Payment tracking updates (stored on admin_users)
+    const userUpdate: Record<string, any> = {};
+    let hasUserUpdate = false;
+    if (receivedAmount !== undefined) { userUpdate.receivedAmount = Number(receivedAmount) || 0; hasUserUpdate = true; }
+    if (paymentNote !== undefined) { userUpdate.paymentNote = String(paymentNote); hasUserUpdate = true; }
+    if (paymentDate !== undefined) { userUpdate.paymentDate = paymentDate ? new Date(paymentDate) : null; hasUserUpdate = true; }
+
+    if (hasUserUpdate) {
+      userUpdate.updatedAt = new Date();
+      // Update by userId or email to find the right admin_user
+      const result = await db.collection('admin_users').updateOne(
+        { $or: [{ userId: targetUserId }, { email: targetUserId }] },
+        { $set: userUpdate }
+      );
+      console.log(`[crm-users] Payment update for ${targetUserId}:`, userUpdate, 'matched:', result.matchedCount);
+    }
+
+    console.log(`[crm-users] Super admin ${decoded.userId} updated ${targetUserId}`);
 
     return apiSuccess({ success: true, targetUserId });
   } catch (err) {

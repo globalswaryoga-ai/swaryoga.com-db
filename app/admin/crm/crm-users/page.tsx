@@ -23,6 +23,10 @@ import {
   Filter,
   IndianRupee,
   HardDrive,
+  Wallet,
+  Pencil,
+  Save,
+  FileText,
 } from 'lucide-react';
 
 interface CrmUser {
@@ -45,6 +49,9 @@ interface CrmUser {
   storagePlan: string;
   monthlyCost: number;
   storagePaidUntil: string | null;
+  receivedAmount: number;
+  paymentNote: string;
+  paymentDate: string | null;
 }
 
 const PLAN_COLORS: Record<string, string> = {
@@ -74,6 +81,13 @@ export default function CrmUsersPage() {
 
   // Detail modal
   const [viewUser, setViewUser] = useState<CrmUser | null>(null);
+
+  // Payment edit modal
+  const [paymentUser, setPaymentUser] = useState<CrmUser | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentNote, setPaymentNote] = useState('');
+  const [paymentDate, setPaymentDate] = useState('');
+  const [savingPayment, setSavingPayment] = useState(false);
 
   // Plans for filter
   const plans = ['free', 'basic', 'starter', 'growth', 'professional'];
@@ -131,6 +145,47 @@ export default function CrmUsersPage() {
       month: 'short',
       year: 'numeric',
     });
+  };
+
+  // Open payment edit modal
+  const openPaymentEdit = (user: CrmUser) => {
+    setPaymentUser(user);
+    setPaymentAmount(String(user.receivedAmount || ''));
+    setPaymentNote(user.paymentNote || '');
+    setPaymentDate(user.paymentDate ? new Date(user.paymentDate).toISOString().slice(0, 10) : '');
+  };
+
+  // Save payment details
+  const savePayment = async () => {
+    if (!paymentUser || !token) return;
+    try {
+      setSavingPayment(true);
+      const res = await fetch('/api/admin/crm/crm-users', {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          targetUserId: paymentUser.userId,
+          receivedAmount: Number(paymentAmount) || 0,
+          paymentNote,
+          paymentDate: paymentDate || null,
+        }),
+      });
+      if (!res.ok) throw new Error('Failed to save');
+      // Update local state
+      setUsers(prev => prev.map(u =>
+        u._id === paymentUser._id
+          ? { ...u, receivedAmount: Number(paymentAmount) || 0, paymentNote, paymentDate: paymentDate || null }
+          : u
+      ));
+      setPaymentUser(null);
+    } catch (err: any) {
+      alert('Failed to save payment: ' + err.message);
+    } finally {
+      setSavingPayment(false);
+    }
   };
 
   return (
@@ -240,6 +295,7 @@ export default function CrmUsersPage() {
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Plan</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">QR WhatsApp</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Billing</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Received</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Joined</th>
                 <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
               </tr>
@@ -247,14 +303,14 @@ export default function CrmUsersPage() {
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-gray-500">
+                  <td colSpan={8} className="px-4 py-12 text-center text-gray-500">
                     <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2" />
                     Loading...
                   </td>
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-gray-500">
+                  <td colSpan={8} className="px-4 py-12 text-center text-gray-500">
                     No CRM users found
                   </td>
                 </tr>
@@ -335,6 +391,28 @@ export default function CrmUsersPage() {
                           {user.storagePlan?.charAt(0).toUpperCase() + user.storagePlan?.slice(1)}
                         </span>
                       </div>
+                    </td>
+
+                    {/* Received Amount */}
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1.5">
+                        <span className={`flex items-center gap-0.5 text-sm font-semibold ${user.receivedAmount > 0 ? 'text-green-700' : 'text-gray-400'}`}>
+                          <IndianRupee className="w-3 h-3" />
+                          {user.receivedAmount || 0}
+                        </span>
+                        <button
+                          onClick={() => openPaymentEdit(user)}
+                          className="p-1 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition"
+                          title="Edit payment details"
+                        >
+                          <Wallet className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      {user.paymentNote && (
+                        <p className="text-[10px] text-gray-400 truncate max-w-[120px]" title={user.paymentNote}>
+                          {user.paymentNote}
+                        </p>
+                      )}
                     </td>
 
                     {/* Joined */}
@@ -462,6 +540,29 @@ export default function CrmUsersPage() {
                       </span>
                     </div>
                   )}
+                  <div className="flex items-center justify-between pt-2 border-t border-green-200">
+                    <span className="text-sm text-gray-600">Received Amount</span>
+                    <span className={`flex items-center gap-1 text-sm font-bold ${viewUser.receivedAmount > 0 ? 'text-green-700' : 'text-gray-400'}`}>
+                      <IndianRupee className="w-3.5 h-3.5" />
+                      {viewUser.receivedAmount || 0}
+                    </span>
+                  </div>
+                  {viewUser.paymentNote && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Payment Note</span>
+                      <span className="text-sm text-gray-900 max-w-[200px] truncate" title={viewUser.paymentNote}>
+                        {viewUser.paymentNote}
+                      </span>
+                    </div>
+                  )}
+                  {viewUser.paymentDate && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Payment Date</span>
+                      <span className="text-sm font-medium text-gray-900">
+                        {formatDate(viewUser.paymentDate)}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -499,6 +600,110 @@ export default function CrmUsersPage() {
                   <span>Last Login: {formatDate(viewUser.lastLogin)}</span>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Edit Modal */}
+      {paymentUser && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setPaymentUser(null)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b flex items-center justify-between bg-gradient-to-r from-green-500 to-emerald-500 rounded-t-xl">
+              <h3 className="font-semibold text-white flex items-center gap-2">
+                <Wallet className="w-5 h-5" />
+                Payment Details
+              </h3>
+              <button onClick={() => setPaymentUser(null)} className="text-white/80 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              {/* User info */}
+              <div className="flex items-center gap-3 pb-3 border-b">
+                <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-green-600 font-semibold text-sm">
+                  {(paymentUser.name || paymentUser.email || '?').charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <p className="font-medium text-gray-900 text-sm">{paymentUser.name || paymentUser.email}</p>
+                  <p className="text-xs text-gray-500">
+                    Plan: {paymentUser.plan?.charAt(0).toUpperCase() + paymentUser.plan?.slice(1)} · {paymentUser.monthlyCost}/mo
+                  </p>
+                </div>
+              </div>
+
+              {/* Received Amount */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Received Amount (₹)</label>
+                <div className="relative">
+                  <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="number"
+                    value={paymentAmount}
+                    onChange={(e) => setPaymentAmount(e.target.value)}
+                    placeholder="0"
+                    className="w-full pl-9 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Payment Date */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Payment Date</label>
+                <input
+                  type="date"
+                  value={paymentDate}
+                  onChange={(e) => setPaymentDate(e.target.value)}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                />
+              </div>
+
+              {/* Payment Note */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Note</label>
+                <textarea
+                  value={paymentNote}
+                  onChange={(e) => setPaymentNote(e.target.value)}
+                  placeholder="e.g. UPI transfer, partial payment..."
+                  rows={2}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none resize-none"
+                />
+              </div>
+
+              {/* Due indicator */}
+              {paymentUser.monthlyCost > 0 && (
+                <div className={`p-3 rounded-lg text-sm ${
+                  (Number(paymentAmount) || 0) >= paymentUser.monthlyCost
+                    ? 'bg-green-50 text-green-700'
+                    : 'bg-amber-50 text-amber-700'
+                }`}>
+                  {(Number(paymentAmount) || 0) >= paymentUser.monthlyCost ? (
+                    <span className="flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4" />
+                      Fully paid ({paymentUser.monthlyCost}/mo)
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1.5">
+                      <IndianRupee className="w-4 h-4" />
+                      Due: ₹{paymentUser.monthlyCost - (Number(paymentAmount) || 0)} remaining of ₹{paymentUser.monthlyCost}/mo
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Save Button */}
+              <button
+                onClick={savePayment}
+                disabled={savingPayment}
+                className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium text-sm flex items-center justify-center gap-2 disabled:opacity-50 transition"
+              >
+                {savingPayment ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
+                {savingPayment ? 'Saving...' : 'Save Payment'}
+              </button>
             </div>
           </div>
         </div>
