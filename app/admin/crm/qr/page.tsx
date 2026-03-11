@@ -316,6 +316,11 @@ export default function QRWhatsAppPage() {
   const saveBridgeConfig = useCallback(async () => {
     const url = bridgeUrlInput.trim().replace(/\/+$/, ''); // strip trailing slashes
     if (!url) { setError('Bridge URL is required'); return; }
+    // Validate URL format — must be https:// or http://
+    if (!/^https?:\/\//i.test(url)) {
+      setError('Bridge URL must start with https:// or http:// (e.g. https://your-bridge.up.railway.app)');
+      return;
+    }
     setSavingBridge(true);
     try {
       await crmFetchRef.current('/api/admin/crm/settings', {
@@ -395,11 +400,10 @@ export default function QRWhatsAppPage() {
       }
       // Don't clear QR when status is briefly 'disconnected' during reconnect
     } catch (e: any) {
-      // ── No bridge configured → show Settings tab instead of error ──
+      // ── No bridge configured → stay on Connection tab, show onboarding ──
       const msg = e?.message || '';
       if (msg === 'NO_BRIDGE' || msg.includes('bridge configured') || msg.includes('bridge URL') || e?.noBridge) {
         setBridgeConfigured(false);
-        setTab('settings');
         setError(null);
         setLoading(false);
         return;
@@ -1622,7 +1626,55 @@ export default function QRWhatsAppPage() {
       {/* ═══════════════════════════════════════════════════════ */}
       {/* ═══ CONNECTION TAB ═══ */}
       {/* ═══════════════════════════════════════════════════════ */}
-      {!loading && tab === 'connection' && (
+      {/* Bridge Not Configured — Onboarding Card (shown on Connection tab) */}
+      {!loading && tab === 'connection' && bridgeConfigured === false && (
+        <div className="max-w-2xl mx-auto mt-10 px-6">
+          <div className="bg-white rounded-2xl shadow-lg border overflow-hidden">
+            <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-5">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
+                  <QrCode className="w-7 h-7 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-white">Set Up QR WhatsApp</h2>
+                  <p className="text-green-100 text-sm">Connect your WhatsApp in 3 simple steps</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-6 space-y-6">
+              <div className="space-y-4">
+                {[
+                  { step: '1', title: 'Deploy Your Bridge', desc: 'Deploy a Baileys bridge service (Railway, Render, or your own server). This creates your private WhatsApp connection.', link: 'https://github.com/nicollash/whatsapp-bridge' },
+                  { step: '2', title: 'Enter Bridge URL', desc: 'Copy your bridge URL (e.g. https://your-bridge.up.railway.app) and paste it in Settings.' },
+                  { step: '3', title: 'Scan QR Code', desc: 'Once connected, a QR code will appear here. Scan it with your WhatsApp to link your account.' },
+                ].map(s => (
+                  <div key={s.step} className="flex items-start gap-4">
+                    <div className="w-9 h-9 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-sm font-bold flex-shrink-0">{s.step}</div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">{s.title}</p>
+                      <p className="text-sm text-gray-500 mt-0.5">{s.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  onClick={() => setTab('settings')}
+                  className="flex-1 px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition font-semibold text-sm inline-flex items-center justify-center gap-2 shadow-md shadow-green-200"
+                >
+                  <Settings className="w-4 h-4" />
+                  Configure Bridge URL
+                </button>
+              </div>
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-2">
+                <Info className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-blue-700">Each WhatsApp account needs its own bridge instance. Your bridge URL is a unique server that connects your WhatsApp — it&apos;s not your email or password.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {!loading && tab === 'connection' && bridgeConfigured !== false && (
         <ConnectionTab
           isConnected={isConnected}
           connState={connState}
@@ -1656,8 +1708,8 @@ export default function QRWhatsAppPage() {
               <div>
                 <p className="font-semibold text-amber-800">Bridge not configured</p>
                 <p className="text-sm text-amber-700 mt-1">
-                  Enter your WhatsApp Bridge URL and Secret below to start using QR WhatsApp. 
-                  If you don&apos;t have a bridge yet, contact support for setup instructions.
+                  Enter your WhatsApp Bridge URL below (e.g. <code className="bg-amber-100 px-1 rounded">https://your-bridge.up.railway.app</code>). 
+                  This is NOT your email or password &mdash; it&apos;s the URL of your deployed bridge server.
                 </p>
               </div>
             </div>
