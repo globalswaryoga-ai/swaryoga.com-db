@@ -139,7 +139,7 @@ export function SettingsTab({
           </div>
           <div>
             <h3 className="text-sm font-bold text-gray-900">Bridge Configuration</h3>
-            <p className="text-xs text-gray-500">Your unique WhatsApp bridge connection — auto-configured on first setup</p>
+            <p className="text-xs text-gray-500">Your unique WhatsApp bridge connection — auto-configured per user</p>
           </div>
         </div>
         <div className="p-6 space-y-4">
@@ -147,7 +147,7 @@ export function SettingsTab({
           {bridgeUrlInput && bridgeSecretInput && (
             <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
               <Check className="w-4 h-4 text-green-600" />
-              <p className="text-xs text-green-700"><strong>Auto-configured</strong> — Your bridge has a unique secret key. No other user shares this configuration.</p>
+              <p className="text-xs text-green-700"><strong>Auto-configured</strong> — Your bridge URL and secret are unique to your account. Each user has an isolated WhatsApp session.</p>
             </div>
           )}
           <div className="grid md:grid-cols-2 gap-4">
@@ -155,22 +155,22 @@ export function SettingsTab({
               <label className="block text-xs font-medium text-gray-700 mb-1.5">Bridge URL</label>
               <input
                 type="url"
-                placeholder="https://your-bridge.up.railway.app"
+                placeholder="Loading bridge URL..."
                 value={bridgeUrlInput}
-                onChange={e => setBridgeUrlInput(e.target.value)}
-                className="w-full px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                readOnly
+                className="w-full px-3 py-2.5 border rounded-lg text-sm bg-gray-50 text-gray-600 outline-none cursor-default"
               />
-              <p className="text-[10px] text-gray-400 mt-1">Auto-filled with the default bridge — change only if you have your own instance</p>
+              <p className="text-[10px] text-gray-400 mt-1">Auto-assigned from your unique tenant ID — managed by the system</p>
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1.5">Bridge Secret <span className="text-green-600 font-normal">(unique)</span></label>
               <div className="relative">
                 <input
                   type={showBridgeSecret ? 'text' : 'password'}
-                  placeholder="Auto-generated unique secret"
+                  placeholder="Loading secret..."
                   value={bridgeSecretInput}
-                  onChange={e => setBridgeSecretInput(e.target.value)}
-                  className="w-full px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none pr-24"
+                  readOnly
+                  className="w-full px-3 py-2.5 border rounded-lg text-sm bg-gray-50 text-gray-600 outline-none cursor-default pr-24"
                 />
                 <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
                   {bridgeSecretInput && (
@@ -192,14 +192,6 @@ export function SettingsTab({
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <button
-              onClick={saveBridgeConfig}
-              disabled={savingBridge || !bridgeUrlInput.trim()}
-              className="px-5 py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 flex items-center gap-2 transition"
-            >
-              {savingBridge ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              {savingBridge ? 'Saving...' : 'Save & Connect'}
-            </button>
             <p className="text-xs text-gray-400">
               <Lock className="w-3 h-3 inline mr-1" />
               Each user has their own unique secret — no data shared between accounts
