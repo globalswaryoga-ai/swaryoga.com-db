@@ -172,6 +172,20 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### Bridge 404 Error Fix: Auto-Provision Bridge URL Pattern (Session: March 11, 2026 — Phase 24) — Commit `7ca40c72`
+
+1. **Critical Bug Fix: Bridge Returning 404s for Auto-Provisioned Tenants** — `app/api/admin/crm/whatsapp/qr/auto-provision/route.ts`
+   - **Issue**: After Phase 22 auto-provisioning, users were getting "Bridge error: 404" errors
+   - **Root Cause**: Auto-provision was creating bridge URLs like `{BRIDGE_BASE_URL}/user/{userId}/{uniqueId}`, but Baileys bridge doesn't have `/user/{userId}/{uniqueId}` endpoints
+   - **Impact**: All frontend calls like `/chats` were appended to create invalid URLs: `https://bridge.swaryoga.com/user/{userId}/{uniqueId}/chats` → 404
+   - **Fix**: Changed auto-provisioning to use shared bridge URL pattern
+     - Bridge URL now: `{BRIDGE_BASE_URL}` (same for all users) instead of `{BRIDGE_BASE_URL}/user/{userId}/{uniqueId}`
+     - User isolation still happens via HTTP headers (`x-user-id`, `x-bridge-secret`) sent by qr-bridge proxy
+     - Unique `bridgeSecret` per user still auto-generated for authentication
+     - Environment variable source fixed: now uses same vars as qr-bridge/route.ts (`WHATSAPP_BRIDGE_HTTP_URL`, `NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL`)
+   - **Result**: Bridge endpoints now resolve correctly (e.g. `http://localhost:3333/chats` instead of invalid path)
+   - **Files modified**: `qr/auto-provision/route.ts`
+
 ### Chat Privacy Leak Fix: Super Admin Chats Isolation (Session: March 11, 2026 — Phase 23) — Commit `4e7e2017`
 
 1. **Critical Security Fix: Prevent Super Admin Old Chats from Leaking to Team Users** — `qr-bridge/route.ts`
