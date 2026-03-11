@@ -1,3 +1,20 @@
+/**
+ * QR WhatsApp Send Message API
+ * POST /api/admin/crm/whatsapp/qr/send
+ *
+ * Sends a single WhatsApp message via the QR (Baileys) bridge.
+ *
+ * Access Control (role hierarchy):
+ * ─────────────────────────────────────────────────────────────────
+ * Super Admin      → Always allowed. Sends via shared bridge.
+ * Super Admin Team → Allowed only if qrWhatsappEnabled=true in crm_user_settings.
+ * CRM Admin        → Allowed (has own qrBridgeUrl in crm_user_settings).
+ * CRM Admin Team   → Allowed only if qrWhatsappEnabled=true under tenant.
+ * Leads            → No CRM access.
+ * ─────────────────────────────────────────────────────────────────
+ *
+ * Saves outbound messages to WhatsAppMessage collection and updates Lead.
+ */
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
@@ -37,9 +54,9 @@ export async function POST(req: NextRequest) {
     // Super admin shows as "Swar Yoga", others show their username
     const adminName = superAdmin ? 'Swar Yoga' : (decoded.name || decoded.username || viewerUserId);
 
-    // ── SUPER ADMIN CHAT PROTECTION ──
-    // Non-super-admin users must have their own bridge to send messages.
-    // Without their own bridge, they'd be sending from the super admin's WhatsApp.
+    // ── Access Gate (Super Admin Team / CRM Admin Team Protection) ──
+    // Non-Super-Admin users must have qrWhatsappEnabled=true or their own bridge.
+    // Without this, they would be sending from the Super Admin's WhatsApp illegitimately.
     if (!superAdmin) {
       await connectDB();
       const CRMUserSettings = getCRMUserSettings();

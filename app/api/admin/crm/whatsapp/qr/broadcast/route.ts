@@ -1,3 +1,18 @@
+/**
+ * QR WhatsApp Broadcast API
+ * POST   /api/admin/crm/whatsapp/qr/broadcast — Send bulk broadcast
+ * GET    /api/admin/crm/whatsapp/qr/broadcast — List scheduled broadcasts
+ * DELETE /api/admin/crm/whatsapp/qr/broadcast — Cancel a broadcast
+ *
+ * Access Control (role hierarchy):
+ * ─────────────────────────────────────────────────────────────────
+ * Super Admin      → Always allowed.
+ * Super Admin Team → Allowed only if qrWhatsappEnabled=true.
+ * CRM Admin        → Allowed (has own qrBridgeUrl).
+ * CRM Admin Team   → Allowed only if qrWhatsappEnabled=true under tenant.
+ * Leads            → No CRM access.
+ * ─────────────────────────────────────────────────────────────────
+ */
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
 import { connectDB } from '@/lib/db';
@@ -6,8 +21,6 @@ import { getViewerUserId, isSuperAdmin as checkSuperAdmin } from '@/lib/crm-hand
 
 const BRIDGE_URL = process.env.BRIDGE_URL || "http://52.91.198.23:3333";
 const BRIDGE_SECRET = process.env.BRIDGE_SECRET || "swar-bridge-secret-2024";
-
-// Send bulk broadcast via QR bridge
 export async function POST(request: NextRequest) {
   try {
     const authHeader = request.headers.get("authorization");
@@ -20,7 +33,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Admin access required" }, { status: 403 });
     }
 
-    // ── SUPER ADMIN CHAT PROTECTION ──
+    // ── Access Gate (Super Admin Team / CRM Admin Team Protection) ──
     const superAdmin = checkSuperAdmin(decoded);
     if (!superAdmin) {
       await connectDB();
@@ -76,7 +89,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Admin access required" }, { status: 403 });
     }
 
-    // ── SUPER ADMIN CHAT PROTECTION ──
+    // ── Access Gate (Super Admin Team / CRM Admin Team Protection) ──
     const superAdmin = checkSuperAdmin(decoded);
     if (!superAdmin) {
       await connectDB();
@@ -120,7 +133,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Admin access required" }, { status: 403 });
     }
 
-    // ── SUPER ADMIN CHAT PROTECTION ──
+    // ── Access Gate (Super Admin Team / CRM Admin Team Protection) ──
     const superAdmin = checkSuperAdmin(decoded);
     if (!superAdmin) {
       await connectDB();

@@ -7,11 +7,26 @@ import { isSuperAdmin as checkSuperAdmin } from '@/lib/crm-handlers';
 /**
  * WhatsApp QR Bridge Proxy Endpoint
  * Proxies requests to the WhatsApp bridge service (Baileys).
- * 
- * MULTI-TENANT: Every authenticated CRM user gets access.
- * The bridge handles per-user isolation via x-user-id header — each user gets
- * their own Baileys session, QR code, chats, and messages.
- * No server-side chat/JID filtering needed — the bridge IS the isolation layer.
+ *
+ * ── USER ROLES ──
+ * Super Admin:          Owner of CRM (userId: 'admin' | 'admincrm'). Owns the shared bridge session.
+ * Super Admin Team:     Team users under super admin. Have qrWhatsappEnabled=true. Use shared bridge.
+ * CRM Admin (Tenant):   Independent users who signed up at crm.swaryoga.com. Have their own bridge.
+ * CRM Admin Team:       Team users added by a CRM Admin. Use that admin's bridge.
+ * Leads:                End-users / contacts. Not CRM users.
+ *
+ * ── ACCESS CONTROL ──
+ * resolveUserBridge() is the SOLE gate:
+ *   - Super Admin → shared bridge (full access, sees all chats)
+ *   - Super Admin Team (qrWhatsappEnabled) → shared bridge (filtered: only assigned/created leads)
+ *   - CRM Admin (own qrBridgeUrl) → personal bridge (full access to own bridge)
+ *   - CRM Admin Team (qrWhatsappEnabled under tenant) → tenant's bridge (filtered)
+ *   - No qrBridgeUrl AND no qrWhatsappEnabled → BLOCKED (returns null → 422)
+ *
+ * ── CHAT PRIVACY FILTER ──
+ * For /chats endpoint: non-super-admin on shared bridge only sees chats
+ * where the phone matches a Lead with assignedToUserId or createdByUserId = their userId.
+ * On filter error → returns empty (fail-safe, never leaks chats).
  */
 
 // Fallback: env var or local dev
@@ -36,15 +51,15 @@ export const maxDuration = 60; // 60s function timeout for Vercel
 
 /**
  * Resolve the bridge URL and secret for the authenticated user.
- * 
- * MULTI-TENANT: ALL authenticated admin users get bridge access.
- * The bridge handles per-user isolation via x-user-id header.
- * Each user gets their own Baileys session, QR code, chats, etc.
- * 
- * If user has a custom bridge URL in settings, use that.
- * Otherwise use the shared bridge (isolation via x-user-id).
+ *
+ * Access matrix:
+ *   Super Admin        → shared bridge, isSuperAdmin=true
+ *   Super Admin Team   → shared bridge (if qrWhatsappEnabled), isSuperAdmin=false
+ *   CRM Admin (tenant) → own qrBridgeUrl, hasOwnBridge=true
+ *   CRM Admin Team     → own bridge via tenant OR qrWhatsappEnabled
+ *   Unauthorized       → returns null (blocked)
  */
-// Super admin user IDs — these users own the shared bridge session
+// Super Admin user IDs — these users own the shared bridge session
 const SUPER_ADMIN_IDS = new Set(['admin', 'admincrm']);
 
 async function resolveUserBridge(authHeader: string | null): Promise<{ url: string; secret: string; userId: string; isSuperAdmin: boolean; hasOwnBridge: boolean } | null> {

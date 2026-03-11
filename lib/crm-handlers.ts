@@ -104,7 +104,16 @@ export const getViewerUserId = (decoded: any): string => {
 };
 
 /**
- * Check if the current user is a super admin (full access to everything)
+ * Check if the current user is a Super Admin (owner of CRM — full access to everything).
+ * 
+ * Super Admin = Owner of CRM and swaryoga.com.
+ * Identified by: userId 'admin' or 'admincrm', role 'superadmin', or permissions ['all'].
+ * 
+ * Other roles (NOT super admin):
+ *   Super Admin Team  = team users under super admin (qrWhatsappEnabled, see assigned leads only)
+ *   CRM Admin         = independent tenant who signed up at crm.swaryoga.com
+ *   CRM Admin Team    = team users added by a CRM Admin
+ *   Leads             = end-users / contacts (not admin users)
  */
 export const isSuperAdmin = (decoded: any): boolean => {
   return (
