@@ -360,6 +360,12 @@ export default function QRWhatsAppPage() {
       if (msg.includes('fetch failed') || msg.includes('Failed to fetch') || msg.includes('ECONNREFUSED')) {
         throw new Error('Cannot reach WhatsApp bridge — make sure it is running on port 3333');
       }
+      // Detect "no bridge configured" — attach a flag so callers can handle it
+      if (msg.includes('bridge URL') || msg.includes('bridge configured')) {
+        const noBridgeErr = new Error('NO_BRIDGE');
+        (noBridgeErr as any).noBridge = true;
+        throw noBridgeErr;
+      }
       throw e;
     }
   }, [crmFetch]);
@@ -389,6 +395,14 @@ export default function QRWhatsAppPage() {
       }
       // Don't clear QR when status is briefly 'disconnected' during reconnect
     } catch (e: any) {
+      // ── No bridge configured → show Settings tab instead of error ──
+      if (e?.noBridge) {
+        setBridgeConfigured(false);
+        setTab('settings');
+        setError(null);
+        setLoading(false);
+        return;
+      }
       // Don't clear QR on network errors — keep showing it
       setError(e.message || 'Cannot reach WhatsApp bridge');
       setStatus(prev => prev || { connected: false, status: 'disconnected' });
@@ -1632,7 +1646,22 @@ export default function QRWhatsAppPage() {
       {/* ═══ SETTINGS TAB ═══ */}
       {/* ═══════════════════════════════════════════════════════ */}
       {!loading && tab === 'settings' && (
-        <SettingsTab
+        <>
+          {bridgeConfigured === false && (
+            <div className="mx-4 mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3">
+              <svg className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div>
+                <p className="font-semibold text-amber-800">Bridge not configured</p>
+                <p className="text-sm text-amber-700 mt-1">
+                  Enter your WhatsApp Bridge URL and Secret below to start using QR WhatsApp. 
+                  If you don&apos;t have a bridge yet, contact support for setup instructions.
+                </p>
+              </div>
+            </div>
+          )}
+          <SettingsTab
           bridgeUrlInput={bridgeUrlInput}
           setBridgeUrlInput={setBridgeUrlInput}
           bridgeSecretInput={bridgeSecretInput}
@@ -1653,6 +1682,7 @@ export default function QRWhatsAppPage() {
           senderDisplayName={senderDisplayName}
           setSenderDisplayName={setSenderDisplayName}
         />
+        </>
       )}
 
       {/* ═══════════════════════════════════════════════════════ */}

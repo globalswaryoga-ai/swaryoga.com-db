@@ -63,7 +63,11 @@ export const maxDuration = 60; // 60s function timeout for Vercel
 // Super Admin user IDs — these users own the shared bridge session
 const SUPER_ADMIN_IDS = new Set(['admin', 'admincrm']);
 
-async function resolveUserBridge(authHeader: string | null): Promise<{ url: string; secret: string; userId: string; isSuperAdmin: boolean; hasOwnBridge: boolean; storedPhone: string; phoneChangedAt: Date | null; senderDisplayName: string } | null> {
+type BridgeResolution = 
+  | { ok: true; url: string; secret: string; userId: string; isSuperAdmin: boolean; hasOwnBridge: boolean; storedPhone: string; phoneChangedAt: Date | null; senderDisplayName: string }
+  | { ok: false; reason: 'no_bridge' | 'unauthorized' };
+
+async function resolveUserBridge(authHeader: string | null): Promise<BridgeResolution> {
   try {
     const decoded = verifyToken(authHeader || '');
     if (decoded?.userId && decoded?.isAdmin) {
@@ -85,6 +89,7 @@ async function resolveUserBridge(authHeader: string | null): Promise<{ url: stri
 
       if (settings?.qrBridgeUrl) {
         return {
+          ok: true,
           url: settings.qrBridgeUrl,
           secret: settings.qrBridgeSecret || FALLBACK_BRIDGE_SECRET,
           userId: decoded.userId,
@@ -103,18 +108,18 @@ async function resolveUserBridge(authHeader: string | null): Promise<{ url: stri
       if (!superAdmin) {
         // Only allow if explicitly enabled by super admin
         if (!settings?.qrWhatsappEnabled) {
-          console.warn(`[QR Bridge Proxy] BLOCKED: User ${decoded.userId} tried to access shared bridge without own bridge or explicit access`);
-          return null;
+          console.warn(`[QR Bridge Proxy] BLOCKED: User ${decoded.userId} — no bridge URL configured and not enabled for shared bridge`);
+          return { ok: false, reason: 'no_bridge' };
         }
       }
 
       // Use shared bridge — only super admin or explicitly enabled users
-      return { url: FALLBACK_BRIDGE_URL, secret: FALLBACK_BRIDGE_SECRET, userId: decoded.userId, isSuperAdmin: superAdmin, hasOwnBridge: false, storedPhone, phoneChangedAt, senderDisplayName };
+      return { ok: true, url: FALLBACK_BRIDGE_URL, secret: FALLBACK_BRIDGE_SECRET, userId: decoded.userId, isSuperAdmin: superAdmin, hasOwnBridge: false, storedPhone, phoneChangedAt, senderDisplayName };
     }
   } catch (e) {
     console.warn('[QR Bridge Proxy] Failed to resolve user bridge:', (e as Error).message);
   }
-  return null;
+  return { ok: false, reason: 'unauthorized' };
 }
 
 /**
@@ -186,13 +191,20 @@ function decodePathFully(rawPath: string): string {
 export async function POST(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization');
-    const resolved = await resolveUserBridge(authHeader);
-    if (!resolved) {
+    const resolution = await resolveUserBridge(authHeader);
+    if (!resolution.ok) {
+      if (resolution.reason === 'no_bridge') {
+        return NextResponse.json(
+          { error: 'No WhatsApp bridge configured. Please set up your bridge URL in Settings tab.', noBridge: true },
+          { status: 422 }
+        );
+      }
       return NextResponse.json(
-        { error: 'No WhatsApp bridge configured. Please set up your bridge URL in QR WhatsApp settings.' },
-        { status: 422 }
+        { error: 'Unauthorized — please log in again.' },
+        { status: 401 }
       );
     }
+    const resolved = resolution;
     const { url: BRIDGE_URL, secret: BRIDGE_SECRET, userId } = resolved;
 
     // Access control is handled by resolveUserBridge() — it returns null for unauthorized users.
@@ -391,13 +403,20 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization');
-    const resolved = await resolveUserBridge(authHeader);
-    if (!resolved) {
+    const resolution = await resolveUserBridge(authHeader);
+    if (!resolution.ok) {
+      if (resolution.reason === 'no_bridge') {
+        return NextResponse.json(
+          { error: 'No WhatsApp bridge configured. Please set up your bridge URL in Settings tab.', noBridge: true },
+          { status: 422 }
+        );
+      }
       return NextResponse.json(
-        { error: 'No WhatsApp bridge configured. Please set up your bridge URL in QR WhatsApp settings.' },
-        { status: 422 }
+        { error: 'Unauthorized — please log in again.' },
+        { status: 401 }
       );
     }
+    const resolved = resolution;
     const { url: BRIDGE_URL, secret: BRIDGE_SECRET, userId } = resolved;
 
     // Access control is handled by resolveUserBridge() — it returns null for unauthorized users.
