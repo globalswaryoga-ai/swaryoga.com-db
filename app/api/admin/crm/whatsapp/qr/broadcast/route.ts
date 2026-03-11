@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
+import { connectDB } from '@/lib/db';
+import { getCRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
+import { getViewerUserId, isSuperAdmin as checkSuperAdmin } from '@/lib/crm-handlers';
 
 const BRIDGE_URL = process.env.BRIDGE_URL || "http://52.91.198.23:3333";
 const BRIDGE_SECRET = process.env.BRIDGE_SECRET || "swar-bridge-secret-2024";
@@ -15,6 +18,25 @@ export async function POST(request: NextRequest) {
     const decoded = await verifyToken(authHeader.replace("Bearer ", ""));
     if (!decoded || !decoded.isAdmin) {
       return NextResponse.json({ success: false, error: "Admin access required" }, { status: 403 });
+    }
+
+    // ── SUPER ADMIN CHAT PROTECTION ──
+    const superAdmin = checkSuperAdmin(decoded);
+    if (!superAdmin) {
+      await connectDB();
+      const viewerUserId = getViewerUserId(decoded);
+      const CRMUserSettings = getCRMUserSettings();
+      const userSettings = await CRMUserSettings.findOne(
+        { userId: viewerUserId },
+        { qrBridgeUrl: 1, qrWhatsappEnabled: 1 }
+      ).lean();
+      
+      if (!userSettings?.qrBridgeUrl && !userSettings?.qrWhatsappEnabled) {
+        return NextResponse.json({
+          success: false,
+          error: 'Access denied. You need your own WhatsApp bridge configured to use broadcasts.'
+        }, { status: 403 });
+      }
     }
 
     const body = await request.json();
@@ -54,6 +76,25 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Admin access required" }, { status: 403 });
     }
 
+    // ── SUPER ADMIN CHAT PROTECTION ──
+    const superAdmin = checkSuperAdmin(decoded);
+    if (!superAdmin) {
+      await connectDB();
+      const viewerUserId = getViewerUserId(decoded);
+      const CRMUserSettings = getCRMUserSettings();
+      const userSettings = await CRMUserSettings.findOne(
+        { userId: viewerUserId },
+        { qrBridgeUrl: 1, qrWhatsappEnabled: 1 }
+      ).lean();
+      
+      if (!userSettings?.qrBridgeUrl && !userSettings?.qrWhatsappEnabled) {
+        return NextResponse.json({
+          success: false,
+          error: 'Access denied. You need your own WhatsApp bridge configured.'
+        }, { status: 403 });
+      }
+    }
+
     const response = await fetch(`${BRIDGE_URL}/broadcast/scheduled`, {
       headers: { "x-bridge-secret": BRIDGE_SECRET },
     });
@@ -77,6 +118,25 @@ export async function DELETE(request: NextRequest) {
     const decoded = await verifyToken(authHeader.replace("Bearer ", ""));
     if (!decoded || !decoded.isAdmin) {
       return NextResponse.json({ success: false, error: "Admin access required" }, { status: 403 });
+    }
+
+    // ── SUPER ADMIN CHAT PROTECTION ──
+    const superAdmin = checkSuperAdmin(decoded);
+    if (!superAdmin) {
+      await connectDB();
+      const viewerUserId = getViewerUserId(decoded);
+      const CRMUserSettings = getCRMUserSettings();
+      const userSettings = await CRMUserSettings.findOne(
+        { userId: viewerUserId },
+        { qrBridgeUrl: 1, qrWhatsappEnabled: 1 }
+      ).lean();
+      
+      if (!userSettings?.qrBridgeUrl && !userSettings?.qrWhatsappEnabled) {
+        return NextResponse.json({
+          success: false,
+          error: 'Access denied. You need your own WhatsApp bridge configured.'
+        }, { status: 403 });
+      }
     }
 
     const { id } = await request.json();

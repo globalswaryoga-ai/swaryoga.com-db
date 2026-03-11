@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { getWhatsAppMessage, getLead } from '@/lib/schemas/enterpriseSchemas';
-import { getViewerUserId } from '@/lib/crm-handlers';
+import { getWhatsAppMessage, getLead, getCRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
+import { getViewerUserId, isSuperAdmin as checkSuperAdmin } from '@/lib/crm-handlers';
 import { getPublicMediaUrl } from '@/lib/whatsapp';
 
 // Use the same defaults/precedence as the QR bridge proxy. These are server-side routes,
@@ -33,9 +33,28 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     let { to, message, type, url, buttons, caption, leadId, templateData } = body;
     const viewerUserId = getViewerUserId(decoded);
-    const superAdmin = decoded.userId === 'admincrm' || decoded.userId === 'admin';
+    const superAdmin = checkSuperAdmin(decoded);
     // Super admin shows as "Swar Yoga", others show their username
     const adminName = superAdmin ? 'Swar Yoga' : (decoded.name || decoded.username || viewerUserId);
+
+    // ── SUPER ADMIN CHAT PROTECTION ──
+    // Non-super-admin users must have their own bridge to send messages.
+    // Without their own bridge, they'd be sending from the super admin's WhatsApp.
+    if (!superAdmin) {
+      await connectDB();
+      const CRMUserSettings = getCRMUserSettings();
+      const userSettings = await CRMUserSettings.findOne(
+        { userId: viewerUserId },
+        { qrBridgeUrl: 1, qrWhatsappEnabled: 1 }
+      ).lean();
+      
+      if (!userSettings?.qrBridgeUrl && !userSettings?.qrWhatsappEnabled) {
+        return NextResponse.json({
+          success: false,
+          error: 'Access denied. You need your own WhatsApp bridge configured to send QR messages.'
+        }, { status: 403 });
+      }
+    }
 
     // Validate and normalize `to` field
     if (!to) {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { getCRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
 import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin as checkSuperAdmin } from '@/lib/crm-handlers';
 
 /**
  * WhatsApp QR Bridge Proxy Endpoint
@@ -43,16 +44,21 @@ export const maxDuration = 60; // 60s function timeout for Vercel
  * If user has a custom bridge URL in settings, use that.
  * Otherwise use the shared bridge (isolation via x-user-id).
  */
-async function resolveUserBridge(authHeader: string | null): Promise<{ url: string; secret: string; userId: string } | null> {
+// Super admin user IDs — these users own the shared bridge session
+const SUPER_ADMIN_IDS = new Set(['admin', 'admincrm']);
+
+async function resolveUserBridge(authHeader: string | null): Promise<{ url: string; secret: string; userId: string; isSuperAdmin: boolean; hasOwnBridge: boolean } | null> {
   try {
     const decoded = verifyToken(authHeader || '');
     if (decoded?.userId && decoded?.isAdmin) {
+      const superAdmin = checkSuperAdmin(decoded);
+
       // Check if user has a custom bridge URL
       await connectDB();
       const CRMUserSettings = getCRMUserSettings();
       const settings = await CRMUserSettings.findOne(
         { userId: decoded.userId },
-        { qrBridgeUrl: 1, qrBridgeSecret: 1 }
+        { qrBridgeUrl: 1, qrBridgeSecret: 1, qrWhatsappEnabled: 1 }
       ).lean();
 
       if (settings?.qrBridgeUrl) {
@@ -60,11 +66,25 @@ async function resolveUserBridge(authHeader: string | null): Promise<{ url: stri
           url: settings.qrBridgeUrl,
           secret: settings.qrBridgeSecret || FALLBACK_BRIDGE_SECRET,
           userId: decoded.userId,
+          isSuperAdmin: superAdmin,
+          hasOwnBridge: true,
         };
       }
 
-      // Use shared bridge — per-user isolation handled by x-user-id header
-      return { url: FALLBACK_BRIDGE_URL, secret: FALLBACK_BRIDGE_SECRET, userId: decoded.userId };
+      // ── SUPER ADMIN PROTECTION ──
+      // Non-super-admin users without their own bridge MUST NOT access
+      // the shared/default bridge (which is the super admin's WhatsApp session).
+      // They need either: (a) their own qrBridgeUrl, or (b) explicit qrWhatsappEnabled.
+      if (!superAdmin) {
+        // Only allow if explicitly enabled by super admin
+        if (!settings?.qrWhatsappEnabled) {
+          console.warn(`[QR Bridge Proxy] BLOCKED: User ${decoded.userId} tried to access shared bridge without own bridge or explicit access`);
+          return null;
+        }
+      }
+
+      // Use shared bridge — only super admin or explicitly enabled users
+      return { url: FALLBACK_BRIDGE_URL, secret: FALLBACK_BRIDGE_SECRET, userId: decoded.userId, isSuperAdmin: superAdmin, hasOwnBridge: false };
     }
   } catch (e) {
     console.warn('[QR Bridge Proxy] Failed to resolve user bridge:', (e as Error).message);
@@ -99,7 +119,17 @@ export async function POST(req: NextRequest) {
         { status: 422 }
       );
     }
-    const { url: BRIDGE_URL, secret: BRIDGE_SECRET, userId } = resolved;
+    const { url: BRIDGE_URL, secret: BRIDGE_SECRET, userId, isSuperAdmin: isSA, hasOwnBridge } = resolved;
+
+    // ── LAYER 2: Block reading super admin chats via shared bridge ──
+    // Non-super-admin on shared bridge must not read/send messages to chats
+    // that belong to the super admin's session
+    if (!isSA && !hasOwnBridge) {
+      return NextResponse.json(
+        { error: 'Access denied. You need your own WhatsApp bridge to use QR WhatsApp.' },
+        { status: 403 }
+      );
+    }
 
     const { action, path, body } = await req.json();
 
@@ -204,7 +234,15 @@ export async function GET(req: NextRequest) {
         { status: 422 }
       );
     }
-    const { url: BRIDGE_URL, secret: BRIDGE_SECRET, userId } = resolved;
+    const { url: BRIDGE_URL, secret: BRIDGE_SECRET, userId, isSuperAdmin: isSA, hasOwnBridge } = resolved;
+
+    // ── LAYER 2: Block non-super-admin from seeing super admin's session ──
+    if (!isSA && !hasOwnBridge) {
+      return NextResponse.json(
+        { error: 'Access denied. You need your own WhatsApp bridge to use QR WhatsApp.' },
+        { status: 403 }
+      );
+    }
 
     let path = req.nextUrl.searchParams.get('path') || '/status';
     
