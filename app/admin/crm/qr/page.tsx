@@ -247,46 +247,48 @@ export default function QRWhatsAppPage() {
         });
 
         if (!cancelled && settingsRes && settingsRes.success !== false) {
+          // ── Unwrap apiSuccess wrapper: { success, data, timestamp } ──
+          const s = settingsRes.data || settingsRes;
+
           // Load QR-specific funnel stages
-          if (settingsRes.qrFunnelStages?.length > 0) {
+          if (s.qrFunnelStages?.length > 0) {
             const allStage: FunnelStage = { key: 'all', label: 'All', color: 'bg-gray-100 text-gray-700 border-gray-300' };
-            const loaded: FunnelStage[] = settingsRes.qrFunnelStages
+            const loaded: FunnelStage[] = s.qrFunnelStages
               .filter((s: any) => s.key !== 'all')
               .map((s: any) => ({ key: s.key, label: s.label, color: s.color }));
             setFunnelStages([allStage, ...loaded]);
           }
           // Load chat-to-funnel mappings
-          if (settingsRes.chatFunnels && Object.keys(settingsRes.chatFunnels).length > 0) {
-            setChatFunnels(settingsRes.chatFunnels);
+          if (s.chatFunnels && Object.keys(s.chatFunnels).length > 0) {
+            setChatFunnels(s.chatFunnels);
           }
           // Load chat-to-label mappings
-          if (settingsRes.chatLabels && Object.keys(settingsRes.chatLabels).length > 0) {
-            setChatLabels(settingsRes.chatLabels);
+          if (s.chatLabels && Object.keys(s.chatLabels).length > 0) {
+            setChatLabels(s.chatLabels);
           }
           // Load label presets
-          if (settingsRes.labelPresets?.length > 0) {
-            setLabelPresets(settingsRes.labelPresets);
+          if (s.labelPresets?.length > 0) {
+            setLabelPresets(s.labelPresets);
           }
           // Load pinned chats
-          if (settingsRes.pinnedChats?.length > 0) {
-            setPinnedChats(settingsRes.pinnedChats);
+          if (s.pinnedChats?.length > 0) {
+            setPinnedChats(s.pinnedChats);
           }
           // Load sender display name
-          if (settingsRes.senderDisplayName) {
-            setSenderDisplayName(settingsRes.senderDisplayName);
+          if (s.senderDisplayName) {
+            setSenderDisplayName(s.senderDisplayName);
           }
           // ── Load bridge URL and secret ──
-          const savedUrl = settingsRes.qrBridgeUrl || '';
-          const savedSecret = settingsRes.qrBridgeSecret || '';
+          const savedUrl = s.qrBridgeUrl || '';
+          const savedSecret = s.qrBridgeSecret || '';
 
           // Populate the settings inputs
           setBridgeUrlInput(savedUrl);
           setBridgeSecretInput(savedSecret);
 
-          // ── Auto-provision bridge URL if missing (skip for super admin) ──
-          // Super admin uses the shared bridge at http://localhost:3333
-          // Only non-super-admin users need auto-provisioning from permanent tenant ID
-          if (!savedUrl && token && !superAdmin) {
+          // ── Auto-provision bridge URL if missing ──
+          // All users (including Super Admin) use /tenant/{permanentTenantId} pattern
+          if (!savedUrl && token) {
             try {
               const provisionRes = await fetch('/api/admin/crm/whatsapp/qr/auto-provision', {
                 method: 'POST',
@@ -296,10 +298,11 @@ export default function QRWhatsAppPage() {
                 },
               }).then(r => r.json().catch(() => null)).catch(() => null);
 
-              if (provisionRes?.success && provisionRes?.bridgeUrl) {
-                setBridgeUrlInput(provisionRes.bridgeUrl);
-                setBridgeSecretInput(provisionRes.bridgeSecret);
-                console.log('[QR] ✅ Auto-provisioned bridge URL for new tenant');
+              const pData = provisionRes?.data || provisionRes;
+              if (pData?.success && pData?.bridgeUrl) {
+                setBridgeUrlInput(pData.bridgeUrl);
+                setBridgeSecretInput(pData.bridgeSecret);
+                console.log('[QR] ✅ Auto-provisioned bridge URL for tenant');
               }
             } catch (e) {
               console.warn('[QR] Auto-provision failed (non-critical):', e);
@@ -309,7 +312,7 @@ export default function QRWhatsAppPage() {
           // All authenticated admin users can use QR WhatsApp
           // Bridge handles per-user isolation via x-user-id header
           setBridgeConfigured(true);
-          console.log('[QR] ✅ Loaded settings from MongoDB — funnels:', settingsRes.qrFunnelStages?.length || 0, 'chatFunnels:', Object.keys(settingsRes.chatFunnels || {}).length, 'chatLabels:', Object.keys(settingsRes.chatLabels || {}).length, 'labels:', settingsRes.labelPresets?.length || 0, 'bridge:', settingsRes.qrBridgeUrl ? 'custom' : 'shared', 'user:', resolvedUserId);
+          console.log('[QR] ✅ Loaded settings from MongoDB — funnels:', s.qrFunnelStages?.length || 0, 'chatFunnels:', Object.keys(s.chatFunnels || {}).length, 'chatLabels:', Object.keys(s.chatLabels || {}).length, 'labels:', s.labelPresets?.length || 0, 'bridge:', savedUrl ? 'custom' : 'shared', 'user:', resolvedUserId);
         } else {
           // Settings load failed but still configure bridge with defaults
           setBridgeConfigured(true);
