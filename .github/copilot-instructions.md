@@ -172,6 +172,35 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### Unified Bridge URL: ALL Users Use /tenant/{permanentTenantId} (Session: June 2025 — Phase 30) — Commit `9b123b1c`
+
+1. **Removed Super Admin Bridge Bypass** — `app/api/admin/crm/whatsapp/qr-bridge/route.ts`
+   - **Before**: Super Admin used `FALLBACK_BRIDGE_URL` directly (no `/tenant/` prefix)
+   - **After**: Super Admin uses `{BRIDGE_BASE_URL}/tenant/0002456` like all other users
+   - Removed 15-line early return block in `resolveUserBridge()`
+   - `permanentTenantId` branch now handles ALL users (including Super Admin)
+   - `hasOwnBridge: true` for everyone with permanentTenantId (no chat privacy filter on own session)
+
+2. **Updated Auto-Provision Endpoint** — `app/api/admin/crm/whatsapp/qr/auto-provision/route.ts`
+   - Removed Super Admin block (`SUPER_ADMIN_IDS.has(userId)` guard removed)
+   - ALL users can auto-provision via permanentTenantId
+
+3. **Database Cleanup** — 2 stray `qrBridgeUrl` removed
+   - `allindiaupamnyu@gmail.com` and `test1@swaryoga.com` had legacy URLs pointing to `13.62.126.213:3333`
+   - Removed via `$unset` — all users now rely solely on `permanentTenantId`
+
+4. **Bridge URL Architecture (FINAL)**:
+   | User | permanentTenantId | Bridge URL |
+   |------|-------------------|------------|
+   | admincrm (Super Admin) | 0002456 | `{BRIDGE_BASE_URL}/tenant/0002456` |
+   | allindiaupamnyu@gmail.com | 0002457 | `{BRIDGE_BASE_URL}/tenant/0002457` |
+   | test1@swaryoga.com | 0002458 | `{BRIDGE_BASE_URL}/tenant/0002458` |
+   | ... (11 more users) | 0002459-0002469 | Same pattern |
+
+5. **Production Bridge**: `http://52.91.198.23:3333/tenant/{id}`
+   - Each user authenticates with their unique `qrBridgeSecret` from DB
+   - Bridge service must support `/tenant/{id}` routing
+
 ### Permanent Tenant ID System: 7-Digit Unique Codes (Session: March 11, 2026 — Phase 26) — Commit `[pending]`
 
 1. **Schema Update: Added permanentTenantId Field** — `lib/schemas/enterpriseSchemas.ts`
