@@ -51,6 +51,8 @@ const FALLBACK_BRIDGE_SECRET =
   process.env.WHATSAPP_WEB_BRIDGE_SECRET ||
   process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_SECRET ||
   'swar-bridge-secret-2024';
+const AUTH_COLLECTION = 'baileys_auth_state';
+const AUTH_DB_NAME = process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm';
 
 // Mark as dynamic (uses request.nextUrl for query parameters)
 export const dynamic = 'force-dynamic';
@@ -76,6 +78,29 @@ const BRIDGE_CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
 function invalidateBridgeCache(userId: string) {
   if (!userId) return;
   bridgeCache.delete(userId);
+}
+
+function normalizeConnectedPhone(phone: string): string {
+  return String(phone || '').split(':')[0].split('@')[0].replace(/\D/g, '');
+}
+
+async function getAuthStatePhone(userId: string): Promise<string> {
+  try {
+    const db = mongoose.connection.useDb(AUTH_DB_NAME);
+    const doc: any = await db.collection(AUTH_COLLECTION).findOne(
+      { key: `${userId}:creds` },
+      { projection: { value: 1 } }
+    );
+
+    return normalizeConnectedPhone(
+      doc?.value?.me?.id ||
+      doc?.value?.account?.details?.phoneNumber ||
+      ''
+    );
+  } catch (error) {
+    console.warn('[QR Bridge Proxy] Failed to derive auth-state phone:', error);
+    return '';
+  }
 }
 
 /** Evict stale entries periodically (prevent memory leak on long-running server) */
@@ -112,11 +137,20 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
       ).lean();
 
       const rawStoredPhone = (settings as any)?.qrConnectedPhoneNumber || '';
-      // Normalize stored phone the same way extractBridgePhone does (digits only)
-      const storedPhone = String(rawStoredPhone).split(':')[0].split('@')[0].replace(/\D/g, '');
+      const storedPhoneFromSettings = normalizeConnectedPhone(rawStoredPhone);
+      const authStatePhone = storedPhoneFromSettings ? '' : await getAuthStatePhone(decoded.userId);
+      const storedPhone = storedPhoneFromSettings || authStatePhone;
       const phoneChangedAt = (settings as any)?.qrPhoneChangedAt || null;
       const senderDisplayName = (settings as any)?.senderDisplayName || '';
       const permanentTenantId = (settings as any)?.permanentTenantId || '';
+
+      if (!storedPhoneFromSettings && authStatePhone) {
+        await CRMUserSettings.updateOne(
+          { userId: decoded.userId },
+          { $set: { qrConnectedPhoneNumber: authStatePhone } },
+          { upsert: true }
+        );
+      }
 
       // ── PERMANENT TENANT ID ──
       // The live bridge isolates users by x-user-id header, not /tenant/{id} path.
@@ -332,6 +366,19 @@ function getChatArray(data: any): any[] {
   if (Array.isArray(data)) return data;
   if (Array.isArray(data?.chats)) return data.chats;
   return [];
+}
+
+function hasVisibleChatActivity(chat: any): boolean {
+  if (!chat) return false;
+  const lastMessageText = typeof chat?.lastMessage === 'string'
+    ? chat.lastMessage.trim()
+    : String(chat?.lastMessage?.body || '').trim();
+
+  return Boolean(
+    getChatTimestampMs(chat) > 0 ||
+    lastMessageText ||
+    Number(chat?.unreadCount || 0) > 0
+  );
 }
 
 async function syncMongoSessionChats(userId: string, connectedPhone: string, chats: any[]) {
@@ -877,7 +924,7 @@ export async function POST(req: NextRequest) {
       }
 
       if (resolved.hasOwnBridge && resolved.storedPhone) {
-        const bridgeChats = getChatArray(data);
+        const bridgeChats = getChatArray(data).filter(hasVisibleChatActivity);
         if (bridgeChats.length > 0) {
           await syncMongoSessionChats(userId, resolved.storedPhone, bridgeChats);
           data = data?.chats
@@ -1309,7 +1356,7 @@ export async function GET(req: NextRequest) {
       }
 
       if (resolved.hasOwnBridge && resolved.storedPhone) {
-        const bridgeChats = getChatArray(data);
+        const bridgeChats = getChatArray(data).filter(hasVisibleChatActivity);
         if (bridgeChats.length > 0) {
           await syncMongoSessionChats(userId, resolved.storedPhone, bridgeChats);
           data = data?.chats

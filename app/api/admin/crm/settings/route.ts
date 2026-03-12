@@ -5,9 +5,32 @@ import { getCRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
+import mongoose from 'mongoose';
+
+const AUTH_COLLECTION = 'baileys_auth_state';
+const AUTH_DB_NAME = process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm';
 
 function normalizeConnectedPhone(phone: string): string {
   return String(phone || '').split(':')[0].split('@')[0].replace(/\D/g, '');
+}
+
+async function getAuthStatePhone(userId: string): Promise<string> {
+  try {
+    const db = mongoose.connection.useDb(AUTH_DB_NAME);
+    const doc: any = await db.collection(AUTH_COLLECTION).findOne(
+      { key: `${userId}:creds` },
+      { projection: { value: 1 } }
+    );
+
+    return normalizeConnectedPhone(
+      doc?.value?.me?.id ||
+      doc?.value?.account?.details?.phoneNumber ||
+      ''
+    );
+  } catch (error) {
+    console.warn('[crm-settings] Failed to derive auth-state phone:', error);
+    return '';
+  }
 }
 
 /**
@@ -48,6 +71,22 @@ export async function GET(req: NextRequest) {
       console.log(`[crm-settings] Auto-generated unique bridge secret for user ${decoded.userId}`);
     }
 
+    const storedConnectedPhone = normalizeConnectedPhone(settings?.qrConnectedPhoneNumber || '');
+    const authStatePhone = storedConnectedPhone ? '' : await getAuthStatePhone(decoded.userId);
+    const resolvedConnectedPhone = storedConnectedPhone || authStatePhone;
+
+    if (!storedConnectedPhone && authStatePhone) {
+      await CRMUserSettings.updateOne(
+        { userId: decoded.userId },
+        { $set: { qrConnectedPhoneNumber: authStatePhone } },
+        { upsert: true }
+      );
+      settings = {
+        ...(settings || {}),
+        qrConnectedPhoneNumber: authStatePhone,
+      };
+    }
+
     // Base settings visible to all admin users
     const response: Record<string, any> = {
       chatFunnels: settings?.chatFunnels || {},
@@ -56,7 +95,7 @@ export async function GET(req: NextRequest) {
       qrFunnelStages: settings?.qrFunnelStages || [],
       pinnedChats: settings?.pinnedChats || [],
       senderDisplayName: settings?.senderDisplayName || '',
-      qrConnectedPhoneNumber: normalizeConnectedPhone(settings?.qrConnectedPhoneNumber || ''),
+      qrConnectedPhoneNumber: resolvedConnectedPhone,
     };
 
     // QR bridge data: return for all admin users

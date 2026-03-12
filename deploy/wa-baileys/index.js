@@ -160,6 +160,19 @@ class UserSession {
   }
 }
 
+function clearSessionRuntimeData(session) {
+  session.chatMap.clear();
+  session.messageMap.clear();
+  session.rawMessageCache.clear();
+  session.groupSubjectCache.clear();
+  session.groupMembersCache.clear();
+  session.contactsCache.clear();
+  session.lidToPhoneMap.clear();
+  session.phoneToLidMap.clear();
+  session.statusStore = [];
+  session.presenceMap.clear();
+}
+
 // ── Sessions Map ────────────────────────────────────────────────────────
 const sessions = new Map(); // userId -> UserSession
 
@@ -268,9 +281,7 @@ async function prefetchGroupNames(session) {
             if (bestId) membersSet.add(bestId);
           }
         }
-        if (!session.chatMap.has(jid)) {
-          session.chatMap.set(jid, { id: jid, name: meta.subject, isGroup: true, unreadCount: 0, lastMessageTime: null, lastMessage: '' });
-        } else {
+        if (session.chatMap.has(jid)) {
           const existing = session.chatMap.get(jid);
           existing.name = meta.subject;
           existing.isGroup = true;
@@ -1323,6 +1334,7 @@ app.post('/disconnect', async (req, res) => {
     session.qrCode = null;
     session.qrBase64 = null;
     session.isStarting = false;
+    clearSessionRuntimeData(session);
     res.json({ ok: true, message: 'Disconnected. Auth preserved — use Reconnect to resume.' });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -1352,10 +1364,7 @@ app.post('/logout', async (req, res) => {
     session.qrCode = null;
     session.qrBase64 = null;
     session.isStarting = false;
-    // Clear in-memory data
-    session.chatMap.clear();
-    session.messageMap.clear();
-    session.rawMessageCache.clear();
+    clearSessionRuntimeData(session);
     res.json({ ok: true, message: 'Logged out. Scan QR to reconnect.' });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -1372,6 +1381,10 @@ app.post('/reconnect', async (req, res) => {
       try { session.sock.ev.removeAllListeners(); session.sock.end(undefined); } catch {}
       session.sock = null;
     }
+    clearSessionRuntimeData(session);
+    session.phoneInfo = null;
+    session.qrCode = null;
+    session.qrBase64 = null;
     session.isStarting = false;
     setTimeout(() => startSocket(req.userId), 500);
     res.json({ ok: true, message: 'Reconnecting...' });

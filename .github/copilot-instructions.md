@@ -172,6 +172,47 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### QR Inbox Count / Group Inflation + Connected Number Recovery Hardening (Session: March 13, 2026 — Phase 65) — Commit `[pending]`
+
+1. **✅ Restored the Connected WhatsApp Number Even When `crm_user_settings.qrConnectedPhoneNumber` Was Blank**
+   - **Problem**: Some tenant QR pages still showed only the green `Connected` pill and the user badge, with no scanned WhatsApp number in the header
+   - **Root Cause**:
+      - `crm_user_settings.qrConnectedPhoneNumber` could remain blank for a user even while Baileys auth already knew the connected sender
+      - the QR page and proxy only trusted the saved settings value or live bridge `/status`, so the header had no fallback when both were incomplete
+   - **Solution**:
+      - Updated `app/api/admin/crm/settings/route.ts`
+      - Updated `app/api/admin/crm/whatsapp/qr-bridge/route.ts`
+      - Both routes now derive the connected phone from the user's `baileys_auth_state` creds when the saved setting is blank
+      - The recovered number is also persisted back into `crm_user_settings` so later header/status recovery stays stronger
+
+2. **✅ Stopped Synthetic / Empty Bridge Chats from Inflating the Tenant QR Sidebar**
+   - **Problem**: Users could see inflated counts such as 50 groups / 400+ chats even when their real active QR inbox was much smaller
+   - **Root Cause**:
+      - the bridge runtime was prefetching all participating groups and injecting them directly into `chatMap` even when they were never active chats in the current visible inbox
+      - the QR proxy also accepted bridge `/chats` rows that had no real message activity, so empty synthetic rows were allowed through
+   - **Solution**:
+      - Updated `deploy/wa-baileys/index.js`
+      - Updated `app/api/admin/crm/whatsapp/qr-bridge/route.ts`
+      - Group-name prefetch now enriches names for existing chats only and no longer creates new empty group chat rows
+      - The QR proxy now filters own-bridge `/chats` results to keep only chats with visible activity (timestamp, unread count, or message preview)
+
+3. **✅ Bridge Runtime Now Clears Old In-Memory Chat State on Disconnect / Reconnect / Logout**
+   - **Problem**: Wrong or old chats could survive within the bridge session runtime across reconnect cycles and continue polluting later QR inbox loads
+   - **Solution**:
+      - Added a shared runtime-cache reset helper in `deploy/wa-baileys/index.js`
+      - `disconnect`, `reconnect`, and `logout` now clear:
+         - `chatMap`
+         - `messageMap`
+         - raw media/message cache
+         - group/contact/LID caches
+         - presence/status runtime state
+      - This prevents stale session memory from leaking old chat universes into a later QR reconnect
+
+4. **✅ Verification**
+   - No editor/type errors in modified files
+   - Full production build completed successfully locally after the fix
+   - Confirmed deployed bridge entrypoint is `deploy/wa-baileys/index.js` (not the unused alternate file)
+
 ### QR Inbox WhatsApp-Only Chat List Privacy Decoupling (Session: March 12, 2026 — Phase 64) — Commit `2195b865`
 
 1. **✅ QR WhatsApp Chat List No Longer Pulls CRM Leads Directly into the Inbox Sidebar**
