@@ -172,7 +172,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
-### CRM Signup SaaS Auto-Provisioning + QR-First Entry (Session: March 12, 2026 — Phase 57) — Commit `2714827a`
+### CRM Signup SaaS Auto-Provisioning + QR-First Entry (Session: March 12, 2026 — Phase 57) — Commit `16b3d336`
 
 1. **✅ New CRM Signups Now Provision Their SaaS + QR Records Immediately**
     - **Problem**: `app/api/crm-site/signup/route.ts` created `admin_users` and `tenants`, but new tenants were still missing the records required by QR-first onboarding and setup flows
@@ -226,7 +226,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
        - ✅ Full production build succeeds locally
        - ✅ Legacy tenant provisioning audit now reports zero gaps
 
-### CRM Anti-Bug Center v1 (Session: March 12, 2026 — Phase 56) — Commit `2714827a`
+### CRM Anti-Bug Center v1 (Session: March 12, 2026 — Phase 56) — Commit `16b3d336`
 
 1. **✅ Added a Super Admin Anti-Bug Diagnostics API + Dashboard**
     - **Problem**: The CRM had several safety tools (health checks, bridge diagnostics, error logs), but no single place to see whether QR WhatsApp and core CRM systems were healthy after a deploy
