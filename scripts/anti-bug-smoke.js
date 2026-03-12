@@ -12,8 +12,16 @@
  *   BASE_URL='http://localhost:3000' ADMIN_USER_ID='admincrm' ADMIN_PASSWORD='secret' node scripts/anti-bug-smoke.js
  */
 
+const fs = require('fs');
+const path = require('path');
+
+const envPath = path.resolve(__dirname, '..', '.env.local');
+if (fs.existsSync(envPath)) {
+  require('dotenv').config({ path: envPath });
+}
+
 const BASE_URL = (process.env.BASE_URL || 'http://localhost:3000').replace(/\/$/, '');
-const ADMIN_USER_ID = process.env.ADMIN_USER_ID || '';
+const ADMIN_USER_ID = process.env.ADMIN_USER_ID || process.env.ADMIN_USERID || '';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 
 async function fetchJson(url, init) {

@@ -172,6 +172,20 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### Anti-Bug Smoke Env Compatibility Fix (Session: March 12, 2026 — Phase 58) — Commit `[pending]`
+
+1. **✅ Anti-Bug Smoke Script Now Auto-Loads `.env.local` and Accepts `ADMIN_USERID`**
+   - **Problem**: The production Anti-Bug smoke script skipped the authenticated API check even after admin credentials were added locally because the environment used `ADMIN_USERID` while the script only read `ADMIN_USER_ID`
+   - **Solution**:
+      - Updated `scripts/anti-bug-smoke.js` to load `.env.local` automatically
+      - Added support for both `ADMIN_USER_ID` and `ADMIN_USERID`
+
+2. **✅ Verification**
+   - Running `BASE_URL='https://crm.swaryoga.com' node scripts/anti-bug-smoke.js` now succeeds end to end:
+      - ✅ Health endpoint OK
+      - ✅ Admin login OK
+      - ✅ Anti-Bug API OK (`status=healthy`)
+
 ### CRM Signup SaaS Auto-Provisioning + QR-First Entry (Session: March 12, 2026 — Phase 57) — Commit `16b3d336`
 
 1. **✅ New CRM Signups Now Provision Their SaaS + QR Records Immediately**
