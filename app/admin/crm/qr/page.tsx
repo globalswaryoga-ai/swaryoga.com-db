@@ -44,31 +44,39 @@ function isDisplayablePhoneDigits(digits: string): boolean {
   return false;
 }
 
+function extractDigitsCandidate(value: unknown): string {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const digits = raw.split(':')[0].split('@')[0].replace(/\D/g, '');
+  return isDisplayablePhoneDigits(digits)
+    ? (digits.length === 11 && digits.startsWith('0') ? digits.slice(1) : digits)
+    : '';
+}
+
 function extractBestChatPhone(chat: Partial<ChatItem> & Record<string, any>): string {
   const directCandidates = [
     chat.resolvedPhone,
     chat.phoneNumber,
     chat.phone,
     chat.user,
+    typeof chat.id === 'string' ? chat.id : '',
+    chat.chatId,
+    chat.jid,
     chat.contact?.phone,
     chat.contact?.number,
   ];
 
   for (const candidate of directCandidates) {
-    const digits = String(candidate || '').replace(/\D/g, '');
-    if (isDisplayablePhoneDigits(digits)) {
-      return digits.length === 11 && digits.startsWith('0') ? digits.slice(1) : digits;
-    }
+    const digits = extractDigitsCandidate(candidate);
+    if (digits) return digits;
   }
 
   const jid = typeof chat.id === 'string' ? chat.id : '';
-  if (jid.endsWith('@s.whatsapp.net') || jid.endsWith('@c.us')) {
-    const digits = jid.split('@')[0].replace(/\D/g, '');
-    if (isDisplayablePhoneDigits(digits)) return digits;
-  }
+  const jidDigits = extractDigitsCandidate(jid);
+  if (jidDigits) return jidDigits;
 
-  const nameDigits = String(chat.name || '').replace(/\D/g, '');
-  if (isDisplayablePhoneDigits(nameDigits)) return nameDigits;
+  const nameDigits = extractDigitsCandidate(chat.name);
+  if (nameDigits) return nameDigits;
 
   return '';
 }
@@ -93,7 +101,7 @@ function getSidebarChatTitle(chat: ChatItem): string {
     return formatPhoneNumber(phone);
   }
 
-  return 'Unknown Contact';
+  return 'Contact';
 }
 
 function resolveConnectedPhoneLabel(status: BridgeStatus | null, connectedPhoneNumber: string): string {

@@ -73,6 +73,11 @@ const SUPER_ADMIN_IDS = new Set(['admin', 'admincrm']);
 const bridgeCache = new Map<string, { result: BridgeResolution; expiry: number }>();
 const BRIDGE_CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
 
+function invalidateBridgeCache(userId: string) {
+  if (!userId) return;
+  bridgeCache.delete(userId);
+}
+
 /** Evict stale entries periodically (prevent memory leak on long-running server) */
 function evictStaleBridgeCache() {
   const now = Date.now();
@@ -223,6 +228,7 @@ async function saveConnectedPhone(userId: string, phoneId: string, isChange = fa
       { $set: update },
       { upsert: true }
     );
+    invalidateBridgeCache(userId);
     console.log(`[QR Bridge Proxy] Saved connected phone ${phone} for user ${userId}${isChange ? ' (PHONE CHANGED)' : ''}`);
   } catch (e) {
     console.warn('[QR Bridge Proxy] Failed to save connected phone:', (e as Error).message);
@@ -239,6 +245,7 @@ async function clearPhoneChangedFlag(userId: string): Promise<void> {
       { userId },
       { $unset: { qrPhoneChangedAt: 1 } }
     );
+    invalidateBridgeCache(userId);
   } catch (e) {
     console.warn('[QR Bridge Proxy] Failed to clear phoneChangedAt:', (e as Error).message);
   }
@@ -251,6 +258,45 @@ async function clearPhoneChangedFlag(userId: string): Promise<void> {
 function extractBridgePhone(statusData: any): string {
   const raw = statusData?.phone?.id || statusData?.me?.id || statusData?.phoneNumber || '';
   return String(raw).split(':')[0].split('@')[0].replace(/\D/g, '');
+}
+
+function getChatTimestampMs(chat: any): number {
+  if (!chat) return 0;
+  const direct = chat.lastMessageTime ? new Date(chat.lastMessageTime).getTime() : 0;
+  if (direct) return direct;
+
+  const nestedTs = chat?.lastMessage?.timestamp || chat?.conversationTimestamp || chat?.timestamp || 0;
+  if (!nestedTs) return 0;
+  return nestedTs > 1e12 ? nestedTs : nestedTs * 1000;
+}
+
+function applySessionChangeFilter(data: any, phoneChangedAt: Date | null) {
+  if (!phoneChangedAt) return { data, filtered: false, total: 0, visible: 0 };
+
+  const chats = data?.chats || (Array.isArray(data) ? data : []);
+  if (!Array.isArray(chats) || chats.length === 0) {
+    return { data, filtered: false, total: 0, visible: 0 };
+  }
+
+  const cutoffMs = new Date(phoneChangedAt).getTime();
+  const filteredChats = chats.filter((chat: any) => getChatTimestampMs(chat) >= cutoffMs);
+  const wrapped = data?.chats
+    ? {
+        ...data,
+        chats: filteredChats,
+        sessionChanged: filteredChats.length !== chats.length,
+        sessionMessage: filteredChats.length !== chats.length
+          ? 'Showing only chats from the currently scanned number.'
+          : data?.sessionMessage,
+      }
+    : filteredChats;
+
+  return {
+    data: wrapped,
+    filtered: filteredChats.length !== chats.length,
+    total: chats.length,
+    visible: filteredChats.length,
+  };
 }
 
 function decodePathFully(rawPath: string): string {
@@ -653,25 +699,23 @@ export async function POST(req: NextRequest) {
         // First-time save (no previous phone)
         saveConnectedPhone(userId, bridgePhone, false).catch(() => {});
       }
+      if (!bridgePhone && resolved.storedPhone) {
+        data.phone = {
+          ...(data.phone || {}),
+          id: resolved.storedPhone,
+          name: data?.phone?.name || resolved.storedPhone,
+        };
+      }
     }
 
     // ── SESSION ISOLATION (POST /chats) ──
-    // Uses qrPhoneChangedAt timestamp to detect recent phone changes.
-    // The old approach (comparing stored vs current phone) had a race condition:
-    // /status polling would update the stored phone BEFORE /chats ran, so they always matched.
-    // Now we check the timestamp: if phoneChangedAt is recent (<2h), the bridge may still
-    // be serving cached chats from the old session → return empty.
+    // After a new QR scan, keep only chats whose activity is newer than the phone-change timestamp.
+    // This prevents stale chats from the previously scanned number from leaking into the tenant inbox.
     if (decodedPath === '/chats') {
-      if (resolved.phoneChangedAt) {
-        const ageMs = Date.now() - new Date(resolved.phoneChangedAt).getTime();
-        const TWO_HOURS = 2 * 60 * 60 * 1000;
-        if (ageMs < TWO_HOURS) {
-          console.log(`[QR Bridge Proxy POST /chats] Phone changed ${Math.round(ageMs / 1000)}s ago. Returning empty to prevent stale chats.`);
-          // Clear the flag so the NEXT request (after a page reload) will show chats
-          clearPhoneChangedFlag(userId).catch(() => {});
-          const emptyData = data?.chats ? { ...data, chats: [], sessionChanged: true, sessionMessage: 'Phone number changed. Please reload to see your chats.' } : { chats: [], sessionChanged: true };
-          return NextResponse.json({ success: true, data: emptyData }, { status: 200 });
-        }
+      const sessionFiltered = applySessionChangeFilter(data, resolved.phoneChangedAt);
+      if (sessionFiltered.filtered) {
+        console.log(`[QR Bridge Proxy POST /chats] Session filter for ${userId}: ${sessionFiltered.total} total → ${sessionFiltered.visible} current-session chats`);
+        data = sessionFiltered.data;
       }
     }
 
@@ -1001,20 +1045,22 @@ export async function GET(req: NextRequest) {
       } else if (bridgePhone && !resolved.storedPhone) {
         saveConnectedPhone(userId, bridgePhone, false).catch(() => {});
       }
+      if (!bridgePhone && resolved.storedPhone) {
+        data.phone = {
+          ...(data.phone || {}),
+          id: resolved.storedPhone,
+          name: data?.phone?.name || resolved.storedPhone,
+        };
+      }
     }
 
     // ── SESSION ISOLATION (GET /chats) ──
-    // Uses qrPhoneChangedAt timestamp — immune to the /status race condition.
+    // Keep only chats newer than the current scan timestamp so previous-number chats stay hidden.
     if (path === '/chats') {
-      if (resolved.phoneChangedAt) {
-        const ageMs = Date.now() - new Date(resolved.phoneChangedAt).getTime();
-        const TWO_HOURS = 2 * 60 * 60 * 1000;
-        if (ageMs < TWO_HOURS) {
-          console.log(`[QR Bridge Proxy GET /chats] Phone changed ${Math.round(ageMs / 1000)}s ago. Returning empty to prevent stale chats.`);
-          clearPhoneChangedFlag(userId).catch(() => {});
-          const emptyData = data?.chats ? { ...data, chats: [], sessionChanged: true, sessionMessage: 'Phone number changed. Please reload to see your chats.' } : { chats: [], sessionChanged: true };
-          return NextResponse.json({ success: true, data: emptyData }, { status: 200 });
-        }
+      const sessionFiltered = applySessionChangeFilter(data, resolved.phoneChangedAt);
+      if (sessionFiltered.filtered) {
+        console.log(`[QR Bridge Proxy GET /chats] Session filter for ${userId}: ${sessionFiltered.total} total → ${sessionFiltered.visible} current-session chats`);
+        data = sessionFiltered.data;
       }
     }
 

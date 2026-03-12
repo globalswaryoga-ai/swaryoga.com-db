@@ -172,6 +172,42 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### QR Header / Session Isolation / Unknown Contact Fix (Session: March 12, 2026 — Phase 49) — Commit `[pending]`
+
+1. **✅ Header Now Falls Back to Saved Connected Number When Bridge Status Omits Phone Info**
+    - **Problem**: Some tenants could connect successfully but still not see the scanned WhatsApp number in the top QR header
+    - **Root Cause**:
+       - The bridge can temporarily return `/status` with `connected: true` but without `phone.id`
+       - The proxy was not reinjecting the already-saved `qrConnectedPhoneNumber` into the response
+    - **Solution**:
+       - Updated `app/api/admin/crm/whatsapp/qr-bridge/route.ts` so `/status` falls back to the saved connected phone when live bridge phone metadata is temporarily missing
+       - Also invalidates the per-user bridge cache whenever the connected phone changes so new scans are reflected immediately
+
+2. **✅ Old Chats from Previously Scanned Numbers No Longer Leak into Tenant Inboxes**
+    - **Problem**: After scanning a new QR number, tenants could still see stale chats from an older scanned account/session
+    - **Root Cause**:
+       - The proxy only cleared chats once and could reuse stale cached phone/session metadata
+    - **Solution**:
+       - Added session-change chat filtering based on `qrPhoneChangedAt`
+       - `/chats` now keeps only chats whose activity is newer than the current scan timestamp, preventing old saved chats from reappearing for the tenant session
+
+3. **✅ Number-Only Chats No Longer Render as `Unknown Contact`**
+    - **Problem**: Many chats with no CRM name were still displayed as `Unknown Contact`
+    - **Root Cause**:
+       - `app/admin/crm/qr/page.tsx` only extracted phones from a narrow set of fields and missed several JID-based chat IDs
+    - **Solution**:
+       - Broadened phone extraction to include `chat.id`, `jid`, and related fields
+       - Sidebar/header now prefer the real mobile number with country code instead of `Unknown Contact`
+       - Replaced the final fallback label with a neutral `Contact` only when no usable phone can be derived at all
+
+4. **✅ Verification**
+    - **Files Modified**:
+       - `app/admin/crm/qr/page.tsx`
+       - `app/api/admin/crm/whatsapp/qr-bridge/route.ts`
+       - `.github/copilot-instructions.md`
+    - **Build / Validation**:
+       - ✅ No TypeScript/editor errors in modified files
+
 ### QR Sidebar Saved Names / Numbers Fix (Session: March 12, 2026 — Phase 48) — Commit `[pending]`
 
 1. **✅ QR Sidebar Now Prefers Saved CRM Names and Real Numbers Over Internal IDs**
