@@ -94,19 +94,19 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
       const senderDisplayName = (settings as any)?.senderDisplayName || '';
       const permanentTenantId = (settings as any)?.permanentTenantId || '';
 
-      // ── PERMANENT TENANT ID (ALL users including Super Admin) ──
+      // ── PERMANENT TENANT ID ──
       // Each user gets a permanent 7-digit ID (e.g. 0002456).
-      // When bridge supports tenant routing: {BRIDGE_BASE_URL}/tenant/{permanentTenantId}
-      // Until then: use FALLBACK_BRIDGE_URL directly (single shared bridge instance).
-      // Bridge secret: use FALLBACK_BRIDGE_SECRET (env var) — it's what the bridge validates.
-      // Per-user qrBridgeSecret is stored for future multi-tenant bridge support.
-      //
-      // CRITICAL: hasOwnBridge=false because ALL users share the SAME bridge instance.
-      // The bridge does NOT yet support /tenant/{id} routing, so everyone hits FALLBACK_BRIDGE_URL.
-      // With hasOwnBridge=false, the chat privacy filter runs for ALL users (including Super Admin),
-      // ensuring each user only sees chats for leads assigned/created by them.
-      // When bridge gains /tenant/{id} support → change hasOwnBridge back to true.
+      // Bridge does NOT yet support /tenant/{id} routing — ALL users share FALLBACK_BRIDGE_URL.
+      // Therefore: only Super Admin + explicitly enabled team users may access the shared bridge.
+      // Tenants without qrWhatsappEnabled are BLOCKED — they'd see Super Admin's WhatsApp session.
+      // hasOwnBridge=false forces the chat privacy filter for ALL users on the shared bridge.
       if (permanentTenantId) {
+        // Non-super-admin users MUST have qrWhatsappEnabled to access the shared bridge.
+        // Without it, they'd see all of Super Admin's chats (data leak).
+        if (!superAdmin && !settings?.qrWhatsappEnabled) {
+          console.warn(`[QR Bridge Proxy] BLOCKED: User ${decoded.userId} has permanentTenantId=${permanentTenantId} but qrWhatsappEnabled=false — cannot access shared bridge`);
+          return { ok: false, reason: 'no_bridge' };
+        }
         return {
           ok: true,
           url: FALLBACK_BRIDGE_URL,
@@ -412,43 +412,56 @@ export async function POST(req: NextRequest) {
     }
 
     // ── CHAT PRIVACY FILTER (POST handler) ──
-    // SECURITY FIX: Applied to ALL users on shared bridge (Super Admin + Team users).
-    // 
-    // ISSUE FIXED: Super Admin's old test chats were visible to newly added team members.
-    // CAUSE: Previous logic exempted Super Admin from filtering (!resolved.isSuperAdmin check).
-    //        When team users accessed shared bridge, they got ALL chats including Super Admin's orphaned test chats.
-    // 
-    // SOLUTION: Filter everyone on shared bridge — only show chats for leads assigned/created by the current user.
-    // - Super Admin sees only chats for their assigned leads
-    // - Team users see only chats for their assigned leads  
-    // - Orphaned chats (no lead record) are blocked for everyone (fail-safe, prevent data leak)
-    // - Users with own bridge (!hasOwnBridge = false) are NOT filtered (they control their own bridge)
+    // Applied to ALL users on shared bridge. Each user only sees chats for leads
+    // assigned to or created by them. Uses dual phone lookup (with/without 91 prefix)
+    // to handle inconsistent lead phone formats in the database.
     if (decodedPath === '/chats' && !resolved.hasOwnBridge) {
       const chats = data?.chats || (Array.isArray(data) ? data : []);
       if (chats.length > 0) {
         try {
           const Lead = getLead();
-          const phoneNumbers = chats.map((c: any) => {
+          // Extract all phone numbers from chat IDs and build both formats
+          const rawPhones = chats.map((c: any) => {
             const idStr = typeof c.id === 'string' ? c.id : (c.id?._serialized || '');
             return idStr.split('@')[0];
-          }).filter(Boolean);
+          }).filter((p: string) => p && !p.includes('-')); // Skip group chats
+
+          // Build lookup with both 91-prefixed and raw formats
+          const allPhonesToQuery = new Set<string>();
+          for (const phone of rawPhones) {
+            allPhonesToQuery.add(phone);
+            if (phone.startsWith('91') && phone.length === 12) {
+              allPhonesToQuery.add(phone.substring(2)); // 10-digit
+            } else if (phone.length === 10) {
+              allPhonesToQuery.add('91' + phone); // 12-digit
+            }
+          }
 
           const leads = await Lead.find(
-            { phoneNumber: { $in: phoneNumbers } },
+            { phoneNumber: { $in: Array.from(allPhonesToQuery) } },
             { phoneNumber: 1, assignedToUserId: 1, createdByUserId: 1 }
           ).lean();
 
+          // Map both phone formats to lead info
           const leadMap = new Map<string, { assignedToUserId?: string; createdByUserId?: string }>();
           for (const l of leads) {
-            leadMap.set((l as any).phoneNumber, {
+            const lp = (l as any).phoneNumber;
+            leadMap.set(lp, {
               assignedToUserId: (l as any).assignedToUserId,
               createdByUserId: (l as any).createdByUserId,
             });
+            // Also map the alternate format
+            if (lp.startsWith('91') && lp.length === 12) {
+              leadMap.set(lp.substring(2), { assignedToUserId: (l as any).assignedToUserId, createdByUserId: (l as any).createdByUserId });
+            } else if (lp.length === 10) {
+              leadMap.set('91' + lp, { assignedToUserId: (l as any).assignedToUserId, createdByUserId: (l as any).createdByUserId });
+            }
           }
 
           const filteredChats = chats.filter((c: any) => {
             const idStr = typeof c.id === 'string' ? c.id : (c.id?._serialized || '');
             const phone = idStr.split('@')[0];
+            if (phone.includes('-')) return false; // Skip group chats for non-own bridge
             const leadInfo = leadMap.get(phone);
             if (!leadInfo) return false;
             return leadInfo.assignedToUserId === userId || leadInfo.createdByUserId === userId;
@@ -462,6 +475,39 @@ export async function POST(req: NextRequest) {
           const emptyData = data?.chats ? { ...data, chats: [] } : [];
           return NextResponse.json({ success: true, data: emptyData }, { status: res.status });
         }
+      }
+    }
+
+    // ── MESSAGES PRIVACY FILTER (POST /messages/{chatJid}) ──
+    if (decodedPath.startsWith('/messages/') && !resolved.hasOwnBridge) {
+      try {
+        const chatJid = decodeURIComponent(decodedPath.replace('/messages/', ''));
+        const chatPhone = chatJid.split('@')[0];
+        if (chatPhone && !chatPhone.includes('-')) {
+          const Lead = getLead();
+          const phonesToCheck = [chatPhone];
+          if (chatPhone.startsWith('91') && chatPhone.length === 12) {
+            phonesToCheck.push(chatPhone.substring(2));
+          } else if (chatPhone.length === 10) {
+            phonesToCheck.push('91' + chatPhone);
+          }
+          const lead = await Lead.findOne(
+            { phoneNumber: { $in: phonesToCheck } },
+            { assignedToUserId: 1, createdByUserId: 1 }
+          ).lean();
+          if (!lead) {
+            console.log(`[QR Bridge Proxy POST] Messages BLOCKED for ${userId}: no lead for ${chatPhone}`);
+            return NextResponse.json({ success: true, data: { messages: [], blocked: true } }, { status: 200 });
+          }
+          const ld = lead as any;
+          if (ld.assignedToUserId !== userId && ld.createdByUserId !== userId) {
+            console.log(`[QR Bridge Proxy POST] Messages BLOCKED for ${userId}: not assigned`);
+            return NextResponse.json({ success: true, data: { messages: [], blocked: true } }, { status: 200 });
+          }
+        }
+      } catch (msgErr) {
+        console.error('[QR Bridge Proxy POST] Messages filter error:', msgErr);
+        return NextResponse.json({ success: true, data: { messages: [] } }, { status: 200 });
       }
     }
 
@@ -643,51 +689,98 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // ── CHAT PRIVACY FILTER ──
-    // SECURITY FIX: Applied to ALL users on shared bridge (Super Admin + Team users).
-    // Prevents Super Admin's old test chats from leaking to team members.
-    // Only show chats for leads assigned/created by the current user.
+    // ── CHAT PRIVACY FILTER (GET /chats) ──
+    // Applied to ALL users on shared bridge. Uses dual phone lookup.
     if (path === '/chats' && !resolved.hasOwnBridge) {
       const chats = data?.chats || (Array.isArray(data) ? data : []);
       if (chats.length > 0) {
         try {
           const Lead = getLead();
-          const phoneNumbers = chats.map((c: any) => {
+          const rawPhones = chats.map((c: any) => {
             const idStr = typeof c.id === 'string' ? c.id : (c.id?._serialized || '');
             return idStr.split('@')[0];
-          }).filter(Boolean);
+          }).filter((p: string) => p && !p.includes('-'));
+
+          const allPhonesToQuery = new Set<string>();
+          for (const phone of rawPhones) {
+            allPhonesToQuery.add(phone);
+            if (phone.startsWith('91') && phone.length === 12) {
+              allPhonesToQuery.add(phone.substring(2));
+            } else if (phone.length === 10) {
+              allPhonesToQuery.add('91' + phone);
+            }
+          }
 
           const leads = await Lead.find(
-            { phoneNumber: { $in: phoneNumbers } },
+            { phoneNumber: { $in: Array.from(allPhonesToQuery) } },
             { phoneNumber: 1, assignedToUserId: 1, createdByUserId: 1 }
           ).lean();
 
           const leadMap = new Map<string, { assignedToUserId?: string; createdByUserId?: string }>();
           for (const l of leads) {
-            leadMap.set((l as any).phoneNumber, {
-              assignedToUserId: (l as any).assignedToUserId,
-              createdByUserId: (l as any).createdByUserId,
-            });
+            const lp = (l as any).phoneNumber;
+            leadMap.set(lp, { assignedToUserId: (l as any).assignedToUserId, createdByUserId: (l as any).createdByUserId });
+            if (lp.startsWith('91') && lp.length === 12) {
+              leadMap.set(lp.substring(2), { assignedToUserId: (l as any).assignedToUserId, createdByUserId: (l as any).createdByUserId });
+            } else if (lp.length === 10) {
+              leadMap.set('91' + lp, { assignedToUserId: (l as any).assignedToUserId, createdByUserId: (l as any).createdByUserId });
+            }
           }
 
           const filteredChats = chats.filter((c: any) => {
             const idStr = typeof c.id === 'string' ? c.id : (c.id?._serialized || '');
             const phone = idStr.split('@')[0];
+            if (phone.includes('-')) return false;
             const leadInfo = leadMap.get(phone);
             if (!leadInfo) return false;
             return leadInfo.assignedToUserId === userId || leadInfo.createdByUserId === userId;
           });
 
-          console.log(`[QR Bridge Proxy] Chat filter for ${userId}: ${chats.length} total → ${filteredChats.length} visible`);
-
+          console.log(`[QR Bridge Proxy GET] Chat filter for ${userId}: ${chats.length} total → ${filteredChats.length} visible`);
           const filteredData = data?.chats ? { ...data, chats: filteredChats } : filteredChats;
           return NextResponse.json({ success: true, data: filteredData }, { status: res.status });
         } catch (filterErr) {
-          console.error('[QR Bridge Proxy] Chat filter error:', filterErr);
-          // On filter error, return empty for safety (don't leak super admin chats)
+          console.error('[QR Bridge Proxy GET] Chat filter error:', filterErr);
           const emptyData = data?.chats ? { ...data, chats: [] } : [];
           return NextResponse.json({ success: true, data: emptyData }, { status: res.status });
         }
+      }
+    }
+
+    // ── MESSAGES PRIVACY FILTER (GET /messages/{chatJid}) ──
+    // Prevent users from fetching messages for chats not assigned to them.
+    // Without this, a user could bypass /chats filter by directly requesting /messages/{anyJid}.
+    if (path.startsWith('/messages/') && !resolved.hasOwnBridge) {
+      try {
+        const chatJid = decodeURIComponent(path.replace('/messages/', ''));
+        const chatPhone = chatJid.split('@')[0];
+        if (chatPhone && !chatPhone.includes('-')) { // Skip group chats (contain '-')
+          const Lead = getLead();
+          // Try both raw phone and normalized (leads may or may not have 91 prefix)
+          const phonesToCheck = [chatPhone];
+          if (chatPhone.startsWith('91') && chatPhone.length === 12) {
+            phonesToCheck.push(chatPhone.substring(2)); // Without 91 prefix
+          } else if (chatPhone.length === 10) {
+            phonesToCheck.push('91' + chatPhone); // With 91 prefix
+          }
+          const lead = await Lead.findOne(
+            { phoneNumber: { $in: phonesToCheck } },
+            { assignedToUserId: 1, createdByUserId: 1 }
+          ).lean();
+          if (!lead) {
+            console.log(`[QR Bridge Proxy] Messages BLOCKED for ${userId}: no lead for ${chatPhone}`);
+            return NextResponse.json({ success: true, data: { messages: [], blocked: true } }, { status: 200 });
+          }
+          const leadData = lead as any;
+          if (leadData.assignedToUserId !== userId && leadData.createdByUserId !== userId) {
+            console.log(`[QR Bridge Proxy] Messages BLOCKED for ${userId}: lead ${chatPhone} assigned to ${leadData.assignedToUserId}, created by ${leadData.createdByUserId}`);
+            return NextResponse.json({ success: true, data: { messages: [], blocked: true } }, { status: 200 });
+          }
+        }
+      } catch (msgFilterErr) {
+        console.error('[QR Bridge Proxy] Messages filter error:', msgFilterErr);
+        // Fail-safe: block messages on filter error
+        return NextResponse.json({ success: true, data: { messages: [] } }, { status: 200 });
       }
     }
 
