@@ -172,6 +172,23 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### QR Page Production Crash Fix (Session: March 12, 2026 — Phase 38) — Commit `656a9d52`
+
+1. **✅ Fixed `token is not defined` Crash on QR WhatsApp Settings Tab**
+    - **Problem**: `crm.swaryoga.com/admin/crm/qr` crashed in production with `ReferenceError: token is not defined`
+    - **Root Cause**: `app/admin/crm/qr/components/SettingsTab.tsx` used `token` inside direct `fetch()` calls but never received it as a prop or defined it locally
+    - **Solution**:
+       - Added `token: string | null` to `SettingsTabProps`
+       - Passed `token={token}` from `app/admin/crm/qr/page.tsx` into `SettingsTab`
+       - Kept existing direct `fetch()` behavior so non-critical settings requests still avoid `crmFetch()` auto-logout behavior
+    - **Files Modified**:
+       - `app/admin/crm/qr/components/SettingsTab.tsx`
+       - `app/admin/crm/qr/page.tsx`
+    - **Verification**:
+       - ✅ No TypeScript/editor errors in modified files
+       - ✅ Full production build succeeds
+       - ✅ Fix pushed to `main` and deployment triggered
+
 ### CRM Tenant QR Code Access Fix (Session: March 12, 2026 — Phase 37) — Commit `d1135daa`
 
 1. **✅ CRM Tenants Can Now Manage Their Own QR WhatsApp Connection**
