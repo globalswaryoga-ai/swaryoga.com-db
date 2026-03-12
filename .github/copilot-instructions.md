@@ -172,6 +172,103 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### CRM Signup SaaS Auto-Provisioning + QR-First Entry (Session: March 12, 2026 — Phase 57) — Commit `2714827a`
+
+1. **✅ New CRM Signups Now Provision Their SaaS + QR Records Immediately**
+    - **Problem**: `app/api/crm-site/signup/route.ts` created `admin_users` and `tenants`, but new tenants were still missing the records required by QR-first onboarding and setup flows
+    - **Root Cause**:
+       - QR auto-provision expects `crm_user_settings.permanentTenantId`
+       - setup-status / compartment onboarding expects a `user_compartments` record
+       - tenant setup APIs rely on `crm_tenants` / `tenant_setup`, but signup did not seed them
+    - **Solution**:
+       - Updated `app/api/crm-site/signup/route.ts` to auto-create:
+          - `crm_user_settings`
+          - 7-digit `permanentTenantId`
+          - `qrBridgeSecret`
+          - `user_compartments`
+          - `crm_tenants`
+          - seeded `tenant_setup`
+       - Signup also now pre-fills the default tenant setup with business/domain info from signup
+
+2. **✅ Free-Plan CRM Signup Is Now QR-First**
+    - **Solution**:
+       - Updated `app/crm-site/signup/page.tsx` so successful free-plan signup redirects directly to `/admin/crm/qr`
+       - This aligns signup with the earlier QR-first login flow so new CRM users land in WhatsApp onboarding first
+
+3. **✅ Added Verification + Repair Scripts for Signup Provisioning Bugs**
+    - Added `scripts/verify-crm-signup-provisioning.js` to confirm whether a CRM user's required SaaS/QR signup records exist
+    - Added `scripts/repair-crm-signup-provisioning.js` with dry-run support to repair legacy users missing:
+       - `tenantSlug`
+       - `tenants`
+       - `crm_tenants`
+       - `tenant_setup`
+    - Dry-run against `test1@swaryoga.com` confirmed the repair script detects legacy provisioning gaps without mutating data
+
+4. **✅ Repaired Legacy CRM Tenant Provisioning Gaps**
+    - Added `scripts/audit-crm-signup-provisioning.js` to audit all non-Super-Admin CRM tenant users for missing signup-created records
+    - Live repair was applied for the 7 legacy CRM tenant users that still had missing provisioning records
+    - Post-repair audit result: `users with gaps: 0`
+    - Spot verification passed for repaired users including:
+       - `test2@swaryoga.com`
+       - `demo@swaryoga.com`
+
+5. **✅ Verification**
+    - **Files Modified**:
+       - `app/api/crm-site/signup/route.ts`
+       - `app/crm-site/signup/page.tsx`
+       - `scripts/audit-crm-signup-provisioning.js`
+       - `scripts/verify-crm-signup-provisioning.js`
+       - `scripts/repair-crm-signup-provisioning.js`
+       - `docs/QR_WHATSAPP_MASTER_TODO.md`
+       - `.github/copilot-instructions.md`
+    - **Build / Validation**:
+       - ✅ No TypeScript/editor errors in modified files
+       - ✅ Full production build succeeds locally
+       - ✅ Legacy tenant provisioning audit now reports zero gaps
+
+### CRM Anti-Bug Center v1 (Session: March 12, 2026 — Phase 56) — Commit `2714827a`
+
+1. **✅ Added a Super Admin Anti-Bug Diagnostics API + Dashboard**
+    - **Problem**: The CRM had several safety tools (health checks, bridge diagnostics, error logs), but no single place to see whether QR WhatsApp and core CRM systems were healthy after a deploy
+    - **Solution**:
+       - Added `app/api/admin/crm/anti-bug/route.ts`
+       - Added `app/admin/crm/anti-bug/page.tsx`
+       - The new diagnostics center aggregates:
+          - MongoDB health
+          - WhatsApp bridge health + critical endpoint checks
+          - config presence checks
+          - recent QR/bridge error activity
+          - QR isolation/session stats from `crm_user_settings`, `qr_whatsapp_chats`, and `qr_whatsapp_messages`
+          - action-oriented recommendations for Super Admin
+
+2. **✅ Added Navigation and Smoke Test Support**
+    - Added `Anti-Bug` to the Super Admin sidebar in `components/AdminSidebar.tsx`
+    - Added `scripts/anti-bug-smoke.js` to quickly validate:
+       - `/api/health?deep=true`
+       - admin login
+       - `/api/admin/crm/anti-bug`
+
+3. **✅ Anti-Bug Now Surfaces CRM Signup Provisioning Gaps**
+    - Extended `app/api/admin/crm/anti-bug/route.ts` and `app/admin/crm/anti-bug/page.tsx` to detect missing tenant provisioning records for CRM users:
+       - `crm_user_settings`
+       - `user_compartments`
+       - `crm_tenants`
+       - `tenant_setup`
+       - missing `permanentTenantId` / `qrBridgeSecret`
+    - Added `scripts/verify-crm-signup-provisioning.js` for per-user post-signup verification
+
+4. **✅ Verification**
+    - **Files Modified**:
+       - `app/api/admin/crm/anti-bug/route.ts`
+       - `app/admin/crm/anti-bug/page.tsx`
+       - `components/AdminSidebar.tsx`
+       - `scripts/anti-bug-smoke.js`
+       - `scripts/verify-crm-signup-provisioning.js`
+       - `.github/copilot-instructions.md`
+    - **Build / Validation**:
+       - ✅ No TypeScript/editor errors in modified files
+       - ✅ Full production build succeeds locally
+
 ### QR Inbox Production Crash Follow-up Fix (Session: March 12, 2026 — Phase 55) — Commit `[pending]`
 
 1. **✅ Fixed Second `Cannot access 'rn' before initialization` Path in QR Page**

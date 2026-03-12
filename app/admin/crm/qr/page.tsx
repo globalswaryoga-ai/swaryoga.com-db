@@ -1824,6 +1824,11 @@ export default function QRWhatsAppPage() {
   const connState = status?.status || 'disconnected';
   const isConnected = connState === 'connected';
   const headerConnectedPhone = resolveConnectedPhoneLabel(status, connectedPhoneNumber);
+  const headerConnectionLabel = isConnected
+    ? (headerConnectedPhone ? `Connected · ${headerConnectedPhone}` : 'Connected')
+    : connState === 'connecting'
+    ? 'Connecting...'
+    : 'Offline';
 
   // ── Bridge setup onboarding / settings modal ──
   if (bridgeConfigured === null) {
@@ -1853,7 +1858,7 @@ export default function QRWhatsAppPage() {
       {/* ═══ Page Header ═══ */}
       <div className="bg-white border-b shadow-sm">
         <div className="px-4 py-3 flex items-center justify-between">
-          {/* Left: Title + Status Badge + Sender + Compartment */}
+          {/* Left: Title + Status Badge + Compartment */}
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-green-600 flex items-center justify-center">
@@ -1861,22 +1866,15 @@ export default function QRWhatsAppPage() {
               </div>
               <h1 className="text-lg font-bold text-gray-900">QR WhatsApp</h1>
             </div>
-            {headerConnectedPhone && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200" title={`Joined by scanned QR code: ${headerConnectedPhone}`}>
-                <QrCode className="w-3.5 h-3.5" />
-                <span className="text-emerald-800/80">Joined by scanned QR code</span>
-                <span className="font-bold text-emerald-800">{headerConnectedPhone}</span>
-              </div>
-            )}
             <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${
               isConnected ? 'bg-green-100 text-green-700 ring-1 ring-green-300 shadow-sm' :
               connState === 'connecting' ? 'bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200' :
               'bg-red-50 text-red-700 ring-1 ring-red-200'
-            }`}>
+            }`} title={isConnected && headerConnectedPhone ? `Connected: ${headerConnectedPhone}` : undefined}>
               {isConnected ? <Wifi className="w-3.5 h-3.5 stroke-[3]" /> :
                connState === 'connecting' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> :
                <WifiOff className="w-3.5 h-3.5" />}
-              {isConnected ? 'Connected' : connState === 'connecting' ? 'Connecting...' : 'Offline'}
+              <span>{headerConnectionLabel}</span>
             </div>
             {/* User Compartment Indicator */}
             <div className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-500 ring-1 ring-gray-200" title={`Logged in as ${currentUserId}`}>

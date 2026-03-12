@@ -160,8 +160,8 @@ export default function CrmSignupPage() {
         return;
       }
 
-      // Free plan - go directly to CRM dashboard
-      setTimeout(() => router.push('/admin/crm'), 1500);
+      // Free plan - go directly to QR-first CRM experience
+      setTimeout(() => router.push('/admin/crm/qr'), 1500);
     } catch (err: any) {
       setStatus('error');
       setApiError(err.message || 'Something went wrong.');

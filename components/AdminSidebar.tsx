@@ -543,6 +543,12 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       color: 'text-gray-400',
     },
     {
+      icon: Activity,
+      label: 'Anti-Bug',
+      href: '/admin/crm/anti-bug',
+      color: 'text-gray-400',
+    },
+    {
       icon: GraduationCap,
       label: 'E-Learning',
       href: '/admin/crm/e-learning',
