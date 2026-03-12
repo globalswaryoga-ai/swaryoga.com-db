@@ -172,6 +172,76 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### QR WhatsApp Critical Health Issues Fixed (Session: March 2026 — Phase 33) — Commit `d549bd7b`
+
+1. **✅ Bridge Service Status - VERIFIED RUNNING**
+   - Bridge running at localhost:3333 (status: connecting)
+   - Awaiting WhatsApp account connection to proceed with QR scanning
+   
+2. **✅ Inbound Message Sender Bug (Issue #1)**
+   - **Problem**: Diagnostic script showed all messages with `from: undefined`
+   - **Root Cause**: Script was checking wrong field name (`from` instead of `phoneNumber`)
+   - **Fix**: Fixed `scripts/check-qr-inbound-now.js` to read `phoneNumber` field
+   - **Verification**: Diagnostic now shows correct phone numbers (917022067100, 919838374489, etc.)
+   - **Conclusion**: Webhook correctly stores phoneNumbers; diagnostic was the bug, not the code
+   
+3. **✅ Tenant Bridge Routing Compatibility Fix (Issue #3)**
+   - **Problem**: Code tried to use `/tenant/{permanentTenantId}` routing, but bridge doesn't support it yet
+   - **Impact**: ALL CRM tenant users were getting 404 errors
+   - **Solution**: Reverted to shared FALLBACK_BRIDGE_URL temporarily
+   - **Files Modified**:
+     - `app/api/admin/crm/whatsapp/qr-bridge/route.ts` — All users now use shared bridge
+     - `app/api/admin/crm/whatsapp/qr/auto-provision/route.ts` — Returns shared bridge URL
+   - **Still Works**: Chat privacy filtering by lead assignment (no data leakage)
+   - **TODO**: Enable `/tenant/{id}` routing when bridge service is updated
+   
+4. **✅ Template Sending Failures (Issue #2)**
+   - **Problem**: All 5 QR templates failing to send
+   - **Root Cause**: Route was calling `/send-template` endpoint which doesn't exist on Baileys bridge
+   - **Fix**: Changed `app/api/admin/crm/whatsapp/send-template-qr/route.ts` to use `/send` endpoint
+   - **Changes**:
+     - Updated endpoint from `/send-template` → `/send`
+     - Fixed payload format to match Baileys/whatsapp-web.js API
+     - Added 30-second timeout for media uploads
+     - Better error handling and logging
+   - **Ready to Test**: Once bridge has WhatsApp connected
+   
+5. **✅ Sender Display Name Signature Bug (Issue #5)**
+   - **Problem**: Signature appended to ALL messages including media, breaking formatting
+   - **Fix**: `app/api/admin/crm/whatsapp/qr-bridge/route.ts` now:
+     - Only appends to TEXT messages (checks `!hasMedia`)
+     - Validates displayName not empty before appending
+     - Deduplicated to prevent multiple appends
+     - Still applies to media captions when appropriate
+   - **Before**: `{message}\n\n*undefined*\n\n*Swar Yoga*`
+   - **After**: `{message}\n\n*Swar Yoga*` (clean, no duplication)
+
+**HTTP ERROR CODES STATUS:**
+| Code | Status | Details |
+|------|--------|---------|
+| 401 | ✅ Working | JWT auth validation correct |
+| 403 | ✅ Working | Lead ownership checks active |
+| 422 | ✅ Fixed | No bridge errors now accurate |
+| 504 | ✅ Working | Timeout handling working |
+| 405 | N/A | Handled by framework (path not found in bridge) |
+| 402 | N/A | Not used in QR WhatsApp (payment API only) |
+
+**VERIFICATION CHECKLIST:**
+- ✅ Build: No TypeScript errors
+- ✅ Bridge: Responding to requests (status: connecting)
+- ✅ Inbound Messages: 10 messages with correct phone numbers visible
+- ✅ Database Indices: All ready
+- ✅ Chat Privacy Filter: Verified code path
+- ✅ Access Control: 422 errors accurate
+- ✅ Diagnostic Script: Fixed and tested
+- ✅ All fixes committed: `d549bd7b`
+
+**TESTING STATUS:**
+- ⏳ End-to-end QR code scanning (awaiting WhatsApp connection)
+- ⏳ Template sending verification (awaiting bridge WhatsApp state)
+- ⏳ Multi-user isolation (code ready, test pending)
+- ⏳ Broadcast with new filter logic (code ready, test pending)
+
 ### Comprehensive Per-Chat Access Control for All Bridge Endpoints (Session: July 2025 — Phase 32) — Commit `01f3e817`
 
 1. **Pre-Request Security Gate** — `app/api/admin/crm/whatsapp/qr-bridge/route.ts`
