@@ -172,7 +172,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
-### QR Tenant Per-Chat 403 Fix (Session: March 12, 2026 — Phase 40) — Commit `[pending]`
+### QR Tenant Per-Chat 403 Fix (Session: March 12, 2026 — Phase 40) — Commit `ad82ebb4`
 
 1. **✅ Removed Incorrect Shared-Bridge Lead Filtering for Tenant-Isolated QR Sessions**
     - **Problem**: QR page opened and scanned successfully, but per-chat bridge requests like `/presence/...` still failed with 403 on production
