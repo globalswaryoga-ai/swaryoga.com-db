@@ -648,10 +648,22 @@ export default function QRWhatsAppPage() {
         const phoneMap = new Map<string, ChatItem>();
         const matchedCrmPhones = new Set<string>();
         const deduped: ChatItem[] = [];
-        for (const c of data.chats as ChatItem[]) {
-          // Baileys may return lastMessage as an object (message proto) — coerce to string
-          if (c.lastMessage && typeof c.lastMessage !== 'string') {
-            c.lastMessage = (c.lastMessage as any)?.conversation || (c.lastMessage as any)?.extendedTextMessage?.text || '';
+        for (const c of data.chats as any[]) {
+          // Bridge returns lastMessage as { body, timestamp, fromMe } — map to ChatItem format
+          if (c.lastMessage && typeof c.lastMessage === 'object') {
+            const lm = c.lastMessage;
+            // Extract lastMessageTime from the nested object's timestamp or fallback to conversationTimestamp
+            const ts = lm.timestamp || c.conversationTimestamp;
+            c.lastMessageTime = ts ? new Date((ts > 1e12 ? ts : ts * 1000)).toISOString() : null;
+            // Extract body text
+            c.lastMessage = lm.body || lm.conversation || lm.extendedTextMessage?.text || '';
+          } else if (c.lastMessage && typeof c.lastMessage !== 'string') {
+            c.lastMessage = '';
+          }
+          // Set lastMessageTime from conversationTimestamp if not already set
+          if (!c.lastMessageTime && c.conversationTimestamp) {
+            const ts = c.conversationTimestamp;
+            c.lastMessageTime = new Date((ts > 1e12 ? ts : ts * 1000)).toISOString();
           }
           if (c.isGroup) {
             deduped.push(c);
@@ -794,7 +806,26 @@ export default function QRWhatsAppPage() {
     try {
       const data = await bridgeCall(`/messages/${jid}`);
       if (data?.messages) {
-        setMessages(data.messages);
+        // Map bridge response fields to frontend MessageItem format
+        const mapped = data.messages.map((m: any) => ({
+          id: m.id || m.key?.id || '',
+          from: m.from || m.author || m.key?.participant || m.key?.remoteJid || '',
+          fromMe: m.fromMe ?? m.key?.fromMe ?? false,
+          text: m.text || m.body || '',
+          type: m.type || 'text',
+          timestamp: m.timestamp || 0,
+          status: m.status || 0,
+          participant: m.participant || m.key?.participant || '',
+          pushName: m.pushName || '',
+          hasMedia: m.hasMedia || false,
+          mediaUrl: m.mediaUrl || null,
+          mediaMimetype: m.mediaMimetype || null,
+          mediaFileName: m.mediaFileName || null,
+          quoted: m.quoted || null,
+          reactions: m.reactions || {},
+          quotedId: m.quotedId || null,
+        }));
+        setMessages(mapped);
         setTimeout(() => {
           messengerRef.current?.scrollTo({ top: messengerRef.current.scrollHeight, behavior: 'smooth' });
         }, 100);
