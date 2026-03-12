@@ -172,6 +172,22 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### QR WhatsApp Acceptance Playbook Documentation (Session: March 12, 2026 — Phase 59) — Commit `[pending]`
+
+1. **✅ Added a Reusable Per-User QR Production Test Script**
+   - **Problem**: The QR master todo clearly captured what remained, but the final manual verification work was still too vague to execute consistently across Super Admin, CRM Admin, Super Admin Team, and CRM Admin Team users
+   - **Solution**:
+      - Added `docs/QR_WHATSAPP_ACCEPTANCE_PLAYBOOK.md`
+      - Includes:
+         - per-user scan/header/privacy/freshness test steps
+         - fresh-new-tenant signup verification flow
+         - privacy regression checklist
+         - failure triage notes
+         - copyable result template for each tested user
+
+2. **✅ Linked the Master QR Todo to the New Playbook**
+   - Updated `docs/QR_WHATSAPP_MASTER_TODO.md` to point directly to the acceptance playbook so future sessions can go from status → execution without rebuilding the checklist manually
+
 ### Anti-Bug Smoke Env Compatibility Fix (Session: March 12, 2026 — Phase 58) — Commit `5968b4a3`
 
 1. **✅ Anti-Bug Smoke Script Now Auto-Loads `.env.local` and Accepts `ADMIN_USERID`**

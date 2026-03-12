@@ -4,6 +4,8 @@
 **Owner:** Super Admin / CRM Engineering  
 **Purpose:** Single reusable checklist for QR WhatsApp stability, privacy, header visibility, and session correctness.
 
+**Companion playbook:** See `docs/QR_WHATSAPP_ACCEPTANCE_PLAYBOOK.md` for the step-by-step per-user production test script and regression pass template.
+
 ---
 
 ## Final Target
@@ -18,6 +20,27 @@ Every CRM user should be able to:
 
 ---
 
+## Short Save/Show List
+
+### Final target
+
+- every user can scan QR
+- every user sees scanned number in header as connected
+- no user sees another user's chat history
+- chats/messages stay up to date
+- no stale old chats from previous scans
+
+### Current status
+
+- core QR isolation and stale-session protections are implemented
+- header sender recovery and `Connected · +91...` badge logic are implemented
+- new CRM signups now auto-provision required SaaS + QR records
+- legacy CRM tenant provisioning gaps were repaired and re-audited to zero
+- Anti-Bug API/page are live on production and smoke checks are passing
+- the remaining work is mostly user-by-user acceptance verification, not core plumbing
+
+---
+
 ## Current Status Summary
 
 | Area | Status | Notes |
@@ -28,7 +51,7 @@ Every CRM user should be able to:
 | Up-to-date session-scoped chat list | 🟡 In progress | Session-scoped storage preferred now, must verify across users |
 | New-tenant SaaS signup provisioning | ✅ Completed | Signup now provisions QR/SaaS records for new CRM tenants automatically |
 | Legacy tenant provisioning cleanup | ✅ Completed | Existing CRM tenant users were audited and repaired so provisioning gaps are now zero |
-| Anti-Bug monitoring | ✅ Completed locally | Anti-Bug dashboard + API added locally; deploy/verify still needed |
+| Anti-Bug monitoring | ✅ Completed and production-verified | Production API smoke passes, page route responds, provisioning audit is clean |
 
 ---
 
@@ -73,6 +96,8 @@ These items are already implemented in code or completed locally in this repo.
 - [x] Added `app/admin/crm/anti-bug/page.tsx`
 - [x] Added sidebar entry for `Anti-Bug`
 - [x] Added `scripts/anti-bug-smoke.js`
+- [x] Verified production Anti-Bug smoke passes against `https://crm.swaryoga.com`
+- [x] Verified production Anti-Bug page route responds successfully
 - [x] Anti-Bug now checks CRM signup provisioning gaps across:
 	- `admin_users`
 	- `crm_user_settings`
@@ -98,6 +123,7 @@ These items are already implemented in code or completed locally in this repo.
 - [x] Repaired legacy provisioning gaps for existing CRM users using `scripts/repair-crm-signup-provisioning.js`
 - [x] Re-ran audit and confirmed `users with gaps: 0`
 - [x] Verified repaired users including `test2@swaryoga.com` and `demo@swaryoga.com`
+- [x] Re-verified latest provisioning audit remains clean: `total admins: 7`, `users with gaps: 0`
 
 ---
 
@@ -134,8 +160,8 @@ These are the remaining tasks to fully reach the final target.
 
 ### Priority 4 — Monitoring / Regression Safety
 
-- [ ] Deploy Anti-Bug Center to production
-- [ ] Run Anti-Bug smoke test after deploy
+- [x] Deploy Anti-Bug Center to production
+- [x] Run Anti-Bug smoke test after deploy
 - [ ] Run signup provisioning verification for a fresh new tenant after deploy
 - [x] Run legacy provisioning repair for any old CRM user surfaced by Anti-Bug or verification scripts
 - [ ] Add post-deploy QR regression checklist for:
@@ -159,7 +185,7 @@ The QR WhatsApp system is only considered **fully done** when all of the followi
 - [ ] Chat count matches actual session
 - [ ] New inbound/outbound messages appear correctly
 - [ ] No QR page runtime crash occurs
-- [ ] Anti-Bug dashboard shows healthy/warning state correctly
+- [x] Anti-Bug dashboard shows healthy/warning state correctly
 
 ---
 
@@ -178,7 +204,7 @@ The QR WhatsApp system is only considered **fully done** when all of the followi
 
 ### Done
 
-- Anti-Bug center built locally
+- Anti-Bug center deployed and production-smoke verified
 - privacy protections improved
 - session-scoped QR storage preferred
 - scanned-number recovery logic added
@@ -189,10 +215,13 @@ The QR WhatsApp system is only considered **fully done** when all of the followi
 
 ### Not fully done yet
 
-- full production deployment verification of Anti-Bug center
 - per-user acceptance testing for all CRM users
 - final proof that no cross-user history appears in every edge case
 - final proof that header sender appears for every user consistently
+- fresh-new-tenant post-deploy signup verification in live production
+- formal post-deploy QR regression checklist write-up
+
+The formal regression and acceptance test script now exists in `docs/QR_WHATSAPP_ACCEPTANCE_PLAYBOOK.md` and still needs to be executed user-by-user.
 
 ---
 
@@ -204,6 +233,10 @@ The QR WhatsApp system is only considered **fully done** when all of the followi
 	1. live bridge status
 	2. saved `qrConnectedPhoneNumber`
 	3. settings recovery path
+- Automated status as of March 12, 2026:
+	- production Anti-Bug smoke: passing
+	- production Anti-Bug page route: responding
+	- CRM signup provisioning audit: `0` users with gaps
 - Any QR change should be re-tested for:
 	- privacy
 	- sender header

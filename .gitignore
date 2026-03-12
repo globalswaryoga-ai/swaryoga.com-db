@@ -9,6 +9,7 @@ out/
 # Documentation files
 *.md
 !README.md
+!docs/QR_WHATSAPP_ACCEPTANCE_PLAYBOOK.md
 
 # Environment files
 .env
