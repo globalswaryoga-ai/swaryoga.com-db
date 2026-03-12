@@ -448,7 +448,21 @@ export default function QRWhatsAppPage() {
 
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || `Bridge error: ${response.status}`);
+        const serverMessage = errData.error || errData.message || '';
+
+        if (response.status === 401) {
+          throw new Error(serverMessage || 'Unauthorized — please log in again.');
+        }
+
+        if (response.status === 403) {
+          throw new Error(serverMessage || 'Forbidden — you do not have access to this WhatsApp action.');
+        }
+
+        if (response.status === 404) {
+          throw new Error(serverMessage || `Bridge endpoint not found: ${path}`);
+        }
+
+        throw new Error(serverMessage || `Bridge error: ${response.status}`);
       }
 
       const json = await response.json().catch(() => ({}));

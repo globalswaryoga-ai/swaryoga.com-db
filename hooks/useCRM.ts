@@ -17,6 +17,25 @@ interface FetchOptions {
   silent?: boolean; // NEW: option to bypass loading state
 }
 
+async function getHttpErrorMessage(response: Response, fallbackPrefix = 'API error') {
+  const errorData = await response.json().catch(() => ({} as any));
+  const serverMessage = errorData?.error || errorData?.message || '';
+
+  if (response.status === 401) {
+    return serverMessage || 'Unauthorized — please log in again.';
+  }
+
+  if (response.status === 403) {
+    return serverMessage || 'Forbidden — you do not have permission to perform this action.';
+  }
+
+  if (response.status === 404) {
+    return serverMessage || 'Not found — the requested resource does not exist.';
+  }
+
+  return serverMessage || `${fallbackPrefix}: ${response.statusText || response.status}`;
+}
+
 /**
  * Custom hook for CRM API calls
  * Handles authentication, error handling, and loading states
@@ -136,10 +155,9 @@ export function useCRM(options: UseCRMOptions = {}) {
           if (response.status === 401) {
             // Token missing/expired/invalid. Clear local storage and redirect.
             handleUnauthorized();
-            throw new CRMUnauthorizedError('Session expired. Please login again.');
+            throw new CRMUnauthorizedError(await getHttpErrorMessage(response, 'Session expired'));
           }
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || `API error: ${response.statusText}`);
+          throw new Error(await getHttpErrorMessage(response));
         }
 
         const result = await response.json();
@@ -200,7 +218,7 @@ export async function crmGet(endpoint: string, token: string | null, params?: Re
     headers: { 'Authorization': `Bearer ${token || ''}` },
   });
 
-  if (!response.ok) throw new Error(`API error: ${response.statusText}`);
+  if (!response.ok) throw new Error(await getHttpErrorMessage(response));
   const result = await response.json();
   return result.data || result;
 }
@@ -218,7 +236,7 @@ export async function crmPost(endpoint: string, token: string | null, body: any)
     body: JSON.stringify(body),
   });
 
-  if (!response.ok) throw new Error(`API error: ${response.statusText}`);
+  if (!response.ok) throw new Error(await getHttpErrorMessage(response));
   const result = await response.json();
   return result.data || result;
 }
@@ -236,7 +254,7 @@ export async function crmPut(endpoint: string, token: string | null, body?: any)
     body: body ? JSON.stringify(body) : undefined,
   });
 
-  if (!response.ok) throw new Error(`API error: ${response.statusText}`);
+  if (!response.ok) throw new Error(await getHttpErrorMessage(response));
   const result = await response.json();
   return result.data || result;
 }
@@ -250,7 +268,7 @@ export async function crmDelete(endpoint: string, token: string | null) {
     headers: { 'Authorization': `Bearer ${token || ''}` },
   });
 
-  if (!response.ok) throw new Error(`API error: ${response.statusText}`);
+  if (!response.ok) throw new Error(await getHttpErrorMessage(response));
   const result = await response.json();
   return result.data || result;
 }
@@ -268,7 +286,7 @@ export async function crmPatch(endpoint: string, token: string | null, body: any
     body: JSON.stringify(body),
   });
 
-  if (!response.ok) throw new Error(`API error: ${response.statusText}`);
+  if (!response.ok) throw new Error(await getHttpErrorMessage(response));
   const result = await response.json();
   return result.data || result;
 }

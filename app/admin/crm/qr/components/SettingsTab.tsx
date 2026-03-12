@@ -100,7 +100,15 @@ export function SettingsTab({
         const res = await fetch('/api/admin/crm/whatsapp/qr-access', {
           headers: { 'Authorization': `Bearer ${token}` },
         }).then(r => {
-          if (!r.ok && r.status === 401) throw new Error('Unauthorized');
+          if (!r.ok) {
+            return r.json().catch(() => ({})).then(errData => {
+              const serverMessage = errData?.error || errData?.message || '';
+              if (r.status === 401) throw new Error(serverMessage || 'Unauthorized — please log in again.');
+              if (r.status === 403) throw new Error(serverMessage || 'Forbidden — Super Admin access required.');
+              if (r.status === 404) throw new Error(serverMessage || 'QR access endpoint not found.');
+              throw new Error(serverMessage || `Request failed: ${r.status}`);
+            });
+          }
           return r.json().catch(() => null);
         }).catch(e => {
           console.warn('[QR Access] Fetch error:', e);
@@ -136,8 +144,12 @@ export function SettingsTab({
         body: JSON.stringify({ targetUserId, qrWhatsappEnabled: enabled }),
       });
       if (!response.ok) {
-        const errData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(errData.error || `Failed: ${response.status}`);
+        const errData = await response.json().catch(() => ({}));
+        const serverMessage = errData?.error || errData?.message || '';
+        if (response.status === 401) throw new Error(serverMessage || 'Unauthorized — please log in again.');
+        if (response.status === 403) throw new Error(serverMessage || 'Forbidden — Super Admin access required.');
+        if (response.status === 404) throw new Error(serverMessage || 'QR access endpoint not found.');
+        throw new Error(serverMessage || `Failed: ${response.status}`);
       }
       setQrAccessUsers(prev =>
         prev.map(u => u.userId === targetUserId ? { ...u, qrWhatsappEnabled: enabled } : u)

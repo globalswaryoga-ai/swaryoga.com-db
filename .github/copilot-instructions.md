@@ -172,6 +172,25 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### QR Error Handling Hardening for 401/403/404 (Session: March 12, 2026 — Phase 39) — Commit `[pending]`
+
+1. **✅ Improved Client-Side Handling for 401, 403, and 404 Errors**
+    - **Problem**: QR WhatsApp frontend still handled several 401/403/404 responses too generically, causing confusing UX and inconsistent messages across direct fetch calls
+    - **Solution**:
+       - Added shared HTTP status-to-message mapping in `hooks/useCRM.ts`
+       - Preserved smart 401 logout behavior: only expired/invalid JWTs clear session
+       - Added explicit 403 and 404 messages for shared CRM helpers (`crmGet`, `crmPost`, `crmPut`, `crmDelete`, `crmPatch`)
+       - Updated `app/admin/crm/qr/page.tsx` bridge caller to return clearer QR/bridge-specific 401, 403, and 404 messages
+       - Updated `app/admin/crm/qr/components/SettingsTab.tsx` to show clearer 401/403/404 errors for QR access management requests
+    - **Files Modified**:
+       - `hooks/useCRM.ts`
+       - `app/admin/crm/qr/page.tsx`
+       - `app/admin/crm/qr/components/SettingsTab.tsx`
+    - **Verification**:
+       - ✅ No TypeScript/editor errors in modified files
+       - ✅ Full production build succeeds
+       - ✅ Changes ready for deployment to `main`
+
 ### QR Page Production Crash Fix (Session: March 12, 2026 — Phase 38) — Commit `656a9d52`
 
 1. **✅ Fixed `token is not defined` Crash on QR WhatsApp Settings Tab**
