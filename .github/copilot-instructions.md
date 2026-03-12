@@ -172,6 +172,25 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### QR Tenant Per-Chat 403 Fix (Session: March 12, 2026 — Phase 51) — Commit `[pending]`
+
+1. **✅ Restored Normal Inbox / Send / Group Access for Tenant-Isolated QR Sessions**
+    - **Problem**: After the emergency privacy lockdown, tenant users started getting `Access denied. This contact is not assigned to you.` on their own QR inbox/message/send flows, and groups stopped showing
+    - **Root Cause**:
+       - `app/api/admin/crm/whatsapp/qr-bridge/route.ts` was filtering **all non-Super Admin** QR traffic by lead ownership
+       - That incorrectly treated isolated tenant-owned bridge sessions like shared team sessions
+    - **Solution**:
+       - Refined the privacy gate so lead-ownership filtering again applies only to shared/team bridge sessions (`!resolved.hasOwnBridge`)
+       - Tenant-isolated sessions keep normal `/chats`, `/messages`, send, and group access on their own bridge
+       - The newer session-change filtering remains in place to stop stale chats from previously scanned numbers
+
+2. **✅ Verification**
+    - **Files Modified**:
+       - `app/api/admin/crm/whatsapp/qr-bridge/route.ts`
+       - `.github/copilot-instructions.md`
+    - **Build / Validation**:
+       - ✅ No TypeScript/editor errors in modified proxy file
+
 ### Emergency QR Privacy Lockdown (Session: March 12, 2026 — Phase 50) — Commit `[pending]`
 
 1. **✅ Bridge Leak Hotfix: All Non-Super Admin QR Traffic Is Now Server-Filtered**

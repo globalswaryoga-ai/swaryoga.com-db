@@ -31,9 +31,9 @@ import mongoose from 'mongoose';
  *   - No permanentTenantId AND no qrWhatsappEnabled → BLOCKED (returns {ok:false} → 422)
  *
  * ── CHAT PRIVACY FILTER ──
- * For SAFETY, every non-Super Admin user is filtered server-side by lead ownership,
- * regardless of whether they are on a shared bridge or an isolated bridge session.
- * This makes the proxy fail-safe even if the underlying bridge leaks or returns stale chats.
+ * Shared/team bridge sessions are filtered server-side by lead ownership.
+ * Isolated tenant-owned sessions are protected by per-user bridge isolation plus
+ * post-scan session-change filtering, so they keep full inbox/send/group access.
  * On filter error → returns empty (fail-safe, never leaks chats).
  */
 
@@ -467,11 +467,10 @@ export async function POST(req: NextRequest) {
     // ════════════════════════════════════════════════════════════
     // ── COMPREHENSIVE PER-CHAT SECURITY GATE (POST) ──
     // Runs BEFORE the request reaches the bridge.
-    // FAIL-SAFE RULE: every non-Super Admin request that targets
-    // a specific phone/chat must pass lead-ownership validation,
-    // even if the bridge session is otherwise isolated.
+    // Shared/team bridge sessions must pass lead-ownership validation.
+    // Isolated tenant-owned bridge sessions keep full access to their own bridge.
     // ════════════════════════════════════════════════════════════
-    const requiresLeadOwnershipFilter = !resolved.isSuperAdmin;
+    const requiresLeadOwnershipFilter = !resolved.hasOwnBridge;
     if (requiresLeadOwnershipFilter) {
       // 1. Super Admin-only endpoints (session management)
       // BUT: CRM tenants (with permanentTenantId) can manage their own tenant session
@@ -721,7 +720,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ── CHAT PRIVACY FILTER (POST handler) ──
-    // Applied to ALL non-Super Admin users. Each user only sees chats for leads
+    // Applied to shared/team bridge users. Each user only sees chats for leads
     // assigned to or created by them. Uses dual phone lookup (with/without 91 prefix)
     // to handle inconsistent lead phone formats in the database.
     if (decodedPath === '/chats' && requiresLeadOwnershipFilter) {
@@ -829,10 +828,10 @@ export async function GET(req: NextRequest) {
     // ── COMPREHENSIVE PER-CHAT SECURITY GATE (GET) ──
     // Same logic as POST gate — validates lead ownership before
     // allowing any endpoint that targets a specific phone/chat.
-    // FAIL-SAFE RULE: every non-Super Admin request is filtered
-    // server-side even if the bridge claims to isolate sessions.
+    // Shared/team bridge sessions are filtered server-side.
+    // Isolated tenant-owned sessions keep full access to their own bridge.
     // ════════════════════════════════════════════════════════════
-    const requiresLeadOwnershipFilter = !resolved.isSuperAdmin;
+    const requiresLeadOwnershipFilter = !resolved.hasOwnBridge;
     if (requiresLeadOwnershipFilter) {
       const basePath = '/' + path.split('/').filter(Boolean)[0];
 
@@ -1068,7 +1067,7 @@ export async function GET(req: NextRequest) {
     }
 
     // ── CHAT PRIVACY FILTER (GET /chats) ──
-    // Applied to ALL non-Super Admin users. Uses dual phone lookup.
+    // Applied to shared/team bridge users. Uses dual phone lookup.
     if (path === '/chats' && requiresLeadOwnershipFilter) {
       const chats = data?.chats || (Array.isArray(data) ? data : []);
       if (chats.length > 0) {
