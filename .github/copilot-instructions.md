@@ -172,6 +172,27 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### QR / Meta Chat Privacy Separation Hardening (Session: March 12, 2026 — Phase 61) — Commit `[pending]`
+
+1. **✅ Hardened Own-Bridge QR Privacy So Only Current-Session Chats Can Be Read**
+   - **Problem**: Even with per-user QR session isolation, stale or foreign bridge-side chat/message data could still leak if a user hit per-chat endpoints directly or if bridge memory returned old conversation state
+   - **Solution**:
+      - Updated `app/api/admin/crm/whatsapp/qr-bridge/route.ts`
+      - Added current-session allow-list enforcement for own-bridge QR chat endpoints
+      - `/messages/*` for isolated sessions now prefers QR Mongo session data first
+      - `/chats` now syncs the current filtered session chat list into QR Mongo so stale/foreign chat IDs are blocked on follow-up requests
+
+2. **✅ Stopped Generic CRM Meta APIs from Serving QR Chat Data**
+   - **Problem**: The generic CRM conversation/message APIs still had a QR provider path, which is not the professional separation desired between Meta inbox data and QR WhatsApp data
+   - **Solution**:
+      - Updated `app/api/admin/crm/messages/route.ts`
+      - Updated `app/api/admin/crm/conversations/route.ts`
+      - Generic CRM APIs now treat QR as a separate channel and return no QR data, preserving Meta-only inbox separation
+
+3. **✅ Verification**
+   - No editor/type errors in modified files
+   - Full production build completed successfully locally before push
+
 ### QR Header Connected Number Format Tweak (Session: March 12, 2026 — Phase 60) — Commit `255e7e64`
 
 1. **✅ Updated the QR Header Badge to Show `Connected +00 00000000` Style**

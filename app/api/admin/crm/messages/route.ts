@@ -52,14 +52,18 @@ export async function GET(request: NextRequest) {
 
     const providerParam = url.searchParams.get('provider');
 
+    // Strict separation: generic CRM messages API is for Meta inbox only.
+    // QR WhatsApp now uses dedicated QR session collections/endpoints and should
+    // never read from the generic Meta message API.
+    if (providerParam === 'qr') {
+      return formatCrmSuccess({ messages: [], total: 0, note: 'Use dedicated QR WhatsApp APIs for QR messages.' }, buildMetadata(0, limit, skip));
+    }
+
     // Provider filtering — STRICT SEPARATION:
     // - Default (no param) & provider=meta: Meta Cloud API messages ONLY
     // - provider=qr: QR bridge messages ONLY (no overlap with Meta)
     // - provider=all: everything (admin analytics/reports)
-    if (providerParam === 'qr') {
-      // QR inbox: only QR-related providers — NO null/missing included
-      filter.provider = { $in: ['whatsapp_web_bridge', 'whatsapp_qr', 'qr'] };
-    } else if (providerParam === 'all') {
+    if (providerParam === 'all') {
       // No provider filter – include everything
     } else {
       // Default & 'meta': strictly Meta Cloud API messages only

@@ -328,6 +328,47 @@ async function getMongoSessionChats(userId: string, connectedPhone: string) {
   }
 }
 
+async function syncMongoSessionChats(userId: string, connectedPhone: string, chats: any[]) {
+  if (!userId || !connectedPhone || !Array.isArray(chats) || chats.length === 0) return;
+
+  try {
+    const QrChat = getQrWhatsAppChat();
+    const ops = chats
+      .filter((chat: any) => chat?.id)
+      .map((chat: any) => ({
+        updateOne: {
+          filter: { userId, connectedPhone, chatJid: chat.id },
+          update: {
+            $set: {
+              userId,
+              connectedPhone,
+              chatJid: chat.id,
+              name: chat.name || chat.id,
+              isGroup: !!chat.isGroup,
+              lastMessage: typeof chat.lastMessage === 'string' ? chat.lastMessage : (chat?.lastMessage?.body || ''),
+              lastMessageTime: chat.lastMessageTime ? new Date(chat.lastMessageTime) : undefined,
+              lastMessageFromMe: !!chat.lastMessageFromMe,
+              unreadCount: Number(chat.unreadCount || 0),
+              conversationTimestamp: Number(chat.conversationTimestamp || 0),
+              pinned: !!chat.pinned,
+              archived: !!chat.archived,
+              profilePicUrl: chat.profilePicUrl || '',
+              metadata: chat.metadata || {},
+            },
+            $setOnInsert: { createdAt: new Date() },
+          },
+          upsert: true,
+        },
+      }));
+
+    if (ops.length > 0) {
+      await QrChat.bulkWrite(ops, { ordered: false });
+    }
+  } catch (err) {
+    console.error('[QR Bridge Proxy] Failed to sync Mongo session chats:', err);
+  }
+}
+
 function decodePathFully(rawPath: string): string {
   let decoded = rawPath || '';
   for (let i = 0; i < 3; i += 1) {
@@ -343,6 +384,29 @@ function decodePathFully(rawPath: string): string {
     decoded = `/${decoded}`;
   }
   return decoded;
+}
+
+function extractChatJidFromPath(path: string): string {
+  const parts = path.split('/').filter(Boolean);
+  if (parts.length < 2) return '';
+  try {
+    return decodeURIComponent(parts[1]);
+  } catch {
+    return parts[1] || '';
+  }
+}
+
+async function isChatAllowedInCurrentSession(userId: string, connectedPhone: string, chatJid: string): Promise<boolean> {
+  if (!userId || !connectedPhone || !chatJid) return false;
+
+  try {
+    const QrChat = getQrWhatsAppChat();
+    const exists = await QrChat.exists({ userId, connectedPhone, chatJid });
+    return !!exists;
+  } catch (err) {
+    console.error('[QR Bridge Proxy] Failed to verify current-session chat access:', err);
+    return false;
+  }
 }
 
 // ============================================
@@ -543,6 +607,48 @@ export async function POST(req: NextRequest) {
             }
             return NextResponse.json(
               { success: false, error: 'Access denied. This contact is not assigned to you.' },
+              { status: 403 }
+            );
+          }
+        }
+      }
+    }
+
+    // ── OWN-BRIDGE CURRENT-SESSION GATE (POST) ──
+    // Even on isolated sessions, never allow stale/foreign chat actions unless the
+    // target chat exists in the current user's QR session store.
+    if (resolved.hasOwnBridge && resolved.storedPhone) {
+      const basePath = '/' + decodedPath.split('/').filter(Boolean)[0];
+
+      if (BODY_TARGET_PATHS.has(basePath) && body && basePath !== '/send') {
+        const targetJid = String(body.chatId || body.jid || body.to || '');
+        const normalizedChatJid = targetJid.includes('@')
+          ? targetJid
+          : (extractPhoneFromJid(targetJid) ? `${extractPhoneFromJid(targetJid)}@s.whatsapp.net` : '');
+
+        if (normalizedChatJid) {
+          const allowed = await isChatAllowedInCurrentSession(userId, resolved.storedPhone, normalizedChatJid);
+          if (!allowed) {
+            console.warn(`[QR Bridge Proxy] BLOCKED stale/foreign own-bridge POST for ${userId}: ${basePath} -> ${normalizedChatJid}`);
+            return NextResponse.json(
+              { success: false, error: 'Access denied. This chat is not in your current QR session.' },
+              { status: 403 }
+            );
+          }
+        }
+      }
+
+      if (isPathTargetEndpoint(decodedPath)) {
+        const chatJid = extractChatJidFromPath(decodedPath);
+        if (chatJid) {
+          const allowed = await isChatAllowedInCurrentSession(userId, resolved.storedPhone, chatJid);
+          if (!allowed) {
+            console.warn(`[QR Bridge Proxy] BLOCKED stale/foreign own-bridge POST path for ${userId}: ${decodedPath}`);
+            if (decodedPath.startsWith('/messages/')) {
+              return NextResponse.json({ success: true, data: { messages: [], blocked: true } }, { status: 200 });
+            }
+            return NextResponse.json(
+              { success: false, error: 'Access denied. This chat is not in your current QR session.' },
               { status: 403 }
             );
           }
@@ -758,6 +864,11 @@ export async function POST(req: NextRequest) {
         console.log(`[QR Bridge Proxy POST /chats] Session filter for ${userId}: ${sessionFiltered.total} total → ${sessionFiltered.visible} current-session chats`);
         data = sessionFiltered.data;
       }
+
+      if (resolved.hasOwnBridge && resolved.storedPhone) {
+        const currentChats = data?.chats || (Array.isArray(data) ? data : []);
+        await syncMongoSessionChats(userId, resolved.storedPhone, currentChats);
+      }
     }
 
     // ── CHAT PRIVACY FILTER (POST handler) ──
@@ -907,6 +1018,75 @@ export async function GET(req: NextRequest) {
             );
           }
         }
+      }
+    }
+
+    // ── OWN-BRIDGE CURRENT-SESSION GATE (GET) ──
+    // Isolated bridge users must still be constrained to chats that belong to the
+    // current stored QR session. This prevents stale or foreign bridge data from leaking.
+    if (resolved.hasOwnBridge && resolved.storedPhone && isPathTargetEndpoint(path)) {
+      const chatJid = extractChatJidFromPath(path);
+      if (chatJid) {
+        const allowed = await isChatAllowedInCurrentSession(userId, resolved.storedPhone, chatJid);
+        if (!allowed) {
+          console.warn(`[QR Bridge Proxy GET] BLOCKED stale/foreign own-bridge path for ${userId}: ${path}`);
+          if (path.startsWith('/messages/')) {
+            return NextResponse.json({ success: true, data: { messages: [], blocked: true } }, { status: 200 });
+          }
+          if (path.startsWith('/profile-pic/') || path.startsWith('/contact-about/') || path.startsWith('/presence/')) {
+            return NextResponse.json({ success: true, data: {} }, { status: 200 });
+          }
+          return NextResponse.json(
+            { success: false, error: 'Access denied. This chat is not in your current QR session.' },
+            { status: 403 }
+          );
+        }
+      }
+    }
+
+    // ── OWN-BRIDGE MONGODB-FIRST MESSAGE READS (GET /messages) ──
+    // Prefer QR-specific Mongo storage for isolated sessions to avoid bridge-side
+    // stale/foreign message leakage. Fall back to bridge only when Mongo has nothing.
+    if (path.startsWith('/messages/') && resolved.hasOwnBridge && resolved.storedPhone) {
+      try {
+        const chatJid = extractChatJidFromPath(path);
+        if (chatJid) {
+          const QrMsg = getQrWhatsAppMessage();
+          const dbMessages = await QrMsg.find({
+            userId,
+            connectedPhone: resolved.storedPhone,
+            chatJid,
+          })
+            .sort({ timestamp: 1 })
+            .limit(200)
+            .lean();
+
+          if (dbMessages.length > 0) {
+            const mapped = dbMessages.map((m: any) => ({
+              id: m.messageId,
+              from: m.participant || m.chatJid,
+              fromMe: m.fromMe,
+              text: m.text,
+              body: m.text,
+              type: m.type,
+              timestamp: m.timestamp,
+              status: m.status,
+              participant: m.participant,
+              pushName: m.pushName,
+              hasMedia: m.hasMedia,
+              mediaUrl: m.mediaUrl,
+              mediaMimetype: m.mediaMimetype,
+              mediaFileName: m.mediaFileName,
+              quoted: m.quotedId ? { id: m.quotedId, text: m.quotedText, participant: m.quotedParticipant } : null,
+              quotedId: m.quotedId || null,
+              reactions: {},
+            }));
+
+            return NextResponse.json({ success: true, data: { messages: mapped, source: 'qr_mongodb' } }, { status: 200 });
+          }
+        }
+      } catch (dbErr) {
+        console.error('[QR Bridge Proxy] Mongo-first /messages lookup failed:', dbErr);
       }
     }
 
@@ -1116,6 +1296,11 @@ export async function GET(req: NextRequest) {
       if (sessionFiltered.filtered) {
         console.log(`[QR Bridge Proxy GET /chats] Session filter for ${userId}: ${sessionFiltered.total} total → ${sessionFiltered.visible} current-session chats`);
         data = sessionFiltered.data;
+      }
+
+      if (resolved.hasOwnBridge && resolved.storedPhone) {
+        const currentChats = data?.chats || (Array.isArray(data) ? data : []);
+        await syncMongoSessionChats(userId, resolved.storedPhone, currentChats);
       }
     }
 

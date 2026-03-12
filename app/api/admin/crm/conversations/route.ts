@@ -46,6 +46,10 @@ export async function GET(request: NextRequest) {
     const label = url.searchParams.get('label')?.trim();
     const providerParam = url.searchParams.get('provider')?.trim();
 
+    if (providerParam === 'qr') {
+      return formatCrmSuccess({ conversations: [], total: 0, note: 'Use dedicated QR WhatsApp APIs for QR conversations.' }, buildMetadata(0, limit, skip));
+    }
+
     await connectDB();
     const WhatsAppMessage = getWhatsAppMessage();
 
@@ -55,10 +59,7 @@ export async function GET(request: NextRequest) {
     // - provider=meta (or default): Meta Cloud API messages ONLY
     // - provider=qr: QR bridge messages ONLY (no overlap with Meta)
     // - provider=all: everything (admin analytics)
-    if (providerParam === 'qr') {
-      // QR inbox: all QR-related provider values
-      pipeline.push({ $match: { provider: { $in: ['whatsapp_web_bridge', 'whatsapp_qr', 'qr'] } } });
-    } else if (providerParam === 'all') {
+    if (providerParam === 'all') {
       // No filter – include everything (for diagnostics/analytics)
     } else {
       // Default & 'meta': strictly Meta Cloud API messages only
