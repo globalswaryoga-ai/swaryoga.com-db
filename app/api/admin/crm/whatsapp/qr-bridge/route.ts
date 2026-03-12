@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
-import { getCRMUserSettings, getLead, getQrWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
+import { getCRMUserSettings, getLead, getQrWhatsAppChat, getQrWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin as checkSuperAdmin } from '@/lib/crm-handlers';
 import { logApiError } from '@/lib/error-logger';
@@ -297,6 +297,35 @@ function applySessionChangeFilter(data: any, phoneChangedAt: Date | null) {
     total: chats.length,
     visible: filteredChats.length,
   };
+}
+
+async function getMongoSessionChats(userId: string, connectedPhone: string) {
+  if (!userId || !connectedPhone) return [];
+
+  try {
+    const QrChat = getQrWhatsAppChat();
+    const docs = await QrChat.find({ userId, connectedPhone })
+      .sort({ conversationTimestamp: -1, lastMessageTime: -1 })
+      .limit(1000)
+      .lean();
+
+    return docs.map((chat: any) => ({
+      id: chat.chatJid,
+      name: chat.name || chat.chatJid,
+      isGroup: !!chat.isGroup,
+      lastMessage: chat.lastMessage || '',
+      lastMessageTime: chat.lastMessageTime ? new Date(chat.lastMessageTime).toISOString() : null,
+      unreadCount: Number(chat.unreadCount || 0),
+      conversationTimestamp: Number(chat.conversationTimestamp || 0),
+      profilePicUrl: chat.profilePicUrl || '',
+      pinned: !!chat.pinned,
+      archived: !!chat.archived,
+      metadata: chat.metadata || {},
+    }));
+  } catch (err) {
+    console.error('[QR Bridge Proxy] Failed to load Mongo session chats:', err);
+    return [];
+  }
 }
 
 function decodePathFully(rawPath: string): string {
@@ -708,6 +737,18 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ── CURRENT SESSION CHAT SOURCE (POST /chats) ──
+    // For isolated tenant-owned sessions, prefer the QR-specific Mongo chat store
+    // keyed by userId + connectedPhone. This avoids bloated bridge history hydrated
+    // from older scans or stale bridge-side DB state.
+    if (decodedPath === '/chats' && resolved.hasOwnBridge && resolved.storedPhone) {
+      const mongoChats = await getMongoSessionChats(userId, resolved.storedPhone);
+      if (mongoChats.length > 0) {
+        console.log(`[QR Bridge Proxy POST /chats] Using Mongo session chats for ${userId}: ${mongoChats.length} chats (connectedPhone=${resolved.storedPhone})`);
+        data = data?.chats ? { ...data, chats: mongoChats, source: 'qr_mongodb' } : { chats: mongoChats, source: 'qr_mongodb' };
+      }
+    }
+
     // ── SESSION ISOLATION (POST /chats) ──
     // After a new QR scan, keep only chats whose activity is newer than the phone-change timestamp.
     // This prevents stale chats from the previously scanned number from leaking into the tenant inbox.
@@ -1053,6 +1094,18 @@ export async function GET(req: NextRequest) {
           id: resolved.storedPhone,
           name: data?.phone?.name || resolved.storedPhone,
         };
+      }
+    }
+
+    // ── CURRENT SESSION CHAT SOURCE (GET /chats) ──
+    // For isolated tenant-owned sessions, prefer the QR-specific Mongo chat store
+    // keyed by userId + connectedPhone. This avoids bloated bridge history hydrated
+    // from older scans or stale bridge-side DB state.
+    if (path === '/chats' && resolved.hasOwnBridge && resolved.storedPhone) {
+      const mongoChats = await getMongoSessionChats(userId, resolved.storedPhone);
+      if (mongoChats.length > 0) {
+        console.log(`[QR Bridge Proxy GET /chats] Using Mongo session chats for ${userId}: ${mongoChats.length} chats (connectedPhone=${resolved.storedPhone})`);
+        data = data?.chats ? { ...data, chats: mongoChats, source: 'qr_mongodb' } : { chats: mongoChats, source: 'qr_mongodb' };
       }
     }
 

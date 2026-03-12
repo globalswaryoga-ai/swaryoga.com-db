@@ -172,6 +172,25 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### QR Session-Scoped Chat Source Fix (Session: March 12, 2026 — Phase 53) — Commit `[pending]`
+
+1. **✅ Tenant QR Inbox Now Prefers Session-Scoped QR Chat Storage Over Bloated Bridge History**
+    - **Problem**: Some tenants saw huge chat counts (for example 1532) even though their real currently scanned WhatsApp inbox had far fewer chats
+    - **Root Cause**:
+       - The Baileys bridge can hydrate old cached chats/messages from its database into the live session
+       - `app/api/admin/crm/whatsapp/qr-bridge/route.ts` was still trusting the bridge `/chats` response for isolated tenant sessions
+    - **Solution**:
+       - Added a QR-specific Mongo chat loader using `qr_whatsapp_chats`
+       - For isolated tenant-owned sessions, `/chats` now prefers the session-scoped chat list keyed by `userId + connectedPhone`
+       - This prevents older scanned-number history from inflating the current tenant inbox count
+
+2. **✅ Verification**
+    - **Files Modified**:
+       - `app/api/admin/crm/whatsapp/qr-bridge/route.ts`
+       - `.github/copilot-instructions.md`
+    - **Build / Validation**:
+       - ✅ No TypeScript/editor errors in modified proxy file
+
 ### QR Header Sender Recovery Fix (Session: March 12, 2026 — Phase 52) — Commit `[pending]`
 
 1. **✅ Header Now Recovers the Scanned Number Even When Live Status Is Incomplete**
