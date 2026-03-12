@@ -114,13 +114,13 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
       const permanentTenantId = (settings as any)?.permanentTenantId || '';
 
       // ── PERMANENT TENANT ID ──
-      // Each CRM admin user gets a dedicated tenant route on the bridge.
-      // This gives every user their own isolated QR session and inbox.
+      // The live bridge isolates users by x-user-id header, not /tenant/{id} path.
+      // Users with permanentTenantId still get their own isolated session, but through
+      // the base bridge URL plus their unique user/session headers.
       if (permanentTenantId) {
-        const tenantUrl = `${FALLBACK_BRIDGE_URL}/tenant/${permanentTenantId}`;
         const tenantResult: BridgeResolution = {
           ok: true,
-          url: tenantUrl,
+          url: FALLBACK_BRIDGE_URL,
           secret: settings.qrBridgeSecret || FALLBACK_BRIDGE_SECRET,
           userId: decoded.userId,
           isSuperAdmin: superAdmin,

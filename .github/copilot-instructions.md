@@ -202,6 +202,15 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
     - **Build / Validation**:
        - ✅ No TypeScript/editor errors in modified files
 
+4. **✅ Production Hotfix: Live Bridge Uses Header-Based Isolation, Not `/tenant/{id}` Paths**
+    - **Problem**: After deployment, QR showed `Endpoint not found: /status` because the live bridge does not expose tenant-prefixed routes like `/tenant/{id}/status`
+    - **Verified Root Cause**:
+       - `deploy/wa-baileys/index.js` and `deploy/wa-baileys/index-multiuser.js` isolate sessions using `x-user-id`
+       - Their live HTTP endpoints remain `/status`, `/qr`, `/chats`, etc. on the base bridge URL
+    - **Hotfix**:
+       - Kept one-user-per-session isolation for permanent tenant users
+       - Switched production routing back to the working base bridge URL while preserving per-user isolation through `x-user-id` and user-specific secrets
+
 ### QR Shared-Bridge Count & Sender Persistence Fix (Session: March 12, 2026 — Phase 46) — Commit `[pending]`
 
 1. **✅ Tenant QR Inbox No Longer Explodes with Shared-Bridge Chat Totals**

@@ -48,7 +48,7 @@ async function resolveBridgeConfig(userId: string) {
 
   if (settings?.permanentTenantId) {
     return {
-      bridgeUrl: `${BRIDGE_URL}/tenant/${settings.permanentTenantId}`,
+      bridgeUrl: BRIDGE_URL,
       bridgeSecret: settings.qrBridgeSecret || BRIDGE_SECRET,
       hasOwnBridge: true,
       qrWhatsappEnabled: !!settings.qrWhatsappEnabled,

@@ -46,10 +46,10 @@ export async function POST(req: NextRequest) {
     let settings = await CRMUserSettings.findOne({ userId });
 
     // ── PERMANENT TENANT ID (ONE USER = ONE BRIDGE SESSION) ──
-    // Each user has a permanent 7-digit ID (e.g., "0002456") and gets
-    // an isolated bridge route at /tenant/{permanentTenantId}.
+    // The live bridge isolates sessions via x-user-id header, so provision users
+    // against the working base bridge URL while keeping their own secret/session.
     if (settings?.permanentTenantId) {
-      const bridgeUrl = `${BRIDGE_BASE_URL}/tenant/${settings.permanentTenantId}`;
+      const bridgeUrl = BRIDGE_BASE_URL;
       const existingSecret = settings.qrBridgeSecret;
       
       // Ensure secret exists (generate if missing)
@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
       console.log(`[QR Auto-Provision] ════════════════════════════════════════`);
       console.log(`[QR Auto-Provision] userId=${userId}`);
       console.log(`[QR Auto-Provision] permanentTenantId=${settings.permanentTenantId}`);
-      console.log(`[QR Auto-Provision] Using isolated tenant bridge=${bridgeUrl}`);
+      console.log(`[QR Auto-Provision] Using isolated header-based bridge session=${bridgeUrl}`);
       console.log(`[QR Auto-Provision] ════════════════════════════════════════`);
 
       return apiSuccess({
