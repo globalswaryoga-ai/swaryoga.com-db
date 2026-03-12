@@ -47,10 +47,15 @@ export async function POST(req: NextRequest) {
 
     // ── PERMANENT TENANT ID (NEW METHOD) ──
     // Each user has a permanent 7-digit ID (e.g., "0002456")
-    // Bridge path is automatically: http://localhost:3333/tenant/0002456
-    // No need to store qrBridgeUrl anymore — it's derived from permanentTenantId
+    // TEMPORARY FIX (Phase 33): Bridge doesn't yet support /tenant/{id} routing.
+    // All users currently use shared bridge URL with chat privacy filtering.
+    // Once bridge supports /tenant/{id}, switch to: http://localhost:3333/tenant/0002456
     if (settings?.permanentTenantId) {
-      const bridgeUrl = `${BRIDGE_BASE_URL}/tenant/${settings.permanentTenantId}`;
+      // TODO: Switch to this when bridge supports /tenant/{id}:
+      // const bridgeUrl = `${BRIDGE_BASE_URL}/tenant/${settings.permanentTenantId}`;
+      
+      // Temporary: All users use shared bridge
+      const bridgeUrl = BRIDGE_BASE_URL;
       const existingSecret = settings.qrBridgeSecret;
       
       // Ensure secret exists (generate if missing)
@@ -66,7 +71,7 @@ export async function POST(req: NextRequest) {
       console.log(`[QR Auto-Provision] ════════════════════════════════════════`);
       console.log(`[QR Auto-Provision] userId=${userId}`);
       console.log(`[QR Auto-Provision] permanentTenantId=${settings.permanentTenantId}`);
-      console.log(`[QR Auto-Provision] Derived bridgeUrl=${bridgeUrl}`);
+      console.log(`[QR Auto-Provision] Using shared bridge (work around for bridge limitation)=${bridgeUrl}`);
       console.log(`[QR Auto-Provision] ════════════════════════════════════════`);
 
       return apiSuccess({

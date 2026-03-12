@@ -16,7 +16,7 @@ async function check() {
   
   console.log('📥 QR/Bridge Inbound Messages:', qrInbound.length);
   qrInbound.forEach((m, i) => {
-    console.log(`  [${i+1}] From: ${m.from} | Body: ${(m.body || '').substring(0, 40)}... | Provider: ${m.provider} | Time: ${m.sentAt}`);
+    console.log(`  [${i+1}] From: ${m.phoneNumber || m.from} | Body: ${(m.messageContent || m.body || '').substring(0, 40)}... | Provider: ${m.provider} | Time: ${m.sentAt}`);
   });
   
   // Check all inbound regardless of provider
@@ -24,7 +24,7 @@ async function check() {
   const allInbound = await msgs.find({ direction: 'inbound' }).sort({ sentAt: -1 }).limit(10).toArray();
   console.log('   Count:', allInbound.length);
   allInbound.forEach((m, i) => {
-    console.log(`  [${i+1}] From: ${m.from} | Provider: ${m.provider} | Time: ${m.sentAt}`);
+    console.log(`  [${i+1}] From: ${m.phoneNumber || m.from} | Provider: ${m.provider} | Time: ${m.sentAt}`);
   });
   
   // Check raw webhook events

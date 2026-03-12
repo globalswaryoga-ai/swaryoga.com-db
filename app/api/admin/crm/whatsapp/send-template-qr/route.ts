@@ -116,7 +116,9 @@ export async function POST(request: NextRequest) {
 
     // Send via QR Bridge ONLY
     try {
-      const res = await fetch(`${bridgeUrl}/send-template`, {
+      // Use standard /send endpoint (same as regular messages)
+      // The bridge will handle template-style messages the same way
+      const res = await fetch(`${bridgeUrl}/send`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -124,22 +126,25 @@ export async function POST(request: NextRequest) {
         },
         body: JSON.stringify({
           to: normalizedPhone,
-          imageUrl: finalImageUrl,
-          bodyText: finalBodyText,
-          buttons: finalButtons,
-          footerText: finalFooterText,
+          // For template-style messages, send as formatted text with image if available
+          message: finalBodyText || 'Template message',
+          caption: finalImageUrl ? `[Image: ${finalImageUrl}]` : undefined,
+          imageUrl: finalImageUrl || undefined, // Baileys supports imageUrl in send payload
+          buttons: finalButtons.length > 0 ? finalButtons : undefined,
         }),
         cache: 'no-store',
+        signal: AbortSignal.timeout(30000), // 30 second timeout
       });
 
       const data = await res.json().catch(() => ({}));
       console.log(`[QR-TEMPLATE:${requestId}] Bridge response:`, res.status, data);
 
-      if (!res.ok || !data.success) {
-        const errorMsg = data?.error || 'QR Bridge send failed';
+      if (!res.ok) {
+        const errorMsg = data?.error || data?.message || `Bridge error ${res.status}`;
+        console.error(`[QR-TEMPLATE:${requestId}] Send failed:`, errorMsg);
         await WhatsAppMessage.findByIdAndUpdate(messageRecord._id, {
           status: 'failed',
-          errorMessage: errorMsg,
+          failureReason: errorMsg,
         });
         return NextResponse.json({ success: false, error: errorMsg }, { status: 400 });
       }
@@ -147,7 +152,7 @@ export async function POST(request: NextRequest) {
       // Success
       await WhatsAppMessage.findByIdAndUpdate(messageRecord._id, {
         status: 'sent',
-        waMessageId: data.messageIds?.[0] || 'qr-sent',
+        waMessageId: data.messageId || data.messageIds?.[0] || 'qr-sent',
       });
 
       return NextResponse.json({

@@ -115,29 +115,28 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
 
       // ── PERMANENT TENANT ID ──
       // Each user gets a permanent 7-digit ID (e.g. 0002456).
-      // Bridge does NOT yet support /tenant/{id} routing — ALL users share FALLBACK_BRIDGE_URL.
-      // Therefore: only Super Admin + explicitly enabled team users may access the shared bridge.
-      // Tenants without qrWhatsappEnabled are BLOCKED — they'd see Super Admin's WhatsApp session.
-      // hasOwnBridge=false forces the chat privacy filter for ALL users on the shared bridge.
+      // TEMPORARY FIX (Phase 33): Bridge does NOT yet support /tenant/{id} routing.
+      // ALL users currently share FALLBACK_BRIDGE_URL until bridge is updated.
+      // Once bridge supports /tenant/{id}, users with permanentTenantId will use isolated paths.
       if (permanentTenantId) {
-        // [MOD] Bridge service now supports /tenant/{id} routing for all users.
-        // Users with their own tenant ID now have hasOwnBridge=true.
-        const tenantUrl = `${FALLBACK_BRIDGE_URL}/tenant/${permanentTenantId}`;
-        const tenantResult: BridgeResolution = {
+        // TODO: Enable when bridge supports /tenant/{id} routing
+        // const tenantUrl = `${FALLBACK_BRIDGE_URL}/tenant/${permanentTenantId}`;
+        // For now, all users (including tenants) use shared bridge with chat privacy filtering
+        const sharedResult: BridgeResolution = {
           ok: true,
-          url: tenantUrl,
-          secret: settings.qrBridgeSecret || FALLBACK_BRIDGE_SECRET,
+          url: FALLBACK_BRIDGE_URL,
+          secret: FALLBACK_BRIDGE_SECRET,
           userId: decoded.userId,
           isSuperAdmin: superAdmin,
-          hasOwnBridge: true, // Now considered private isolated bridge
+          hasOwnBridge: false, // Temporary: treat as shared until bridge supports /tenant/{id}
           storedPhone,
           phoneChangedAt,
           senderDisplayName,
           tenantId: permanentTenantId,
         };
-        bridgeCache.set(cacheKey, { result: tenantResult, expiry: Date.now() + BRIDGE_CACHE_TTL_MS });
+        bridgeCache.set(cacheKey, { result: sharedResult, expiry: Date.now() + BRIDGE_CACHE_TTL_MS });
         if (bridgeCache.size > 50) evictStaleBridgeCache();
-        return tenantResult;
+        return sharedResult;
       }
 
       // ── LEGACY: Custom qrBridgeUrl (backward compatibility) ──
@@ -478,19 +477,29 @@ export async function POST(req: NextRequest) {
 
     // ── SENDER DISPLAY NAME SIGNATURE ──
     // Append the user's configured display name (e.g. "Swar Yoga") as a bold
-    // signature at the bottom of every sent text/media message so the recipient
-    // can see who sent it — just like Meta WhatsApp's sender name feature.
+    // signature at the bottom of every sent TEXT ONLY message.
+    // Do NOT append to media captions as it breaks media formatting.
     if ((decodedPath === '/send' || decodedPath.startsWith('/send') || decodedPath === '/reply' || decodedPath.startsWith('/reply')) && body && resolved.senderDisplayName) {
-      const sig = `\n\n*${resolved.senderDisplayName}*`;
-      if (body.message && typeof body.message === 'string') {
-        body.message = body.message + sig;
+      // Only append signature if:
+      // 1. Not a media message (no media field in body)
+      // 2. Has actual text content
+      // 3. Signature is not empty
+      const hasNoMedia = !body.media && !body.hasMedia && !body.mediaBase64;
+      const displayName = String(resolved.senderDisplayName).trim();
+      const sig = `\n\n*${displayName}*`;
+      
+      if (hasNoMedia && displayName.length > 0) {
+        if (body.message && typeof body.message === 'string' && !body.message.includes(sig)) {
+          body.message = body.message + sig;
+        } else if (body.text && typeof body.text === 'string' && !body.text.includes(sig)) {
+          body.text = body.text + sig;
+        }
       }
-      if (body.caption && typeof body.caption === 'string') {
-        body.caption = body.caption + sig;
-      }
-      // For text messages without body.message but with body.text
-      if (body.text && typeof body.text === 'string') {
-        body.text = body.text + sig;
+      // For media messages, only append to caption if it exists
+      if (!hasNoMedia && displayName.length > 0) {
+        if (body.caption && typeof body.caption === 'string' && !body.caption.includes(sig)) {
+          body.caption = body.caption + sig;
+        }
       }
     }
 
