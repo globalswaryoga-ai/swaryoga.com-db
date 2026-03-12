@@ -38,6 +38,40 @@ const BRIDGE_SECRET =
   process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_SECRET ||
   'swar-bridge-secret-2024';
 
+async function resolveBridgeConfig(userId: string) {
+  await connectDB();
+  const CRMUserSettings = getCRMUserSettings();
+  const settings = await CRMUserSettings.findOne(
+    { userId },
+    { permanentTenantId: 1, qrBridgeUrl: 1, qrBridgeSecret: 1, qrWhatsappEnabled: 1 }
+  ).lean() as any;
+
+  if (settings?.permanentTenantId) {
+    return {
+      bridgeUrl: `${BRIDGE_URL}/tenant/${settings.permanentTenantId}`,
+      bridgeSecret: settings.qrBridgeSecret || BRIDGE_SECRET,
+      hasOwnBridge: true,
+      qrWhatsappEnabled: !!settings.qrWhatsappEnabled,
+    };
+  }
+
+  if (settings?.qrBridgeUrl) {
+    return {
+      bridgeUrl: settings.qrBridgeUrl,
+      bridgeSecret: settings.qrBridgeSecret || BRIDGE_SECRET,
+      hasOwnBridge: true,
+      qrWhatsappEnabled: !!settings.qrWhatsappEnabled,
+    };
+  }
+
+  return {
+    bridgeUrl: BRIDGE_URL,
+    bridgeSecret: BRIDGE_SECRET,
+    hasOwnBridge: false,
+    qrWhatsappEnabled: !!settings?.qrWhatsappEnabled,
+  };
+}
+
 export async function POST(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization');
@@ -52,6 +86,7 @@ export async function POST(req: NextRequest) {
     let { to, message, type, url, buttons, caption, leadId, templateData } = body;
     const viewerUserId = getViewerUserId(decoded);
     const superAdmin = checkSuperAdmin(decoded);
+    const bridgeConfig = await resolveBridgeConfig(viewerUserId);
     // Super admin shows as "Swar Yoga", others show their username
     const adminName = superAdmin ? 'Swar Yoga' : (decoded.name || decoded.username || viewerUserId);
 
@@ -59,14 +94,7 @@ export async function POST(req: NextRequest) {
     // Non-Super-Admin users must have qrWhatsappEnabled=true or their own bridge.
     // Without this, they would be sending from the Super Admin's WhatsApp illegitimately.
     if (!superAdmin) {
-      await connectDB();
-      const CRMUserSettings = getCRMUserSettings();
-      const userSettings = await CRMUserSettings.findOne(
-        { userId: viewerUserId },
-        { qrBridgeUrl: 1, qrWhatsappEnabled: 1 }
-      ).lean();
-      
-      if (!userSettings?.qrBridgeUrl && !userSettings?.qrWhatsappEnabled) {
+      if (!bridgeConfig.hasOwnBridge && !bridgeConfig.qrWhatsappEnabled) {
         return NextResponse.json({
           success: false,
           error: 'Access denied. You need your own WhatsApp bridge configured to send QR messages.'
@@ -75,7 +103,7 @@ export async function POST(req: NextRequest) {
 
       // Tenant owners with qrWhatsappEnabled must NOT use the shared bridge.
       // They must configure their own bridge URL.
-      if (!userSettings?.qrBridgeUrl && userSettings?.qrWhatsappEnabled) {
+      if (!bridgeConfig.hasOwnBridge && bridgeConfig.qrWhatsappEnabled) {
         try {
           const db = mongoose.connection.db;
           if (db) {
@@ -279,11 +307,12 @@ export async function POST(req: NextRequest) {
           typeof b === 'string' ? b : (b.text || b.title || b.payload)
         ).filter(Boolean) || [];
         
-        const bridgeRes = await fetch(`${BRIDGE_URL}/send-template`, {
+        const bridgeRes = await fetch(`${bridgeConfig.bridgeUrl}/send-template`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
-            'x-bridge-secret': BRIDGE_SECRET
+            'x-bridge-secret': bridgeConfig.bridgeSecret,
+            'x-user-id': viewerUserId,
           },
           body: JSON.stringify({ 
             to,
@@ -303,11 +332,12 @@ export async function POST(req: NextRequest) {
         const bridgeSendType = (type === 'media') ? 'image' : type;
         console.log(`[QR SEND] Calling bridge /send with type=${bridgeSendType}`);
         
-        const bridgeRes = await fetch(`${BRIDGE_URL}/send`, {
+        const bridgeRes = await fetch(`${bridgeConfig.bridgeUrl}/send`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
-            'x-bridge-secret': BRIDGE_SECRET
+            'x-bridge-secret': bridgeConfig.bridgeSecret,
+            'x-user-id': viewerUserId,
           },
           body: JSON.stringify({ 
             to, 

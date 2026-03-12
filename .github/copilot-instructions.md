@@ -172,6 +172,99 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### One User One Bridge Isolation Restore (Session: March 12, 2026 — Phase 47) — Commit `[pending]`
+
+1. **✅ Permanent Tenant IDs Now Route Each QR User to Their Own Bridge Session**
+    - **Problem**: Even users with `permanentTenantId` were still being forced through the shared bridge fallback, so QR scan/session isolation was not truly one-user-one-bridge
+    - **Root Cause**:
+       - `app/api/admin/crm/whatsapp/qr-bridge/route.ts` still returned `FALLBACK_BRIDGE_URL` with `hasOwnBridge: false` for `permanentTenantId` users
+       - `app/api/admin/crm/whatsapp/qr/auto-provision/route.ts` also returned the shared bridge URL instead of `/tenant/{permanentTenantId}`
+    - **Solution**:
+       - Restored isolated bridge routing for permanent tenant users: `{BRIDGE_BASE_URL}/tenant/{permanentTenantId}`
+       - Marked those sessions as `hasOwnBridge: true` so their QR inbox/session stays isolated per user
+
+2. **✅ QR Send and Broadcast APIs Now Use Per-User Bridge Credentials**
+    - **Problem**: Single-send and broadcast routes were still hardcoded to the shared bridge URL/secret, even when users had their own tenant bridge path and secret
+    - **Solution**:
+       - Added per-user bridge resolution in:
+          - `app/api/admin/crm/whatsapp/qr/send/route.ts`
+          - `app/api/admin/crm/whatsapp/qr/broadcast/route.ts`
+       - These routes now prefer `permanentTenantId` → `/tenant/{id}` and user-specific `qrBridgeSecret`
+       - Shared bridge remains only as fallback for explicitly shared users without their own tenant route
+
+3. **✅ Verification**
+    - **Files Modified**:
+       - `app/api/admin/crm/whatsapp/qr-bridge/route.ts`
+       - `app/api/admin/crm/whatsapp/qr/auto-provision/route.ts`
+       - `app/api/admin/crm/whatsapp/qr/send/route.ts`
+       - `app/api/admin/crm/whatsapp/qr/broadcast/route.ts`
+       - `.github/copilot-instructions.md`
+    - **Build / Validation**:
+       - ✅ No TypeScript/editor errors in modified files
+
+### QR Shared-Bridge Count & Sender Persistence Fix (Session: March 12, 2026 — Phase 46) — Commit `[pending]`
+
+1. **✅ Tenant QR Inbox No Longer Explodes with Shared-Bridge Chat Totals**
+    - **Problem**: Some tenant QR inboxes still showed thousands of chats (for example 7000+) instead of the user's real visible inbox size
+    - **Root Cause**:
+       - `resolveUserBridge()` currently falls back temporary tenant sessions to the shared bridge with `hasOwnBridge: false`
+       - But `requiresLeadOwnershipFilter` was skipping chat filtering when `tenantId` existed, so tenant fallback sessions could receive the entire shared bridge chat list
+    - **Solution**:
+       - Updated `app/api/admin/crm/whatsapp/qr-bridge/route.ts` so chat ownership filtering applies to all shared-bridge sessions (`!resolved.hasOwnBridge`), including temporary tenant fallback sessions
+
+2. **✅ Sender Number Now Persists from More Bridge Status Shapes**
+    - **Problem**: The top QR header sender number could still be missing when the bridge exposed sender metadata outside `status.phone.id`
+    - **Root Cause**:
+       - `app/admin/crm/qr/page.tsx` only persisted the connected phone from `status.phone.id`
+       - Some bridge responses expose the sender via `status.phone.name`, `status.me.id`, or `status.phoneNumber`
+    - **Solution**:
+       - Added broader sender extraction in the QR page using `status.phone.id`, `status.phone.name`, `status.me.id`, and `status.phoneNumber`
+       - Persisted the normalized sender number from any of those fields so the top header badge has a reliable fallback
+
+3. **✅ Verification**
+    - **Files Modified**:
+       - `app/api/admin/crm/whatsapp/qr-bridge/route.ts`
+       - `app/admin/crm/qr/page.tsx`
+       - `.github/copilot-instructions.md`
+    - **Build / Validation**:
+       - ✅ No TypeScript/editor errors in modified files
+
+### QR Inbox Count Inflation Fix (Session: March 12, 2026 — Phase 45) — Commit `[pending]`
+
+1. **✅ QR Inbox Now Shows Only Real WhatsApp Chats Instead of Thousands of Synthetic Lead Rows**
+    - **Problem**: The QR inbox chat count could explode far above the real bridge chat count (for example, showing 7000+ when the user actually had around 336 chats)
+    - **Root Cause**:
+       - `app/admin/crm/qr/page.tsx` enriched bridge chats with CRM lead data correctly
+       - But it also appended unmatched CRM leads as synthetic placeholder chat rows, so the sidebar total became bridge chats + all unmatched leads
+    - **Solution**:
+       - Removed the synthetic placeholder-chat insertion step
+       - Kept CRM lead enrichment only for real bridge chats so names, stages, labels, and lead status still appear correctly
+
+2. **✅ Verification**
+    - **Files Modified**:
+       - `app/admin/crm/qr/page.tsx`
+       - `.github/copilot-instructions.md`
+    - **Build / Validation**:
+       - ✅ No TypeScript/editor errors in modified QR page
+
+### QR Header Sender Number Visibility Fix (Session: March 12, 2026 — Phase 44) — Commit `[pending]`
+
+1. **✅ QR Page Header Now Shows the Connected Sender Number More Reliably**
+    - **Problem**: The top QR header could show only the user badge/email while the connected sender number was missing, even when the connection tab still knew the WhatsApp sender
+    - **Root Cause**:
+       - `app/admin/crm/qr/page.tsx` resolved the header badge only from `status.phone.id` or saved state
+       - Some bridge responses expose the connected number via `status.phone.name`, so the page header had a weaker fallback than the connection tab
+    - **Solution**:
+       - Added shared header-side sender resolution that checks `status.phone.id`, `status.phone.name`, and saved `qrConnectedPhoneNumber`
+       - Updated the top header badge to render a clearer `Sender <number>` label when a valid number is available
+
+2. **✅ Verification**
+    - **Files Modified**:
+       - `app/admin/crm/qr/page.tsx`
+       - `.github/copilot-instructions.md`
+    - **Build / Validation**:
+       - ✅ No TypeScript/editor errors in modified QR page
+
 ### QR Media Preview Retry-Loop Fix (Session: March 12, 2026 — Phase 43) — Commit `87e54232`
 
 1. **✅ Stopped Repeated `bridge-download` 404/429 Storms in QR Chat Media Previews**

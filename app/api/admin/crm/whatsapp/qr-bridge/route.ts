@@ -114,29 +114,25 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
       const permanentTenantId = (settings as any)?.permanentTenantId || '';
 
       // ── PERMANENT TENANT ID ──
-      // Each CRM Admin/Tenant gets a permanent 7-digit ID (e.g. 0002456).
-      // TEMPORARY FIX (Phase 33): Bridge does NOT yet support /tenant/{id} routing.
-      // ALL users currently share FALLBACK_BRIDGE_URL until bridge is updated.
-      // Once bridge supports /tenant/{id}, users with permanentTenantId will use isolated paths.
+      // Each CRM admin user gets a dedicated tenant route on the bridge.
+      // This gives every user their own isolated QR session and inbox.
       if (permanentTenantId) {
-        // TODO: Enable when bridge supports /tenant/{id} routing
-        // const tenantUrl = `${FALLBACK_BRIDGE_URL}/tenant/${permanentTenantId}`;
-        // For now, all users (including tenants) use shared bridge with chat privacy filtering
-        const sharedResult: BridgeResolution = {
+        const tenantUrl = `${FALLBACK_BRIDGE_URL}/tenant/${permanentTenantId}`;
+        const tenantResult: BridgeResolution = {
           ok: true,
-          url: FALLBACK_BRIDGE_URL,
-          secret: FALLBACK_BRIDGE_SECRET,
+          url: tenantUrl,
+          secret: settings.qrBridgeSecret || FALLBACK_BRIDGE_SECRET,
           userId: decoded.userId,
           isSuperAdmin: superAdmin,
-          hasOwnBridge: false, // Temporary: treat as shared until bridge supports /tenant/{id}
+          hasOwnBridge: true,
           storedPhone,
           phoneChangedAt,
           senderDisplayName,
           tenantId: permanentTenantId,
         };
-        bridgeCache.set(cacheKey, { result: sharedResult, expiry: Date.now() + BRIDGE_CACHE_TTL_MS });
+        bridgeCache.set(cacheKey, { result: tenantResult, expiry: Date.now() + BRIDGE_CACHE_TTL_MS });
         if (bridgeCache.size > 50) evictStaleBridgeCache();
-        return sharedResult;
+        return tenantResult;
       }
 
       // ── LEGACY: Custom qrBridgeUrl (backward compatibility) ──
@@ -428,7 +424,7 @@ export async function POST(req: NextRequest) {
     // On shared bridge (!hasOwnBridge): every action that targets
     // a specific phone/chat must pass lead-ownership validation.
     // ════════════════════════════════════════════════════════════
-    const requiresLeadOwnershipFilter = !resolved.hasOwnBridge && !resolved.tenantId;
+    const requiresLeadOwnershipFilter = !resolved.hasOwnBridge;
     if (requiresLeadOwnershipFilter) {
       // 1. Super Admin-only endpoints (session management)
       // BUT: CRM tenants (with permanentTenantId) can manage their own tenant session
@@ -789,7 +785,7 @@ export async function GET(req: NextRequest) {
     // Same logic as POST gate — validates lead ownership before
     // allowing any endpoint that targets a specific phone/chat.
     // ════════════════════════════════════════════════════════════
-    const requiresLeadOwnershipFilter = !resolved.hasOwnBridge && !resolved.tenantId;
+    const requiresLeadOwnershipFilter = !resolved.hasOwnBridge;
     if (requiresLeadOwnershipFilter) {
       const basePath = '/' + path.split('/').filter(Boolean)[0];
 

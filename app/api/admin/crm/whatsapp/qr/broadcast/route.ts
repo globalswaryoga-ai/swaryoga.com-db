@@ -21,6 +21,41 @@ import { getViewerUserId, isSuperAdmin as checkSuperAdmin } from '@/lib/crm-hand
 
 const BRIDGE_URL = process.env.BRIDGE_URL || "http://52.91.198.23:3333";
 const BRIDGE_SECRET = process.env.BRIDGE_SECRET || "swar-bridge-secret-2024";
+
+async function resolveBridgeConfig(userId: string) {
+  await connectDB();
+  const CRMUserSettings = getCRMUserSettings();
+  const settings = await CRMUserSettings.findOne(
+    { userId },
+    { permanentTenantId: 1, qrBridgeUrl: 1, qrBridgeSecret: 1, qrWhatsappEnabled: 1 }
+  ).lean() as any;
+
+  if (settings?.permanentTenantId) {
+    return {
+      bridgeUrl: `${BRIDGE_URL}/tenant/${settings.permanentTenantId}`,
+      bridgeSecret: settings.qrBridgeSecret || BRIDGE_SECRET,
+      hasOwnBridge: true,
+      qrWhatsappEnabled: !!settings.qrWhatsappEnabled,
+    };
+  }
+
+  if (settings?.qrBridgeUrl) {
+    return {
+      bridgeUrl: settings.qrBridgeUrl,
+      bridgeSecret: settings.qrBridgeSecret || BRIDGE_SECRET,
+      hasOwnBridge: true,
+      qrWhatsappEnabled: !!settings.qrWhatsappEnabled,
+    };
+  }
+
+  return {
+    bridgeUrl: BRIDGE_URL,
+    bridgeSecret: BRIDGE_SECRET,
+    hasOwnBridge: false,
+    qrWhatsappEnabled: !!settings?.qrWhatsappEnabled,
+  };
+}
+
 export async function POST(request: NextRequest) {
   try {
     const authHeader = request.headers.get("authorization");
@@ -35,16 +70,10 @@ export async function POST(request: NextRequest) {
 
     // ── Access Gate (Super Admin Team / CRM Admin Team Protection) ──
     const superAdmin = checkSuperAdmin(decoded);
+    const viewerUserId = getViewerUserId(decoded);
+    const bridgeConfig = await resolveBridgeConfig(viewerUserId);
     if (!superAdmin) {
-      await connectDB();
-      const viewerUserId = getViewerUserId(decoded);
-      const CRMUserSettings = getCRMUserSettings();
-      const userSettings = await CRMUserSettings.findOne(
-        { userId: viewerUserId },
-        { qrBridgeUrl: 1, qrWhatsappEnabled: 1 }
-      ).lean();
-      
-      if (!userSettings?.qrBridgeUrl && !userSettings?.qrWhatsappEnabled) {
+      if (!bridgeConfig.hasOwnBridge && !bridgeConfig.qrWhatsappEnabled) {
         return NextResponse.json({
           success: false,
           error: 'Access denied. You need your own WhatsApp bridge configured to use broadcasts.'
@@ -52,7 +81,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Tenant owners with qrWhatsappEnabled must NOT use the shared bridge.
-      if (!userSettings?.qrBridgeUrl && userSettings?.qrWhatsappEnabled) {
+      if (!bridgeConfig.hasOwnBridge && bridgeConfig.qrWhatsappEnabled) {
         try {
           const mongoose = (await import('mongoose')).default;
           const db = mongoose.connection.db;
@@ -134,11 +163,12 @@ export async function POST(request: NextRequest) {
       console.log(`[qr-broadcast] Lead filter for ${viewerUserId}: ${recipients.length} → ${filteredRecipients.length} recipients`);
     }
 
-    const response = await fetch(`${BRIDGE_URL}/broadcast`, {
+    const response = await fetch(`${bridgeConfig.bridgeUrl}/broadcast`, {
       method: "POST",
       headers: { 
         "Content-Type": "application/json",
-        "x-bridge-secret": BRIDGE_SECRET 
+        "x-bridge-secret": bridgeConfig.bridgeSecret,
+        "x-user-id": viewerUserId,
       },
       body: JSON.stringify({ recipients: filteredRecipients, message, imageUrl, buttons, footerText, schedule }),
     });
@@ -166,16 +196,10 @@ export async function GET(request: NextRequest) {
 
     // ── Access Gate (Super Admin Team / CRM Admin Team Protection) ──
     const superAdmin = checkSuperAdmin(decoded);
+    const viewerUserId = getViewerUserId(decoded);
+    const bridgeConfig = await resolveBridgeConfig(viewerUserId);
     if (!superAdmin) {
-      await connectDB();
-      const viewerUserId = getViewerUserId(decoded);
-      const CRMUserSettings = getCRMUserSettings();
-      const userSettings = await CRMUserSettings.findOne(
-        { userId: viewerUserId },
-        { qrBridgeUrl: 1, qrWhatsappEnabled: 1 }
-      ).lean();
-      
-      if (!userSettings?.qrBridgeUrl && !userSettings?.qrWhatsappEnabled) {
+      if (!bridgeConfig.hasOwnBridge && !bridgeConfig.qrWhatsappEnabled) {
         return NextResponse.json({
           success: false,
           error: 'Access denied. You need your own WhatsApp bridge configured.'
@@ -183,8 +207,11 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const response = await fetch(`${BRIDGE_URL}/broadcast/scheduled`, {
-      headers: { "x-bridge-secret": BRIDGE_SECRET },
+    const response = await fetch(`${bridgeConfig.bridgeUrl}/broadcast/scheduled`, {
+      headers: {
+        "x-bridge-secret": bridgeConfig.bridgeSecret,
+        "x-user-id": viewerUserId,
+      },
     });
     
     const data = await response.json();
@@ -210,16 +237,10 @@ export async function DELETE(request: NextRequest) {
 
     // ── Access Gate (Super Admin Team / CRM Admin Team Protection) ──
     const superAdmin = checkSuperAdmin(decoded);
+    const viewerUserId = getViewerUserId(decoded);
+    const bridgeConfig = await resolveBridgeConfig(viewerUserId);
     if (!superAdmin) {
-      await connectDB();
-      const viewerUserId = getViewerUserId(decoded);
-      const CRMUserSettings = getCRMUserSettings();
-      const userSettings = await CRMUserSettings.findOne(
-        { userId: viewerUserId },
-        { qrBridgeUrl: 1, qrWhatsappEnabled: 1 }
-      ).lean();
-      
-      if (!userSettings?.qrBridgeUrl && !userSettings?.qrWhatsappEnabled) {
+      if (!bridgeConfig.hasOwnBridge && !bridgeConfig.qrWhatsappEnabled) {
         return NextResponse.json({
           success: false,
           error: 'Access denied. You need your own WhatsApp bridge configured.'
@@ -232,9 +253,12 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Broadcast ID required" }, { status: 400 });
     }
 
-    const response = await fetch(`${BRIDGE_URL}/broadcast/scheduled/${id}`, {
+    const response = await fetch(`${bridgeConfig.bridgeUrl}/broadcast/scheduled/${id}`, {
       method: "DELETE",
-      headers: { "x-bridge-secret": BRIDGE_SECRET },
+      headers: {
+        "x-bridge-secret": bridgeConfig.bridgeSecret,
+        "x-user-id": viewerUserId,
+      },
     });
     
     const data = await response.json();

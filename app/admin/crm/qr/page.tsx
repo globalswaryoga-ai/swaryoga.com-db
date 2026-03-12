@@ -78,6 +78,43 @@ function getSidebarChatTitle(chat: ChatItem): string {
   return String(chat.name || chat.id.split('@')[0] || 'Unknown Contact');
 }
 
+function resolveConnectedPhoneLabel(status: BridgeStatus | null, connectedPhoneNumber: string): string {
+  const candidates = [
+    status?.phone?.id,
+    status?.phone?.name,
+    (status as (BridgeStatus & Record<string, any>) | null)?.me?.id,
+    (status as (BridgeStatus & Record<string, any>) | null)?.phoneNumber,
+    connectedPhoneNumber,
+  ];
+
+  for (const candidate of candidates) {
+    const digits = String(candidate || '').split(':')[0].split('@')[0].replace(/\D/g, '');
+    if (digits.length >= 10 && digits.length <= 15) {
+      return formatPhoneNumber(digits);
+    }
+  }
+
+  return '';
+}
+
+function extractConnectedPhoneDigits(status: BridgeStatus | null): string {
+  const candidates = [
+    status?.phone?.id,
+    status?.phone?.name,
+    (status as (BridgeStatus & Record<string, any>) | null)?.me?.id,
+    (status as (BridgeStatus & Record<string, any>) | null)?.phoneNumber,
+  ];
+
+  for (const candidate of candidates) {
+    const digits = String(candidate || '').split(':')[0].split('@')[0].replace(/\D/g, '');
+    if (digits.length >= 10 && digits.length <= 15) {
+      return digits;
+    }
+  }
+
+  return '';
+}
+
 export default function QRWhatsAppPage() {
   const token = useAuth();
   const router = useRouter();
@@ -621,26 +658,25 @@ export default function QRWhatsAppPage() {
 
   // ── Save connected phone number to settings ──
   useEffect(() => {
-    // When status shows we're connected AND has phone info, save it
-    if (status?.connected && status?.phone?.id && status.phone.id !== savedPhoneRef.current) {
-      savedPhoneRef.current = status.phone.id;
-      // Strip phone to digits only (same as server-side extractBridgePhone)
-      const cleanPhone = String(status.phone.id).split(':')[0].split('@')[0].replace(/\D/g, '');
-      if (!cleanPhone) return;
-      setConnectedPhoneNumber(cleanPhone);
-      // Save to DB in background using direct fetch (non-critical)
-      if (token) {
-        fetch('/api/admin/crm/settings', {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ qrConnectedPhoneNumber: cleanPhone }),
-        }).catch(e => console.warn('[QR] Failed to save connected phone:', e));
-      }
+    // When status shows we're connected and exposes any sender metadata, persist it.
+    if (!status?.connected) return;
+    const cleanPhone = extractConnectedPhoneDigits(status);
+    if (!cleanPhone || cleanPhone === savedPhoneRef.current) return;
+
+    savedPhoneRef.current = cleanPhone;
+    setConnectedPhoneNumber(cleanPhone);
+
+    if (token) {
+      fetch('/api/admin/crm/settings', {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ qrConnectedPhoneNumber: cleanPhone }),
+      }).catch(e => console.warn('[QR] Failed to save connected phone:', e));
     }
-  }, [status?.connected, status?.phone?.id, token]);
+  }, [status, token]);
 
   // ── Auto-fetch WhatsApp statuses when connected and on status tab ──
   useEffect(() => {
@@ -824,30 +860,9 @@ export default function QRWhatsAppPage() {
           }
         }
 
-        // Add CRM leads that don't have a matching QR chat as placeholder items
-        for (const [phone, lead] of crmLeadMap) {
-          if (matchedCrmPhones.has(phone)) continue;
-          if (phone.length === 10 && matchedCrmPhones.has('91' + phone)) continue;
-          if (phone.length === 12 && phone.startsWith('91') && matchedCrmPhones.has(phone.slice(2))) continue;
-          if (phone.length === 10 && crmLeadMap.has('91' + phone)) continue;
-          
-          matchedCrmPhones.add(phone);
-          if (phone.length === 12 && phone.startsWith('91')) matchedCrmPhones.add(phone.slice(2));
-          if (phone.length === 10) matchedCrmPhones.add('91' + phone);
-          
-          const jid = (phone.length === 10 ? '91' + phone : phone) + '@s.whatsapp.net';
-          deduped.push({
-            id: jid,
-            name: lead.name,
-            isGroup: false,
-            resolvedPhone: lead.phone,
-            unreadCount: 0,
-            lastMessageTime: null,
-            lastMessage: '',
-            funnelStage: lead.funnelStage,
-            labels: lead.labels,
-          });
-        }
+        // Do NOT append unmatched CRM leads as synthetic chats.
+        // The QR inbox should reflect actual bridge chats only; CRM lead data is used
+        // purely to enrich names, funnel stages, labels, and statuses on real chats.
 
         // Preserve unreadCount=0 only if no NEW messages arrived since the user read the chat
         for (const c of deduped) {
@@ -1724,9 +1739,7 @@ export default function QRWhatsAppPage() {
   // ── Render ──
   const connState = status?.status || 'disconnected';
   const isConnected = connState === 'connected';
-  const headerConnectedPhone = formatPhoneNumber(
-    String(status?.phone?.id || connectedPhoneNumber || '').split(':')[0].split('@')[0]
-  );
+  const headerConnectedPhone = resolveConnectedPhoneLabel(status, connectedPhoneNumber);
 
   // ── Bridge setup onboarding / settings modal ──
   if (bridgeConfigured === null) {
@@ -1777,7 +1790,8 @@ export default function QRWhatsAppPage() {
             {headerConnectedPhone && (
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-50 text-green-700 ring-1 ring-green-200" title={`Connected sender ${headerConnectedPhone}`}>
                 <Phone className="w-3.5 h-3.5" />
-                {headerConnectedPhone}
+                <span className="text-green-800/80">Sender</span>
+                <span className="font-bold text-green-800">{headerConnectedPhone}</span>
               </div>
             )}
             {/* User Compartment Indicator */}
