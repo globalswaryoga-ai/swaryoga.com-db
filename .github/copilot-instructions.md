@@ -172,7 +172,48 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
-### Per-User Bunny CDN Storage Compartments (Session: July 2025 — Phase 31) — Commit `[pending]`
+### Comprehensive Per-Chat Access Control for All Bridge Endpoints (Session: July 2025 — Phase 32) — Commit `01f3e817`
+
+1. **Pre-Request Security Gate** — `app/api/admin/crm/whatsapp/qr-bridge/route.ts`
+   - Added comprehensive security gate that runs BEFORE any request reaches the bridge
+   - Applies to BOTH GET and POST handlers — unified security layer
+   - Classifies every endpoint into security categories:
+     - `ALWAYS_ALLOWED_PATHS`: `/status`, `/qr`, `/chats`, `/statuses` — no extra check needed (chats already have post-response filter)
+     - `SUPER_ADMIN_ONLY_PATHS`: `/reconnect`, `/disconnect`, `/logout`, `/group-create` — blocked for non-super-admin
+     - `BODY_TARGET_PATHS`: `/send`, `/reply`, `/react`, `/delete-message`, `/typing`, `/read`, `/presence/subscribe` — validates lead ownership from request body `chatId`/`to` field
+     - Path-target endpoints: `/messages/`, `/contact-about/`, `/profile-pic/`, `/media/`, `/group-*` — validates lead ownership from URL path JID
+   - All unknown/unclassified paths default to BLOCKED for non-super-admin (fail-safe)
+
+2. **Helper Functions** — `qr-bridge/route.ts`
+   - `extractPhoneFromJid(jid)` — extracts phone number from WhatsApp JID (e.g., `919075358557@s.whatsapp.net` → `919075358557`)
+   - `isLeadOwnedByUser(phone, userId)` — checks Lead collection with dual phone format lookup (10-digit + 91-prefix)
+   - `extractPhoneFromPath(path)` — extracts phone from URL paths like `/messages/919075358557@s.whatsapp.net`
+   - `isPathTargetEndpoint(path)` — identifies endpoints that carry target JID in the URL path
+
+3. **Broadcast Recipients Lead-Ownership Filter** — `app/api/admin/crm/whatsapp/qr/broadcast/route.ts`
+   - Non-super-admin users' recipients array is filtered against Lead collection
+   - Only recipients where `assignedToUserId` or `createdByUserId` matches viewer are kept
+   - If no valid recipients remain, broadcast is blocked with 403
+   - Dual phone format lookup for recipient matching
+   - Super Admin can broadcast to any phone (unchanged)
+
+4. **Cleanup: Removed Redundant Legacy Filters** — `qr-bridge/route.ts`
+   - Removed POST `/messages/` privacy filter block (~20 lines) — now handled by pre-request gate
+   - Removed GET `/messages/` privacy filter block (~35 lines) — now handled by pre-request gate
+   - Chat privacy post-response filter for `/chats` remains (filters bridge response)
+
+5. **Security Model (FINAL)**:
+   | Endpoint | Super Admin | Team User (qrWhatsappEnabled) | Unauth User |
+   |----------|-------------|-------------------------------|-------------|
+   | /status, /qr | ✅ | ✅ | ❌ (no bridge) |
+   | /chats | ✅ (filtered to own leads) | ✅ (filtered to own leads) | ❌ |
+   | /messages/{jid} | ✅ (own leads only) | ✅ (own leads only) | ❌ |
+   | /send, /reply | ✅ (own leads only) | ✅ (own leads only) | ❌ |
+   | /reconnect, /logout | ✅ | ❌ BLOCKED | ❌ |
+   | /broadcast | ✅ (all) | ✅ (filtered to own leads) | ❌ |
+   | Unknown path | ✅ | ❌ BLOCKED (fail-safe) | ❌ |
+
+### Per-User Bunny CDN Storage Compartments (Session: July 2025 — Phase 31) — Commit `e226905c`
 
 1. **User-Scoped Storage Functions** — `lib/bunny-storage.ts`
    - Added `uploadUserFile(buffer, fileName, userId, category, contentType)` — uploads to `users/{userId}/{category}/{timestamp}-{rand}-{name}`
