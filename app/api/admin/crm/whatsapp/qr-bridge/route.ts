@@ -596,6 +596,15 @@ export async function POST(req: NextRequest) {
       const errorText = await res.text();
       console.error(`[QR Bridge Proxy] Bridge error (${res.status}):`, errorText.substring(0, 200));
       
+      // Try to extract bridge's specific error message from JSON
+      let bridgeSpecificMessage = null;
+      try {
+        const errorJson = JSON.parse(errorText);
+        bridgeSpecificMessage = errorJson.message || errorJson.error;
+      } catch (e) {
+        // Not JSON, use generic message
+      }
+      
       // Handle specific error codes with helpful messages
       let errorMessage = 'Bridge error';
       if (res.status === 404) {
@@ -605,7 +614,8 @@ export async function POST(req: NextRequest) {
       } else if (res.status === 401 || res.status === 403) {
         errorMessage = 'Bridge authentication failed';
       } else if (res.status === 400) {
-        errorMessage = 'Invalid request format';
+        // Use bridge's specific message if available (e.g., "QR not available")
+        errorMessage = bridgeSpecificMessage || 'Invalid request format';
       }
       
       return NextResponse.json(
@@ -915,6 +925,15 @@ export async function GET(req: NextRequest) {
       }
       console.error(`[QR Bridge Proxy] Bridge error (${res.status}):`, errorText.substring(0, 200));
       
+      // Try to extract bridge's specific error message from JSON
+      let bridgeSpecificMessage = null;
+      try {
+        const errorJson = JSON.parse(errorText);
+        bridgeSpecificMessage = errorJson.message || errorJson.error;
+      } catch (e) {
+        // Not JSON, use generic message
+      }
+      
       // Handle specific error codes with helpful messages
       let errorMessage = 'Bridge error';
       if (res.status === 404) {
@@ -924,7 +943,8 @@ export async function GET(req: NextRequest) {
       } else if (res.status === 401 || res.status === 403) {
         errorMessage = 'Bridge authentication failed';
       } else if (res.status === 400) {
-        errorMessage = 'Invalid request format';
+        // Use bridge's specific message if available (e.g., "QR not available")
+        errorMessage = bridgeSpecificMessage || 'Invalid request format';
       }
       
       // For group chats that fail, return empty messages instead of error
