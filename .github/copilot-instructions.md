@@ -172,6 +172,39 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### QR Sender Header & Persistent QR History Fix (Session: March 12, 2026 — Phase 41) — Commit `fa4f0d71`
+
+1. **✅ Connected QR Sender Number Now Persists and Shows in the Header**
+    - **Problem**: After scanning QR with `919075358557`, the connected sender number was not shown in the main QR page header and could disappear after refresh
+    - **Root Cause**:
+       - `app/api/admin/crm/settings/route.ts` did not return `qrConnectedPhoneNumber`, `senderDisplayName`, or `pinnedChats`
+       - `qrConnectedPhoneNumber` updates were also restricted incorrectly, so some admin users could not persist the scanned number
+    - **Solution**:
+       - Added normalized `qrConnectedPhoneNumber`, `senderDisplayName`, and `pinnedChats` to settings GET response
+       - Allowed `qrConnectedPhoneNumber`, `senderDisplayName`, and `pinnedChats` to save for admin users
+       - Updated `app/admin/crm/qr/page.tsx` to cache and render the connected sender number in the top header
+       - Updated `app/admin/crm/qr/components/ConnectionTab.tsx` to show the persisted phone if live bridge phone metadata is temporarily missing
+
+2. **✅ QR Webhook Now Persists Bridge Messages into QR-Specific History Collections**
+    - **Problem**: Inbound/outbound QR message history could disappear from CRM fallback flows because webhook ingestion only wrote to generic `whatsapp_messages`
+    - **Root Cause**: `app/api/whatsapp/qr/webhook/route.ts` stored bridge events in `whatsapp_messages`, but QR fallback/history endpoints rely on `qr_whatsapp_messages` and `qr_whatsapp_chats`
+    - **Solution**:
+       - Added QR-specific persistence in `app/api/whatsapp/qr/webhook/route.ts`
+       - Uses `payload.bridgeUserId` + persisted `qrConnectedPhoneNumber` to upsert into:
+          - `qr_whatsapp_messages`
+          - `qr_whatsapp_chats`
+       - Keeps last-message preview, timestamps, unread counts, and media metadata in sync for CRM QR history recovery
+
+3. **✅ Verification**
+    - **Files Modified**:
+       - `app/api/whatsapp/qr/webhook/route.ts`
+       - `app/api/admin/crm/settings/route.ts`
+       - `app/admin/crm/qr/page.tsx`
+       - `app/admin/crm/qr/components/ConnectionTab.tsx`
+    - **Build**:
+       - ✅ Full production build succeeds
+       - ✅ No TypeScript/editor errors in modified files
+
 ### QR Tenant Per-Chat 403 Fix (Session: March 12, 2026 — Phase 40) — Commit `ad82ebb4`
 
 1. **✅ Removed Incorrect Shared-Bridge Lead Filtering for Tenant-Isolated QR Sessions**
