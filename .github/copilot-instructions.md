@@ -172,6 +172,22 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### Bridge QR Error Message Improvement (Session: March 12, 2026 — Phase 36) — Commit `aa4c8f22`
+
+1. **✅ Extract and Display Bridge's Specific Error Messages**
+   - **Problem**: When bridge returns 400 errors (e.g., "QR not available"), users only saw generic "Invalid request format"
+   - **Root Cause**: Error messages weren't extracting the bridge's own diagnostic text
+   - **Solution**: 
+     - Parse JSON error responses from bridge
+     - Extract `message` or `error` field from bridge response
+     - Display actual bridge message to user instead of generic text
+   - **Files Modified**: `app/api/admin/crm/whatsapp/qr-bridge/route.ts` (both POST & GET handlers)
+   - **Example**:
+     - Before: "Bridge error: Invalid request format"
+     - After: "Bridge error: QR not available. Wait or restart bridge."
+   - **Status**: ✅ Deployed to production (commit aa4c8f22, deployed via Vercel)
+   - **Impact**: Users get actionable guidance on what the bridge needs
+
 ### Permanent 404 Error Fix - Bridge Error Handling & Diagnostics (Session: March 2026 — Phase 35) — Commit `246aa39d`
 
 1. **✅ Enhanced qr-bridge Error Handling (CRITICAL PRODUCTION FIX)**
