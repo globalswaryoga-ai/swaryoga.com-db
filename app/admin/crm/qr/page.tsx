@@ -187,6 +187,7 @@ export default function QRWhatsAppPage() {
   const [connectedPhoneNumber, setConnectedPhoneNumber] = useState(() => {
     if (typeof window !== 'undefined') { try { return localStorage.getItem('crm_qrConnectedPhoneNumber') || ''; } catch {} } return '';
   });
+  const [failedInlineMediaIds, setFailedInlineMediaIds] = useState<Set<string>>(new Set());
   const [isPageVisible, setIsPageVisible] = useState(true);
 
   // All refs must come before any hooks
@@ -927,6 +928,15 @@ export default function QRWhatsAppPage() {
           quotedId: m.quotedId || null,
         }));
         setMessages(mapped);
+        setFailedInlineMediaIds(prev => {
+          if (prev.size === 0) return prev;
+          const next = new Set(prev);
+          const validIds = new Set(mapped.map((m: MessageItem) => m.id));
+          for (const id of next) {
+            if (!validIds.has(id)) next.delete(id);
+          }
+          return next;
+        });
         setTimeout(() => {
           messengerRef.current?.scrollTo({ top: messengerRef.current.scrollHeight, behavior: 'smooth' });
         }, 100);
@@ -1440,6 +1450,15 @@ export default function QRWhatsAppPage() {
       setDownloadingMedia(null);
     }
   }, [token]);
+
+  const markInlineMediaFailed = useCallback((messageId: string) => {
+    setFailedInlineMediaIds(prev => {
+      if (prev.has(messageId)) return prev;
+      const next = new Set(prev);
+      next.add(messageId);
+      return next;
+    });
+  }, []);
 
   // ── Reconnect (with debounce to prevent spam) ──
   const reconnectingRef = useRef(false);
@@ -2420,10 +2439,11 @@ export default function QRWhatsAppPage() {
                     const isDocument = msg.type === 'document' || (msg.hasMedia && !isImage && !isVideo && !isAudio);
                     // Primary URL: Bunny CDN via media proxy
                     const proxyUrl = msg.mediaUrl ? `/api/admin/crm/media/proxy?url=${encodeURIComponent(msg.mediaUrl)}&token=${encodeURIComponent(token || '')}` : null;
-                    // Fallback URL: download directly from bridge via server-side proxy (no CORS issues)
+                    // Fallback URL: download directly from bridge via server-side proxy (manual action only)
                     const bridgeProxyUrl = (msg.hasMedia && msg.id) ? `/api/admin/crm/media/bridge-download?messageId=${encodeURIComponent(msg.id)}&token=${encodeURIComponent(token || '')}` : null;
-                    // Use Bunny CDN first, bridge-download as fallback
-                    const mediaDisplayUrl = proxyUrl || bridgeProxyUrl;
+                    // Only auto-preview stable proxied media URLs.
+                    // Avoid auto-loading bridge-download inline, because missing bridge media IDs can create repeated 404/429 storms.
+                    const mediaDisplayUrl = proxyUrl && !failedInlineMediaIds.has(msg.id) ? proxyUrl : null;
                     const hasMediaPreview = mediaDisplayUrl && (isImage || isVideo || isAudio || isDocument);
                     const hasOnlyMedia = hasMediaPreview && !msg.text;
                     const reactionEntries = msg.reactions ? Object.entries(msg.reactions).filter(([, v]) => v) : [];
@@ -2484,12 +2504,8 @@ export default function QRWhatsAppPage() {
                               loading="lazy"
                               onError={(e) => {
                                 const img = e.target as HTMLImageElement;
-                                // Try bridge-download fallback if Bunny proxy failed
-                                if (bridgeProxyUrl && img.src !== bridgeProxyUrl) {
-                                  img.src = bridgeProxyUrl;
-                                } else {
-                                  img.style.display = 'none';
-                                }
+                                markInlineMediaFailed(msg.id);
+                                img.style.display = 'none';
                               }}
                             />
                           </div>
@@ -2503,18 +2519,15 @@ export default function QRWhatsAppPage() {
                               controls
                               onError={(e) => {
                                 const vid = e.target as HTMLVideoElement;
-                                if (bridgeProxyUrl && vid.src !== bridgeProxyUrl) {
-                                  vid.src = bridgeProxyUrl;
-                                } else {
-                                  vid.style.display = 'none';
-                                }
+                                markInlineMediaFailed(msg.id);
+                                vid.style.display = 'none';
                               }}
                             />
                           </div>
                         )}
                         {hasMediaPreview && mediaDisplayUrl && isAudio && (
                           <div className="mb-1.5">
-                            <audio src={mediaDisplayUrl} controls preload="metadata" className="max-w-full h-10" />
+                            <audio src={mediaDisplayUrl} controls preload="metadata" className="max-w-full h-10" onError={() => markInlineMediaFailed(msg.id)} />
                           </div>
                         )}
                         {hasMediaPreview && mediaDisplayUrl && isDocument && (
