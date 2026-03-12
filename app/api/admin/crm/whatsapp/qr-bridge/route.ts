@@ -328,11 +328,23 @@ async function getMongoSessionChats(userId: string, connectedPhone: string) {
   }
 }
 
+function getChatArray(data: any): any[] {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.chats)) return data.chats;
+  return [];
+}
+
 async function syncMongoSessionChats(userId: string, connectedPhone: string, chats: any[]) {
-  if (!userId || !connectedPhone || !Array.isArray(chats) || chats.length === 0) return;
+  if (!userId || !connectedPhone || !Array.isArray(chats)) return;
 
   try {
     const QrChat = getQrWhatsAppChat();
+    const validChatIds = Array.from(new Set(
+      chats
+        .map((chat: any) => String(chat?.id || '').trim())
+        .filter(Boolean)
+    ));
+
     const ops = chats
       .filter((chat: any) => chat?.id)
       .map((chat: any) => ({
@@ -363,6 +375,17 @@ async function syncMongoSessionChats(userId: string, connectedPhone: string, cha
 
     if (ops.length > 0) {
       await QrChat.bulkWrite(ops, { ordered: false });
+    }
+
+    // Treat each successful /chats sync as the exact current-session snapshot.
+    // Remove older chat rows for this user+phone that are no longer in the latest list,
+    // otherwise stale/foreign chat IDs can linger forever in Mongo and reappear in the UI.
+    if (validChatIds.length > 0) {
+      await QrChat.deleteMany({
+        userId,
+        connectedPhone,
+        chatJid: { $nin: validChatIds },
+      });
     }
   } catch (err) {
     console.error('[QR Bridge Proxy] Failed to sync Mongo session chats:', err);
@@ -843,18 +866,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ── CURRENT SESSION CHAT SOURCE (POST /chats) ──
-    // For isolated tenant-owned sessions, prefer the QR-specific Mongo chat store
-    // keyed by userId + connectedPhone. This avoids bloated bridge history hydrated
-    // from older scans or stale bridge-side DB state.
-    if (decodedPath === '/chats' && resolved.hasOwnBridge && resolved.storedPhone) {
-      const mongoChats = await getMongoSessionChats(userId, resolved.storedPhone);
-      if (mongoChats.length > 0) {
-        console.log(`[QR Bridge Proxy POST /chats] Using Mongo session chats for ${userId}: ${mongoChats.length} chats (connectedPhone=${resolved.storedPhone})`);
-        data = data?.chats ? { ...data, chats: mongoChats, source: 'qr_mongodb' } : { chats: mongoChats, source: 'qr_mongodb' };
-      }
-    }
-
     // ── SESSION ISOLATION (POST /chats) ──
     // After a new QR scan, keep only chats whose activity is newer than the phone-change timestamp.
     // This prevents stale chats from the previously scanned number from leaking into the tenant inbox.
@@ -866,8 +877,19 @@ export async function POST(req: NextRequest) {
       }
 
       if (resolved.hasOwnBridge && resolved.storedPhone) {
-        const currentChats = data?.chats || (Array.isArray(data) ? data : []);
-        await syncMongoSessionChats(userId, resolved.storedPhone, currentChats);
+        const bridgeChats = getChatArray(data);
+        if (bridgeChats.length > 0) {
+          await syncMongoSessionChats(userId, resolved.storedPhone, bridgeChats);
+          data = data?.chats
+            ? { ...data, chats: bridgeChats, source: data?.source || 'bridge_current_session' }
+            : { chats: bridgeChats, source: 'bridge_current_session' };
+        } else {
+          const mongoChats = await getMongoSessionChats(userId, resolved.storedPhone);
+          if (mongoChats.length > 0) {
+            console.log(`[QR Bridge Proxy POST /chats] Falling back to Mongo session chats for ${userId}: ${mongoChats.length} chats (connectedPhone=${resolved.storedPhone})`);
+            data = data?.chats ? { ...data, chats: mongoChats, source: 'qr_mongodb_fallback' } : { chats: mongoChats, source: 'qr_mongodb_fallback' };
+          }
+        }
       }
     }
 
@@ -1277,18 +1299,6 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // ── CURRENT SESSION CHAT SOURCE (GET /chats) ──
-    // For isolated tenant-owned sessions, prefer the QR-specific Mongo chat store
-    // keyed by userId + connectedPhone. This avoids bloated bridge history hydrated
-    // from older scans or stale bridge-side DB state.
-    if (path === '/chats' && resolved.hasOwnBridge && resolved.storedPhone) {
-      const mongoChats = await getMongoSessionChats(userId, resolved.storedPhone);
-      if (mongoChats.length > 0) {
-        console.log(`[QR Bridge Proxy GET /chats] Using Mongo session chats for ${userId}: ${mongoChats.length} chats (connectedPhone=${resolved.storedPhone})`);
-        data = data?.chats ? { ...data, chats: mongoChats, source: 'qr_mongodb' } : { chats: mongoChats, source: 'qr_mongodb' };
-      }
-    }
-
     // ── SESSION ISOLATION (GET /chats) ──
     // Keep only chats newer than the current scan timestamp so previous-number chats stay hidden.
     if (path === '/chats') {
@@ -1299,8 +1309,19 @@ export async function GET(req: NextRequest) {
       }
 
       if (resolved.hasOwnBridge && resolved.storedPhone) {
-        const currentChats = data?.chats || (Array.isArray(data) ? data : []);
-        await syncMongoSessionChats(userId, resolved.storedPhone, currentChats);
+        const bridgeChats = getChatArray(data);
+        if (bridgeChats.length > 0) {
+          await syncMongoSessionChats(userId, resolved.storedPhone, bridgeChats);
+          data = data?.chats
+            ? { ...data, chats: bridgeChats, source: data?.source || 'bridge_current_session' }
+            : { chats: bridgeChats, source: 'bridge_current_session' };
+        } else {
+          const mongoChats = await getMongoSessionChats(userId, resolved.storedPhone);
+          if (mongoChats.length > 0) {
+            console.log(`[QR Bridge Proxy GET /chats] Falling back to Mongo session chats for ${userId}: ${mongoChats.length} chats (connectedPhone=${resolved.storedPhone})`);
+            data = data?.chats ? { ...data, chats: mongoChats, source: 'qr_mongodb_fallback' } : { chats: mongoChats, source: 'qr_mongodb_fallback' };
+          }
+        }
       }
     }
 

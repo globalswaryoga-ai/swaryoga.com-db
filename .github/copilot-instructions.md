@@ -172,6 +172,24 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### Tenant QR Stale Unknown Chat Cleanup (Session: March 12, 2026 — Phase 62) — Commit `[pending]`
+
+1. **✅ Tenant QR Inbox No Longer Keeps Accumulating Old / Unknown Chat Rows in Mongo Snapshot**
+   - **Problem**: Tenant QR inboxes could still show stale or unknown chats even after earlier privacy hardening because the QR Mongo snapshot was being used as a session source but old chat rows were never removed
+   - **Root Cause**:
+      - `app/api/admin/crm/whatsapp/qr-bridge/route.ts` synced current `/chats` into `qr_whatsapp_chats` with upserts only
+      - stale chat JIDs not returned by the latest session remained in Mongo forever and could keep reappearing in tenant inboxes
+      - own-bridge `/chats` also preferred Mongo too early, so polluted snapshots could dominate the visible tenant inbox
+   - **Solution**:
+      - Updated `app/api/admin/crm/whatsapp/qr-bridge/route.ts`
+      - Added exact-snapshot sync behavior for tenant QR chat storage so chat rows missing from the latest live session are deleted from `qr_whatsapp_chats`
+      - Changed own-bridge `/chats` flow to prefer the current filtered bridge chat list when available and use Mongo only as fallback when the bridge returns no chats
+      - This prevents old/foreign/unknown chat IDs from lingering in tenant QR inboxes after newer clean session data arrives
+
+2. **✅ Verification**
+   - No editor/type errors in modified proxy file
+   - Full production build completed successfully locally before push
+
 ### QR / Meta Chat Privacy Separation Hardening (Session: March 12, 2026 — Phase 61) — Commit `48a88114`
 
 1. **✅ Hardened Own-Bridge QR Privacy So Only Current-Session Chats Can Be Read**
