@@ -172,6 +172,30 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### QR Media Preview Retry-Loop Fix (Session: March 12, 2026 — Phase 43) — Commit `87e54232`
+
+1. **✅ Stopped Repeated `bridge-download` 404/429 Storms in QR Chat Media Previews**
+    - **Problem**: The QR inbox message view was repeatedly requesting `/api/admin/crm/media/bridge-download?messageId=...` for missing or unavailable media, causing browser console floods, 404s, 429s, and UI instability
+    - **Root Cause**:
+       - `app/admin/crm/qr/page.tsx` used `bridge-download` as an automatic inline preview source when `msg.mediaUrl` was missing
+       - On every message poll / rerender, the same missing media IDs were requested again, creating a retry loop
+    - **Solution**:
+       - Changed inline media previews to auto-load only stable proxied CDN media (`/api/admin/crm/media/proxy?...`)
+       - Kept `bridge-download` as a manual fallback path instead of an automatic inline preview source
+       - Added failed inline media tracking so once a preview fails, the page stops retrying the same message ID on subsequent rerenders
+
+2. **✅ Impact**
+    - Missing bridge media no longer hammers the server or browser repeatedly
+    - Prevents repeated 404/429 console spam for the same QR media IDs
+    - Keeps the inbox stable even when some historical bridge media is unavailable
+
+3. **✅ Verification**
+    - **Files Modified**:
+       - `app/admin/crm/qr/page.tsx`
+    - **Build / Validation**:
+       - ✅ No TypeScript/editor errors in modified file
+       - ✅ Production build reaches final Next.js summary successfully
+
 ### QR Sidebar Saved Names / Numbers Fix (Session: March 12, 2026 — Phase 42) — Commit `eef52395`
 
 1. **✅ QR Sidebar Now Prefers Saved CRM Names and Real Numbers Over Placeholder Labels**
