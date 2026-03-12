@@ -172,7 +172,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
-### QR / Meta Chat Privacy Separation Hardening (Session: March 12, 2026 — Phase 61) — Commit `[pending]`
+### QR / Meta Chat Privacy Separation Hardening (Session: March 12, 2026 — Phase 61) — Commit `48a88114`
 
 1. **✅ Hardened Own-Bridge QR Privacy So Only Current-Session Chats Can Be Read**
    - **Problem**: Even with per-user QR session isolation, stale or foreign bridge-side chat/message data could still leak if a user hit per-chat endpoints directly or if bridge memory returned old conversation state
