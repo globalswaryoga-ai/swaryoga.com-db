@@ -172,7 +172,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
-### QR Error Handling Hardening for 401/403/404 (Session: March 12, 2026 — Phase 39) — Commit `[pending]`
+### QR Error Handling Hardening for 401/403/404 (Session: March 12, 2026 — Phase 39) — Commit `02493d8b`
 
 1. **✅ Improved Client-Side Handling for 401, 403, and 404 Errors**
     - **Problem**: QR WhatsApp frontend still handled several 401/403/404 responses too generically, causing confusing UX and inconsistent messages across direct fetch calls
