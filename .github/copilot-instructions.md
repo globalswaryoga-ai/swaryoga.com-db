@@ -172,6 +172,29 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### QR Sidebar Saved Names / Numbers Fix (Session: March 12, 2026 — Phase 48) — Commit `[pending]`
+
+1. **✅ QR Sidebar Now Prefers Saved CRM Names and Real Numbers Over Internal IDs**
+    - **Problem**: The QR inbox sidebar could still show raw 14-digit internal IDs instead of saved contact names or real mobile numbers
+    - **Root Cause**:
+       - `app/admin/crm/qr/page.tsx` still treated many numeric identifiers as displayable phone numbers
+       - Internal 14+ digit IDs were leaking into the UI as if they were real contact numbers
+    - **Solution**:
+       - Tightened phone detection so only real displayable phone numbers are formatted
+       - Blocked 14+ digit internal IDs from being shown as phone numbers
+       - Updated the sidebar and chat header to prefer saved CRM names, with the real country-code mobile shown as secondary metadata when available
+
+2. **✅ Header Badge Now Shows `Joined by scanned QR code` Before Connection State**
+    - **Solution**:
+       - Added a dedicated badge before the Connected/Offline pill so tenants can clearly see the scanned WhatsApp number in the page header
+
+3. **✅ Verification**
+    - **Files Modified**:
+       - `app/admin/crm/qr/page.tsx`
+       - `.github/copilot-instructions.md`
+    - **Build / Validation**:
+       - ✅ No TypeScript/editor errors in modified QR page
+
 ### One User One Bridge Isolation Restore (Session: March 12, 2026 — Phase 47) — Commit `[pending]`
 
 1. **✅ Permanent Tenant IDs Now Route Each QR User to Their Own Bridge Session**

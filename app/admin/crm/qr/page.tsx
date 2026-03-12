@@ -34,6 +34,16 @@ function isPlaceholderChatName(name: string | undefined | null): boolean {
   return false;
 }
 
+function isDisplayablePhoneDigits(digits: string): boolean {
+  if (!digits) return false;
+  if (digits.length >= 14) return false;
+  if (digits.length === 10) return true;
+  if (digits.length === 11 && digits.startsWith('0')) return true;
+  if (digits.length === 12 && digits.startsWith('91')) return true;
+  if (digits.length >= 11 && digits.length <= 13) return true;
+  return false;
+}
+
 function extractBestChatPhone(chat: Partial<ChatItem> & Record<string, any>): string {
   const directCandidates = [
     chat.resolvedPhone,
@@ -46,19 +56,27 @@ function extractBestChatPhone(chat: Partial<ChatItem> & Record<string, any>): st
 
   for (const candidate of directCandidates) {
     const digits = String(candidate || '').replace(/\D/g, '');
-    if (digits.length >= 10 && digits.length <= 15) return digits;
+    if (isDisplayablePhoneDigits(digits)) {
+      return digits.length === 11 && digits.startsWith('0') ? digits.slice(1) : digits;
+    }
   }
 
   const jid = typeof chat.id === 'string' ? chat.id : '';
   if (jid.endsWith('@s.whatsapp.net') || jid.endsWith('@c.us')) {
     const digits = jid.split('@')[0].replace(/\D/g, '');
-    if (digits.length >= 10 && digits.length <= 15) return digits;
+    if (isDisplayablePhoneDigits(digits)) return digits;
   }
 
   const nameDigits = String(chat.name || '').replace(/\D/g, '');
-  if (nameDigits.length >= 10 && nameDigits.length <= 13) return nameDigits;
+  if (isDisplayablePhoneDigits(nameDigits)) return nameDigits;
 
   return '';
+}
+
+function getSidebarChatPhone(chat: ChatItem): string {
+  if (chat.isGroup) return '';
+  const phone = extractBestChatPhone(chat as ChatItem & Record<string, any>);
+  return phone ? formatPhoneNumber(phone) : '';
 }
 
 function getSidebarChatTitle(chat: ChatItem): string {
@@ -75,7 +93,7 @@ function getSidebarChatTitle(chat: ChatItem): string {
     return formatPhoneNumber(phone);
   }
 
-  return String(chat.name || chat.id.split('@')[0] || 'Unknown Contact');
+  return 'Unknown Contact';
 }
 
 function resolveConnectedPhoneLabel(status: BridgeStatus | null, connectedPhoneNumber: string): string {
@@ -1777,6 +1795,13 @@ export default function QRWhatsAppPage() {
               </div>
               <h1 className="text-lg font-bold text-gray-900">QR WhatsApp</h1>
             </div>
+            {headerConnectedPhone && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200" title={`Joined by scanned QR code: ${headerConnectedPhone}`}>
+                <QrCode className="w-3.5 h-3.5" />
+                <span className="text-emerald-800/80">Joined by scanned QR code</span>
+                <span className="font-bold text-emerald-800">{headerConnectedPhone}</span>
+              </div>
+            )}
             <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${
               isConnected ? 'bg-green-100 text-green-700 ring-1 ring-green-300 shadow-sm' :
               connState === 'connecting' ? 'bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200' :
@@ -1787,13 +1812,6 @@ export default function QRWhatsAppPage() {
                <WifiOff className="w-3.5 h-3.5" />}
               {isConnected ? 'Connected' : connState === 'connecting' ? 'Connecting...' : 'Offline'}
             </div>
-            {headerConnectedPhone && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-50 text-green-700 ring-1 ring-green-200" title={`Connected sender ${headerConnectedPhone}`}>
-                <Phone className="w-3.5 h-3.5" />
-                <span className="text-green-800/80">Sender</span>
-                <span className="font-bold text-green-800">{headerConnectedPhone}</span>
-              </div>
-            )}
             {/* User Compartment Indicator */}
             <div className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-500 ring-1 ring-gray-200" title={`Logged in as ${currentUserId}`}>
               <Lock className="w-2.5 h-2.5" />
@@ -2163,6 +2181,8 @@ export default function QRWhatsAppPage() {
                 const chatLabelList = chatLabels[chat.id] || [];
                 const isSelected = selectedChats.has(chat.id);
                 const stageInfo = funnelStages.find(s => s.key === chatStage);
+                const chatTitle = getSidebarChatTitle(chat);
+                const chatPhone = getSidebarChatPhone(chat);
 
                 return (
                   <div
@@ -2205,7 +2225,7 @@ export default function QRWhatsAppPage() {
                       <div className="flex items-center justify-between gap-1">
                         <span className="font-medium text-sm text-gray-900 truncate flex items-center gap-1">
                           {chat.isGroup && <Users className="w-3 h-3 text-indigo-500 flex-shrink-0" />}
-                          {getSidebarChatTitle(chat)}
+                          {chatTitle}
                         </span>
                         <div className="flex items-center gap-1 flex-shrink-0">
                           {/* Label dots — colored circles, hover to see name */}
@@ -2236,6 +2256,9 @@ export default function QRWhatsAppPage() {
                           {timeStr && <span className="text-[10px] text-gray-400 whitespace-nowrap">{timeStr}</span>}
                         </div>
                       </div>
+                      {!chat.isGroup && chatPhone && chatPhone !== chatTitle && (
+                        <p className="text-[11px] text-gray-500 truncate mt-0.5">{chatPhone}</p>
+                      )}
                       {/* Funnel stage + labels + lead status row */}
                       <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                         {/* Lead status badge */}
@@ -2341,13 +2364,15 @@ export default function QRWhatsAppPage() {
                       const selectedChatInfo = chats.find(c => c.id === selectedChat);
                       const isGroupChat = selectedChat.endsWith('@g.us') || selectedChat.endsWith('@lid');
                       // For non-group chats: prefer CRM lead name (set during enrichment) over raw phone
-                      const crmName = selectedChatInfo?.name && !/^\d+$/.test(selectedChatInfo.name) ? selectedChatInfo.name : null;
+                      const chatTitle = selectedChatInfo ? getSidebarChatTitle(selectedChatInfo) : 'Unknown Contact';
+                      const chatPhone = selectedChatInfo ? getSidebarChatPhone(selectedChatInfo) : '';
+                      const crmName = selectedChatInfo?.name && !isPlaceholderChatName(selectedChatInfo.name) ? selectedChatInfo.name : null;
                       const headerDisplayName = isGroupChat
                         ? (selectedChatInfo?.name || selectedChat.split('@')[0])
-                        : (crmName || selectedChatInfo?.resolvedPhone || selectedChat.replace('@s.whatsapp.net', ''));
+                        : (crmName || chatPhone || chatTitle);
                       const chatName = isGroupChat
                         ? (selectedChatInfo?.name || selectedChat.split('@')[0])
-                        : (crmName || selectedChat.replace('@s.whatsapp.net', ''));
+                        : (crmName || chatTitle);
                       const avatarColor = getAvatarColor(chatName);
                       const initials = getInitials(chatName);
                       const stage = chatFunnels[selectedChat];
@@ -2369,10 +2394,13 @@ export default function QRWhatsAppPage() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5">
                               {isGroupChat && <Users className="w-3 h-3 text-indigo-500 flex-shrink-0" />}
-                              <p className="font-medium text-sm truncate">{isGroupChat ? headerDisplayName : formatPhoneNumber(headerDisplayName)}</p>
+                              <p className="font-medium text-sm truncate">{isGroupChat ? headerDisplayName : headerDisplayName}</p>
                               <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isConnected ? 'bg-green-500' : 'bg-gray-400'}`}></span>
                             </div>
                             <div className="flex items-center gap-1 mt-0.5">
+                              {!isGroupChat && chatPhone && crmName && (
+                                <span className="text-[10px] text-gray-500 mr-1">{chatPhone}</span>
+                              )}
                               {/* Online/offline/last seen for non-group chats */}
                               {!isGroupChat && chatPresence && (
                                 <span className={`text-[9px] font-medium ${chatPresence.presence === 'available' ? 'text-green-600' : chatPresence.presence === 'composing' ? 'text-green-600' : chatPresence.presence === 'recording' ? 'text-green-600' : 'text-gray-400'}`}>
