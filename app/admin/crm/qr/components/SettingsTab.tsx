@@ -89,12 +89,21 @@ export function SettingsTab({
 
   // Load QR access users when super admin opens settings
   useEffect(() => {
-    if (!isSuperAdmin || !crmFetch) return;
+    if (!isSuperAdmin) return;
     let cancelled = false;
     const loadAccessList = async () => {
       setLoadingAccess(true);
       try {
-        const res = await crmFetch('/api/admin/crm/whatsapp/qr-access', { silent: true });
+        // Use direct fetch instead of crmFetch to avoid auto-logout on errors
+        const res = await fetch('/api/admin/crm/whatsapp/qr-access', {
+          headers: { 'Authorization': `Bearer ${token}` },
+        }).then(r => {
+          if (!r.ok && r.status === 401) throw new Error('Unauthorized');
+          return r.json().catch(() => null);
+        }).catch(e => {
+          console.warn('[QR Access] Fetch error:', e);
+          return null;
+        });
         if (!cancelled && res?.users) {
           setQrAccessUsers(res.users);
         }
@@ -107,18 +116,27 @@ export function SettingsTab({
     };
     loadAccessList();
     return () => { cancelled = true; };
-  }, [isSuperAdmin, crmFetch]);
+  }, [isSuperAdmin, token]);
 
   // Toggle QR access for a user
   const toggleUserAccess = useCallback(async (targetUserId: string, enabled: boolean) => {
-    if (!crmFetch || togglingUser) return;
+    if (togglingUser || !token) return;
     setTogglingUser(targetUserId);
     setAccessError(null);
     try {
-      await crmFetch('/api/admin/crm/whatsapp/qr-access', {
+      // Use direct fetch instead of crmFetch to avoid auto-logout on errors
+      const response = await fetch('/api/admin/crm/whatsapp/qr-access', {
         method: 'PUT',
-        body: { targetUserId, qrWhatsappEnabled: enabled },
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ targetUserId, qrWhatsappEnabled: enabled }),
       });
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errData.error || `Failed: ${response.status}`);
+      }
       setQrAccessUsers(prev =>
         prev.map(u => u.userId === targetUserId ? { ...u, qrWhatsappEnabled: enabled } : u)
       );
@@ -127,7 +145,7 @@ export function SettingsTab({
     } finally {
       setTogglingUser(null);
     }
-  }, [crmFetch, togglingUser]);
+  }, [token, togglingUser]);
   return (
     <div className="max-w-4xl mx-auto mt-6 px-6 pb-8 space-y-6">
 

@@ -193,16 +193,29 @@ export default function QRWhatsAppPage() {
         });
 
         if (!response.ok) {
-          console.warn(`[QR] Save failed: ${response.status}`);
+          const errData = await response.json().catch(() => ({ error: 'Save failed' }));
+          console.warn(`[QR] Save failed: ${response.status}`, errData);
+          // Show error to user if save fails
+          setError(`Failed to save settings: ${errData.error || response.statusText}`);
+          // Re-queue the failed update for retry
+          Object.assign(pendingUpdatesRef.current, merged);
           return;
         }
 
         console.log('[QR] ✅ Saved to MongoDB:', Object.keys(merged));
-      } catch (e) {
+        // Clear any previous save errors
+        if (error && error.includes('Failed to save')) {
+          setError(null);
+        }
+      } catch (e: any) {
         console.warn('[QR] ❌ Failed to save to MongoDB:', e);
+        // Show error to user
+        setError(`Failed to save settings: ${e?.message || 'Unknown error'}`);
+        // Re-queue the failed update for retry
+        Object.assign(pendingUpdatesRef.current, merged);
       }
     }, 500);
-  }, [token]);
+  }, [token, error]);
 
   useEffect(() => {
     if (!token) return;
@@ -296,16 +309,26 @@ export default function QRWhatsAppPage() {
                   'Authorization': `Bearer ${token}`,
                   'Content-Type': 'application/json',
                 },
-              }).then(r => r.json().catch(() => null)).catch(() => null);
+              }).then(r => {
+                if (!r.ok) throw new Error(`Auto-provision failed: ${r.status}`);
+                return r.json().catch(() => null);
+              }).catch(e => {
+                console.warn('[QR] Auto-provision error:', e);
+                return null;
+              });
 
               const pData = provisionRes?.data || provisionRes;
               if (pData?.success && pData?.bridgeUrl) {
                 setBridgeUrlInput(pData.bridgeUrl);
                 setBridgeSecretInput(pData.bridgeSecret);
                 console.log('[QR] ✅ Auto-provisioned bridge URL for tenant');
+              } else if (pData?.error) {
+                console.warn('[QR] Auto-provision returned error:', pData.error);
+                // Don't show error to user for auto-provision (non-critical)
               }
-            } catch (e) {
+            } catch (e: any) {
               console.warn('[QR] Auto-provision failed (non-critical):', e);
+              // Don't disrupt page load for auto-provision failures
             }
           }
 
@@ -1618,6 +1641,18 @@ export default function QRWhatsAppPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* ═══ Error Banner ═══ */}
+      {error && (
+        <div className="bg-red-50 border-b border-red-200 px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-red-600" />
+            <p className="text-sm text-red-700">{error}</p>
+          </div>
+          <button onClick={() => setError(null)} className="ml-2 text-red-600 hover:text-red-700">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
       {/* ═══ Page Header ═══ */}
       <div className="bg-white border-b shadow-sm">
         <div className="px-4 py-3 flex items-center justify-between">

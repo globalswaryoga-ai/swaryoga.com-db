@@ -97,45 +97,60 @@ export function StarPopup({
 
   // Fetch quick replies from API
   const fetchQuickReplies = useCallback(async () => {
-    if (!token || !crmFetch) return;
+    if (!token) return;
     setLoadingQR(true);
     try {
-      const data = await crmFetch('/api/admin/crm/quick-replies');
-      setQuickReplies(data?.replies || data?.quickReplies || []);
+      // Use direct fetch instead of crmFetch to avoid auto-logout on errors
+      const res = await fetch('/api/admin/crm/quick-replies', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error(`Failed: ${res.status}`);
+      const data = await res.json().catch(() => null);
+      setQuickReplies((data?.replies || data?.quickReplies) || []);
     } catch (e) {
       console.error('Failed to load quick replies:', e);
       // Fallback to hardcoded
       setQuickReplies(QUICK_REPLIES.map((r, i) => ({ _id: `default-${i}`, title: r.substring(0, 30), content: r })));
     }
     setLoadingQR(false);
-  }, [token, crmFetch]);
+  }, [token]);
 
   // Fetch templates from API
   const fetchTemplates = useCallback(async () => {
-    if (!token || !crmFetch) return;
+    if (!token) return;
     setLoadingTemplates(true);
     try {
-      const data = await crmFetch('/api/admin/crm/templates?provider=qr&limit=100');
-      setTemplates(data?.templates || data?.data?.templates || []);
+      // Use direct fetch instead of crmFetch to avoid auto-logout on errors
+      const res = await fetch('/api/admin/crm/templates?provider=qr&limit=100', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error(`Failed: ${res.status}`);
+      const data = await res.json().catch(() => null);
+      setTemplates((data?.templates || data?.data?.templates) || []);
     } catch (e) {
       console.error('Failed to load templates:', e);
     }
     setLoadingTemplates(false);
-  }, [token, crmFetch]);
+  }, [token]);
 
   // Fetch scheduled/recurring messages
   const fetchScheduledMessages = useCallback(async () => {
-    if (!token || !crmFetch || !selectedChat) return;
+    if (!token || !selectedChat) return;
     setLoadingScheduled(true);
     try {
+      // Use direct fetch instead of crmFetch to avoid auto-logout on errors
       const phone = selectedChat.replace('@c.us', '').replace('@s.whatsapp.net', '');
-      const data = await crmFetch(`/api/admin/crm/scheduled-messages?status=active&phoneNumber=${phone}`);
-      setScheduledMessages(data?.jobs || []);
+      const res = await fetch(`/api/admin/crm/scheduled-messages?status=active&phoneNumber=${phone}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error(`Failed: ${res.status}`);
+      const data = await res.json().catch(() => null);
+      setScheduledMessages((data?.jobs) || []);
     } catch (e) {
       console.error('Failed to load scheduled messages:', e);
     }
     setLoadingScheduled(false);
-  }, [token, crmFetch, selectedChat]);
+  }, [token, selectedChat]);
 
   // Load data when popup opens
   useEffect(() => {
