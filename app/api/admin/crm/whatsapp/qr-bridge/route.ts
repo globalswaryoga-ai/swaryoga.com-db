@@ -114,7 +114,7 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
       const permanentTenantId = (settings as any)?.permanentTenantId || '';
 
       // ── PERMANENT TENANT ID ──
-      // Each user gets a permanent 7-digit ID (e.g. 0002456).
+      // Each CRM Admin/Tenant gets a permanent 7-digit ID (e.g. 0002456).
       // TEMPORARY FIX (Phase 33): Bridge does NOT yet support /tenant/{id} routing.
       // ALL users currently share FALLBACK_BRIDGE_URL until bridge is updated.
       // Once bridge supports /tenant/{id}, users with permanentTenantId will use isolated paths.
@@ -430,14 +430,17 @@ export async function POST(req: NextRequest) {
     // ════════════════════════════════════════════════════════════
     if (!resolved.hasOwnBridge) {
       // 1. Super Admin-only endpoints (session management)
+      // BUT: CRM tenants (with permanentTenantId) can manage their own tenant session
       const basePath = '/' + decodedPath.split('/').filter(Boolean)[0];
-      if (SUPER_ADMIN_ONLY_PATHS.has(basePath) && !resolved.isSuperAdmin) {
+      if (SUPER_ADMIN_ONLY_PATHS.has(basePath) && !resolved.isSuperAdmin && !resolved.tenantId) {
+        // BLOCKED: Non-Super Admin, no tenantId, trying to use Super Admin endpoint
         console.warn(`[QR Bridge Proxy] BLOCKED: ${userId} tried ${decodedPath} (Super Admin only)`);
         return NextResponse.json(
           { success: false, error: 'This action is restricted to Super Admin.' },
           { status: 403 }
         );
       }
+      // ALLOWED: Super Admin OR CRM tenant can use /reconnect, /disconnect, /logout
 
       // 2. Body-target endpoints (/send, /reply, /react, etc.) — check body.to or body.jid
       if (BODY_TARGET_PATHS.has(basePath) && body) {
@@ -788,14 +791,17 @@ export async function GET(req: NextRequest) {
     if (!resolved.hasOwnBridge) {
       const basePath = '/' + path.split('/').filter(Boolean)[0];
 
-      // Super Admin-only endpoints
-      if (SUPER_ADMIN_ONLY_PATHS.has(basePath) && !resolved.isSuperAdmin) {
+      // Super Admin-only endpoints (session management)
+      // BUT: CRM tenants (with permanentTenantId) can manage their own tenant session
+      if (SUPER_ADMIN_ONLY_PATHS.has(basePath) && !resolved.isSuperAdmin && !resolved.tenantId) {
+        // BLOCKED: Non-Super Admin, no tenantId, trying to use Super Admin endpoint
         console.warn(`[QR Bridge Proxy GET] BLOCKED: ${userId} tried ${path} (Super Admin only)`);
         return NextResponse.json(
           { success: false, error: 'This action is restricted to Super Admin.' },
           { status: 403 }
         );
       }
+      // ALLOWED: Super Admin OR CRM tenant can use /reconnect, /disconnect, /logout
 
       // Path-target endpoints (/messages/{jid}, /contact-about/{jid}, /profile-pic/{jid}, etc.)
       if (isPathTargetEndpoint(path)) {
