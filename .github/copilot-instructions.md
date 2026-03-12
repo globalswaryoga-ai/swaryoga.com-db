@@ -172,6 +172,25 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### QR Header Sender Recovery Fix (Session: March 12, 2026 — Phase 52) — Commit `[pending]`
+
+1. **✅ Header Now Recovers the Scanned Number Even When Live Status Is Incomplete**
+    - **Problem**: Some tenants still saw only the green `Connected` badge and their user/email badge, but not the scanned WhatsApp number in the page header
+    - **Root Cause**:
+       - The QR page relied mainly on the live `/status` response and could miss the sender number when bridge metadata arrived late or incomplete
+       - The saved `qrConnectedPhoneNumber` was not always being re-injected into the live page state quickly enough
+    - **Solution**:
+       - Updated `app/admin/crm/qr/page.tsx` so `/status` immediately persists any live phone number it sees
+       - When `/status` is connected but missing phone metadata, the page now injects the saved connected number into local header state
+       - Added a short recovery fetch from `/api/admin/crm/settings` while connected, so the header can still show the scanned number before the green Connected badge even if the bridge status is late
+
+2. **✅ Verification**
+    - **Files Modified**:
+       - `app/admin/crm/qr/page.tsx`
+       - `.github/copilot-instructions.md`
+    - **Build / Validation**:
+       - ✅ No TypeScript/editor errors in modified QR page
+
 ### QR Tenant Per-Chat 403 Fix (Session: March 12, 2026 — Phase 51) — Commit `[pending]`
 
 1. **✅ Restored Normal Inbox / Send / Group Access for Tenant-Isolated QR Sessions**

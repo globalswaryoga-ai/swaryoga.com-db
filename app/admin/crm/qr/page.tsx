@@ -274,6 +274,7 @@ export default function QRWhatsAppPage() {
   const connectedRef = useRef(false);
   const hasAutoSwitchedRef = useRef(false);
   const savedPhoneRef = useRef<string | null>(null);
+  const headerPhoneRecoveryRef = useRef(0);
   const profilePicLoadedRef2 = useRef<Set<string>>(new Set());
   const composerTextRef = useRef('');
 
@@ -619,10 +620,31 @@ export default function QRWhatsAppPage() {
   const fetchStatus = useCallback(async () => {
     try {
       const data = await bridgeCall('/status');
-      setStatus(data);
+      const livePhone = extractConnectedPhoneDigits(data);
+      const fallbackPhone = connectedPhoneNumber || savedPhoneRef.current || '';
+
+      if (livePhone) {
+        savedPhoneRef.current = livePhone;
+        if (livePhone !== connectedPhoneNumber) {
+          setConnectedPhoneNumber(livePhone);
+        }
+      }
+
+      const normalizedStatus = (!livePhone && data?.connected && fallbackPhone)
+        ? {
+            ...data,
+            phone: {
+              ...(data?.phone || {}),
+              id: fallbackPhone,
+              name: data?.phone?.name || fallbackPhone,
+            },
+          }
+        : data;
+
+      setStatus(normalizedStatus);
       setError(null);
 
-      if (data?.connected) {
+      if (normalizedStatus?.connected) {
         // Connected — clear QR
         setQrData(null);
         // Pre-fetch chats so inbox is ready when user switches
@@ -654,7 +676,7 @@ export default function QRWhatsAppPage() {
     } finally {
       setLoading(false);
     }
-  }, [bridgeCall]);
+  }, [bridgeCall, connectedPhoneNumber, fetchChats]);
 
   // ── Poll setup ──
   // Use a stable interval — don't re-run the effect when status changes
@@ -703,6 +725,38 @@ export default function QRWhatsAppPage() {
       }).catch(e => console.warn('[QR] Failed to save connected phone:', e));
     }
   }, [status, token]);
+
+  // ── Recover saved connected phone for header when live bridge status omits it ──
+  useEffect(() => {
+    if (!token || !status?.connected || headerConnectedPhone) return;
+
+    const now = Date.now();
+    if (now - headerPhoneRecoveryRef.current < 5000) return;
+    headerPhoneRecoveryRef.current = now;
+
+    fetch('/api/admin/crm/settings', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    })
+      .then(r => r.json().catch(() => null))
+      .then(payload => {
+        const saved = String(payload?.data?.qrConnectedPhoneNumber || payload?.qrConnectedPhoneNumber || '').trim();
+        if (!saved) return;
+        savedPhoneRef.current = saved;
+        setConnectedPhoneNumber(prev => prev || saved);
+        setStatus(prev => prev ? ({
+          ...prev,
+          phone: {
+            ...(prev.phone || {}),
+            id: prev.phone?.id || saved,
+            name: prev.phone?.name || saved,
+          },
+        }) : prev);
+      })
+      .catch(e => console.warn('[QR] Failed to recover saved connected phone:', e));
+  }, [token, status?.connected, headerConnectedPhone]);
 
   // ── Auto-fetch WhatsApp statuses when connected and on status tab ──
   useEffect(() => {
