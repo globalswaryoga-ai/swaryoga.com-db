@@ -172,7 +172,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
-### Bridge Config Drift Cleanup + QR Diagnostics Hardening (Session: March 13, 2026 — Phase 66) — Commit `[pending]`
+### Bridge Config Drift Cleanup + QR Diagnostics Hardening (Session: March 13, 2026 — Phase 66) — Commit `fc1640dc`
 
 1. **✅ Removed Stale Hardcoded Bridge Hosts from Live WhatsApp Runtime Paths**
    - **Problem**: Several live QR/WhatsApp routes and helpers still fell back to old bridge hosts like `52.91.198.23:3333`, even though production health checks were using the current configured bridge URL
