@@ -172,6 +172,53 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### Per-User Bunny CDN Storage Compartments (Session: July 2025 — Phase 31) — Commit `[pending]`
+
+1. **User-Scoped Storage Functions** — `lib/bunny-storage.ts`
+   - Added `uploadUserFile(buffer, fileName, userId, category, contentType)` — uploads to `users/{userId}/{category}/{timestamp}-{rand}-{name}`
+   - Added `listUserFiles(userId, category?)` — lists files under `users/{userId}/`, never leaks other users' data
+   - Added `deleteUserFile(userId, key)` — validates key belongs to user before deleting (security check)
+   - Added `getUserStorageUsage(userId)` — returns `{ totalBytes, fileCount }` for user's compartment
+   - Added `getUserStoragePath(userId)` — returns `users/{sanitizedUserId}` prefix
+   - Added `isUserKey(key, userId)` — validates key ownership
+   - Added `extractUserIdFromKey(key)` — extracts userId from `users/{userId}/...` paths
+
+2. **CRM Media Upload: User-Isolated Paths** — `app/api/admin/crm/media/upload/route.ts`
+   - **Before**: Uploaded to `crm/chats/{chatId}` or `crm/media` (shared, no userId)
+   - **After**: Uploads to `users/{userId}/media/chats/{chatId}/...` or `users/{userId}/media/...`
+   - Uses `uploadUserFile()` from bunny-storage with `getViewerUserId(decoded)` for path scoping
+   - Returns `storagePath` and `userId` in response for traceability
+
+3. **User Files Management API** — `app/api/admin/crm/files/route.ts` (NEW)
+   - `GET /api/admin/crm/files` — List user's files with optional `?category=` filter
+   - `DELETE /api/admin/crm/files` — Delete user's file by `key` (validates ownership)
+   - Super Admin can pass `?userId=` to view/delete other users' files
+   - Returns: `{ files, fileCount, totalBytes, totalMB, compartmentPath }`
+
+4. **Media Proxy: Auth Gate for User Files** — `app/api/media/bunny/[...key]/route.ts`
+   - **Before**: Fully public proxy, no auth required for any file
+   - **After**: Files under `users/{userId}/` require JWT auth + ownership check
+   - Non-user paths (public assets) remain unauthenticated (backward compatible)
+   - Supports both `Authorization: Bearer` header and `?token=` query param
+   - Super Admin can access any user's files
+
+5. **Storage Path Architecture**:
+   | Path Pattern | Access | Description |
+   |-------------|--------|-------------|
+   | `users/{userId}/media/...` | Auth + owner | CRM media uploads |
+   | `users/{userId}/media/chats/{chatId}/...` | Auth + owner | Chat-specific media |
+   | `users/{userId}/documents/...` | Auth + owner | User documents |
+   | `uploads/content-cache/...` | Public | Content-addressed dedup (legacy) |
+   | `public/...` | Public | Public assets (unchanged) |
+   | `admin/...` | Public | Admin assets (unchanged) |
+
+6. **Security Model**:
+   - Upload: `decoded.userId` from JWT determines storage path — no spoofing possible
+   - List: Only returns files under `users/{viewerId}/` — server-side isolation
+   - Delete: Validates `key.startsWith(users/{userId}/)` — prevents cross-user deletion
+   - Proxy: `extractUserIdFromKey()` checks path, requires matching JWT — prevents URL guessing
+   - Super Admin: Can access all users' files via `?userId=` parameter
+
 ### Unified Bridge URL: ALL Users Use /tenant/{permanentTenantId} (Session: June 2025 — Phase 30) — Commit `9b123b1c`
 
 1. **Removed Super Admin Bridge Bypass** — `app/api/admin/crm/whatsapp/qr-bridge/route.ts`

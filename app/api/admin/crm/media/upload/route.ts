@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { verifyToken } from '@/lib/auth';
-import { uploadToS3, buildS3Path } from '@/lib/bunny-storage';
+import { uploadUserFile } from '@/lib/bunny-storage';
+import { getViewerUserId } from '@/lib/crm-handlers';
 
 export const runtime = 'nodejs';
 
@@ -10,10 +11,12 @@ const MAX_FILE_SIZE = 25 * 1024 * 1024;
 
 /**
  * POST /api/admin/crm/media/upload
- * Upload a file to S3 and return the URL.
+ * Upload a file to user's isolated Bunny storage compartment.
+ * Path: users/{userId}/media/{timestamp}-{rand}-{filename}
  * Accepts multipart/form-data with:
  *   - file: the file to upload
- *   - chatId (optional): chat JID for organizing files
+ *   - chatId (optional): chat JID for organizing into subcategory
+ *   - category (optional): 'media' | 'documents' | 'images' | 'templates'
  */
 export async function POST(req: NextRequest) {
   try {
@@ -22,9 +25,15 @@ export async function POST(req: NextRequest) {
       return apiError('Unauthorized', 403);
     }
 
+    const userId = getViewerUserId(decoded);
+    if (!userId) {
+      return apiError('Could not determine user ID', 400);
+    }
+
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
     const chatId = (formData.get('chatId') as string) || undefined;
+    const category = (formData.get('category') as string) || (chatId ? `media/chats/${chatId.replace(/[^a-zA-Z0-9@._-]/g, '_')}` : 'media');
 
     if (!file) {
       return apiError('No file provided', 400);
@@ -35,16 +44,15 @@ export async function POST(req: NextRequest) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const subfolder = chatId ? `crm/chats/${chatId}` : 'crm/media';
-    const s3Key = buildS3Path(subfolder, undefined, file.name);
-    const s3Url = await uploadToS3(buffer, s3Key, { contentType: file.type });
+    const result = await uploadUserFile(buffer, file.name, userId, category, file.type);
 
     return apiSuccess({
-      url: s3Url,
+      url: result.url,
       fileName: file.name,
       fileSize: file.size,
       contentType: file.type,
-      storagePath: s3Key,
+      storagePath: result.storagePath,
+      userId,
     });
   } catch (err: any) {
     console.error('[media-upload POST]', err);

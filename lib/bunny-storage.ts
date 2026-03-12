@@ -652,3 +652,107 @@ export async function getWorkshopVideoUrl(
   }
   return await generatePresignedUrl(key, { expiresIn });
 }
+
+// ============================================
+// USER COMPARTMENT STORAGE (per-userId isolation)
+// ============================================
+
+/**
+ * Get the Bunny storage path prefix for a user.
+ * All user files live under: users/{userId}/
+ * This ensures complete data isolation between CRM users.
+ */
+export function getUserStoragePath(userId: string): string {
+  if (!userId) throw new Error('userId is required for user storage');
+  const safe = userId.replace(/[^a-zA-Z0-9@._-]/g, '_');
+  return `users/${safe}`;
+}
+
+/**
+ * Upload a file to a user's private Bunny storage compartment.
+ * Path: users/{userId}/{category}/{timestamp}-{rand}-{filename}
+ * 
+ * @param fileBuffer - File data
+ * @param fileName - Original file name
+ * @param userId - CRM user ID (for compartment isolation)
+ * @param category - Subfolder: 'media', 'documents', 'images', 'templates', etc.
+ * @param contentType - MIME type (auto-detected if omitted)
+ */
+export async function uploadUserFile(
+  fileBuffer: Buffer,
+  fileName: string,
+  userId: string,
+  category: string = 'media',
+  contentType?: string
+): Promise<{ url: string; storagePath: string; sizeBytes: number }> {
+  if (!userId) throw new Error('userId is required for user file upload');
+  const timestamp = Date.now();
+  const rand = Math.random().toString(36).substring(2, 8);
+  const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_').substring(0, 80);
+  const userPrefix = getUserStoragePath(userId);
+  const storagePath = `${userPrefix}/${category}/${timestamp}-${rand}-${safeName}`;
+  const mime = contentType || getContentType(fileName);
+  const url = await uploadToPath(fileBuffer, storagePath, mime);
+  console.log(`📦 User upload [${userId}]: ${storagePath} (${(fileBuffer.length / 1024).toFixed(1)} KB)`);
+  return { url, storagePath, sizeBytes: fileBuffer.length };
+}
+
+/**
+ * List all files in a user's storage compartment (optionally filtered by category).
+ * Only returns files under users/{userId}/ — never leaks other users' data.
+ */
+export async function listUserFiles(
+  userId: string,
+  category?: string
+): Promise<{ key: string; size: number; lastModified: Date; url: string }[]> {
+  if (!userId) throw new Error('userId is required');
+  const userPrefix = getUserStoragePath(userId);
+  const prefix = category ? `${userPrefix}/${category}` : userPrefix;
+  const files = await listFiles(prefix);
+  return files.map(f => ({
+    ...f,
+    url: getPublicFileUrl(f.key),
+  }));
+}
+
+/**
+ * Delete a file from a user's compartment.
+ * SECURITY: Validates that the key actually belongs to the user.
+ */
+export async function deleteUserFile(userId: string, key: string): Promise<boolean> {
+  if (!userId) throw new Error('userId is required');
+  const userPrefix = getUserStoragePath(userId);
+  if (!key.startsWith(userPrefix + '/')) {
+    console.error(`🚫 User ${userId} tried to delete key outside their compartment: ${key}`);
+    throw new Error('Access denied: file does not belong to this user');
+  }
+  return await deleteFromBunnyStorage(key);
+}
+
+/**
+ * Get total storage used by a user (in bytes).
+ */
+export async function getUserStorageUsage(userId: string): Promise<{ totalBytes: number; fileCount: number }> {
+  if (!userId) throw new Error('userId is required');
+  const files = await listUserFiles(userId);
+  const totalBytes = files.reduce((sum, f) => sum + f.size, 0);
+  return { totalBytes, fileCount: files.length };
+}
+
+/**
+ * Validate that a storage key belongs to a specific user.
+ * Used by API routes to prevent unauthorized access.
+ */
+export function isUserKey(key: string, userId: string): boolean {
+  const userPrefix = getUserStoragePath(userId);
+  return key.startsWith(userPrefix + '/');
+}
+
+/**
+ * Extract userId from a user storage key.
+ * e.g. 'users/admin/media/123-file.png' → 'admin'
+ */
+export function extractUserIdFromKey(key: string): string | null {
+  const match = key.match(/^users\/([^/]+)\//);
+  return match ? match[1] : null;
+}

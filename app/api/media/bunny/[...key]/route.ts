@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { verifyToken } from '@/lib/auth';
+import { getViewerUserId, isSuperAdmin } from '@/lib/crm-handlers';
+import { extractUserIdFromKey } from '@/lib/bunny-storage';
 
 /**
  * GET /api/media/bunny/[...key]
  * 
- * Public proxy for Bunny Storage files.
- * Serves files directly from Bunny Storage API when the CDN Pull Zone is
- * suspended or not configured (returns 403).
- * 
- * No authentication required — these are public media files (images, videos).
- * Uses aggressive caching to minimize storage API calls.
+ * Proxy for Bunny Storage files.
+ * - Public files (non-user paths): No auth required, aggressive caching.
+ * - User compartment files (users/{userId}/...): Requires auth, validates ownership.
+ *   Only the owning user or Super Admin can access user-scoped files.
  */
 
 const REGION_HOSTS: Record<string, string> = {
@@ -30,6 +31,32 @@ export async function GET(
     }
 
     const storageKey = keyParts.join('/');
+
+    // ===== USER COMPARTMENT ACCESS CONTROL =====
+    // Files under users/{userId}/ require authentication and ownership check
+    const fileOwner = extractUserIdFromKey(storageKey);
+    if (fileOwner) {
+      const authHeader = request.headers.get('authorization') || '';
+      const tokenParam = new URL(request.url).searchParams.get('token');
+      const token = authHeader || (tokenParam ? `Bearer ${tokenParam}` : '');
+      
+      let decoded: any;
+      try {
+        decoded = verifyToken(token);
+      } catch {
+        return new NextResponse('Unauthorized: login required to access user files', { status: 401 });
+      }
+
+      if (!decoded?.userId || !decoded?.isAdmin) {
+        return new NextResponse('Unauthorized', { status: 401 });
+      }
+
+      const viewerId = getViewerUserId(decoded);
+      if (viewerId !== fileOwner && !isSuperAdmin(decoded)) {
+        return new NextResponse('Forbidden: this file belongs to another user', { status: 403 });
+      }
+    }
+
     const zoneName = process.env.BUNNY_STORAGE_ZONE_NAME;
     const apiKey = process.env.BUNNY_STORAGE_API_KEY;
     const region = process.env.BUNNY_STORAGE_REGION || 'de';
