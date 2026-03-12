@@ -534,6 +534,11 @@ export default function QRWhatsAppPage() {
     try { localStorage.setItem('crm_qrConnectedPhoneNumber', connectedPhoneNumber); } catch {}
   }, [connectedPhoneNumber]);
   useEffect(() => {
+    if (connectedPhoneNumber) {
+      savedPhoneRef.current = connectedPhoneNumber;
+    }
+  }, [connectedPhoneNumber]);
+  useEffect(() => {
     try { localStorage.setItem('crm_sidebarWidth', String(sidebarWidth)); } catch {}
   }, [sidebarWidth]);
 
@@ -1886,6 +1891,15 @@ export default function QRWhatsAppPage() {
               </div>
               <h1 className="text-lg font-bold text-gray-900">QR WhatsApp</h1>
             </div>
+            {isConnected && headerConnectedPhone && (
+              <div
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 shadow-sm"
+                title={`Scanned WhatsApp number: ${headerConnectedPhone}`}
+              >
+                <Phone className="w-3.5 h-3.5" />
+                <span>{headerConnectedPhone}</span>
+              </div>
+            )}
             <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${
               isConnected ? 'bg-green-100 text-green-700 ring-1 ring-green-300 shadow-sm' :
               connState === 'connecting' ? 'bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200' :

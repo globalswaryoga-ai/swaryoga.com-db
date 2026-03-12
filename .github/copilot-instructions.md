@@ -172,6 +172,23 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### QR Header Scanned Number Badge Restore (Session: March 12, 2026 — Phase 63) — Commit `[pending]`
+
+1. **✅ Restored a Dedicated Scanned WhatsApp Number Badge in the Main QR Header**
+   - **Problem**: The QR page could be connected while still showing only the green `Connected` pill and the user badge, so the scanned WhatsApp number was not clearly visible in the main page header
+   - **Root Cause**:
+      - `app/admin/crm/qr/page.tsx` still resolved the connected phone internally, but the main header no longer rendered a dedicated phone badge beside the QR title
+      - fallback recovery was also weaker because the saved connected phone ref was not being re-synced from the cached `connectedPhoneNumber` state
+   - **Solution**:
+      - Updated `app/admin/crm/qr/page.tsx`
+      - Added a dedicated scanned-number header badge using the existing formatted connected phone label
+      - Synced the saved phone ref from `connectedPhoneNumber` state so header fallback reuse stays stronger across refresh/poll cycles
+
+2. **✅ Verification**
+   - No editor/type errors in modified QR page
+   - Full production build completed successfully locally before push
+   - Production Anti-Bug smoke remains healthy after the change
+
 ### Tenant QR Stale Unknown Chat Cleanup (Session: March 12, 2026 — Phase 62) — Commit `c8584dda`
 
 1. **✅ Tenant QR Inbox No Longer Keeps Accumulating Old / Unknown Chat Rows in Mongo Snapshot**
