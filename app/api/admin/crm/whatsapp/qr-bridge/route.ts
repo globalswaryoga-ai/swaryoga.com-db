@@ -428,7 +428,8 @@ export async function POST(req: NextRequest) {
     // On shared bridge (!hasOwnBridge): every action that targets
     // a specific phone/chat must pass lead-ownership validation.
     // ════════════════════════════════════════════════════════════
-    if (!resolved.hasOwnBridge) {
+    const requiresLeadOwnershipFilter = !resolved.hasOwnBridge && !resolved.tenantId;
+    if (requiresLeadOwnershipFilter) {
       // 1. Super Admin-only endpoints (session management)
       // BUT: CRM tenants (with permanentTenantId) can manage their own tenant session
       const basePath = '/' + decodedPath.split('/').filter(Boolean)[0];
@@ -682,7 +683,7 @@ export async function POST(req: NextRequest) {
     // Applied to ALL users on shared bridge. Each user only sees chats for leads
     // assigned to or created by them. Uses dual phone lookup (with/without 91 prefix)
     // to handle inconsistent lead phone formats in the database.
-    if (decodedPath === '/chats' && !resolved.hasOwnBridge) {
+    if (decodedPath === '/chats' && requiresLeadOwnershipFilter) {
       const chats = data?.chats || (Array.isArray(data) ? data : []);
       if (chats.length > 0) {
         try {
@@ -788,7 +789,8 @@ export async function GET(req: NextRequest) {
     // Same logic as POST gate — validates lead ownership before
     // allowing any endpoint that targets a specific phone/chat.
     // ════════════════════════════════════════════════════════════
-    if (!resolved.hasOwnBridge) {
+    const requiresLeadOwnershipFilter = !resolved.hasOwnBridge && !resolved.tenantId;
+    if (requiresLeadOwnershipFilter) {
       const basePath = '/' + path.split('/').filter(Boolean)[0];
 
       // Super Admin-only endpoints (session management)
@@ -1022,7 +1024,7 @@ export async function GET(req: NextRequest) {
 
     // ── CHAT PRIVACY FILTER (GET /chats) ──
     // Applied to ALL users on shared bridge. Uses dual phone lookup.
-    if (path === '/chats' && !resolved.hasOwnBridge) {
+    if (path === '/chats' && requiresLeadOwnershipFilter) {
       const chats = data?.chats || (Array.isArray(data) ? data : []);
       if (chats.length > 0) {
         try {

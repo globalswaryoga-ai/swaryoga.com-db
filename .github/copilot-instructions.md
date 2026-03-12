@@ -172,6 +172,22 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### QR Tenant Per-Chat 403 Fix (Session: March 12, 2026 — Phase 40) — Commit `[pending]`
+
+1. **✅ Removed Incorrect Shared-Bridge Lead Filtering for Tenant-Isolated QR Sessions**
+    - **Problem**: QR page opened and scanned successfully, but per-chat bridge requests like `/presence/...` still failed with 403 on production
+    - **Root Cause**: `app/api/admin/crm/whatsapp/qr-bridge/route.ts` still applied shared-bridge lead ownership filters to users with `permanentTenantId`, even though those users are already isolated by logical bridge session headers (`x-user-id`)
+    - **Solution**:
+       - Added `requiresLeadOwnershipFilter = !resolved.hasOwnBridge && !resolved.tenantId` in both POST and GET handlers
+       - Applied per-chat ownership gate only to true shared-bridge users (non-tenant shared users)
+       - Stopped filtering `/chats` results for tenant-isolated users with `permanentTenantId`
+    - **Files Modified**:
+       - `app/api/admin/crm/whatsapp/qr-bridge/route.ts`
+    - **Verification**:
+       - ✅ No TypeScript/editor errors in modified file
+       - ✅ Full production build succeeds
+       - ✅ Fix ready for deployment to `main`
+
 ### QR Error Handling Hardening for 401/403/404 (Session: March 12, 2026 — Phase 39) — Commit `02493d8b`
 
 1. **✅ Improved Client-Side Handling for 401, 403, and 404 Errors**
