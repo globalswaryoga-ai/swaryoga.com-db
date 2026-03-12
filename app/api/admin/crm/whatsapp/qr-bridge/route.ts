@@ -100,6 +100,12 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
       // Until then: use FALLBACK_BRIDGE_URL directly (single shared bridge instance).
       // Bridge secret: use FALLBACK_BRIDGE_SECRET (env var) — it's what the bridge validates.
       // Per-user qrBridgeSecret is stored for future multi-tenant bridge support.
+      //
+      // CRITICAL: hasOwnBridge=false because ALL users share the SAME bridge instance.
+      // The bridge does NOT yet support /tenant/{id} routing, so everyone hits FALLBACK_BRIDGE_URL.
+      // With hasOwnBridge=false, the chat privacy filter runs for ALL users (including Super Admin),
+      // ensuring each user only sees chats for leads assigned/created by them.
+      // When bridge gains /tenant/{id} support → change hasOwnBridge back to true.
       if (permanentTenantId) {
         return {
           ok: true,
@@ -107,7 +113,7 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
           secret: FALLBACK_BRIDGE_SECRET,
           userId: decoded.userId,
           isSuperAdmin: superAdmin,
-          hasOwnBridge: true,
+          hasOwnBridge: false,
           storedPhone,
           phoneChangedAt,
           senderDisplayName,
