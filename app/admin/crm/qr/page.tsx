@@ -104,6 +104,26 @@ function getSidebarChatTitle(chat: ChatItem): string {
   return 'Contact';
 }
 
+function formatHeaderConnectedPhone(phone: string): string {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (!digits) return '';
+
+  if (digits.length === 10) {
+    return `+91 ${digits}`;
+  }
+
+  if ((digits.length === 12 || digits.length === 13) && digits.startsWith('91')) {
+    return `+91 ${digits.slice(2)}`;
+  }
+
+  if (digits.length >= 11 && digits.length <= 15) {
+    const countryCodeLength = Math.max(1, digits.length - 10);
+    return `+${digits.slice(0, countryCodeLength)} ${digits.slice(countryCodeLength)}`;
+  }
+
+  return phone;
+}
+
 function resolveConnectedPhoneLabel(status: BridgeStatus | null, connectedPhoneNumber: string): string {
   const candidates = [
     status?.phone?.id,
@@ -116,7 +136,7 @@ function resolveConnectedPhoneLabel(status: BridgeStatus | null, connectedPhoneN
   for (const candidate of candidates) {
     const digits = String(candidate || '').split(':')[0].split('@')[0].replace(/\D/g, '');
     if (digits.length >= 10 && digits.length <= 15) {
-      return formatPhoneNumber(digits);
+      return formatHeaderConnectedPhone(digits);
     }
   }
 
@@ -1825,7 +1845,7 @@ export default function QRWhatsAppPage() {
   const isConnected = connState === 'connected';
   const headerConnectedPhone = resolveConnectedPhoneLabel(status, connectedPhoneNumber);
   const headerConnectionLabel = isConnected
-    ? (headerConnectedPhone ? `Connected · ${headerConnectedPhone}` : 'Connected')
+    ? (headerConnectedPhone ? `Connected ${headerConnectedPhone}` : 'Connected')
     : connState === 'connecting'
     ? 'Connecting...'
     : 'Offline';
