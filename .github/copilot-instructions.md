@@ -211,6 +211,18 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
        - Kept one-user-per-session isolation for permanent tenant users
        - Switched production routing back to the working base bridge URL while preserving per-user isolation through `x-user-id` and user-specific secrets
 
+5. **✅ Production Auth Fix: Live Bridge Still Uses the Shared Bridge Secret**
+    - **Problem**: After the routing hotfix, QR could still fail with `Bridge authentication failed` because permanent-tenant users were sending their DB `qrBridgeSecret` to the live bridge
+    - **Verified Root Cause**:
+       - `deploy/wa-baileys/index.js` and `deploy/wa-baileys/index-multiuser.js` validate `x-bridge-secret` only against the single server `BRIDGE_SECRET`
+       - Per-user isolation is handled by `x-user-id`, not per-user bridge secrets
+    - **Hotfix**:
+       - Restored `FALLBACK_BRIDGE_SECRET` / `BRIDGE_SECRET` for permanent-tenant sessions in:
+          - `app/api/admin/crm/whatsapp/qr-bridge/route.ts`
+          - `app/api/admin/crm/whatsapp/qr/send/route.ts`
+          - `app/api/admin/crm/whatsapp/qr/broadcast/route.ts`
+       - Legacy custom `qrBridgeUrl` sessions still keep using their configured custom secret
+
 ### QR Shared-Bridge Count & Sender Persistence Fix (Session: March 12, 2026 — Phase 46) — Commit `[pending]`
 
 1. **✅ Tenant QR Inbox No Longer Explodes with Shared-Bridge Chat Totals**

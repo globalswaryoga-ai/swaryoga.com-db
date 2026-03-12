@@ -121,7 +121,7 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
         const tenantResult: BridgeResolution = {
           ok: true,
           url: FALLBACK_BRIDGE_URL,
-          secret: settings.qrBridgeSecret || FALLBACK_BRIDGE_SECRET,
+          secret: FALLBACK_BRIDGE_SECRET,
           userId: decoded.userId,
           isSuperAdmin: superAdmin,
           hasOwnBridge: true,
