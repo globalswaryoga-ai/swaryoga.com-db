@@ -3,9 +3,9 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { getLead, getCRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
 import { getViewerUserId, isSuperAdmin } from '@/lib/crm-handlers';
+import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 
-const BRIDGE_URL = process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL || 'http://localhost:3333';
-const BRIDGE_SECRET = process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_SECRET || 'swar-bridge-secret-2024';
+const { url: BRIDGE_URL, secret: BRIDGE_SECRET } = getWhatsAppBridgeConfig();
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;

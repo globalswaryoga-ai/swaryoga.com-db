@@ -4,6 +4,7 @@ import { RateLimitManager } from '@/lib/rateLimitManager';
 import { BulkMessageManager, BULK_CONFIG } from '@/lib/bulkMessageManager';
 import { BroadcastRun, BroadcastRunMessage, Lead, WhatsAppMessage, WhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
 import { normalizePhone, getPublicMediaUrl } from '@/lib/whatsapp';
+import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 
 export type BroadcastRunsProcessResult = {
   scannedRuns: number;
@@ -290,8 +291,7 @@ export async function processDueBroadcastRuns(options?: {
           
           if (runProvider === 'qr') {
             // Send via QR Bridge using /send endpoint (same as single message send)
-            const bridgeUrl = (process.env.WHATSAPP_BRIDGE_HTTP_URL || process.env.WHATSAPP_BRIDGE_URL || 'http://52.91.198.23:3333').trim();
-            const bridgeSecret = (process.env.WHATSAPP_WEB_BRIDGE_SECRET || process.env.WHATSAPP_BRIDGE_SECRET || 'swar-bridge-secret-2024').trim();
+            const { url: bridgeUrl, secret: bridgeSecret } = getWhatsAppBridgeConfig();
             
             // Build template message content with header, body, footer
             // Clean templateContent - remove [QUICK_REPLY] markers and button lines

@@ -12,11 +12,11 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
+import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 
 const execAsync = promisify(exec);
 
-const BRIDGE_URL = process.env.WHATSAPP_BRIDGE_HTTP_URL || 'http://52.91.198.23:3333';
-const BRIDGE_SECRET = process.env.WHATSAPP_BRIDGE_SECRET || process.env.WHATSAPP_WEB_BRIDGE_SECRET || 'swar-bridge-secret-2024';
+const { url: BRIDGE_URL, secret: BRIDGE_SECRET } = getWhatsAppBridgeConfig();
 const CACHE_DIR = path.join(process.cwd(), '.qr-cache');
 const QR_CACHE_FILE = path.join(CACHE_DIR, 'latest-qr.html');
 

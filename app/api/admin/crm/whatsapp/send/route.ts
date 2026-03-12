@@ -4,6 +4,7 @@ import { connectDB } from '@/lib/db';
 import { getWhatsAppMessage, getLead } from '@/lib/schemas/enterpriseSchemas';
 import { normalizePhone, sendWhatsAppText, sendWhatsAppMedia } from '@/lib/whatsapp';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
+import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 
 // Mark as dynamic since this route uses request.headers or request.url
 export const dynamic = 'force-dynamic';
@@ -139,8 +140,7 @@ export async function POST(request: NextRequest) {
 
       if (providerScope === 'qr') {
         console.log(`[SEND:${requestId}] 🌉 Sending via QR Bridge to ${normalizedPhone}`);
-        const bridgeUrl = (process.env.WHATSAPP_BRIDGE_HTTP_URL || process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL || 'http://localhost:3333').trim();
-        const bridgeSecret = (process.env.WHATSAPP_WEB_BRIDGE_SECRET || process.env.WHATSAPP_BRIDGE_SECRET || 'swar-bridge-secret-2024').trim();
+        const { url: bridgeUrl, secret: bridgeSecret } = getWhatsAppBridgeConfig();
 
         if (!bridgeUrl) {
           throw new Error('Bridge URL not configured');

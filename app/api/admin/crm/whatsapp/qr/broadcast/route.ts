@@ -18,9 +18,9 @@ import { verifyToken } from "@/lib/auth";
 import { connectDB } from '@/lib/db';
 import { getCRMUserSettings, getLead } from '@/lib/schemas/enterpriseSchemas';
 import { getViewerUserId, isSuperAdmin as checkSuperAdmin } from '@/lib/crm-handlers';
+import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 
-const BRIDGE_URL = process.env.BRIDGE_URL || "http://52.91.198.23:3333";
-const BRIDGE_SECRET = process.env.BRIDGE_SECRET || "swar-bridge-secret-2024";
+const { url: BRIDGE_URL, secret: BRIDGE_SECRET } = getWhatsAppBridgeConfig();
 
 async function resolveBridgeConfig(userId: string) {
   await connectDB();

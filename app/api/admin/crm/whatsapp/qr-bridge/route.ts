@@ -4,6 +4,7 @@ import { getCRMUserSettings, getLead, getQrWhatsAppChat, getQrWhatsAppMessage } 
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin as checkSuperAdmin } from '@/lib/crm-handlers';
 import { logApiError } from '@/lib/error-logger';
+import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 import mongoose from 'mongoose';
 
 /**
@@ -37,20 +38,7 @@ import mongoose from 'mongoose';
  * On filter error → returns empty (fail-safe, never leaks chats).
  */
 
-// Fallback: env var or local dev
-const DEFAULT_BRIDGE_URL = 'http://localhost:3333';
-
-const FALLBACK_BRIDGE_URL =
-  process.env.WHATSAPP_BRIDGE_HTTP_URL ||
-  process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL ||
-  process.env.WHATSAPP_BRIDGE_URL ||
-  DEFAULT_BRIDGE_URL;
-
-const FALLBACK_BRIDGE_SECRET =
-  process.env.WHATSAPP_BRIDGE_SECRET ||
-  process.env.WHATSAPP_WEB_BRIDGE_SECRET ||
-  process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_SECRET ||
-  'swar-bridge-secret-2024';
+const { url: FALLBACK_BRIDGE_URL, secret: FALLBACK_BRIDGE_SECRET } = getWhatsAppBridgeConfig();
 const AUTH_COLLECTION = 'baileys_auth_state';
 const AUTH_DB_NAME = process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm';
 

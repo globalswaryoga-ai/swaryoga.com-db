@@ -3,8 +3,15 @@
 # Bridge Health & Diagnostics Script
 # Tests connectivity and endpoints on the WhatsApp bridge
 
-BRIDGE_URL="${1:-http://52.91.198.23:3333}"
-BRIDGE_SECRET="${2:-swar-bridge-secret-2024}"
+if [ -f ".env.local" ]; then
+  set -a
+  # shellcheck disable=SC1090
+  source ".env.local"
+  set +a
+fi
+
+BRIDGE_URL="${1:-${WHATSAPP_BRIDGE_HTTP_URL:-${WHATSAPP_BRIDGE_URL:-${NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL:-${BRIDGE_URL:-http://localhost:3333}}}}}"
+BRIDGE_SECRET="${2:-${WHATSAPP_BRIDGE_SECRET:-${WHATSAPP_WEB_BRIDGE_SECRET:-${BRIDGE_SECRET:-swar-bridge-secret-2024}}}}"
 TIMEOUT=10
 
 echo "🔍 WhatsApp Bridge Diagnostics"

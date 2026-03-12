@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import axios from 'axios';
+import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 
 // Mark as dynamic since this route uses request.headers or request.url
 export const dynamic = 'force-dynamic';
@@ -22,8 +23,7 @@ export async function GET(request: NextRequest) {
     await connectDB();
 
     // Fetch groups from QR bridge
-    const bridgeUrl = process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL || 'http://localhost:3333';
-    const bridgeSecret = process.env.WHATSAPP_WEB_BRIDGE_SECRET;
+    const { url: bridgeUrl, secret: bridgeSecret } = getWhatsAppBridgeConfig();
 
     try {
       // Try /groups endpoint first, fall back to /chats if not available
@@ -119,8 +119,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Action required' }, { status: 400 });
     }
 
-    const bridgeUrl = process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL || 'http://localhost:3333';
-    const bridgeSecret = process.env.WHATSAPP_WEB_BRIDGE_SECRET;
+    const { url: bridgeUrl, secret: bridgeSecret } = getWhatsAppBridgeConfig();
 
     switch (action) {
       case 'add-participant':

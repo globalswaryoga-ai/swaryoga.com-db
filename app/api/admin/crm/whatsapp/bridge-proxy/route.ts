@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
+import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 
-const BRIDGE_SECRET =
-  process.env.WHATSAPP_BRIDGE_SECRET ||
-  process.env.WHATSAPP_WEB_BRIDGE_SECRET ||
-  process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_SECRET ||
-  'swar-bridge-secret-2024';
+const { url: BRIDGE_URL, secret: BRIDGE_SECRET } = getWhatsAppBridgeConfig();
 
 /**
  * Generic bridge proxy - forwards requests to the WhatsApp bridge
@@ -22,7 +19,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const path = searchParams.get('path') || '/status';
-    const bridgeUrl = `http://52.91.198.23:3333${path}`;
+    const bridgeUrl = `${BRIDGE_URL}${path}`;
 
     const res = await fetch(bridgeUrl, {
       method: 'GET',
@@ -137,7 +134,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const bridgeUrl = `http://52.91.198.23:3333${path}`;
+    const bridgeUrl = `${BRIDGE_URL}${path}`;
     console.log('[bridge-proxy] POST to:', bridgeUrl, 'Headers:', JSON.stringify(Object.fromEntries(request.headers)), 'Body:', rawBody);
 
     // For /connect specifically, send empty body (no JSON)

@@ -21,22 +21,12 @@ import { verifyToken } from '@/lib/auth';
 import { getWhatsAppMessage, getLead, getCRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
 import { getViewerUserId, isSuperAdmin as checkSuperAdmin } from '@/lib/crm-handlers';
 import { getPublicMediaUrl } from '@/lib/whatsapp';
+import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 import mongoose from 'mongoose';
 
 // Use the same defaults/precedence as the QR bridge proxy. These are server-side routes,
 // so prefer server-only env vars and only fall back to NEXT_PUBLIC_* if needed.
-const DEFAULT_BRIDGE_URL = 'http://52.91.198.23:3333';
-const BRIDGE_URL =
-  process.env.WHATSAPP_BRIDGE_HTTP_URL ||
-  process.env.WHATSAPP_BRIDGE_URL ||
-  process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL ||
-  DEFAULT_BRIDGE_URL;
-
-const BRIDGE_SECRET =
-  process.env.WHATSAPP_BRIDGE_SECRET ||
-  process.env.WHATSAPP_WEB_BRIDGE_SECRET ||
-  process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_SECRET ||
-  'swar-bridge-secret-2024';
+const { url: BRIDGE_URL, secret: BRIDGE_SECRET } = getWhatsAppBridgeConfig();
 
 async function resolveBridgeConfig(userId: string) {
   await connectDB();

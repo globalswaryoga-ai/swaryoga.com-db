@@ -172,6 +172,55 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### Bridge Config Drift Cleanup + QR Diagnostics Hardening (Session: March 13, 2026 — Phase 66) — Commit `[pending]`
+
+1. **✅ Removed Stale Hardcoded Bridge Hosts from Live WhatsApp Runtime Paths**
+   - **Problem**: Several live QR/WhatsApp routes and helpers still fell back to old bridge hosts like `52.91.198.23:3333`, even though production health checks were using the current configured bridge URL
+   - **Risk**:
+      - some QR/bridge utilities could silently hit the wrong host when env configuration was missing or partially overridden
+      - debugging output could disagree with real production behavior and waste time during QR incident response
+   - **Solution**:
+      - Added `lib/whatsappBridgeConfig.ts`
+      - Updated runtime routes and helpers to resolve bridge URL/secret from the same shared env precedence instead of stale hardcoded IPs
+      - Covered:
+         - `app/api/admin/crm/whatsapp/bridge-proxy/route.ts`
+         - `app/api/admin/crm/whatsapp/bridge-health/route.ts`
+         - `app/api/admin/crm/whatsapp/bridge-control/route.ts`
+         - `app/api/admin/crm/whatsapp/force-reset/route.ts`
+         - `app/api/admin/crm/whatsapp/groups/route.ts`
+         - `app/api/admin/crm/whatsapp/qr-bridge/route.ts`
+         - `app/api/admin/crm/whatsapp/qr/auto-provision/route.ts`
+         - `app/api/admin/crm/whatsapp/qr/chats/route.ts`
+         - `app/api/admin/crm/whatsapp/qr/send/route.ts`
+         - `app/api/admin/crm/whatsapp/qr/webhook/route.ts`
+         - QR broadcast helper routes
+         - `app/api/admin/crm/whatsapp/send/route.ts`
+         - `lib/whatsappProtection.ts`
+         - `lib/broadcastRuns.ts`
+
+2. **✅ Fixed Bridge Control GET Status Bug**
+   - **Problem**: `app/api/admin/crm/whatsapp/bridge-control/route.ts` referenced `action` in `GET` without defining it from query params
+   - **Solution**:
+      - `GET` now reads `request.nextUrl.searchParams.get('action')` before evaluating status requests
+
+3. **✅ Updated Local Bridge Diagnostics to Follow Real Environment Config**
+   - **Problem**: local bridge diagnostic scripts still assumed the old EC2 IP and a missing `deploy/wa-bridge/wa-bridge-key.pem`, so they reported false failures even while production bridge health was good on the current configured host
+   - **Solution**:
+      - Updated `scripts/quick-bridge-check.js`
+      - Updated `scripts/bridge-diagnostics.sh`
+      - Updated `test-bridge-health.sh`
+      - Scripts now load `.env.local`, use the effective configured bridge URL, and treat protected endpoint responses more accurately
+      - Remote SSH checks now degrade gracefully when `WHATSAPP_BRIDGE_SSH_KEY_PATH` is not configured instead of assuming an outdated path
+
+4. **✅ Verification**
+   - No editor/type errors in modified runtime files and scripts
+   - Full production build completed successfully locally after the cleanup
+   - Updated `scripts/quick-bridge-check.js` now reports the configured bridge as reachable and the protected API route as expected
+   - Production Anti-Bug smoke remains healthy:
+      - Mongo: ok
+      - Bridge: ok
+      - one remaining QR error in Anti-Bug is an older March 12 `qr-bridge/GET fetch failed` log, not a fresh post-fix crash
+
 ### QR Inbox Count / Group Inflation + Connected Number Recovery Hardening (Session: March 13, 2026 — Phase 65) — Commit `56b68751`
 
 1. **✅ Restored the Connected WhatsApp Number Even When `crm_user_settings.qrConnectedPhoneNumber` Was Blank**

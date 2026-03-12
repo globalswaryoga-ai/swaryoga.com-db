@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
+import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 
-const BRIDGE_URL = process.env.BRIDGE_URL || "http://52.91.198.23:3333";
-const BRIDGE_SECRET = process.env.BRIDGE_SECRET || "swar-bridge-secret-2024";
+const { url: BRIDGE_URL, secret: BRIDGE_SECRET } = getWhatsAppBridgeConfig();
 
 // Get blocked numbers
 export async function GET(request: NextRequest) {

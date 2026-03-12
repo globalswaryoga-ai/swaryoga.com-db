@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { execSync } from 'child_process';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
+import { getWhatsAppBridgeUrl } from '@/lib/whatsappBridgeConfig';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,7 +20,7 @@ function requireSuperAdmin(request: NextRequest) {
   return null;
 }
 
-const BRIDGE_URL = process.env.WHATSAPP_BRIDGE_HTTP_URL || 'http://52.91.198.23:3333';
+const BRIDGE_URL = getWhatsAppBridgeUrl();
 
 async function checkBridgeStatus(): Promise<boolean> {
   try {
@@ -149,6 +150,7 @@ export async function GET(request: NextRequest) {
   const authErr = requireSuperAdmin(request);
   if (authErr) return authErr;
   try {
+    const action = request.nextUrl.searchParams.get('action');
 
     if (action === 'status') {
       const isHealthy = await checkBridgeStatus();

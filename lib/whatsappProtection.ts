@@ -11,6 +11,8 @@
  * - Detailed logging and metrics
  */
 
+import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
+
 export type ProviderType = 'meta' | 'qr_bridge';
 
 export type ProviderHealth = {
@@ -268,8 +270,7 @@ export async function protectedSend<T>(
 // BRIDGE HEALTH CHECK
 // ============================================================
 
-const EC2_BRIDGE_URL = process.env.WHATSAPP_BRIDGE_HTTP_URL || 'http://52.91.198.23:3333';
-const EC2_BRIDGE_SECRET = process.env.WHATSAPP_WEB_BRIDGE_SECRET || process.env.WHATSAPP_BRIDGE_SECRET || 'swar-bridge-secret-2024';
+const { url: EC2_BRIDGE_URL, secret: EC2_BRIDGE_SECRET } = getWhatsAppBridgeConfig();
 
 export type BridgeStatus = {
   connected: boolean;

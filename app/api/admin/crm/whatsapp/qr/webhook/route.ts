@@ -3,14 +3,14 @@ import { connectDB } from '@/lib/db';
 import { getWhatsAppMessage, getLead, getBroadcastRunMessage } from '@/lib/schemas/enterpriseSchemas';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import { uploadToS3 } from '@/lib/bunny-storage';
+import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 
 /**
  * QR Bridge Webhook - receives incoming messages from the WhatsApp Web bridge
  * This is separate from Meta Cloud API webhook
  */
 
-const BRIDGE_SECRET = process.env.WHATSAPP_BRIDGE_SECRET || 'swar-bridge-secret-2024';
-const BRIDGE_URL = process.env.WHATSAPP_BRIDGE_URL || 'http://52.91.198.23:3333';
+const { url: BRIDGE_URL, secret: BRIDGE_SECRET } = getWhatsAppBridgeConfig();
 
 /**
  * Handle status updates (delivered/read receipts) from the bridge

@@ -7,10 +7,28 @@
 
 const https = require('https');
 const http = require('http');
+const fs = require('fs');
+const path = require('path');
 
-const EC2_IP = '52.91.198.23';
-const BRIDGE_PORT = 3333;
-const BRIDGE_URL = `http://${EC2_IP}:${BRIDGE_PORT}`;
+const envPath = path.resolve(__dirname, '..', '.env.local');
+if (fs.existsSync(envPath)) {
+  require('dotenv').config({ path: envPath });
+}
+
+const BRIDGE_URL = (
+  process.env.WHATSAPP_BRIDGE_HTTP_URL ||
+  process.env.WHATSAPP_BRIDGE_URL ||
+  process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL ||
+  process.env.BRIDGE_URL ||
+  'http://localhost:3333'
+).replace(/\/+$/, '');
+const BRIDGE_SECRET = (
+  process.env.WHATSAPP_BRIDGE_SECRET ||
+  process.env.WHATSAPP_WEB_BRIDGE_SECRET ||
+  process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_SECRET ||
+  process.env.BRIDGE_SECRET ||
+  'swar-bridge-secret-2024'
+).trim();
 const API_ROUTE = 'http://localhost:3000/api/admin/crm/whatsapp/qr-bridge';
 
 async function testEndpoint(url, method = 'GET', headers = {}) {
@@ -69,6 +87,8 @@ async function main() {
   } else if (apiResult.status === 404) {
     console.log(`   ❌ 404 - API route not found`);
     console.log('      → Run: npm run build\n');
+  } else if (apiResult.status === 401 || apiResult.status === 403) {
+    console.log(`   ✅ ${apiResult.status} - API route exists and is protected as expected\n`);
   } else if (apiResult.status === 200) {
     console.log(`   ✅ 200 - API route working!\n`);
   } else {
@@ -76,11 +96,13 @@ async function main() {
   }
 
   // Test 2: Direct Bridge - Health
-  console.log('2️⃣  Checking EC2 Bridge (/health endpoint)...');
-  const healthResult = await testEndpoint(`${BRIDGE_URL}/health`);
+  console.log('2️⃣  Checking configured bridge (/health endpoint)...');
+  const healthResult = await testEndpoint(`${BRIDGE_URL}/health`, 'GET', {
+    'x-bridge-secret': BRIDGE_SECRET,
+  });
   if (healthResult.error === 'TIMEOUT') {
     console.log('   ❌ Connection Timeout');
-    console.log(`      → Bridge at ${EC2_IP}:${BRIDGE_PORT} is not responding`);
+    console.log(`      → Bridge at ${BRIDGE_URL} is not responding`);
     console.log('      → Try: npm run bridge:emergency-restart\n');
   } else if (healthResult.error) {
     console.log(`   ❌ Error: ${healthResult.error}`);
@@ -95,8 +117,10 @@ async function main() {
   }
 
   // Test 3: Direct Bridge - Status
-  console.log('3️⃣  Checking EC2 Bridge (/status endpoint)...');
-  const statusResult = await testEndpoint(`${BRIDGE_URL}/status`);
+  console.log('3️⃣  Checking configured bridge (/status endpoint)...');
+  const statusResult = await testEndpoint(`${BRIDGE_URL}/status`, 'GET', {
+    'x-bridge-secret': BRIDGE_SECRET,
+  });
   if (statusResult.error) {
     console.log(`   ❌ Error: ${statusResult.error}\n`);
   } else if (statusResult.status === 200) {
@@ -112,7 +136,7 @@ async function main() {
   console.log('SUMMARY:');
   console.log('─────────────────────────────────────────────────────────');
 
-  const apiOk = apiResult.status === 200;
+  const apiOk = apiResult.status === 200 || apiResult.status === 401 || apiResult.status === 403;
   const bridgeOk = healthResult.status === 200 || statusResult.status === 200;
 
   if (apiOk && bridgeOk) {

@@ -7,14 +7,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
+import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 
-const BRIDGE_URL =
-  process.env.WHATSAPP_BRIDGE_HTTP_URL ||
-  process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL ||
-  'http://52.91.198.23:3333';
-
-const BRIDGE_SECRET =
-  process.env.WHATSAPP_BRIDGE_SECRET || 'swar-bridge-secret-2024';
+const { url: BRIDGE_URL, secret: BRIDGE_SECRET } = getWhatsAppBridgeConfig();
 
 export const dynamic = 'force-dynamic';
 

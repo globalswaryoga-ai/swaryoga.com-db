@@ -14,14 +14,9 @@ import { connectDB } from '@/lib/db';
 import { getCRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { verifyToken } from '@/lib/auth';
+import { getWhatsAppBridgeUrl } from '@/lib/whatsappBridgeConfig';
 
-// Use same bridge URL config as qr-bridge/route.ts
-const DEFAULT_BRIDGE_URL = 'http://localhost:3333';
-const BRIDGE_BASE_URL =
-  process.env.WHATSAPP_BRIDGE_HTTP_URL ||
-  process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL ||
-  process.env.WHATSAPP_BRIDGE_URL ||
-  DEFAULT_BRIDGE_URL;
+const BRIDGE_BASE_URL = getWhatsAppBridgeUrl();
 
 export async function POST(req: NextRequest) {
   try {
