@@ -172,7 +172,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
-### QR Inbox Count / Group Inflation + Connected Number Recovery Hardening (Session: March 13, 2026 — Phase 65) — Commit `[pending]`
+### QR Inbox Count / Group Inflation + Connected Number Recovery Hardening (Session: March 13, 2026 — Phase 65) — Commit `56b68751`
 
 1. **✅ Restored the Connected WhatsApp Number Even When `crm_user_settings.qrConnectedPhoneNumber` Was Blank**
    - **Problem**: Some tenant QR pages still showed only the green `Connected` pill and the user badge, with no scanned WhatsApp number in the header
