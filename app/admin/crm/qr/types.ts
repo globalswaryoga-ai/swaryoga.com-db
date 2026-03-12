@@ -2,15 +2,17 @@
  * Types and interfaces for QR WhatsApp page
  */
 
-export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected';
+export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'qr';
 
 export type BridgeStatus = {
   connected: boolean;
   status: ConnectionStatus;
   phone?: { id: string; name: string } | null;
   qrAvailable?: boolean;
+  hasQr?: boolean;
   retryCount?: number;
   uptime?: number;
+  sessionReady?: boolean;
 };
 
 export type QRResponse = {

@@ -428,7 +428,9 @@ export default function QRWhatsAppPage() {
         throw new Error(errData.error || `Bridge error: ${response.status}`);
       }
 
-      return await response.json().catch(() => ({}));
+      const json = await response.json().catch(() => ({}));
+      // Unwrap { success, data } wrapper from qr-bridge proxy
+      return json.data || json;
     } catch (e: any) {
       // Handle bridge timeout/unreachable gracefully
       const msg = e?.message || String(e);
@@ -462,7 +464,7 @@ export default function QRWhatsAppPage() {
         if (tabRef.current === 'connection') {
           fetchChats();
         }
-      } else if (data?.qrAvailable) {
+      } else if (data?.qrAvailable || data?.hasQr) {
         // QR available — fetch it (keep old QR showing during refresh)
         try {
           const qr = await bridgeCall('/qr');
