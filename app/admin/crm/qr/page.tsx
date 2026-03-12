@@ -649,6 +649,10 @@ export default function QRWhatsAppPage() {
         const matchedCrmPhones = new Set<string>();
         const deduped: ChatItem[] = [];
         for (const c of data.chats as ChatItem[]) {
+          // Baileys may return lastMessage as an object (message proto) — coerce to string
+          if (c.lastMessage && typeof c.lastMessage !== 'string') {
+            c.lastMessage = (c.lastMessage as any)?.conversation || (c.lastMessage as any)?.extendedTextMessage?.text || '';
+          }
           if (c.isGroup) {
             deduped.push(c);
             continue;
@@ -1512,7 +1516,7 @@ export default function QRWhatsAppPage() {
       const q = searchQuery.trim().toLowerCase();
       const name = (c.name || '').toLowerCase();
       const phone = (c.resolvedPhone || c.id.split('@')[0] || '').toLowerCase();
-      const lastMsg = (c.lastMessage || '').toLowerCase();
+      const lastMsg = (typeof c.lastMessage === 'string' ? c.lastMessage : '').toLowerCase();
       if (!name.includes(q) && !phone.includes(q) && !lastMsg.includes(q)) return false;
     }
     return true;
@@ -2087,7 +2091,7 @@ export default function QRWhatsAppPage() {
                         })}
                         {!stageInfo && chatLabelList.length === 0 && chat.lastMessage && (
                           <p className="text-[10px] text-gray-400 truncate flex-1">
-                            {chat.lastMessage.substring(0, 35)}
+                            {String(chat.lastMessage).substring(0, 35)}
                           </p>
                         )}
                         {/* Pin/unpin button */}
