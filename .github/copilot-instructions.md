@@ -172,6 +172,28 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### QR Inbox WhatsApp-Only Chat List Privacy Decoupling (Session: March 12, 2026 — Phase 64) — Commit `[pending]`
+
+1. **✅ QR WhatsApp Chat List No Longer Pulls CRM Leads Directly into the Inbox Sidebar**
+   - **Problem**: The QR inbox frontend still fetched CRM leads during chat loading to enrich the WhatsApp sidebar, which kept a coupling between CRM lead data and the QR chat list
+   - **Risk**:
+      - QR inbox presentation could still be influenced by CRM lead records rather than only current WhatsApp session chats
+      - this violated the stricter requirement that QR chat rows should appear only from real WhatsApp activity, not direct CRM lead loading
+   - **Solution**:
+      - Updated `app/admin/crm/qr/page.tsx`
+      - Removed the CRM leads fetch/enrichment step from `fetchChats()`
+      - The QR inbox sidebar now renders only bridge/session chat rows returned by the WhatsApp session flow, with no direct CRM lead injection into the list
+
+2. **✅ Privacy Position After This Change**
+   - Shared/team bridge users remain server-filtered by lead ownership in `app/api/admin/crm/whatsapp/qr-bridge/route.ts`
+   - Own-bridge users remain constrained by current-session chat allow-list checks and stale chat cleanup
+   - QR sidebar population is now WhatsApp-session-driven only, not CRM-lead-driven
+
+3. **✅ Verification**
+   - No editor/type errors in modified QR page
+   - Full production build completed successfully locally before push
+   - Production Anti-Bug smoke remains healthy after the change
+
 ### QR Header Scanned Number Badge Restore (Session: March 12, 2026 — Phase 63) — Commit `a33bab68`
 
 1. **✅ Restored a Dedicated Scanned WhatsApp Number Badge in the Main QR Header**

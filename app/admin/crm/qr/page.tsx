@@ -807,9 +807,6 @@ export default function QRWhatsAppPage() {
   // ── Fetch chats (bridge + CRM leads merge) ──
   const fetchChats = useCallback(async () => {
     try {
-      const isSuperUser = isSuperAdminRef.current;
-      const userId = currentUserIdRef.current;
-
       // ── STEP 1: Fetch bridge chats (with error handling) ──
       let data: any = null;
       try {
@@ -825,74 +822,9 @@ export default function QRWhatsAppPage() {
         return;
       }
 
-      // ── STEP 2: Fetch CRM leads for enrichment (leads API filters per-user automatically) ──
-      const crmLeadMap = new Map<string, { name: string; phone: string; funnelStage?: string; labels?: string[]; status?: string }>();
-      try {
-        // Use direct fetch to avoid useCRM auto-logout
-        const leadsRes = await fetch('/api/admin/crm/leads?selectAll=true&limit=5000', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        }).then(r => r.json().catch(() => null))
-          .catch(() => null);
-
-        console.log('[QR] Fetched CRM leads for enrichment:', leadsRes?.data?.leads?.length || 0);
-        if (leadsRes?.data?.leads) {
-          for (const lead of leadsRes.data.leads) {
-            if (lead.phoneNumber) {
-              // Normalize phone: strip all non-digits
-              let p = String(lead.phoneNumber).replace(/[^0-9]/g, '');
-              // Handle various formats
-              if (p.startsWith('0')) p = p.slice(1); // Remove leading 0
-              if (p.length === 10) {
-                // 10-digit Indian number without country code
-                crmLeadMap.set(p, {
-                  name: lead.name || lead.phoneNumber,
-                  phone: p,
-                  funnelStage: lead.funnelStage,
-                  labels: lead.labels,
-                  status: lead.status,
-                });
-                crmLeadMap.set('91' + p, { name: lead.name || lead.phoneNumber, phone: '91' + p, funnelStage: lead.funnelStage, labels: lead.labels, status: lead.status });
-              } else if (p.length === 12 && p.startsWith('91')) {
-                // 12-digit with 91 prefix
-                crmLeadMap.set(p, {
-                  name: lead.name || lead.phoneNumber,
-                  phone: p,
-                  funnelStage: lead.funnelStage,
-                  labels: lead.labels,
-                  status: lead.status,
-                });
-                crmLeadMap.set(p.slice(2), { name: lead.name || lead.phoneNumber, phone: p, funnelStage: lead.funnelStage, labels: lead.labels, status: lead.status });
-              } else if (p.length === 11 && p.startsWith('0')) {
-                // 11-digit starting with 0 (old format)
-                const tenDigit = p.slice(1);
-                crmLeadMap.set(tenDigit, { name: lead.name || lead.phoneNumber, phone: tenDigit, funnelStage: lead.funnelStage, labels: lead.labels, status: lead.status });
-                crmLeadMap.set('91' + tenDigit, { name: lead.name || lead.phoneNumber, phone: '91' + tenDigit, funnelStage: lead.funnelStage, labels: lead.labels, status: lead.status });
-              } else {
-                // Other formats - just store as-is
-                crmLeadMap.set(p, {
-                  name: lead.name || lead.phoneNumber,
-                  phone: p,
-                  funnelStage: lead.funnelStage,
-                  labels: lead.labels,
-                  status: lead.status,
-                });
-              }
-            }
-          }
-        }
-        console.log('[QR] CRM lead map entries:', crmLeadMap.size);
-      } catch (e) {
-        console.error('[QR] Failed to fetch CRM leads for enrichment:', e);
-        // Continue without enrichment
-      }
-
       if (data?.chats) {
         // Deduplicate: merge LID and phone JIDs for the same contact
         const phoneMap = new Map<string, ChatItem>();
-        const matchedCrmPhones = new Set<string>();
         const deduped: ChatItem[] = [];
         for (const c of data.chats as any[]) {
           // Bridge returns lastMessage as { body, timestamp, fromMe } — map to ChatItem format
@@ -915,27 +847,9 @@ export default function QRWhatsAppPage() {
             deduped.push(c);
             continue;
           }
+
           // Extract phone from resolvedPhone, name, or JID
           const phone = extractBestChatPhone(c);
-
-          // Enrich name from CRM lead if available
-          if (phone) {
-            const crmLead = crmLeadMap.get(phone);
-            if (crmLead) {
-              // Use CRM lead name if bridge only has a placeholder/internal name
-              if (isPlaceholderChatName(c.name)) {
-                c.name = crmLead.name;
-              }
-              if (!c.resolvedPhone) c.resolvedPhone = crmLead.phone;
-              if (crmLead.funnelStage) c.funnelStage = crmLead.funnelStage;
-              if (crmLead.labels?.length) c.labels = crmLead.labels;
-              if (crmLead.status) c.leadStatus = crmLead.status;
-              matchedCrmPhones.add(phone);
-              // Mark other phone variants as matched
-              if (phone.length === 12 && phone.startsWith('91')) matchedCrmPhones.add(phone.slice(2));
-              if (phone.length === 10) matchedCrmPhones.add('91' + phone);
-            }
-          }
 
           if (phone && phoneMap.has(phone)) {
             // Merge: keep the entry with more recent message, combine unread counts
@@ -967,9 +881,9 @@ export default function QRWhatsAppPage() {
           }
         }
 
-        // Do NOT append unmatched CRM leads as synthetic chats.
-        // The QR inbox should reflect actual bridge chats only; CRM lead data is used
-        // purely to enrich names, funnel stages, labels, and statuses on real chats.
+        // The QR inbox must reflect WhatsApp session chats only.
+        // Do NOT fetch or inject CRM leads into the QR list directly.
+        // A chat should appear here only if it exists in the user's WhatsApp session.
 
         // Preserve unreadCount=0 only if no NEW messages arrived since the user read the chat
         for (const c of deduped) {
