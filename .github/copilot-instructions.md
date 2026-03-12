@@ -172,7 +172,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
-### Tenant QR Stale Unknown Chat Cleanup (Session: March 12, 2026 — Phase 62) — Commit `[pending]`
+### Tenant QR Stale Unknown Chat Cleanup (Session: March 12, 2026 — Phase 62) — Commit `c8584dda`
 
 1. **✅ Tenant QR Inbox No Longer Keeps Accumulating Old / Unknown Chat Rows in Mongo Snapshot**
    - **Problem**: Tenant QR inboxes could still show stale or unknown chats even after earlier privacy hardening because the QR Mongo snapshot was being used as a session source but old chat rows were never removed
