@@ -727,7 +727,9 @@ export default function QRLeadsPage() {
                           onClick={() => setSelectedLeadId(lead._id)}
                           className="text-left hover:text-green-700 font-medium text-gray-900"
                         >
-                          {lead.name || 'Unknown'}
+                          {(!lead.name || lead.name === 'Unknown' || lead.name === 'N/A' || lead.name === 'QR Lead' || String(lead.name).startsWith('QR Lead '))
+                            ? lead.phoneNumber
+                            : lead.name}
                         </button>
                         {lead.email && <p className="text-xs text-gray-400 mt-0.5">{lead.email}</p>}
                       </td>

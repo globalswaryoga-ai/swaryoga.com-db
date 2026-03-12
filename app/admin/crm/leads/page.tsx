@@ -539,12 +539,19 @@ export default function LeadsPage() {
     {
       key: 'name',
       label: 'Name & Contact',
-      render: (name: any, lead: Lead) => (
-        <div className="space-y-1">
-          <div className="font-semibold text-white break-words">{String(name || 'N/A')}</div>
-          <div className="text-xs text-gray-400 break-words">{lead.email || 'N/A'}</div>
-        </div>
-      ),
+      render: (name: any, lead: Lead) => {
+        // Fallback: If name starts with "QR Lead" or is missing/N/A, show phone number
+        const displayName = (!name || name === 'N/A' || name === 'QR Lead' || String(name).startsWith('QR Lead '))
+          ? lead.phoneNumber
+          : String(name);
+        
+        return (
+          <div className="space-y-1">
+            <div className="font-semibold text-white break-words">{displayName}</div>
+            <div className="text-xs text-gray-400 break-words">{lead.email || 'N/A'}</div>
+          </div>
+        );
+      },
     },
     { key: 'phoneNumber', label: 'Phone' },
     {

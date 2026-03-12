@@ -131,8 +131,8 @@ export function ConnectionTab({
                 <div>
                   <h2 className="text-lg font-bold text-white">WhatsApp Connected</h2>
                   {status?.phone && (
-                    <p className="text-green-100 text-sm flex items-center gap-1.5">
-                      <Phone className="w-3.5 h-3.5" />
+                    <p className="bg-white/90 text-green-700 px-2 py-0.5 rounded-md text-sm font-bold flex items-center gap-1.5 mt-1 shadow-sm">
+                      <Phone className="w-4 h-4 stroke-[2.5]" />
                       {status.phone.name || status.phone.id}
                     </p>
                   )}

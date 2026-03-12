@@ -177,7 +177,12 @@ export async function POST(request: NextRequest) {
         const workshopName = String(c.workshopName || '').trim();
         const address = String(c.address || '').trim();
 
-        if (name) leadData.name = name;
+        if (name) {
+          leadData.name = name;
+        } else {
+          // If name is missing, use phone number as name
+          leadData.name = phoneNumber;
+        }
         if (email) leadData.email = email;
         if (status) leadData.status = status;
         if (source) leadData.source = source;

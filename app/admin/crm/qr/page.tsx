@@ -1629,14 +1629,14 @@ export default function QRWhatsAppPage() {
               </div>
               <h1 className="text-lg font-bold text-gray-900">QR WhatsApp</h1>
             </div>
-            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
-              isConnected ? 'bg-green-50 text-green-700 ring-1 ring-green-200' :
+            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${
+              isConnected ? 'bg-green-100 text-green-700 ring-1 ring-green-300 shadow-sm' :
               connState === 'connecting' ? 'bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200' :
               'bg-red-50 text-red-700 ring-1 ring-red-200'
             }`}>
-              {isConnected ? <Wifi className="w-3 h-3" /> :
-               connState === 'connecting' ? <Loader2 className="w-3 h-3 animate-spin" /> :
-               <WifiOff className="w-3 h-3" />}
+              {isConnected ? <Wifi className="w-3.5 h-3.5 stroke-[3]" /> :
+               connState === 'connecting' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> :
+               <WifiOff className="w-3.5 h-3.5" />}
               {isConnected ? 'Connected' : connState === 'connecting' ? 'Connecting...' : 'Offline'}
             </div>
             {/* User Compartment Indicator */}
