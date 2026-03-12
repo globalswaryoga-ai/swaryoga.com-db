@@ -23,6 +23,61 @@ import {
   DetailsPanel,
 } from './components';
 
+function isPlaceholderChatName(name: string | undefined | null): boolean {
+  const value = String(name || '').trim();
+  if (!value) return true;
+  if (/^~\s*Contact\s+\d+$/i.test(value)) return true;
+  if (/^\d+$/.test(value)) return true;
+  if (value.includes('QR Lead')) return true;
+  if (value === 'Swar Yoga') return true;
+  if (value.includes('@')) return true;
+  return false;
+}
+
+function extractBestChatPhone(chat: Partial<ChatItem> & Record<string, any>): string {
+  const directCandidates = [
+    chat.resolvedPhone,
+    chat.phoneNumber,
+    chat.phone,
+    chat.user,
+    chat.contact?.phone,
+    chat.contact?.number,
+  ];
+
+  for (const candidate of directCandidates) {
+    const digits = String(candidate || '').replace(/\D/g, '');
+    if (digits.length >= 10 && digits.length <= 15) return digits;
+  }
+
+  const jid = typeof chat.id === 'string' ? chat.id : '';
+  if (jid.endsWith('@s.whatsapp.net') || jid.endsWith('@c.us')) {
+    const digits = jid.split('@')[0].replace(/\D/g, '');
+    if (digits.length >= 10 && digits.length <= 15) return digits;
+  }
+
+  const nameDigits = String(chat.name || '').replace(/\D/g, '');
+  if (nameDigits.length >= 10 && nameDigits.length <= 13) return nameDigits;
+
+  return '';
+}
+
+function getSidebarChatTitle(chat: ChatItem): string {
+  if (chat.isGroup) {
+    return /^\d+$/.test(chat.name) ? `Group ${chat.name.slice(0, 8)}...` : chat.name;
+  }
+
+  if (!isPlaceholderChatName(chat.name)) {
+    return chat.name;
+  }
+
+  const phone = extractBestChatPhone(chat as ChatItem & Record<string, any>);
+  if (phone) {
+    return formatPhoneNumber(phone);
+  }
+
+  return String(chat.name || chat.id.split('@')[0] || 'Unknown Contact');
+}
+
 export default function QRWhatsAppPage() {
   const token = useAuth();
   const router = useRouter();
@@ -717,18 +772,17 @@ export default function QRWhatsAppPage() {
             continue;
           }
           // Extract phone from resolvedPhone, name, or JID
-          const phone = c.resolvedPhone
-            || (c.id.endsWith('@s.whatsapp.net') ? c.id.split('@')[0] : null)
-            || (/^\d{10,13}$/.test(c.name) ? c.name : null);
+          const phone = extractBestChatPhone(c);
 
           // Enrich name from CRM lead if available
           if (phone) {
             const crmLead = crmLeadMap.get(phone);
             if (crmLead) {
-              // Use CRM lead name if chat name is just a number or 'Swar Yoga'
-              if (/^\d+$/.test(c.name) || c.name === 'Swar Yoga' || !c.name) {
+              // Use CRM lead name if bridge only has a placeholder/internal name
+              if (isPlaceholderChatName(c.name)) {
                 c.name = crmLead.name;
               }
+              if (!c.resolvedPhone) c.resolvedPhone = crmLead.phone;
               if (crmLead.funnelStage) c.funnelStage = crmLead.funnelStage;
               if (crmLead.labels?.length) c.labels = crmLead.labels;
               if (crmLead.status) c.leadStatus = crmLead.status;
@@ -2118,16 +2172,7 @@ export default function QRWhatsAppPage() {
                       <div className="flex items-center justify-between gap-1">
                         <span className="font-medium text-sm text-gray-900 truncate flex items-center gap-1">
                           {chat.isGroup && <Users className="w-3 h-3 text-indigo-500 flex-shrink-0" />}
-                          {chat.isGroup
-                            ? (/^\d+$/.test(chat.name) ? `Group ${chat.name.slice(0, 8)}...` : chat.name)
-                            : (chat.name && !/^\d+$/.test(chat.name) && !chat.name.includes('QR Lead') && chat.name !== 'Swar Yoga' && !chat.name.includes('@')
-                              ? chat.name
-                              : (chat.resolvedPhone
-                                ? formatPhoneNumber(chat.resolvedPhone)
-                                : (/^\d{14,}$/.test(chat.name)
-                                  ? `~ Contact ${chat.name.slice(-4)}`
-                                  : (/^\d+$/.test(chat.name) ? formatPhoneNumber(chat.name) : formatPhoneNumber(chat.id.split('@')[0])))))
-                          }
+                          {getSidebarChatTitle(chat)}
                         </span>
                         <div className="flex items-center gap-1 flex-shrink-0">
                           {/* Label dots — colored circles, hover to see name */}
