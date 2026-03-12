@@ -10,6 +10,7 @@ export interface ConnectionTabProps {
   connState: string;
   qrData: string | null;
   status: BridgeStatus | null;
+  connectedPhoneNumber?: string;
   chats: ChatItem[];
   loadingStatuses: boolean;
   statusData: any[];
@@ -26,13 +27,15 @@ export interface ConnectionTabProps {
 }
 
 export function ConnectionTab({
-  isConnected, connState, qrData, status, chats,
+  isConnected, connState, qrData, status, connectedPhoneNumber, chats,
   loadingStatuses, statusData,
   handleReconnect, handleDisconnect, handleLogout,
   setTab, setShowGroupCreate, setShowStatusPanel,
   setSelectedStatusUser, setCurrentStatusIndex,
   fetchStatuses, fetchChats,
 }: ConnectionTabProps) {
+  const connectedPhoneLabel = status?.phone?.name || status?.phone?.id || connectedPhoneNumber || '';
+
   return (
     <div className="max-w-5xl mx-auto mt-6 px-6 pb-8 space-y-6">
 
@@ -130,10 +133,10 @@ export function ConnectionTab({
                 </div>
                 <div>
                   <h2 className="text-lg font-bold text-white">WhatsApp Connected</h2>
-                  {status?.phone && (
+                  {connectedPhoneLabel && (
                     <p className="bg-white/90 text-green-700 px-2 py-0.5 rounded-md text-sm font-bold flex items-center gap-1.5 mt-1 shadow-sm">
                       <Phone className="w-4 h-4 stroke-[2.5]" />
-                      {status.phone.name || status.phone.id}
+                      {connectedPhoneLabel}
                     </p>
                   )}
                 </div>

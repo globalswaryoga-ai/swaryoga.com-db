@@ -8,6 +8,19 @@ import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 // to prevent QR contacts from appearing in the Meta inbox.
 import { normalizeQRIncomingMessages } from '@/lib/qrWebhookNormalize';
 
+function extractChatJid(rawValue: string): string {
+  const raw = String(rawValue || '').trim();
+  if (!raw) return '';
+  if (raw.includes('@g.us')) return raw;
+  const digits = raw.split(':')[0].split('@')[0].replace(/\D/g, '');
+  if (!digits) return '';
+  return `${digits}@s.whatsapp.net`;
+}
+
+function normalizeConnectedPhone(value: string): string {
+  return normalizePhone(String(value || '').split(':')[0].split('@')[0]);
+}
+
 /**
  * QR Chat webhook receiver.
  *
@@ -65,11 +78,26 @@ async function ingestQRPayload(payload: any) {
 
   await connectDB();
 
-  const { getWhatsAppMessage, getLead } = await import('@/lib/schemas/enterpriseSchemas');
+  const {
+    getWhatsAppMessage,
+    getLead,
+    getCRMUserSettings,
+    getQrWhatsAppMessage,
+    getQrWhatsAppChat,
+  } = await import('@/lib/schemas/enterpriseSchemas');
   const { isValidPhoneNumber } = await import('@/lib/whatsapp');
   const { uploadToS3 } = await import('@/lib/bunny-storage');
   const WhatsAppMessage = getWhatsAppMessage();
   const Lead = getLead();
+  const CRMUserSettings = getCRMUserSettings();
+  const QrWhatsAppMessage = getQrWhatsAppMessage();
+  const QrWhatsAppChat = getQrWhatsAppChat();
+
+  const bridgeUserId = String(payload.bridgeUserId || '').trim();
+  const bridgeSettings = bridgeUserId
+    ? await CRMUserSettings.findOne({ userId: bridgeUserId }, { qrConnectedPhoneNumber: 1 }).lean()
+    : null;
+  const connectedPhone = normalizeConnectedPhone(payload.connectedPhone || (bridgeSettings as any)?.qrConnectedPhoneNumber || '');
 
   let created = 0;
   let skippedInvalidPhone = 0;
@@ -208,6 +236,76 @@ async function ingestQRPayload(payload: any) {
 
     const newMessage = await WhatsAppMessage.create(doc);
     created++;
+
+    if (bridgeUserId && connectedPhone) {
+      const chatJid = extractChatJid(m.fromMe ? (m.to || m.from) : m.from);
+      const timestampMs = m.timestamp instanceof Date ? m.timestamp.getTime() : Date.now();
+      const timestampSeconds = Math.floor(timestampMs / 1000);
+
+      if (chatJid) {
+        await QrWhatsAppMessage.updateOne(
+          {
+            userId: bridgeUserId,
+            connectedPhone,
+            chatJid,
+            messageId: m.messageId || String(newMessage._id),
+          },
+          {
+            $set: {
+              userId: bridgeUserId,
+              connectedPhone,
+              chatJid,
+              messageId: m.messageId || String(newMessage._id),
+              direction: m.fromMe ? 'outbound' : 'inbound',
+              fromMe: !!m.fromMe,
+              text: messageContent,
+              type: m.media?.kind || m.type || 'text',
+              participant: '',
+              pushName: typeof lead.name === 'string' ? lead.name : '',
+              timestamp: timestampSeconds,
+              status: m.fromMe ? 2 : 0,
+              hasMedia: !!hasMedia,
+              mediaUrl: doc.media?.url || '',
+              mediaMimetype: doc.media?.mimeType || '',
+              mediaFileName: doc.media?.fileName || '',
+              quotedId: '',
+              quotedText: '',
+              quotedParticipant: '',
+              rawMessage: payload,
+              metadata: doc.metadata,
+            },
+            $setOnInsert: { createdAt: new Date() },
+          },
+          { upsert: true }
+        );
+
+        await QrWhatsAppChat.updateOne(
+          { userId: bridgeUserId, connectedPhone, chatJid },
+          {
+            $set: {
+              userId: bridgeUserId,
+              connectedPhone,
+              chatJid,
+              name: typeof lead.name === 'string' ? lead.name : normalizedPhone,
+              isGroup: chatJid.endsWith('@g.us'),
+              lastMessage: messageContent,
+              lastMessageTime: new Date(timestampMs),
+              lastMessageFromMe: !!m.fromMe,
+              conversationTimestamp: timestampSeconds,
+            },
+            $setOnInsert: {
+              unreadCount: 0,
+              pinned: false,
+              archived: false,
+              profilePicUrl: '',
+              createdAt: new Date(),
+            },
+            ...(m.fromMe ? {} : { $inc: { unreadCount: 1 } }),
+          },
+          { upsert: true }
+        );
+      }
+    }
 
     // SKIP automations for QR inbound messages.
     // The automation system sends replies via Meta Cloud API, which creates

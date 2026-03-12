@@ -129,6 +129,9 @@ export default function QRWhatsAppPage() {
   const [senderDisplayName, setSenderDisplayName] = useState(() => {
     if (typeof window !== 'undefined') { try { return localStorage.getItem('crm_senderDisplayName') || ''; } catch {} } return '';
   });
+  const [connectedPhoneNumber, setConnectedPhoneNumber] = useState(() => {
+    if (typeof window !== 'undefined') { try { return localStorage.getItem('crm_qrConnectedPhoneNumber') || ''; } catch {} } return '';
+  });
   const [isPageVisible, setIsPageVisible] = useState(true);
 
   // All refs must come before any hooks
@@ -291,6 +294,9 @@ export default function QRWhatsAppPage() {
           if (s.senderDisplayName) {
             setSenderDisplayName(s.senderDisplayName);
           }
+          if (s.qrConnectedPhoneNumber) {
+            setConnectedPhoneNumber(String(s.qrConnectedPhoneNumber));
+          }
           // ── Load bridge URL and secret ──
           const savedUrl = s.qrBridgeUrl || '';
           const savedSecret = s.qrBridgeSecret || '';
@@ -383,6 +389,9 @@ export default function QRWhatsAppPage() {
     try { localStorage.setItem('crm_senderDisplayName', senderDisplayName); } catch {}
     if (dbLoadedRef.current) saveToMongoDB({ senderDisplayName });
   }, [senderDisplayName, saveToMongoDB]);
+  useEffect(() => {
+    try { localStorage.setItem('crm_qrConnectedPhoneNumber', connectedPhoneNumber); } catch {}
+  }, [connectedPhoneNumber]);
   useEffect(() => {
     try { localStorage.setItem('crm_sidebarWidth', String(sidebarWidth)); } catch {}
   }, [sidebarWidth]);
@@ -562,6 +571,7 @@ export default function QRWhatsAppPage() {
       // Strip phone to digits only (same as server-side extractBridgePhone)
       const cleanPhone = String(status.phone.id).split(':')[0].split('@')[0].replace(/\D/g, '');
       if (!cleanPhone) return;
+      setConnectedPhoneNumber(cleanPhone);
       // Save to DB in background using direct fetch (non-critical)
       if (token) {
         fetch('/api/admin/crm/settings', {
@@ -1641,6 +1651,9 @@ export default function QRWhatsAppPage() {
   // ── Render ──
   const connState = status?.status || 'disconnected';
   const isConnected = connState === 'connected';
+  const headerConnectedPhone = formatPhoneNumber(
+    String(status?.phone?.id || connectedPhoneNumber || '').split(':')[0].split('@')[0]
+  );
 
   // ── Bridge setup onboarding / settings modal ──
   if (bridgeConfigured === null) {
@@ -1670,7 +1683,7 @@ export default function QRWhatsAppPage() {
       {/* ═══ Page Header ═══ */}
       <div className="bg-white border-b shadow-sm">
         <div className="px-4 py-3 flex items-center justify-between">
-          {/* Left: Title + Status Badge + Compartment */}
+          {/* Left: Title + Status Badge + Sender + Compartment */}
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-green-600 flex items-center justify-center">
@@ -1688,6 +1701,12 @@ export default function QRWhatsAppPage() {
                <WifiOff className="w-3.5 h-3.5" />}
               {isConnected ? 'Connected' : connState === 'connecting' ? 'Connecting...' : 'Offline'}
             </div>
+            {headerConnectedPhone && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-50 text-green-700 ring-1 ring-green-200" title={`Connected sender ${headerConnectedPhone}`}>
+                <Phone className="w-3.5 h-3.5" />
+                {headerConnectedPhone}
+              </div>
+            )}
             {/* User Compartment Indicator */}
             <div className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-500 ring-1 ring-gray-200" title={`Logged in as ${currentUserId}`}>
               <Lock className="w-2.5 h-2.5" />
@@ -1799,6 +1818,7 @@ export default function QRWhatsAppPage() {
           connState={connState}
           qrData={qrData}
           status={status}
+          connectedPhoneNumber={headerConnectedPhone}
           chats={chats}
           loadingStatuses={loadingStatuses}
           statusData={statusData}

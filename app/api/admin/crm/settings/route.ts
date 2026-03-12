@@ -6,6 +6,10 @@ import { apiError, apiSuccess } from '@/lib/api-error';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 
+function normalizeConnectedPhone(phone: string): string {
+  return String(phone || '').split(':')[0].split('@')[0].replace(/\D/g, '');
+}
+
 /**
  * Generate a unique bridge secret for a user.
  * Format: swar-<userId-prefix>-<random-hex>  (always unique per user)
@@ -50,6 +54,9 @@ export async function GET(req: NextRequest) {
       chatLabels: settings?.chatLabels || {},
       labelPresets: settings?.labelPresets || [],
       qrFunnelStages: settings?.qrFunnelStages || [],
+      pinnedChats: settings?.pinnedChats || [],
+      senderDisplayName: settings?.senderDisplayName || '',
+      qrConnectedPhoneNumber: normalizeConnectedPhone(settings?.qrConnectedPhoneNumber || ''),
     };
 
     // QR bridge data: return for all admin users
@@ -92,12 +99,14 @@ export async function PUT(req: NextRequest) {
     if (body.chatLabels !== undefined) update.chatLabels = body.chatLabels;
     if (body.labelPresets !== undefined) update.labelPresets = body.labelPresets;
     if (body.qrFunnelStages !== undefined) update.qrFunnelStages = body.qrFunnelStages;
+    if (body.pinnedChats !== undefined) update.pinnedChats = body.pinnedChats;
+    if (body.senderDisplayName !== undefined) update.senderDisplayName = body.senderDisplayName;
+    if (body.qrConnectedPhoneNumber !== undefined) update.qrConnectedPhoneNumber = normalizeConnectedPhone(body.qrConnectedPhoneNumber);
     // QR bridge settings — super admin only
     if (isSuperAdmin(decoded)) {
       if (body.qrBridgeUrl !== undefined) update.qrBridgeUrl = body.qrBridgeUrl;
       if (body.qrBridgeSecret !== undefined) update.qrBridgeSecret = body.qrBridgeSecret;
       if (body.qrWhatsappEnabled !== undefined) update.qrWhatsappEnabled = body.qrWhatsappEnabled;
-      if (body.qrConnectedPhoneNumber !== undefined) update.qrConnectedPhoneNumber = body.qrConnectedPhoneNumber;
     }
 
     if (Object.keys(update).length === 0) {
