@@ -728,7 +728,8 @@ export default function QRWhatsAppPage() {
 
   // ── Recover saved connected phone for header when live bridge status omits it ──
   useEffect(() => {
-    if (!token || !status?.connected || headerConnectedPhone) return;
+    const resolvedHeaderPhone = resolveConnectedPhoneLabel(status, connectedPhoneNumber);
+    if (!token || !status?.connected || resolvedHeaderPhone) return;
 
     const now = Date.now();
     if (now - headerPhoneRecoveryRef.current < 5000) return;
@@ -756,7 +757,7 @@ export default function QRWhatsAppPage() {
         }) : prev);
       })
       .catch(e => console.warn('[QR] Failed to recover saved connected phone:', e));
-  }, [token, status?.connected, headerConnectedPhone]);
+  }, [token, status, connectedPhoneNumber]);
 
   // ── Auto-fetch WhatsApp statuses when connected and on status tab ──
   useEffect(() => {

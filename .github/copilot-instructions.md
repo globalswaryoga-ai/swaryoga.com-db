@@ -172,6 +172,24 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### QR Header Runtime Crash Fix (Session: March 12, 2026 — Phase 54) — Commit `[pending]`
+
+1. **✅ Fixed `Cannot access 'rn' before initialization` Crash on QR Inbox**
+    - **Problem**: The QR page crashed with a CRM error screen and repeated browser console errors after the recent header-phone recovery change
+    - **Root Cause**:
+       - A React effect dependency referenced the derived header phone variable before that constant had been initialized in the component render
+       - In the minified production bundle this surfaced as `ReferenceError: Cannot access 'rn' before initialization`
+    - **Solution**:
+       - Updated `app/admin/crm/qr/page.tsx` so the recovery effect computes the header phone label locally instead of referencing the later render constant in its dependency array
+       - This removes the temporal-dead-zone runtime crash while keeping the scanned-number header recovery logic intact
+
+2. **✅ Verification**
+    - **Files Modified**:
+       - `app/admin/crm/qr/page.tsx`
+       - `.github/copilot-instructions.md`
+    - **Build / Validation**:
+       - ✅ No TypeScript/editor errors in modified QR page
+
 ### QR Session-Scoped Chat Source Fix (Session: March 12, 2026 — Phase 53) — Commit `[pending]`
 
 1. **✅ Tenant QR Inbox Now Prefers Session-Scoped QR Chat Storage Over Bloated Bridge History**
