@@ -172,6 +172,29 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### QR Sidebar Saved Names / Numbers Fix (Session: March 12, 2026 — Phase 42) — Commit `eef52395`
+
+1. **✅ QR Sidebar Now Prefers Saved CRM Names and Real Numbers Over Placeholder Labels**
+    - **Problem**: The QR inbox sidebar was showing fake labels like `~ Contact 2499` for many chats instead of saved lead names or usable phone numbers
+    - **Root Cause**:
+       - `app/admin/crm/qr/page.tsx` only enriched names when it could extract a phone from a narrow set of cases
+       - Long internal QR/LID-style placeholders were treated as display values instead of placeholder names
+    - **Solution**:
+       - Added helper logic to detect placeholder/internal chat names
+       - Broadened phone extraction so the sidebar can use `resolvedPhone`, phone-like fields, and proper WhatsApp JIDs more reliably
+       - Updated CRM lead enrichment to replace placeholder names with saved lead names and preserve the resolved phone
+       - Replaced the `~ Contact ####` UI fallback with a cleaner title resolver that prefers:
+          1. saved CRM name
+          2. real phone number
+          3. raw fallback only if nothing better exists
+
+2. **✅ Verification**
+    - **Files Modified**:
+       - `app/admin/crm/qr/page.tsx`
+    - **Build / Validation**:
+       - ✅ No TypeScript/editor errors in modified file
+       - ✅ Production build reaches final Next.js summary successfully
+
 ### QR Sender Header & Persistent QR History Fix (Session: March 12, 2026 — Phase 41) — Commit `fa4f0d71`
 
 1. **✅ Connected QR Sender Number Now Persists and Shows in the Header**
