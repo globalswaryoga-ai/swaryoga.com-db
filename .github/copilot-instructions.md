@@ -172,6 +172,25 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### Emergency QR Privacy Lockdown (Session: March 12, 2026 — Phase 50) — Commit `[pending]`
+
+1. **✅ Bridge Leak Hotfix: All Non-Super Admin QR Traffic Is Now Server-Filtered**
+    - **Problem**: Users could see chats that did not belong to them if the bridge returned leaked or stale session data
+    - **Root Cause**:
+       - `app/api/admin/crm/whatsapp/qr-bridge/route.ts` only applied lead-ownership filtering when `hasOwnBridge === false`
+       - Users with isolated tenant sessions (`hasOwnBridge: true`) were trusted to be safe even if the bridge leaked data
+    - **Solution**:
+       - Changed the privacy gate so **every non-Super Admin** QR request is filtered server-side by lead ownership
+       - `/chats`, `/messages/*`, profile/about lookups, and other per-chat endpoints now fail safe for all non-Super Admin users regardless of bridge mode
+       - This prevents bridge-side leakage from exposing cross-user chats in the CRM UI
+
+2. **✅ Verification**
+    - **Files Modified**:
+       - `app/api/admin/crm/whatsapp/qr-bridge/route.ts`
+       - `.github/copilot-instructions.md`
+    - **Build / Validation**:
+       - ✅ No TypeScript/editor errors in modified proxy file
+
 ### QR Header / Session Isolation / Unknown Contact Fix (Session: March 12, 2026 — Phase 49) — Commit `[pending]`
 
 1. **✅ Header Now Falls Back to Saved Connected Number When Bridge Status Omits Phone Info**
