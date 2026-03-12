@@ -172,7 +172,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
-### QR Header Connected Number Format Tweak (Session: March 12, 2026 — Phase 60) — Commit `[pending]`
+### QR Header Connected Number Format Tweak (Session: March 12, 2026 — Phase 60) — Commit `255e7e64`
 
 1. **✅ Updated the QR Header Badge to Show `Connected +00 00000000` Style**
    - **Problem**: The QR header already showed the connected sender number, but the visible format was not the exact style requested for the top badge
