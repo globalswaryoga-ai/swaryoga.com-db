@@ -69,6 +69,18 @@ export const maxDuration = 60; // 60s function timeout for Vercel
 // Super Admin user IDs — these users own the shared bridge session
 const SUPER_ADMIN_IDS = new Set(['admin', 'admincrm']);
 
+// ── In-memory cache for resolveUserBridge (avoids MongoDB hit on every poll) ──
+const bridgeCache = new Map<string, { result: BridgeResolution; expiry: number }>();
+const BRIDGE_CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
+
+/** Evict stale entries periodically (prevent memory leak on long-running server) */
+function evictStaleBridgeCache() {
+  const now = Date.now();
+  for (const [key, entry] of bridgeCache) {
+    if (entry.expiry <= now) bridgeCache.delete(key);
+  }
+}
+
 type BridgeResolution = 
   | { ok: true; url: string; secret: string; userId: string; isSuperAdmin: boolean; hasOwnBridge: boolean; storedPhone: string; phoneChangedAt: Date | null; senderDisplayName: string; tenantId?: string }
   | { ok: false; reason: 'no_bridge' | 'unauthorized' };
@@ -77,6 +89,13 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
   try {
     const decoded = verifyToken(authHeader || '');
     if (decoded?.userId && decoded?.isAdmin) {
+      // ── Check cache first ──
+      const cacheKey = decoded.userId;
+      const cached = bridgeCache.get(cacheKey);
+      if (cached && cached.expiry > Date.now()) {
+        return cached.result;
+      }
+
       const superAdmin = checkSuperAdmin(decoded);
 
       // Check if user has a custom bridge URL or permanent tenant ID
@@ -105,9 +124,11 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
         // Without it, they'd see all of Super Admin's chats (data leak).
         if (!superAdmin && !settings?.qrWhatsappEnabled) {
           console.warn(`[QR Bridge Proxy] BLOCKED: User ${decoded.userId} has permanentTenantId=${permanentTenantId} but qrWhatsappEnabled=false — cannot access shared bridge`);
-          return { ok: false, reason: 'no_bridge' };
+          const blocked: BridgeResolution = { ok: false, reason: 'no_bridge' };
+          bridgeCache.set(cacheKey, { result: blocked, expiry: Date.now() + BRIDGE_CACHE_TTL_MS });
+          return blocked;
         }
-        return {
+        const tenantResult: BridgeResolution = {
           ok: true,
           url: FALLBACK_BRIDGE_URL,
           secret: FALLBACK_BRIDGE_SECRET,
@@ -119,11 +140,14 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
           senderDisplayName,
           tenantId: permanentTenantId,
         };
+        bridgeCache.set(cacheKey, { result: tenantResult, expiry: Date.now() + BRIDGE_CACHE_TTL_MS });
+        if (bridgeCache.size > 50) evictStaleBridgeCache();
+        return tenantResult;
       }
 
       // ── LEGACY: Custom qrBridgeUrl (backward compatibility) ──
       if (settings?.qrBridgeUrl) {
-        return {
+        const legacyResult: BridgeResolution = {
           ok: true,
           url: settings.qrBridgeUrl,
           secret: settings.qrBridgeSecret || FALLBACK_BRIDGE_SECRET,
@@ -134,6 +158,9 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
           phoneChangedAt,
           senderDisplayName,
         };
+        bridgeCache.set(cacheKey, { result: legacyResult, expiry: Date.now() + BRIDGE_CACHE_TTL_MS });
+        if (bridgeCache.size > 50) evictStaleBridgeCache();
+        return legacyResult;
       }
 
       // ── SUPER ADMIN PROTECTION ──
@@ -144,7 +171,9 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
       if (!superAdmin) {
         if (!settings?.qrWhatsappEnabled) {
           console.warn(`[QR Bridge Proxy] BLOCKED: User ${decoded.userId} — no bridge URL configured and not enabled for shared bridge`);
-          return { ok: false, reason: 'no_bridge' };
+          const noBridge: BridgeResolution = { ok: false, reason: 'no_bridge' };
+          bridgeCache.set(cacheKey, { result: noBridge, expiry: Date.now() + BRIDGE_CACHE_TTL_MS });
+          return noBridge;
         }
 
         // Even with qrWhatsappEnabled, tenant owners MUST NOT use the shared bridge.
@@ -161,7 +190,9 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
             }, { projection: { _id: 1 } });
             if (tenantDoc) {
               console.warn(`[QR Bridge Proxy] BLOCKED: Tenant owner ${decoded.userId} — cannot use shared bridge, must configure own bridge`);
-              return { ok: false, reason: 'no_bridge' };
+              const tenantBlocked: BridgeResolution = { ok: false, reason: 'no_bridge' };
+              bridgeCache.set(cacheKey, { result: tenantBlocked, expiry: Date.now() + BRIDGE_CACHE_TTL_MS });
+              return tenantBlocked;
             }
           }
         } catch (tenantCheckErr) {
@@ -172,7 +203,10 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
       }
 
       // Use shared bridge — only super admin or explicitly enabled users
-      return { ok: true, url: FALLBACK_BRIDGE_URL, secret: FALLBACK_BRIDGE_SECRET, userId: decoded.userId, isSuperAdmin: superAdmin, hasOwnBridge: false, storedPhone, phoneChangedAt, senderDisplayName };
+      const sharedResult: BridgeResolution = { ok: true, url: FALLBACK_BRIDGE_URL, secret: FALLBACK_BRIDGE_SECRET, userId: decoded.userId, isSuperAdmin: superAdmin, hasOwnBridge: false, storedPhone, phoneChangedAt, senderDisplayName };
+      bridgeCache.set(cacheKey, { result: sharedResult, expiry: Date.now() + BRIDGE_CACHE_TTL_MS });
+      if (bridgeCache.size > 50) evictStaleBridgeCache();
+      return sharedResult;
     }
   } catch (e) {
     console.warn('[QR Bridge Proxy] Failed to resolve user bridge:', (e as Error).message);

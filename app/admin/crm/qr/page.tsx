@@ -98,7 +98,7 @@ export default function QRWhatsAppPage() {
   const [broadcastSearch, setBroadcastSearch] = useState('');
   const [bridgeUrlInput, setBridgeUrlInput] = useState('');
   const [bridgeSecretInput, setBridgeSecretInput] = useState('');
-  const [bridgeConfigured, setBridgeConfigured] = useState<boolean | null>(null);
+  const [bridgeConfigured, setBridgeConfigured] = useState<boolean | null>(true); // Assume configured; fetchStatus will set to false if 422
   const [savingBridge, setSavingBridge] = useState(false);
   const [showBridgeSettings, setShowBridgeSettings] = useState(false);
   const [currentUserId, setCurrentUserId] = useState('');
@@ -500,7 +500,7 @@ export default function QRWhatsAppPage() {
     // Adaptive poll: check connectedRef inside setInterval instead of deps
     const id = setInterval(() => {
       fetchStatus();
-    }, connectedRef.current ? 15000 : 6000);
+    }, connectedRef.current ? 15000 : 10000);
     pollRef.current = id;
     return () => {
       clearInterval(id);
