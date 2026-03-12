@@ -2050,7 +2050,7 @@ export default function QRWhatsAppPage() {
                           {chat.isGroup && <Users className="w-3 h-3 text-indigo-500 flex-shrink-0" />}
                           {chat.isGroup
                             ? (/^\d+$/.test(chat.name) ? `Group ${chat.name.slice(0, 8)}...` : chat.name)
-                            : (chat.name && !/^\d+$/.test(chat.name) && chat.name !== 'Swar Yoga' && !chat.name.includes('@')
+                            : (chat.name && !/^\d+$/.test(chat.name) && !chat.name.includes('QR Lead') && chat.name !== 'Swar Yoga' && !chat.name.includes('@')
                               ? chat.name
                               : (chat.resolvedPhone
                                 ? formatPhoneNumber(chat.resolvedPhone)

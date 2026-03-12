@@ -40,6 +40,7 @@ export const linkifyText = (text: string): React.ReactNode[] => {
 
 // Get initials from name
 export const getInitials = (name: string): string => {
+  if (!name || name.includes('QR Lead')) return '👤';
   return name
     .split(' ')
     .slice(0, 2)
