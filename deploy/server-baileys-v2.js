@@ -47,30 +47,37 @@ let messageStore = {};   // jid → messages[]
 let chatMetadata = {};   // jid → { name, unreadCount, conversationTimestamp }
 let contactStore = {};   // jid → { name, notify }
 let presenceMap = {};    // jid → { lastKnownPresence, lastSeen }
+let chatSummaries = {};  // jid → { body, timestamp, fromMe } (persisted last messages)
 let reconnectAttempt = 0;
 let historySyncDone = false;
 
 // ── Disk Persistence (chat metadata survives restarts) ──────────────
 function saveStore() {
   try {
-    const data = {
-      chatMetadata,
-      contactStore,
-      // Save last message text per chat (not full protobuf)
-      chatSummaries: {},
-    };
+    // Merge existing chatSummaries with fresh ones from messageStore
+    const mergedSummaries = { ...chatSummaries };
     for (const jid of Object.keys(messageStore)) {
       const msgs = messageStore[jid] || [];
-      const lastMsg = msgs[msgs.length - 1];
+      // Find last message with actual text (skip protocol/system msgs)
+      let lastTextMsg = null;
+      for (let i = msgs.length - 1; i >= 0; i--) {
+        const body = extractMessageText(msgs[i]);
+        if (body) { lastTextMsg = msgs[i]; break; }
+      }
+      const lastMsg = lastTextMsg || msgs[msgs.length - 1];
       if (lastMsg) {
-        data.chatSummaries[jid] = {
+        mergedSummaries[jid] = {
           body: extractMessageText(lastMsg),
-          timestamp: lastMsg.messageTimestamp || 0,
+          timestamp: toNumber(lastMsg.messageTimestamp) || 0,
           fromMe: lastMsg.key?.fromMe || false,
-          msgCount: msgs.length,
         };
       }
     }
+    const data = {
+      chatMetadata,
+      contactStore,
+      chatSummaries: mergedSummaries,
+    };
     fs.writeFileSync(STORE_FILE, JSON.stringify(data, null, 0));
   } catch (err) {
     console.error('saveStore error:', err.message);
@@ -83,7 +90,14 @@ function loadStore() {
       const data = JSON.parse(fs.readFileSync(STORE_FILE, 'utf8'));
       chatMetadata = data.chatMetadata || {};
       contactStore = data.contactStore || {};
-      console.log(`💾 Loaded store: ${Object.keys(chatMetadata).length} chats, ${Object.keys(contactStore).length} contacts`);
+      chatSummaries = data.chatSummaries || {};
+      // Normalize any Baileys Long timestamps from disk
+      for (const jid of Object.keys(chatSummaries)) {
+        if (chatSummaries[jid].timestamp && typeof chatSummaries[jid].timestamp === 'object') {
+          chatSummaries[jid].timestamp = chatSummaries[jid].timestamp.low || 0;
+        }
+      }
+      console.log(`💾 Loaded store: ${Object.keys(chatMetadata).length} chats, ${Object.keys(contactStore).length} contacts, ${Object.keys(chatSummaries).length} summaries`);
       // Rebuild chatList from saved metadata
       rebuildChatList();
     }
@@ -221,7 +235,7 @@ async function startSocket() {
         }
       }
 
-      // Store messages
+      // Store messages + update chatSummaries
       if (messages) {
         for (const msg of messages) {
           const jid = msg.key?.remoteJid;
@@ -233,6 +247,16 @@ async function startSocket() {
             if (messageStore[jid].length > MAX_STORED_MESSAGES) {
               messageStore[jid] = messageStore[jid].slice(-MAX_STORED_MESSAGES);
             }
+          }
+          // Update chatSummaries with latest message for this chat
+          const msgTs = toNumber(msg.messageTimestamp) || 0;
+          const existingSummary = chatSummaries[jid];
+          if (!existingSummary || msgTs >= (existingSummary.timestamp || 0)) {
+            chatSummaries[jid] = {
+              body: extractMessageText(msg),
+              timestamp: msgTs,
+              fromMe: msg.key?.fromMe || false,
+            };
           }
         }
       }
@@ -260,8 +284,14 @@ async function startSocket() {
             messageStore[jid] = messageStore[jid].slice(-MAX_STORED_MESSAGES);
           }
         }
-        // Update chat metadata timestamp
+        // Update chatSummaries (persists last message text across restarts)
         const ts = toNumber(m.messageTimestamp) || Math.floor(Date.now() / 1000);
+        const msgText = extractMessageText(m);
+        chatSummaries[jid] = {
+          body: msgText,
+          timestamp: ts,
+          fromMe: m.key?.fromMe || false,
+        };
         if (!chatMetadata[jid]) {
           chatMetadata[jid] = {
             name: m.pushName || contactStore[jid]?.name || jid.replace(/@.*/, ''),
@@ -416,6 +446,7 @@ function rebuildChatList() {
 
       const lastMsgText = lastMsg ? extractMessageText(lastMsg) : '';
       const lastMsgTs = lastMsg ? (toNumber(lastMsg.messageTimestamp) || Math.floor(Date.now() / 1000)) : 0;
+      const summary = chatSummaries[jid]; // persisted last message
 
       list.push({
         id: jid,
@@ -425,11 +456,15 @@ function rebuildChatList() {
           body: lastMsgText,
           timestamp: lastMsgTs,
           fromMe: lastMsg.key?.fromMe || false,
+        } : (summary ? {
+          body: summary.body || '',
+          timestamp: toNumber(summary.timestamp) || toNumber(meta.conversationTimestamp) || 0,
+          fromMe: summary.fromMe || false,
         } : (meta.conversationTimestamp ? {
           body: '',
           timestamp: toNumber(meta.conversationTimestamp),
           fromMe: false,
-        } : null),
+        } : null)),
         unreadCount: meta.unreadCount || 0,
         conversationTimestamp: toNumber(meta.conversationTimestamp) || lastMsgTs || 0,
       });
@@ -613,22 +648,32 @@ app.get('/messages/:chatId', auth, async (req, res) => {
 app.post('/send', auth, async (req, res) => {
   try {
     if (!sock || !connected) return res.status(503).json({ error: 'WhatsApp not connected' });
-    const { to, chatId, message, type, media, mimetype, filename } = req.body;
+    const { to, chatId, message, type, media, mimetype, filename, caption, cdnUrl } = req.body;
     const jid = to || chatId;
-    if (!jid || !message) return res.status(400).json({ error: 'Missing to/chatId or message' });
+    if (!jid || (!message && !media)) return res.status(400).json({ error: 'Missing to/chatId or message/media' });
     const targetJid = jid.includes('@') ? jid : normalizeJid(jid);
 
+    // Resolve actual media type from 'type' field or mimetype
+    let mediaType = type;
+    if (type === 'media' && mimetype) {
+      if (mimetype.startsWith('image/')) mediaType = 'image';
+      else if (mimetype.startsWith('video/')) mediaType = 'video';
+      else if (mimetype.startsWith('audio/')) mediaType = 'audio';
+      else mediaType = 'document';
+    }
+
+    const msgCaption = caption || message || '';
     let sentMsg;
-    if (type === 'image' && media) {
-      sentMsg = await sock.sendMessage(targetJid, { image: { url: media }, caption: message });
-    } else if (type === 'document' && media) {
+    if (mediaType === 'image' && media) {
+      sentMsg = await sock.sendMessage(targetJid, { image: { url: media }, caption: msgCaption });
+    } else if (mediaType === 'document' && media) {
       sentMsg = await sock.sendMessage(targetJid, { document: { url: media }, mimetype: mimetype || 'application/octet-stream', fileName: filename || 'file' });
-    } else if (type === 'audio' && media) {
+    } else if (mediaType === 'audio' && media) {
       sentMsg = await sock.sendMessage(targetJid, { audio: { url: media }, mimetype: 'audio/mpeg' });
-    } else if (type === 'video' && media) {
-      sentMsg = await sock.sendMessage(targetJid, { video: { url: media }, caption: message });
+    } else if (mediaType === 'video' && media) {
+      sentMsg = await sock.sendMessage(targetJid, { video: { url: media }, caption: msgCaption });
     } else {
-      sentMsg = await sock.sendMessage(targetJid, { text: message });
+      sentMsg = await sock.sendMessage(targetJid, { text: message || msgCaption });
     }
 
     // Store sent message
@@ -685,14 +730,16 @@ app.post('/send-to-number', auth, async (req, res) => {
 app.post('/reply', auth, async (req, res) => {
   try {
     if (!sock || !connected) return res.status(503).json({ error: 'WhatsApp not connected' });
-    const { jid, message, quotedMessageId, quotedParticipant } = req.body;
-    if (!jid || !message) return res.status(400).json({ error: 'Missing jid or message' });
+    const { jid, to, chatId, message, quotedMessageId, quotedId, quotedParticipant } = req.body;
+    const targetJid = jid || to || chatId;
+    if (!targetJid || !message) return res.status(400).json({ error: 'Missing jid/to or message' });
+    const resolvedJid = targetJid.includes('@') ? targetJid : normalizeJid(targetJid);
+    const qid = quotedMessageId || quotedId;
+    const quotedMsg = (messageStore[resolvedJid] || []).find(m => m.key?.id === qid);
+    const sentMsg = await sock.sendMessage(resolvedJid, { text: message }, quotedMsg ? { quoted: quotedMsg } : undefined);
 
-    const quotedMsg = (messageStore[jid] || []).find(m => m.key?.id === quotedMessageId);
-    const sentMsg = await sock.sendMessage(jid, { text: message }, quotedMsg ? { quoted: quotedMsg } : undefined);
-
-    if (!messageStore[jid]) messageStore[jid] = [];
-    messageStore[jid].push(sentMsg);
+    if (!messageStore[resolvedJid]) messageStore[resolvedJid] = [];
+    messageStore[resolvedJid].push(sentMsg);
     rebuildChatList();
     scheduleSave();
 
