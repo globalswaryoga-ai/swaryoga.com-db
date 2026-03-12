@@ -172,6 +172,21 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### CRM Tenant QR Code Access Fix (Session: March 12, 2026 — Phase 37) — Commit `d1135daa`
+
+1. **✅ CRM Tenants Can Now Manage Their Own QR WhatsApp Connection**
+   - **Problem**: CRM Admin users saw error "This action is restricted to Super Admin" when trying to refresh/rescan QR code
+   - **Root Cause**: `/reconnect` endpoint was blocked for users with `hasOwnBridge=false`, but CRM tenants with `permanentTenantId` need this endpoint to manage their own sessions
+   - **Solution**: 
+     - Modified security gate to allow `/reconnect`, `/disconnect`, `/logout` for CRM tenants (users with `permanentTenantId`)
+     - Only Super Admin Team members (qrWhatsappEnabled + no tenantId) remain blocked
+     - Chat privacy filtering still applied (preserves security)
+   - **Files Modified**: `app/api/admin/crm/whatsapp/qr-bridge/route.ts` (POST & GET security gates)
+   - **User Impact**:
+     - Before: CRM tenants get 403 error when clicking "Refresh" button
+     - After: CRM tenants can refresh QR code and manage connection
+   - **Status**: ✅ Deployed (commit d1135daa)
+
 ### Bridge QR Error Message Improvement (Session: March 12, 2026 — Phase 36) — Commit `aa4c8f22`
 
 1. **✅ Extract and Display Bridge's Specific Error Messages**
