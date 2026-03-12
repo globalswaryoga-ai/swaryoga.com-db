@@ -172,7 +172,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
-### Anti-Bug Smoke Env Compatibility Fix (Session: March 12, 2026 — Phase 58) — Commit `[pending]`
+### Anti-Bug Smoke Env Compatibility Fix (Session: March 12, 2026 — Phase 58) — Commit `5968b4a3`
 
 1. **✅ Anti-Bug Smoke Script Now Auto-Loads `.env.local` and Accepts `ADMIN_USERID`**
    - **Problem**: The production Anti-Bug smoke script skipped the authenticated API check even after admin credentials were added locally because the environment used `ADMIN_USERID` while the script only read `ADMIN_USER_ID`
