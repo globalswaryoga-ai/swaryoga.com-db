@@ -172,7 +172,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
-### QR Inbox WhatsApp-Only Chat List Privacy Decoupling (Session: March 12, 2026 — Phase 64) — Commit `[pending]`
+### QR Inbox WhatsApp-Only Chat List Privacy Decoupling (Session: March 12, 2026 — Phase 64) — Commit `2195b865`
 
 1. **✅ QR WhatsApp Chat List No Longer Pulls CRM Leads Directly into the Inbox Sidebar**
    - **Problem**: The QR inbox frontend still fetched CRM leads during chat loading to enrich the WhatsApp sidebar, which kept a coupling between CRM lead data and the QR chat list
