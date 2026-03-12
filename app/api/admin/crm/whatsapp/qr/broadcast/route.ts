@@ -16,7 +16,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
 import { connectDB } from '@/lib/db';
-import { getCRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
+import { getCRMUserSettings, getLead } from '@/lib/schemas/enterpriseSchemas';
 import { getViewerUserId, isSuperAdmin as checkSuperAdmin } from '@/lib/crm-handlers';
 
 const BRIDGE_URL = process.env.BRIDGE_URL || "http://52.91.198.23:3333";
@@ -83,13 +83,64 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Recipients array required" }, { status: 400 });
     }
 
+    // ── Lead-Ownership Filter for Non-Super Admin ──
+    // Non-super-admin users can only broadcast to leads they own
+    let filteredRecipients = recipients;
+    if (!superAdmin) {
+      const viewerUserId = getViewerUserId(decoded);
+      await connectDB();
+      const Lead = getLead();
+      // Build phone variants for lookup (both with and without 91 prefix)
+      const allPhones: string[] = [];
+      for (const r of recipients) {
+        const phone = String(r).replace(/\D/g, '');
+        allPhones.push(phone);
+        if (phone.startsWith('91') && phone.length === 12) {
+          allPhones.push(phone.substring(2));
+        } else if (phone.length === 10) {
+          allPhones.push('91' + phone);
+        }
+      }
+      const ownedLeads = await Lead.find(
+        {
+          phoneNumber: { $in: allPhones },
+          $or: [
+            { assignedToUserId: viewerUserId },
+            { createdByUserId: viewerUserId },
+          ],
+        },
+        { phoneNumber: 1 }
+      ).lean();
+      // Build set of owned phone numbers (normalized)
+      const ownedPhones = new Set<string>();
+      for (const lead of ownedLeads) {
+        const lp = (lead as any).phoneNumber;
+        if (lp) {
+          ownedPhones.add(lp);
+          if (lp.startsWith('91') && lp.length === 12) ownedPhones.add(lp.substring(2));
+          else if (lp.length === 10) ownedPhones.add('91' + lp);
+        }
+      }
+      filteredRecipients = recipients.filter((r: string) => {
+        const phone = String(r).replace(/\D/g, '');
+        return ownedPhones.has(phone);
+      });
+      if (filteredRecipients.length === 0) {
+        return NextResponse.json({
+          success: false,
+          error: 'None of the recipients are assigned to you. Broadcast blocked.',
+        }, { status: 403 });
+      }
+      console.log(`[qr-broadcast] Lead filter for ${viewerUserId}: ${recipients.length} → ${filteredRecipients.length} recipients`);
+    }
+
     const response = await fetch(`${BRIDGE_URL}/broadcast`, {
       method: "POST",
       headers: { 
         "Content-Type": "application/json",
         "x-bridge-secret": BRIDGE_SECRET 
       },
-      body: JSON.stringify({ recipients, message, imageUrl, buttons, footerText, schedule }),
+      body: JSON.stringify({ recipients: filteredRecipients, message, imageUrl, buttons, footerText, schedule }),
     });
     
     const data = await response.json();

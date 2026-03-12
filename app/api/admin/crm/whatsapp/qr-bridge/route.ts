@@ -246,6 +246,123 @@ function decodePathFully(rawPath: string): string {
   return decoded;
 }
 
+// ============================================
+// SHARED LEAD OWNERSHIP CHECK
+// ============================================
+
+/**
+ * Extract phone number from a JID or path segment.
+ * e.g. "919309986820@s.whatsapp.net" → "919309986820"
+ *      "919309986820@c.us" → "919309986820"
+ *      "919309986820" → "919309986820"
+ */
+function extractPhoneFromJid(jid: string): string {
+  return jid.split('@')[0].replace(/\D/g, '');
+}
+
+/**
+ * Check if a user owns a lead (assigned to or created by them).
+ * Handles dual phone format (with/without 91 prefix).
+ * Returns true if user is allowed, false if blocked.
+ * 
+ * For group chats (phone contains '-'), always returns true (groups are shared).
+ * For non-existent leads, returns false (fail-safe — block unknown contacts).
+ */
+async function isLeadOwnedByUser(phone: string, userId: string): Promise<boolean> {
+  if (!phone || phone.includes('-')) return true; // Group chats allowed
+  if (phone.length < 10) return true; // Too short to be a real phone, let it pass
+  
+  try {
+    const Lead = getLead();
+    const phonesToCheck = [phone];
+    if (phone.startsWith('91') && phone.length === 12) {
+      phonesToCheck.push(phone.substring(2));
+    } else if (phone.length === 10) {
+      phonesToCheck.push('91' + phone);
+    }
+    
+    const lead = await Lead.findOne(
+      { phoneNumber: { $in: phonesToCheck } },
+      { assignedToUserId: 1, createdByUserId: 1 }
+    ).lean() as any;
+    
+    if (!lead) return false; // No lead record → block (fail-safe)
+    return lead.assignedToUserId === userId || lead.createdByUserId === userId;
+  } catch (err) {
+    console.error(`[QR Bridge] Lead check error for ${phone}:`, err);
+    return false; // Fail-safe: block on error
+  }
+}
+
+/**
+ * Extract phone from a bridge path like /messages/919309986820@s.whatsapp.net
+ * or /contact-about/919309986820@s.whatsapp.net
+ */
+function extractPhoneFromPath(path: string): string {
+  // Match patterns like /something/JID or /something/JID/more
+  const parts = path.split('/').filter(Boolean);
+  if (parts.length >= 2) {
+    const jid = decodeURIComponent(parts[1]);
+    return extractPhoneFromJid(jid);
+  }
+  return '';
+}
+
+/**
+ * Endpoints that are ALWAYS allowed (no per-chat ownership check needed).
+ * These are session-level or read-only operations that don't expose other users' data.
+ */
+const ALWAYS_ALLOWED_PATHS = new Set([
+  '/status',
+  '/qr',
+  '/chats',        // Filtered separately by chat privacy filter
+  '/statuses',     // WhatsApp status updates (stories)
+]);
+
+/**
+ * Endpoints that ONLY Super Admin can use (session management).
+ * Non-super-admin users on shared bridge MUST NOT control the session.
+ */
+const SUPER_ADMIN_ONLY_PATHS = new Set([
+  '/reconnect',
+  '/disconnect', 
+  '/logout',
+  '/group-create',   // Creating groups from Super Admin's WhatsApp
+]);
+
+/**
+ * POST endpoints where the target phone is in body.to or body.jid
+ */
+const BODY_TARGET_PATHS = new Set([
+  '/send',
+  '/reply',
+  '/react',
+  '/delete-message',
+  '/typing',
+  '/read',
+  '/presence/subscribe',
+]);
+
+/**
+ * GET/POST endpoints where the target JID is in the URL path
+ */
+function isPathTargetEndpoint(path: string): boolean {
+  return path.startsWith('/messages/') ||
+    path.startsWith('/contact-about/') ||
+    path.startsWith('/profile-pic/') ||
+    path.startsWith('/media/') ||
+    path.startsWith('/presence/') ||
+    path.startsWith('/read/') ||
+    path.startsWith('/group-info/') ||
+    path.startsWith('/group-invite/') ||
+    path.startsWith('/group-revoke-invite/') ||
+    path.startsWith('/group-settings/') ||
+    path.startsWith('/group-participants/') ||
+    path.startsWith('/group-update-desc/') ||
+    path.startsWith('/group-update-subject/') ||
+    path.startsWith('/group-leave/');
+}
+
 export async function POST(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization');
@@ -276,6 +393,59 @@ export async function POST(req: NextRequest) {
 
     // Decode the path to handle double-encoded values like %2540 (@)
     const decodedPath = decodePathFully(path);
+
+    // ════════════════════════════════════════════════════════════
+    // ── COMPREHENSIVE PER-CHAT SECURITY GATE (POST) ──
+    // Runs BEFORE the request reaches the bridge.
+    // On shared bridge (!hasOwnBridge): every action that targets
+    // a specific phone/chat must pass lead-ownership validation.
+    // ════════════════════════════════════════════════════════════
+    if (!resolved.hasOwnBridge) {
+      // 1. Super Admin-only endpoints (session management)
+      const basePath = '/' + decodedPath.split('/').filter(Boolean)[0];
+      if (SUPER_ADMIN_ONLY_PATHS.has(basePath) && !resolved.isSuperAdmin) {
+        console.warn(`[QR Bridge Proxy] BLOCKED: ${userId} tried ${decodedPath} (Super Admin only)`);
+        return NextResponse.json(
+          { success: false, error: 'This action is restricted to Super Admin.' },
+          { status: 403 }
+        );
+      }
+
+      // 2. Body-target endpoints (/send, /reply, /react, etc.) — check body.to or body.jid
+      if (BODY_TARGET_PATHS.has(basePath) && body) {
+        const targetJid = body.to || body.jid || body.chatId || '';
+        const targetPhone = extractPhoneFromJid(typeof targetJid === 'string' ? targetJid : '');
+        if (targetPhone && targetPhone.length >= 10) {
+          const allowed = await isLeadOwnedByUser(targetPhone, userId);
+          if (!allowed) {
+            console.warn(`[QR Bridge Proxy] BLOCKED: ${userId} tried ${basePath} to ${targetPhone} (not their lead)`);
+            return NextResponse.json(
+              { success: false, error: 'Access denied. This contact is not assigned to you.' },
+              { status: 403 }
+            );
+          }
+        }
+      }
+
+      // 3. Path-target endpoints (/messages/{jid}, /contact-about/{jid}, etc.)
+      if (isPathTargetEndpoint(decodedPath)) {
+        const targetPhone = extractPhoneFromPath(decodedPath);
+        if (targetPhone && targetPhone.length >= 10 && !targetPhone.includes('-')) {
+          const allowed = await isLeadOwnedByUser(targetPhone, userId);
+          if (!allowed) {
+            console.warn(`[QR Bridge Proxy] BLOCKED: ${userId} tried ${decodedPath} (not their lead)`);
+            // Return appropriate empty response based on endpoint type
+            if (decodedPath.startsWith('/messages/')) {
+              return NextResponse.json({ success: true, data: { messages: [], blocked: true } }, { status: 200 });
+            }
+            return NextResponse.json(
+              { success: false, error: 'Access denied. This contact is not assigned to you.' },
+              { status: 403 }
+            );
+          }
+        }
+      }
+    }
 
     // ── SENDER DISPLAY NAME SIGNATURE ──
     // Append the user's configured display name (e.g. "Swar Yoga") as a bold
@@ -478,39 +648,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ── MESSAGES PRIVACY FILTER (POST /messages/{chatJid}) ──
-    if (decodedPath.startsWith('/messages/') && !resolved.hasOwnBridge) {
-      try {
-        const chatJid = decodeURIComponent(decodedPath.replace('/messages/', ''));
-        const chatPhone = chatJid.split('@')[0];
-        if (chatPhone && !chatPhone.includes('-')) {
-          const Lead = getLead();
-          const phonesToCheck = [chatPhone];
-          if (chatPhone.startsWith('91') && chatPhone.length === 12) {
-            phonesToCheck.push(chatPhone.substring(2));
-          } else if (chatPhone.length === 10) {
-            phonesToCheck.push('91' + chatPhone);
-          }
-          const lead = await Lead.findOne(
-            { phoneNumber: { $in: phonesToCheck } },
-            { assignedToUserId: 1, createdByUserId: 1 }
-          ).lean();
-          if (!lead) {
-            console.log(`[QR Bridge Proxy POST] Messages BLOCKED for ${userId}: no lead for ${chatPhone}`);
-            return NextResponse.json({ success: true, data: { messages: [], blocked: true } }, { status: 200 });
-          }
-          const ld = lead as any;
-          if (ld.assignedToUserId !== userId && ld.createdByUserId !== userId) {
-            console.log(`[QR Bridge Proxy POST] Messages BLOCKED for ${userId}: not assigned`);
-            return NextResponse.json({ success: true, data: { messages: [], blocked: true } }, { status: 200 });
-          }
-        }
-      } catch (msgErr) {
-        console.error('[QR Bridge Proxy POST] Messages filter error:', msgErr);
-        return NextResponse.json({ success: true, data: { messages: [] } }, { status: 200 });
-      }
-    }
-
     // Wrap in { success, data } so useCRM hook accepts the response
     return NextResponse.json({ success: true, data }, { status: res.status });
   } catch (err) {
@@ -548,6 +685,45 @@ export async function GET(req: NextRequest) {
     
     // Decode the path to handle double-encoded values like %2540 (@)
     path = decodePathFully(path);
+
+    // ════════════════════════════════════════════════════════════
+    // ── COMPREHENSIVE PER-CHAT SECURITY GATE (GET) ──
+    // Same logic as POST gate — validates lead ownership before
+    // allowing any endpoint that targets a specific phone/chat.
+    // ════════════════════════════════════════════════════════════
+    if (!resolved.hasOwnBridge) {
+      const basePath = '/' + path.split('/').filter(Boolean)[0];
+
+      // Super Admin-only endpoints
+      if (SUPER_ADMIN_ONLY_PATHS.has(basePath) && !resolved.isSuperAdmin) {
+        console.warn(`[QR Bridge Proxy GET] BLOCKED: ${userId} tried ${path} (Super Admin only)`);
+        return NextResponse.json(
+          { success: false, error: 'This action is restricted to Super Admin.' },
+          { status: 403 }
+        );
+      }
+
+      // Path-target endpoints (/messages/{jid}, /contact-about/{jid}, /profile-pic/{jid}, etc.)
+      if (isPathTargetEndpoint(path)) {
+        const targetPhone = extractPhoneFromPath(path);
+        if (targetPhone && targetPhone.length >= 10 && !targetPhone.includes('-')) {
+          const allowed = await isLeadOwnedByUser(targetPhone, userId);
+          if (!allowed) {
+            console.warn(`[QR Bridge Proxy GET] BLOCKED: ${userId} tried ${path} (not their lead)`);
+            if (path.startsWith('/messages/')) {
+              return NextResponse.json({ success: true, data: { messages: [], blocked: true } }, { status: 200 });
+            }
+            if (path.startsWith('/profile-pic/') || path.startsWith('/contact-about/')) {
+              return NextResponse.json({ success: true, data: {} }, { status: 200 });
+            }
+            return NextResponse.json(
+              { success: false, error: 'Access denied. This contact is not assigned to you.' },
+              { status: 403 }
+            );
+          }
+        }
+      }
+    }
 
     const bridgeUrl = `${BRIDGE_URL}${path}`;
 
@@ -744,43 +920,6 @@ export async function GET(req: NextRequest) {
           const emptyData = data?.chats ? { ...data, chats: [] } : [];
           return NextResponse.json({ success: true, data: emptyData }, { status: res.status });
         }
-      }
-    }
-
-    // ── MESSAGES PRIVACY FILTER (GET /messages/{chatJid}) ──
-    // Prevent users from fetching messages for chats not assigned to them.
-    // Without this, a user could bypass /chats filter by directly requesting /messages/{anyJid}.
-    if (path.startsWith('/messages/') && !resolved.hasOwnBridge) {
-      try {
-        const chatJid = decodeURIComponent(path.replace('/messages/', ''));
-        const chatPhone = chatJid.split('@')[0];
-        if (chatPhone && !chatPhone.includes('-')) { // Skip group chats (contain '-')
-          const Lead = getLead();
-          // Try both raw phone and normalized (leads may or may not have 91 prefix)
-          const phonesToCheck = [chatPhone];
-          if (chatPhone.startsWith('91') && chatPhone.length === 12) {
-            phonesToCheck.push(chatPhone.substring(2)); // Without 91 prefix
-          } else if (chatPhone.length === 10) {
-            phonesToCheck.push('91' + chatPhone); // With 91 prefix
-          }
-          const lead = await Lead.findOne(
-            { phoneNumber: { $in: phonesToCheck } },
-            { assignedToUserId: 1, createdByUserId: 1 }
-          ).lean();
-          if (!lead) {
-            console.log(`[QR Bridge Proxy] Messages BLOCKED for ${userId}: no lead for ${chatPhone}`);
-            return NextResponse.json({ success: true, data: { messages: [], blocked: true } }, { status: 200 });
-          }
-          const leadData = lead as any;
-          if (leadData.assignedToUserId !== userId && leadData.createdByUserId !== userId) {
-            console.log(`[QR Bridge Proxy] Messages BLOCKED for ${userId}: lead ${chatPhone} assigned to ${leadData.assignedToUserId}, created by ${leadData.createdByUserId}`);
-            return NextResponse.json({ success: true, data: { messages: [], blocked: true } }, { status: 200 });
-          }
-        }
-      } catch (msgFilterErr) {
-        console.error('[QR Bridge Proxy] Messages filter error:', msgFilterErr);
-        // Fail-safe: block messages on filter error
-        return NextResponse.json({ success: true, data: { messages: [] } }, { status: 200 });
       }
     }
 
