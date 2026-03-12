@@ -172,7 +172,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
-### QR Header Scanned Number Badge Restore (Session: March 12, 2026 — Phase 63) — Commit `[pending]`
+### QR Header Scanned Number Badge Restore (Session: March 12, 2026 — Phase 63) — Commit `a33bab68`
 
 1. **✅ Restored a Dedicated Scanned WhatsApp Number Badge in the Main QR Header**
    - **Problem**: The QR page could be connected while still showing only the green `Connected` pill and the user badge, so the scanned WhatsApp number was not clearly visible in the main page header
