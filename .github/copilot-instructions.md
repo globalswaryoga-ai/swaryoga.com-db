@@ -172,7 +172,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
-### QR WhatsApp Acceptance Playbook Documentation (Session: March 12, 2026 — Phase 59) — Commit `[pending]`
+### QR WhatsApp Acceptance Playbook Documentation (Session: March 12, 2026 — Phase 59) — Commit `463943fb`
 
 1. **✅ Added a Reusable Per-User QR Production Test Script**
    - **Problem**: The QR master todo clearly captured what remained, but the final manual verification work was still too vague to execute consistently across Super Admin, CRM Admin, Super Admin Team, and CRM Admin Team users
