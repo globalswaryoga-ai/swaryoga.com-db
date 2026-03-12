@@ -1810,6 +1810,7 @@ export default function QRWhatsAppPage() {
           setBridgeUrlInput={setBridgeUrlInput}
           bridgeSecretInput={bridgeSecretInput}
           setBridgeSecretInput={setBridgeSecretInput}
+          token={token}
           savingBridge={savingBridge}
           saveBridgeConfig={saveBridgeConfig}
           funnelStages={funnelStages}

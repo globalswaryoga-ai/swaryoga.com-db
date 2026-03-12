@@ -20,6 +20,7 @@ export interface SettingsTabProps {
   setBridgeUrlInput: (v: string) => void;
   bridgeSecretInput: string;
   setBridgeSecretInput: (v: string) => void;
+  token: string | null;
   savingBridge: boolean;
   saveBridgeConfig: () => void;
   funnelStages: FunnelStage[];
@@ -42,6 +43,7 @@ export interface SettingsTabProps {
 export function SettingsTab({
   bridgeUrlInput, setBridgeUrlInput,
   bridgeSecretInput, setBridgeSecretInput,
+  token,
   savingBridge, saveBridgeConfig,
   funnelStages, labelPresets, openEditModal,
   handleReconnect, handleDisconnect, handleLogout,
