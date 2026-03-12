@@ -120,21 +120,16 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
       // Tenants without qrWhatsappEnabled are BLOCKED — they'd see Super Admin's WhatsApp session.
       // hasOwnBridge=false forces the chat privacy filter for ALL users on the shared bridge.
       if (permanentTenantId) {
-        // Non-super-admin users MUST have qrWhatsappEnabled to access the shared bridge.
-        // Without it, they'd see all of Super Admin's chats (data leak).
-        if (!superAdmin && !settings?.qrWhatsappEnabled) {
-          console.warn(`[QR Bridge Proxy] BLOCKED: User ${decoded.userId} has permanentTenantId=${permanentTenantId} but qrWhatsappEnabled=false — cannot access shared bridge`);
-          const blocked: BridgeResolution = { ok: false, reason: 'no_bridge' };
-          bridgeCache.set(cacheKey, { result: blocked, expiry: Date.now() + BRIDGE_CACHE_TTL_MS });
-          return blocked;
-        }
+        // [MOD] Bridge service now supports /tenant/{id} routing for all users.
+        // Users with their own tenant ID now have hasOwnBridge=true.
+        const tenantUrl = `${FALLBACK_BRIDGE_URL}/tenant/${permanentTenantId}`;
         const tenantResult: BridgeResolution = {
           ok: true,
-          url: FALLBACK_BRIDGE_URL,
-          secret: FALLBACK_BRIDGE_SECRET,
+          url: tenantUrl,
+          secret: settings.qrBridgeSecret || FALLBACK_BRIDGE_SECRET,
           userId: decoded.userId,
           isSuperAdmin: superAdmin,
-          hasOwnBridge: false,
+          hasOwnBridge: true, // Now considered private isolated bridge
           storedPhone,
           phoneChangedAt,
           senderDisplayName,

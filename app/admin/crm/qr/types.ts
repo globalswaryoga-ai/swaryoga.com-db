@@ -13,6 +13,7 @@ export type BridgeStatus = {
   retryCount?: number;
   uptime?: number;
   sessionReady?: boolean;
+  hasOwnBridge?: boolean;
 };
 
 export type QRResponse = {
