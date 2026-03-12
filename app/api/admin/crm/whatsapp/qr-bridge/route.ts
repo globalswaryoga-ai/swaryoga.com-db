@@ -552,12 +552,40 @@ export async function POST(req: NextRequest) {
       res = await fetch(bridgeUrl, fetchOptions);
     } catch (err) {
       clearTimeout(timeout);
-      if (err instanceof Error && err.name === 'AbortError') {
-        console.error(`[QR Bridge Proxy] Bridge timeout (${timeoutMs}ms) for ${decodedPath}`);
-        return NextResponse.json(
-          { error: `Bridge timeout (${timeoutMs}ms)`, path: decodedPath },
-          { status: 504 }
-        );
+      if (err instanceof Error) {
+        if (err.name === 'AbortError') {
+          console.error(`[QR Bridge Proxy] Bridge timeout (${timeoutMs}ms) for ${decodedPath}`);
+          return NextResponse.json(
+            { 
+              error: `Bridge timeout (${timeoutMs}ms)`,
+              path: decodedPath,
+              message: 'Bridge service is taking too long to respond. Please check your bridge configuration.',
+              timestamp: new Date().toISOString()
+            },
+            { status: 504 }
+          );
+        } else if (err.message.includes('ECONNREFUSED') || err.message.includes('ENOTFOUND')) {
+          console.error(`[QR Bridge Proxy] Bridge unreachable: ${err.message}`);
+          return NextResponse.json(
+            {
+              error: 'Bridge service unreachable',
+              message: 'Cannot connect to WhatsApp bridge. Check your bridge URL and network connection.',
+              bridgeUrl: BRIDGE_URL,
+              timestamp: new Date().toISOString()
+            },
+            { status: 503 }
+          );
+        } else {
+          console.error(`[QR Bridge Proxy] Network error: ${err.message}`);
+          return NextResponse.json(
+            {
+              error: 'Network error connecting to bridge',
+              message: err.message,
+              timestamp: new Date().toISOString()
+            },
+            { status: 502 }
+          );
+        }
       }
       throw err;
     }
@@ -567,8 +595,26 @@ export async function POST(req: NextRequest) {
     if (!res.ok) {
       const errorText = await res.text();
       console.error(`[QR Bridge Proxy] Bridge error (${res.status}):`, errorText.substring(0, 200));
+      
+      // Handle specific error codes with helpful messages
+      let errorMessage = 'Bridge error';
+      if (res.status === 404) {
+        errorMessage = `Endpoint not found: ${decodedPath}`;
+      } else if (res.status === 503 || res.status === 502) {
+        errorMessage = 'Bridge service temporarily unavailable';
+      } else if (res.status === 401 || res.status === 403) {
+        errorMessage = 'Bridge authentication failed';
+      } else if (res.status === 400) {
+        errorMessage = 'Invalid request format';
+      }
+      
       return NextResponse.json(
-        { error: `Bridge error: ${res.status}`, details: errorText.substring(0, 100) },
+        { 
+          error: errorMessage,
+          status: res.status,
+          details: errorText.substring(0, 100),
+          timestamp: new Date().toISOString()
+        },
         { status: res.status }
       );
     }
@@ -804,12 +850,40 @@ export async function GET(req: NextRequest) {
       });
     } catch (err) {
       clearTimeout(timeout);
-      if (err instanceof Error && err.name === 'AbortError') {
-        console.error(`[QR Bridge Proxy] Bridge timeout (${timeoutMs}ms) for ${path}`);
-        return NextResponse.json(
-          { error: `Bridge timeout (${timeoutMs}ms)`, path },
-          { status: 504 }
-        );
+      if (err instanceof Error) {
+        if (err.name === 'AbortError') {
+          console.error(`[QR Bridge Proxy] Bridge timeout (${timeoutMs}ms) for ${path}`);
+          return NextResponse.json(
+            {
+              error: `Bridge timeout (${timeoutMs}ms)`,
+              path,
+              message: 'Bridge service is taking too long to respond. Please check your bridge configuration.',
+              timestamp: new Date().toISOString()
+            },
+            { status: 504 }
+          );
+        } else if (err.message.includes('ECONNREFUSED') || err.message.includes('ENOTFOUND')) {
+          console.error(`[QR Bridge Proxy] Bridge unreachable: ${err.message}`);
+          return NextResponse.json(
+            {
+              error: 'Bridge service unreachable',
+              message: 'Cannot connect to WhatsApp bridge. Check your bridge URL and network connection.',
+              bridgeUrl: BRIDGE_URL,
+              timestamp: new Date().toISOString()
+            },
+            { status: 503 }
+          );
+        } else {
+          console.error(`[QR Bridge Proxy] Network error: ${err.message}`);
+          return NextResponse.json(
+            {
+              error: 'Network error connecting to bridge',
+              message: err.message,
+              timestamp: new Date().toISOString()
+            },
+            { status: 502 }
+          );
+        }
       }
       throw err;
     }
@@ -841,9 +915,21 @@ export async function GET(req: NextRequest) {
       }
       console.error(`[QR Bridge Proxy] Bridge error (${res.status}):`, errorText.substring(0, 200));
       
+      // Handle specific error codes with helpful messages
+      let errorMessage = 'Bridge error';
+      if (res.status === 404) {
+        errorMessage = `Endpoint not found: ${path}`;
+      } else if (res.status === 503 || res.status === 502) {
+        errorMessage = 'Bridge service temporarily unavailable';
+      } else if (res.status === 401 || res.status === 403) {
+        errorMessage = 'Bridge authentication failed';
+      } else if (res.status === 400) {
+        errorMessage = 'Invalid request format';
+      }
+      
       // For group chats that fail, return empty messages instead of error
       if (path.includes('/messages') && path.includes('@lid')) {
-        console.warn(`[QR Bridge Proxy] Group chat message fetch failed, returning empty array`);
+        console.warn(`[QR Bridge Proxy] Group chat message fetch failed (${res.status}), returning empty array`);
         return NextResponse.json(
           { messages: [], note: 'Group chat messages unavailable' },
           { status: 200 }
@@ -851,7 +937,12 @@ export async function GET(req: NextRequest) {
       }
       
       return NextResponse.json(
-        { error: `Bridge error: ${res.status}`, details: errorText.substring(0, 100) },
+        { 
+          error: errorMessage,
+          status: res.status,
+          details: errorText.substring(0, 100),
+          timestamp: new Date().toISOString()
+        },
         { status: res.status }
       );
     }
