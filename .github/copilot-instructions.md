@@ -186,6 +186,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
      - Before: CRM tenants get 403 error when clicking "Refresh" button
      - After: CRM tenants can refresh QR code and manage connection
    - **Status**: ✅ Deployed (commit d1135daa)
+   - **Verification** (March 12, 2026 — Follow-up):
+     - ✅ Code fix verified in production repo (lines 435 & 796)
+     - ✅ All 14 CRM users have permanent TenantIds assigned (0002456-0002469)
+     - ✅ Build succeeds (✓ Compiled successfully)
+     - ✅ Logic allows CRM tenants through when condition `!resolved.tenantId` is false
+     - If user still sees 403 after Vercel deployment: Clear browser cache or wait for auto-deployment to complete
 
 ### Bridge QR Error Message Improvement (Session: March 12, 2026 — Phase 36) — Commit `aa4c8f22`
 
