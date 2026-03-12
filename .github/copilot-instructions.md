@@ -172,6 +172,24 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### QR Inbox Production Crash Follow-up Fix (Session: March 12, 2026 — Phase 55) — Commit `[pending]`
+
+1. **✅ Fixed Second `Cannot access 'rn' before initialization` Path in QR Page**
+    - **Problem**: The QR page could still crash in production even after the first header recovery dependency fix
+    - **Root Cause**:
+       - `fetchStatus` was declared before `fetchChats` but its hook dependency array still referenced `fetchChats`
+       - In the production bundle this created another temporal-dead-zone runtime access during render
+    - **Solution**:
+       - Updated `app/admin/crm/qr/page.tsx` to call `fetchChats` through a ref from `fetchStatus`
+       - Removed the direct dependency on the later-declared callback, preventing the render-time initialization crash
+
+2. **✅ Verification**
+    - **Files Modified**:
+       - `app/admin/crm/qr/page.tsx`
+       - `.github/copilot-instructions.md`
+    - **Build / Validation**:
+       - ✅ No TypeScript/editor errors in modified QR page
+
 ### QR Header Runtime Crash Fix (Session: March 12, 2026 — Phase 54) — Commit `[pending]`
 
 1. **✅ Fixed `Cannot access 'rn' before initialization` Crash on QR Inbox**

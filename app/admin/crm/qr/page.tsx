@@ -270,6 +270,7 @@ export default function QRWhatsAppPage() {
   const settingsSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const dbLoadedRef = useRef(false);
   const crmFetchRef = useRef(crmFetch);
+  const fetchChatsRef = useRef<(() => Promise<void>) | null>(null);
   const pendingUpdatesRef = useRef<Record<string, any>>({});
   const connectedRef = useRef(false);
   const hasAutoSwitchedRef = useRef(false);
@@ -649,7 +650,7 @@ export default function QRWhatsAppPage() {
         setQrData(null);
         // Pre-fetch chats so inbox is ready when user switches
         if (tabRef.current === 'connection') {
-          fetchChats();
+          fetchChatsRef.current?.();
         }
       } else if (data?.qrAvailable || data?.hasQr) {
         // QR available — fetch it (keep old QR showing during refresh)
@@ -676,7 +677,7 @@ export default function QRWhatsAppPage() {
     } finally {
       setLoading(false);
     }
-  }, [bridgeCall, connectedPhoneNumber, fetchChats]);
+  }, [bridgeCall, connectedPhoneNumber]);
 
   // ── Poll setup ──
   // Use a stable interval — don't re-run the effect when status changes
@@ -987,6 +988,8 @@ export default function QRWhatsAppPage() {
       setError(e?.message || 'Failed to fetch chats');
     }
   }, [bridgeCall, fetchProfilePic, token]);
+
+  fetchChatsRef.current = fetchChats;
 
   // ── Auto-refresh chat list every 15s when connected, on inbox tab & page visible ──
   const chatPollRef = useRef<NodeJS.Timeout | null>(null);
