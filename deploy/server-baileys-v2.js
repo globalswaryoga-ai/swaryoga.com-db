@@ -31,6 +31,8 @@ const AUTH_DIR = path.join(__dirname, 'auth_state');
 const LOG_DIR = path.join(__dirname, 'logs');
 const STORE_FILE = path.join(__dirname, 'chat_store.json');
 const MAX_STORED_MESSAGES = 100; // per chat
+const SYNC_API_URL = process.env.SYNC_API_URL || 'https://crm.swaryoga.com/api/admin/crm/whatsapp/qr/sync';
+const SYNC_ENABLED = process.env.SYNC_ENABLED !== 'false'; // enabled by default
 
 // Ensure dirs
 [AUTH_DIR, LOG_DIR].forEach(d => fs.mkdirSync(d, { recursive: true }));
@@ -114,6 +116,77 @@ function scheduleSave() {
     saveStore();
     saveTimer = null;
   }, 5000); // Debounce: save 5s after last change
+}
+
+// ── MongoDB Sync (persist messages to CRM database for permanence) ──
+let syncQueue = { messages: [], chats: [] };
+let syncTimer = null;
+
+function getConnectedPhone() {
+  if (!sock?.user?.id) return '';
+  return sock.user.id.split(':')[0] || '';
+}
+
+function getUserId() {
+  // Bridge runs for a specific user — use bridge secret lookup or env
+  return process.env.BRIDGE_USER_ID || 'admin';
+}
+
+function queueMessageSync(msg) {
+  if (!SYNC_ENABLED) return;
+  syncQueue.messages.push(msg);
+  scheduleSyncFlush();
+}
+
+function queueChatSync(chat) {
+  if (!SYNC_ENABLED) return;
+  syncQueue.chats.push(chat);
+  scheduleSyncFlush();
+}
+
+function scheduleSyncFlush() {
+  if (syncTimer) return;
+  syncTimer = setTimeout(async () => {
+    syncTimer = null;
+    const phone = getConnectedPhone();
+    const userId = getUserId();
+    if (!phone || syncQueue.messages.length === 0 && syncQueue.chats.length === 0) return;
+
+    const toSync = { ...syncQueue };
+    syncQueue = { messages: [], chats: [] };
+
+    try {
+      const payload = {
+        action: 'sync_all',
+        userId,
+        connectedPhone: phone,
+        messages: toSync.messages,
+        chats: toSync.chats,
+      };
+      const res = await fetch(SYNC_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-bridge-secret': BRIDGE_SECRET,
+        },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        console.log(`📤 MongoDB sync: ${data.messages?.upserted || 0} msgs, ${data.chats?.upserted || 0} chats`);
+      } else {
+        console.error(`📤 MongoDB sync failed: ${res.status}`);
+        // Re-queue failed items
+        syncQueue.messages = [...toSync.messages, ...syncQueue.messages];
+        syncQueue.chats = [...toSync.chats, ...syncQueue.chats];
+      }
+    } catch (err) {
+      console.error('📤 MongoDB sync error:', err.message);
+      // Re-queue on network error
+      syncQueue.messages = [...toSync.messages, ...syncQueue.messages];
+      syncQueue.chats = [...toSync.chats, ...syncQueue.chats];
+    }
+  }, 3000); // Batch sync every 3s
 }
 
 // ── Express Setup ───────────────────────────────────────────────────
@@ -261,6 +334,42 @@ async function startSocket() {
         }
       }
 
+      // Sync history messages to MongoDB
+      if (messages) {
+        for (const msg of messages) {
+          const jid = msg.key?.remoteJid;
+          if (!jid || jid === 'status@broadcast') continue;
+          queueMessageSync({
+            chatJid: jid,
+            messageId: msg.key?.id || '',
+            fromMe: msg.key?.fromMe || false,
+            text: extractMessageText(msg),
+            type: 'text',
+            participant: msg.key?.participant || '',
+            pushName: msg.pushName || '',
+            timestamp: toNumber(msg.messageTimestamp) || 0,
+            status: msg.status || 0,
+            hasMedia: false,
+          });
+        }
+      }
+
+      // Sync chat metadata to MongoDB
+      if (chats) {
+        for (const chat of chats) {
+          if (!chat.id || chat.id === 'status@broadcast') continue;
+          queueChatSync({
+            chatJid: chat.id,
+            name: chat.name || contactStore[chat.id]?.name || chat.id.replace(/@.*/, ''),
+            isGroup: chat.id.endsWith('@g.us'),
+            unreadCount: chat.unreadCount || 0,
+            conversationTimestamp: toNumber(chat.conversationTimestamp) || 0,
+            pinned: chat.pinned || false,
+            archived: chat.archived || false,
+          });
+        }
+      }
+
       if (isLatest) {
         historySyncDone = true;
         console.log(`✅ History sync complete — ${Object.keys(chatMetadata).length} total chats`);
@@ -312,6 +421,37 @@ async function startSocket() {
       // Refresh chat list on new messages
       rebuildChatList();
       scheduleSave();
+
+      // Sync new messages to MongoDB
+      for (const m of msgs) {
+        const jid = m.key.remoteJid;
+        if (!jid || jid === 'status@broadcast') continue;
+        const msgType = m.message ? (getContentType(m.message) || 'conversation') : 'conversation';
+        const MEDIA_TYPES = ['imageMessage', 'videoMessage', 'audioMessage', 'documentMessage', 'stickerMessage'];
+        const hasMedia = MEDIA_TYPES.includes(msgType);
+        const mediaContent = hasMedia && m.message ? m.message[msgType] : null;
+        let quotedId = '', quotedText = '', quotedParticipant = '';
+        try {
+          const ci = m.message?.[msgType]?.contextInfo || m.message?.extendedTextMessage?.contextInfo;
+          if (ci?.stanzaId) { quotedId = ci.stanzaId; quotedParticipant = ci.participant || ''; quotedText = ci.quotedMessage?.conversation || ''; }
+        } catch {}
+        queueMessageSync({
+          chatJid: jid,
+          messageId: m.key?.id || '',
+          fromMe: m.key?.fromMe || false,
+          text: extractMessageText(m),
+          type: hasMedia ? msgType.replace('Message', '') : 'text',
+          participant: m.key?.participant || '',
+          pushName: m.pushName || '',
+          timestamp: toNumber(m.messageTimestamp) || Math.floor(Date.now() / 1000),
+          status: m.status || 0,
+          hasMedia,
+          mediaUrl: mediaContent?.url || '',
+          mediaMimetype: mediaContent?.mimetype || '',
+          mediaFileName: mediaContent?.fileName || '',
+          quotedId, quotedText, quotedParticipant,
+        });
+      }
     });
 
     sock.ev.on('messages.update', (updates) => {
@@ -690,6 +830,23 @@ app.post('/send', auth, async (req, res) => {
 
     rebuildChatList();
     scheduleSave();
+
+    // Sync sent message to MongoDB
+    queueMessageSync({
+      chatJid: targetJid,
+      messageId: sentMsg?.key?.id || '',
+      fromMe: true,
+      text: message || msgCaption || '',
+      type: mediaType || 'text',
+      participant: '',
+      pushName: '',
+      timestamp: ts,
+      status: 1,
+      hasMedia: !!media,
+      mediaUrl: media || '',
+      mediaMimetype: mimetype || '',
+      mediaFileName: filename || '',
+    });
 
     res.json({ success: true, message: 'Message sent', messageId: sentMsg?.key?.id });
   } catch (err) {

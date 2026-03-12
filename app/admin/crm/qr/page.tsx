@@ -2432,7 +2432,7 @@ export default function QRWhatsAppPage() {
                         )}
 
                         {/* Type indicator for media without preview URL and no binary (stickers, etc.) */}
-                        {msg.type !== 'text' && !hasMediaPreview && !(msg.hasMedia && (msg.type === 'image' || msg.type === 'video' || msg.type === 'audio' || msg.type === 'document')) && (
+                        {msg.type && msg.type !== 'text' && msg.type !== 'conversation' && !hasMediaPreview && !(msg.hasMedia && (msg.type === 'image' || msg.type === 'video' || msg.type === 'audio' || msg.type === 'document')) && (
                           <div className="text-xs text-gray-500 mb-1 flex items-center gap-1">
                             {msg.type === 'image' && <ImageIcon className="w-3 h-3" />}
                             {msg.type === 'video' && <Video className="w-3 h-3" />}
@@ -2448,7 +2448,9 @@ export default function QRWhatsAppPage() {
                           <p className="whitespace-pre-wrap break-words">{linkifyText(msg.text)}</p>
                         )}
                         {!msg.text && !hasMediaPreview && (
-                          <p className="whitespace-pre-wrap break-words">[{msg.type}]</p>
+                          <p className="whitespace-pre-wrap break-words text-gray-400 italic text-sm">
+                            {msg.type && msg.type !== 'text' && msg.type !== 'conversation' ? `[${msg.type}]` : '·'}
+                          </p>
                         )}
 
                         <div className="text-[10px] text-gray-400 mt-1 text-right flex items-center justify-end gap-0.5">

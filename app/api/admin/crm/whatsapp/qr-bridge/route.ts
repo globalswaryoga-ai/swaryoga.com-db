@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
-import { getCRMUserSettings, getLead } from '@/lib/schemas/enterpriseSchemas';
+import { getCRMUserSettings, getLead, getQrWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin as checkSuperAdmin } from '@/lib/crm-handlers';
 import { logApiError } from '@/lib/error-logger';
@@ -682,6 +682,53 @@ export async function GET(req: NextRequest) {
           const emptyData = data?.chats ? { ...data, chats: [] } : [];
           return NextResponse.json({ success: true, data: emptyData }, { status: res.status });
         }
+      }
+    }
+
+    // ── MONGODB FALLBACK FOR /messages ──
+    // When bridge returns empty messages (memory wiped on restart),
+    // fall back to persistent MongoDB storage
+    if (path.startsWith('/messages/') && data?.messages?.length === 0) {
+      try {
+        const chatJid = decodeURIComponent(path.replace('/messages/', ''));
+        const connectedPhone = resolved.storedPhone || '';
+        if (connectedPhone && chatJid) {
+          const QrMsg = getQrWhatsAppMessage();
+          const dbMessages = await QrMsg.find({
+            userId,
+            connectedPhone,
+            chatJid,
+          })
+            .sort({ timestamp: 1 })
+            .limit(200)
+            .lean();
+
+          if (dbMessages.length > 0) {
+            console.log(`[QR Bridge Proxy] MongoDB fallback: ${dbMessages.length} messages for ${chatJid}`);
+            const mapped = dbMessages.map((m: any) => ({
+              id: m.messageId,
+              from: m.participant || m.chatJid,
+              fromMe: m.fromMe,
+              text: m.text,
+              body: m.text,
+              type: m.type,
+              timestamp: m.timestamp,
+              status: m.status,
+              participant: m.participant,
+              pushName: m.pushName,
+              hasMedia: m.hasMedia,
+              mediaUrl: m.mediaUrl,
+              mediaMimetype: m.mediaMimetype,
+              mediaFileName: m.mediaFileName,
+              quoted: m.quotedId ? { id: m.quotedId, text: m.quotedText, participant: m.quotedParticipant } : null,
+              quotedId: m.quotedId || null,
+              reactions: {},
+            }));
+            return NextResponse.json({ success: true, data: { messages: mapped, source: 'mongodb' } }, { status: 200 });
+          }
+        }
+      } catch (dbErr) {
+        console.error('[QR Bridge Proxy] MongoDB fallback error:', dbErr);
       }
     }
 

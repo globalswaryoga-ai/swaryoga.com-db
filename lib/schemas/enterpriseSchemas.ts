@@ -347,6 +347,68 @@ WhatsAppMessageSchema.index({ direction: 1, sentAt: -1 });
 WhatsAppMessageSchema.index({ waMessageId: 1, direction: 1 }, { unique: true, sparse: true });
 
 // ============================================================================
+// 1a-QR. QR WHATSAPP MESSAGES — Persistent storage for QR bridge messages
+// Separate from Meta WhatsApp messages. Keyed by userId + connectedPhone for session isolation.
+// ============================================================================
+const QrWhatsAppMessageSchema = new mongoose.Schema(
+  {
+    userId: { type: String, required: true, index: true },         // CRM admin userId
+    connectedPhone: { type: String, required: true, index: true }, // WhatsApp number connected via QR (e.g. '919075358557')
+    chatJid: { type: String, required: true, index: true },        // Chat JID (e.g. '919876543210@s.whatsapp.net')
+    messageId: { type: String, required: true },                   // Baileys message ID (key.id)
+    direction: { type: String, enum: ['inbound', 'outbound'], required: true, index: true },
+    fromMe: { type: Boolean, default: false },
+    text: { type: String, default: '' },                           // Extracted text content
+    type: { type: String, default: 'text' },                       // text, image, video, audio, document, sticker, etc.
+    participant: { type: String, default: '' },                    // For group messages
+    pushName: { type: String, default: '' },                       // Sender's push name
+    timestamp: { type: Number, required: true, index: true },      // Unix timestamp (seconds)
+    status: { type: Number, default: 0 },                          // Baileys message status
+    // Media fields
+    hasMedia: { type: Boolean, default: false },
+    mediaUrl: { type: String, default: '' },                       // CDN URL after upload
+    mediaMimetype: { type: String, default: '' },
+    mediaFileName: { type: String, default: '' },
+    // Quoted message
+    quotedId: { type: String, default: '' },
+    quotedText: { type: String, default: '' },
+    quotedParticipant: { type: String, default: '' },
+    // Raw Baileys message (for re-processing if needed)
+    rawMessage: { type: mongoose.Schema.Types.Mixed },
+    metadata: { type: mongoose.Schema.Types.Mixed },
+  },
+  { timestamps: true, collection: 'qr_whatsapp_messages' }
+);
+QrWhatsAppMessageSchema.index({ userId: 1, connectedPhone: 1, chatJid: 1, timestamp: -1 });
+QrWhatsAppMessageSchema.index({ userId: 1, connectedPhone: 1, timestamp: -1 });
+QrWhatsAppMessageSchema.index({ messageId: 1, chatJid: 1 }, { unique: true, sparse: true }); // Dedupe
+
+// ============================================================================
+// 1a-QR-CHATS. QR WHATSAPP CHATS — Persistent chat list with metadata
+// ============================================================================
+const QrWhatsAppChatSchema = new mongoose.Schema(
+  {
+    userId: { type: String, required: true, index: true },         // CRM admin userId
+    connectedPhone: { type: String, required: true, index: true }, // WhatsApp number connected via QR
+    chatJid: { type: String, required: true, index: true },        // Chat JID
+    name: { type: String, default: '' },                           // Contact/group name
+    isGroup: { type: Boolean, default: false },
+    lastMessage: { type: String, default: '' },                    // Last message text preview
+    lastMessageTime: { type: Date },                               // Last message timestamp
+    lastMessageFromMe: { type: Boolean, default: false },
+    unreadCount: { type: Number, default: 0 },
+    conversationTimestamp: { type: Number, default: 0 },
+    pinned: { type: Boolean, default: false },
+    archived: { type: Boolean, default: false },
+    profilePicUrl: { type: String, default: '' },
+    metadata: { type: mongoose.Schema.Types.Mixed },
+  },
+  { timestamps: true, collection: 'qr_whatsapp_chats' }
+);
+QrWhatsAppChatSchema.index({ userId: 1, connectedPhone: 1, conversationTimestamp: -1 });
+QrWhatsAppChatSchema.index({ userId: 1, connectedPhone: 1, chatJid: 1 }, { unique: true });
+
+// ============================================================================
 // 1b. WHATSAPP WEBHOOK EVENTS — Store recent webhook summaries for debugging
 // ==========================================================================
 // This is intentionally small: we store a compact summary (not the full payload)
@@ -2803,6 +2865,8 @@ export function getLead() { return getModel('Lead', LeadSchema); }
 export function getCrmCounter() { return getModel('CrmCounter', CrmCounterSchema); }
 export function getDeletedLead() { return getModel('DeletedLead', DeletedLeadSchema); }
 export function getWhatsAppMessage() { return getModel('WhatsAppMessage', WhatsAppMessageSchema); }
+export function getQrWhatsAppMessage() { return getModel('QrWhatsAppMessage', QrWhatsAppMessageSchema); }
+export function getQrWhatsAppChat() { return getModel('QrWhatsAppChat', QrWhatsAppChatSchema); }
 export function getWhatsAppWebhookEvent() { return getModel('WhatsAppWebhookEvent', WhatsAppWebhookEventSchema); }
 export function getWhatsAppAccount() { return getModel('WhatsAppAccount', WhatsAppAccountSchema); }
 export function getUserConsent() { return getModel('UserConsent', UserConsentSchema); }
