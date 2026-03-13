@@ -172,7 +172,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
-### QR WhatsApp Alias Chat Dedup + Live Receipt Sync Fix (Session: March 13, 2026 — Phase 72) — Commit `e2e0e22b`
+### QR WhatsApp Alias Chat Dedup + Live Receipt Sync Fix (Session: March 13, 2026 — Phase 72) — Commit `f105dfc5`
 
 1. **✅ Same Person No Longer Splits Into Separate QR Threads Just Because WhatsApp Uses Different JIDs**
    - **Problem**: A single contact could appear twice in the QR inbox list and replies/status updates could land on the alternate thread identity
@@ -198,7 +198,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 3. **✅ Verification**
    - Ready for editor/type validation after patching
 
-### QR WhatsApp Sidebar Contact Label Fallback Fix (Session: March 13, 2026 — Phase 71) — Commit `e2e0e22b`
+### QR WhatsApp Sidebar Contact Label Fallback Fix (Session: March 13, 2026 — Phase 71) — Commit `f105dfc5`
 
 1. **✅ QR Inbox User List Now Prefers Real Name or Compact Mobile Number Over Generic `Contact` Labels**
    - **Problem**: The QR WhatsApp sidebar could still show generic rows like `Contact` or raw non-phone placeholder values instead of a useful identity in the user list
