@@ -172,7 +172,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
-### CRM Users Page Route Restore (Session: March 13, 2026 — Phase 69) — Commit `73e10f23`
+### CRM Users Page Route Restore (Session: March 13, 2026 — Phase 69) — Commit `17959f05`
 
 1. **✅ Restored the Missing `/admin/crm/users` Page**
    - **Problem**: Visiting `https://swaryoga.com/admin/crm/users` returned a 404 even though CRM navigation linked to that route as `Admin Users`
