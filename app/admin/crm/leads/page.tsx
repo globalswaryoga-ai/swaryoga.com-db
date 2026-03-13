@@ -109,6 +109,7 @@ export default function LeadsPage() {
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
 
   const [backfillBusy, setBackfillBusy] = useState(false);
+  const [exportingLeads, setExportingLeads] = useState(false);
 
   const [broadcastModalOpen, setBroadcastModalOpen] = useState(false);
   const [leadsForBroadcast, setLeadsForBroadcast] = useState<Lead[]>([]);
@@ -430,14 +431,43 @@ export default function LeadsPage() {
   // Merge settings labels into predefined list
   const allLabels = Array.from(new Set([...PREDEFINED_LABELS, ...settingsLabels]));
 
-  const downloadExcel = () => {
-    if (leads.length === 0) {
-      alert('No leads to download');
+  const downloadExcel = async () => {
+    if (!token) {
+      setError('Please login again to export leads.');
       return;
     }
 
-    // Prepare data
-    const excelData = leads.map((lead) => ({
+    try {
+      setExportingLeads(true);
+
+      const params: Record<string, string> = {
+        limit: '5000',
+        skip: '0',
+        selectAll: 'true',
+        excludeSource: 'qr_whatsapp',
+      };
+
+      if (filterStatus) params.status = filterStatus;
+      if (filterWorkshop) params.workshop = filterWorkshop;
+      if (search.query) params.q = search.query;
+      if (isSuperAdmin && userFilter) params.userId = userFilter;
+
+      const response = await fetch('/api/admin/crm/leads?' + new URLSearchParams(params), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.error || 'Failed to export leads');
+      }
+
+      const exportLeads: Lead[] = Array.isArray(data?.data?.leads) ? data.data.leads : [];
+      if (exportLeads.length === 0) {
+        alert('No leads match the current filters.');
+        return;
+      }
+
+      const excelData = exportLeads.map((lead) => ({
       'Lead ID': lead.leadNumber || '',
       User: getAssigneeLabel(lead.assignedToUserId) || '',
       Name: lead.name || '',
@@ -450,12 +480,10 @@ export default function LeadsPage() {
       'Created Date': new Date(lead.createdAt).toLocaleDateString(),
     }));
 
-    // Create workbook
     const ws = XLSX.utils.json_to_sheet(excelData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Leads');
 
-    // Auto-size columns
     const colWidths = [
       { wch: 10 },
       { wch: 18 },
@@ -470,9 +498,17 @@ export default function LeadsPage() {
     ];
     ws['!cols'] = colWidths;
 
-    // Download
-    const fileName = `leads_${filterStatus || 'all'}_${filterWorkshop || 'all'}_${new Date().toISOString().split('T')[0]}.xlsx`;
+    const searchSlug = search.query
+      ? search.query.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24)
+      : 'all';
+    const fileName = `leads_${filterStatus || 'all'}_${filterWorkshop || 'all'}_${searchSlug || 'all'}_${new Date().toISOString().split('T')[0]}.xlsx`;
     XLSX.writeFile(wb, fileName);
+    setError(null);
+  } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to export leads');
+    } finally {
+      setExportingLeads(false);
+    }
   };
 
   type LeadColumn = {
@@ -934,6 +970,14 @@ export default function LeadsPage() {
               className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-xl transition-all duration-300 font-semibold border border-indigo-500/50 hover:shadow-lg hover:shadow-indigo-500/20"
             >
               📤 Bulk Upload
+            </button>
+            <button
+              onClick={downloadExcel}
+              disabled={exportingLeads}
+              className="bg-cyan-500/90 hover:bg-cyan-500 text-black px-4 py-2.5 rounded-xl transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed font-bold border border-cyan-400/50 hover:shadow-lg hover:shadow-cyan-500/20"
+              title="Export all leads matching the current filters to Excel"
+            >
+              {exportingLeads ? '⏳ Exporting…' : '📥 Export Excel'}
             </button>
             <button
               onClick={() => {

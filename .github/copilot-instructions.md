@@ -172,6 +172,40 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### CRM Leads Export Button (Session: March 13, 2026 — Phase 68) — Commit `877e3cb9`
+
+1. **✅ Added a Visible Export Action to the Main CRM Leads Page**
+   - **Problem**: The main `Lead Management` screen had bulk upload, broadcast, and add-lead actions, but no visible export control in the header
+   - **Root Cause**:
+      - `app/admin/crm/leads/page.tsx` already contained Excel generation logic, but it was not wired to any button in the UI
+      - the hidden helper also only exported the currently loaded page state, not the full filtered dataset
+   - **Solution**:
+      - Updated `app/admin/crm/leads/page.tsx`
+      - Added a new `Export Excel` header button beside the existing lead actions
+      - Upgraded export behavior to fetch up to 5000 leads using the current filters/search/user scope before generating the workbook
+      - Export now respects `status`, `program/workshop`, search query, Super Admin user filter, and the existing non-QR lead scope
+
+2. **✅ Verification**
+   - Ready for editor/type validation after patching
+
+### Meta Chatbot Flow Button Message Fix (Session: March 13, 2026 — Phase 67) — Commit `[pending]`
+
+1. **✅ Meta Flow Now Sends Native Button Messages for Option-Based Question Nodes**
+   - **Problem**: In Meta chatbot flows, nodes configured as `question` with options were not being sent as clickable WhatsApp button messages; only explicit `buttons` nodes got native button treatment
+   - **Root Cause**:
+      - flow execution paths only built `interactiveButtons` for `type === 'buttons'`
+      - the chatbot builder allows option-based question nodes, so Meta flow behavior was inconsistent with how flows are authored
+   - **Solution**:
+      - Updated `lib/whatsappAutomation.ts`
+      - Updated `lib/chatbotScheduler.ts`
+      - Updated `app/api/admin/crm/chatbot-flows/start/route.ts`
+      - Added shared option-to-button mapping in each execution path so both `question` and `buttons` nodes with options now send native Meta interactive button messages
+      - Improved question-node retry behavior so unmatched replies re-send clickable options instead of only plain text guidance
+
+2. **✅ Verification**
+   - No editor/type errors in modified flow files
+   - Full production build completed successfully locally after the code change
+
 ### Bridge Config Drift Cleanup + QR Diagnostics Hardening (Session: March 13, 2026 — Phase 66) — Commit `fc1640dc`
 
 1. **✅ Removed Stale Hardcoded Bridge Hosts from Live WhatsApp Runtime Paths**
