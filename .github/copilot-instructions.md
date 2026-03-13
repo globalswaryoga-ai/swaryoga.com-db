@@ -172,6 +172,62 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### QR WhatsApp Alias Chat Dedup + Live Receipt Sync Fix (Session: March 13, 2026 — Phase 72) — Commit `e2e0e22b`
+
+1. **✅ Same Person No Longer Splits Into Separate QR Threads Just Because WhatsApp Uses Different JIDs**
+   - **Problem**: A single contact could appear twice in the QR inbox list and replies/status updates could land on the alternate thread identity
+   - **Root Cause**:
+      - the bridge runtime tracked chats/messages by raw JID only
+      - the same person could exist as a phone JID and a LID alias, so duplicates and split history appeared
+   - **Solution**:
+      - Updated `deploy/wa-baileys/index.js`
+      - Added alias-aware chat/message merging for phone-JID and LID variants
+      - `/chats` now deduplicates same-person rows more aggressively
+      - `/messages/:jid` now merges message history across alias JIDs for the same conversation
+
+2. **✅ Delivery / Read Tick Updates Now Prefer Live Bridge State Instead of Stale Mongo Snapshots**
+   - **Problem**: messages could remain on sent/single-tick state in the QR UI even after delivery/read happened on WhatsApp
+   - **Root Cause**:
+      - `app/api/admin/crm/whatsapp/qr-bridge/route.ts` returned Mongo-stored message history before live bridge state for isolated sessions
+      - QR Mongo history does not receive every live receipt transition immediately
+   - **Solution**:
+      - Updated `app/api/admin/crm/whatsapp/qr-bridge/route.ts`
+      - Switched isolated-session `/messages` back to live-bridge-first behavior while keeping Mongo fallback lower in the handler
+      - Updated bridge-side `messages.update` handling so receipt status propagates across alias chat identities too
+
+3. **✅ Verification**
+   - Ready for editor/type validation after patching
+
+### QR WhatsApp Sidebar Contact Label Fallback Fix (Session: March 13, 2026 — Phase 71) — Commit `e2e0e22b`
+
+1. **✅ QR Inbox User List Now Prefers Real Name or Compact Mobile Number Over Generic `Contact` Labels**
+   - **Problem**: The QR WhatsApp sidebar could still show generic rows like `Contact` or raw non-phone placeholder values instead of a useful identity in the user list
+   - **Root Cause**:
+      - `app/admin/crm/qr/page.tsx` did not treat plain `Contact` / `Unknown Contact` labels as placeholders
+      - sidebar and header fallback formatting did not consistently prefer a compact `+countrycode mobilenumber` display when bridge metadata was weak
+   - **Solution**:
+      - Updated `app/admin/crm/qr/page.tsx`
+      - Expanded placeholder-name detection to catch generic `Contact` labels
+      - Added compact phone formatting so fallback display now prefers `+91 9876543210` style output
+      - Hardened the open-chat header fallback so it can derive the mobile number from the selected chat JID even when chat metadata is incomplete
+
+2. **✅ Verification**
+   - Ready for editor/type validation after patching
+
+### CRM Users Page Add/Edit/Delete Actions (Session: March 13, 2026 — Phase 70) — Commit `[pending]`
+
+1. **✅ Added Visible Add, Edit, and Delete Controls to the Restored CRM Users Page**
+   - **Problem**: The restored `/admin/crm/users` page listed CRM admin users, but it did not provide the expected row-level edit/delete actions and the add flow was only an always-open form
+   - **Solution**:
+      - Updated `app/admin/crm/users/page.tsx`
+      - Added a clear `+ Add Admin` button in the page header to toggle the create form
+      - Added an `Actions` column with `Edit` and `Delete` buttons for each admin user row (Super Admin only)
+      - Added an edit modal backed by the existing `PUT /api/admin/auth/users/[id]` API
+      - Wired delete behavior to the existing `DELETE /api/admin/auth/users/[id]` API with confirmation and inline loading state
+
+2. **✅ Verification**
+   - Ready for editor/type validation after patching
+
 ### CRM Users Page Route Restore (Session: March 13, 2026 — Phase 69) — Commit `17959f05`
 
 1. **✅ Restored the Missing `/admin/crm/users` Page**

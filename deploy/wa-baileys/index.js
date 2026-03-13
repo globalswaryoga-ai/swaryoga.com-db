@@ -251,6 +251,74 @@ function resolveToPhone(session, jid) {
   return null;
 }
 
+function getChatAliasJids(session, jid) {
+  if (!jid) return [];
+
+  const aliases = new Set();
+  const normalized = jid.includes('@') ? jid : `${jid}@s.whatsapp.net`;
+  aliases.add(normalized);
+
+  if (normalized.endsWith('@g.us')) {
+    return Array.from(aliases);
+  }
+
+  if (normalized.endsWith('@lid') || isLidNumber(normalized)) {
+    const phoneNum = resolveToPhone(session, normalized);
+    if (phoneNum) aliases.add(`${phoneNum}@s.whatsapp.net`);
+  } else {
+    const phoneJid = normalized.endsWith('@s.whatsapp.net') ? normalized : `${normalized.split('@')[0]}@s.whatsapp.net`;
+    aliases.add(phoneJid);
+
+    const directLid = session.phoneToLidMap.get(phoneJid);
+    if (directLid) aliases.add(directLid.includes('@') ? directLid : `${directLid}@lid`);
+
+    for (const [lid, phone] of session.lidToPhoneMap.entries()) {
+      if (phone === phoneJid) aliases.add(lid.includes('@') ? lid : `${lid}@lid`);
+    }
+  }
+
+  return Array.from(aliases);
+}
+
+function getMergedMessagesForJid(session, jid, limit = 50) {
+  const aliases = getChatAliasJids(session, jid);
+  const byId = new Map();
+
+  for (const aliasJid of aliases) {
+    const chatMsgs = session.messageMap.get(aliasJid) || [];
+    for (const msg of chatMsgs) {
+      const existing = byId.get(msg.id);
+      if (!existing) {
+        byId.set(msg.id, { ...msg });
+        continue;
+      }
+
+      byId.set(msg.id, {
+        ...existing,
+        ...msg,
+        status: Math.max(existing.status ?? 0, msg.status ?? 0),
+        mediaUrl: existing.mediaUrl || msg.mediaUrl || null,
+        reactions: { ...(existing.reactions || {}), ...(msg.reactions || {}) },
+      });
+    }
+  }
+
+  return Array.from(byId.values())
+    .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0))
+    .slice(-limit);
+}
+
+function isUsefulChatName(name) {
+  const value = String(name || '').trim();
+  if (!value) return false;
+  if (/^\d+$/.test(value)) return false;
+  if (/^\d{14,}$/.test(value)) return false;
+  if (value.includes('@')) return false;
+  if (/^(unknown\s+)?contact$/i.test(value)) return false;
+  if (/^contact\s+\d+$/i.test(value)) return false;
+  return true;
+}
+
 async function getGroupSubject(session, jid) {
   if (session.groupSubjectCache.has(jid)) return session.groupSubjectCache.get(jid);
   try {
@@ -714,11 +782,16 @@ async function startSocket(userId) {
     sock.ev.on('messages.update', (updates) => {
       for (const { key, update } of updates) {
         if (!key?.remoteJid || key.remoteJid === 'status@broadcast') continue;
-        const chatMsgs = session.messageMap.get(key.remoteJid);
-        if (!chatMsgs) continue;
-        const msgIdx = chatMsgs.findIndex(m => m.id === key.id);
-        if (msgIdx !== -1 && update.status !== undefined) {
-          chatMsgs[msgIdx].status = update.status;
+        if (update.status === undefined) continue;
+
+        const aliases = getChatAliasJids(session, key.remoteJid);
+        for (const aliasJid of aliases) {
+          const chatMsgs = session.messageMap.get(aliasJid);
+          if (!chatMsgs) continue;
+          const msgIdx = chatMsgs.findIndex(m => m.id === key.id);
+          if (msgIdx !== -1) {
+            chatMsgs[msgIdx].status = Math.max(chatMsgs[msgIdx].status ?? 0, update.status ?? 0);
+          }
         }
       }
     });
@@ -1272,7 +1345,55 @@ app.get('/chats', async (req, res) => {
         }
       }
     }
-    const sorted = chats.sort((a, b) => {
+
+    const deduped = [];
+    const byPhone = new Map();
+    for (const chat of chats) {
+      if (chat.isGroup) {
+        deduped.push(chat);
+        continue;
+      }
+
+      const resolvedPhone = chat.resolvedPhone || (chat.id.endsWith('@s.whatsapp.net') ? chat.id.split('@')[0] : null);
+      if (!resolvedPhone) {
+        deduped.push(chat);
+        continue;
+      }
+
+      const existing = byPhone.get(resolvedPhone);
+      if (!existing) {
+        const preferredId = chat.id.endsWith('@s.whatsapp.net') ? chat.id : `${resolvedPhone}@s.whatsapp.net`;
+        const normalizedChat = { ...chat, id: preferredId, resolvedPhone };
+        byPhone.set(resolvedPhone, normalizedChat);
+        deduped.push(normalizedChat);
+        continue;
+      }
+
+      const existingTime = existing.lastMessageTime ? new Date(existing.lastMessageTime).getTime() : 0;
+      const chatTime = chat.lastMessageTime ? new Date(chat.lastMessageTime).getTime() : 0;
+      const preferredName = isUsefulChatName(chat.name) && !isUsefulChatName(existing.name)
+        ? chat.name
+        : existing.name;
+
+      const merged = {
+        ...existing,
+        ...(chatTime > existingTime ? {
+          lastMessage: chat.lastMessage,
+          lastMessageTime: chat.lastMessageTime,
+        } : {}),
+        id: existing.id.endsWith('@s.whatsapp.net') ? existing.id : (chat.id.endsWith('@s.whatsapp.net') ? chat.id : existing.id),
+        name: preferredName,
+        resolvedPhone,
+        unreadCount: Math.max(existing.unreadCount || 0, chat.unreadCount || 0),
+        isLid: existing.isLid && chat.isLid,
+      };
+
+      byPhone.set(resolvedPhone, merged);
+      const existingIdx = deduped.findIndex(c => c.id === existing.id || c.resolvedPhone === resolvedPhone);
+      if (existingIdx !== -1) deduped[existingIdx] = merged;
+    }
+
+    const sorted = deduped.sort((a, b) => {
       const ta = a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0;
       const tb = b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0;
       return tb - ta;
@@ -1287,8 +1408,8 @@ app.get('/messages/:jid', async (req, res) => {
   try {
     const jid = req.params.jid.includes('@') ? req.params.jid : `${req.params.jid}@s.whatsapp.net`;
     const limit = parseInt(req.query.limit || '50', 10);
-    const msgs = session.messageMap.get(jid) || [];
-    res.json({ messages: msgs.slice(-limit) });
+    const msgs = getMergedMessagesForJid(session, jid, limit);
+    res.json({ messages: msgs, aliases: getChatAliasJids(session, jid) });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

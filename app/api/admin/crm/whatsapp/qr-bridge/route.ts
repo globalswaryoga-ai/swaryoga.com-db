@@ -1101,51 +1101,10 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // ── OWN-BRIDGE MONGODB-FIRST MESSAGE READS (GET /messages) ──
-    // Prefer QR-specific Mongo storage for isolated sessions to avoid bridge-side
-    // stale/foreign message leakage. Fall back to bridge only when Mongo has nothing.
-    if (path.startsWith('/messages/') && resolved.hasOwnBridge && resolved.storedPhone) {
-      try {
-        const chatJid = extractChatJidFromPath(path);
-        if (chatJid) {
-          const QrMsg = getQrWhatsAppMessage();
-          const dbMessages = await QrMsg.find({
-            userId,
-            connectedPhone: resolved.storedPhone,
-            chatJid,
-          })
-            .sort({ timestamp: 1 })
-            .limit(200)
-            .lean();
-
-          if (dbMessages.length > 0) {
-            const mapped = dbMessages.map((m: any) => ({
-              id: m.messageId,
-              from: m.participant || m.chatJid,
-              fromMe: m.fromMe,
-              text: m.text,
-              body: m.text,
-              type: m.type,
-              timestamp: m.timestamp,
-              status: m.status,
-              participant: m.participant,
-              pushName: m.pushName,
-              hasMedia: m.hasMedia,
-              mediaUrl: m.mediaUrl,
-              mediaMimetype: m.mediaMimetype,
-              mediaFileName: m.mediaFileName,
-              quoted: m.quotedId ? { id: m.quotedId, text: m.quotedText, participant: m.quotedParticipant } : null,
-              quotedId: m.quotedId || null,
-              reactions: {},
-            }));
-
-            return NextResponse.json({ success: true, data: { messages: mapped, source: 'qr_mongodb' } }, { status: 200 });
-          }
-        }
-      } catch (dbErr) {
-        console.error('[QR Bridge Proxy] Mongo-first /messages lookup failed:', dbErr);
-      }
-    }
+    // ── OWN-BRIDGE MESSAGE READS (GET /messages) ──
+    // Live bridge data must win so delivery/read ticks and fresh replies stay current.
+    // Persistent QR Mongo storage remains as the fallback lower in this handler when
+    // bridge memory is empty or after a reconnect.
 
     const bridgeUrl = `${BRIDGE_URL}${path}`;
 

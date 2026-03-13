@@ -26,12 +26,38 @@ import {
 function isPlaceholderChatName(name: string | undefined | null): boolean {
   const value = String(name || '').trim();
   if (!value) return true;
+  if (/^(unknown\s+)?contact$/i.test(value)) return true;
+  if (/^contact\s+\d+$/i.test(value)) return true;
   if (/^~\s*Contact\s+\d+$/i.test(value)) return true;
   if (/^\d+$/.test(value)) return true;
   if (value.includes('QR Lead')) return true;
   if (value === 'Swar Yoga') return true;
   if (value.includes('@')) return true;
   return false;
+}
+
+function formatCompactChatPhone(phone: string): string {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (!digits) return '';
+
+  if (digits.length === 10) {
+    return `+91 ${digits}`;
+  }
+
+  if (digits.length === 11 && digits.startsWith('0')) {
+    return `+91 ${digits.slice(1)}`;
+  }
+
+  if ((digits.length === 12 || digits.length === 13) && digits.startsWith('91')) {
+    return `+91 ${digits.slice(2)}`;
+  }
+
+  if (digits.length >= 11 && digits.length <= 15) {
+    const countryCodeLength = Math.max(1, digits.length - 10);
+    return `+${digits.slice(0, countryCodeLength)} ${digits.slice(countryCodeLength)}`;
+  }
+
+  return formatPhoneNumber(phone);
 }
 
 function isDisplayablePhoneDigits(digits: string): boolean {
@@ -84,7 +110,7 @@ function extractBestChatPhone(chat: Partial<ChatItem> & Record<string, any>): st
 function getSidebarChatPhone(chat: ChatItem): string {
   if (chat.isGroup) return '';
   const phone = extractBestChatPhone(chat as ChatItem & Record<string, any>);
-  return phone ? formatPhoneNumber(phone) : '';
+  return phone ? formatCompactChatPhone(phone) : '';
 }
 
 function getSidebarChatTitle(chat: ChatItem): string {
@@ -98,7 +124,7 @@ function getSidebarChatTitle(chat: ChatItem): string {
 
   const phone = extractBestChatPhone(chat as ChatItem & Record<string, any>);
   if (phone) {
-    return formatPhoneNumber(phone);
+    return formatCompactChatPhone(phone);
   }
 
   return 'Contact';
@@ -2375,9 +2401,17 @@ export default function QRWhatsAppPage() {
                     {(() => {
                       const selectedChatInfo = chats.find(c => c.id === selectedChat);
                       const isGroupChat = selectedChat.endsWith('@g.us') || selectedChat.endsWith('@lid');
+                      const selectedChatFallback = {
+                        id: selectedChat,
+                        name: selectedChatInfo?.name || '',
+                        isGroup: isGroupChat,
+                        resolvedPhone: selectedChatInfo?.resolvedPhone,
+                        chatId: selectedChat,
+                        jid: selectedChat,
+                      } as ChatItem & Record<string, any>;
                       // For non-group chats: prefer CRM lead name (set during enrichment) over raw phone
-                      const chatTitle = selectedChatInfo ? getSidebarChatTitle(selectedChatInfo) : 'Unknown Contact';
-                      const chatPhone = selectedChatInfo ? getSidebarChatPhone(selectedChatInfo) : '';
+                      const chatTitle = getSidebarChatTitle((selectedChatInfo || selectedChatFallback) as ChatItem);
+                      const chatPhone = getSidebarChatPhone((selectedChatInfo || selectedChatFallback) as ChatItem);
                       const crmName = selectedChatInfo?.name && !isPlaceholderChatName(selectedChatInfo.name) ? selectedChatInfo.name : null;
                       const headerDisplayName = isGroupChat
                         ? (selectedChatInfo?.name || selectedChat.split('@')[0])
