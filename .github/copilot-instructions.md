@@ -172,6 +172,22 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### CRM Users Page Route Restore (Session: March 13, 2026 — Phase 69) — Commit `73e10f23`
+
+1. **✅ Restored the Missing `/admin/crm/users` Page**
+   - **Problem**: Visiting `https://swaryoga.com/admin/crm/users` returned a 404 even though CRM navigation linked to that route as `Admin Users`
+   - **Root Cause**:
+      - navigation and web-admin shortcuts referenced `/admin/crm/users`
+      - only `app/admin/crm/users/profile/page.tsx` existed; the top-level `app/admin/crm/users/page.tsx` route was missing entirely
+   - **Solution**:
+      - Added `app/admin/crm/users/page.tsx`
+      - New page loads admin users from the existing `/api/admin/auth/users` endpoint
+      - Super Admin can also create a new CRM admin user directly from the restored page
+      - Added a quick link to the existing unified user profile search at `/admin/crm/users/profile`
+
+2. **✅ Verification**
+   - Ready for editor/type validation after patching
+
 ### CRM Leads Export Button (Session: March 13, 2026 — Phase 68) — Commit `1ea67973`
 
 1. **✅ Added a Visible Export Action to the Main CRM Leads Page**
