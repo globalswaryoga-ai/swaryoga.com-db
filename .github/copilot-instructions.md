@@ -172,7 +172,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
-### QR Session Contamination Hardening + Duplicate Connected-Phone Cleanup Guard (Session: March 14, 2026 — Phase 73) — Commit `[pending]`
+### QR Session Contamination Hardening + Duplicate Connected-Phone Cleanup Guard (Session: March 14, 2026 — Phase 73) — Commit `4aeea024`
 
 1. **✅ Added Server-Side QR Identity Reconciliation So Tenants Cannot Keep Another User's Connected WhatsApp Number**
    - **Problem**: some CRM users could retain a duplicated `qrConnectedPhoneNumber`, which allowed stale or foreign QR snapshots to be treated as their current session identity
