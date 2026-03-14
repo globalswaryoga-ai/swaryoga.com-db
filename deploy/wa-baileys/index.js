@@ -62,6 +62,7 @@ const STABILIZATION_THRESHOLD = 30000;
 const MAX_MSGS_PER_CHAT = 100;
 const MAX_RAW_CACHE = 500;
 const MAX_STATUS_STORE = 50;
+const ENABLE_DB_CHAT_HYDRATION = process.env.WHATSAPP_BRIDGE_ENABLE_DB_HYDRATION === 'true';
 
 // ── Logging ─────────────────────────────────────────────────────────────
 const logger = pino({ level: process.env.LOG_LEVEL || 'warn' });
@@ -614,7 +615,7 @@ async function startSocket(userId) {
 
         session.startKeepalive();
 
-        if (session.chatMap.size === 0) {
+        if (ENABLE_DB_CHAT_HYDRATION && session.chatMap.size === 0) {
           loadChatsFromDB(session).catch(e => console.error(`[${userId}] DB-LOAD error:`, e.message));
         }
 

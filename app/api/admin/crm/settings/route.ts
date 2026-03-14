@@ -6,32 +6,10 @@ import { apiError, apiSuccess } from '@/lib/api-error';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 import mongoose from 'mongoose';
+import { getWhatsAppBridgeUrl } from '@/lib/whatsappBridgeConfig';
+import { normalizeConnectedPhone, reconcileQrConnectedPhone } from '@/lib/qrSessionIsolation';
 
-const AUTH_COLLECTION = 'baileys_auth_state';
-const AUTH_DB_NAME = process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm';
-
-function normalizeConnectedPhone(phone: string): string {
-  return String(phone || '').split(':')[0].split('@')[0].replace(/\D/g, '');
-}
-
-async function getAuthStatePhone(userId: string): Promise<string> {
-  try {
-    const db = mongoose.connection.useDb(AUTH_DB_NAME);
-    const doc: any = await db.collection(AUTH_COLLECTION).findOne(
-      { key: `${userId}:creds` },
-      { projection: { value: 1 } }
-    );
-
-    return normalizeConnectedPhone(
-      doc?.value?.me?.id ||
-      doc?.value?.account?.details?.phoneNumber ||
-      ''
-    );
-  } catch (error) {
-    console.warn('[crm-settings] Failed to derive auth-state phone:', error);
-    return '';
-  }
-}
+const BRIDGE_BASE_URL = getWhatsAppBridgeUrl();
 
 /**
  * Generate a unique bridge secret for a user.
@@ -71,21 +49,12 @@ export async function GET(req: NextRequest) {
       console.log(`[crm-settings] Auto-generated unique bridge secret for user ${decoded.userId}`);
     }
 
-    const storedConnectedPhone = normalizeConnectedPhone(settings?.qrConnectedPhoneNumber || '');
-    const authStatePhone = storedConnectedPhone ? '' : await getAuthStatePhone(decoded.userId);
-    const resolvedConnectedPhone = storedConnectedPhone || authStatePhone;
-
-    if (!storedConnectedPhone && authStatePhone) {
-      await CRMUserSettings.updateOne(
-        { userId: decoded.userId },
-        { $set: { qrConnectedPhoneNumber: authStatePhone } },
-        { upsert: true }
-      );
-      settings = {
-        ...(settings || {}),
-        qrConnectedPhoneNumber: authStatePhone,
-      };
-    }
+    const reconciled = await reconcileQrConnectedPhone(decoded.userId, {
+      isSuperAdmin: isSuperAdmin(decoded),
+      storedPhone: settings?.qrConnectedPhoneNumber || '',
+      phoneChangedAt: settings?.qrPhoneChangedAt || null,
+    });
+    const resolvedConnectedPhone = reconciled.resolvedPhone;
 
     // Base settings visible to all admin users
     const response: Record<string, any> = {
@@ -100,11 +69,7 @@ export async function GET(req: NextRequest) {
 
     // QR bridge data: return for all admin users
     // Derive bridge URL from permanentTenantId, fallback to stored qrBridgeUrl
-    let derivedUrl = '';
-    if (settings?.permanentTenantId) {
-      const bridgeBase = process.env.WHATSAPP_BRIDGE_HTTP_URL || process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL || process.env.WHATSAPP_BRIDGE_URL || 'http://localhost:3333';
-      derivedUrl = `${bridgeBase}/tenant/${settings.permanentTenantId}`;
-    }
+    const derivedUrl = settings?.permanentTenantId ? BRIDGE_BASE_URL : '';
     response.qrBridgeUrl = derivedUrl || settings?.qrBridgeUrl || '';
     response.qrBridgeSecret = settings?.qrBridgeSecret || '';
     response.permanentTenantId = settings?.permanentTenantId || null;
@@ -141,6 +106,7 @@ export async function PUT(req: NextRequest) {
     if (body.pinnedChats !== undefined) update.pinnedChats = body.pinnedChats;
     if (body.senderDisplayName !== undefined) update.senderDisplayName = body.senderDisplayName;
     if (body.qrConnectedPhoneNumber !== undefined) update.qrConnectedPhoneNumber = normalizeConnectedPhone(body.qrConnectedPhoneNumber);
+    if (body.qrPhoneChangedAt !== undefined) update.qrPhoneChangedAt = body.qrPhoneChangedAt;
     // QR bridge settings — super admin only
     if (isSuperAdmin(decoded)) {
       if (body.qrBridgeUrl !== undefined) update.qrBridgeUrl = body.qrBridgeUrl;

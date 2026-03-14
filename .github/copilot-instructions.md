@@ -172,6 +172,32 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### QR Session Contamination Hardening + Duplicate Connected-Phone Cleanup Guard (Session: March 14, 2026 — Phase 73) — Commit `[pending]`
+
+1. **✅ Added Server-Side QR Identity Reconciliation So Tenants Cannot Keep Another User's Connected WhatsApp Number**
+   - **Problem**: some CRM users could retain a duplicated `qrConnectedPhoneNumber`, which allowed stale or foreign QR snapshots to be treated as their current session identity
+   - **Solution**:
+      - Added `lib/qrSessionIsolation.ts`
+      - `app/api/admin/crm/settings/route.ts` and `app/api/admin/crm/whatsapp/qr-bridge/route.ts` now reconcile `qrConnectedPhoneNumber` against live auth-state and detect duplicate ownership across users
+      - non-Super-Admin duplicate session identities are now reset server-side by clearing contaminated QR phone state, QR snapshot rows, and bridge auth state so the user must rescan cleanly
+
+2. **✅ Persisted Missing QR Session Fields in `crm_user_settings` Schema**
+   - **Problem**: QR session-protection fields like `qrPhoneChangedAt`, plus `senderDisplayName` / `pinnedChats`, were being used in routes/UI but were not defined in the schema section for CRM user settings
+   - **Solution**:
+      - Updated `lib/schemas/enterpriseSchemas.ts`
+      - Added `pinnedChats`, `senderDisplayName`, `qrPhoneChangedAt`, and indexed `qrConnectedPhoneNumber`
+
+3. **✅ Disabled Generic Bridge Chat Hydration by Default to Prevent Old `whatsapp_messages` History from Polluting Fresh QR Sessions**
+   - **Problem**: bridge startup could hydrate old generic WhatsApp history into a supposedly fresh user session
+   - **Solution**:
+      - Updated `deploy/wa-baileys/index.js`
+      - Generic DB chat hydration is now opt-in via `WHATSAPP_BRIDGE_ENABLE_DB_HYDRATION=true` instead of on by default
+      - QR-specific Mongo fallback remains available in the CRM proxy for isolated session recovery
+
+4. **✅ Added Targeted Repair Script for Existing Duplicate QR Session Contamination**
+   - Added `scripts/repair-qr-session-contamination.js`
+   - Finds duplicated `qrConnectedPhoneNumber` ownership, keeps the Super Admin/primary owner, and clears contaminated QR settings, snapshots, and auth state for the other users
+
 ### QR WhatsApp Alias Chat Dedup + Live Receipt Sync Fix (Session: March 13, 2026 — Phase 72) — Commit `f105dfc5`
 
 1. **✅ Same Person No Longer Splits Into Separate QR Threads Just Because WhatsApp Uses Different JIDs**

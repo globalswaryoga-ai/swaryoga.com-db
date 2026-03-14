@@ -5,6 +5,7 @@ import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin as checkSuperAdmin } from '@/lib/crm-handlers';
 import { logApiError } from '@/lib/error-logger';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
+import { getAuthStatePhone, normalizeConnectedPhone, reconcileQrConnectedPhone } from '@/lib/qrSessionIsolation';
 import mongoose from 'mongoose';
 
 /**
@@ -68,29 +69,6 @@ function invalidateBridgeCache(userId: string) {
   bridgeCache.delete(userId);
 }
 
-function normalizeConnectedPhone(phone: string): string {
-  return String(phone || '').split(':')[0].split('@')[0].replace(/\D/g, '');
-}
-
-async function getAuthStatePhone(userId: string): Promise<string> {
-  try {
-    const db = mongoose.connection.useDb(AUTH_DB_NAME);
-    const doc: any = await db.collection(AUTH_COLLECTION).findOne(
-      { key: `${userId}:creds` },
-      { projection: { value: 1 } }
-    );
-
-    return normalizeConnectedPhone(
-      doc?.value?.me?.id ||
-      doc?.value?.account?.details?.phoneNumber ||
-      ''
-    );
-  } catch (error) {
-    console.warn('[QR Bridge Proxy] Failed to derive auth-state phone:', error);
-    return '';
-  }
-}
-
 /** Evict stale entries periodically (prevent memory leak on long-running server) */
 function evictStaleBridgeCache() {
   const now = Date.now();
@@ -125,20 +103,16 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
       ).lean();
 
       const rawStoredPhone = (settings as any)?.qrConnectedPhoneNumber || '';
-      const storedPhoneFromSettings = normalizeConnectedPhone(rawStoredPhone);
-      const authStatePhone = storedPhoneFromSettings ? '' : await getAuthStatePhone(decoded.userId);
-      const storedPhone = storedPhoneFromSettings || authStatePhone;
-      const phoneChangedAt = (settings as any)?.qrPhoneChangedAt || null;
+      const reconciledPhone = await reconcileQrConnectedPhone(decoded.userId, {
+        isSuperAdmin: superAdmin,
+        storedPhone: rawStoredPhone,
+        phoneChangedAt: (settings as any)?.qrPhoneChangedAt || null,
+      });
+      const authStatePhone = reconciledPhone.authStatePhone;
+      const storedPhone = reconciledPhone.resolvedPhone;
+      const phoneChangedAt = reconciledPhone.phoneChangedAt;
       const senderDisplayName = (settings as any)?.senderDisplayName || '';
       const permanentTenantId = (settings as any)?.permanentTenantId || '';
-
-      if (!storedPhoneFromSettings && authStatePhone) {
-        await CRMUserSettings.updateOne(
-          { userId: decoded.userId },
-          { $set: { qrConnectedPhoneNumber: authStatePhone } },
-          { upsert: true }
-        );
-      }
 
       // ── PERMANENT TENANT ID ──
       // The live bridge isolates users by x-user-id header, not /tenant/{id} path.
@@ -241,13 +215,16 @@ async function saveConnectedPhone(userId: string, phoneId: string, isChange = fa
     const phone = phoneId.split(':')[0].split('@')[0].replace(/\D/g, '');
     if (!phone) return;
     const CRMUserSettings = getCRMUserSettings();
+    const normalizedPhone = normalizeConnectedPhone(phoneId);
+    const authStatePhone = await getAuthStatePhone(userId);
+    const nextPhone = authStatePhone || normalizedPhone;
     const update: any = { qrConnectedPhoneNumber: phone };
     if (isChange) {
       update.qrPhoneChangedAt = new Date();
     }
     await CRMUserSettings.updateOne(
       { userId },
-      { $set: update },
+      { $set: { ...update, qrConnectedPhoneNumber: nextPhone || phone } },
       { upsert: true }
     );
     invalidateBridgeCache(userId);

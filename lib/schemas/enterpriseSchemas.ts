@@ -3244,6 +3244,8 @@ const CRMUserSettingsSchema = new mongoose.Schema(
         color: { type: String, default: '' },
       },
     ],
+    pinnedChats: { type: [String], default: [] },
+    senderDisplayName: { type: String, default: '' },
     // Per-user QR WhatsApp bridge connection (each user runs their own bridge instance)
     // DEPRECATED: Old UUID-based URLs replaced by permanentTenantId
     qrBridgeUrl: { type: String, default: '' },      // e.g. https://my-bridge.up.railway.app (legacy)
@@ -3254,7 +3256,10 @@ const CRMUserSettingsSchema = new mongoose.Schema(
     // Currently connected WhatsApp phone number (e.g. '919876543210')
     // Saved automatically when QR scan connects. Used for session isolation:
     // if bridge returns chats from a different phone, old chats are NOT shown.
-    qrConnectedPhoneNumber: { type: String, default: '' },
+    qrConnectedPhoneNumber: { type: String, default: '', index: true },
+    // Timestamp of the last detected phone switch for the user's QR session.
+    // Used to keep chats from an older scanned number out of the current inbox.
+    qrPhoneChangedAt: { type: Date, default: null },
     // Per-user Telegram Bot configuration
     telegramBotToken: { type: String, default: '' },       // Bot token from @BotFather
     telegramBotUsername: { type: String, default: '' },     // e.g. 'my_bot'
