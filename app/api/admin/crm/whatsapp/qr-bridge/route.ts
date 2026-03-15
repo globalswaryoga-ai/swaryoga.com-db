@@ -5,7 +5,7 @@ import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin as checkSuperAdmin } from '@/lib/crm-handlers';
 import { logApiError } from '@/lib/error-logger';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
-import { getAuthStatePhone, normalizeConnectedPhone, reconcileQrConnectedPhone } from '@/lib/qrSessionIsolation';
+import { clearQrSessionContamination, findOtherUsersWithConnectedPhone, getAuthStatePhone, normalizeConnectedPhone, reconcileQrConnectedPhone } from '@/lib/qrSessionIsolation';
 import mongoose from 'mongoose';
 
 /**
@@ -257,6 +257,47 @@ async function clearPhoneChangedFlag(userId: string): Promise<void> {
 function extractBridgePhone(statusData: any): string {
   const raw = statusData?.phone?.id || statusData?.me?.id || statusData?.phoneNumber || '';
   return String(raw).split(':')[0].split('@')[0].replace(/\D/g, '');
+}
+
+async function validateOwnBridgeLivePhone(resolved: Extract<BridgeResolution, { ok: true }>, livePhone: string) {
+  const normalizedPhone = normalizeConnectedPhone(livePhone);
+  if (!resolved.hasOwnBridge || !normalizedPhone || resolved.isSuperAdmin) {
+    return { allowed: true, normalizedPhone, duplicateOwners: [] as Array<{ userId: string }> };
+  }
+
+  const duplicateOwners = await findOtherUsersWithConnectedPhone(resolved.userId, normalizedPhone);
+  if (duplicateOwners.length === 0) {
+    return { allowed: true, normalizedPhone, duplicateOwners };
+  }
+
+  const cleanup = await clearQrSessionContamination(resolved.userId, {
+    connectedPhone: normalizedPhone,
+    clearAuth: true,
+    clearAllSnapshots: true,
+  });
+  invalidateBridgeCache(resolved.userId);
+
+  console.warn(
+    `[QR Bridge Proxy] Foreign live phone blocked for ${resolved.userId}: ${normalizedPhone} already belongs to ${duplicateOwners.map((owner) => owner.userId).join(', ')}`,
+    cleanup
+  );
+
+  return { allowed: false, normalizedPhone, duplicateOwners, cleanup };
+}
+
+function getUnverifiedOwnBridgeResponse(existingData?: any) {
+  const sessionMessage = 'QR session not verified yet. Please reconnect and scan your own WhatsApp account again.';
+  if (Array.isArray(existingData)) {
+    return [];
+  }
+  return {
+    ...(existingData && typeof existingData === 'object' ? existingData : {}),
+    chats: [],
+    messages: [],
+    source: 'awaiting_verified_session',
+    sessionMessage,
+    sessionContaminated: true,
+  };
 }
 
 function getChatTimestampMs(chat: any): number {
@@ -591,6 +632,7 @@ export async function POST(req: NextRequest) {
 
     // Decode the path to handle double-encoded values like %2540 (@)
     const decodedPath = decodePathFully(path);
+    const basePath = '/' + decodedPath.split('/').filter(Boolean)[0];
 
     // ════════════════════════════════════════════════════════════
     // ── COMPREHENSIVE PER-CHAT SECURITY GATE (POST) ──
@@ -602,7 +644,6 @@ export async function POST(req: NextRequest) {
     if (requiresLeadOwnershipFilter) {
       // 1. Super Admin-only endpoints (session management)
       // BUT: CRM tenants (with permanentTenantId) can manage their own tenant session
-      const basePath = '/' + decodedPath.split('/').filter(Boolean)[0];
       if (SUPER_ADMIN_ONLY_PATHS.has(basePath) && !resolved.isSuperAdmin && !resolved.tenantId) {
         // BLOCKED: Non-Super Admin, no tenantId, trying to use Super Admin endpoint
         console.warn(`[QR Bridge Proxy] BLOCKED: ${userId} tried ${decodedPath} (Super Admin only)`);
@@ -646,6 +687,22 @@ export async function POST(req: NextRequest) {
             );
           }
         }
+      }
+    }
+
+    if (resolved.hasOwnBridge && !resolved.storedPhone) {
+      if (decodedPath === '/chats') {
+        return NextResponse.json(
+          { success: true, data: getUnverifiedOwnBridgeResponse() },
+          { status: 200 }
+        );
+      }
+
+      if (BODY_TARGET_PATHS.has(basePath) || isPathTargetEndpoint(decodedPath)) {
+        return NextResponse.json(
+          { success: false, error: 'QR session not verified yet. Please reconnect and scan your own WhatsApp account.' },
+          { status: 409 }
+        );
       }
     }
 
@@ -861,6 +918,21 @@ export async function POST(req: NextRequest) {
     // ── SESSION PHONE TRACKING (POST) ──
     if (decodedPath === '/status' && data?.connected) {
       const bridgePhone = extractBridgePhone(data);
+      if (resolved.hasOwnBridge && bridgePhone) {
+        const livePhoneValidation = await validateOwnBridgeLivePhone(resolved, bridgePhone);
+        if (!livePhoneValidation.allowed) {
+          const contaminatedStatus = {
+            ...data,
+            connected: false,
+            phone: undefined,
+            me: undefined,
+            phoneNumber: '',
+            sessionContaminated: true,
+            sessionMessage: 'Another user\'s WhatsApp session was detected here. Please reconnect and scan your own account.',
+          };
+          return NextResponse.json({ success: true, data: contaminatedStatus }, { status: 200 });
+        }
+      }
       if (bridgePhone && bridgePhone !== resolved.storedPhone) {
         // Phone CHANGED → save with timestamp so /chats can detect stale data
         saveConnectedPhone(userId, bridgePhone, true).catch(() => {});
@@ -888,7 +960,13 @@ export async function POST(req: NextRequest) {
         data = sessionFiltered.data;
       }
 
-      if (resolved.hasOwnBridge && resolved.storedPhone) {
+      if (resolved.hasOwnBridge && !resolved.storedPhone) {
+        const bridgeChats = getChatArray(data).filter(hasVisibleChatActivity);
+        if (bridgeChats.length > 0) {
+          console.warn(`[QR Bridge Proxy POST /chats] Blocking ${bridgeChats.length} chats for ${userId} because the own-bridge session has no verified phone yet.`);
+        }
+        data = getUnverifiedOwnBridgeResponse(data);
+      } else if (resolved.hasOwnBridge && resolved.storedPhone) {
         const bridgeChats = getChatArray(data).filter(hasVisibleChatActivity);
         if (bridgeChats.length > 0) {
           await syncMongoSessionChats(userId, resolved.storedPhone, bridgeChats);
@@ -1009,6 +1087,7 @@ export async function GET(req: NextRequest) {
     
     // Decode the path to handle double-encoded values like %2540 (@)
     path = decodePathFully(path);
+    const basePath = '/' + path.split('/').filter(Boolean)[0];
 
     // ════════════════════════════════════════════════════════════
     // ── COMPREHENSIVE PER-CHAT SECURITY GATE (GET) ──
@@ -1019,8 +1098,6 @@ export async function GET(req: NextRequest) {
     // ════════════════════════════════════════════════════════════
     const requiresLeadOwnershipFilter = !resolved.hasOwnBridge;
     if (requiresLeadOwnershipFilter) {
-      const basePath = '/' + path.split('/').filter(Boolean)[0];
-
       // Super Admin-only endpoints (session management)
       // BUT: CRM tenants (with permanentTenantId) can manage their own tenant session
       if (SUPER_ADMIN_ONLY_PATHS.has(basePath) && !resolved.isSuperAdmin && !resolved.tenantId) {
@@ -1052,6 +1129,25 @@ export async function GET(req: NextRequest) {
             );
           }
         }
+      }
+    }
+
+    if (resolved.hasOwnBridge && !resolved.storedPhone) {
+      if (path === '/chats') {
+        return NextResponse.json(
+          { success: true, data: getUnverifiedOwnBridgeResponse() },
+          { status: 200 }
+        );
+      }
+
+      if (isPathTargetEndpoint(path)) {
+        if (path.startsWith('/messages/')) {
+          return NextResponse.json({ success: true, data: getUnverifiedOwnBridgeResponse() }, { status: 200 });
+        }
+        return NextResponse.json(
+          { success: false, error: 'QR session not verified yet. Please reconnect and scan your own WhatsApp account.' },
+          { status: 409 }
+        );
       }
     }
 
@@ -1254,6 +1350,21 @@ export async function GET(req: NextRequest) {
     // ── SESSION PHONE TRACKING (GET) ──
     if (path === '/status' && data?.connected) {
       const bridgePhone = extractBridgePhone(data);
+      if (resolved.hasOwnBridge && bridgePhone) {
+        const livePhoneValidation = await validateOwnBridgeLivePhone(resolved, bridgePhone);
+        if (!livePhoneValidation.allowed) {
+          const contaminatedStatus = {
+            ...data,
+            connected: false,
+            phone: undefined,
+            me: undefined,
+            phoneNumber: '',
+            sessionContaminated: true,
+            sessionMessage: 'Another user\'s WhatsApp session was detected here. Please reconnect and scan your own account.',
+          };
+          return NextResponse.json({ success: true, data: contaminatedStatus }, { status: 200 });
+        }
+      }
       if (bridgePhone && bridgePhone !== resolved.storedPhone) {
         // Phone CHANGED → save with timestamp so /chats can detect stale data
         saveConnectedPhone(userId, bridgePhone, true).catch(() => {});
@@ -1279,7 +1390,13 @@ export async function GET(req: NextRequest) {
         data = sessionFiltered.data;
       }
 
-      if (resolved.hasOwnBridge && resolved.storedPhone) {
+      if (resolved.hasOwnBridge && !resolved.storedPhone) {
+        const bridgeChats = getChatArray(data).filter(hasVisibleChatActivity);
+        if (bridgeChats.length > 0) {
+          console.warn(`[QR Bridge Proxy GET /chats] Blocking ${bridgeChats.length} chats for ${userId} because the own-bridge session has no verified phone yet.`);
+        }
+        data = getUnverifiedOwnBridgeResponse(data);
+      } else if (resolved.hasOwnBridge && resolved.storedPhone) {
         const bridgeChats = getChatArray(data).filter(hasVisibleChatActivity);
         if (bridgeChats.length > 0) {
           await syncMongoSessionChats(userId, resolved.storedPhone, bridgeChats);

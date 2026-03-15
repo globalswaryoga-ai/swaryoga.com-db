@@ -172,6 +172,24 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### QR Unverified Own-Bridge Leak Fail-Safe + Settings Copy Correction (Session: March 15, 2026 — Phase 74) — Commit `ae009c29`
+
+1. **✅ Blocked Own-Bridge Users From Seeing Raw Bridge Chats Before Their QR Session Phone Is Safely Verified**
+   - **Problem**: after contaminated QR state was cleared, a tenant with blank `qrConnectedPhoneNumber` could still receive raw live `/chats` data from the bridge before a safe phone identity was re-established
+   - **Root Cause**:
+      - `app/api/admin/crm/whatsapp/qr-bridge/route.ts` still trusted own-bridge `/chats` when `storedPhone` was blank
+      - `/status` could also re-save a foreign live phone back onto the cleaned user if the bridge leaked another user's active session
+   - **Solution**:
+      - Updated `app/api/admin/crm/whatsapp/qr-bridge/route.ts`
+      - own-bridge sessions without a verified stored phone now fail safe with empty chats/messages instead of showing foreign bridge data
+      - live `/status` phones are now checked against existing owners before being trusted; foreign phones trigger contamination cleanup instead of being re-saved
+
+2. **✅ Corrected Misleading QR Settings Copy About Bridge URL Uniqueness**
+   - **Problem**: the QR Settings UI said the bridge URL itself was unique per user even though the current production isolation model uses a shared bridge host plus per-user session isolation
+   - **Solution**:
+      - Updated `app/admin/crm/qr/components/SettingsTab.tsx`
+      - Bridge configuration copy now explains that the host is shared and session isolation is enforced server-side per account
+
 ### QR Session Contamination Hardening + Duplicate Connected-Phone Cleanup Guard (Session: March 14, 2026 — Phase 73) — Commit `4aeea024`
 
 1. **✅ Added Server-Side QR Identity Reconciliation So Tenants Cannot Keep Another User's Connected WhatsApp Number**

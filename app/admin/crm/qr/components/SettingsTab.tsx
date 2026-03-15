@@ -171,7 +171,7 @@ export function SettingsTab({
           </div>
           <div>
             <h3 className="text-sm font-bold text-gray-900">Bridge Configuration</h3>
-            <p className="text-xs text-gray-500">Your unique WhatsApp bridge connection — auto-configured per user</p>
+            <p className="text-xs text-gray-500">Auto-configured bridge host with per-user session isolation</p>
           </div>
         </div>
         <div className="p-6 space-y-4">
@@ -179,7 +179,7 @@ export function SettingsTab({
           {bridgeUrlInput && bridgeSecretInput && (
             <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
               <Check className="w-4 h-4 text-green-600" />
-              <p className="text-xs text-green-700"><strong>Auto-configured</strong> — Your bridge URL and secret are unique to your account. Each user has an isolated WhatsApp session.</p>
+              <p className="text-xs text-green-700"><strong>Auto-configured</strong> — The bridge host is shared, but your session isolation and secret are tied to your account.</p>
             </div>
           )}
           <div className="grid md:grid-cols-2 gap-4">
@@ -192,7 +192,7 @@ export function SettingsTab({
                 readOnly
                 className="w-full px-3 py-2.5 border rounded-lg text-sm bg-gray-50 text-gray-600 outline-none cursor-default"
               />
-              <p className="text-[10px] text-gray-400 mt-1">Auto-assigned from your unique tenant ID — managed by the system</p>
+              <p className="text-[10px] text-gray-400 mt-1">Shared bridge host; your tenant isolation is enforced server-side by your account session.</p>
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1.5">Bridge Secret <span className="text-green-600 font-normal">(unique)</span></label>
