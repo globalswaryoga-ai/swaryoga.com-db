@@ -172,7 +172,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
-### QR Unverified Own-Bridge Leak Fail-Safe + Settings Copy Correction (Session: March 15, 2026 — Phase 74) — Commit `ae009c29`
+### QR Unverified Own-Bridge Leak Fail-Safe + Settings Copy Correction (Session: March 15, 2026 — Phase 74) — Commit `37835339`
 
 1. **✅ Blocked Own-Bridge Users From Seeing Raw Bridge Chats Before Their QR Session Phone Is Safely Verified**
    - **Problem**: after contaminated QR state was cleared, a tenant with blank `qrConnectedPhoneNumber` could still receive raw live `/chats` data from the bridge before a safe phone identity was re-established
