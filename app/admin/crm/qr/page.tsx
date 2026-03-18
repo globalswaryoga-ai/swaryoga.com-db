@@ -193,6 +193,51 @@ function extractConnectedPhoneDigits(status: BridgeStatus | null): string {
   return '';
 }
 
+function parseBooleanLike(value: unknown): boolean | null {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (['true', '1', 'yes'].includes(normalized)) return true;
+    if (['false', '0', 'no'].includes(normalized)) return false;
+  }
+  return null;
+}
+
+function extractMessageJidDigits(value: unknown): string {
+  return String(value || '').split(':')[0].split('@')[0].replace(/\D/g, '');
+}
+
+function resolveMessageFromMe(rawMessage: any, chatJid: string, connectedPhoneNumber: string): boolean {
+  const explicitFromMe = parseBooleanLike(rawMessage?.fromMe);
+  if (explicitFromMe !== null) return explicitFromMe;
+
+  const keyFromMe = parseBooleanLike(rawMessage?.key?.fromMe);
+  if (keyFromMe !== null) return keyFromMe;
+
+  const ownDigits = extractMessageJidDigits(connectedPhoneNumber);
+  const chatDigits = extractMessageJidDigits(chatJid);
+  const senderDigits = [
+    rawMessage?.participant,
+    rawMessage?.author,
+    rawMessage?.from,
+    rawMessage?.key?.participant,
+    rawMessage?.key?.remoteJid,
+  ]
+    .map(extractMessageJidDigits)
+    .find(Boolean) || '';
+
+  if (senderDigits && ownDigits && senderDigits === ownDigits) {
+    return true;
+  }
+
+  if (senderDigits && chatDigits && senderDigits === chatDigits) {
+    return false;
+  }
+
+  return false;
+}
+
 export default function QRWhatsAppPage() {
   const token = useAuth();
   const router = useRouter();
@@ -981,7 +1026,7 @@ export default function QRWhatsAppPage() {
         const mapped = data.messages.map((m: any) => ({
           id: m.id || m.key?.id || '',
           from: m.from || m.author || m.key?.participant || m.key?.remoteJid || '',
-          fromMe: m.fromMe ?? m.key?.fromMe ?? false,
+          fromMe: resolveMessageFromMe(m, jid, connectedPhoneNumber || savedPhoneRef.current || ''),
           text: m.text || m.body || '',
           type: m.type || 'text',
           timestamp: m.timestamp || 0,
@@ -1013,7 +1058,7 @@ export default function QRWhatsAppPage() {
     } catch (e) {
       console.error('Failed to fetch messages:', e);
     }
-  }, [bridgeCall]);
+  }, [bridgeCall, connectedPhoneNumber]);
 
   // ── Auto-refresh messages every 8s for active conversation (paused when tab hidden) ──
   const msgPollRef = useRef<NodeJS.Timeout | null>(null);

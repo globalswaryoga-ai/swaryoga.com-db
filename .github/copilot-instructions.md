@@ -172,6 +172,18 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### QR Message Left/Right Direction Normalization (Session: March 18, 2026 — Phase 78) — Commit `[pending]`
+
+1. **✅ Normalized QR `fromMe` Mapping So Incoming and Outgoing Messages Render on the Correct Side**
+   - **Problem**: QR message bubbles could appear on only one side because the page relied too narrowly on raw `fromMe` values from the bridge when deciding left vs right alignment
+   - **Root Cause**:
+      - some bridge payloads can express `fromMe` in inconsistent shapes (`boolean`, string-like values, nested key values, or sender JID-only cases)
+      - `app/admin/crm/qr/page.tsx` used a direct nullish fallback that did not normalize these variants before rendering
+   - **Solution**:
+      - Updated `app/admin/crm/qr/page.tsx`
+      - added boolean-like normalization plus sender/connected-phone fallback logic when mapping bridge messages into `MessageItem`
+      - this ensures incoming messages render left and outgoing messages render right more reliably across QR bridge payload shapes
+
 ### QR Inbox Session-Changed Empty List Fix (Session: March 18, 2026 — Phase 77) — Commit `10f24187`
 
 1. **✅ Stopped the QR Inbox From Throwing Away Valid Current-Session Chats After a Number Change**
