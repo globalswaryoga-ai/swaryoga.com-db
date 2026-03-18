@@ -847,11 +847,10 @@ export default function QRWhatsAppPage() {
         throw bridgeErr;
       }
 
-      // ── SESSION CHANGED: server detected phone change, chats cleared ──
+      // ── SESSION CHANGED: server may have filtered out stale old-session chats ──
+      // Keep rendering the returned current-session chats instead of blanking the inbox.
       if (data?.sessionChanged) {
-        console.log('[QR] Session changed detected — chats cleared by server. Reload to see new chats.');
-        setChats([]);
-        return;
+        console.log('[QR] Session changed detected — rendering only current-session chats from the server response.');
       }
 
       if (data?.chats) {
