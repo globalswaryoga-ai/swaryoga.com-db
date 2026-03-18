@@ -172,7 +172,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
-### QR Media Download Session-Header Fix (Session: March 18, 2026 — Phase 84) — Commit `[pending]`
+### QR Media Download Session-Header Fix (Session: March 18, 2026 — Phase 84) — Commit `f7c49aba`
 
 1. **✅ Fixed QR Manual Media Downloads to Use the Same Isolated Session Headers as Live QR Send/Inbox Requests**
    - **Problem**: users could click a QR media download and get `Failed to download media: Bridge error: 404` even while the active QR session itself was connected correctly
