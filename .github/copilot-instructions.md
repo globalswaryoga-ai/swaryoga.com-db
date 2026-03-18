@@ -172,7 +172,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
-### QR Current-Session Group Discovery + Inline Incoming Media Fallback (Session: March 18, 2026 — Phase 85) — Commit `[pending]`
+### QR Current-Session Group Discovery + Inline Incoming Media Fallback (Session: March 18, 2026 — Phase 85) — Commit `e7781484`
 
 1. **✅ Restored Current-Session Group Visibility Without Reintroducing Old Chat History Pollution**
    - **Problem**: after the stricter QR chat cleanup, users could miss groups that had no recent visible chat row, which blocked opening the group just to send a fresh message
