@@ -172,7 +172,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
-### QR Inbox Session-Changed Empty List Fix (Session: March 18, 2026 — Phase 77) — Commit `[pending]`
+### QR Inbox Session-Changed Empty List Fix (Session: March 18, 2026 — Phase 77) — Commit `10f24187`
 
 1. **✅ Stopped the QR Inbox From Throwing Away Valid Current-Session Chats After a Number Change**
    - **Problem**: after the connected-number fix, the QR header correctly showed the newly scanned number, but the inbox could still show `No chats yet`, no groups, and no incoming messages even while the bridge was returning thousands of valid chats for that live session
