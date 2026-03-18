@@ -2641,9 +2641,11 @@ export default function QRWhatsAppPage() {
                     const proxyUrl = msg.mediaUrl ? `/api/admin/crm/media/proxy?url=${encodeURIComponent(msg.mediaUrl)}&token=${encodeURIComponent(token || '')}` : null;
                     // Fallback URL: download directly from bridge via server-side proxy (manual action only)
                     const bridgeProxyUrl = (msg.hasMedia && msg.id) ? `/api/admin/crm/media/bridge-download?messageId=${encodeURIComponent(msg.id)}&token=${encodeURIComponent(token || '')}` : null;
-                    // Only auto-preview stable proxied media URLs.
-                    // Avoid auto-loading bridge-download inline, because missing bridge media IDs can create repeated 404/429 storms.
-                    const mediaDisplayUrl = proxyUrl && !failedInlineMediaIds.has(msg.id) ? proxyUrl : null;
+                    // Prefer stable CDN/proxied media, but fall back to live bridge media for current-session items
+                    // when no CDN URL exists. Failed IDs are memoized so missing historical blobs do not retry forever.
+                    const mediaDisplayUrl = !failedInlineMediaIds.has(msg.id)
+                      ? (proxyUrl || bridgeProxyUrl)
+                      : null;
                     const hasMediaPreview = mediaDisplayUrl && (isImage || isVideo || isAudio || isDocument);
                     const hasOnlyMedia = hasMediaPreview && !msg.text;
                     const reactionEntries = msg.reactions ? Object.entries(msg.reactions).filter(([, v]) => v) : [];

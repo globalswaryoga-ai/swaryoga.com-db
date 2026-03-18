@@ -1377,6 +1377,23 @@ app.get('/chats', async (req, res) => {
   const session = getSessionForRequest(req);
   try {
     const chats = Array.from(session.chatMap.values());
+
+    // Expose current-session group names even when a group has no recent visible chat row.
+    // This lets users open a known group and send a new message without reviving old chat history.
+    for (const [jid, subject] of session.groupSubjectCache.entries()) {
+      if (!jid || !jid.endsWith('@g.us')) continue;
+      if (session.chatMap.has(jid)) continue;
+      chats.push({
+        id: jid,
+        name: subject || jid.split('@')[0],
+        isGroup: true,
+        unreadCount: 0,
+        lastMessageTime: null,
+        lastMessage: '',
+        syntheticGroup: true,
+      });
+    }
+
     for (const chat of chats) {
       if (chat.isGroup && (/^\d+$/.test(chat.name) || chat.name.includes('@'))) {
         const subject = session.groupSubjectCache.get(chat.id);

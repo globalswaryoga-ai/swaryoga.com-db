@@ -172,6 +172,22 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### QR Current-Session Group Discovery + Inline Incoming Media Fallback (Session: March 18, 2026 — Phase 85) — Commit `[pending]`
+
+1. **✅ Restored Current-Session Group Visibility Without Reintroducing Old Chat History Pollution**
+   - **Problem**: after the stricter QR chat cleanup, users could miss groups that had no recent visible chat row, which blocked opening the group just to send a fresh message
+   - **Solution**:
+      - Updated `deploy/wa-baileys/index.js`
+      - `/chats` now appends lightweight group placeholders from the live `groupFetchAllParticipating()` cache when the current WhatsApp session knows the group name but there is no active chat row yet
+      - these rows include only the live current-session group identity/name, not old chat history hydration
+
+2. **✅ Incoming QR Images Now Fallback to Inline Bridge Preview When No CDN Media URL Exists**
+   - **Problem**: outbound image sends could render correctly through CDN/proxy URLs, but some incoming live-session images still degraded to a manual download tile because `msg.mediaUrl` was not yet available
+   - **Solution**:
+      - Updated `app/admin/crm/qr/page.tsx`
+      - inline media rendering now prefers CDN/proxy media when available, and otherwise falls back to the session-aware `bridge-download` URL
+      - failed inline media IDs are still memoized so truly missing historical blobs do not retry forever
+
 ### QR Media Download Session-Header Fix (Session: March 18, 2026 — Phase 84) — Commit `f7c49aba`
 
 1. **✅ Fixed QR Manual Media Downloads to Use the Same Isolated Session Headers as Live QR Send/Inbox Requests**
