@@ -172,6 +172,26 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### CRM SaaS Tenant Access Build Unblock (Session: March 18, 2026 — Phase 81) — Commit `82a7a79b`
+
+1. **✅ Restored the Missing Shared Tenant Access Helper Required by CRM SaaS Routes**
+   - **Problem**: the Phase 80 deploy failed on Vercel because several `/api/crm-site/*` routes already imported `@/lib/crm-site/tenantAccess`, but that shared helper file was not present in the pushed code
+   - **Solution**:
+      - Added `lib/crm-site/tenantAccess.ts`
+      - the helper now centralizes tenant resolution from the authenticated CRM admin, rejects mismatched client-supplied tenant slugs, and returns the resolved tenant context for route handlers
+
+2. **✅ Aligned CRM Login/Auth Types With the Shared Tenant Resolver**
+   - **Solution**:
+      - Updated `lib/auth.ts`
+      - Updated `app/api/crm-site/login/route.ts`
+      - CRM JWT typing now includes `tenantSlug`, and CRM login tokens now persist tenant slug context so tenant-scoped SaaS APIs can resolve the logged-in tenant more reliably
+
+3. **✅ Verification**
+   - No editor/type errors in:
+      - `lib/crm-site/tenantAccess.ts`
+      - `lib/auth.ts`
+      - `app/api/crm-site/login/route.ts`
+
 ### CRM Users Plan Access Controls + Free Plan Lead Limit Refresh (Session: March 18, 2026 — Phase 80) — Commit `3d36bd67`
 
 1. **✅ Added a Super Admin "More Actions" Plan-Access Flow on the CRM Users Page**

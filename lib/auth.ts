@@ -10,6 +10,7 @@ export interface TokenPayload {
   userId?: string;
   email?: string;
   tenantId?: string;
+  tenantSlug?: string;
   // Admin JWTs use a different payload shape.
   isAdmin?: boolean;
   username?: string;

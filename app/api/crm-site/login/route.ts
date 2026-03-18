@@ -87,6 +87,7 @@ export async function POST(request: NextRequest) {
       name: user.name,
       role: user.role || 'admin',
       isAdmin: true, // CRM users are always admins
+      tenantSlug: user.tenantSlug || '',
     });
 
     // Update last login
