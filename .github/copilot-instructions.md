@@ -172,7 +172,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
-### QR Header Auto-Recognition for String Status Phones + Verified Session Persistence (Session: March 18, 2026 — Phase 76) — Commit `3eda8591`
+### QR Header Auto-Recognition for String Status Phones + Verified Session Persistence (Session: March 18, 2026 — Phase 76) — Commit `214a953a`
 
 1. **✅ Fixed QR Status Parsing So the Header Recognizes the Live Connected Number Even When the Bridge Returns `phone` as a String**
    - **Problem**: some QR sessions showed `QR session not verified yet` while the header could still display an older cached number because the live bridge returned `status.phone` as a plain string like `919309986820:83` instead of `{ id, name }`
