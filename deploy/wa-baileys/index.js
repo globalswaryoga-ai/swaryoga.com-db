@@ -2,10 +2,14 @@
  * Swar Yoga WhatsApp Bridge — Multi-User Baileys Edition
  * 
  * Supports up to 1000 independent WhatsApp sessions per bridge instance.
- * Each CRM user gets their own session identified by userId (x-user-id header).
+ * Each session is isolated by a production session key (preferably the 7-digit
+ * permanentTenantId sent via x-session-key / x-tenant-id), while the CRM app
+ * user stays available separately in x-user-id for auditing and webhooks.
  * Auth state per user stored in MongoDB with userId prefix.
  * 
- * Endpoints — all require x-bridge-secret header, x-user-id for session isolation:
+ * Endpoints — all require x-bridge-secret header.
+ * Session isolation prefers x-session-key (or x-tenant-id), while x-user-id
+ * remains the CRM owner identity for logs and webhook routing:
  *   GET  /health           — bridge health (no session needed)
  *   GET  /sessions         — list active sessions (admin)
  *   GET  /status           — user's connection status (auto-starts session)
@@ -82,8 +86,11 @@ async function getMongoClient() {
 // SESSION CLASS — each CRM user gets one
 // ═══════════════════════════════════════════════════════════════════════
 class UserSession {
-  constructor(userId) {
-    this.userId = userId;
+  constructor(sessionKey, ownerUserId = sessionKey, tenantId = null) {
+    this.userId = sessionKey;
+    this.sessionKey = sessionKey;
+    this.ownerUserId = ownerUserId || sessionKey;
+    this.tenantId = tenantId || null;
     this.sock = null;
     this.qrCode = null;
     this.qrBase64 = null;
@@ -175,11 +182,13 @@ function clearSessionRuntimeData(session) {
 }
 
 // ── Sessions Map ────────────────────────────────────────────────────────
-const sessions = new Map(); // userId -> UserSession
+const sessions = new Map(); // sessionKey -> UserSession
 
-function getOrCreateSession(userId) {
-  if (sessions.has(userId)) {
-    const s = sessions.get(userId);
+function getOrCreateSession(sessionKey, ownerUserId = sessionKey, tenantId = null) {
+  if (sessions.has(sessionKey)) {
+    const s = sessions.get(sessionKey);
+    if (ownerUserId) s.ownerUserId = ownerUserId;
+    if (tenantId) s.tenantId = tenantId;
     s.touch();
     return s;
   }
@@ -199,9 +208,9 @@ function getOrCreateSession(userId) {
       sessions.delete(oldestKey);
     }
   }
-  const session = new UserSession(userId);
-  sessions.set(userId, session);
-  console.log(`[SESSIONS] Created session for user: ${userId} (total: ${sessions.size})`);
+  const session = new UserSession(sessionKey, ownerUserId, tenantId);
+  sessions.set(sessionKey, session);
+  console.log(`[SESSIONS] Created session ${sessionKey} for owner ${ownerUserId} (total: ${sessions.size})`);
   return session;
 }
 
@@ -381,10 +390,10 @@ async function loadChatsFromDB(session) {
     // Only load messages that belong to this specific user
     // CRITICAL: Do NOT include legacy untagged messages for non-admin users
     // as that would leak the super admin's chat data to other users.
-    if (session.userId !== 'default') {
+    if (session.ownerUserId !== 'default') {
       filter.$or = [
-        { bridgeUserId: session.userId },
-        { ownerId: session.userId },
+        { bridgeUserId: session.ownerUserId },
+        { ownerId: session.ownerUserId },
       ];
     }
 
@@ -424,7 +433,9 @@ async function loadChatsFromDB(session) {
 async function forwardToWebhook(session, payload) {
   const url = `${WEBHOOK_URL}/api/whatsapp/qr/webhook`;
   // Tag payload with the bridge user so CRM can route it
-  payload.bridgeUserId = session.userId;
+  payload.bridgeUserId = session.ownerUserId || session.userId;
+  payload.bridgeSessionId = session.sessionKey || session.userId;
+  payload.bridgeTenantId = session.tenantId || null;
   try {
     const res = await fetch(url, {
       method: 'POST',
@@ -456,21 +467,22 @@ async function fetchMediaBuffer(url) {
 // ═══════════════════════════════════════════════════════════════════════
 // MONGODB AUTH STATE — per user (keys prefixed with userId)
 // ═══════════════════════════════════════════════════════════════════════
-async function useMongoDBAuthState(userId) {
+async function useMongoDBAuthState(sessionKey, ownerUserId = sessionKey) {
   const client = await getMongoClient();
   if (!client) {
-    console.log(`[${userId}][AUTH] No MongoDB — using file-based auth`);
-    const authDir = path.join(__dirname, '.auth', userId);
+    console.log(`[${ownerUserId}][AUTH] No MongoDB — using file-based auth for session ${sessionKey}`);
+    const authDir = path.join(__dirname, '.auth', sessionKey);
     if (!fs.existsSync(authDir)) fs.mkdirSync(authDir, { recursive: true });
     return useMultiFileAuthState(authDir);
   }
 
-  console.log(`[${userId}][AUTH] Using MongoDB-backed auth state`);
+  console.log(`[${ownerUserId}][AUTH] Using MongoDB-backed auth state for session ${sessionKey}`);
   const db = client.db(AUTH_DB_NAME);
   const collection = db.collection(AUTH_COLLECTION);
   await collection.createIndex({ key: 1 }, { unique: true }).catch(() => {});
 
-  const keyPrefix = `${userId}:`;
+  const keyPrefix = `${sessionKey}:`;
+  const legacyKeyPrefix = ownerUserId && ownerUserId !== sessionKey ? `${ownerUserId}:` : null;
 
   function convertBinaryToBuffer(obj) {
     if (!obj || typeof obj !== 'object') return obj;
@@ -487,7 +499,25 @@ async function useMongoDBAuthState(userId) {
   }
 
   const readData = async (key) => {
-    const doc = await collection.findOne({ key: `${keyPrefix}${key}` });
+    let doc = await collection.findOne({ key: `${keyPrefix}${key}` });
+    if (!doc?.value && legacyKeyPrefix) {
+      const legacyDoc = await collection.findOne({ key: `${legacyKeyPrefix}${key}` });
+      if (legacyDoc?.value) {
+        await collection.updateOne(
+          { key: `${keyPrefix}${key}` },
+          {
+            $set: {
+              key: `${keyPrefix}${key}`,
+              value: legacyDoc.value,
+              updatedAt: new Date(),
+              migratedFrom: `${legacyKeyPrefix}${key}`,
+            },
+          },
+          { upsert: true }
+        ).catch(() => {});
+        doc = legacyDoc;
+      }
+    }
     if (!doc?.value) return null;
     return convertBinaryToBuffer(doc.value);
   };
@@ -537,11 +567,11 @@ async function useMongoDBAuthState(userId) {
 // ═══════════════════════════════════════════════════════════════════════
 // START SOCKET — per user session
 // ═══════════════════════════════════════════════════════════════════════
-async function startSocket(userId) {
-  const session = getOrCreateSession(userId);
+async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null) {
+  const session = getOrCreateSession(sessionKey, ownerUserId, tenantId);
 
   if (session.isStarting) {
-    console.log(`[${userId}] startSocket() already running — skipping`);
+    console.log(`[${session.ownerUserId}] startSocket() already running for session ${session.sessionKey} — skipping`);
     return;
   }
   session.isStarting = true;
@@ -553,10 +583,10 @@ async function startSocket(userId) {
       session.sock = null;
     }
 
-    const { state, saveCreds: _saveCreds } = await useMongoDBAuthState(userId);
+    const { state, saveCreds: _saveCreds } = await useMongoDBAuthState(session.sessionKey, session.ownerUserId);
     const { version } = await fetchLatestBaileysVersion();
 
-    console.log(`[${userId}] Starting Baileys v${version.join('.')}`);
+    console.log(`[${session.ownerUserId}] Starting Baileys v${version.join('.')} for session ${session.sessionKey}`);
 
     const sock = makeWASocket({
       version,
@@ -579,7 +609,7 @@ async function startSocket(userId) {
         const client = await getMongoClient();
         if (client) {
           const col = client.db(AUTH_DB_NAME).collection(AUTH_COLLECTION);
-          const keyPrefix = `${userId}:`;
+          const keyPrefix = `${session.sessionKey}:`;
           await col.updateOne(
             { key: `${keyPrefix}creds` },
             { $set: { key: `${keyPrefix}creds`, value: session.sock.authState.creds, updatedAt: new Date() } },
@@ -599,7 +629,7 @@ async function startSocket(userId) {
         session.connectionState = 'connecting';
         session.lastQrTime = Date.now();
         session.retryCount = 0;
-        console.log(`[${userId}] New QR code generated — scan in WhatsApp app`);
+        console.log(`[${session.ownerUserId}] New QR code generated for session ${session.sessionKey} — scan in WhatsApp app`);
       }
 
       if (connection === 'open') {
@@ -611,17 +641,17 @@ async function startSocket(userId) {
         session.retryCount = 0;
         session.intentionalDisconnect = false;
         session.phoneInfo = sock.user || null;
-        console.log(`[${userId}] Connected as: ${sock.user?.id} ${sock.user?.name || ''}`);
+        console.log(`[${session.ownerUserId}] Connected session ${session.sessionKey} as: ${sock.user?.id} ${sock.user?.name || ''}`);
 
         session.startKeepalive();
 
         if (ENABLE_DB_CHAT_HYDRATION && session.chatMap.size === 0) {
-          loadChatsFromDB(session).catch(e => console.error(`[${userId}] DB-LOAD error:`, e.message));
+          loadChatsFromDB(session).catch(e => console.error(`[${session.ownerUserId}] DB-LOAD error:`, e.message));
         }
 
         setTimeout(() => {
           if (session.connectionState === 'connected') {
-            prefetchGroupNames(session).catch(e => console.error(`[${userId}] Groups prefetch error:`, e.message));
+            prefetchGroupNames(session).catch(e => console.error(`[${session.ownerUserId}] Groups prefetch error:`, e.message));
           }
         }, 30000);
       }
@@ -636,10 +666,10 @@ async function startSocket(userId) {
         const statusCode = lastDisconnect?.error?.output?.statusCode || lastDisconnect?.error?.statusCode;
         const reason = lastDisconnect?.error?.message || 'unknown';
 
-        console.log(`[${userId}] Disconnected: ${statusCode} (${reason})`);
+        console.log(`[${session.ownerUserId}] Disconnected session ${session.sessionKey}: ${statusCode} (${reason})`);
 
         if (session.intentionalDisconnect) {
-          console.log(`[${userId}] Intentional disconnect — not reconnecting`);
+          console.log(`[${session.ownerUserId}] Intentional disconnect — not reconnecting session ${session.sessionKey}`);
           return;
         }
 
@@ -655,7 +685,7 @@ async function startSocket(userId) {
           else session.retryCount = 0;
 
           if (session.retryCount > MAX_RETRIES) {
-            console.log(`[${userId}] Max retries reached — stopping`);
+            console.log(`[${session.ownerUserId}] Max retries reached for session ${session.sessionKey} — stopping`);
             session.connectionState = 'disconnected';
             return;
           }
@@ -667,29 +697,32 @@ async function startSocket(userId) {
           else if (isConnectionDrop) delay = 5000;
           else delay = Math.min(1000 * Math.pow(2, Math.min(session.retryCount - 1, 5)), 60000);
 
-          console.log(`[${userId}] Reconnect in ${delay}ms`);
+          console.log(`[${session.ownerUserId}] Reconnect session ${session.sessionKey} in ${delay}ms`);
           session.clearReconnectTimer();
-          session.reconnectTimer = setTimeout(() => { session.isStarting = false; startSocket(userId); }, delay);
+          session.reconnectTimer = setTimeout(() => { session.isStarting = false; startSocket(session.sessionKey, session.ownerUserId, session.tenantId); }, delay);
         } else if (statusCode === DisconnectReason.loggedOut) {
-          console.log(`[${userId}] Logged out — clearing auth`);
+          console.log(`[${session.ownerUserId}] Logged out session ${session.sessionKey} — clearing auth`);
           try {
             const client = await getMongoClient();
             if (client) {
-              const keyPrefix = `${userId}:`;
-              await client.db(AUTH_DB_NAME).collection(AUTH_COLLECTION).deleteMany({ key: { $regex: `^${keyPrefix}` } });
-              console.log(`[${userId}] Cleared MongoDB auth`);
+              const authPrefixes = [session.sessionKey];
+              if (session.ownerUserId && session.ownerUserId !== session.sessionKey) authPrefixes.push(session.ownerUserId);
+              await client.db(AUTH_DB_NAME).collection(AUTH_COLLECTION).deleteMany({
+                key: { $regex: `^(${authPrefixes.map(escapeRegex).join('|')}):` },
+              });
+              console.log(`[${session.ownerUserId}] Cleared MongoDB auth for session ${session.sessionKey}`);
             }
-          } catch (e) { console.error(`[${userId}] Auth clear failed:`, e.message); }
+          } catch (e) { console.error(`[${session.ownerUserId}] Auth clear failed:`, e.message); }
           session.retryCount = 0;
           session.clearReconnectTimer();
-          session.reconnectTimer = setTimeout(() => { session.isStarting = false; startSocket(userId); }, 5000);
+          session.reconnectTimer = setTimeout(() => { session.isStarting = false; startSocket(session.sessionKey, session.ownerUserId, session.tenantId); }, 5000);
         }
       }
     });
 
     // ── Credentials Update ───────────────────
     sock.ev.on('creds.update', async () => {
-      try { if (session.saveCreds) await session.saveCreds(); } catch (e) { console.error(`[${userId}] Creds save failed:`, e.message); }
+      try { if (session.saveCreds) await session.saveCreds(); } catch (e) { console.error(`[${session.ownerUserId}] Creds save failed:`, e.message); }
     });
 
     // ── Group Participants ────────────
@@ -951,7 +984,7 @@ async function startSocket(userId) {
             try {
               const buffer = await downloadMediaMessage(msg, 'buffer', {}, { logger, reuploadRequest: sock.updateMediaMessage });
               if (buffer) mediaBase64 = buffer.toString('base64');
-            } catch (e) { console.error(`[${userId}] Media download failed:`, e.message); }
+            } catch (e) { console.error(`[${session.ownerUserId}] Media download failed:`, e.message); }
           }
 
           // Build webhook payload
@@ -972,7 +1005,7 @@ async function startSocket(userId) {
             webhookPayload.mediaMimeType = mediaInfo.mimetype;
           }
 
-          console.log(`[${userId}] ${isFromMe ? '→' : '←'} ${from}: ${text?.substring(0, 60) || `[${mediaInfo?.kind || 'no-text'}]`}`);
+          console.log(`[${session.ownerUserId}] ${isFromMe ? '→' : '←'} ${from}: ${text?.substring(0, 60) || `[${mediaInfo?.kind || 'no-text'}]`}`);
 
           // Track in memory
           const ts = typeof msg.messageTimestamp === 'number'
@@ -1053,17 +1086,17 @@ async function startSocket(userId) {
           forwardToWebhook(session, webhookPayload).then(mediaUrl => {
             if (mediaUrl) msgEntry.mediaUrl = mediaUrl;
           });
-        } catch (e) { console.error(`[${userId}] Message error:`, e.message); }
+        } catch (e) { console.error(`[${session.ownerUserId}] Message error:`, e.message); }
       }
     });
 
   } catch (err) {
-    console.error(`[${userId}] startSocket error:`, err.message);
+    console.error(`[${session.ownerUserId}] startSocket error for session ${session.sessionKey}:`, err.message);
     if (!session.intentionalDisconnect) {
       session.retryCount++;
       const delay = Math.min(session.retryCount * 3000, 30000);
       session.clearReconnectTimer();
-      session.reconnectTimer = setTimeout(() => { session.isStarting = false; startSocket(userId); }, delay);
+      session.reconnectTimer = setTimeout(() => { session.isStarting = false; startSocket(session.sessionKey, session.ownerUserId, session.tenantId); }, delay);
     }
   } finally {
     session.isStarting = false;
@@ -1087,11 +1120,31 @@ function authCheck(req, res, next) {
 }
 app.use(authCheck);
 
-// Extract userId from x-user-id header (set by proxy)
+// Extract CRM owner userId plus production session key from headers (set by proxy)
 app.use((req, res, next) => {
   req.userId = req.headers['x-user-id'] || 'default';
+  req.tenantId = req.headers['x-tenant-id'] || '';
+  req.sessionKey = req.headers['x-session-key'] || req.tenantId || req.userId;
   next();
 });
+
+function getSessionForRequest(req) {
+  return getOrCreateSession(req.sessionKey || req.userId, req.userId, req.tenantId || null);
+}
+
+function startSessionForRequest(req) {
+  return startSocket(req.sessionKey || req.userId, req.userId, req.tenantId || null);
+}
+
+function escapeRegex(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function getAuthPrefixesForRequest(req) {
+  const prefixes = [req.sessionKey || req.userId];
+  if (req.userId && req.userId !== req.sessionKey) prefixes.push(req.userId);
+  return Array.from(new Set(prefixes.filter(Boolean)));
+}
 
 // ── Health (no session needed) ──────────────────────────────────────────
 app.get('/health', (req, res) => {
@@ -1108,7 +1161,9 @@ app.get('/sessions', (req, res) => {
   const list = [];
   for (const [uid, s] of sessions) {
     list.push({
-      userId: uid,
+      userId: s.ownerUserId || uid,
+      sessionKey: uid,
+      tenantId: s.tenantId || null,
       status: s.connectionState,
       phone: s.phoneInfo ? { id: s.phoneInfo.id?.split(':')[0], name: s.phoneInfo.name } : null,
       chats: s.chatMap.size,
@@ -1121,11 +1176,11 @@ app.get('/sessions', (req, res) => {
 
 // ── Status (auto-starts session) ────────────────────────────────────────
 app.get('/status', async (req, res) => {
-  const session = getOrCreateSession(req.userId);
+  const session = getSessionForRequest(req);
 
   // Auto-start socket if session hasn't been started yet
   if (!session.sock && !session.isStarting && !session.intentionalDisconnect) {
-    startSocket(req.userId).catch(e => console.error(`[${req.userId}] Auto-start failed:`, e.message));
+    startSessionForRequest(req).catch(e => console.error(`[${req.userId}] Auto-start failed:`, e.message));
     // Give it a moment to initialize
     await new Promise(r => setTimeout(r, 1500));
   }
@@ -1150,11 +1205,11 @@ app.get('/status', async (req, res) => {
 
 // ── QR Code (auto-starts session) ───────────────────────────────────────
 app.get('/qr', async (req, res) => {
-  const session = getOrCreateSession(req.userId);
+  const session = getSessionForRequest(req);
 
   // Auto-start if needed
   if (!session.sock && !session.isStarting && !session.intentionalDisconnect) {
-    startSocket(req.userId).catch(e => console.error(`[${req.userId}] Auto-start failed:`, e.message));
+    startSessionForRequest(req).catch(e => console.error(`[${req.userId}] Auto-start failed:`, e.message));
     await new Promise(r => setTimeout(r, 2000));
   }
 
@@ -1174,7 +1229,7 @@ app.get('/qr', async (req, res) => {
 
 // ── Send Message ────────────────────────────────────────────────────────
 app.post('/send', async (req, res) => {
-  const session = getOrCreateSession(req.userId);
+  const session = getSessionForRequest(req);
   if (session.connectionState !== 'connected') {
     return res.status(503).json({ error: 'WhatsApp not connected', status: session.connectionState });
   }
@@ -1238,7 +1293,7 @@ app.post('/send', async (req, res) => {
 
 // ── Profile Picture ─────────────────────────────────────────────────────
 app.get('/profile-pic/:jid', async (req, res) => {
-  const session = getOrCreateSession(req.userId);
+  const session = getSessionForRequest(req);
   if (!session.sock || session.connectionState !== 'connected') return res.json({ url: null, error: 'not_connected' });
   let jid = req.params.jid;
   if (!jid.includes('@')) jid = `${jid}@s.whatsapp.net`;
@@ -1253,7 +1308,7 @@ app.get('/profile-pic/:jid', async (req, res) => {
 
 // ── Group Info ───────────────────────────────────────────────────────────
 app.get('/group-info/:jid', async (req, res) => {
-  const session = getOrCreateSession(req.userId);
+  const session = getSessionForRequest(req);
   if (!session.sock || session.connectionState !== 'connected') return res.status(503).json({ error: 'Not connected' });
   const jid = req.params.jid;
   if (!jid.endsWith('@g.us')) return res.status(400).json({ error: 'Not a group JID' });
@@ -1285,7 +1340,7 @@ app.get('/group-info/:jid', async (req, res) => {
 
 // ── LID Map ──────────────────────────────────────────────────────────────
 app.get('/lid-map', (req, res) => {
-  const session = getOrCreateSession(req.userId);
+  const session = getSessionForRequest(req);
   const map = {};
   for (const [lid, phone] of session.lidToPhoneMap) map[lid] = phone;
   res.json({ entries: session.lidToPhoneMap.size, map, contactsCacheSize: session.contactsCache.size });
@@ -1293,7 +1348,7 @@ app.get('/lid-map', (req, res) => {
 
 // ── Mark as Read ─────────────────────────────────────────────────────────
 app.post('/read/:jid', async (req, res) => {
-  const session = getOrCreateSession(req.userId);
+  const session = getSessionForRequest(req);
   try {
     const jid = req.params.jid.includes('@') ? req.params.jid : `${req.params.jid}@s.whatsapp.net`;
     const jidsToRead = [jid];
@@ -1319,7 +1374,7 @@ app.post('/read/:jid', async (req, res) => {
 
 // ── Chats List ───────────────────────────────────────────────────────────
 app.get('/chats', async (req, res) => {
-  const session = getOrCreateSession(req.userId);
+  const session = getSessionForRequest(req);
   try {
     const chats = Array.from(session.chatMap.values());
     for (const chat of chats) {
@@ -1405,7 +1460,7 @@ app.get('/chats', async (req, res) => {
 
 // ── Messages ─────────────────────────────────────────────────────────────
 app.get('/messages/:jid', async (req, res) => {
-  const session = getOrCreateSession(req.userId);
+  const session = getSessionForRequest(req);
   try {
     const jid = req.params.jid.includes('@') ? req.params.jid : `${req.params.jid}@s.whatsapp.net`;
     const limit = parseInt(req.query.limit || '50', 10);
@@ -1416,7 +1471,7 @@ app.get('/messages/:jid', async (req, res) => {
 
 // ── Presence (subscribe + get) ───────────────────────────────────────────
 app.post('/presence/subscribe/:jid', async (req, res) => {
-  const session = getOrCreateSession(req.userId);
+  const session = getSessionForRequest(req);
   try {
     if (!session.sock || session.connectionState !== 'connected') {
       return res.json({ ok: false, error: 'Not connected' });
@@ -1428,7 +1483,7 @@ app.post('/presence/subscribe/:jid', async (req, res) => {
 });
 
 app.get('/presence/:jid', (req, res) => {
-  const session = getOrCreateSession(req.userId);
+  const session = getSessionForRequest(req);
   try {
     const jid = req.params.jid.includes('@') ? req.params.jid : `${req.params.jid}@s.whatsapp.net`;
     const presence = session.presenceMap.get(jid);
@@ -1443,7 +1498,7 @@ app.get('/presence/:jid', (req, res) => {
 
 // ── Disconnect (preserve auth) ──────────────────────────────────────────
 app.post('/disconnect', async (req, res) => {
-  const session = getOrCreateSession(req.userId);
+  const session = getSessionForRequest(req);
   try {
     session.intentionalDisconnect = true;
     session.clearReconnectTimer();
@@ -1463,7 +1518,7 @@ app.post('/disconnect', async (req, res) => {
 
 // ── Logout (clear auth) ─────────────────────────────────────────────────
 app.post('/logout', async (req, res) => {
-  const session = getOrCreateSession(req.userId);
+  const session = getSessionForRequest(req);
   try {
     session.intentionalDisconnect = true;
     session.clearReconnectTimer();
@@ -1476,9 +1531,11 @@ app.post('/logout', async (req, res) => {
     try {
       const client = await getMongoClient();
       if (client) {
-        const keyPrefix = `${req.userId}:`;
-        await client.db(AUTH_DB_NAME).collection(AUTH_COLLECTION).deleteMany({ key: { $regex: `^${keyPrefix}` } });
-        console.log(`[${req.userId}] Cleared auth from MongoDB`);
+        const prefixes = getAuthPrefixesForRequest(req);
+        await client.db(AUTH_DB_NAME).collection(AUTH_COLLECTION).deleteMany({
+          key: { $regex: `^(${prefixes.map(escapeRegex).join('|')}):` },
+        });
+        console.log(`[${req.userId}] Cleared auth from MongoDB for prefixes: ${prefixes.join(', ')}`);
       }
     } catch (e) { console.error(`[${req.userId}] Auth clear failed:`, e.message); }
     session.connectionState = 'disconnected';
@@ -1493,7 +1550,7 @@ app.post('/logout', async (req, res) => {
 
 // ── Reconnect ────────────────────────────────────────────────────────────
 app.post('/reconnect', async (req, res) => {
-  const session = getOrCreateSession(req.userId);
+  const session = getSessionForRequest(req);
   try {
     session.intentionalDisconnect = false;
     session.clearReconnectTimer();
@@ -1508,14 +1565,14 @@ app.post('/reconnect', async (req, res) => {
     session.qrCode = null;
     session.qrBase64 = null;
     session.isStarting = false;
-    setTimeout(() => startSocket(req.userId), 500);
+    setTimeout(() => startSessionForRequest(req), 500);
     res.json({ ok: true, message: 'Reconnecting...' });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── Media Download ───────────────────────────────────────────────────────
 app.get('/media/:messageId', async (req, res) => {
-  const session = getOrCreateSession(req.userId);
+  const session = getSessionForRequest(req);
   try {
     const messageId = req.params.messageId;
     const msg = session.rawMessageCache.get(messageId);
@@ -1546,7 +1603,7 @@ app.get('/media/:messageId', async (req, res) => {
 
 // ── Group Admin Endpoints ────────────────────────────────────────────────
 app.post('/group-update-desc/:jid', async (req, res) => {
-  const session = getOrCreateSession(req.userId);
+  const session = getSessionForRequest(req);
   if (!session.sock || session.connectionState !== 'connected') return res.status(503).json({ error: 'Not connected' });
   const jid = req.params.jid;
   if (!jid.endsWith('@g.us')) return res.status(400).json({ error: 'Not a group JID' });
@@ -1557,7 +1614,7 @@ app.post('/group-update-desc/:jid', async (req, res) => {
 });
 
 app.post('/group-update-subject/:jid', async (req, res) => {
-  const session = getOrCreateSession(req.userId);
+  const session = getSessionForRequest(req);
   if (!session.sock || session.connectionState !== 'connected') return res.status(503).json({ error: 'Not connected' });
   const jid = req.params.jid;
   if (!jid.endsWith('@g.us')) return res.status(400).json({ error: 'Not a group JID' });
@@ -1568,7 +1625,7 @@ app.post('/group-update-subject/:jid', async (req, res) => {
 });
 
 app.get('/group-invite/:jid', async (req, res) => {
-  const session = getOrCreateSession(req.userId);
+  const session = getSessionForRequest(req);
   if (!session.sock || session.connectionState !== 'connected') return res.status(503).json({ error: 'Not connected' });
   const jid = req.params.jid;
   if (!jid.endsWith('@g.us')) return res.status(400).json({ error: 'Not a group JID' });
@@ -1577,7 +1634,7 @@ app.get('/group-invite/:jid', async (req, res) => {
 });
 
 app.post('/group-revoke-invite/:jid', async (req, res) => {
-  const session = getOrCreateSession(req.userId);
+  const session = getSessionForRequest(req);
   if (!session.sock || session.connectionState !== 'connected') return res.status(503).json({ error: 'Not connected' });
   const jid = req.params.jid;
   if (!jid.endsWith('@g.us')) return res.status(400).json({ error: 'Not a group JID' });
@@ -1586,7 +1643,7 @@ app.post('/group-revoke-invite/:jid', async (req, res) => {
 });
 
 app.post('/group-settings/:jid', async (req, res) => {
-  const session = getOrCreateSession(req.userId);
+  const session = getSessionForRequest(req);
   if (!session.sock || session.connectionState !== 'connected') return res.status(503).json({ error: 'Not connected' });
   const jid = req.params.jid;
   if (!jid.endsWith('@g.us')) return res.status(400).json({ error: 'Not a group JID' });
@@ -1597,7 +1654,7 @@ app.post('/group-settings/:jid', async (req, res) => {
 });
 
 app.post('/group-participants/:jid', async (req, res) => {
-  const session = getOrCreateSession(req.userId);
+  const session = getSessionForRequest(req);
   if (!session.sock || session.connectionState !== 'connected') return res.status(503).json({ error: 'Not connected' });
   const jid = req.params.jid;
   if (!jid.endsWith('@g.us')) return res.status(400).json({ error: 'Not a group JID' });
@@ -1615,7 +1672,7 @@ app.post('/group-participants/:jid', async (req, res) => {
 });
 
 app.post('/group-create', async (req, res) => {
-  const session = getOrCreateSession(req.userId);
+  const session = getSessionForRequest(req);
   if (!session.sock || session.connectionState !== 'connected') return res.status(503).json({ error: 'Not connected' });
   const { subject, participants } = req.body || {};
   if (!subject) return res.status(400).json({ error: 'Group subject required' });
@@ -1629,7 +1686,7 @@ app.post('/group-create', async (req, res) => {
 });
 
 app.post('/group-leave/:jid', async (req, res) => {
-  const session = getOrCreateSession(req.userId);
+  const session = getSessionForRequest(req);
   if (!session.sock || session.connectionState !== 'connected') return res.status(503).json({ error: 'Not connected' });
   const jid = req.params.jid;
   if (!jid.endsWith('@g.us')) return res.status(400).json({ error: 'Not a group JID' });
@@ -1643,7 +1700,7 @@ app.post('/group-leave/:jid', async (req, res) => {
 
 // ── Reply ────────────────────────────────────────────────────────────────
 app.post('/reply', async (req, res) => {
-  const session = getOrCreateSession(req.userId);
+  const session = getSessionForRequest(req);
   if (session.connectionState !== 'connected') return res.status(503).json({ error: 'Not connected' });
   const { to, message, quotedId, quotedParticipant } = req.body;
   if (!to || !message) return res.status(400).json({ error: 'to and message required' });
@@ -1666,7 +1723,7 @@ app.post('/reply', async (req, res) => {
 
 // ── React ────────────────────────────────────────────────────────────────
 app.post('/react', async (req, res) => {
-  const session = getOrCreateSession(req.userId);
+  const session = getSessionForRequest(req);
   if (session.connectionState !== 'connected') return res.status(503).json({ error: 'Not connected' });
   const { jid, messageId, emoji, participant } = req.body;
   if (!jid || !messageId) return res.status(400).json({ error: 'jid and messageId required' });
@@ -1678,7 +1735,7 @@ app.post('/react', async (req, res) => {
 
 // ── Delete Message ───────────────────────────────────────────────────────
 app.post('/delete-message', async (req, res) => {
-  const session = getOrCreateSession(req.userId);
+  const session = getSessionForRequest(req);
   if (session.connectionState !== 'connected') return res.status(503).json({ error: 'Not connected' });
   const { jid, messageId, participant, forEveryone } = req.body;
   if (!jid || !messageId) return res.status(400).json({ error: 'jid and messageId required' });
@@ -1694,7 +1751,7 @@ app.post('/delete-message', async (req, res) => {
 
 // ── Typing Indicator ─────────────────────────────────────────────────────
 app.post('/typing', async (req, res) => {
-  const session = getOrCreateSession(req.userId);
+  const session = getSessionForRequest(req);
   if (session.connectionState !== 'connected') return res.json({ ok: true });
   const { jid, composing } = req.body;
   if (!jid) return res.status(400).json({ error: 'jid required' });
@@ -1704,7 +1761,7 @@ app.post('/typing', async (req, res) => {
 
 // ── Contact About ────────────────────────────────────────────────────────
 app.get('/contact-about/:jid', async (req, res) => {
-  const session = getOrCreateSession(req.userId);
+  const session = getSessionForRequest(req);
   if (!session.sock || session.connectionState !== 'connected') return res.json({ about: '', setAt: null });
   const jid = req.params.jid.includes('@') ? req.params.jid : `${req.params.jid}@s.whatsapp.net`;
   try {
@@ -1715,7 +1772,7 @@ app.get('/contact-about/:jid', async (req, res) => {
 
 // ── Statuses ─────────────────────────────────────────────────────────────
 app.get('/statuses', (req, res) => {
-  const session = getOrCreateSession(req.userId);
+  const session = getSessionForRequest(req);
   try {
     const grouped = {};
     for (const s of session.statusStore) {

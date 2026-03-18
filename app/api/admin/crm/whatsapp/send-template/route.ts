@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { getLead, getWhatsAppMessage, getWhatsAppTemplate, getAnalyticsEvent } from '@/lib/schemas/enterpriseSchemas';
-import { buildCloudTemplateSendInput, normalizePhone, getPublicMediaUrl } from '@/lib/whatsapp';
+import { buildCloudTemplateSendInput, normalizePhone, sendWhatsAppTemplate } from '@/lib/whatsapp';
 import crypto from 'crypto';
 
 // Mark as dynamic since this route uses request.headers or request.url
@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
     // Build template input using shared helper
     const cloudInput = buildCloudTemplateSendInput(t, to);
 
-    // --- Build Meta API components DIRECTLY (no circuit breaker wrapper) ---
+    // --- Pre-validate rich header media before sending ---
     const headerFormat = String(t?.headerFormat || '').trim().toUpperCase();
     const needsHeaderMedia = headerFormat === 'IMAGE' || headerFormat === 'VIDEO';
     const rawHeaderUrl = String(t?.headerMedia?.url || t?.imageFile?.url || '').trim();
@@ -140,67 +140,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    const components: any[] = [];
-
-    // 1. Header component (image/video)
-    if (needsHeaderMedia && rawHeaderUrl) {
-      const signedUrl = await getPublicMediaUrl(rawHeaderUrl);
-      components.push({
-        type: 'header',
-        parameters: [{
-          type: headerFormat.toLowerCase(),
-          [headerFormat.toLowerCase()]: { link: signedUrl },
-        }],
-      });
-    }
-
-    // 2. Body parameters
-    if (Array.isArray(cloudInput.bodyParams) && cloudInput.bodyParams.length > 0) {
-      components.push({
-        type: 'body',
-        parameters: cloudInput.bodyParams.map((p: string) => ({ type: 'text', text: String(p || '') })),
-      });
-    }
-
-    // 3. Button components
-    if (Array.isArray(cloudInput.buttons)) {
-      cloudInput.buttons.forEach((btn: any, idx: number) => {
-        if (btn.kind === 'catalog') {
-          components.push({
-            type: 'button',
-            sub_type: 'CATALOG',
-            index: idx,
-            parameters: [],
-          });
-        } else if (btn.kind === 'url') {
-          const url = String(btn.url || '');
-          const needsParam = url.includes('{{') && url.includes('}}');
-          const param = needsParam ? url.replace(/.*\{\{\s*([^}]+)\s*\}\}.*/, '$1') : '';
-          const parameters = param ? [{ type: 'text', text: param }] : [];
-          components.push({
-            type: 'button',
-            sub_type: 'url',
-            index: String(idx),
-            ...(parameters.length ? { parameters } : {}),
-          });
-        }
-        // quick_reply buttons: Meta shows them automatically from template registration
-        // No runtime component needed
-      });
-    }
-
-    // Build the Meta API payload
-    const payload: any = {
-      messaging_product: 'whatsapp',
-      to,
-      type: 'template',
-      template: {
-        name: cloudInput.templateName,
-        language: { code: cloudInput.language || 'en' },
-        ...(components.length > 0 ? { components } : {}),
-      },
-    };
 
     // Create message record BEFORE sending
     const messageRecord = await WhatsAppMessage.create({
@@ -229,43 +168,15 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // --- DIRECT Meta API call (no circuit breaker, no retry wrapper) ---
+    // Use the same shared Meta send helper as the working bulk/broadcast flow
+    // so single-send and bulk-send cannot drift in payload structure.
     console.log(`[send-template:${requestId}] Sending to ${to} template: ${cloudInput.templateName}`);
-    console.log(`[send-template:${requestId}] Payload:`, JSON.stringify(payload, null, 2));
+    console.log(`[send-template:${requestId}] Cloud input:`, JSON.stringify(cloudInput, null, 2));
 
     try {
-      const appSecretProof = appSecret ? generateAppSecretProof(accessToken, appSecret) : '';
-      const url = `https://graph.facebook.com/v24.0/${phoneNumberId}/messages${appSecretProof ? `?appsecret_proof=${appSecretProof}` : ''}`;
-
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-        body: JSON.stringify(payload),
-        cache: 'no-store',
-      });
-
-      const data = await res.json().catch(() => ({}));
-      console.log(`[send-template:${requestId}] Meta response: ${res.status}`, JSON.stringify(data));
-
-      if (!res.ok) {
-        const errorMsg = data?.error?.message || data?.error?.error_user_msg || 'Meta API error';
-        console.error(`[send-template:${requestId}] Meta API error:`, errorMsg, JSON.stringify(data?.error));
-        await WhatsAppMessage.findByIdAndUpdate(messageRecord._id, {
-          status: 'failed',
-          failureReason: String(errorMsg).substring(0, 500),
-        });
-        return NextResponse.json({ 
-          success: false,
-          error: `Meta API: ${errorMsg}`,
-          metaError: data?.error,
-        }, { status: 400 });
-      }
-
-      const waMessageId = data?.messages?.[0]?.id;
+      const apiResult = await sendWhatsAppTemplate(cloudInput);
+      console.log(`[send-template:${requestId}] Meta helper response:`, JSON.stringify(apiResult?.raw || {}, null, 2));
+      const waMessageId = apiResult?.waMessageId;
       
       // Update message record to sent
       await WhatsAppMessage.findByIdAndUpdate(messageRecord._id, {

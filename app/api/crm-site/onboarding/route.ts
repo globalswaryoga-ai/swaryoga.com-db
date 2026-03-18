@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
-import { verifyToken } from '@/lib/auth';
+import { resolveCrmSiteTenantAccess } from '@/lib/crm-site/tenantAccess';
 import { 
   ONBOARDING_STEPS, 
   calculateOnboardingProgress, 
@@ -42,22 +42,15 @@ async function getOnboardingData(tenantSlug: string): Promise<OnboardingProgress
 
 export async function GET(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const token = authHeader.slice(7);
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
-    await connectDB();
-
-    // Get tenant slug from query or user's tenant
     const url = new URL(request.url);
-    const tenantSlug = url.searchParams.get('tenant') || (decoded as any).tenantSlug;
+    const access = await resolveCrmSiteTenantAccess(request, {
+      requestedTenantSlug: url.searchParams.get('tenant'),
+    });
+    if (access instanceof NextResponse) {
+      return access;
+    }
+
+    const tenantSlug = access.tenantSlug;
 
     if (!tenantSlug) {
       return NextResponse.json({ error: 'Tenant not found' }, { status: 400 });
@@ -83,22 +76,19 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const token = authHeader.slice(7);
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
     const body = await request.json();
-    const { tenantSlug, stepId, stepData, action } = body;
+    const access = await resolveCrmSiteTenantAccess(request, {
+      requestedTenantSlug: body?.tenantSlug,
+    });
+    if (access instanceof NextResponse) {
+      return access;
+    }
 
-    if (!tenantSlug || !stepId) {
-      return NextResponse.json({ error: 'tenantSlug and stepId required' }, { status: 400 });
+    const tenantSlug = access.tenantSlug;
+    const { stepId, stepData, action } = body;
+
+    if (!stepId) {
+      return NextResponse.json({ error: 'stepId required' }, { status: 400 });
     }
 
     await connectDB();

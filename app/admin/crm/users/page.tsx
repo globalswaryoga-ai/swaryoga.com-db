@@ -23,6 +23,15 @@ type CreateFormState = {
   role: string;
 };
 
+type EditFormState = {
+  _id: string;
+  userId: string;
+  name: string;
+  email: string;
+  password: string;
+  role: string;
+};
+
 const INITIAL_FORM: CreateFormState = {
   userId: '',
   name: '',
@@ -36,11 +45,14 @@ export default function CRMUsersPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [form, setForm] = useState<CreateFormState>(INITIAL_FORM);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [editingUser, setEditingUser] = useState<EditFormState | null>(null);
 
   useEffect(() => {
     setIsSuperAdmin(checkIsSuperAdmin());
@@ -109,11 +121,91 @@ export default function CRMUsersPage() {
       }
       setSuccess(data?.message || 'Admin user created successfully');
       setForm(INITIAL_FORM);
+      setShowCreateForm(false);
       await loadUsers();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create admin user');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const openEditModal = (user: AdminUser) => {
+    setSuccess(null);
+    setError(null);
+    setEditingUser({
+      _id: user._id,
+      userId: user.userId,
+      name: user.name || '',
+      email: user.email,
+      password: '',
+      role: user.role || 'admin',
+    });
+  };
+
+  const handleEditUser = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!token || !isSuperAdmin || !editingUser?._id) return;
+
+    try {
+      setSaving(true);
+      setError(null);
+      setSuccess(null);
+      const payload: Record<string, string> = {
+        userId: editingUser.userId.trim(),
+        name: editingUser.name.trim(),
+        email: editingUser.email.trim(),
+        role: editingUser.role,
+      };
+      if (editingUser.password.trim()) {
+        payload.password = editingUser.password;
+      }
+
+      const res = await fetch(`/api/admin/auth/users/${editingUser._id}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to update admin user');
+      }
+      setSuccess(data?.message || 'Admin user updated successfully');
+      setEditingUser(null);
+      await loadUsers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update admin user');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteUser = async (user: AdminUser) => {
+    if (!token || !isSuperAdmin) return;
+    const confirmed = window.confirm(`Delete admin user ${user.name || user.userId}? This cannot be undone.`);
+    if (!confirmed) return;
+
+    try {
+      setDeletingUserId(user._id);
+      setError(null);
+      setSuccess(null);
+      const res = await fetch(`/api/admin/auth/users/${user._id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to delete admin user');
+      }
+      setSuccess(data?.message || 'Admin user deleted successfully');
+      await loadUsers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete admin user');
+    } finally {
+      setDeletingUserId(null);
     }
   };
 
@@ -126,6 +218,18 @@ export default function CRMUsersPage() {
             <p className="text-gray-400 mt-2">Manage CRM admin accounts and quickly jump to unified profile tools.</p>
           </div>
           <div className="flex flex-wrap gap-3">
+            {isSuperAdmin && (
+              <button
+                onClick={() => {
+                  setShowCreateForm((prev) => !prev);
+                  setSuccess(null);
+                  setError(null);
+                }}
+                className="px-4 py-2.5 rounded-xl bg-green-500 hover:bg-green-400 text-white font-semibold border border-green-400/50 transition-all duration-300"
+              >
+                {showCreateForm ? '✕ Close Add Form' : '+ Add Admin'}
+              </button>
+            )}
             <Link
               href="/admin/crm/users/profile"
               className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold border border-indigo-400/50 transition-all duration-300"
@@ -154,7 +258,7 @@ export default function CRMUsersPage() {
           </div>
         )}
 
-        {isSuperAdmin && (
+        {isSuperAdmin && showCreateForm && (
           <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-6 shadow-xl">
             <h2 className="text-lg font-bold text-white mb-4">Create Admin User</h2>
             <form onSubmit={handleCreateUser} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
@@ -231,16 +335,19 @@ export default function CRMUsersPage() {
                   <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-green-400">Role</th>
                   <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-green-400">Permissions</th>
                   <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-green-400">Created</th>
+                  {isSuperAdmin && (
+                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-green-400">Actions</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-10 text-center text-gray-400">Loading admin users…</td>
+                    <td colSpan={isSuperAdmin ? 7 : 6} className="px-4 py-10 text-center text-gray-400">Loading admin users…</td>
                   </tr>
                 ) : filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-10 text-center text-gray-400">No admin users found.</td>
+                    <td colSpan={isSuperAdmin ? 7 : 6} className="px-4 py-10 text-center text-gray-400">No admin users found.</td>
                   </tr>
                 ) : (
                   filteredUsers.map((user, index) => (
@@ -255,6 +362,25 @@ export default function CRMUsersPage() {
                       </td>
                       <td className="px-4 py-4 text-gray-400 text-sm">{Array.isArray(user.permissions) && user.permissions.length ? user.permissions.join(', ') : '—'}</td>
                       <td className="px-4 py-4 text-gray-400 text-sm">{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : '—'}</td>
+                      {isSuperAdmin && (
+                        <td className="px-4 py-4">
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              onClick={() => openEditModal(user)}
+                              className="rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 px-3 py-1.5 text-xs font-semibold text-indigo-300 border border-indigo-400/30 transition-all duration-300"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteUser(user)}
+                              disabled={deletingUserId === user._id}
+                              className="rounded-lg bg-red-500/15 hover:bg-red-500/25 px-3 py-1.5 text-xs font-semibold text-red-300 border border-red-400/30 disabled:opacity-60 transition-all duration-300"
+                            >
+                              {deletingUserId === user._id ? 'Deleting…' : 'Delete'}
+                            </button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))
                 )}
@@ -262,6 +388,84 @@ export default function CRMUsersPage() {
             </table>
           </div>
         </div>
+
+        {editingUser && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setEditingUser(null)}>
+            <div className="w-full max-w-2xl rounded-2xl border border-white/10 bg-[#151515] p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+              <div className="mb-5 flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-bold text-white">Edit Admin User</h3>
+                  <p className="text-sm text-gray-400 mt-1">Update user details or reset the password if needed.</p>
+                </div>
+                <button
+                  onClick={() => setEditingUser(null)}
+                  className="rounded-lg bg-white/5 px-3 py-1.5 text-sm font-semibold text-gray-300 hover:bg-white/10 transition-all duration-300"
+                >
+                  Close
+                </button>
+              </div>
+
+              <form onSubmit={handleEditUser} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <input
+                  value={editingUser.userId}
+                  onChange={(e) => setEditingUser((prev) => prev ? { ...prev, userId: e.target.value } : prev)}
+                  placeholder="Username / userId"
+                  className="rounded-xl border border-white/20 bg-white/5 px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-green-400"
+                  required
+                />
+                <input
+                  value={editingUser.name}
+                  onChange={(e) => setEditingUser((prev) => prev ? { ...prev, name: e.target.value } : prev)}
+                  placeholder="Display name"
+                  className="rounded-xl border border-white/20 bg-white/5 px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-green-400"
+                />
+                <input
+                  type="email"
+                  value={editingUser.email}
+                  onChange={(e) => setEditingUser((prev) => prev ? { ...prev, email: e.target.value } : prev)}
+                  placeholder="Email"
+                  className="rounded-xl border border-white/20 bg-white/5 px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-green-400"
+                  required
+                />
+                <select
+                  value={editingUser.role}
+                  onChange={(e) => setEditingUser((prev) => prev ? { ...prev, role: e.target.value } : prev)}
+                  className="rounded-xl border border-white/20 bg-white/5 px-4 py-2.5 text-white focus:outline-none focus:border-green-400"
+                >
+                  <option value="admin" className="bg-[#1a1a1a]">Admin</option>
+                  <option value="manager" className="bg-[#1a1a1a]">Manager</option>
+                  <option value="dm" className="bg-[#1a1a1a]">DM</option>
+                  <option value="user" className="bg-[#1a1a1a]">User</option>
+                </select>
+                <div className="md:col-span-2">
+                  <input
+                    type="password"
+                    value={editingUser.password}
+                    onChange={(e) => setEditingUser((prev) => prev ? { ...prev, password: e.target.value } : prev)}
+                    placeholder="New password (leave blank to keep current password)"
+                    className="w-full rounded-xl border border-white/20 bg-white/5 px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-green-400"
+                  />
+                </div>
+                <div className="md:col-span-2 flex justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingUser(null)}
+                    className="rounded-xl bg-white/10 hover:bg-white/20 px-5 py-2.5 text-white font-semibold transition-all duration-300"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="rounded-xl bg-green-500 hover:bg-green-400 px-5 py-2.5 text-white font-bold disabled:opacity-60 transition-all duration-300"
+                  >
+                    {saving ? 'Saving…' : 'Save Changes'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

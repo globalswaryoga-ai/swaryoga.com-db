@@ -25,6 +25,21 @@ export type ChatbotSchedulerResult = {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+function getNodeInteractiveButtons(node: any): Array<{ id: string; title: string }> {
+  if (!Array.isArray(node?.options) || node.options.length === 0) {
+    return [];
+  }
+
+  if (node?.type !== 'buttons' && node?.type !== 'question') {
+    return [];
+  }
+
+  return node.options.slice(0, 3).map((option: any, index: number) => ({
+    id: `btn_${index}_${(option?.value || option?.label || index).toString().substring(0, 20)}`,
+    title: String(option?.label || option?.value || `Option ${index + 1}`).substring(0, 20),
+  }));
+}
+
 /**
  * Send a WhatsApp text message and log it to the database so it appears in Meta inbox
  */
@@ -160,11 +175,9 @@ async function processNode(lead: any, node: any, flow: any): Promise<{
       presenceDelay: node.presenceDelay || 1
     };
     
-    if (node.type === 'buttons' && node.options?.length > 0) {
-      result.interactiveButtons = node.options.slice(0, 3).map((o: any, i: number) => ({
-        id: `btn_${i}_${(o.value || o.label || i).toString().substring(0, 20)}`,
-        title: String(o.label || '').substring(0, 20)
-      }));
+    const interactiveButtons = getNodeInteractiveButtons(node);
+    if (interactiveButtons.length > 0) {
+      result.interactiveButtons = interactiveButtons;
     }
     
     return result;

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import { verifyToken } from '@/lib/auth';
 import { cashfreeCreateOrder } from '@/lib/payments/cashfree';
+import { resolveCrmSiteTenantAccess } from '@/lib/crm-site/tenantAccess';
 
 /**
  * GET /api/crm-site/addons/seats
@@ -22,30 +21,19 @@ const GST_RATE = 0.18;
 
 export async function GET(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const token = authHeader.slice(7);
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
-    await connectDB();
-
     const url = new URL(request.url);
-    const tenantSlug = url.searchParams.get('tenant') || (decoded as any).tenantSlug;
+    const access = await resolveCrmSiteTenantAccess(request, {
+      requestedTenantSlug: url.searchParams.get('tenant'),
+    });
+    if (access instanceof NextResponse) {
+      return access;
+    }
+
+    const { crmDb, tenant, tenantSlug } = access;
 
     if (!tenantSlug) {
       return NextResponse.json({ error: 'Tenant not found' }, { status: 400 });
     }
-
-    const mongoose = (await import('mongoose')).default;
-    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
-
-    const tenant = await crmDb.collection('crm_tenants').findOne({ slug: tenantSlug });
     
     // Get current extra seats
     const extraSeats = tenant?.addons?.extraSeats || 0;
@@ -90,34 +78,25 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const token = authHeader.slice(7);
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
     const body = await request.json();
-    const { tenantSlug, seats, billing = 'monthly', email, name, phone, includeGST = false } = body;
+    const access = await resolveCrmSiteTenantAccess(request, {
+      requestedTenantSlug: body?.tenantSlug,
+    });
+    if (access instanceof NextResponse) {
+      return access;
+    }
 
-    if (!tenantSlug || !seats || seats < 1) {
-      return NextResponse.json({ error: 'tenantSlug and seats (≥1) required' }, { status: 400 });
+    const { crmDb, tenant, tenantSlug } = access;
+    const { seats, billing = 'monthly', email, name, phone, includeGST = false } = body;
+
+    if (!seats || seats < 1) {
+      return NextResponse.json({ error: 'seats (≥1) required' }, { status: 400 });
     }
 
     if (seats > 50) {
       return NextResponse.json({ error: 'Maximum 50 seats per purchase. Contact support for more.' }, { status: 400 });
     }
 
-    await connectDB();
-
-    const mongoose = (await import('mongoose')).default;
-    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
-
-    const tenant = await crmDb.collection('crm_tenants').findOne({ slug: tenantSlug });
     if (!tenant) {
       return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
     }

@@ -172,6 +172,65 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### QR Isolation Enforcement for Every User + Shared Fallback Shutdown (Session: March 18, 2026 — Phase 83) — Commit `7a426eee`
+
+1. **✅ Enforced Isolated QR Sessions for Every CRM QR User Instead of Allowing Shared-Bridge Fallback Access**
+   - **Problem**: although production QR already used the 7-digit `permanentTenantId` as the live session key for tenant-owned users, some runtime routes could still fall back to the old shared-bridge access model when a user had no own bridge metadata
+   - **Risk**:
+      - this weakened the requirement that every QR user should have a separate scanner/session boundary
+      - shared fallback logic also kept old group-filter behavior alive for shared users, which could hide groups and complicate privacy guarantees
+   - **Solution**:
+      - Updated `app/api/admin/crm/whatsapp/qr-bridge/route.ts`
+      - Updated `app/api/admin/crm/whatsapp/qr/send/route.ts`
+      - Updated `app/api/admin/crm/whatsapp/qr/broadcast/route.ts`
+      - QR bridge/send/broadcast now require either:
+         - `permanentTenantId`-backed isolated session, or
+         - legacy custom `qrBridgeUrl`
+      - plain `qrWhatsappEnabled` no longer grants QR bridge access by itself
+
+2. **✅ Verified Current CRM User Records Already Have 7-Digit Tenant IDs Before Enforcing the Isolation Policy**
+   - Ran `scripts/ensure-all-users-have-tenant-ids.js`
+   - Result:
+      - total CRM users: `16`
+      - users already with `permanentTenantId`: `16`
+      - users needing IDs: `0`
+   - this made the policy tighten-up safe without stranding current users
+
+### Production QR 7-Digit Session Identity Rollout (Session: March 18, 2026 — Phase 82) — Commit `7a426eee`
+
+1. **✅ Switched Production QR Bridge Isolation to Use the 7-Digit `permanentTenantId` as the Live Session Key**
+   - **Problem**: tenant users already had unique 7-digit `permanentTenantId` values, but the live QR bridge still isolated sessions primarily by CRM `userId`, which weakened the intended tenant-session separation model
+   - **Solution**:
+      - Updated `app/api/admin/crm/whatsapp/qr-bridge/route.ts`
+      - Updated `app/api/admin/crm/whatsapp/qr/send/route.ts`
+      - Updated `app/api/admin/crm/whatsapp/qr/broadcast/route.ts`
+      - own-bridge / tenant-owned QR requests now send:
+         - `x-user-id` = CRM owner user ID (audit / lead ownership)
+         - `x-session-key` = 7-digit `permanentTenantId` (live bridge isolation)
+         - `x-tenant-id` = same 7-digit tenant ID for diagnostics / bridge context
+
+2. **✅ Updated the Production Baileys Bridge to Separate Session Identity From CRM Owner Identity**
+   - **Solution**:
+      - Updated `deploy/wa-baileys/index.js`
+      - the bridge now prefers `x-session-key` / `x-tenant-id` as the internal session key while preserving `x-user-id` as the CRM owner identity for webhook routing and DB ownership
+      - Mongo auth-state storage now uses the session key and can migrate legacy auth records from older `userId:` prefixes into the new session-key namespace automatically
+      - session diagnostics now show both the owner user and the live session key
+
+3. **✅ Scoped QR Frontend Browser Cache to the User/Tenant Session Identity**
+   - **Problem**: QR UI localStorage keys were generic (`crm_chatFunnels`, `crm_qrConnectedPhoneNumber`, etc.), so cached inbox/UI state could bleed across users in the same browser profile
+   - **Solution**:
+      - Updated `app/admin/crm/qr/page.tsx`
+      - QR browser cache now writes to scoped keys such as `crm_qr_<scope>_<key>`
+      - the scope now upgrades to the tenant's `permanentTenantId` when available, reducing cross-user cache contamination in production usage
+
+4. **✅ Verification**
+   - No editor/type errors in:
+      - `app/api/admin/crm/whatsapp/qr-bridge/route.ts`
+      - `app/api/admin/crm/whatsapp/qr/send/route.ts`
+      - `app/api/admin/crm/whatsapp/qr/broadcast/route.ts`
+      - `deploy/wa-baileys/index.js`
+      - `app/admin/crm/qr/page.tsx`
+
 ### CRM SaaS Tenant Access Build Unblock (Session: March 18, 2026 — Phase 81) — Commit `0c4e094e`
 
 1. **✅ Restored the Missing Shared Tenant Access Helper Required by CRM SaaS Routes**

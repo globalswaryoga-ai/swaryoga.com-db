@@ -4,8 +4,6 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import { verifyToken } from '@/lib/auth';
 import {
   TenantSetup,
   createDefaultSetup,
@@ -17,42 +15,24 @@ import {
   calculateSetupProgress,
   SETUP_SECTIONS_BY_PLAN,
 } from '@/lib/crm-site/tenantSetupConfig';
+import { resolveCrmSiteTenantAccess } from '@/lib/crm-site/tenantAccess';
 
 // GET - Get tenant setup data
 export async function GET(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const token = authHeader.slice(7);
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
     const { searchParams } = new URL(request.url);
-    const tenantSlug = searchParams.get('tenant') || (decoded as any).tenantSlug;
-
-    if (!tenantSlug) {
-      return NextResponse.json({ error: 'Tenant required' }, { status: 400 });
+    const access = await resolveCrmSiteTenantAccess(request, {
+      requestedTenantSlug: searchParams.get('tenant'),
+    });
+    if (access instanceof NextResponse) {
+      return access;
     }
 
-    await connectDB();
-    const mongoose = (await import('mongoose')).default;
-    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
-    
-    const tenantsCol = crmDb.collection('crm_tenants');
+    const { crmDb, tenant, tenantSlug } = access;
+
     const setupCol = crmDb.collection('tenant_setup');
 
-    // Get tenant info
-    const tenant = await tenantsCol.findOne({ slug: tenantSlug });
-    if (!tenant) {
-      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
-    }
-
-    const plan = tenant.subscription?.plan || 'free';
+    const plan = tenant.subscription?.plan || tenant.plan || 'free';
 
     // Get or create setup
     let setup = await setupCol.findOne({ tenantSlug });
@@ -83,38 +63,26 @@ export async function GET(request: NextRequest) {
 // POST - Update a specific section
 export async function POST(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const token = authHeader.slice(7);
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
     const body = await request.json();
-    const { tenantSlug, section, data, markComplete } = body;
-
-    if (!tenantSlug || !section) {
-      return NextResponse.json({ error: 'tenantSlug and section required' }, { status: 400 });
+    const access = await resolveCrmSiteTenantAccess(request, {
+      requestedTenantSlug: body?.tenantSlug,
+    });
+    if (access instanceof NextResponse) {
+      return access;
     }
 
-    await connectDB();
-    const mongoose = (await import('mongoose')).default;
-    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
-    
+    const { crmDb, tenant } = access;
+    const tenantSlug = access.tenantSlug;
+    const { section, data, markComplete } = body;
+
+    if (!section) {
+      return NextResponse.json({ error: 'section required' }, { status: 400 });
+    }
+
     const tenantsCol = crmDb.collection('crm_tenants');
     const setupCol = crmDb.collection('tenant_setup');
 
-    // Get tenant
-    const tenant = await tenantsCol.findOne({ slug: tenantSlug });
-    if (!tenant) {
-      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
-    }
-
-    const plan = tenant.subscription?.plan || 'free';
+    const plan = tenant.subscription?.plan || tenant.plan || 'free';
     const planConfig = SETUP_SECTIONS_BY_PLAN[plan] || SETUP_SECTIONS_BY_PLAN.free;
 
     // Check if section is available
@@ -294,25 +262,19 @@ export async function POST(request: NextRequest) {
 // PATCH - Test/verify integrations
 export async function PATCH(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const token = authHeader.slice(7);
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
     const body = await request.json();
-    const { tenantSlug, action, data } = body;
-
-    if (!tenantSlug || !action) {
-      return NextResponse.json({ error: 'tenantSlug and action required' }, { status: 400 });
+    const access = await resolveCrmSiteTenantAccess(request, {
+      requestedTenantSlug: body?.tenantSlug,
+    });
+    if (access instanceof NextResponse) {
+      return access;
     }
 
-    await connectDB();
+    const { action, data } = body;
+
+    if (!action) {
+      return NextResponse.json({ error: 'action required' }, { status: 400 });
+    }
 
     switch (action) {
       case 'test-whatsapp': {
@@ -443,34 +405,26 @@ export async function PATCH(request: NextRequest) {
 // DELETE - Reset a section
 export async function DELETE(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const token = authHeader.slice(7);
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
     const body = await request.json();
-    const { tenantSlug, section } = body;
-
-    if (!tenantSlug || !section) {
-      return NextResponse.json({ error: 'tenantSlug and section required' }, { status: 400 });
+    const access = await resolveCrmSiteTenantAccess(request, {
+      requestedTenantSlug: body?.tenantSlug,
+    });
+    if (access instanceof NextResponse) {
+      return access;
     }
 
-    await connectDB();
-    const mongoose = (await import('mongoose')).default;
-    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
-    
+    const { crmDb, tenant } = access;
+    const tenantSlug = access.tenantSlug;
+    const { section } = body;
+
+    if (!section) {
+      return NextResponse.json({ error: 'section required' }, { status: 400 });
+    }
+
     const setupCol = crmDb.collection('tenant_setup');
 
     // Reset section to default
-    const tenantsCol = crmDb.collection('crm_tenants');
-    const tenant = await tenantsCol.findOne({ slug: tenantSlug });
-    const plan = tenant?.subscription?.plan || 'free';
+    const plan = tenant?.subscription?.plan || tenant?.plan || 'free';
     const planConfig = SETUP_SECTIONS_BY_PLAN[plan] || SETUP_SECTIONS_BY_PLAN.free;
 
     const defaultSetup = createDefaultSetup(tenantSlug, plan);

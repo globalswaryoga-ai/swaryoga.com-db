@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import { verifyToken } from '@/lib/auth';
+import { resolveCrmSiteTenantAccess } from '@/lib/crm-site/tenantAccess';
 
 /**
  * GET /api/crm-site/branding
@@ -60,30 +59,19 @@ const DEFAULT_BRANDING: BrandingSettings = {
 
 export async function GET(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const token = authHeader.slice(7);
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
-    await connectDB();
-
     const url = new URL(request.url);
-    const tenantSlug = url.searchParams.get('tenant') || (decoded as any).tenantSlug;
+    const access = await resolveCrmSiteTenantAccess(request, {
+      requestedTenantSlug: url.searchParams.get('tenant'),
+    });
+    if (access instanceof NextResponse) {
+      return access;
+    }
+
+    const { crmDb, tenant, tenantSlug } = access;
 
     if (!tenantSlug) {
       return NextResponse.json({ error: 'Tenant not found' }, { status: 400 });
     }
-
-    const mongoose = (await import('mongoose')).default;
-    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
-
-    const tenant = await crmDb.collection('crm_tenants').findOne({ slug: tenantSlug });
 
     if (!tenant) {
       return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
@@ -112,31 +100,22 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const token = authHeader.slice(7);
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
     const body = await request.json();
-    const { tenantSlug, branding } = body;
-
-    if (!tenantSlug) {
-      return NextResponse.json({ error: 'tenantSlug required' }, { status: 400 });
+    const access = await resolveCrmSiteTenantAccess(request, {
+      requestedTenantSlug: body?.tenantSlug,
+    });
+    if (access instanceof NextResponse) {
+      return access;
     }
 
-    await connectDB();
+    const { crmDb, tenant, tenantSlug } = access;
+    const { branding } = body;
 
-    const mongoose = (await import('mongoose')).default;
-    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+    if (!branding) {
+      return NextResponse.json({ error: 'branding required' }, { status: 400 });
+    }
 
     // Check plan
-    const tenant = await crmDb.collection('crm_tenants').findOne({ slug: tenantSlug });
     if (!tenant) {
       return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
     }

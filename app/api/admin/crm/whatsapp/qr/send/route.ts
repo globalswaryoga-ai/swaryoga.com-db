@@ -6,10 +6,10 @@
  *
  * Access Control (role hierarchy):
  * ─────────────────────────────────────────────────────────────────
- * Super Admin      → Always allowed. Sends via shared bridge.
- * Super Admin Team → Allowed only if qrWhatsappEnabled=true in crm_user_settings.
- * CRM Admin        → Allowed (has own qrBridgeUrl in crm_user_settings).
- * CRM Admin Team   → Allowed only if qrWhatsappEnabled=true under tenant.
+ * Super Admin      → Allowed with isolated permanentTenantId session.
+ * Super Admin Team → Allowed with isolated permanentTenantId session.
+ * CRM Admin        → Allowed with isolated permanentTenantId/custom bridge session.
+ * CRM Admin Team   → Allowed with isolated permanentTenantId/custom bridge session.
  * Leads            → No CRM access.
  * ─────────────────────────────────────────────────────────────────
  *
@@ -22,7 +22,6 @@ import { getWhatsAppMessage, getLead, getCRMUserSettings } from '@/lib/schemas/e
 import { getViewerUserId, isSuperAdmin as checkSuperAdmin } from '@/lib/crm-handlers';
 import { getPublicMediaUrl } from '@/lib/whatsapp';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
-import mongoose from 'mongoose';
 
 // Use the same defaults/precedence as the QR bridge proxy. These are server-side routes,
 // so prefer server-only env vars and only fall back to NEXT_PUBLIC_* if needed.
@@ -40,6 +39,8 @@ async function resolveBridgeConfig(userId: string) {
     return {
       bridgeUrl: BRIDGE_URL,
       bridgeSecret: BRIDGE_SECRET,
+      bridgeSessionId: settings.permanentTenantId,
+      tenantId: settings.permanentTenantId,
       hasOwnBridge: true,
       qrWhatsappEnabled: !!settings.qrWhatsappEnabled,
     };
@@ -49,6 +50,8 @@ async function resolveBridgeConfig(userId: string) {
     return {
       bridgeUrl: settings.qrBridgeUrl,
       bridgeSecret: settings.qrBridgeSecret || BRIDGE_SECRET,
+      bridgeSessionId: userId,
+      tenantId: null,
       hasOwnBridge: true,
       qrWhatsappEnabled: !!settings.qrWhatsappEnabled,
     };
@@ -57,6 +60,8 @@ async function resolveBridgeConfig(userId: string) {
   return {
     bridgeUrl: BRIDGE_URL,
     bridgeSecret: BRIDGE_SECRET,
+    bridgeSessionId: userId,
+    tenantId: null,
     hasOwnBridge: false,
     qrWhatsappEnabled: !!settings?.qrWhatsappEnabled,
   };
@@ -80,42 +85,12 @@ export async function POST(req: NextRequest) {
     // Super admin shows as "Swar Yoga", others show their username
     const adminName = superAdmin ? 'Swar Yoga' : (decoded.name || decoded.username || viewerUserId);
 
-    // ── Access Gate (Super Admin Team / CRM Admin Team Protection) ──
-    // Non-Super-Admin users must have qrWhatsappEnabled=true or their own bridge.
-    // Without this, they would be sending from the Super Admin's WhatsApp illegitimately.
-    if (!superAdmin) {
-      if (!bridgeConfig.hasOwnBridge && !bridgeConfig.qrWhatsappEnabled) {
-        return NextResponse.json({
-          success: false,
-          error: 'Access denied. You need your own WhatsApp bridge configured to send QR messages.'
-        }, { status: 403 });
-      }
-
-      // Tenant owners with qrWhatsappEnabled must NOT use the shared bridge.
-      // They must configure their own bridge URL.
-      if (!bridgeConfig.hasOwnBridge && bridgeConfig.qrWhatsappEnabled) {
-        try {
-          const db = mongoose.connection.db;
-          if (db) {
-            const tenantDoc = await db.collection('tenants').findOne({
-              $or: [
-                { ownerUserId: viewerUserId },
-                { adminUserId: viewerUserId },
-                { ownerEmail: decoded.email || viewerUserId },
-              ],
-            }, { projection: { _id: 1 } });
-            if (tenantDoc) {
-              return NextResponse.json({
-                success: false,
-                error: 'Access denied. CRM tenants must configure their own WhatsApp bridge.'
-              }, { status: 403 });
-            }
-          }
-        } catch {
-          // Fail-safe: block on error
-          return NextResponse.json({ success: false, error: 'Bridge access check failed' }, { status: 500 });
-        }
-      }
+    // ── Access Gate (isolated session required for every QR user) ──
+    if (!bridgeConfig.hasOwnBridge) {
+      return NextResponse.json({
+        success: false,
+        error: 'Access denied. Every QR user needs an isolated WhatsApp session (permanentTenantId or custom bridge).'
+      }, { status: 403 });
     }
 
     // Validate and normalize `to` field
@@ -303,6 +278,8 @@ export async function POST(req: NextRequest) {
             'Content-Type': 'application/json',
             'x-bridge-secret': bridgeConfig.bridgeSecret,
             'x-user-id': viewerUserId,
+            'x-session-key': bridgeConfig.bridgeSessionId,
+            ...(bridgeConfig.tenantId ? { 'x-tenant-id': bridgeConfig.tenantId } : {}),
           },
           body: JSON.stringify({ 
             to,
@@ -328,6 +305,8 @@ export async function POST(req: NextRequest) {
             'Content-Type': 'application/json',
             'x-bridge-secret': bridgeConfig.bridgeSecret,
             'x-user-id': viewerUserId,
+            'x-session-key': bridgeConfig.bridgeSessionId,
+            ...(bridgeConfig.tenantId ? { 'x-tenant-id': bridgeConfig.tenantId } : {}),
           },
           body: JSON.stringify({ 
             to, 

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import { verifyToken } from '@/lib/auth';
 import crypto from 'crypto';
+import { resolveCrmSiteTenantAccess } from '@/lib/crm-site/tenantAccess';
 
 /**
  * GET /api/crm-site/api-keys
@@ -24,28 +23,19 @@ function hashApiKey(key: string): string {
 
 export async function GET(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const token = authHeader.slice(7);
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
-    await connectDB();
-
     const url = new URL(request.url);
-    const tenantSlug = url.searchParams.get('tenant') || (decoded as any).tenantSlug;
+    const access = await resolveCrmSiteTenantAccess(request, {
+      requestedTenantSlug: url.searchParams.get('tenant'),
+    });
+    if (access instanceof NextResponse) {
+      return access;
+    }
+
+    const { crmDb, tenantSlug } = access;
 
     if (!tenantSlug) {
       return NextResponse.json({ error: 'Tenant not found' }, { status: 400 });
     }
-
-    const mongoose = (await import('mongoose')).default;
-    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
 
     const apiKeys = await crmDb.collection('tenant_api_keys_v2').find(
       { tenantSlug, revokedAt: { $exists: false } }
@@ -76,31 +66,22 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const token = authHeader.slice(7);
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
     const body = await request.json();
-    const { tenantSlug, name, permissions = ['read'] } = body;
-
-    if (!tenantSlug || !name) {
-      return NextResponse.json({ error: 'tenantSlug and name required' }, { status: 400 });
+    const access = await resolveCrmSiteTenantAccess(request, {
+      requestedTenantSlug: body?.tenantSlug,
+    });
+    if (access instanceof NextResponse) {
+      return access;
     }
 
-    await connectDB();
+    const { crmDb, decoded, tenant, tenantSlug } = access;
+    const { name, permissions = ['read'] } = body;
 
-    const mongoose = (await import('mongoose')).default;
-    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+    if (!name) {
+      return NextResponse.json({ error: 'name required' }, { status: 400 });
+    }
 
     // Check tenant's plan for API key limits
-    const tenant = await crmDb.collection('crm_tenants').findOne({ slug: tenantSlug });
     const existingKeys = await crmDb.collection('tenant_api_keys_v2').countDocuments({
       tenantSlug,
       revokedAt: { $exists: false },
@@ -155,29 +136,23 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const token = authHeader.slice(7);
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
     const body = await request.json();
-    const { tenantSlug, keyId } = body;
-
-    if (!tenantSlug || !keyId) {
-      return NextResponse.json({ error: 'tenantSlug and keyId required' }, { status: 400 });
+    const access = await resolveCrmSiteTenantAccess(request, {
+      requestedTenantSlug: body?.tenantSlug,
+    });
+    if (access instanceof NextResponse) {
+      return access;
     }
 
-    await connectDB();
+    const { crmDb, decoded, tenantSlug } = access;
+    const { keyId } = body;
+
+    if (!keyId) {
+      return NextResponse.json({ error: 'keyId required' }, { status: 400 });
+    }
 
     const mongoose = (await import('mongoose')).default;
     const { ObjectId } = mongoose.Types;
-    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
 
     await crmDb.collection('tenant_api_keys_v2').updateOne(
       { _id: new ObjectId(keyId), tenantSlug },

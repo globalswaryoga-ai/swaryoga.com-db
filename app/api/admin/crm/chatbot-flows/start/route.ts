@@ -16,6 +16,21 @@ function applySpintax(text: string): string {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+function getNodeInteractiveButtons(node: any): Array<{ id: string; title: string }> {
+  if (!Array.isArray(node?.options) || node.options.length === 0) {
+    return [];
+  }
+
+  if (node?.type !== 'buttons' && node?.type !== 'question') {
+    return [];
+  }
+
+  return node.options.slice(0, 3).map((option: any, index: number) => ({
+    id: `btn_${index}_${(option?.value || option?.label || index).toString().substring(0, 20)}`,
+    title: String(option?.label || option?.value || `Option ${index + 1}`).substring(0, 20),
+  }));
+}
+
 /**
  * POST /api/admin/crm/chatbot-flows/start
  * 
@@ -251,11 +266,8 @@ export async function POST(request: NextRequest) {
 
     if (startNode.type === 'question' || startNode.type === 'buttons') {
       let text = startNode.messageText || startNode.questionText || '';
-      if (startNode.type === 'buttons' && startNode.options?.length > 0) {
-        const btns = startNode.options.slice(0, 3).map((o: any, i: number) => ({
-          id: `btn_${i}_${(o.value || o.label || i).toString().substring(0, 20)}`,
-          title: String(o.label || '').substring(0, 20)
-        }));
+      const btns = getNodeInteractiveButtons(startNode);
+      if (btns.length > 0) {
         const res = await sendAndLogInteractive(text || 'Please choose:', btns, {
           nodeId: startNodeId,
           presenceType: startNode.presenceType,
@@ -306,11 +318,8 @@ export async function POST(request: NextRequest) {
         // If it's a question/buttons/end node, send it and then wait
         if (nextNode.type === 'question' || nextNode.type === 'buttons') {
           let text = nextNode.messageText || nextNode.questionText || '';
-          if (nextNode.type === 'buttons' && nextNode.options?.length > 0) {
-            const btns = nextNode.options.slice(0, 3).map((o: any, i: number) => ({
-              id: `btn_${i}_${(o.value || o.label || i).toString().substring(0, 20)}`,
-              title: String(o.label || '').substring(0, 20)
-            }));
+          const btns = getNodeInteractiveButtons(nextNode);
+          if (btns.length > 0) {
             await sleep(1000);
             await sendAndLogInteractive(text || 'Please choose:', btns, { nodeId: nextNode.nodeId, presenceType: nextNode.presenceType, presenceDelay: nextNode.presenceDelay });
             sentMessages.push(text || '[Buttons]');

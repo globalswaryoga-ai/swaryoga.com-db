@@ -193,6 +193,48 @@ function extractConnectedPhoneDigits(status: BridgeStatus | null): string {
   return '';
 }
 
+function getInitialQrStorageScope(): string {
+  if (typeof window === 'undefined') return 'global';
+
+  try {
+    const rawUser = localStorage.getItem('adminUser') || localStorage.getItem('admin_user') || '';
+    if (rawUser) {
+      const parsed = JSON.parse(rawUser);
+      const scopedId = String(
+        parsed?.permanentTenantId ||
+        parsed?.tenantId ||
+        parsed?.userId ||
+        parsed?.email ||
+        'global'
+      ).trim();
+      if (scopedId) return scopedId;
+    }
+  } catch {}
+
+  return 'global';
+}
+
+function getScopedQrStorageKey(scope: string, key: string): string {
+  return `crm_qr_${scope || 'global'}_${key}`;
+}
+
+function readScopedQrStorage(scope: string, key: string, legacyKey?: string): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const scoped = localStorage.getItem(getScopedQrStorageKey(scope, key));
+    if (scoped !== null) return scoped;
+    if (legacyKey) return localStorage.getItem(legacyKey);
+  } catch {}
+  return null;
+}
+
+function writeScopedQrStorage(scope: string, key: string, value: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(getScopedQrStorageKey(scope, key), value);
+  } catch {}
+}
+
 function parseBooleanLike(value: unknown): boolean | null {
   if (typeof value === 'boolean') return value;
   if (typeof value === 'number') return value !== 0;
@@ -242,6 +284,7 @@ export default function QRWhatsAppPage() {
   const token = useAuth();
   const router = useRouter();
   const { fetch: crmFetch } = useCRM({ token });
+  const initialQrStorageScope = getInitialQrStorageScope();
 
   // ═════════════════════════════════════════════════════════════════════════════════
   // IMPORTANT: ALL HOOKS MUST BE DEFINED HERE, BEFORE ANY CONDITIONAL LOGIC
@@ -272,10 +315,18 @@ export default function QRWhatsAppPage() {
   const [showBulkLabel, setShowBulkLabel] = useState(false);
   const [chatFilter, setChatFilter] = useState<ChatFilter>('all');
   const [chatFunnels, setChatFunnels] = useState<Record<string, string>>(() => {
-    if (typeof window !== 'undefined') { try { const v = localStorage.getItem('crm_chatFunnels'); if (v) return JSON.parse(v); } catch {} } return {};
+    try {
+      const v = readScopedQrStorage(getInitialQrStorageScope(), 'chatFunnels', 'crm_chatFunnels');
+      if (v) return JSON.parse(v);
+    } catch {}
+    return {};
   });
   const [chatLabels, setChatLabels] = useState<Record<string, string[]>>(() => {
-    if (typeof window !== 'undefined') { try { const v = localStorage.getItem('crm_chatLabels'); if (v) return JSON.parse(v); } catch {} } return {};
+    try {
+      const v = readScopedQrStorage(getInitialQrStorageScope(), 'chatLabels', 'crm_chatLabels');
+      if (v) return JSON.parse(v);
+    } catch {}
+    return {};
   });
   const [funnelStages, setFunnelStages] = useState<FunnelStage[]>(DEFAULT_FUNNEL_STAGES);
   const [labelPresets, setLabelPresets] = useState<LabelPreset[]>(DEFAULT_LABEL_PRESETS);
@@ -317,6 +368,7 @@ export default function QRWhatsAppPage() {
   const [savingBridge, setSavingBridge] = useState(false);
   const [showBridgeSettings, setShowBridgeSettings] = useState(false);
   const [currentUserId, setCurrentUserId] = useState('');
+  const [qrStorageScope, setQrStorageScope] = useState(initialQrStorageScope);
   const [isSuperAdminUser, setIsSuperAdminUser] = useState(false);
   const [replyingTo, setReplyingTo] = useState<MessageItem | null>(null);
   const [reactingToMsg, setReactingToMsg] = useState<string | null>(null);
@@ -336,16 +388,24 @@ export default function QRWhatsAppPage() {
   const [mergeProgressText, setMergeProgressText] = useState('');
   const [mergeResult, setMergeResult] = useState<{ targetName: string; existingCount: number; newCount: number } | null>(null);
   const [pinnedChats, setPinnedChats] = useState<string[]>(() => {
-    if (typeof window !== 'undefined') { try { const v = localStorage.getItem('crm_pinnedChats'); if (v) return JSON.parse(v); } catch {} } return [];
+    try {
+      const v = readScopedQrStorage(getInitialQrStorageScope(), 'pinnedChats', 'crm_pinnedChats');
+      if (v) return JSON.parse(v);
+    } catch {}
+    return [];
   });
   const [sidebarWidth, setSidebarWidth] = useState(() => {
-    if (typeof window !== 'undefined') { try { const v = localStorage.getItem('crm_sidebarWidth'); if (v) return parseInt(v, 10); } catch {} } return 416;
+    try {
+      const v = readScopedQrStorage(getInitialQrStorageScope(), 'sidebarWidth', 'crm_sidebarWidth');
+      if (v) return parseInt(v, 10);
+    } catch {}
+    return 416;
   });
   const [senderDisplayName, setSenderDisplayName] = useState(() => {
-    if (typeof window !== 'undefined') { try { return localStorage.getItem('crm_senderDisplayName') || ''; } catch {} } return '';
+    return readScopedQrStorage(getInitialQrStorageScope(), 'senderDisplayName', 'crm_senderDisplayName') || '';
   });
   const [connectedPhoneNumber, setConnectedPhoneNumber] = useState(() => {
-    if (typeof window !== 'undefined') { try { return localStorage.getItem('crm_qrConnectedPhoneNumber') || ''; } catch {} } return '';
+    return readScopedQrStorage(getInitialQrStorageScope(), 'connectedPhoneNumber', 'crm_qrConnectedPhoneNumber') || '';
   });
   const [failedInlineMediaIds, setFailedInlineMediaIds] = useState<Set<string>>(new Set());
   const [isPageVisible, setIsPageVisible] = useState(true);
@@ -485,6 +545,8 @@ export default function QRWhatsAppPage() {
           const s = settingsRes.data || settingsRes;
 
           // Load QR-specific funnel stages
+          const nextStorageScope = String(s.permanentTenantId || resolvedUserId || initialQrStorageScope).trim() || initialQrStorageScope;
+          setQrStorageScope(nextStorageScope);
           if (s.qrFunnelStages?.length > 0) {
             const allStage: FunnelStage = { key: 'all', label: 'All', color: 'bg-gray-100 text-gray-700 border-gray-300' };
             const loaded: FunnelStage[] = s.qrFunnelStages
@@ -524,7 +586,7 @@ export default function QRWhatsAppPage() {
           setBridgeSecretInput(savedSecret);
 
           // ── Auto-provision bridge URL if missing ──
-          // All users (including Super Admin) use /tenant/{permanentTenantId} pattern
+          // Production QR uses the shared bridge host plus permanentTenantId-backed session headers.
           if (!savedUrl && token) {
             try {
               const provisionRes = await fetch('/api/admin/crm/whatsapp/qr/auto-provision', {
@@ -556,8 +618,8 @@ export default function QRWhatsAppPage() {
             }
           }
 
-          // All authenticated admin users can use QR WhatsApp
-          // Bridge handles per-user isolation via x-user-id header
+          // All authenticated admin users can use QR WhatsApp.
+          // Production bridge isolation prefers the 7-digit permanentTenantId-backed session scope.
           setBridgeConfigured(true);
           console.log('[QR] ✅ Loaded settings from MongoDB — funnels:', s.qrFunnelStages?.length || 0, 'chatFunnels:', Object.keys(s.chatFunnels || {}).length, 'chatLabels:', Object.keys(s.chatLabels || {}).length, 'labels:', s.labelPresets?.length || 0, 'bridge:', savedUrl ? 'custom' : 'shared', 'user:', resolvedUserId);
         } else {
@@ -584,40 +646,40 @@ export default function QRWhatsAppPage() {
 
   // ── Auto-save to localStorage (cache) + MongoDB ──
   useEffect(() => {
-    try { localStorage.setItem('crm_chatFunnels', JSON.stringify(chatFunnels)); } catch {}
+    writeScopedQrStorage(qrStorageScope, 'chatFunnels', JSON.stringify(chatFunnels));
     if (dbLoadedRef.current) saveToMongoDB({ chatFunnels });
-  }, [chatFunnels, saveToMongoDB]);
+  }, [chatFunnels, qrStorageScope, saveToMongoDB]);
   useEffect(() => {
-    try { localStorage.setItem('crm_chatLabels', JSON.stringify(chatLabels)); } catch {}
+    writeScopedQrStorage(qrStorageScope, 'chatLabels', JSON.stringify(chatLabels));
     if (dbLoadedRef.current) saveToMongoDB({ chatLabels });
-  }, [chatLabels, saveToMongoDB]);
+  }, [chatLabels, qrStorageScope, saveToMongoDB]);
   useEffect(() => {
-    try { localStorage.setItem('crm_funnelStages', JSON.stringify(funnelStages)); } catch {}
+    writeScopedQrStorage(qrStorageScope, 'funnelStages', JSON.stringify(funnelStages));
     if (dbLoadedRef.current) saveToMongoDB({ qrFunnelStages: funnelStages.filter(s => s.key !== 'all') });
-  }, [funnelStages, saveToMongoDB]);
+  }, [funnelStages, qrStorageScope, saveToMongoDB]);
   useEffect(() => {
-    try { localStorage.setItem('crm_labelPresets', JSON.stringify(labelPresets)); } catch {}
+    writeScopedQrStorage(qrStorageScope, 'labelPresets', JSON.stringify(labelPresets));
     if (dbLoadedRef.current) saveToMongoDB({ labelPresets });
-  }, [labelPresets, saveToMongoDB]);
+  }, [labelPresets, qrStorageScope, saveToMongoDB]);
   useEffect(() => {
-    try { localStorage.setItem('crm_pinnedChats', JSON.stringify(pinnedChats)); } catch {}
+    writeScopedQrStorage(qrStorageScope, 'pinnedChats', JSON.stringify(pinnedChats));
     if (dbLoadedRef.current) saveToMongoDB({ pinnedChats });
-  }, [pinnedChats, saveToMongoDB]);
+  }, [pinnedChats, qrStorageScope, saveToMongoDB]);
   useEffect(() => {
-    try { localStorage.setItem('crm_senderDisplayName', senderDisplayName); } catch {}
+    writeScopedQrStorage(qrStorageScope, 'senderDisplayName', senderDisplayName);
     if (dbLoadedRef.current) saveToMongoDB({ senderDisplayName });
-  }, [senderDisplayName, saveToMongoDB]);
+  }, [senderDisplayName, qrStorageScope, saveToMongoDB]);
   useEffect(() => {
-    try { localStorage.setItem('crm_qrConnectedPhoneNumber', connectedPhoneNumber); } catch {}
-  }, [connectedPhoneNumber]);
+    writeScopedQrStorage(qrStorageScope, 'connectedPhoneNumber', connectedPhoneNumber);
+  }, [connectedPhoneNumber, qrStorageScope]);
   useEffect(() => {
     if (connectedPhoneNumber) {
       savedPhoneRef.current = connectedPhoneNumber;
     }
   }, [connectedPhoneNumber]);
   useEffect(() => {
-    try { localStorage.setItem('crm_sidebarWidth', String(sidebarWidth)); } catch {}
-  }, [sidebarWidth]);
+    writeScopedQrStorage(qrStorageScope, 'sidebarWidth', String(sidebarWidth));
+  }, [sidebarWidth, qrStorageScope]);
 
   // ── Save bridge URL to user settings ──
   const saveBridgeConfig = useCallback(async () => {
@@ -704,10 +766,10 @@ export default function QRWhatsAppPage() {
       // Handle bridge timeout/unreachable gracefully
       const msg = e?.message || String(e);
       if (msg.includes('timeout') || msg.includes('504')) {
-        throw new Error('Bridge unreachable — is the Baileys service running?');
+        throw new Error('Production bridge unreachable — please check the live Baileys service.');
       }
       if (msg.includes('fetch failed') || msg.includes('Failed to fetch') || msg.includes('ECONNREFUSED')) {
-        throw new Error('Cannot reach WhatsApp bridge — make sure it is running on port 3333');
+        throw new Error('Cannot reach the production WhatsApp bridge — please verify the live bridge service and network.');
       }
       // Detect "no bridge configured"
       if (msg.includes('bridge URL') || msg.includes('bridge configured')) {

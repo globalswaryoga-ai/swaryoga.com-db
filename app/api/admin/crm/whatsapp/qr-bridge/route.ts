@@ -6,7 +6,6 @@ import { isSuperAdmin as checkSuperAdmin } from '@/lib/crm-handlers';
 import { logApiError } from '@/lib/error-logger';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 import { clearQrSessionContamination, findOtherUsersWithConnectedPhone, getAuthStatePhone, normalizeConnectedPhone, reconcileQrConnectedPhone } from '@/lib/qrSessionIsolation';
-import mongoose from 'mongoose';
 
 /**
  * WhatsApp QR Bridge Proxy Endpoint
@@ -19,21 +18,21 @@ import mongoose from 'mongoose';
  * CRM Admin Team:       Team users added by a CRM Admin.
  * Leads:                End-users / contacts. Not CRM users.
  *
- * ── BRIDGE URL ARCHITECTURE (Permanent Tenant ID) ──
- * ALL users:            {BRIDGE_BASE_URL}/tenant/{permanentTenantId}
- *                       Each user has a unique 7-digit permanentTenantId (e.g. 0002456)
- *                       Each user has a unique qrBridgeSecret for authentication
- *                       This allows 1000+ simultaneous WhatsApp sessions on one bridge instance
+ * ── BRIDGE SESSION ARCHITECTURE (Permanent Tenant ID) ──
+ * ALL QR users:         base production bridge URL + unique session headers
+ *                       x-user-id     = CRM owner / audit identity
+ *                       x-session-key = permanentTenantId (preferred live session identity)
+ *                       x-tenant-id   = same 7-digit tenant ID for diagnostics/context
+ *                       This allows 1000+ simultaneous isolated WhatsApp sessions on one bridge instance
  *
  * ── ACCESS CONTROL ──
  * resolveUserBridge() is the SOLE gate:
- *   - Any user with permanentTenantId → /tenant/{id} bridge (own isolated session)
- *   - Legacy qrBridgeUrl (backward compat) → custom bridge URL
- *   - Super Admin Team (qrWhatsappEnabled, no permanentTenantId) → shared bridge (filtered)
- *   - No permanentTenantId AND no qrWhatsappEnabled → BLOCKED (returns {ok:false} → 422)
+ *   - Any user with permanentTenantId → own isolated session on production bridge
+ *   - Legacy qrBridgeUrl (backward compat) → custom isolated bridge URL
+ *   - No permanentTenantId AND no custom bridge → BLOCKED (returns {ok:false} → 422)
  *
  * ── CHAT PRIVACY FILTER ──
- * Shared/team bridge sessions are filtered server-side by lead ownership.
+ * Legacy shared/team bridge sessions are filtered server-side by lead ownership.
  * Isolated tenant-owned sessions are protected by per-user bridge isolation plus
  * post-scan session-change filtering, so they keep full inbox/send/group access.
  * On filter error → returns empty (fail-safe, never leaks chats).
@@ -52,13 +51,10 @@ export const maxDuration = 60; // 60s function timeout for Vercel
  * Resolve the bridge URL and secret for the authenticated user.
  *
  * Access matrix:
- *   Any user with permanentTenantId → /tenant/{id} bridge (own session, hasOwnBridge=true)
+ *   Any user with permanentTenantId → isolated production session (hasOwnBridge=true)
  *   Legacy qrBridgeUrl             → custom bridge URL (hasOwnBridge=true)
- *   Super Admin Team (qrWhatsappEnabled) → shared bridge (hasOwnBridge=false, chat filter applied)
- *   No access                      → returns null (blocked)
+ *   No permanentTenantId/custom bridge → blocked
  */
-// Super Admin user IDs — these users own the shared bridge session
-const SUPER_ADMIN_IDS = new Set(['admin', 'admincrm']);
 
 // ── In-memory cache for resolveUserBridge (avoids MongoDB hit on every poll) ──
 const bridgeCache = new Map<string, { result: BridgeResolution; expiry: number }>();
@@ -78,7 +74,7 @@ function evictStaleBridgeCache() {
 }
 
 type BridgeResolution = 
-  | { ok: true; url: string; secret: string; userId: string; isSuperAdmin: boolean; hasOwnBridge: boolean; storedPhone: string; phoneChangedAt: Date | null; senderDisplayName: string; tenantId?: string }
+  | { ok: true; url: string; secret: string; userId: string; bridgeSessionId: string; isSuperAdmin: boolean; hasOwnBridge: boolean; storedPhone: string; phoneChangedAt: Date | null; senderDisplayName: string; tenantId?: string }
   | { ok: false; reason: 'no_bridge' | 'unauthorized' };
 
 async function resolveUserBridge(authHeader: string | null): Promise<BridgeResolution> {
@@ -124,6 +120,7 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
           url: FALLBACK_BRIDGE_URL,
           secret: FALLBACK_BRIDGE_SECRET,
           userId: decoded.userId,
+          bridgeSessionId: permanentTenantId,
           isSuperAdmin: superAdmin,
           hasOwnBridge: true,
           storedPhone,
@@ -143,6 +140,7 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
           url: settings.qrBridgeUrl,
           secret: settings.qrBridgeSecret || FALLBACK_BRIDGE_SECRET,
           userId: decoded.userId,
+          bridgeSessionId: decoded.userId,
           isSuperAdmin: superAdmin,
           hasOwnBridge: true,
           storedPhone,
@@ -154,50 +152,11 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
         return legacyResult;
       }
 
-      // ── SUPER ADMIN PROTECTION ──
-      // Non-super-admin users without their own bridge MUST NOT access
-      // the shared/default bridge (which is the super admin's WhatsApp session).
-      // They need either: (a) their own qrBridgeUrl, or (b) explicit qrWhatsappEnabled
-      // AND they must NOT be a tenant owner (tenant owners must use their own bridge).
-      if (!superAdmin) {
-        if (!settings?.qrWhatsappEnabled) {
-          console.warn(`[QR Bridge Proxy] BLOCKED: User ${decoded.userId} — no bridge URL configured and not enabled for shared bridge`);
-          const noBridge: BridgeResolution = { ok: false, reason: 'no_bridge' };
-          bridgeCache.set(cacheKey, { result: noBridge, expiry: Date.now() + BRIDGE_CACHE_TTL_MS });
-          return noBridge;
-        }
-
-        // Even with qrWhatsappEnabled, tenant owners MUST NOT use the shared bridge.
-        // Only Super Admin Team members (non-tenant users explicitly enabled) may access it.
-        try {
-          const db = mongoose.connection.db;
-          if (db) {
-            const tenantDoc = await db.collection('tenants').findOne({
-              $or: [
-                { ownerUserId: decoded.userId },
-                { adminUserId: decoded.userId },
-                { ownerEmail: decoded.email || decoded.userId },
-              ],
-            }, { projection: { _id: 1 } });
-            if (tenantDoc) {
-              console.warn(`[QR Bridge Proxy] BLOCKED: Tenant owner ${decoded.userId} — cannot use shared bridge, must configure own bridge`);
-              const tenantBlocked: BridgeResolution = { ok: false, reason: 'no_bridge' };
-              bridgeCache.set(cacheKey, { result: tenantBlocked, expiry: Date.now() + BRIDGE_CACHE_TTL_MS });
-              return tenantBlocked;
-            }
-          }
-        } catch (tenantCheckErr) {
-          // Fail-safe: if tenant check fails, still block (don't leak shared bridge)
-          console.error('[QR Bridge Proxy] Tenant check error (blocking as precaution):', tenantCheckErr);
-          return { ok: false, reason: 'no_bridge' };
-        }
-      }
-
-      // Use shared bridge — only super admin or explicitly enabled users
-      const sharedResult: BridgeResolution = { ok: true, url: FALLBACK_BRIDGE_URL, secret: FALLBACK_BRIDGE_SECRET, userId: decoded.userId, isSuperAdmin: superAdmin, hasOwnBridge: false, storedPhone, phoneChangedAt, senderDisplayName };
-      bridgeCache.set(cacheKey, { result: sharedResult, expiry: Date.now() + BRIDGE_CACHE_TTL_MS });
+      console.warn(`[QR Bridge Proxy] BLOCKED: User ${decoded.userId} has no permanentTenantId or custom bridge URL; isolated QR session is required`);
+      const noBridge: BridgeResolution = { ok: false, reason: 'no_bridge' };
+      bridgeCache.set(cacheKey, { result: noBridge, expiry: Date.now() + BRIDGE_CACHE_TTL_MS });
       if (bridgeCache.size > 50) evictStaleBridgeCache();
-      return sharedResult;
+      return noBridge;
     }
   } catch (e) {
     console.warn('[QR Bridge Proxy] Failed to resolve user bridge:', (e as Error).message);
@@ -636,7 +595,7 @@ export async function POST(req: NextRequest) {
       );
     }
     const resolved = resolution;
-    const { url: BRIDGE_URL, secret: BRIDGE_SECRET, userId } = resolved;
+    const { url: BRIDGE_URL, secret: BRIDGE_SECRET, userId, bridgeSessionId } = resolved;
 
     // Access control is handled by resolveUserBridge() — it returns null for unauthorized users.
     // Users reach here only if they are: (a) super admin, (b) have own bridge, or (c) have qrWhatsappEnabled.
@@ -799,6 +758,7 @@ export async function POST(req: NextRequest) {
     // Diagnostic logs
     console.log(`[QR Bridge Proxy] ════════════════════════════════════════`);
     console.log(`[QR Bridge Proxy] userId=${userId}`);
+    console.log(`[QR Bridge Proxy] bridgeSessionId=${bridgeSessionId}`);
     console.log(`[QR Bridge Proxy] isSuperAdmin=${resolved.isSuperAdmin}, hasOwnBridge=${resolved.hasOwnBridge}`);
     console.log(`[QR Bridge Proxy] BRIDGE_URL=${BRIDGE_URL}`);
     console.log(`[QR Bridge Proxy] decodedPath=${decodedPath}`);
@@ -824,6 +784,8 @@ export async function POST(req: NextRequest) {
       headers: {
         'x-bridge-secret': BRIDGE_SECRET,
         'x-user-id': userId,
+        'x-session-key': bridgeSessionId,
+        ...(resolved.tenantId ? { 'x-tenant-id': resolved.tenantId } : {}),
         'Content-Type': 'application/json',
         'ngrok-skip-browser-warning': 'true',
         'User-Agent': 'SwarYoga-Bridge-Proxy/1.0'
@@ -1097,7 +1059,7 @@ export async function GET(req: NextRequest) {
       );
     }
     const resolved = resolution;
-    const { url: BRIDGE_URL, secret: BRIDGE_SECRET, userId } = resolved;
+    const { url: BRIDGE_URL, secret: BRIDGE_SECRET, userId, bridgeSessionId } = resolved;
 
     // Access control is handled by resolveUserBridge() — it returns null for unauthorized users.
 
@@ -1202,6 +1164,7 @@ export async function GET(req: NextRequest) {
     // Diagnostic logs
     console.log(`[QR Bridge Proxy GET] ════════════════════════════════════════`);
     console.log(`[QR Bridge Proxy GET] userId=${userId}`);
+    console.log(`[QR Bridge Proxy GET] bridgeSessionId=${bridgeSessionId}`);
     console.log(`[QR Bridge Proxy GET] isSuperAdmin=${resolved.isSuperAdmin}, hasOwnBridge=${resolved.hasOwnBridge}`);
     console.log(`[QR Bridge Proxy GET] BRIDGE_URL=${BRIDGE_URL}`);
     console.log(`[QR Bridge Proxy GET] path=${path}`);
@@ -1231,6 +1194,8 @@ export async function GET(req: NextRequest) {
         headers: {
           'x-bridge-secret': BRIDGE_SECRET,
           'x-user-id': userId,
+          'x-session-key': bridgeSessionId,
+          ...(resolved.tenantId ? { 'x-tenant-id': resolved.tenantId } : {}),
           'ngrok-skip-browser-warning': 'true',
           'User-Agent': 'SwarYoga-Bridge-Proxy/1.0'
         },

@@ -187,6 +187,25 @@ function applySpintax(text: string): string {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+function getNodeInteractiveButtons(node: any): Array<{ id: string; title: string }> {
+  if (!Array.isArray(node?.options) || node.options.length === 0) {
+    return [];
+  }
+
+  const shouldUseButtons =
+    node?.type === 'buttons' ||
+    node?.type === 'question';
+
+  if (!shouldUseButtons) {
+    return [];
+  }
+
+  return node.options.slice(0, 3).map((option: any, index: number) => ({
+    id: `btn_${index}_${(option?.value || option?.label || index).toString().substring(0, 20)}`,
+    title: String(option?.label || option?.value || `Option ${index + 1}`).substring(0, 20),
+  }));
+}
+
 async function sendOutboundText(lead: any, to: string, text: string, metadata?: any) {
   const compliance = await ConsentManager.validateCompliance(to);
   if (!compliance.compliant) return;
@@ -686,8 +705,8 @@ async function advanceChatbotFlow(lead: any, ctx: InboundContext, flow: any): Pr
   if (currentNode.type === 'question') {
     const userInput = ctx.body.trim().toLowerCase();
     
-    // If multiple choice, match options
-    if (currentNode.questionType === 'multiple_choice' && currentNode.options?.length > 0) {
+    // If options exist, treat it like a button/multiple-choice question
+    if (currentNode.options?.length > 0) {
       const matchedOption = currentNode.options?.find((opt: any) => 
         String(opt.label || '').toLowerCase() === userInput || 
         String(opt.value || '').toLowerCase() === userInput
@@ -695,6 +714,16 @@ async function advanceChatbotFlow(lead: any, ctx: InboundContext, flow: any): Pr
       if (matchedOption) {
         nextNodeId = matchedOption.nextNodeId || currentNode.nextNodeId;
       } else {
+        const interactiveButtons = getNodeInteractiveButtons(currentNode);
+        if (interactiveButtons.length > 0) {
+          return {
+            text: currentNode.messageText || currentNode.questionText || 'Please choose one of these options:',
+            interactiveButtons,
+            spintaxEnabled: false,
+            presenceType: 'composing',
+            presenceDelay: 1,
+          };
+        }
         return { text: `Please choose one of: ${currentNode.options.map((o: any) => o.label).join(', ')}` };
       }
     } else {
@@ -927,12 +956,10 @@ async function advanceChatbotFlow(lead: any, ctx: InboundContext, flow: any): Pr
       presenceDelay: nextNode.presenceDelay || 1
     };
     
-    // Add interactive buttons for buttons node (max 3 for WhatsApp API)
-    if (nextNode.type === 'buttons' && nextNode.options?.length > 0) {
-      replyObj.interactiveButtons = nextNode.options.slice(0, 3).map((o: any, i: number) => ({
-        id: `btn_${i}_${(o.value || o.label || i).toString().substring(0, 20)}`,
-        title: String(o.label || '').substring(0, 20)
-      }));
+    // Add interactive buttons when the node presents options (max 3 for WhatsApp API)
+    const interactiveButtons = getNodeInteractiveButtons(nextNode);
+    if (interactiveButtons.length > 0) {
+      replyObj.interactiveButtons = interactiveButtons;
     }
     
     // Update state to this node (waiting for user input)

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
 import { processWorkflowTrigger } from '@/lib/crm-site/workflowEngine';
+import { resolveCrmSiteTenantAccess } from '@/lib/crm-site/tenantAccess';
 
 /**
  * POST /api/crm-site/workflows/trigger
@@ -17,17 +17,21 @@ import { processWorkflowTrigger } from '@/lib/crm-site/workflowEngine';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { tenantSlug, triggerType, triggerData, lead } = body;
-
-    if (!tenantSlug || !triggerType || !lead) {
-      return NextResponse.json({
-        error: 'tenantSlug, triggerType, and lead are required',
-      }, { status: 400 });
+    const access = await resolveCrmSiteTenantAccess(request, {
+      requestedTenantSlug: body?.tenantSlug,
+    });
+    if (access instanceof NextResponse) {
+      return access;
     }
 
-    await connectDB();
-    const mongoose = (await import('mongoose')).default;
-    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+    const { crmDb, tenantSlug } = access;
+    const { triggerType, triggerData, lead } = body;
+
+    if (!triggerType || !lead) {
+      return NextResponse.json({
+        error: 'triggerType and lead are required',
+      }, { status: 400 });
+    }
 
     // Process workflow triggers
     await processWorkflowTrigger(
@@ -55,16 +59,15 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const url = new URL(request.url);
-    const tenantSlug = url.searchParams.get('tenant');
-    const leadId = url.searchParams.get('leadId');
-
-    if (!tenantSlug) {
-      return NextResponse.json({ error: 'tenant required' }, { status: 400 });
+    const access = await resolveCrmSiteTenantAccess(request, {
+      requestedTenantSlug: url.searchParams.get('tenant'),
+    });
+    if (access instanceof NextResponse) {
+      return access;
     }
 
-    await connectDB();
-    const mongoose = (await import('mongoose')).default;
-    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+    const { crmDb, tenantSlug } = access;
+    const leadId = url.searchParams.get('leadId');
 
     const query: Record<string, any> = { tenantSlug };
     if (leadId) {
