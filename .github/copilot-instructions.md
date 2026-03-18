@@ -172,7 +172,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
-### QR Isolation Enforcement for Every User + Shared Fallback Shutdown (Session: March 18, 2026 — Phase 83) — Commit `7a426eee`
+### QR Isolation Enforcement for Every User + Shared Fallback Shutdown (Session: March 18, 2026 — Phase 83) — Commit `d4106e77`
 
 1. **✅ Enforced Isolated QR Sessions for Every CRM QR User Instead of Allowing Shared-Bridge Fallback Access**
    - **Problem**: although production QR already used the 7-digit `permanentTenantId` as the live session key for tenant-owned users, some runtime routes could still fall back to the old shared-bridge access model when a user had no own bridge metadata
@@ -196,7 +196,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
       - users needing IDs: `0`
    - this made the policy tighten-up safe without stranding current users
 
-### Production QR 7-Digit Session Identity Rollout (Session: March 18, 2026 — Phase 82) — Commit `7a426eee`
+### Production QR 7-Digit Session Identity Rollout (Session: March 18, 2026 — Phase 82) — Commit `d4106e77`
 
 1. **✅ Switched Production QR Bridge Isolation to Use the 7-Digit `permanentTenantId` as the Live Session Key**
    - **Problem**: tenant users already had unique 7-digit `permanentTenantId` values, but the live QR bridge still isolated sessions primarily by CRM `userId`, which weakened the intended tenant-session separation model
