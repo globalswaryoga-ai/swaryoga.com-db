@@ -255,8 +255,25 @@ async function clearPhoneChangedFlag(userId: string): Promise<void> {
  * Returns digits-only phone number or empty string.
  */
 function extractBridgePhone(statusData: any): string {
-  const raw = statusData?.phone?.id || statusData?.me?.id || statusData?.phoneNumber || '';
+  const rawPhone = typeof statusData?.phone === 'string'
+    ? statusData.phone
+    : statusData?.phone?.id || statusData?.phone?.name || '';
+  const raw = rawPhone || statusData?.me?.id || statusData?.phoneNumber || '';
   return String(raw).split(':')[0].split('@')[0].replace(/\D/g, '');
+}
+
+function ensureStatusPhoneShape(statusData: any, phone: string) {
+  if (!statusData?.connected || !phone) return statusData;
+
+  return {
+    ...statusData,
+    phone: {
+      ...(statusData?.phone && typeof statusData.phone === 'object' ? statusData.phone : {}),
+      id: statusData?.phone?.id || phone,
+      name: statusData?.phone?.name || phone,
+    },
+    phoneNumber: statusData?.phoneNumber || phone,
+  };
 }
 
 async function validateOwnBridgeLivePhone(resolved: Extract<BridgeResolution, { ok: true }>, livePhone: string) {
@@ -935,11 +952,11 @@ export async function POST(req: NextRequest) {
       }
       if (bridgePhone && bridgePhone !== resolved.storedPhone) {
         // Phone CHANGED → save with timestamp so /chats can detect stale data
-        saveConnectedPhone(userId, bridgePhone, true).catch(() => {});
+        await saveConnectedPhone(userId, bridgePhone, true);
         console.log(`[QR Bridge Proxy POST /status] Phone changed: ${resolved.storedPhone} → ${bridgePhone}`);
       } else if (bridgePhone && !resolved.storedPhone) {
         // First-time save (no previous phone)
-        saveConnectedPhone(userId, bridgePhone, false).catch(() => {});
+        await saveConnectedPhone(userId, bridgePhone, false);
       }
       if (!bridgePhone && resolved.storedPhone) {
         data.phone = {
@@ -948,6 +965,7 @@ export async function POST(req: NextRequest) {
           name: data?.phone?.name || resolved.storedPhone,
         };
       }
+      data = ensureStatusPhoneShape(data, bridgePhone || resolved.storedPhone);
     }
 
     // ── SESSION ISOLATION (POST /chats) ──
@@ -1367,10 +1385,10 @@ export async function GET(req: NextRequest) {
       }
       if (bridgePhone && bridgePhone !== resolved.storedPhone) {
         // Phone CHANGED → save with timestamp so /chats can detect stale data
-        saveConnectedPhone(userId, bridgePhone, true).catch(() => {});
+        await saveConnectedPhone(userId, bridgePhone, true);
         console.log(`[QR Bridge Proxy GET /status] Phone changed: ${resolved.storedPhone} → ${bridgePhone}`);
       } else if (bridgePhone && !resolved.storedPhone) {
-        saveConnectedPhone(userId, bridgePhone, false).catch(() => {});
+        await saveConnectedPhone(userId, bridgePhone, false);
       }
       if (!bridgePhone && resolved.storedPhone) {
         data.phone = {
@@ -1379,6 +1397,7 @@ export async function GET(req: NextRequest) {
           name: data?.phone?.name || resolved.storedPhone,
         };
       }
+      data = ensureStatusPhoneShape(data, bridgePhone || resolved.storedPhone);
     }
 
     // ── SESSION ISOLATION (GET /chats) ──

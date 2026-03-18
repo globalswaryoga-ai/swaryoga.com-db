@@ -152,6 +152,9 @@ function formatHeaderConnectedPhone(phone: string): string {
 
 function resolveConnectedPhoneLabel(status: BridgeStatus | null, connectedPhoneNumber: string): string {
   const candidates = [
+    typeof (status as (BridgeStatus & Record<string, any>) | null)?.phone === 'string'
+      ? (status as (BridgeStatus & Record<string, any>) | null)?.phone
+      : null,
     status?.phone?.id,
     status?.phone?.name,
     (status as (BridgeStatus & Record<string, any>) | null)?.me?.id,
@@ -171,6 +174,9 @@ function resolveConnectedPhoneLabel(status: BridgeStatus | null, connectedPhoneN
 
 function extractConnectedPhoneDigits(status: BridgeStatus | null): string {
   const candidates = [
+    typeof (status as (BridgeStatus & Record<string, any>) | null)?.phone === 'string'
+      ? (status as (BridgeStatus & Record<string, any>) | null)?.phone
+      : null,
     status?.phone?.id,
     status?.phone?.name,
     (status as (BridgeStatus & Record<string, any>) | null)?.me?.id,
@@ -461,9 +467,9 @@ export default function QRWhatsAppPage() {
           if (s.senderDisplayName) {
             setSenderDisplayName(s.senderDisplayName);
           }
-          if (s.qrConnectedPhoneNumber) {
-            setConnectedPhoneNumber(String(s.qrConnectedPhoneNumber));
-          }
+          const serverConnectedPhone = String(s.qrConnectedPhoneNumber || '').trim();
+          setConnectedPhoneNumber(serverConnectedPhone);
+          savedPhoneRef.current = serverConnectedPhone || null;
           // ── Load bridge URL and secret ──
           const savedUrl = s.qrBridgeUrl || '';
           const savedSecret = s.qrBridgeSecret || '';

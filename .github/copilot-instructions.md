@@ -172,6 +172,45 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### QR Header Auto-Recognition for String Status Phones + Verified Session Persistence (Session: March 18, 2026 — Phase 76) — Commit `3eda8591`
+
+1. **✅ Fixed QR Status Parsing So the Header Recognizes the Live Connected Number Even When the Bridge Returns `phone` as a String**
+   - **Problem**: some QR sessions showed `QR session not verified yet` while the header could still display an older cached number because the live bridge returned `status.phone` as a plain string like `919309986820:83` instead of `{ id, name }`
+   - **Root Cause**:
+      - `app/api/admin/crm/whatsapp/qr-bridge/route.ts` only extracted phone identity from `status.phone.id`, `status.me.id`, or `status.phoneNumber`
+      - `app/admin/crm/qr/page.tsx` also ignored string-shaped `status.phone`, so the real scanned number was not recognized client-side
+   - **Solution**:
+      - Updated `app/api/admin/crm/whatsapp/qr-bridge/route.ts`
+      - Updated `app/admin/crm/qr/page.tsx`
+      - the proxy and UI now both accept string-shaped bridge phone values, normalize them, and expose the connected number consistently in the QR header
+
+2. **✅ Persisted the Verified Live Number Before Follow-Up Chat Loads**
+   - **Problem**: `/status` could discover the correct live phone, but the save was fire-and-forget, so the next `/chats` request could still race against an empty stored phone and return the unverified-session warning
+   - **Solution**:
+      - the QR bridge proxy now awaits the connected-phone save during `/status` handling before returning
+      - this makes the verified scanned number available immediately for subsequent chat/session requests
+
+3. **✅ Cleared Stale Local Header Cache When Server Settings Have No Saved Connected Number**
+   - **Problem**: the QR page kept an old `crm_qrConnectedPhoneNumber` from browser storage if the server returned no saved connected phone, which could leave the header showing the wrong old number
+   - **Solution**:
+      - the QR page now always syncs `connectedPhoneNumber` from server settings, including clearing the cached value when the server has none
+
+### Meta Inbox Single Template Send Helper Alignment (Session: March 16, 2026 — Phase 75) — Commit `[pending]`
+
+1. **✅ Aligned Single Meta Inbox Template Sends With the Same Shared Meta Helper Used by Working Bulk/Broadcast Sends**
+   - **Problem**: users reported that Meta template broadcasts were working, but sending a single approved template from the Meta inbox could fail for the same environment/account
+   - **Root Cause**:
+      - `app/api/admin/crm/whatsapp/send-template/route.ts` had its own custom Graph API payload-building logic
+      - bulk/broadcast Meta sends used the shared `sendWhatsAppTemplate()` helper from `lib/whatsapp.ts`
+      - this created an unnecessary drift risk between single-send and bulk-send payload construction, especially for rich templates with image headers/buttons
+   - **Solution**:
+      - Updated `app/api/admin/crm/whatsapp/send-template/route.ts`
+      - kept pre-validation for required header media
+      - replaced the custom direct payload send with the shared `sendWhatsAppTemplate()` helper so single inbox sends and bulk sends now use the same Meta payload path
+
+2. **✅ Verification**
+   - No editor/type errors in the modified single-send route
+
 ### QR Unverified Own-Bridge Leak Fail-Safe + Settings Copy Correction (Session: March 15, 2026 — Phase 74) — Commit `37835339`
 
 1. **✅ Blocked Own-Bridge Users From Seeing Raw Bridge Chats Before Their QR Session Phone Is Safely Verified**
