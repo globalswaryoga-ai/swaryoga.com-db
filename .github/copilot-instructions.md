@@ -172,7 +172,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
-### QR Message Left/Right Direction Normalization (Session: March 18, 2026 — Phase 78) — Commit `[pending]`
+### QR Message Left/Right Direction Normalization (Session: March 18, 2026 — Phase 78) — Commit `395bb29c`
 
 1. **✅ Normalized QR `fromMe` Mapping So Incoming and Outgoing Messages Render on the Correct Side**
    - **Problem**: QR message bubbles could appear on only one side because the page relied too narrowly on raw `fromMe` values from the bridge when deciding left vs right alignment
