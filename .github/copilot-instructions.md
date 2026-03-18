@@ -172,6 +172,26 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### QR Media Download Session-Header Fix (Session: March 18, 2026 — Phase 84) — Commit `[pending]`
+
+1. **✅ Fixed QR Manual Media Downloads to Use the Same Isolated Session Headers as Live QR Send/Inbox Requests**
+   - **Problem**: users could click a QR media download and get `Failed to download media: Bridge error: 404` even while the active QR session itself was connected correctly
+   - **Root Cause**:
+      - `app/api/admin/crm/media/bridge-download/route.ts` still called the bridge with only `x-user-id`
+      - the production bridge now isolates live sessions by `x-session-key` / `x-tenant-id` (typically the 7-digit `permanentTenantId`), so media lookups were hitting the wrong session namespace
+   - **Solution**:
+      - Updated `app/api/admin/crm/media/bridge-download/route.ts`
+      - media downloads now resolve the viewer's isolated QR bridge config and send:
+         - `x-user-id`
+         - `x-session-key`
+         - `x-tenant-id` when available
+      - route now uses the shared bridge config helper and the same permanent-tenant/custom-bridge resolution pattern as QR send/broadcast
+
+2. **✅ Improved the User-Facing 404 Message for Truly Missing Bridge Media**
+   - if the bridge no longer has that media blob in the live session cache, the API now returns a clearer message:
+      - `Media is no longer available in the live QR session.`
+   - this avoids the more confusing raw `Bridge error: 404` wording
+
 ### QR Isolation Enforcement for Every User + Shared Fallback Shutdown (Session: March 18, 2026 — Phase 83) — Commit `d4106e77`
 
 1. **✅ Enforced Isolated QR Sessions for Every CRM QR User Instead of Allowing Shared-Bridge Fallback Access**

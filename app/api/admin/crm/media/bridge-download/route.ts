@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
+import { connectDB } from '@/lib/db';
+import { getViewerUserId } from '@/lib/crm-handlers';
+import { getCRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
+import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 
 /**
  * GET /api/admin/crm/media/bridge-download?messageId=<id>
@@ -12,17 +16,44 @@ import { verifyToken } from '@/lib/auth';
  * can download the media buffer on demand via /media/:messageId.
  */
 
-const BRIDGE_URL =
-  process.env.WHATSAPP_BRIDGE_HTTP_URL ||
-  process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL ||
-  process.env.WHATSAPP_BRIDGE_URL ||
-  'http://localhost:3333';
+const { url: BRIDGE_URL, secret: BRIDGE_SECRET } = getWhatsAppBridgeConfig();
 
-const BRIDGE_SECRET =
-  process.env.WHATSAPP_BRIDGE_SECRET ||
-  process.env.WHATSAPP_WEB_BRIDGE_SECRET ||
-  process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_SECRET ||
-  'swar-bridge-secret-2024';
+async function resolveBridgeConfig(userId: string) {
+  await connectDB();
+  const CRMUserSettings = getCRMUserSettings();
+  const settings = await CRMUserSettings.findOne(
+    { userId },
+    { permanentTenantId: 1, qrBridgeUrl: 1, qrBridgeSecret: 1 }
+  ).lean() as any;
+
+  if (settings?.permanentTenantId) {
+    return {
+      bridgeUrl: BRIDGE_URL,
+      bridgeSecret: BRIDGE_SECRET,
+      bridgeSessionId: settings.permanentTenantId,
+      tenantId: settings.permanentTenantId,
+      hasOwnBridge: true,
+    };
+  }
+
+  if (settings?.qrBridgeUrl) {
+    return {
+      bridgeUrl: settings.qrBridgeUrl,
+      bridgeSecret: settings.qrBridgeSecret || BRIDGE_SECRET,
+      bridgeSessionId: userId,
+      tenantId: null,
+      hasOwnBridge: true,
+    };
+  }
+
+  return {
+    bridgeUrl: BRIDGE_URL,
+    bridgeSecret: BRIDGE_SECRET,
+    bridgeSessionId: userId,
+    tenantId: null,
+    hasOwnBridge: false,
+  };
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -41,6 +72,15 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Admin required' }, { status: 403 });
     }
 
+    const viewerUserId = getViewerUserId(decoded as any);
+    const bridgeConfig = await resolveBridgeConfig(viewerUserId);
+    if (!bridgeConfig.hasOwnBridge) {
+      return NextResponse.json(
+        { error: 'Media download requires an isolated QR WhatsApp session.' },
+        { status: 403 }
+      );
+    }
+
     const messageId = searchParams.get('messageId');
     if (!messageId) {
       return NextResponse.json({ error: 'Missing messageId parameter' }, { status: 400 });
@@ -48,7 +88,7 @@ export async function GET(req: NextRequest) {
 
     // Fetch media from bridge (server-side — no CORS issues)
     // Must pass x-user-id so the bridge routes to the correct per-user session
-    const bridgeMediaUrl = `${BRIDGE_URL}/media/${encodeURIComponent(messageId)}`;
+    const bridgeMediaUrl = `${bridgeConfig.bridgeUrl}/media/${encodeURIComponent(messageId)}`;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
 
@@ -57,8 +97,10 @@ export async function GET(req: NextRequest) {
       res = await fetch(bridgeMediaUrl, {
         method: 'GET',
         headers: {
-          'x-bridge-secret': BRIDGE_SECRET,
-          'x-user-id': decoded.userId,
+          'x-bridge-secret': bridgeConfig.bridgeSecret,
+          'x-user-id': viewerUserId,
+          'x-session-key': bridgeConfig.bridgeSessionId,
+          ...(bridgeConfig.tenantId ? { 'x-tenant-id': bridgeConfig.tenantId } : {}),
         },
         signal: controller.signal,
       });
@@ -75,8 +117,11 @@ export async function GET(req: NextRequest) {
       let errorDetail = '';
       try { errorDetail = await res.text(); } catch {}
       console.error(`[bridge-download] Bridge returned ${res.status}:`, errorDetail.substring(0, 200));
+      const errorMessage = res.status === 404
+        ? 'Media is no longer available in the live QR session.'
+        : `Bridge error: ${res.status}`;
       return NextResponse.json(
-        { error: `Bridge error: ${res.status}`, detail: errorDetail.substring(0, 100) },
+        { error: errorMessage, detail: errorDetail.substring(0, 100) },
         { status: res.status }
       );
     }
