@@ -172,7 +172,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
-### CRM Users Plan Access Controls + Free Plan Lead Limit Refresh (Session: March 18, 2026 — Phase 80) — Commit `452c7ca9`
+### CRM Users Plan Access Controls + Free Plan Lead Limit Refresh (Session: March 18, 2026 — Phase 80) — Commit `3d36bd67`
 
 1. **✅ Added a Super Admin "More Actions" Plan-Access Flow on the CRM Users Page**
    - **Problem**: `/admin/crm/crm-users` showed billing and QR details, but Super Admin had no direct way to grant custom SaaS plan access, pricing, quotas, or feature toggles per CRM tenant user from the admin panel
