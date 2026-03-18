@@ -172,7 +172,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
-### CRM SaaS Tenant Access Build Unblock (Session: March 18, 2026 — Phase 81) — Commit `82a7a79b`
+### CRM SaaS Tenant Access Build Unblock (Session: March 18, 2026 — Phase 81) — Commit `0c4e094e`
 
 1. **✅ Restored the Missing Shared Tenant Access Helper Required by CRM SaaS Routes**
    - **Problem**: the Phase 80 deploy failed on Vercel because several `/api/crm-site/*` routes already imported `@/lib/crm-site/tenantAccess`, but that shared helper file was not present in the pushed code
