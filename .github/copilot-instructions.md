@@ -172,6 +172,85 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### CRM Users Plan Access Controls + Free Plan Lead Limit Refresh (Session: March 18, 2026 — Phase 80) — Commit `452c7ca9`
+
+1. **✅ Added a Super Admin "More Actions" Plan-Access Flow on the CRM Users Page**
+   - **Problem**: `/admin/crm/crm-users` showed billing and QR details, but Super Admin had no direct way to grant custom SaaS plan access, pricing, quotas, or feature toggles per CRM tenant user from the admin panel
+   - **Solution**:
+      - Updated `app/admin/crm/crm-users/page.tsx`
+      - Updated `app/api/admin/crm/crm-users/route.ts`
+      - Added a new checkbox-based `More` action modal with submit flow for:
+         - base plan tier
+         - custom plan name
+         - monthly / 3-month pricing
+         - storage quota, lead limit, seat limit, landing page limit, community limit, email quota, and automation workflow quota
+         - feature toggles for Meta WhatsApp, QR WhatsApp, email, landing pages, community, automation, and help desk
+      - Super Admin saves now persist plan-access settings into tenant/user records instead of only updating payment metadata
+
+2. **✅ Added Shared Tenant Plan-Access Resolution So Custom Limits and Checkbox Features Affect CRM SaaS APIs**
+   - **Solution**:
+      - Added `lib/crm-site/tenantPlanAccess.ts`
+      - Updated these routes to use resolved tenant plan access rather than only raw static plan tiers:
+         - `app/api/crm-site/plan/route.ts`
+         - `app/api/crm-site/subscription/route.ts`
+         - `app/api/crm-site/analytics/route.ts`
+         - `app/api/crm-site/team/route.ts`
+         - `app/api/crm-site/landing-pages/route.ts`
+         - `app/api/crm-site/workflows/route.ts`
+         - `app/api/crm-site/tickets/route.ts`
+         - `app/api/crm-site/email/templates/route.ts`
+         - `app/api/crm-site/email/campaigns/route.ts`
+         - `app/api/crm-site/email/send/route.ts`
+      - this allows tenant-specific plan overrides from the Super Admin panel to drive seat counts, landing-page limits, workflow limits, help-desk enablement, and email access more consistently
+
+3. **✅ Reduced the Free CRM Plan Lead Cap From 250 to 100 Across Live Pricing / Signup / Plan Definitions**
+   - Updated:
+      - `lib/crm-site/planConfig.ts`
+      - `lib/tenant/plans.ts`
+      - `app/api/crm-site/billing/webhook/route.ts`
+      - `app/crm-site/signup/page.tsx`
+      - `app/crm-site/pricing/page.tsx`
+      - `lib/crm-site/emailService.ts`
+      - `components/admin/crm/pageGuideData.ts`
+      - `lib/crm-site/autoScaleService.ts`
+   - free plan copy and runtime lead defaults now align with the new 100-lead cap
+
+### SaaS Tenant Team Isolation Hardening (Session: March 18, 2026 — Phase 79) — Commit `[pending]`
+
+1. **✅ Locked Tenant Team APIs to the Logged-In Tenant Instead of Trusting Client-Supplied `tenantSlug`**
+   - **Problem**: tenant-facing team/user flows could read or mutate another tenant's team data because `app/api/crm-site/team/route.ts` accepted `tenantSlug` from the request query/body and used it directly
+   - **Root Cause**:
+      - the route trusted browser-supplied tenant identity instead of resolving tenant ownership from the authenticated CRM user
+      - CRM login JWTs also did not include `tenantSlug`, which encouraged server routes to fall back to request-provided tenant slugs
+   - **Solution**:
+      - Updated `app/api/crm-site/team/route.ts`
+      - Updated `app/api/crm-site/login/route.ts`
+      - Updated `lib/auth.ts`
+      - CRM login tokens now include `tenantSlug`
+      - team APIs now resolve the current tenant from the authenticated user, reject mismatched tenant slugs, and require owner/admin-style team-management rights for write actions
+      - this prevents tenant users from seeing or editing another tenant's users even if they tamper with request payloads
+
+2. **✅ Reused the Same Server-Side Tenant Resolver Across Additional SaaS Tenant APIs**
+   - **Problem**: several other tenant-facing `/api/crm-site/*` routes also trusted client-supplied `tenant` / `tenantSlug` values in query strings or request bodies
+   - **Solution**:
+      - Added `lib/crm-site/tenantAccess.ts`
+      - Updated these routes to resolve tenant access from the authenticated CRM user and reject mismatched tenant slugs:
+         - `app/api/crm-site/analytics/route.ts`
+         - `app/api/crm-site/onboarding/route.ts`
+         - `app/api/crm-site/api-keys/route.ts`
+         - `app/api/crm-site/branding/route.ts`
+         - `app/api/crm-site/workflows/route.ts`
+         - `app/api/crm-site/workflows/trigger/route.ts`
+         - `app/api/crm-site/addons/seats/route.ts`
+         - `app/api/crm-site/email/campaigns/route.ts`
+         - `app/api/crm-site/email/send/route.ts`
+         - `app/api/crm-site/email/templates/route.ts`
+         - `app/api/crm-site/webhooks/route.ts`
+         - `app/api/crm-site/tickets/route.ts`
+         - `app/api/crm-site/landing-pages/route.ts`
+         - `app/api/crm-site/tenant-setup/route.ts`
+      - this closes the same cross-tenant tampering hole for tenant analytics, onboarding, automation, branding, API keys, email, webhook, and seat-management flows
+
 ### QR Message Left/Right Direction Normalization (Session: March 18, 2026 — Phase 78) — Commit `395bb29c`
 
 1. **✅ Normalized QR `fromMe` Mapping So Incoming and Outgoing Messages Render on the Correct Side**

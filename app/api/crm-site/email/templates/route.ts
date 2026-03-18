@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import { verifyToken } from '@/lib/auth';
 import { v4 as uuidv4 } from 'uuid';
 import { EMAIL_LIMITS, DEFAULT_TEMPLATES, TEMPLATE_CATEGORIES } from '@/lib/crm-site/emailMarketingConfig';
+import { resolveCrmSiteTenantAccess } from '@/lib/crm-site/tenantAccess';
+import { resolveEmailPlanAccess, resolveTenantPlanAccess } from '@/lib/crm-site/tenantPlanAccess';
 
 /**
  * Email Templates API
@@ -14,34 +14,28 @@ import { EMAIL_LIMITS, DEFAULT_TEMPLATES, TEMPLATE_CATEGORIES } from '@/lib/crm-
 
 export async function GET(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const token = authHeader.slice(7);
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
-    await connectDB();
-
     const url = new URL(request.url);
-    const tenantSlug = url.searchParams.get('tenant') || (decoded as any).tenantSlug;
+    const access = await resolveCrmSiteTenantAccess(request, {
+      requestedTenantSlug: url.searchParams.get('tenant'),
+    });
+    if (access instanceof NextResponse) {
+      return access;
+    }
+
+    const { crmDb, tenant, tenantSlug } = access;
     const templateId = url.searchParams.get('id');
 
     if (!tenantSlug) {
       return NextResponse.json({ error: 'Tenant not found' }, { status: 400 });
     }
 
-    const mongoose = (await import('mongoose')).default;
-    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
-
     // Get tenant plan
-    const tenant = await crmDb.collection('crm_tenants').findOne({ slug: tenantSlug });
-    const plan = tenant?.plan || 'free';
-    const limits = EMAIL_LIMITS[plan] || EMAIL_LIMITS.free;
+    const plan = resolveTenantPlanAccess(tenant).plan;
+    const limits = resolveEmailPlanAccess(tenant);
+
+    if (!limits.enabled) {
+      return NextResponse.json({ error: 'Email marketing is not enabled for this plan' }, { status: 403 });
+    }
 
     if (templateId) {
       // Check default templates first
@@ -95,32 +89,28 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const token = authHeader.slice(7);
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
     const body = await request.json();
-    const { tenantSlug, name, category, subject, body: templateBody, previewText } = body;
-
-    if (!tenantSlug || !name || !subject) {
-      return NextResponse.json({ error: 'tenantSlug, name, and subject required' }, { status: 400 });
+    const access = await resolveCrmSiteTenantAccess(request, {
+      requestedTenantSlug: body?.tenantSlug,
+    });
+    if (access instanceof NextResponse) {
+      return access;
     }
 
-    await connectDB();
-    const mongoose = (await import('mongoose')).default;
-    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+    const { crmDb, decoded, tenant, tenantSlug } = access;
+    const { name, category, subject, body: templateBody, previewText } = body;
+
+    if (!name || !subject) {
+      return NextResponse.json({ error: 'name and subject required' }, { status: 400 });
+    }
 
     // Get tenant and check limits
-    const tenant = await crmDb.collection('crm_tenants').findOne({ slug: tenantSlug });
-    const plan = tenant?.plan || 'free';
-    const limits = EMAIL_LIMITS[plan] || EMAIL_LIMITS.free;
+    const plan = resolveTenantPlanAccess(tenant).plan;
+    const limits = resolveEmailPlanAccess(tenant);
+
+    if (!limits.enabled) {
+      return NextResponse.json({ error: 'Email marketing is not enabled for this plan' }, { status: 403 });
+    }
 
     const existingCount = await crmDb.collection('email_templates').countDocuments({ tenantSlug });
     if (existingCount >= limits.templates) {
@@ -153,27 +143,20 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const token = authHeader.slice(7);
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
     const body = await request.json();
-    const { tenantSlug, templateId, ...updates } = body;
-
-    if (!tenantSlug || !templateId) {
-      return NextResponse.json({ error: 'tenantSlug and templateId required' }, { status: 400 });
+    const access = await resolveCrmSiteTenantAccess(request, {
+      requestedTenantSlug: body?.tenantSlug,
+    });
+    if (access instanceof NextResponse) {
+      return access;
     }
 
-    await connectDB();
-    const mongoose = (await import('mongoose')).default;
-    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+    const { crmDb, tenantSlug } = access;
+    const { templateId, ...updates } = body;
+
+    if (!templateId) {
+      return NextResponse.json({ error: 'templateId required' }, { status: 400 });
+    }
 
     const updateFields: Record<string, any> = { updatedAt: new Date() };
     const allowedFields = ['name', 'category', 'subject', 'body', 'previewText'];
@@ -203,27 +186,20 @@ export async function PATCH(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const token = authHeader.slice(7);
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
     const body = await request.json();
-    const { tenantSlug, templateId } = body;
-
-    if (!tenantSlug || !templateId) {
-      return NextResponse.json({ error: 'tenantSlug and templateId required' }, { status: 400 });
+    const access = await resolveCrmSiteTenantAccess(request, {
+      requestedTenantSlug: body?.tenantSlug,
+    });
+    if (access instanceof NextResponse) {
+      return access;
     }
 
-    await connectDB();
-    const mongoose = (await import('mongoose')).default;
-    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+    const { crmDb, tenantSlug } = access;
+    const { templateId } = body;
+
+    if (!templateId) {
+      return NextResponse.json({ error: 'templateId required' }, { status: 400 });
+    }
 
     const result = await crmDb.collection('email_templates').deleteOne({
       tenantSlug,

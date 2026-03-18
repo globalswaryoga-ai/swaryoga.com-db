@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import crypto from 'crypto';
+import { resolveUserSeatLimit } from '@/lib/crm-site/tenantPlanAccess';
 
 /**
  * GET /api/crm-site/team
@@ -36,46 +37,105 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
   viewer: ['leads:read', 'messages:read', 'analytics'],
 };
 
-const USER_LIMITS: Record<string, number> = {
-  free: 1,
-  basic: 2,
-  starter: 3,
-  growth: 10,
-  professional: 999,
-};
-
 function generateInviteToken(): string {
   return crypto.randomBytes(32).toString('hex');
 }
 
+type TenantAccessContext = {
+  crmDb: any;
+  currentUser: any;
+  tenant: any;
+  tenantSlug: string;
+  viewerId: string;
+  viewerEmail: string;
+  canManageTeam: boolean;
+};
+
+async function resolveTenantAccess(request: NextRequest): Promise<TenantAccessContext | NextResponse> {
+  const authHeader = request.headers.get('authorization');
+  if (!authHeader?.startsWith('Bearer ')) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const token = authHeader.slice(7);
+  const decoded = verifyToken(token);
+  if (!decoded?.isAdmin) {
+    return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+  }
+
+  await connectDB();
+
+  const mongoose = (await import('mongoose')).default;
+  const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+
+  const viewerId = String((decoded as any).userId || '').trim();
+  const viewerEmail = String((decoded as any).email || '').trim().toLowerCase();
+  const url = new URL(request.url);
+  const requestedTenantSlug = (url.searchParams.get('tenant') || '').trim();
+
+  const currentUser = await crmDb.collection('admin_users').findOne({
+    $or: [
+      viewerId ? { userId: viewerId } : null,
+      viewerEmail ? { email: viewerEmail } : null,
+    ].filter(Boolean),
+  });
+
+  if (!currentUser) {
+    return NextResponse.json({ error: 'User not found' }, { status: 404 });
+  }
+
+  const resolvedTenantSlug = String((decoded as any).tenantSlug || currentUser.tenantSlug || '').trim();
+  if (!resolvedTenantSlug) {
+    return NextResponse.json({ error: 'Tenant not found' }, { status: 400 });
+  }
+
+  if (requestedTenantSlug && requestedTenantSlug !== resolvedTenantSlug) {
+    return NextResponse.json({ error: 'Access denied for this tenant' }, { status: 403 });
+  }
+
+  const tenant = await crmDb.collection('crm_tenants').findOne({ slug: resolvedTenantSlug });
+  if (!tenant) {
+    return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
+  }
+
+  const membership = await crmDb.collection('tenant_team').findOne({
+    tenantSlug: resolvedTenantSlug,
+    $or: [
+      viewerEmail ? { email: viewerEmail } : null,
+      viewerId ? { userId: viewerId } : null,
+    ].filter(Boolean),
+  });
+
+  const isTenantOwner =
+    (tenant.ownerUserId && tenant.ownerUserId === viewerId) ||
+    (tenant.adminUserId && tenant.adminUserId === viewerId) ||
+    (tenant.ownerEmail && String(tenant.ownerEmail).trim().toLowerCase() === viewerEmail) ||
+    (currentUser.userId && tenant.ownerUserId === currentUser.userId) ||
+    (currentUser.email && String(tenant.ownerEmail || '').trim().toLowerCase() === String(currentUser.email).trim().toLowerCase());
+
+  const canManageTeam = isTenantOwner || ['owner', 'admin'].includes(String(membership?.role || '').toLowerCase());
+
+  return {
+    crmDb,
+    currentUser,
+    tenant,
+    tenantSlug: resolvedTenantSlug,
+    viewerId,
+    viewerEmail,
+    canManageTeam,
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const access = await resolveTenantAccess(request);
+    if (access instanceof NextResponse) {
+      return access;
     }
-
-    const token = authHeader.slice(7);
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
-    await connectDB();
-
-    const url = new URL(request.url);
-    const tenantSlug = url.searchParams.get('tenant') || (decoded as any).tenantSlug;
-
-    if (!tenantSlug) {
-      return NextResponse.json({ error: 'Tenant not found' }, { status: 400 });
-    }
-
-    const mongoose = (await import('mongoose')).default;
-    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+    const { crmDb, tenant, tenantSlug } = access;
 
     // Get tenant info for limits
-    const tenant = await crmDb.collection('crm_tenants').findOne({ slug: tenantSlug });
-    const userLimit = USER_LIMITS[tenant?.plan || 'free'] || 1;
+    const userLimit = resolveUserSeatLimit(tenant);
 
     // Get team members
     const members = await crmDb.collection('tenant_team').find({ tenantSlug }).toArray();
@@ -117,19 +177,17 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const access = await resolveTenantAccess(request);
+    if (access instanceof NextResponse) {
+      return access;
     }
-
-    const token = authHeader.slice(7);
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    if (!access.canManageTeam) {
+      return NextResponse.json({ error: 'Forbidden - team management access required' }, { status: 403 });
     }
 
     const body = await request.json();
-    const { tenantSlug, email, role = 'viewer', name } = body;
+    const { email, role = 'viewer', name } = body;
+    const tenantSlug = access.tenantSlug;
 
     if (!tenantSlug || !email) {
       return NextResponse.json({ error: 'tenantSlug and email required' }, { status: 400 });
@@ -140,14 +198,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid email address' }, { status: 400 });
     }
 
-    await connectDB();
-
-    const mongoose = (await import('mongoose')).default;
-    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+    const crmDb = access.crmDb;
 
     // Check tenant limits
-    const tenant = await crmDb.collection('crm_tenants').findOne({ slug: tenantSlug });
-    const userLimit = USER_LIMITS[tenant?.plan || 'free'] || 1;
+    const tenant = access.tenant;
+    const userLimit = resolveUserSeatLimit(tenant);
 
     const memberCount = await crmDb.collection('tenant_team').countDocuments({ tenantSlug });
     const inviteCount = await crmDb.collection('tenant_invites').countDocuments({
@@ -193,7 +248,7 @@ export async function POST(request: NextRequest) {
       permissions: ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS.viewer,
       inviteToken,
       status: 'pending',
-      invitedBy: (decoded as any).userId || (decoded as any).email,
+      invitedBy: access.viewerId || access.viewerEmail,
       createdAt: new Date(),
       expiresAt,
     });
@@ -215,29 +270,25 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const access = await resolveTenantAccess(request);
+    if (access instanceof NextResponse) {
+      return access;
     }
-
-    const token = authHeader.slice(7);
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    if (!access.canManageTeam) {
+      return NextResponse.json({ error: 'Forbidden - team management access required' }, { status: 403 });
     }
 
     const body = await request.json();
-    const { tenantSlug, memberId, role, permissions } = body;
+    const { memberId, role, permissions } = body;
+    const tenantSlug = access.tenantSlug;
 
     if (!tenantSlug || !memberId) {
       return NextResponse.json({ error: 'tenantSlug and memberId required' }, { status: 400 });
     }
 
-    await connectDB();
-
     const mongoose = (await import('mongoose')).default;
     const { ObjectId } = mongoose.Types;
-    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+    const crmDb = access.crmDb;
 
     const updateData: any = { updatedAt: new Date() };
     if (role) {
@@ -262,29 +313,25 @@ export async function PATCH(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const access = await resolveTenantAccess(request);
+    if (access instanceof NextResponse) {
+      return access;
     }
-
-    const token = authHeader.slice(7);
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    if (!access.canManageTeam) {
+      return NextResponse.json({ error: 'Forbidden - team management access required' }, { status: 403 });
     }
 
     const body = await request.json();
-    const { tenantSlug, memberId, inviteId } = body;
+    const { memberId, inviteId } = body;
+    const tenantSlug = access.tenantSlug;
 
     if (!tenantSlug || (!memberId && !inviteId)) {
       return NextResponse.json({ error: 'tenantSlug and memberId or inviteId required' }, { status: 400 });
     }
 
-    await connectDB();
-
     const mongoose = (await import('mongoose')).default;
     const { ObjectId } = mongoose.Types;
-    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+    const crmDb = access.crmDb;
 
     if (inviteId) {
       // Cancel invite

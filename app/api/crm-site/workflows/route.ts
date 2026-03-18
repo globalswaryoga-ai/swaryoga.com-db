@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import { verifyToken } from '@/lib/auth';
 import { v4 as uuidv4 } from 'uuid';
+import { resolveCrmSiteTenantAccess } from '@/lib/crm-site/tenantAccess';
 import {
   AUTOMATION_LIMITS,
   validateWorkflow,
@@ -9,6 +8,7 @@ import {
   TRIGGER_TYPES,
   ACTION_TYPES,
 } from '@/lib/crm-site/automationConfig';
+import { resolveTenantPlanAccess, resolveWorkflowPlanAccess } from '@/lib/crm-site/tenantPlanAccess';
 
 /**
  * GET /api/crm-site/workflows
@@ -26,34 +26,29 @@ import {
 
 export async function GET(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const token = authHeader.slice(7);
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
-    await connectDB();
-
     const url = new URL(request.url);
-    const tenantSlug = url.searchParams.get('tenant') || (decoded as any).tenantSlug;
+    const access = await resolveCrmSiteTenantAccess(request, {
+      requestedTenantSlug: url.searchParams.get('tenant'),
+    });
+    if (access instanceof NextResponse) {
+      return access;
+    }
+
+    const { crmDb, tenant, tenantSlug } = access;
     const workflowId = url.searchParams.get('id');
 
     if (!tenantSlug) {
       return NextResponse.json({ error: 'Tenant not found' }, { status: 400 });
     }
 
-    const mongoose = (await import('mongoose')).default;
-    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
-
     // Get tenant plan
-    const tenant = await crmDb.collection('crm_tenants').findOne({ slug: tenantSlug });
-    const plan = tenant?.plan || 'free';
-    const limits = AUTOMATION_LIMITS[plan] || AUTOMATION_LIMITS.free;
+    const planAccess = resolveTenantPlanAccess(tenant);
+    const plan = planAccess.plan;
+    const limits = resolveWorkflowPlanAccess(tenant);
+
+    if (!limits.enabled) {
+      return NextResponse.json({ error: 'Automation workflows are not enabled for this plan' }, { status: 403 });
+    }
 
     if (workflowId) {
       // Get single workflow
@@ -118,34 +113,31 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const token = authHeader.slice(7);
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
     const body = await request.json();
-    const { tenantSlug, name, description, trigger, conditions, actions } = body;
+    const access = await resolveCrmSiteTenantAccess(request, {
+      requestedTenantSlug: body?.tenantSlug,
+    });
+    if (access instanceof NextResponse) {
+      return access;
+    }
 
-    if (!tenantSlug || !name || !trigger || !actions?.length) {
+    const { crmDb, decoded, tenant, tenantSlug } = access;
+    const { name, description, trigger, conditions, actions } = body;
+
+    if (!name || !trigger || !actions?.length) {
       return NextResponse.json({
-        error: 'tenantSlug, name, trigger, and actions are required',
+        error: 'name, trigger, and actions are required',
       }, { status: 400 });
     }
 
-    await connectDB();
-    const mongoose = (await import('mongoose')).default;
-    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
-
     // Get tenant plan and check limits
-    const tenant = await crmDb.collection('crm_tenants').findOne({ slug: tenantSlug });
-    const plan = tenant?.plan || 'free';
-    const limits = AUTOMATION_LIMITS[plan] || AUTOMATION_LIMITS.free;
+    const planAccess = resolveTenantPlanAccess(tenant);
+    const plan = planAccess.plan;
+    const limits = resolveWorkflowPlanAccess(tenant);
+
+    if (!limits.enabled) {
+      return NextResponse.json({ error: 'Automation workflows are not enabled for this plan' }, { status: 403 });
+    }
 
     // Check workflow count
     const existingCount = await crmDb.collection('workflows').countDocuments({ tenantSlug });
@@ -195,31 +187,23 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const token = authHeader.slice(7);
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
     const body = await request.json();
-    const { tenantSlug, workflowId, ...updates } = body;
-
-    if (!tenantSlug || !workflowId) {
-      return NextResponse.json({ error: 'tenantSlug and workflowId required' }, { status: 400 });
+    const access = await resolveCrmSiteTenantAccess(request, {
+      requestedTenantSlug: body?.tenantSlug,
+    });
+    if (access instanceof NextResponse) {
+      return access;
     }
 
-    await connectDB();
-    const mongoose = (await import('mongoose')).default;
-    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+    const { crmDb, tenant, tenantSlug } = access;
+    const { workflowId, ...updates } = body;
+
+    if (!workflowId) {
+      return NextResponse.json({ error: 'workflowId required' }, { status: 400 });
+    }
 
     // Get tenant plan
-    const tenant = await crmDb.collection('crm_tenants').findOne({ slug: tenantSlug });
-    const plan = tenant?.plan || 'free';
+    const plan = resolveTenantPlanAccess(tenant).plan;
 
     // Build update object
     const updateFields: Record<string, any> = { updatedAt: new Date() };
@@ -232,7 +216,10 @@ export async function PATCH(request: NextRequest) {
 
     if (updates.actions !== undefined) {
       // Validate actions count
-      const limits = AUTOMATION_LIMITS[plan] || AUTOMATION_LIMITS.free;
+      const limits = resolveWorkflowPlanAccess(tenant);
+      if (!limits.enabled) {
+        return NextResponse.json({ error: 'Automation workflows are not enabled for this plan' }, { status: 403 });
+      }
       if (updates.actions.length > limits.actionsPerWorkflow) {
         return NextResponse.json({
           error: `Maximum ${limits.actionsPerWorkflow} actions allowed on ${plan} plan`,
@@ -264,27 +251,20 @@ export async function PATCH(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const token = authHeader.slice(7);
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
     const body = await request.json();
-    const { tenantSlug, workflowId } = body;
-
-    if (!tenantSlug || !workflowId) {
-      return NextResponse.json({ error: 'tenantSlug and workflowId required' }, { status: 400 });
+    const access = await resolveCrmSiteTenantAccess(request, {
+      requestedTenantSlug: body?.tenantSlug,
+    });
+    if (access instanceof NextResponse) {
+      return access;
     }
 
-    await connectDB();
-    const mongoose = (await import('mongoose')).default;
-    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+    const { crmDb, tenantSlug } = access;
+    const { workflowId } = body;
+
+    if (!workflowId) {
+      return NextResponse.json({ error: 'workflowId required' }, { status: 400 });
+    }
 
     const result = await crmDb.collection('workflows').deleteOne({
       tenantSlug,

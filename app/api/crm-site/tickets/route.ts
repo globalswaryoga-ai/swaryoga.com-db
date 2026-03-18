@@ -1,25 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import { verifyToken } from '@/lib/auth';
 import {
   HELPDESK_LIMITS,
   DEFAULT_CATEGORIES,
   generateTicketNumber,
   calculateSLADeadline,
 } from '@/lib/crm-site/helpdeskConfig';
+import { resolveCrmSiteTenantAccess } from '@/lib/crm-site/tenantAccess';
+import { resolveHelpdeskPlanAccess, resolveTenantPlanAccess } from '@/lib/crm-site/tenantPlanAccess';
 
 // GET - List tickets or get single ticket
 export async function GET(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    const token = authHeader?.replace('Bearer ', '');
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-    const decoded = verifyToken(token);
-    if (!decoded) return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-
     const { searchParams } = new URL(request.url);
-    const tenant = searchParams.get('tenant');
+    const access = await resolveCrmSiteTenantAccess(request, {
+      requestedTenantSlug: searchParams.get('tenant'),
+    });
+    if (access instanceof NextResponse) {
+      return access;
+    }
+
+    const { crmDb, tenant, tenantSlug } = access;
     const ticketId = searchParams.get('id');
     const status = searchParams.get('status');
     const priority = searchParams.get('priority');
@@ -27,24 +27,11 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50');
     const skip = parseInt(searchParams.get('skip') || '0');
 
-    if (!tenant) {
-      return NextResponse.json({ error: 'Tenant required' }, { status: 400 });
-    }
-
-    await connectDB();
-    const mongoose = (await import('mongoose')).default;
-    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
-    const tenantsCol = crmDb.collection('crm_tenants');
     const ticketsCol = crmDb.collection('crm_tickets');
 
-    const tenantDoc = await tenantsCol.findOne({ slug: tenant });
-    if (!tenantDoc) {
-      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
-    }
-
-    const plan = tenantDoc.subscription?.plan || 'free';
-    const limits = HELPDESK_LIMITS[plan] || HELPDESK_LIMITS.free;
-    const tenantId = tenantDoc._id.toString();
+    const plan = resolveTenantPlanAccess(tenant).plan;
+    const limits = resolveHelpdeskPlanAccess(tenant);
+    const tenantId = tenant._id.toString();
 
     if (!limits.enabled) {
       return NextResponse.json({ error: 'Help desk not available in your plan' }, { status: 403 });
@@ -108,8 +95,15 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    const access = await resolveCrmSiteTenantAccess(request, {
+      requestedTenantSlug: body?.tenantSlug,
+    });
+    if (access instanceof NextResponse) {
+      return access;
+    }
+
+    const { crmDb, tenant, tenantSlug } = access;
     const {
-      tenantSlug,
       subject,
       description,
       priority = 'medium',
@@ -120,24 +114,14 @@ export async function POST(request: NextRequest) {
       source = 'manual',
     } = body;
 
-    if (!tenantSlug || !subject || !customerEmail) {
-      return NextResponse.json({ error: 'Tenant, subject, and customer email required' }, { status: 400 });
+    if (!subject || !customerEmail) {
+      return NextResponse.json({ error: 'subject and customer email required' }, { status: 400 });
     }
-
-    await connectDB();
-    const mongoose = (await import('mongoose')).default;
-    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
-    const tenantsCol = crmDb.collection('crm_tenants');
     const ticketsCol = crmDb.collection('crm_tickets');
     const countersCol = crmDb.collection('crm_counters');
 
-    const tenant = await tenantsCol.findOne({ slug: tenantSlug });
-    if (!tenant) {
-      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
-    }
-
-    const plan = tenant.subscription?.plan || 'free';
-    const limits = HELPDESK_LIMITS[plan] || HELPDESK_LIMITS.free;
+    const plan = resolveTenantPlanAccess(tenant).plan;
+    const limits = resolveHelpdeskPlanAccess(tenant);
     const tenantId = tenant._id.toString();
 
     if (!limits.enabled) {
@@ -208,30 +192,21 @@ export async function POST(request: NextRequest) {
 // PATCH - Update ticket (status, assignee, add message)
 export async function PATCH(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    const token = authHeader?.replace('Bearer ', '');
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-    const decoded = verifyToken(token);
-    if (!decoded) return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-
     const body = await request.json();
-    const { tenantSlug, ticketId, action, ...data } = body;
-
-    if (!tenantSlug || !ticketId) {
-      return NextResponse.json({ error: 'Tenant and ticketId required' }, { status: 400 });
+    const access = await resolveCrmSiteTenantAccess(request, {
+      requestedTenantSlug: body?.tenantSlug,
+    });
+    if (access instanceof NextResponse) {
+      return access;
     }
 
-    await connectDB();
-    const mongoose = (await import('mongoose')).default;
-    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
-    const tenantsCol = crmDb.collection('crm_tenants');
+    const { crmDb, tenant } = access;
+    const { ticketId, action, ...data } = body;
+
+    if (!ticketId) {
+      return NextResponse.json({ error: 'ticketId required' }, { status: 400 });
+    }
     const ticketsCol = crmDb.collection('crm_tickets');
-
-    const tenant = await tenantsCol.findOne({ slug: tenantSlug });
-    if (!tenant) {
-      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
-    }
 
     const tenantId = tenant._id.toString();
     const ticket = await ticketsCol.findOne({ id: ticketId, tenantId });
@@ -292,30 +267,21 @@ export async function PATCH(request: NextRequest) {
 // DELETE - Delete ticket
 export async function DELETE(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    const token = authHeader?.replace('Bearer ', '');
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-    const decoded = verifyToken(token);
-    if (!decoded) return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-
     const body = await request.json();
-    const { tenantSlug, ticketId } = body;
-
-    if (!tenantSlug || !ticketId) {
-      return NextResponse.json({ error: 'Tenant and ticketId required' }, { status: 400 });
+    const access = await resolveCrmSiteTenantAccess(request, {
+      requestedTenantSlug: body?.tenantSlug,
+    });
+    if (access instanceof NextResponse) {
+      return access;
     }
 
-    await connectDB();
-    const mongoose = (await import('mongoose')).default;
-    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
-    const tenantsCol = crmDb.collection('crm_tenants');
+    const { crmDb, tenant } = access;
+    const { ticketId } = body;
+
+    if (!ticketId) {
+      return NextResponse.json({ error: 'ticketId required' }, { status: 400 });
+    }
     const ticketsCol = crmDb.collection('crm_tickets');
-
-    const tenant = await tenantsCol.findOne({ slug: tenantSlug });
-    if (!tenant) {
-      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
-    }
 
     await ticketsCol.deleteOne({ id: ticketId, tenantId: tenant._id.toString() });
 

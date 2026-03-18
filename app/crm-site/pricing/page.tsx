@@ -42,9 +42,9 @@ const PLANS = [
   {
     tier: 'free',
     name: 'Free',
-    desc: 'Explore everything — 250 leads.',
+    desc: 'Explore everything — 100 leads.',
     monthlyINR: 0, monthlyUSD: 0,
-    leads: '250',
+    leads: '100',
     users: '1',
     chatbots: '1',
     cta: 'Start Free Trial',

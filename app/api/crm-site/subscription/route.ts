@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { getViewerUserId, isSuperAdmin } from '@/lib/crm-handlers';
+import { resolveTenantPlanAccess } from '@/lib/crm-site/tenantPlanAccess';
 
 /**
  * GET /api/crm-site/subscription
@@ -32,7 +33,8 @@ export async function GET(request: NextRequest) {
     // Try to find tenant — tenantSlug may be absent for regular admin users
     let tenant: any = null;
     if (tenantSlug) {
-      tenant = await mainDb.collection('tenants').findOne({
+      tenant = await crmDb.collection('crm_tenants').findOne({ slug: tenantSlug })
+        || await mainDb.collection('tenants').findOne({
         $or: [{ tenantSlug }, { slug: tenantSlug }],
       });
     }
@@ -73,10 +75,12 @@ export async function GET(request: NextRequest) {
     }
 
     // Build subscription response
-    const plan = tenant?.subscriptionTier || tenant?.plan || 'free';
+    const planAccess = resolveTenantPlanAccess(tenant);
+    const plan = planAccess.plan;
     const subscription = {
       tenantSlug: tenantSlug || viewerId,
       plan,
+      planName: planAccess.planName,
       billing: lastPayment?.billing || 'monthly',
       subscriptionStatus: tenant?.subscriptionStatus || 'active',
       subscriptionStartDate: tenant?.subscriptionStartDate || tenant?.createdAt || null,
@@ -84,17 +88,19 @@ export async function GET(request: NextRequest) {
 
       // Usage
       storageUsedMB,
-      storageQuotaMB: tenant?.limits?.storageQuotaMB || 100,
+      storageQuotaMB: planAccess.limits.storageQuotaMB,
       leadsUsed: leadsCount,
-      leadsQuota: tenant?.limits?.maxLeads || 250,
+      leadsQuota: planAccess.limits.maxLeads,
       usersCount,
-      usersQuota: tenant?.limits?.maxUsers || 1,
+      usersQuota: planAccess.limits.maxUsers,
 
       // Payment info
       paymentMethod: lastPayment?.paymentMethod || null,
       autopayEnabled: lastPayment?.enableAutopay || false,
       lastPaymentDate: lastPayment?.createdAt || null,
       lastPaymentAmount: lastPayment?.amount || null,
+      pricing: planAccess.pricing,
+      channelAccess: planAccess.channelAccess,
     };
 
     return NextResponse.json({ success: true, subscription });

@@ -3,6 +3,14 @@ import { connectDB } from '@/lib/db';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
+import {
+  normalizePlanTier,
+  resolveTenantPlanAccess,
+  sanitizeTenantChannelAccess,
+  sanitizeTenantCustomLimits,
+  sanitizeTenantCustomPricing,
+  sanitizeTenantModuleOverrides,
+} from '@/lib/crm-site/tenantPlanAccess';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,13 +62,21 @@ export async function GET(req: NextRequest) {
 
     const totalUsers = await db.collection('admin_users').countDocuments(userFilter);
 
-    // Get all tenants for plan lookup
-    const tenants = await db.collection('tenants').find({}).toArray();
+    // Get tenant records for plan / custom access lookup
+    const [tenants, crmTenants] = await Promise.all([
+      db.collection('tenants').find({}).toArray(),
+      db.collection('crm_tenants').find({}).toArray().catch(() => []),
+    ]);
     const tenantMap = new Map<string, any>();
-    for (const t of tenants) {
-      if (t.ownerEmail) tenantMap.set(t.ownerEmail, t);
-      if (t.slug) tenantMap.set(`slug:${t.slug}`, t);
-    }
+    const registerTenant = (tenant: any) => {
+      if (!tenant) return;
+      if (tenant.ownerEmail) tenantMap.set(`email:${String(tenant.ownerEmail).toLowerCase()}`, tenant);
+      if (tenant.adminEmail) tenantMap.set(`email:${String(tenant.adminEmail).toLowerCase()}`, tenant);
+      if (tenant.slug) tenantMap.set(`slug:${tenant.slug}`, { ...(tenantMap.get(`slug:${tenant.slug}`) || {}), ...tenant });
+      if (tenant.tenantSlug) tenantMap.set(`slug:${tenant.tenantSlug}`, { ...(tenantMap.get(`slug:${tenant.tenantSlug}`) || {}), ...tenant });
+    };
+    tenants.forEach(registerTenant);
+    crmTenants.forEach(registerTenant);
 
     // Get all QR settings for WhatsApp number lookup
     const allSettings = await db.collection('crm_user_settings').find({}).toArray();
@@ -69,23 +85,15 @@ export async function GET(req: NextRequest) {
       settingsMap.set(s.userId, s);
     }
 
-    // Storage plan → monthly cost mapping (INR)
-    const PLAN_COST: Record<string, number> = {
-      free: 30,
-      starter: 30,
-      basic: 30,
-      growth: 99,
-      professional: 349,
-      pro: 349,
-    };
-
     // Build response
     const users = adminUsers.map((u: any) => {
-      const tenant = tenantMap.get(u.email) || tenantMap.get(u.userId) || tenantMap.get(`slug:${u.tenantSlug}`);
+      const tenant = tenantMap.get(`slug:${u.tenantSlug}`)
+        || tenantMap.get(`email:${String(u.email || '').toLowerCase()}`)
+        || tenantMap.get(`email:${String(u.userId || '').toLowerCase()}`);
       const settings = settingsMap.get(u.userId) || settingsMap.get(u.email);
-
-      const storagePlan = u.planId || tenant?.plan || 'free';
-      const monthlyCost = PLAN_COST[storagePlan] ?? 30;
+      const planAccess = resolveTenantPlanAccess(tenant || { plan: u.planId || 'free' });
+      const storagePlan = u.planId || planAccess.plan || 'free';
+      const monthlyCost = planAccess.pricing.monthly ?? 0;
 
       return {
         _id: u._id?.toString(),
@@ -96,7 +104,8 @@ export async function GET(req: NextRequest) {
         role: u.role || 'admin',
         isAdmin: u.isAdmin || false,
         tenantSlug: u.tenantSlug || '',
-        plan: tenant?.plan || 'free',
+        plan: planAccess.plan,
+        planLabel: planAccess.planName,
         businessName: tenant?.name || '',
         tenantStatus: tenant?.status || 'unknown',
         qrWhatsappEnabled: settings?.qrWhatsappEnabled || false,
@@ -108,6 +117,11 @@ export async function GET(req: NextRequest) {
         storagePlan,
         monthlyCost,
         storagePaidUntil: u.storagePaidUntil || null,
+        customPlanName: planAccess.customPlanName,
+        customPricing: planAccess.customPricing,
+        customLimits: planAccess.customLimits,
+        moduleOverrides: planAccess.moduleOverrides,
+        channelAccess: planAccess.channelAccess,
         // Payment tracking
         receivedAmount: u.receivedAmount ?? 0,
         paymentNote: u.paymentNote || '',
@@ -149,7 +163,20 @@ export async function PUT(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { targetUserId, qrWhatsappEnabled, qrConnectedPhoneNumber, receivedAmount, paymentNote, paymentDate } = body;
+    const {
+      targetUserId,
+      qrWhatsappEnabled,
+      qrConnectedPhoneNumber,
+      receivedAmount,
+      paymentNote,
+      paymentDate,
+      plan,
+      customPlanName,
+      customPricing,
+      customLimits,
+      moduleOverrides,
+      channelAccess,
+    } = body;
 
     if (!targetUserId) {
       return apiError('targetUserId is required', 400);
@@ -158,16 +185,31 @@ export async function PUT(req: NextRequest) {
     await connectDB();
     const { default: mongoose } = await import('mongoose');
     const db = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+    const now = new Date();
+
+    const targetUser = await db.collection('admin_users').findOne(
+      { $or: [{ userId: targetUserId }, { email: targetUserId }] },
+      { projection: { userId: 1, email: 1, tenantSlug: 1 } }
+    );
+
+    if (!targetUser) {
+      return apiError('Target CRM user not found', 404);
+    }
 
     // CRM user settings updates (QR access)
-    const settingsUpdate: Record<string, any> = { updatedAt: new Date() };
+    const settingsUpdate: Record<string, any> = { updatedAt: now };
     let hasSettingsUpdate = false;
     if (qrWhatsappEnabled !== undefined) { settingsUpdate.qrWhatsappEnabled = !!qrWhatsappEnabled; hasSettingsUpdate = true; }
     if (qrConnectedPhoneNumber !== undefined) { settingsUpdate.qrConnectedPhoneNumber = qrConnectedPhoneNumber; hasSettingsUpdate = true; }
+    const normalizedChannelAccess = sanitizeTenantChannelAccess(channelAccess);
+    if (normalizedChannelAccess.qrWhatsApp !== undefined) {
+      settingsUpdate.qrWhatsappEnabled = !!normalizedChannelAccess.qrWhatsApp;
+      hasSettingsUpdate = true;
+    }
 
     if (hasSettingsUpdate) {
       await db.collection('crm_user_settings').updateOne(
-        { userId: targetUserId },
+        { userId: targetUser.userId || targetUser.email },
         { $set: settingsUpdate },
         { upsert: true }
       );
@@ -180,8 +222,72 @@ export async function PUT(req: NextRequest) {
     if (paymentNote !== undefined) { userUpdate.paymentNote = String(paymentNote); hasUserUpdate = true; }
     if (paymentDate !== undefined) { userUpdate.paymentDate = paymentDate ? new Date(paymentDate) : null; hasUserUpdate = true; }
 
+    const normalizedPlan = plan !== undefined ? normalizePlanTier(plan) : undefined;
+    const normalizedLimits = sanitizeTenantCustomLimits(customLimits);
+    const normalizedPricing = sanitizeTenantCustomPricing(customPricing);
+    const normalizedModuleOverrides = sanitizeTenantModuleOverrides(moduleOverrides);
+
+    if (normalizedPlan !== undefined) {
+      userUpdate.planId = normalizedPlan;
+      userUpdate.planName = String(customPlanName || normalizedPlan);
+      if (normalizedLimits.storageQuotaMB !== undefined) {
+        userUpdate.storageLimitMB = normalizedLimits.storageQuotaMB;
+      }
+      hasUserUpdate = true;
+
+      const tenantUpdate: Record<string, any> = {
+        plan: normalizedPlan,
+        updatedAt: now,
+        customPlanName: String(customPlanName || '').trim(),
+        customPricing: normalizedPricing,
+        customLimits: normalizedLimits,
+        moduleOverrides: normalizedModuleOverrides,
+        channelAccess: normalizedChannelAccess,
+        'subscription.plan': normalizedPlan,
+      };
+
+      await Promise.all([
+        db.collection('tenants').updateOne(
+          {
+            $or: [
+              { slug: targetUser.tenantSlug || '__none__' },
+              { tenantSlug: targetUser.tenantSlug || '__none__' },
+              { ownerEmail: targetUser.email || '__none__' },
+              { ownerUserId: targetUser.userId || '__none__' },
+            ],
+          },
+          { $set: tenantUpdate }
+        ),
+        db.collection('crm_tenants').updateOne(
+          {
+            $or: [
+              { slug: targetUser.tenantSlug || '__none__' },
+              { tenantSlug: targetUser.tenantSlug || '__none__' },
+              { ownerEmail: targetUser.email || '__none__' },
+              { ownerUserId: targetUser.userId || '__none__' },
+              { adminEmail: targetUser.email || '__none__' },
+              { adminUserId: targetUser.userId || '__none__' },
+            ],
+          },
+          { $set: tenantUpdate }
+        ),
+        db.collection('user_compartments').updateOne(
+          { userId: targetUser.userId || targetUser.email },
+          {
+            $set: {
+              updatedAt: now,
+              'subscription.plan': normalizedPlan,
+              ...(normalizedLimits.storageQuotaMB !== undefined
+                ? { 'storage.quotaMB': normalizedLimits.storageQuotaMB }
+                : {}),
+            },
+          }
+        ),
+      ]);
+    }
+
     if (hasUserUpdate) {
-      userUpdate.updatedAt = new Date();
+      userUpdate.updatedAt = now;
       // Update by userId or email to find the right admin_user
       const result = await db.collection('admin_users').updateOne(
         { $or: [{ userId: targetUserId }, { email: targetUserId }] },

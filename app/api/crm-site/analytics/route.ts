@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import { verifyToken } from '@/lib/auth';
+import { resolveCrmSiteTenantAccess } from '@/lib/crm-site/tenantAccess';
+import { resolveTenantPlanAccess } from '@/lib/crm-site/tenantPlanAccess';
 
 /**
  * GET /api/crm-site/analytics
@@ -9,25 +9,16 @@ import { verifyToken } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const token = authHeader.slice(7);
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
-    await connectDB();
-
     const url = new URL(request.url);
-    const tenantSlug = url.searchParams.get('tenant') || (decoded as any).tenantSlug;
-    const period = url.searchParams.get('period') || '30d'; // 7d, 30d, 90d
+    const access = await resolveCrmSiteTenantAccess(request, {
+      requestedTenantSlug: url.searchParams.get('tenant'),
+    });
+    if (access instanceof NextResponse) {
+      return access;
+    }
 
-    const mongoose = (await import('mongoose')).default;
-    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+    const { crmDb, tenant, tenantSlug } = access;
+    const period = url.searchParams.get('period') || '30d'; // 7d, 30d, 90d
 
     // Calculate date range
     const days = period === '7d' ? 7 : period === '90d' ? 90 : 30;
@@ -35,8 +26,6 @@ export async function GET(request: NextRequest) {
     startDate.setDate(startDate.getDate() - days);
 
     // Get tenant info
-    const tenant = await crmDb.collection('crm_tenants').findOne({ slug: tenantSlug });
-
     // Get leads stats
     const leadsQuery = tenantSlug ? { tenantSlug } : {};
     const totalLeads = await crmDb.collection('leads').countDocuments(leadsQuery);
@@ -117,13 +106,16 @@ export async function GET(request: NextRequest) {
     });
     const growthRate = prevLeads > 0 ? (((newLeads - prevLeads) / prevLeads) * 100).toFixed(1) : newLeads > 0 ? '100' : '0';
 
+    const planAccess = resolveTenantPlanAccess(tenant);
+
     return NextResponse.json({
       period,
       tenant: tenant ? {
         name: tenant.name,
-        plan: tenant.plan,
+        plan: planAccess.plan,
+        planName: planAccess.planName,
         leadsUsed: tenant.currentLeadCount || 0,
-        leadsLimit: tenant.maxLeads || 250,
+        leadsLimit: planAccess.limits.maxLeads,
       } : null,
       summary: {
         totalLeads,

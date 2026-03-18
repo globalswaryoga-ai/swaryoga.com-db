@@ -5,7 +5,7 @@
  * Each plan specifies numeric limits and which modules are enabled.
  *
  * Tier overview:
- *   FREE         – 250 leads, 1 user, 1 chatbot flow
+ *   FREE         – 100 leads, 1 user, 1 chatbot flow
  *   BASIC        – 2,000 leads, 2 users, 5 chatbot flows (₹999/mo)
  *   STARTER      – 5,000 leads, 3 users, 10 chatbot flows (₹1,999/mo)
  *   GROWTH       – 25,000 leads, 10 users, unlimited chatbot flows (₹4,999/mo)
@@ -70,9 +70,9 @@ export const PLAN_DEFINITIONS: Record<PlanTier, PlanDefinition> = {
   [PlanTier.FREE]: {
     tier: PlanTier.FREE,
     name: 'Free',
-    description: 'Explore everything — 250 leads.',
+    description: 'Explore everything — 100 leads.',
     limits: {
-      maxLeads: 250,
+      maxLeads: 100,
       maxUsers: 1,
       maxWhatsAppTemplates: 0,
       maxBroadcastsPerDay: 0,

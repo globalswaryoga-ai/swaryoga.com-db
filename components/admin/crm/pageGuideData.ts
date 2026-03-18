@@ -65,7 +65,7 @@ const PAGE_GUIDES: Record<string, PageGuideData> = {
       'Use tags to categorize leads (e.g., "hot", "cold", "VIP").',
       'Set follow-up reminders so no lead is forgotten.',
     ],
-    freePlanNote: 'Free plan: up to 250 leads. Upgrade to Basic for 2,000 leads or Starter for 5,000.',
+    freePlanNote: 'Free plan: up to 100 leads. Upgrade to Basic for 2,000 leads or Starter for 5,000.',
   },
 
   // ── WhatsApp / Meta ──

@@ -23,7 +23,7 @@ const PLAN_TO_TIER: Record<string, string> = {
 };
 
 const PLAN_LIMITS: Record<string, { maxLeads: number; maxUsers: number; maxChatbotFlows: number; storageQuotaMB: number }> = {
-  free:         { maxLeads: 250,     maxUsers: 1,   maxChatbotFlows: 1,    storageQuotaMB: 100 },
+  free:         { maxLeads: 100,     maxUsers: 1,   maxChatbotFlows: 1,    storageQuotaMB: 100 },
   basic:        { maxLeads: 2000,    maxUsers: 2,   maxChatbotFlows: 5,    storageQuotaMB: 500 },
   starter:      { maxLeads: 5000,    maxUsers: 3,   maxChatbotFlows: 10,   storageQuotaMB: 1000 },
   growth:       { maxLeads: 25000,   maxUsers: 10,  maxChatbotFlows: 9999, storageQuotaMB: 5000 },

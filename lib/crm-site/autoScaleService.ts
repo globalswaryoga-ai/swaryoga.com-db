@@ -77,7 +77,7 @@ export async function checkTenantUtilization(tenantSlug: string): Promise<Tenant
   if (!tenant) return null;
 
   const plan = tenant.subscriptionTier || tenant.plan || 'free';
-  const limits = tenant.limits || { maxLeads: 250, storageQuotaMB: 100, maxUsers: 1 };
+  const limits = tenant.limits || { maxLeads: 100, storageQuotaMB: 100, maxUsers: 1 };
 
   // Count usage
   const leadsUsed = await crmDb.collection('leads').countDocuments({

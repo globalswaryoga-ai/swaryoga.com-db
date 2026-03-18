@@ -1,40 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import { verifyToken } from '@/lib/auth';
 import { LANDING_PAGE_LIMITS, generateSlug, DEFAULT_FORM_FIELDS } from '@/lib/crm-site/landingPageConfig';
+import { resolveCrmSiteTenantAccess } from '@/lib/crm-site/tenantAccess';
+import { resolveLandingPagePlanAccess, resolveTenantPlanAccess } from '@/lib/crm-site/tenantPlanAccess';
 
 // GET - List landing pages or get single page
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const tenant = searchParams.get('tenant');
+    const access = await resolveCrmSiteTenantAccess(request, {
+      requestedTenantSlug: searchParams.get('tenant'),
+    });
+    if (access instanceof NextResponse) {
+      return access;
+    }
+
+    const { crmDb, tenant, tenantSlug } = access;
     const pageId = searchParams.get('id');
     const slug = searchParams.get('slug');
 
-    if (!tenant) {
-      return NextResponse.json({ error: 'Tenant required' }, { status: 400 });
-    }
-
-    await connectDB();
-    const mongoose = (await import('mongoose')).default;
-    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
-    const tenantsCol = crmDb.collection('crm_tenants');
     const pagesCol = crmDb.collection('crm_landing_pages');
 
-    // Get tenant info
-    const tenantDoc = await tenantsCol.findOne({ slug: tenant });
-    if (!tenantDoc) {
-      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
-    }
+    const planAccess = resolveTenantPlanAccess(tenant);
+    const plan = planAccess.plan;
+    const limits = resolveLandingPagePlanAccess(tenant);
 
-    const plan = tenantDoc.subscription?.plan || 'free';
-    const limits = LANDING_PAGE_LIMITS[plan] || LANDING_PAGE_LIMITS.free;
+    if (!limits.enabled) {
+      return NextResponse.json({ error: 'Landing pages are not enabled for this plan' }, { status: 403 });
+    }
 
     // Get single page by ID or slug
     if (pageId || slug) {
       const query = pageId 
-        ? { id: pageId, tenantId: tenantDoc._id.toString() }
-        : { slug, tenantId: tenantDoc._id.toString() };
+        ? { id: pageId, tenantId: tenant._id.toString() }
+        : { slug, tenantId: tenant._id.toString() };
       
       const page = await pagesCol.findOne(query);
       if (!page) {
@@ -45,7 +43,7 @@ export async function GET(request: NextRequest) {
 
     // List all pages
     const pages = await pagesCol
-      .find({ tenantId: tenantDoc._id.toString() })
+      .find({ tenantId: tenant._id.toString() })
       .sort({ createdAt: -1 })
       .toArray();
 
@@ -65,33 +63,27 @@ export async function GET(request: NextRequest) {
 // POST - Create landing page
 export async function POST(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    const token = authHeader?.replace('Bearer ', '');
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-    const decoded = verifyToken(token);
-    if (!decoded) return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-
     const body = await request.json();
-    const { tenantSlug, name, template, title, subtitle } = body;
-
-    if (!tenantSlug || !name) {
-      return NextResponse.json({ error: 'Tenant and name required' }, { status: 400 });
+    const access = await resolveCrmSiteTenantAccess(request, {
+      requestedTenantSlug: body?.tenantSlug,
+    });
+    if (access instanceof NextResponse) {
+      return access;
     }
 
-    await connectDB();
-    const mongoose = (await import('mongoose')).default;
-    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
-    const tenantsCol = crmDb.collection('crm_tenants');
+    const { crmDb, tenant } = access;
+    const { name, template, title, subtitle } = body;
+
+    if (!name) {
+      return NextResponse.json({ error: 'name required' }, { status: 400 });
+    }
     const pagesCol = crmDb.collection('crm_landing_pages');
 
-    const tenant = await tenantsCol.findOne({ slug: tenantSlug });
-    if (!tenant) {
-      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
-    }
+    const limits = resolveLandingPagePlanAccess(tenant);
 
-    const plan = tenant.subscription?.plan || 'free';
-    const limits = LANDING_PAGE_LIMITS[plan] || LANDING_PAGE_LIMITS.free;
+    if (!limits.enabled) {
+      return NextResponse.json({ error: 'Landing pages are not enabled for this plan' }, { status: 403 });
+    }
 
     // Check limits
     const existingCount = await pagesCol.countDocuments({ tenantId: tenant._id.toString() });
@@ -151,30 +143,21 @@ export async function POST(request: NextRequest) {
 // PATCH - Update landing page
 export async function PATCH(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    const token = authHeader?.replace('Bearer ', '');
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-    const decoded = verifyToken(token);
-    if (!decoded) return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-
     const body = await request.json();
-    const { tenantSlug, pageId, ...updates } = body;
-
-    if (!tenantSlug || !pageId) {
-      return NextResponse.json({ error: 'Tenant and pageId required' }, { status: 400 });
+    const access = await resolveCrmSiteTenantAccess(request, {
+      requestedTenantSlug: body?.tenantSlug,
+    });
+    if (access instanceof NextResponse) {
+      return access;
     }
 
-    await connectDB();
-    const mongoose = (await import('mongoose')).default;
-    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
-    const tenantsCol = crmDb.collection('crm_tenants');
+    const { crmDb, tenant } = access;
+    const { pageId, ...updates } = body;
+
+    if (!pageId) {
+      return NextResponse.json({ error: 'pageId required' }, { status: 400 });
+    }
     const pagesCol = crmDb.collection('crm_landing_pages');
-
-    const tenant = await tenantsCol.findOne({ slug: tenantSlug });
-    if (!tenant) {
-      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
-    }
 
     // Allowed updates
     const allowedFields = [
@@ -214,31 +197,22 @@ export async function PATCH(request: NextRequest) {
 // DELETE - Delete landing page
 export async function DELETE(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    const token = authHeader?.replace('Bearer ', '');
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-    const decoded = verifyToken(token);
-    if (!decoded) return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-
     const body = await request.json();
-    const { tenantSlug, pageId } = body;
-
-    if (!tenantSlug || !pageId) {
-      return NextResponse.json({ error: 'Tenant and pageId required' }, { status: 400 });
+    const access = await resolveCrmSiteTenantAccess(request, {
+      requestedTenantSlug: body?.tenantSlug,
+    });
+    if (access instanceof NextResponse) {
+      return access;
     }
 
-    await connectDB();
-    const mongoose = (await import('mongoose')).default;
-    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
-    const tenantsCol = crmDb.collection('crm_tenants');
+    const { crmDb, tenant } = access;
+    const { pageId } = body;
+
+    if (!pageId) {
+      return NextResponse.json({ error: 'pageId required' }, { status: 400 });
+    }
     const pagesCol = crmDb.collection('crm_landing_pages');
     const submissionsCol = crmDb.collection('crm_form_submissions');
-
-    const tenant = await tenantsCol.findOne({ slug: tenantSlug });
-    if (!tenant) {
-      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
-    }
 
     // Delete page and its submissions
     await pagesCol.deleteOne({ id: pageId, tenantId: tenant._id.toString() });

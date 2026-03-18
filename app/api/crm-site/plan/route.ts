@@ -10,6 +10,7 @@ import {
   isInTrial,
   getTrialDaysRemaining,
 } from '@/lib/crm-site/planConfig';
+import { resolveTenantPlanAccess } from '@/lib/crm-site/tenantPlanAccess';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -79,6 +80,11 @@ export async function GET(request: NextRequest) {
     const user = await crmDb.collection('admin_users').findOne({
       $or: [{ userId }, { email: decoded.email }],
     });
+    const tenantSlug = user?.tenantSlug;
+    const tenant = tenantSlug
+      ? await crmDb.collection('crm_tenants').findOne({ slug: tenantSlug })
+        || await crmDb.collection('tenants').findOne({ $or: [{ slug: tenantSlug }, { tenantSlug }] })
+      : null;
 
     // Determine plan
     const sub = (compartment as any)?.subscription;
@@ -107,7 +113,6 @@ export async function GET(request: NextRequest) {
     const subStatus = sub?.status || (isTrialActive ? 'trial' : 'active');
 
     // Usage counts
-    const tenantSlug = user?.tenantSlug;
     const userFilter = tenantSlug
       ? { $or: [{ tenantSlug }, { createdByUserId: userId }, { assignedToUserId: userId }] }
       : { $or: [{ createdByUserId: userId }, { assignedToUserId: userId }] };
@@ -124,12 +129,13 @@ export async function GET(request: NextRequest) {
 
     const storageMB = (compartment as any)?.storage?.usedMB || 0;
 
-    const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.free;
-    const modules = PLAN_MODULES[plan] || PLAN_MODULES.free;
+    const planAccess = resolveTenantPlanAccess(tenant || { plan });
+    const limits = planAccess.limits || PLAN_LIMITS[plan] || PLAN_LIMITS.free;
+    const modules = planAccess.modules || PLAN_MODULES[plan] || PLAN_MODULES.free;
 
     return json({
-      plan,
-      planName: plan.charAt(0).toUpperCase() + plan.slice(1),
+      plan: planAccess.plan,
+      planName: planAccess.planName,
       billing: sub?.billing || 'monthly',
       status: subStatus,
       isSuperAdmin: false,
@@ -143,6 +149,8 @@ export async function GET(request: NextRequest) {
       // Limits & modules
       limits,
       modules,
+      pricing: planAccess.pricing,
+      channelAccess: planAccess.channelAccess,
 
       // Usage
       usage: {

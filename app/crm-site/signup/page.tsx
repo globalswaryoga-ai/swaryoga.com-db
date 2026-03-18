@@ -44,7 +44,7 @@ interface FieldError {
 }
 
 const PLANS_QUICK = [
-  { id: 'free', name: 'Free', priceINR: '₹0/mo', priceUSD: '$0/mo', desc: '250 leads · 1 chatbot flow', highlight: false },
+  { id: 'free', name: 'Free', priceINR: '₹0/mo', priceUSD: '$0/mo', desc: '100 leads · 1 chatbot flow', highlight: false },
   { id: 'basic', name: 'Basic', priceINR: '₹999/mo', priceUSD: '$12/mo', desc: '2,000 leads · 5 chatbot flows', highlight: false },
   { id: 'starter', name: 'Starter', priceINR: '₹1,999/mo', priceUSD: '$25/mo', desc: '5,000 leads · 10 chatbot flows', highlight: false },
   { id: 'growth', name: 'Growth', priceINR: '₹4,999/mo', priceUSD: '$59/mo', desc: '25,000 leads · Unlimited chatbots', highlight: true },

@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import { verifyToken } from '@/lib/auth';
 import {
   EMAIL_LIMITS,
   replaceEmailVariables,
   generateTrackingPixel,
   wrapLinksForTracking,
 } from '@/lib/crm-site/emailMarketingConfig';
+import { resolveCrmSiteTenantAccess } from '@/lib/crm-site/tenantAccess';
+import { resolveEmailPlanAccess, resolveTenantPlanAccess } from '@/lib/crm-site/tenantPlanAccess';
 
 /**
  * Email Send API
@@ -15,27 +15,22 @@ import {
 
 export async function POST(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const token = authHeader.slice(7);
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
     const body = await request.json();
-    const { tenantSlug, campaignId, testEmail } = body;
-
-    if (!tenantSlug || !campaignId) {
-      return NextResponse.json({ error: 'tenantSlug and campaignId required' }, { status: 400 });
+    const access = await resolveCrmSiteTenantAccess(request, {
+      requestedTenantSlug: body?.tenantSlug,
+    });
+    if (access instanceof NextResponse) {
+      return access;
     }
 
-    await connectDB();
+    const { crmDb, tenant, tenantSlug } = access;
+    const { campaignId, testEmail } = body;
+
+    if (!campaignId) {
+      return NextResponse.json({ error: 'campaignId required' }, { status: 400 });
+    }
+
     const mongoose = (await import('mongoose')).default;
-    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
 
     // Get campaign
     const campaign = await crmDb.collection('email_campaigns').findOne({
@@ -48,9 +43,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Get tenant
-    const tenant = await crmDb.collection('crm_tenants').findOne({ slug: tenantSlug });
-    const plan = tenant?.plan || 'free';
-    const limits = EMAIL_LIMITS[plan] || EMAIL_LIMITS.free;
+    const plan = resolveTenantPlanAccess(tenant).plan;
+    const limits = resolveEmailPlanAccess(tenant);
+
+    if (!limits.enabled) {
+      return NextResponse.json({ error: 'Email marketing is not enabled for this plan' }, { status: 403 });
+    }
 
     // Check monthly limit
     const startOfMonth = new Date();

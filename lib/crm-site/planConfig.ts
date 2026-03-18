@@ -56,7 +56,7 @@ export interface PlanLimits {
 
 export const PLAN_LIMITS: Record<PlanTier, PlanLimits> = {
   free: {
-    maxLeads: 250,
+    maxLeads: 100,
     maxUsers: 1,
     maxChatbotFlows: 1,
     storageQuotaMB: 1024,

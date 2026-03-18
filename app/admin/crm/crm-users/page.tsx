@@ -28,6 +28,13 @@ import {
   Save,
   FileText,
 } from 'lucide-react';
+import {
+  PLAN_LIMITS,
+  PLAN_MODULES,
+  PLAN_PRICING,
+  type CrmModule,
+  type PlanTier,
+} from '@/lib/crm-site/planConfig';
 
 interface CrmUser {
   _id: string;
@@ -39,6 +46,7 @@ interface CrmUser {
   isAdmin: boolean;
   tenantSlug: string;
   plan: string;
+  planLabel: string;
   businessName: string;
   tenantStatus: string;
   qrWhatsappEnabled: boolean;
@@ -52,6 +60,53 @@ interface CrmUser {
   receivedAmount: number;
   paymentNote: string;
   paymentDate: string | null;
+  customPlanName?: string;
+  customPricing?: {
+    monthly?: number;
+    quarterly?: number;
+    annual?: number;
+    monthlyUSD?: number;
+  };
+  customLimits?: {
+    maxLeads?: number;
+    maxUsers?: number;
+    storageQuotaMB?: number;
+    maxLandingPages?: number;
+    maxCommunities?: number;
+    maxEmailsPerMonth?: number;
+    maxAutomationWorkflows?: number;
+  };
+  moduleOverrides?: Partial<Record<CrmModule, boolean>>;
+  channelAccess?: {
+    metaWhatsApp?: boolean;
+    qrWhatsApp?: boolean;
+    emailMarketing?: boolean;
+    landingPages?: boolean;
+    community?: boolean;
+    automation?: boolean;
+    helpdesk?: boolean;
+  };
+}
+
+interface PlanAccessForm {
+  plan: PlanTier;
+  customPlanName: string;
+  monthlyPrice: string;
+  quarterlyPrice: string;
+  storageQuotaGB: string;
+  maxLeads: string;
+  maxUsers: string;
+  maxLandingPages: string;
+  maxCommunities: string;
+  maxEmailsPerMonth: string;
+  maxAutomationWorkflows: string;
+  metaWhatsApp: boolean;
+  qrWhatsApp: boolean;
+  emailMarketing: boolean;
+  landingPages: boolean;
+  community: boolean;
+  automation: boolean;
+  helpdesk: boolean;
 }
 
 const PLAN_COLORS: Record<string, string> = {
@@ -61,6 +116,27 @@ const PLAN_COLORS: Record<string, string> = {
   growth: 'bg-purple-100 text-purple-700',
   professional: 'bg-orange-100 text-orange-700',
 };
+
+const PLAN_ACCESS_CHECKBOXES: Array<{
+  key: keyof Pick<PlanAccessForm, 'metaWhatsApp' | 'qrWhatsApp' | 'emailMarketing' | 'landingPages' | 'community' | 'automation' | 'helpdesk'>;
+  label: string;
+  hint: string;
+}> = [
+  { key: 'metaWhatsApp', label: 'Meta WhatsApp', hint: 'Inbox, templates, and Meta sends' },
+  { key: 'qrWhatsApp', label: 'QR WhatsApp', hint: 'QR session and chat access' },
+  { key: 'emailMarketing', label: 'Email', hint: 'Campaigns, templates, and send queue' },
+  { key: 'landingPages', label: 'Landing Pages', hint: 'Lead capture pages and forms' },
+  { key: 'community', label: 'Community', hint: 'Community/course related access' },
+  { key: 'automation', label: 'Automation', hint: 'Workflow builder and triggers' },
+  { key: 'helpdesk', label: 'Help Desk', hint: 'Ticketing and support workflows' },
+];
+
+function normalizePlanTier(value: string): PlanTier {
+  if (value === 'basic' || value === 'starter' || value === 'growth' || value === 'professional') {
+    return value;
+  }
+  return 'free';
+}
 
 export default function CrmUsersPage() {
   const router = useRouter();
@@ -88,6 +164,12 @@ export default function CrmUsersPage() {
   const [paymentNote, setPaymentNote] = useState('');
   const [paymentDate, setPaymentDate] = useState('');
   const [savingPayment, setSavingPayment] = useState(false);
+
+  // Plan access modal
+  const [planUser, setPlanUser] = useState<CrmUser | null>(null);
+  const [planForm, setPlanForm] = useState<PlanAccessForm | null>(null);
+  const [savingPlan, setSavingPlan] = useState(false);
+  const [planError, setPlanError] = useState('');
 
   // Plans for filter
   const plans = ['free', 'basic', 'starter', 'growth', 'professional'];
@@ -145,6 +227,107 @@ export default function CrmUsersPage() {
       month: 'short',
       year: 'numeric',
     });
+  };
+
+  const openPlanAccess = (user: CrmUser) => {
+    const plan = normalizePlanTier(user.plan);
+    const baseLimits = PLAN_LIMITS[plan] || PLAN_LIMITS.free;
+    const baseModules = PLAN_MODULES[plan] || PLAN_MODULES.free;
+    const basePricing = PLAN_PRICING[plan] || PLAN_PRICING.free;
+
+    const metaWhatsApp = user.channelAccess?.metaWhatsApp ?? baseModules.whatsapp;
+    const qrWhatsApp = user.channelAccess?.qrWhatsApp ?? user.qrWhatsappEnabled ?? baseModules.whatsapp;
+
+    setPlanUser(user);
+    setPlanError('');
+    setPlanForm({
+      plan,
+      customPlanName: user.customPlanName || '',
+      monthlyPrice: String(user.customPricing?.monthly ?? user.monthlyCost ?? basePricing.monthly ?? 0),
+      quarterlyPrice: String(user.customPricing?.quarterly ?? basePricing.quarterly ?? 0),
+      storageQuotaGB: String(Math.max(1, Math.round((user.customLimits?.storageQuotaMB ?? baseLimits.storageQuotaMB) / 1024))),
+      maxLeads: String(user.customLimits?.maxLeads ?? baseLimits.maxLeads),
+      maxUsers: String(user.customLimits?.maxUsers ?? baseLimits.maxUsers),
+      maxLandingPages: String(user.customLimits?.maxLandingPages ?? baseLimits.maxLandingPages),
+      maxCommunities: String(user.customLimits?.maxCommunities ?? baseLimits.maxCommunities),
+      maxEmailsPerMonth: String(user.customLimits?.maxEmailsPerMonth ?? baseLimits.maxEmailsPerMonth),
+      maxAutomationWorkflows: String(user.customLimits?.maxAutomationWorkflows ?? baseLimits.maxAutomationWorkflows),
+      metaWhatsApp,
+      qrWhatsApp,
+      emailMarketing: user.channelAccess?.emailMarketing ?? (user.moduleOverrides?.emailMarketing ?? baseModules.emailMarketing),
+      landingPages: user.channelAccess?.landingPages ?? (user.moduleOverrides?.landingPages ?? baseModules.landingPages),
+      community: user.channelAccess?.community ?? (user.moduleOverrides?.community ?? baseModules.community),
+      automation: user.channelAccess?.automation ?? (user.moduleOverrides?.automation ?? baseModules.automation),
+      helpdesk: user.channelAccess?.helpdesk ?? (user.moduleOverrides?.helpdesk ?? baseModules.helpdesk),
+    });
+  };
+
+  const savePlanAccess = async () => {
+    if (!planUser || !planForm || !token) return;
+
+    try {
+      setSavingPlan(true);
+      setPlanError('');
+
+      const storageQuotaMB = Math.max(0, Number(planForm.storageQuotaGB) || 0) * 1024;
+      const payload = {
+        targetUserId: planUser.userId,
+        plan: planForm.plan,
+        customPlanName: planForm.customPlanName.trim(),
+        customPricing: {
+          monthly: Number(planForm.monthlyPrice) || 0,
+          quarterly: Number(planForm.quarterlyPrice) || 0,
+        },
+        customLimits: {
+          maxLeads: Number(planForm.maxLeads) || 0,
+          maxUsers: Number(planForm.maxUsers) || 0,
+          storageQuotaMB,
+          maxLandingPages: Number(planForm.maxLandingPages) || 0,
+          maxCommunities: Number(planForm.maxCommunities) || 0,
+          maxEmailsPerMonth: Number(planForm.maxEmailsPerMonth) || 0,
+          maxAutomationWorkflows: Number(planForm.maxAutomationWorkflows) || 0,
+        },
+        moduleOverrides: {
+          whatsapp: planForm.metaWhatsApp || planForm.qrWhatsApp,
+          emailMarketing: planForm.emailMarketing,
+          landingPages: planForm.landingPages,
+          community: planForm.community,
+          automation: planForm.automation,
+          helpdesk: planForm.helpdesk,
+        },
+        channelAccess: {
+          metaWhatsApp: planForm.metaWhatsApp,
+          qrWhatsApp: planForm.qrWhatsApp,
+          emailMarketing: planForm.emailMarketing,
+          landingPages: planForm.landingPages,
+          community: planForm.community,
+          automation: planForm.automation,
+          helpdesk: planForm.helpdesk,
+        },
+      };
+
+      const res = await fetch('/api/admin/crm/crm-users', {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to save plan access');
+      }
+
+      await fetchUsers();
+      setPlanUser(null);
+      setPlanForm(null);
+    } catch (err: any) {
+      setPlanError(err.message || 'Failed to save plan access');
+    } finally {
+      setSavingPlan(false);
+    }
   };
 
   // Open payment edit modal
@@ -354,7 +537,7 @@ export default function CrmUsersPage() {
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${PLAN_COLORS[user.plan] || PLAN_COLORS.free}`}>
                         <CreditCard className="w-3 h-3" />
-                        {user.plan?.charAt(0).toUpperCase() + user.plan?.slice(1)}
+                        {user.planLabel || (user.plan?.charAt(0).toUpperCase() + user.plan?.slice(1))}
                       </span>
                     </td>
 
@@ -425,13 +608,23 @@ export default function CrmUsersPage() {
 
                     {/* Actions */}
                     <td className="px-4 py-3 text-center">
-                      <button
-                        onClick={() => setViewUser(user)}
-                        className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
-                        title="View Details"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          onClick={() => setViewUser(user)}
+                          className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                          title="View Details"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => openPlanAccess(user)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition"
+                          title="More Actions"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                          More
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -507,7 +700,7 @@ export default function CrmUsersPage() {
                 <div>
                   <p className="text-xs text-gray-400 uppercase">Plan</p>
                   <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${PLAN_COLORS[viewUser.plan] || PLAN_COLORS.free}`}>
-                    {viewUser.plan?.charAt(0).toUpperCase() + viewUser.plan?.slice(1)}
+                    {viewUser.planLabel || (viewUser.plan?.charAt(0).toUpperCase() + viewUser.plan?.slice(1))}
                   </span>
                 </div>
                 <div>
@@ -704,6 +897,164 @@ export default function CrmUsersPage() {
                 )}
                 {savingPayment ? 'Saving...' : 'Save Payment'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Plan Access Modal */}
+      {planUser && planForm && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => { setPlanUser(null); setPlanForm(null); setPlanError(''); }}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b flex items-center justify-between bg-gradient-to-r from-indigo-600 to-violet-600 rounded-t-xl">
+              <div>
+                <h3 className="font-semibold text-white flex items-center gap-2">
+                  <Pencil className="w-5 h-5" />
+                  More Actions · Plan Access
+                </h3>
+                <p className="text-xs text-indigo-100 mt-1">Use checkboxes for features, adjust limits, then submit.</p>
+              </div>
+              <button onClick={() => { setPlanUser(null); setPlanForm(null); setPlanError(''); }} className="text-white/80 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-5">
+              <div className="flex items-center gap-3 pb-3 border-b">
+                <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-semibold text-sm">
+                  {(planUser.name || planUser.email || '?').charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <p className="font-medium text-gray-900 text-sm">{planUser.name || planUser.email}</p>
+                  <p className="text-xs text-gray-500">{planUser.email} · {planUser.tenantSlug || 'No tenant slug'}</p>
+                </div>
+              </div>
+
+              {planError && (
+                <div className="px-3 py-2 rounded-lg border border-red-200 bg-red-50 text-sm text-red-700">
+                  {planError}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Base Plan</label>
+                  <select
+                    value={planForm.plan}
+                    onChange={(e) => setPlanForm((prev) => prev ? { ...prev, plan: normalizePlanTier(e.target.value) } : prev)}
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                  >
+                    {plans.map((p) => (
+                      <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Custom Plan Name</label>
+                  <input
+                    type="text"
+                    value={planForm.customPlanName}
+                    onChange={(e) => setPlanForm((prev) => prev ? { ...prev, customPlanName: e.target.value } : prev)}
+                    placeholder="e.g. Custom ₹500 / 3-month pack"
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-medium text-gray-600 mb-2">Feature Access</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {PLAN_ACCESS_CHECKBOXES.map((item) => (
+                    <label key={item.key} className="flex items-start gap-3 rounded-lg border border-gray-200 p-3 hover:border-indigo-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={planForm[item.key]}
+                        onChange={(e) => setPlanForm((prev) => prev ? { ...prev, [item.key]: e.target.checked } : prev)}
+                        className="mt-1 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span>
+                        <span className="block text-sm font-medium text-gray-900">{item.label}</span>
+                        <span className="block text-xs text-gray-500">{item.hint}</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-medium text-gray-600 mb-2">Pricing</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Monthly Price (₹)</label>
+                    <input
+                      type="number"
+                      value={planForm.monthlyPrice}
+                      onChange={(e) => setPlanForm((prev) => prev ? { ...prev, monthlyPrice: e.target.value } : prev)}
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">3-Month Price (₹)</label>
+                    <input
+                      type="number"
+                      value={planForm.quarterlyPrice}
+                      onChange={(e) => setPlanForm((prev) => prev ? { ...prev, quarterlyPrice: e.target.value } : prev)}
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-medium text-gray-600 mb-2">Limits & Quotas</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Monthly Data / Storage (GB)</label>
+                    <input type="number" value={planForm.storageQuotaGB} onChange={(e) => setPlanForm((prev) => prev ? { ...prev, storageQuotaGB: e.target.value } : prev)} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Lead Limit</label>
+                    <input type="number" value={planForm.maxLeads} onChange={(e) => setPlanForm((prev) => prev ? { ...prev, maxLeads: e.target.value } : prev)} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">User Seats</label>
+                    <input type="number" value={planForm.maxUsers} onChange={(e) => setPlanForm((prev) => prev ? { ...prev, maxUsers: e.target.value } : prev)} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Landing Pages</label>
+                    <input type="number" value={planForm.maxLandingPages} onChange={(e) => setPlanForm((prev) => prev ? { ...prev, maxLandingPages: e.target.value } : prev)} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Communities</label>
+                    <input type="number" value={planForm.maxCommunities} onChange={(e) => setPlanForm((prev) => prev ? { ...prev, maxCommunities: e.target.value } : prev)} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Emails / Month</label>
+                    <input type="number" value={planForm.maxEmailsPerMonth} onChange={(e) => setPlanForm((prev) => prev ? { ...prev, maxEmailsPerMonth: e.target.value } : prev)} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Automation Workflows</label>
+                    <input type="number" value={planForm.maxAutomationWorkflows} onChange={(e) => setPlanForm((prev) => prev ? { ...prev, maxAutomationWorkflows: e.target.value } : prev)} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t">
+                <button
+                  onClick={() => { setPlanUser(null); setPlanForm(null); setPlanError(''); }}
+                  className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={savePlanAccess}
+                  disabled={savingPlan}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium disabled:opacity-50"
+                >
+                  {savingPlan ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  {savingPlan ? 'Submitting...' : 'Submit'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

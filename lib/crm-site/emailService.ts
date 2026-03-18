@@ -191,7 +191,7 @@ export async function sendWelcomeEmail(data: {
     
     <div style="background:#f8f9fa; border-radius:8px; padding:20px; margin:20px 0;">
       <ul style="margin:0; padding-left:20px;">
-        <li style="margin-bottom:10px;">✓ Manage up to 250 leads</li>
+        <li style="margin-bottom:10px;">✓ Manage up to 100 leads</li>
         <li style="margin-bottom:10px;">✓ Build 1 chatbot flow</li>
         <li style="margin-bottom:10px;">✓ Track your sales funnel</li>
         <li style="margin-bottom:10px;">✓ Basic analytics & reports</li>
