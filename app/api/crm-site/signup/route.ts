@@ -266,7 +266,6 @@ export async function POST(request: NextRequest) {
             trialUsed: false,
           },
           isActive: true,
-          lastActivityAt: now,
           metadata: {
             provisionedBy: 'crm-site-signup',
             tenantSlug: finalSlug,
@@ -414,9 +413,8 @@ export async function POST(request: NextRequest) {
     });
   } catch (err: any) {
     logError('crm-signup/main', err);
-    const errorDetail = err?.message || String(err);
     return jsonResponse(
-      { error: 'Failed to create account. Please try again.', detail: errorDetail, success: false },
+      { error: 'Failed to create account. Please try again.', success: false },
       500
     );
   }
