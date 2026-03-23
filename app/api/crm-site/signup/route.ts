@@ -302,7 +302,6 @@ export async function POST(request: NextRequest) {
       },
       enabledModules: ['crm'],
       createdAt: now,
-      updatedAt: now,
     };
 
     const crmTenantUpsert = await mainDb.collection('crm_tenants').updateOne(
@@ -344,7 +343,7 @@ export async function POST(request: NextRequest) {
       completedAt: now,
     };
     setupTemplate.createdAt = now;
-    setupTemplate.updatedAt = now;
+    delete (setupTemplate as any).updatedAt;
 
     await mainDb.collection('tenant_setup').updateOne(
       { tenantSlug: finalSlug },
