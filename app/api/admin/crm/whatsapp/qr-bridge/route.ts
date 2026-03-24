@@ -352,6 +352,9 @@ function getChatArray(data: any): any[] {
 
 function hasVisibleChatActivity(chat: any): boolean {
   if (!chat) return false;
+  // Groups always pass through — synthetic group placeholders from groupSubjectCache
+  // have no lastMessage/timestamp/unread but should still be visible so users can open them.
+  if (chat.isGroup) return true;
   const lastMessageText = typeof chat?.lastMessage === 'string'
     ? chat.lastMessage.trim()
     : String(chat?.lastMessage?.body || '').trim();

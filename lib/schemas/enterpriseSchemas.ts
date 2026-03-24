@@ -409,6 +409,110 @@ QrWhatsAppChatSchema.index({ userId: 1, connectedPhone: 1, conversationTimestamp
 QrWhatsAppChatSchema.index({ userId: 1, connectedPhone: 1, chatJid: 1 }, { unique: true });
 
 // ============================================================================
+// 1a-SOCIAL. SOCIAL INBOX CONVERSATIONS — Messenger / Instagram DM threads
+// ============================================================================
+const SocialInboxConversationSchema = new mongoose.Schema(
+  {
+    platform: {
+      type: String,
+      enum: ['messenger', 'instagram'],
+      required: true,
+      index: true,
+    },
+    accountScopeType: {
+      type: String,
+      enum: ['super_admin', 'tenant'],
+      default: 'super_admin',
+      index: true,
+    },
+    accountScopeKey: { type: String, default: 'super_admin', index: true },
+    accountId: { type: String, required: true, index: true },
+    accountName: { type: String, default: '' },
+    accountHandle: { type: String, default: '' },
+    conversationKey: { type: String, required: true, index: true },
+    participantId: { type: String, required: true, index: true },
+    participantName: { type: String, default: '' },
+    participantUsername: { type: String, default: '' },
+    participantProfilePic: { type: String, default: '' },
+    createdByUserId: { type: String, index: true },
+    assignedToUserId: { type: String, index: true },
+    status: {
+      type: String,
+      enum: ['new_lead', 'contacted', 'interested', 'demo_trial', 'negotiation', 'enrolled', 'completed', 'inactive', 'repeater', 'old_sadhak', 'only_for_post'],
+      default: 'new_lead',
+      index: true,
+    },
+    labels: { type: [String], default: [] },
+    notes: { type: String, default: '' },
+    unreadCount: { type: Number, default: 0, index: true },
+    lastMessage: { type: String, default: '' },
+    lastMessageAt: { type: Date, index: true },
+    lastMessageDirection: {
+      type: String,
+      enum: ['inbound', 'outbound'],
+      default: 'inbound',
+    },
+    lastExternalMessageId: { type: String, default: '' },
+    isBlocked: { type: Boolean, default: false, index: true },
+    metadata: mongoose.Schema.Types.Mixed,
+  },
+  { timestamps: true, collection: 'social_inbox_conversations' }
+);
+SocialInboxConversationSchema.index({ accountScopeType: 1, accountScopeKey: 1, platform: 1, lastMessageAt: -1 });
+SocialInboxConversationSchema.index({ conversationKey: 1, accountScopeType: 1, accountScopeKey: 1 }, { unique: true });
+
+// ============================================================================
+// 1a-SOCIAL-MSG. SOCIAL INBOX MESSAGES — Messenger / Instagram DM messages
+// ============================================================================
+const SocialInboxMessageSchema = new mongoose.Schema(
+  {
+    conversationId: { type: mongoose.Schema.Types.ObjectId, ref: 'SocialInboxConversation', required: true, index: true },
+    conversationKey: { type: String, required: true, index: true },
+    platform: {
+      type: String,
+      enum: ['messenger', 'instagram'],
+      required: true,
+      index: true,
+    },
+    accountScopeType: {
+      type: String,
+      enum: ['super_admin', 'tenant'],
+      default: 'super_admin',
+      index: true,
+    },
+    accountScopeKey: { type: String, default: 'super_admin', index: true },
+    accountId: { type: String, required: true, index: true },
+    externalMessageId: { type: String, sparse: true, index: true },
+    senderId: { type: String, default: '' },
+    recipientId: { type: String, default: '' },
+    direction: {
+      type: String,
+      enum: ['inbound', 'outbound'],
+      default: 'inbound',
+      index: true,
+    },
+    messageContent: { type: String, default: '' },
+    messageType: {
+      type: String,
+      enum: ['text', 'image', 'video', 'audio', 'document', 'postback', 'unsupported'],
+      default: 'text',
+    },
+    mediaUrl: { type: String, default: '' },
+    mediaType: { type: String, default: '' },
+    isRead: { type: Boolean, default: false, index: true },
+    sentAt: { type: Date, default: Date.now, index: true },
+    deliveredAt: { type: Date },
+    readAt: { type: Date },
+    error: { type: String, default: '' },
+    metadata: mongoose.Schema.Types.Mixed,
+  },
+  { timestamps: true, collection: 'social_inbox_messages' }
+);
+SocialInboxMessageSchema.index({ conversationId: 1, sentAt: 1 });
+SocialInboxMessageSchema.index({ platform: 1, accountScopeType: 1, accountScopeKey: 1, sentAt: -1 });
+SocialInboxMessageSchema.index({ platform: 1, accountScopeType: 1, accountScopeKey: 1, externalMessageId: 1 }, { unique: true, sparse: true });
+
+// ============================================================================
 // 1b. WHATSAPP WEBHOOK EVENTS — Store recent webhook summaries for debugging
 // ==========================================================================
 // This is intentionally small: we store a compact summary (not the full payload)
@@ -2867,6 +2971,8 @@ export function getDeletedLead() { return getModel('DeletedLead', DeletedLeadSch
 export function getWhatsAppMessage() { return getModel('WhatsAppMessage', WhatsAppMessageSchema); }
 export function getQrWhatsAppMessage() { return getModel('QrWhatsAppMessage', QrWhatsAppMessageSchema); }
 export function getQrWhatsAppChat() { return getModel('QrWhatsAppChat', QrWhatsAppChatSchema); }
+export function getSocialInboxConversation() { return getModel('SocialInboxConversation', SocialInboxConversationSchema); }
+export function getSocialInboxMessage() { return getModel('SocialInboxMessage', SocialInboxMessageSchema); }
 export function getWhatsAppWebhookEvent() { return getModel('WhatsAppWebhookEvent', WhatsAppWebhookEventSchema); }
 export function getWhatsAppAccount() { return getModel('WhatsAppAccount', WhatsAppAccountSchema); }
 export function getUserConsent() { return getModel('UserConsent', UserConsentSchema); }
@@ -2974,6 +3080,8 @@ export const Lead = createModelProxy('Lead', LeadSchema);
 export const CrmCounter = createModelProxy('CrmCounter', CrmCounterSchema);
 export const DeletedLead = createModelProxy('DeletedLead', DeletedLeadSchema);
 export const WhatsAppMessage = createModelProxy('WhatsAppMessage', WhatsAppMessageSchema);
+export const SocialInboxConversation = createModelProxy('SocialInboxConversation', SocialInboxConversationSchema);
+export const SocialInboxMessage = createModelProxy('SocialInboxMessage', SocialInboxMessageSchema);
 export const WhatsAppWebhookEvent = createModelProxy('WhatsAppWebhookEvent', WhatsAppWebhookEventSchema);
 export const WhatsAppAccount = createModelProxy('WhatsAppAccount', WhatsAppAccountSchema);
 export const UserConsent = createModelProxy('UserConsent', UserConsentSchema);

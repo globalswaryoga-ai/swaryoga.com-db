@@ -938,6 +938,15 @@ export const WorkshopSchedule =
 
 // Social Media Account Schema
 const socialMediaAccountSchema = new mongoose.Schema({
+  scopeType: {
+    type: String,
+    enum: ['super_admin', 'tenant'],
+    default: 'super_admin',
+    index: true,
+  },
+  scopeKey: { type: String, default: 'super_admin', index: true },
+  ownerUserId: { type: String, index: true },
+  tenantSlug: { type: String, index: true },
   platform: {
     type: String,
     enum: ['facebook', 'youtube', 'x', 'linkedin', 'instagram', 'tiktok'],
@@ -981,6 +990,7 @@ const socialMediaAccountSchema = new mongoose.Schema({
 
 socialMediaAccountSchema.index({ platform: 1, isConnected: 1 });
 socialMediaAccountSchema.index({ accountId: 1, platform: 1 });
+socialMediaAccountSchema.index({ scopeType: 1, scopeKey: 1, platform: 1, accountId: 1 }, { unique: true, sparse: true });
 
 export const SocialMediaAccount =
   mongoose.models.SocialMediaAccount || mongoose.model('SocialMediaAccount', socialMediaAccountSchema);

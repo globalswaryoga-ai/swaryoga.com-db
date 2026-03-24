@@ -9,6 +9,7 @@ import { LoadingSpinner } from '@/components/admin/crm';
 interface Conversation {
   _id: string;
   name: string;
+  participantId?: string;
   username?: string;
   igScopedId?: string;
   phoneNumber?: string;
@@ -20,6 +21,7 @@ interface Conversation {
   assignedToUserId?: string;
   source?: string;
   profilePic?: string;
+  notes?: string;
 }
 
 interface Message {
@@ -35,6 +37,25 @@ interface Message {
 interface AdminUser {
   userId: string;
   name?: string;
+}
+
+interface ConnectedSocialAccount {
+  _id: string;
+  platform: string;
+  accountName: string;
+  accountHandle: string;
+  accountId?: string;
+  isConnected?: boolean;
+  metadata?: {
+    autoConnectedVia?: string;
+    linkedPageName?: string;
+  };
+}
+
+interface SettingsScopeInfo {
+  type: 'super_admin' | 'tenant';
+  key: string;
+  label: string;
 }
 
 /* ─── Helpers ─── */
@@ -67,6 +88,13 @@ export default function InstagramInboxPage() {
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [sidebarData, setSidebarData] = useState<any>({ labels: [], notes: '', assignedTo: '', status: 'new_lead' });
   const [savingSidebar, setSavingSidebar] = useState(false);
+  const [instagramAccount, setInstagramAccount] = useState<ConnectedSocialAccount | null>(null);
+  const [facebookAccount, setFacebookAccount] = useState<ConnectedSocialAccount | null>(null);
+  const [checkingConnection, setCheckingConnection] = useState(true);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [connectionRestricted, setConnectionRestricted] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [settingsScope, setSettingsScope] = useState<SettingsScopeInfo | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const tabRoutes: Record<string, string> = {
@@ -83,48 +111,282 @@ export default function InstagramInboxPage() {
     if (href) router.push(href);
   };
 
-  // Load conversations placeholder
+  const openMetaSetup = () => {
+    router.push('/admin/social-media-setup?platform=facebook');
+  };
+
+  const getStoredAdminToken = useCallback(() => {
+    return localStorage.getItem('adminToken') || localStorage.getItem('admin_token') || '';
+  }, []);
+
+  const loadAdminUsers = useCallback(async () => {
+    const adminToken = getStoredAdminToken();
+    if (!adminToken) return;
+
+    try {
+      const res = await fetch('/api/admin/auth/users', {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setAdminUsers(Array.isArray(data?.data) ? data.data : []);
+      }
+    } catch (error) {
+      console.error('Failed to load admin users:', error);
+    }
+  }, [getStoredAdminToken]);
+
+  const syncSidebarFromConversation = useCallback((conversation: Conversation | null) => {
+    setSidebarData({
+      labels: Array.isArray(conversation?.labels) ? conversation?.labels : [],
+      notes: conversation?.notes || '',
+      assignedTo: conversation?.assignedToUserId || '',
+      status: conversation?.status || 'new_lead',
+      followUpDate: sidebarData.followUpDate || '',
+    });
+  }, [sidebarData.followUpDate]);
+
+  const loadInstagramMessages = useCallback(async (conversationId: string) => {
+    const adminToken = getStoredAdminToken();
+    if (!adminToken || !conversationId) return;
+
+    setLoadingMessages(true);
+    try {
+      const res = await fetch(`/api/admin/crm/social-inbox/messages?platform=instagram&conversationId=${encodeURIComponent(conversationId)}`, {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to load Instagram messages');
+      }
+
+      const conversation = data?.data?.conversation || null;
+      const loadedMessages = Array.isArray(data?.data?.messages) ? data.data.messages : [];
+      setMessages(loadedMessages);
+      if (conversation) {
+        setSelected(conversation);
+        syncSidebarFromConversation(conversation);
+        setConversations((prev) => prev.map((item) => (item._id === conversation._id ? { ...item, ...conversation, unreadCount: 0 } : item)));
+      }
+    } catch (error) {
+      setConnectionError(error instanceof Error ? error.message : 'Failed to load Instagram messages');
+      setMessages([]);
+    } finally {
+      setLoadingMessages(false);
+    }
+  }, [getStoredAdminToken, syncSidebarFromConversation]);
+
+  const loadInstagramConversations = useCallback(async () => {
+    const adminToken = getStoredAdminToken();
+    if (!adminToken) return;
+
+    try {
+      const res = await fetch('/api/admin/crm/social-inbox/conversations?platform=instagram', {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to load Instagram conversations');
+      }
+
+      const rows = Array.isArray(data?.data?.conversations) ? data.data.conversations : [];
+      setConversations(rows);
+      if (selected?._id) {
+        const refreshedSelected = rows.find((item: Conversation) => item._id === selected._id) || null;
+        if (refreshedSelected) {
+          setSelected(refreshedSelected);
+          syncSidebarFromConversation(refreshedSelected);
+        }
+      }
+    } catch (error) {
+      setConnectionError(error instanceof Error ? error.message : 'Failed to load Instagram conversations');
+      setConversations([]);
+    }
+  }, [getStoredAdminToken, selected?._id, syncSidebarFromConversation]);
+
+  const loadInstagramShell = useCallback(async () => {
+    if (!token) return;
+
+    setLoading(true);
+    setCheckingConnection(true);
+    setConnectionError(null);
+    setConnectionRestricted(false);
+
+    try {
+      const adminToken = getStoredAdminToken();
+      if (!adminToken) throw new Error('Admin token missing. Please sign in again.');
+
+      const res = await fetch('/api/admin/social-media/accounts', {
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+        },
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (res.status === 403) {
+        setConnectionRestricted(true);
+        setFacebookAccount(null);
+        setInstagramAccount(null);
+        setSettingsScope(null);
+      } else if (!res.ok) {
+        setConnectionError(data?.error || 'Failed to check Meta connection status');
+        setFacebookAccount(null);
+        setInstagramAccount(null);
+        setSettingsScope(null);
+      } else {
+        const accounts = Array.isArray(data?.data)
+          ? data.data
+          : Array.isArray(data?.accounts)
+            ? data.accounts
+            : [];
+
+        setFacebookAccount(accounts.find((account: ConnectedSocialAccount) => account?.platform === 'facebook' && account?.isConnected !== false) || null);
+        setInstagramAccount(accounts.find((account: ConnectedSocialAccount) => account?.platform === 'instagram' && account?.isConnected !== false) || null);
+        setSettingsScope(data?.scope || null);
+
+        await loadAdminUsers();
+        if (accounts.find((account: ConnectedSocialAccount) => account?.platform === 'instagram' && account?.isConnected !== false)) {
+          await loadInstagramConversations();
+        } else {
+          setConversations([]);
+          setSelected(null);
+          setMessages([]);
+        }
+      }
+    } catch (error) {
+      setFacebookAccount(null);
+      setInstagramAccount(null);
+      setSettingsScope(null);
+      setConnectionError(error instanceof Error ? error.message : 'Failed to load Instagram connection status');
+    } finally {
+      setCheckingConnection(false);
+      setLoading(false);
+    }
+  }, [token, getStoredAdminToken, loadAdminUsers, loadInstagramConversations]);
+
   useEffect(() => {
     if (!token) return;
-    setLoading(true);
-    // Future: fetch from /api/admin/crm/instagram/conversations
-    setTimeout(() => {
+    loadInstagramShell();
+  }, [token, loadInstagramShell]);
+
+  const handleDisconnectInstagram = useCallback(async () => {
+    const targetId = instagramAccount?._id || facebookAccount?._id;
+    if (!targetId || disconnecting) return;
+
+    const label = instagramAccount ? 'Instagram connection' : 'Facebook Page connection';
+    if (!window.confirm(`Disconnect this ${label} for this settings scope?`)) return;
+
+    try {
+      setDisconnecting(true);
+      const adminToken = localStorage.getItem('adminToken') || localStorage.getItem('admin_token') || '';
+      const res = await fetch(`/api/admin/social-media/accounts/${targetId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+        },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to disconnect Meta connection');
+      }
+      setSelected(null);
+      setMessages([]);
       setConversations([]);
-      setLoading(false);
-    }, 500);
-  }, [token]);
+      await loadInstagramShell();
+    } catch (error) {
+      setConnectionError(error instanceof Error ? error.message : 'Failed to disconnect Meta connection');
+    } finally {
+      setDisconnecting(false);
+    }
+  }, [instagramAccount?._id, facebookAccount?._id, disconnecting, loadInstagramShell]);
 
   // Auto-scroll messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSelectConversation = (conv: Conversation) => {
+  const handleSelectConversation = async (conv: Conversation) => {
     setSelected(conv);
-    setLoadingMessages(true);
-    // Future: fetch messages from /api/admin/crm/instagram/messages?id=...
-    setTimeout(() => {
-      setMessages([]);
-      setLoadingMessages(false);
-    }, 300);
+    syncSidebarFromConversation(conv);
+    await loadInstagramMessages(conv._id);
   };
 
   const handleSaveSidebar = async () => {
     if (!selected) return;
     setSavingSidebar(true);
-    // Future: save to API
-    setTimeout(() => setSavingSidebar(false), 500);
+    try {
+      const adminToken = getStoredAdminToken();
+      const res = await fetch(`/api/admin/crm/social-inbox/conversations/${selected._id}?platform=instagram`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({
+          status: sidebarData.status,
+          notes: sidebarData.notes,
+          assignedToUserId: sidebarData.assignedTo,
+          labels: sidebarData.labels,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to save Instagram conversation');
+      }
+      const updated = data?.data;
+      if (updated) {
+        setSelected(updated);
+        setConversations((prev) => prev.map((item) => (item._id === updated._id ? { ...item, ...updated } : item)));
+        syncSidebarFromConversation(updated);
+      }
+    } catch (error) {
+      setConnectionError(error instanceof Error ? error.message : 'Failed to save Instagram conversation');
+    } finally {
+      setSavingSidebar(false);
+    }
   };
 
   const handleSendMessage = async () => {
     if (!composerText.trim() || !selected) return;
-    // Future: send via Instagram Messaging API
+    const messageText = composerText.trim();
     setComposerText('');
+    try {
+      const adminToken = getStoredAdminToken();
+      const res = await fetch('/api/admin/crm/social-inbox/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({
+          platform: 'instagram',
+          conversationId: selected._id,
+          messageContent: messageText,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to send Instagram message');
+      }
+      await loadInstagramMessages(selected._id);
+      await loadInstagramConversations();
+    } catch (error) {
+      setComposerText(messageText);
+      setConnectionError(error instanceof Error ? error.message : 'Failed to send Instagram message');
+    }
   };
 
   const filteredConversations = conversations.filter(c =>
     !searchQuery || (c.name || '').toLowerCase().includes(searchQuery.toLowerCase()) || (c.username || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const connectionBadgeLabel = instagramAccount
+    ? `Connected · ${instagramAccount.accountName}`
+    : facebookAccount
+      ? 'Instagram not linked on Page yet'
+      : connectionRestricted
+        ? 'Super Admin setup required'
+        : 'Instagram not connected';
 
   if (!token) return null;
 
@@ -169,6 +431,30 @@ export default function InstagramInboxPage() {
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
+          <div className={`hidden xl:flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-[10px] font-bold ${instagramAccount ? 'bg-white/15 text-white border-white/25' : 'bg-white/10 text-white/80 border-white/20'}`}>
+            <i className={`ph-bold ${instagramAccount ? 'ph-check-circle' : 'ph-plug'} text-xs`}></i>
+            <span className="uppercase tracking-wider">{connectionBadgeLabel}</span>
+          </div>
+          {settingsScope && (
+            <div className="hidden 2xl:flex items-center gap-1 px-2.5 py-1.5 rounded-lg border bg-white/10 text-white/80 border-white/20 text-[10px] font-bold uppercase tracking-wider">
+              <i className="ph-bold ph-buildings text-xs"></i>
+              <span>{settingsScope.label}</span>
+            </div>
+          )}
+          {!connectionRestricted && (
+            <>
+              <button onClick={openMetaSetup} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border bg-white/10 text-white/80 border-white/20 hover:bg-white/20 hover:text-white text-[10px] font-bold transition-all duration-200">
+                <i className={`ph-bold ${instagramAccount ? 'ph-gear-six' : 'ph-plug'} text-xs`}></i>
+                <span className="hidden lg:inline uppercase tracking-wider">{instagramAccount ? 'Manage Meta' : 'Connect Meta'}</span>
+              </button>
+              {(instagramAccount || facebookAccount) && (
+                <button onClick={handleDisconnectInstagram} disabled={disconnecting} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border bg-rose-500/15 text-white/90 border-rose-200/30 hover:bg-rose-500/25 hover:text-white text-[10px] font-bold transition-all duration-200 disabled:opacity-50">
+                  <i className="ph-bold ph-plug-charging text-xs"></i>
+                  <span className="hidden lg:inline uppercase tracking-wider">{disconnecting ? 'Disconnecting...' : 'Disconnect'}</span>
+                </button>
+              )}
+            </>
+          )}
           <button onClick={() => router.push('/admin/crm/instagram-funnel')} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border bg-white/10 text-white/80 border-white/20 hover:bg-white/20 hover:text-white text-[10px] font-bold transition-all duration-200">
             <i className="ph-bold ph-funnel text-xs"></i>
             <span className="hidden lg:inline uppercase tracking-wider">Funnel</span>
@@ -197,15 +483,46 @@ export default function InstagramInboxPage() {
 
           {/* Conversation List */}
           <div className="flex-1 overflow-y-auto">
-            {loading ? (
+            {connectionError ? (
+              <div className="mx-3 mt-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] text-rose-700">
+                <div className="font-bold">Instagram connection check failed</div>
+                <div className="mt-0.5">{connectionError}</div>
+              </div>
+            ) : null}
+
+            {loading || checkingConnection ? (
               <div className="flex items-center justify-center py-20"><LoadingSpinner /></div>
             ) : filteredConversations.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 gap-3 text-slate-400">
                 <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, rgba(193,53,132,0.08), rgba(225,48,108,0.15))' }}>
                   <i className="ph ph-instagram-logo text-3xl" style={{ color: 'rgba(193,53,132,0.5)' }}></i>
                 </div>
-                <p className="text-sm font-bold text-slate-500">No Instagram conversations yet</p>
-                <p className="text-xs text-slate-400 text-center px-8">Connect your Instagram Professional Account to start receiving DMs here.</p>
+                <p className="text-sm font-bold text-slate-500">
+                  {instagramAccount ? 'Instagram connected' : facebookAccount ? 'Link Instagram to this Facebook Page' : connectionRestricted ? 'Instagram setup is restricted' : 'No Instagram conversations yet'}
+                </p>
+                <p className="text-xs text-slate-400 text-center px-8 max-w-sm">
+                  {instagramAccount
+                    ? `Connected to ${instagramAccount.accountName}. Instagram DMs will appear here as soon as Meta delivers webhook events for the connected Instagram inbox.`
+                    : facebookAccount
+                      ? 'Your Facebook Page is connected. Link an Instagram Professional account to that same Page in Meta, then this CRM can auto-connect it here.'
+                      : connectionRestricted
+                        ? 'Only the Super Admin can connect the shared Meta Page and its linked Instagram account.'
+                        : 'Connect your Meta Facebook Page first. If an Instagram Professional account is linked to that Page, this CRM will auto-connect it.'}
+                </p>
+                {!connectionRestricted && (
+                  <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+                    <button onClick={openMetaSetup} className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:opacity-90" style={{ background: 'linear-gradient(135deg, #833AB4 0%, #C13584 50%, #E1306C 100%)' }}>
+                      <i className={`ph-bold ${instagramAccount ? 'ph-gear-six' : 'ph-plug'} text-sm`}></i>
+                      {instagramAccount ? 'Manage Meta Connection' : 'Connect Meta'}
+                    </button>
+                    {(instagramAccount || facebookAccount) && (
+                      <button onClick={handleDisconnectInstagram} disabled={disconnecting} className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-4 py-2 text-xs font-bold text-rose-600 shadow-sm transition hover:bg-rose-50 disabled:opacity-50">
+                        <i className="ph-bold ph-plug-charging text-sm"></i>
+                        {disconnecting ? 'Disconnecting...' : 'Disconnect'}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
               filteredConversations.map((conv) => (
@@ -255,7 +572,7 @@ export default function InstagramInboxPage() {
                 </div>
                 <div>
                   <div className="text-[13px] font-bold text-slate-900 leading-none">{selected.name || 'Unknown'}</div>
-                  <div className="text-[10px] font-semibold mt-0.5" style={{ color: '#C13584' }}>{selected.username ? `@${selected.username}` : 'Instagram'}</div>
+                  <div className="text-[10px] font-semibold mt-0.5" style={{ color: '#C13584' }}>{selected.username ? `@${selected.username}` : selected.participantId || 'Instagram'}</div>
                 </div>
                 <div className="ml-auto">
                   <button
@@ -345,7 +662,27 @@ export default function InstagramInboxPage() {
                 <i className="ph ph-instagram-logo text-6xl" style={{ color: 'rgba(193,53,132,0.35)' }}></i>
               </div>
               <p className="font-bold text-lg text-slate-500">Instagram Inbox</p>
-              <p className="text-xs text-slate-400 text-center max-w-xs">Connect your Instagram Professional Account to receive DMs. Select a conversation to start chatting.</p>
+              <p className="text-xs text-slate-400 text-center max-w-xs">
+                {instagramAccount
+                  ? `Instagram account ${instagramAccount.accountName} is connected. Conversations now use the CRM social inbox backend and will show here once Meta inbox webhook events arrive.`
+                  : facebookAccount
+                    ? 'Your Facebook Page is connected. Link the Instagram Professional account to that Page in Meta to auto-connect Instagram here.'
+                    : 'Connect your Instagram Professional Account through Meta to receive DMs. Select a conversation to start chatting.'}
+              </p>
+              {!connectionRestricted && (
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  <button onClick={openMetaSetup} className="inline-flex items-center gap-2 rounded-xl border bg-white px-4 py-2 text-xs font-bold shadow-sm transition hover:bg-pink-50" style={{ borderColor: 'rgba(193,53,132,0.2)', color: '#C13584' }}>
+                    <i className={`ph-bold ${instagramAccount ? 'ph-gear-six' : 'ph-plug'} text-sm`}></i>
+                    {instagramAccount ? 'Manage Meta Connection' : 'Connect Meta'}
+                  </button>
+                  {(instagramAccount || facebookAccount) && (
+                    <button onClick={handleDisconnectInstagram} disabled={disconnecting} className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-4 py-2 text-xs font-bold text-rose-600 shadow-sm transition hover:bg-rose-50 disabled:opacity-50">
+                      <i className="ph-bold ph-plug-charging text-sm"></i>
+                      {disconnecting ? 'Disconnecting...' : 'Disconnect'}
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </main>

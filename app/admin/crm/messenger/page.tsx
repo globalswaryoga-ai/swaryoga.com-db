@@ -9,6 +9,7 @@ import { LoadingSpinner } from '@/components/admin/crm';
 interface Conversation {
   _id: string;
   name: string;
+  participantId?: string;
   pageId?: string;
   pageScopedId?: string;
   phoneNumber?: string;
@@ -19,12 +20,15 @@ interface Conversation {
   labels?: string[];
   assignedToUserId?: string;
   source?: string;
+  notes?: string;
 }
 
 interface Message {
   _id: string;
   direction: 'inbound' | 'outbound';
   messageContent?: string;
+  mediaUrl?: string;
+  mediaType?: string;
   sentAt?: string;
   createdAt: string;
 }
@@ -32,6 +36,22 @@ interface Message {
 interface AdminUser {
   userId: string;
   name?: string;
+}
+
+interface ConnectedSocialAccount {
+  _id: string;
+  platform: string;
+  accountName: string;
+  accountHandle: string;
+  accountId?: string;
+  connectedAt?: string;
+  isConnected?: boolean;
+}
+
+interface SettingsScopeInfo {
+  type: 'super_admin' | 'tenant';
+  key: string;
+  label: string;
 }
 
 /* ─── Helpers ─── */
@@ -64,6 +84,12 @@ export default function MessengerInboxPage() {
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [sidebarData, setSidebarData] = useState<any>({ labels: [], notes: '', assignedTo: '', status: 'new_lead' });
   const [savingSidebar, setSavingSidebar] = useState(false);
+  const [facebookAccount, setFacebookAccount] = useState<ConnectedSocialAccount | null>(null);
+  const [checkingConnection, setCheckingConnection] = useState(true);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [connectionRestricted, setConnectionRestricted] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [settingsScope, setSettingsScope] = useState<SettingsScopeInfo | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const tabRoutes: Record<string, string> = {
@@ -80,48 +106,277 @@ export default function MessengerInboxPage() {
     if (href) router.push(href);
   };
 
-  // Load conversations placeholder
+  const openFacebookSetup = () => {
+    router.push('/admin/social-media-setup?platform=facebook');
+  };
+
+  const getStoredAdminToken = useCallback(() => {
+    return localStorage.getItem('adminToken') || localStorage.getItem('admin_token') || '';
+  }, []);
+
+  const loadAdminUsers = useCallback(async () => {
+    const adminToken = getStoredAdminToken();
+    if (!adminToken) return;
+
+    try {
+      const res = await fetch('/api/admin/auth/users', {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setAdminUsers(Array.isArray(data?.data) ? data.data : []);
+      }
+    } catch (error) {
+      console.error('Failed to load admin users:', error);
+    }
+  }, [getStoredAdminToken]);
+
+  const syncSidebarFromConversation = useCallback((conversation: Conversation | null) => {
+    setSidebarData({
+      labels: Array.isArray(conversation?.labels) ? conversation?.labels : [],
+      notes: conversation?.notes || '',
+      assignedTo: conversation?.assignedToUserId || '',
+      status: conversation?.status || 'new_lead',
+    });
+  }, []);
+
+  const loadMessengerMessages = useCallback(async (conversationId: string) => {
+    const adminToken = getStoredAdminToken();
+    if (!adminToken || !conversationId) return;
+
+    setLoadingMessages(true);
+    try {
+      const res = await fetch(`/api/admin/crm/social-inbox/messages?platform=messenger&conversationId=${encodeURIComponent(conversationId)}`, {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to load Messenger messages');
+      }
+
+      const conversation = data?.data?.conversation || null;
+      const loadedMessages = Array.isArray(data?.data?.messages) ? data.data.messages : [];
+      setMessages(loadedMessages);
+      if (conversation) {
+        setSelected(conversation);
+        syncSidebarFromConversation(conversation);
+        setConversations((prev) => prev.map((item) => (item._id === conversation._id ? { ...item, ...conversation, unreadCount: 0 } : item)));
+      }
+    } catch (error) {
+      setConnectionError(error instanceof Error ? error.message : 'Failed to load Messenger messages');
+      setMessages([]);
+    } finally {
+      setLoadingMessages(false);
+    }
+  }, [getStoredAdminToken, syncSidebarFromConversation]);
+
+  const loadMessengerConversations = useCallback(async () => {
+    const adminToken = getStoredAdminToken();
+    if (!adminToken) return;
+
+    try {
+      const res = await fetch('/api/admin/crm/social-inbox/conversations?platform=messenger', {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to load Messenger conversations');
+      }
+
+      const rows = Array.isArray(data?.data?.conversations) ? data.data.conversations : [];
+      setConversations(rows);
+      if (selected?._id) {
+        const refreshedSelected = rows.find((item: Conversation) => item._id === selected._id) || null;
+        if (refreshedSelected) {
+          setSelected(refreshedSelected);
+          syncSidebarFromConversation(refreshedSelected);
+        }
+      }
+    } catch (error) {
+      setConnectionError(error instanceof Error ? error.message : 'Failed to load Messenger conversations');
+      setConversations([]);
+    }
+  }, [getStoredAdminToken, selected?._id, syncSidebarFromConversation]);
+
+  const loadMessengerShell = useCallback(async () => {
+    if (!token) return;
+
+    setLoading(true);
+    setCheckingConnection(true);
+    setConnectionError(null);
+    setConnectionRestricted(false);
+
+    try {
+      const adminToken = getStoredAdminToken();
+
+      if (!adminToken) {
+        throw new Error('Admin token missing. Please sign in again.');
+      }
+
+      const res = await fetch('/api/admin/social-media/accounts', {
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+        },
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.status === 403) {
+        setConnectionRestricted(true);
+        setFacebookAccount(null);
+        setSettingsScope(null);
+      } else if (!res.ok) {
+        setConnectionError(data?.error || 'Failed to check Facebook Page connection');
+        setFacebookAccount(null);
+        setSettingsScope(null);
+      } else {
+        const accounts = Array.isArray(data?.data)
+          ? data.data
+          : Array.isArray(data?.accounts)
+            ? data.accounts
+            : [];
+
+        const connectedFacebook = accounts.find((account: ConnectedSocialAccount) => account?.platform === 'facebook' && account?.isConnected !== false) || null;
+        setFacebookAccount(connectedFacebook);
+        setSettingsScope(data?.scope || null);
+
+        await loadAdminUsers();
+        if (connectedFacebook) {
+          await loadMessengerConversations();
+        } else {
+          setConversations([]);
+          setSelected(null);
+          setMessages([]);
+        }
+      }
+    } catch (error) {
+      setFacebookAccount(null);
+      setSettingsScope(null);
+      setConnectionError(error instanceof Error ? error.message : 'Failed to load Messenger connection status');
+    } finally {
+      setCheckingConnection(false);
+      setLoading(false);
+    }
+  }, [token, getStoredAdminToken, loadAdminUsers, loadMessengerConversations]);
+
   useEffect(() => {
     if (!token) return;
-    setLoading(true);
-    // Future: fetch from /api/admin/crm/messenger/conversations
-    setTimeout(() => {
+    loadMessengerShell();
+  }, [token, loadMessengerShell]);
+
+  const handleDisconnectFacebook = useCallback(async () => {
+    if (!facebookAccount?._id || disconnecting) return;
+    if (!window.confirm('Disconnect this Facebook Page and its Messenger connection for this settings scope?')) return;
+
+    try {
+      setDisconnecting(true);
+      const adminToken = localStorage.getItem('adminToken') || localStorage.getItem('admin_token') || '';
+      const res = await fetch(`/api/admin/social-media/accounts/${facebookAccount._id}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+        },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to disconnect Facebook Page');
+      }
+      setSelected(null);
+      setMessages([]);
       setConversations([]);
-      setLoading(false);
-    }, 500);
-  }, [token]);
+      await loadMessengerShell();
+    } catch (error) {
+      setConnectionError(error instanceof Error ? error.message : 'Failed to disconnect Facebook Page');
+    } finally {
+      setDisconnecting(false);
+    }
+  }, [facebookAccount?._id, disconnecting, loadMessengerShell]);
 
   // Auto-scroll messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSelectConversation = (conv: Conversation) => {
+  const handleSelectConversation = async (conv: Conversation) => {
     setSelected(conv);
-    setLoadingMessages(true);
-    // Future: fetch messages from /api/admin/crm/messenger/messages?id=...
-    setTimeout(() => {
-      setMessages([]);
-      setLoadingMessages(false);
-    }, 300);
+    syncSidebarFromConversation(conv);
+    await loadMessengerMessages(conv._id);
   };
 
   const handleSaveSidebar = async () => {
     if (!selected) return;
     setSavingSidebar(true);
-    // Future: save to API
-    setTimeout(() => setSavingSidebar(false), 500);
+    try {
+      const adminToken = getStoredAdminToken();
+      const res = await fetch(`/api/admin/crm/social-inbox/conversations/${selected._id}?platform=messenger`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({
+          status: sidebarData.status,
+          notes: sidebarData.notes,
+          assignedToUserId: sidebarData.assignedTo,
+          labels: sidebarData.labels,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to save conversation details');
+      }
+      const updated = data?.data;
+      if (updated) {
+        setSelected(updated);
+        setConversations((prev) => prev.map((item) => (item._id === updated._id ? { ...item, ...updated } : item)));
+        syncSidebarFromConversation(updated);
+      }
+    } catch (error) {
+      setConnectionError(error instanceof Error ? error.message : 'Failed to save conversation details');
+    } finally {
+      setSavingSidebar(false);
+    }
   };
 
   const handleSendMessage = async () => {
     if (!composerText.trim() || !selected) return;
-    // Future: send via Messenger API
+    const messageText = composerText.trim();
     setComposerText('');
+    try {
+      const adminToken = getStoredAdminToken();
+      const res = await fetch('/api/admin/crm/social-inbox/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({
+          platform: 'messenger',
+          conversationId: selected._id,
+          messageContent: messageText,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to send Messenger message');
+      }
+      await loadMessengerMessages(selected._id);
+      await loadMessengerConversations();
+    } catch (error) {
+      setComposerText(messageText);
+      setConnectionError(error instanceof Error ? error.message : 'Failed to send Messenger message');
+    }
   };
 
   const filteredConversations = conversations.filter(c =>
     !searchQuery || (c.name || '').toLowerCase().includes(searchQuery.toLowerCase()) || (c.phoneNumber || '').includes(searchQuery)
   );
+
+  const connectionBadgeLabel = facebookAccount
+    ? `Connected · ${facebookAccount.accountName}`
+    : connectionRestricted
+      ? 'Super Admin setup required'
+      : 'Facebook Page not connected';
 
   if (!token) return null;
 
@@ -166,6 +421,37 @@ export default function MessengerInboxPage() {
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
+          <div className={`hidden xl:flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-[10px] font-bold ${facebookAccount ? 'bg-emerald-500/15 text-white border-emerald-200/30' : 'bg-white/10 text-white/80 border-white/20'}`}>
+            <i className={`ph-bold ${facebookAccount ? 'ph-check-circle' : 'ph-plug'} text-xs`}></i>
+            <span className="uppercase tracking-wider">{connectionBadgeLabel}</span>
+          </div>
+          {settingsScope && (
+            <div className="hidden 2xl:flex items-center gap-1 px-2.5 py-1.5 rounded-lg border bg-white/10 text-white/80 border-white/20 text-[10px] font-bold uppercase tracking-wider">
+              <i className="ph-bold ph-buildings text-xs"></i>
+              <span>{settingsScope.label}</span>
+            </div>
+          )}
+          {!connectionRestricted && (
+            <>
+              <button
+                onClick={openFacebookSetup}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border bg-white/10 text-white/80 border-white/20 hover:bg-white/20 hover:text-white text-[10px] font-bold transition-all duration-200"
+              >
+                <i className={`ph-bold ${facebookAccount ? 'ph-gear-six' : 'ph-plug'} text-xs`}></i>
+                <span className="hidden lg:inline uppercase tracking-wider">{facebookAccount ? 'Manage Page' : 'Connect Page'}</span>
+              </button>
+              {facebookAccount && (
+                <button
+                  onClick={handleDisconnectFacebook}
+                  disabled={disconnecting}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border bg-rose-500/15 text-white/90 border-rose-200/30 hover:bg-rose-500/25 hover:text-white text-[10px] font-bold transition-all duration-200 disabled:opacity-50"
+                >
+                  <i className="ph-bold ph-plug-charging text-xs"></i>
+                  <span className="hidden lg:inline uppercase tracking-wider">{disconnecting ? 'Disconnecting...' : 'Disconnect'}</span>
+                </button>
+              )}
+            </>
+          )}
           <button onClick={() => router.push('/admin/crm/messenger-funnel')} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border bg-white/10 text-white/80 border-white/20 hover:bg-white/20 hover:text-white text-[10px] font-bold transition-all duration-200">
             <i className="ph-bold ph-funnel text-xs"></i>
             <span className="hidden lg:inline uppercase tracking-wider">Funnel</span>
@@ -193,15 +479,51 @@ export default function MessengerInboxPage() {
 
           {/* Conversation List */}
           <div className="flex-1 overflow-y-auto">
-            {loading ? (
+            {connectionError ? (
+              <div className="mx-3 mt-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] text-rose-700">
+                <div className="font-bold">Facebook connection check failed</div>
+                <div className="mt-0.5">{connectionError}</div>
+              </div>
+            ) : null}
+
+            {loading || checkingConnection ? (
               <div className="flex items-center justify-center py-20"><LoadingSpinner /></div>
             ) : filteredConversations.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 gap-3 text-slate-400">
                 <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, rgba(0,120,255,0.08), rgba(0,120,255,0.15))' }}>
                   <i className="ph ph-messenger-logo text-3xl text-indigo-400/60"></i>
                 </div>
-                <p className="text-sm font-bold text-slate-500">No Messenger conversations yet</p>
-                <p className="text-xs text-slate-400 text-center px-8">Connect your Facebook Page to start receiving Messenger chats here.</p>
+                <p className="text-sm font-bold text-slate-500">
+                  {facebookAccount ? 'Facebook Page connected' : connectionRestricted ? 'Facebook Page setup is restricted' : 'No Messenger conversations yet'}
+                </p>
+                <p className="text-xs text-slate-400 text-center px-8 max-w-sm">
+                  {facebookAccount
+                    ? `Connected to ${facebookAccount.accountName}. Messenger chats will appear here as soon as people message the connected Page and the Meta inbox webhook is subscribed.`
+                    : connectionRestricted
+                      ? 'Only the Super Admin can connect the shared Facebook Page from Social Media Setup.'
+                      : 'Connect your Facebook Page first, then Messenger conversations can start landing here.'}
+                </p>
+                {!connectionRestricted && (
+                  <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+                    <button
+                      onClick={openFacebookSetup}
+                      className="inline-flex items-center gap-2 rounded-xl bg-[#0078FF] px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#0067d9]"
+                    >
+                      <i className={`ph-bold ${facebookAccount ? 'ph-gear-six' : 'ph-plug'} text-sm`}></i>
+                      {facebookAccount ? 'Manage Facebook Page' : 'Connect Facebook Page'}
+                    </button>
+                    {facebookAccount && (
+                      <button
+                        onClick={handleDisconnectFacebook}
+                        disabled={disconnecting}
+                        className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-4 py-2 text-xs font-bold text-rose-600 shadow-sm transition hover:bg-rose-50 disabled:opacity-50"
+                      >
+                        <i className="ph-bold ph-plug-charging text-sm"></i>
+                        {disconnecting ? 'Disconnecting...' : 'Disconnect'}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
               filteredConversations.map((conv) => (
@@ -241,7 +563,7 @@ export default function MessengerInboxPage() {
                 </div>
                 <div>
                   <div className="text-[13px] font-bold text-slate-900 leading-none">{selected.name || 'Unknown'}</div>
-                  <div className="text-[10px] font-semibold text-slate-400 mt-0.5">{selected.pageId || 'Messenger'}</div>
+                  <div className="text-[10px] font-semibold text-slate-400 mt-0.5">{selected.participantId || selected.pageId || 'Messenger'}</div>
                 </div>
                 <div className="ml-auto">
                   <button
@@ -274,6 +596,11 @@ export default function MessengerInboxPage() {
                             ? 'text-white rounded-tr-sm shadow-sm'
                             : 'bg-white text-slate-900 rounded-tl-sm shadow-sm border border-indigo-100'
                         }`} style={msg.direction === 'outbound' ? { background: 'linear-gradient(135deg, #0078FF, #00A3FF)' } : {}}>
+                          {msg.mediaUrl && msg.mediaType === 'image' && (
+                            <div className="mb-2 rounded-lg overflow-hidden">
+                              <img src={msg.mediaUrl} alt="" className="max-w-full rounded-lg" />
+                            </div>
+                          )}
                           {msg.messageContent || ''}
                           <div className={`text-[9px] mt-1 ${msg.direction === 'outbound' ? 'text-white/60' : 'text-slate-400'}`}>
                             {new Date(msg.sentAt || msg.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
@@ -317,7 +644,32 @@ export default function MessengerInboxPage() {
                 <i className="ph ph-messenger-logo text-6xl text-indigo-400/40"></i>
               </div>
               <p className="font-bold text-lg text-slate-500">Messenger Inbox</p>
-              <p className="text-xs text-slate-400 text-center max-w-xs">Connect your Facebook Page to receive Messenger conversations. Select a conversation to start chatting.</p>
+              <p className="text-xs text-slate-400 text-center max-w-xs">
+                {facebookAccount
+                  ? `Facebook Page ${facebookAccount.accountName} is connected. Messenger conversations from that Page now use the CRM social inbox backend and will show here once Meta delivers webhook events.`
+                  : 'Connect your Facebook Page to receive Messenger conversations. Select a conversation to start chatting.'}
+              </p>
+              {!connectionRestricted && (
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  <button
+                    onClick={openFacebookSetup}
+                    className="inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-white px-4 py-2 text-xs font-bold text-[#0078FF] shadow-sm transition hover:bg-indigo-50"
+                  >
+                    <i className={`ph-bold ${facebookAccount ? 'ph-gear-six' : 'ph-plug'} text-sm`}></i>
+                    {facebookAccount ? 'Manage Facebook Page' : 'Connect Facebook Page'}
+                  </button>
+                  {facebookAccount && (
+                    <button
+                      onClick={handleDisconnectFacebook}
+                      disabled={disconnecting}
+                      className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-4 py-2 text-xs font-bold text-rose-600 shadow-sm transition hover:bg-rose-50 disabled:opacity-50"
+                    >
+                      <i className="ph-bold ph-plug-charging text-sm"></i>
+                      {disconnecting ? 'Disconnecting...' : 'Disconnect'}
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </main>

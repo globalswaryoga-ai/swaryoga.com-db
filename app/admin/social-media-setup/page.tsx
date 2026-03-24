@@ -26,6 +26,16 @@ interface ConnectedAccount {
   accountId?: string;
   isConnected: boolean;
   connectedAt: string;
+  metadata?: {
+    autoConnectedVia?: string;
+    linkedPageName?: string;
+  };
+}
+
+interface SettingsScopeInfo {
+  type: 'super_admin' | 'tenant';
+  key: string;
+  label: string;
 }
 
 const platforms: Record<string, PlatformConfig> = {
@@ -53,13 +63,21 @@ const platforms: Record<string, PlatformConfig> = {
       '   → IMPORTANT: Add these permissions:',
       '     • pages_manage_posts',
       '     • pages_read_engagement',
+      '     • pages_manage_metadata',
+      '     • pages_messaging',
       '',
       '📍 STEP 3: Extend Token (IMPORTANT!)',
       '   → Default tokens expire in 1 hour!',
       '   → Go to: developers.facebook.com/tools/debug/accesstoken',
       '   → Paste your token and click "Debug"',
       '   → Click "Extend Access Token" at the bottom',
-      '   → Copy the NEW long-lived token (lasts 60 days)'
+      '   → Copy the NEW long-lived token (lasts 60 days)',
+      '',
+      '📍 STEP 4: For Messenger Inbox',
+      '   → Add the Messenger product in your Meta app',
+      '   → Subscribe your Facebook Page to the app',
+      '   → Configure Messenger webhooks for message events',
+      '   → Without webhook subscription, this CRM can connect the Page but will not receive Messenger chats yet'
     ],
     helpLink: 'https://developers.facebook.com/tools/explorer/'
   },
@@ -192,6 +210,7 @@ function SocialMediaSetupContent() {
   const [loading, setLoading] = useState(false);
   const [testing, setTesting] = useState(false);
   const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([]);
+  const [settingsScope, setSettingsScope] = useState<SettingsScopeInfo | null>(null);
   const [formData, setFormData] = useState({
     accountName: '',
     accountHandle: '',
@@ -292,7 +311,8 @@ function SocialMediaSetupContent() {
       });
       if (response.ok) {
         const data = await response.json();
-        setConnectedAccounts(data.accounts || []);
+        setConnectedAccounts(Array.isArray(data?.data) ? data.data : Array.isArray(data?.accounts) ? data.accounts : []);
+        setSettingsScope(data?.scope || null);
       }
     } catch (error) {
       console.error('Failed to fetch accounts:', error);
@@ -398,7 +418,12 @@ function SocialMediaSetupContent() {
       });
 
       if (response.ok) {
-        setSuccessMessage(`✅ ${platforms[selectedPlatform].name} connected successfully!`);
+        const data = await response.json().catch(() => ({}));
+        const autoConnected = Array.isArray(data?.data?.autoConnectedPlatforms) ? data.data.autoConnectedPlatforms : [];
+        const autoLabel = autoConnected.length
+          ? ` Auto-connected: ${autoConnected.map((item: string) => item.charAt(0).toUpperCase() + item.slice(1)).join(', ')}.`
+          : '';
+        setSuccessMessage(`✅ ${data?.message || `${platforms[selectedPlatform].name} connected successfully!`}${autoLabel}`);
         setFormData({
           accountName: '',
           accountHandle: '',
@@ -485,6 +510,12 @@ function SocialMediaSetupContent() {
             <div>
               <h1 className="text-4xl font-bold text-white mb-2">🔗 Connect Social Media</h1>
               <p className="text-slate-400">Add your social media accounts to post from one place</p>
+              {settingsScope && (
+                <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-4 py-1.5 text-xs font-semibold text-emerald-300">
+                  <span className="inline-block h-2 w-2 rounded-full bg-emerald-400"></span>
+                  {settingsScope.label}
+                </div>
+              )}
             </div>
             <div className="flex gap-3">
               <button
@@ -507,6 +538,11 @@ function SocialMediaSetupContent() {
           {connectedAccounts.length > 0 && (
             <div className="mb-8 bg-slate-800 rounded-lg p-6 border border-slate-700">
               <h2 className="text-xl font-bold text-white mb-4">📱 Connected Accounts ({connectedAccounts.length})</h2>
+              {settingsScope && (
+                <p className="text-sm text-slate-400 mb-4">
+                  These Meta/social connections belong to <span className="text-white font-semibold">{settingsScope.label}</span>.
+                </p>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {connectedAccounts.map((account) => {
                   const platformConfig = platforms[account.platform];
@@ -520,6 +556,11 @@ function SocialMediaSetupContent() {
                         <div>
                           <p className="text-white font-medium">{account.accountName}</p>
                           <p className="text-slate-400 text-sm">{account.accountHandle}</p>
+                          {account.metadata?.autoConnectedVia === 'facebook' && (
+                            <p className="text-emerald-400 text-xs mt-1">
+                              Auto-linked from Facebook Page{account.metadata?.linkedPageName ? `: ${account.metadata.linkedPageName}` : ''}
+                            </p>
+                          )}
                           {!hasValidId && account.platform !== 'x' && (
                             <p className="text-amber-400 text-xs flex items-center gap-1 mt-1">
                               <AlertTriangle size={12} /> Invalid ID format - please update

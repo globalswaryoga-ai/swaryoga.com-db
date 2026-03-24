@@ -9,6 +9,7 @@ import {
   Download,
   Flag,
   Home,
+  Leaf,
   LayoutDashboard,
   ListTodo,
   LogOut,
@@ -83,6 +84,7 @@ export default function LifePlannerSidebar({ isOpen, onClose }: LifePlannerSideb
 
     { href: '/life-planner/dashboard/accounting', label: 'Accounting', icon: Calculator },
     { href: '/life-planner/dashboard/events', label: 'Events', icon: Calendar },
+    { href: '/life-planner/dashboard/ritucharya', label: 'Ritucharya', icon: Leaf },
 
     // Unified profile + settings
     { href: '/life-planner/profile', label: 'Profile', icon: User },

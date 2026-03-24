@@ -172,6 +172,113 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### CRM Social Inbox Backend for Messenger + Instagram (Session: March 20, 2026 — Phase 89) — Commit `[pending]`
+
+1. **✅ Added Real CRM Social Inbox Storage for Messenger and Instagram DMs**
+   - **Problem**: `app/admin/crm/messenger/page.tsx` and `app/admin/crm/instagram/page.tsx` were UI shells with timeout-based placeholders, but there was no backend conversation/message storage for non-WhatsApp social inboxes
+   - **Solution**:
+      - Added `lib/socialInbox.ts`
+      - Updated `lib/schemas/enterpriseSchemas.ts`
+      - Added CRM collections for:
+         - `social_inbox_conversations`
+         - `social_inbox_messages`
+      - added scoped account resolution, Meta send helpers, conversation keying, and webhook ingestion helpers for Messenger / Instagram
+
+2. **✅ Added Generic CRM Social Inbox APIs for Messenger and Instagram**
+   - **Solution**:
+      - Added `app/api/admin/crm/social-inbox/conversations/route.ts`
+      - Added `app/api/admin/crm/social-inbox/conversations/[id]/route.ts`
+      - Added `app/api/admin/crm/social-inbox/messages/route.ts`
+      - inbox pages can now:
+         - load real conversations by platform
+         - load message history for a thread
+         - send outbound text messages through Meta Graph API
+         - save conversation assignment / notes / labels / status into CRM storage
+
+3. **✅ Added Meta Webhook Endpoint for Messenger + Instagram Inbox Event Ingestion**
+   - **Solution**:
+      - Added `app/api/webhooks/meta-inbox/route.ts`
+      - supports webhook verify handshake and signature validation
+      - ingests supported Meta messaging events into the new CRM social inbox collections
+
+4. **✅ Messenger and Instagram Inbox Pages Now Use Live CRM Social Inbox APIs Instead of Placeholder Timeouts**
+   - **Solution**:
+      - Updated `app/admin/crm/messenger/page.tsx`
+      - Updated `app/admin/crm/instagram/page.tsx`
+      - pages now fetch admin users, load conversations, open thread history, send messages, and persist sidebar edits through the new social inbox APIs
+
+5. **✅ Added Explicit Messenger / Instagram Inbox Webhook Env Variables for Local + Production Setup**
+   - **Solution**:
+      - Updated `.env.local`
+      - Updated `.env.production`
+      - Updated `.env.local.template`
+      - Updated `.env.example`
+      - Updated `.env.local.example`
+      - added explicit `META_INBOX_WEBHOOK_VERIFY_TOKEN` and `META_INBOX_WEBHOOK_CALLBACK_URL` entries so Meta inbox webhook setup no longer relies on fallback env names
+
+### Social Media Settings Scope Separation for Super Admin vs Tenant (Session: March 20, 2026 — Phase 88) — Commit `[pending]`
+
+1. **✅ Social Media Account Settings Are Now Scoped Separately for Super Admin vs Tenant Users**
+   - **Problem**: Meta/social account settings were stored in one shared pool, so tenant users and Super Admin context could collide instead of maintaining separate connection ownership
+   - **Solution**:
+      - Added `lib/socialMediaScope.ts`
+      - Updated `lib/db.ts`
+      - Updated `app/api/admin/social-media/accounts/route.ts`
+      - Updated `app/api/admin/social-media/accounts/[id]/route.ts`
+      - social account rows now store scope metadata (`scopeType`, `scopeKey`, `ownerUserId`, `tenantSlug`)
+      - GET/POST/DELETE social account APIs now resolve whether the current admin is operating in the shared Super Admin scope or a tenant scope and only read/write within that scope
+      - legacy unscoped rows continue to appear only in the Super Admin shared scope for backward compatibility
+
+2. **✅ Social Media Setup Page Now Shows Which Scope the User Is Editing**
+   - **Solution**:
+      - Updated `app/admin/social-media-setup/page.tsx`
+      - setup now shows whether the user is editing Super Admin shared settings or tenant-specific settings so the separation is visible in the UI
+
+3. **✅ Messenger and Instagram Inbox Pages Now Include Direct Connect and Disconnect Controls**
+   - **Solution**:
+      - Updated `app/admin/crm/messenger/page.tsx`
+      - Updated `app/admin/crm/instagram/page.tsx`
+      - inbox headers and empty states now include direct connect/manage plus disconnect actions
+      - pages also display the current settings scope label so users can tell whether they are working in Super Admin or tenant Meta settings
+
+### Meta Page Auto-Connect for Messenger + Linked Instagram (Session: March 20, 2026 — Phase 87) — Commit `[pending]`
+
+1. **✅ Connecting a Facebook Page Now Auto-Links Messenger and Any Instagram Business Account Already Attached to That Page**
+   - **Problem**: connecting Facebook in `app/admin/social-media-setup/page.tsx` only stored a plain Facebook account row, so users still had to think about Messenger/Instagram as separate manual setup concepts even when Meta already knew the Page ↔ Instagram linkage
+   - **Solution**:
+      - Updated `app/api/admin/social-media/accounts/route.ts`
+      - Facebook connect now fetches Page details from Graph API, marks Messenger as linked through that Page, and auto-creates or updates the linked Instagram Business account when `instagram_business_account` exists on the Page
+      - success responses now describe which Meta channels were auto-connected
+
+2. **✅ Disconnecting a Facebook Page Now Also Disconnects Instagram Accounts That Were Auto-Linked From That Page**
+   - **Solution**:
+      - Updated `app/api/admin/social-media/accounts/[id]/route.ts`
+      - disconnecting Facebook now also disables Instagram social account rows whose metadata shows they were auto-connected from that Facebook Page
+
+3. **✅ Social Media Setup and Instagram Inbox Now Reflect the Meta Auto-Connect Model More Clearly**
+   - **Solution**:
+      - Updated `app/admin/social-media-setup/page.tsx`
+      - Updated `app/admin/crm/instagram/page.tsx`
+      - setup success messaging now shows auto-connected channels and connected-account cards mark Instagram rows auto-linked from Facebook
+      - Instagram inbox now checks Meta connection status on load and guides users to connect/manage Meta from the shared setup page instead of acting like Instagram must always be connected separately first
+
+### Messenger Facebook Page Connection UX + Social Accounts Response Fix (Session: March 20, 2026 — Phase 86) — Commit `[pending]`
+
+1. **✅ Messenger Inbox Now Detects Facebook Page Connection and Offers a Direct Connect/Manage Path**
+   - **Problem**: `app/admin/crm/messenger/page.tsx` looked like a live inbox but gave users no real indication whether a Facebook Page was connected, and no direct path to connect Messenger prerequisites
+   - **Solution**:
+      - Updated `app/admin/crm/messenger/page.tsx`
+      - the page now checks existing connected social accounts on load
+      - shows whether a Facebook Page is connected, whether Super Admin setup is required, and adds direct `Connect Facebook Page` / `Manage Facebook Page` actions to `/admin/social-media-setup?platform=facebook`
+      - empty-state copy now accurately distinguishes between not-connected, restricted, and page-connected-but-inbox-sync-pending states
+
+2. **✅ Social Media Setup Now Shows Connected Accounts Correctly and Documents Messenger Permissions**
+   - **Problem**: `app/admin/social-media-setup/page.tsx` expected `data.accounts`, but `app/api/admin/social-media/accounts/route.ts` returns `data`, so connected social accounts could silently fail to display in the setup UI
+   - **Solution**:
+      - Updated `app/admin/social-media-setup/page.tsx`
+      - connected accounts list now accepts the actual `data` response shape
+      - Facebook setup instructions now explicitly include Messenger-related permissions and webhook/subscription guidance for Messenger inbox readiness
+
 ### QR Current-Session Group Discovery + Inline Incoming Media Fallback (Session: March 18, 2026 — Phase 85) — Commit `e7781484`
 
 1. **✅ Restored Current-Session Group Visibility Without Reintroducing Old Chat History Pollution**
