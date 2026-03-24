@@ -101,12 +101,14 @@ export async function GET(request: NextRequest) {
         lastDirection: { $first: '$direction' },
         lastStatus: { $first: '$status' },
         phoneNumber: { $first: '$phoneNumber' },
-        // Track the most recent INBOUND message time for 24h window status
+        // Track the most recent INBOUND message time for 24h window status.
+        // Use sentAt (actual WhatsApp timestamp) instead of _messageTime
+        // (which prefers updatedAt and gets refreshed by read receipts / status changes).
         lastInboundAt: {
           $max: {
             $cond: [
               { $eq: ['$direction', 'inbound'] },
-              '$_messageTime',
+              { $ifNull: ['$sentAt', { $ifNull: ['$createdAt', null] }] },
               null,
             ],
           },

@@ -531,21 +531,36 @@ export default function MetaInboxPage() {
       return;
     }
 
+    // Prefer sentAt (actual WhatsApp timestamp) over createdAt (server processing time)
     const inbound = messages
       .filter((m) => m.direction === 'inbound')
       .slice()
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      .sort((a, b) => {
+        const ta = new Date(a.sentAt || a.createdAt).getTime();
+        const tb = new Date(b.sentAt || b.createdAt).getTime();
+        return tb - ta;
+      });
 
     const lastInbound = inbound[0];
-    if (!lastInbound) {
-      setWindowAnchorMs(null);
-      return;
+    if (lastInbound) {
+      const ts = new Date(lastInbound.sentAt || lastInbound.createdAt).getTime();
+      if (Number.isFinite(ts)) {
+        setWindowAnchorMs((prev) => (prev === ts ? prev : ts));
+        return;
+      }
     }
 
-    const ts = new Date(lastInbound.createdAt).getTime();
-    if (!Number.isFinite(ts)) return;
+    // Fallback: use conversation-level lastInboundAt to avoid showing
+    // null/stale timer while messages are still loading
+    if (selected.lastInboundAt) {
+      const ts = new Date(selected.lastInboundAt).getTime();
+      if (Number.isFinite(ts)) {
+        setWindowAnchorMs((prev) => (prev === ts ? prev : ts));
+        return;
+      }
+    }
 
-    setWindowAnchorMs((prev) => (prev === ts ? prev : ts));
+    setWindowAnchorMs(null);
   }, [messages, selected]);
 
   const windowRemaining = useMemo(() => {
