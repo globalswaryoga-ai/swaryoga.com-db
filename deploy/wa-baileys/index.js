@@ -790,6 +790,106 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
           if (c.jid && c.id && isLidNumber(c.id)) storeLidPhoneMapping(session, c.id, c.jid);
         }
       }
+
+      // ── Populate chatMap from synced chats (groups + individuals) ──
+      // WhatsApp sends full chat list during history sync — use it to fill chatMap
+      // so groups and older conversations appear even if no new messages arrive.
+      if (chats && chats.length > 0) {
+        let chatsSynced = 0;
+        for (const chat of chats) {
+          const jid = chat.id;
+          if (!jid || jid === 'status@broadcast') continue;
+          // Don't overwrite existing chatMap entries that have richer data from live messages
+          if (session.chatMap.has(jid)) continue;
+          const isGroup = jid.endsWith('@g.us');
+          const ts = chat.conversationTimestamp
+            ? new Date((typeof chat.conversationTimestamp === 'number' ? chat.conversationTimestamp : Number(chat.conversationTimestamp)) * 1000).toISOString()
+            : null;
+          const displayName = chat.name || (isGroup ? session.groupSubjectCache.get(jid) : null) || jid.split('@')[0];
+          session.chatMap.set(jid, {
+            id: jid,
+            name: displayName,
+            isGroup,
+            isLid: jid.endsWith('@lid') || (!isGroup && isLidNumber(jid)),
+            unreadCount: chat.unreadCount || 0,
+            lastMessageTime: ts,
+            lastMessage: '',
+            pinned: chat.pinned || false,
+            archived: chat.archived || false,
+          });
+          chatsSynced++;
+        }
+        if (chatsSynced > 0) console.log(`[${session.userId}] History sync: ${chatsSynced} chats added to chatMap (syncType=${syncType})`);
+      }
+
+      // ── Populate chatMap from synced messages ──
+      // History sync also sends recent messages — use them to enrich chatMap entries
+      // with last message preview and timestamp.
+      if (messages && messages.length > 0) {
+        let msgsSynced = 0;
+        for (const msg of messages) {
+          try {
+            const jid = msg.key?.remoteJid;
+            if (!jid || jid === 'status@broadcast') continue;
+            if (msg.message?.protocolMessage || msg.message?.senderKeyDistributionMessage) continue;
+
+            const isGroup = jid.endsWith('@g.us');
+            const ts = typeof msg.messageTimestamp === 'number'
+              ? (msg.messageTimestamp < 10000000000 ? msg.messageTimestamp * 1000 : msg.messageTimestamp)
+              : Date.now();
+
+            // Extract text preview
+            const inner = msg.message?.viewOnceMessage?.message
+              || msg.message?.viewOnceMessageV2?.message
+              || msg.message?.ephemeralMessage?.message
+              || msg.message;
+            const text = inner?.conversation
+              || inner?.extendedTextMessage?.text
+              || inner?.imageMessage?.caption
+              || inner?.videoMessage?.caption
+              || '';
+
+            const preview = text ? text.substring(0, 80) : (
+              inner?.imageMessage ? '[image]'
+              : inner?.videoMessage ? '[video]'
+              : inner?.audioMessage ? '[audio]'
+              : inner?.documentMessage ? '[document]'
+              : inner?.stickerMessage ? '[sticker]'
+              : ''
+            );
+
+            // Create or update chatMap entry
+            const existing = session.chatMap.get(jid);
+            const tsIso = new Date(ts).toISOString();
+            if (existing) {
+              // Only update if this message is newer
+              const existingTs = existing.lastMessageTime ? new Date(existing.lastMessageTime).getTime() : 0;
+              if (ts > existingTs) {
+                existing.lastMessageTime = tsIso;
+                if (preview) existing.lastMessage = preview;
+              }
+            } else {
+              const displayName = msg.pushName
+                || (isGroup ? session.groupSubjectCache.get(jid) : null)
+                || jid.split('@')[0];
+              session.chatMap.set(jid, {
+                id: jid,
+                name: displayName,
+                isGroup,
+                isLid: jid.endsWith('@lid') || (!isGroup && isLidNumber(jid)),
+                unreadCount: msg.key?.fromMe ? 0 : 1,
+                lastMessageTime: tsIso,
+                lastMessage: preview,
+              });
+            }
+            msgsSynced++;
+          } catch (e) {
+            // Skip individual message parse errors during history sync
+          }
+        }
+        if (msgsSynced > 0) console.log(`[${session.userId}] History sync: ${msgsSynced} messages processed for chatMap enrichment`);
+      }
+
       // Update chatMap names for resolved LID contacts
       for (const [jid, chat] of session.chatMap.entries()) {
         if (isLidNumber(jid) && /^\d{14,}$/.test(chat.name)) {

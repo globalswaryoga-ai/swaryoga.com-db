@@ -295,7 +295,12 @@ function applySessionChangeFilter(data: any, phoneChangedAt: Date | null) {
   }
 
   const cutoffMs = new Date(phoneChangedAt).getTime();
-  const filteredChats = chats.filter((chat: any) => getChatTimestampMs(chat) >= cutoffMs);
+  // Groups always pass — they belong to the currently connected WhatsApp account,
+  // not to a specific phone number. Only filter individual (non-group) chats by timestamp.
+  const filteredChats = chats.filter((chat: any) => {
+    if (chat.isGroup || String(chat.id || '').endsWith('@g.us')) return true;
+    return getChatTimestampMs(chat) >= cutoffMs;
+  });
   const wrapped = data?.chats
     ? {
         ...data,
