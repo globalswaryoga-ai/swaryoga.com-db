@@ -59,6 +59,12 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // Prefer bridge user identity from verified headers over body payload (defense-in-depth).
+    const headerUserId = req.headers.get('x-user-id')?.trim();
+    const headerSessionKey = req.headers.get('x-session-key')?.trim();
+    if (headerUserId) payload.bridgeUserId = headerUserId;
+    if (headerSessionKey && !payload.bridgeSessionId) payload.bridgeSessionId = headerSessionKey;
+
     // Best-effort ingestion into CRM WhatsAppMessage.
     // We keep this intentionally tolerant because QR providers differ in payload shape.
     const ingested = await ingestQRPayload(payload);

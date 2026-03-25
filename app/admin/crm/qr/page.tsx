@@ -218,12 +218,10 @@ function getScopedQrStorageKey(scope: string, key: string): string {
   return `crm_qr_${scope || 'global'}_${key}`;
 }
 
-function readScopedQrStorage(scope: string, key: string, legacyKey?: string): string | null {
+function readScopedQrStorage(scope: string, key: string, _legacyKey?: string): string | null {
   if (typeof window === 'undefined') return null;
   try {
-    const scoped = localStorage.getItem(getScopedQrStorageKey(scope, key));
-    if (scoped !== null) return scoped;
-    if (legacyKey) return localStorage.getItem(legacyKey);
+    return localStorage.getItem(getScopedQrStorageKey(scope, key));
   } catch {}
   return null;
 }
@@ -232,6 +230,34 @@ function writeScopedQrStorage(scope: string, key: string, value: string): void {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(getScopedQrStorageKey(scope, key), value);
+  } catch {}
+}
+
+/** One-time migration: copy unscoped legacy keys into the user's scoped namespace, then delete the legacy keys. */
+const LEGACY_CACHE_MIGRATED_KEY = 'crm_qr_legacy_migrated';
+function migrateLegacyQrStorage(scope: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (localStorage.getItem(LEGACY_CACHE_MIGRATED_KEY)) return;
+    const migrations: [string, string][] = [
+      ['crm_chatFunnels', 'chatFunnels'],
+      ['crm_chatLabels', 'chatLabels'],
+      ['crm_pinnedChats', 'pinnedChats'],
+      ['crm_sidebarWidth', 'sidebarWidth'],
+      ['crm_senderDisplayName', 'senderDisplayName'],
+      ['crm_qrConnectedPhoneNumber', 'connectedPhoneNumber'],
+    ];
+    for (const [legacyKey, scopedKey] of migrations) {
+      const legacyVal = localStorage.getItem(legacyKey);
+      if (legacyVal !== null) {
+        const existing = localStorage.getItem(getScopedQrStorageKey(scope, scopedKey));
+        if (existing === null) {
+          localStorage.setItem(getScopedQrStorageKey(scope, scopedKey), legacyVal);
+        }
+        localStorage.removeItem(legacyKey);
+      }
+    }
+    localStorage.setItem(LEGACY_CACHE_MIGRATED_KEY, '1');
   } catch {}
 }
 
@@ -285,6 +311,8 @@ export default function QRWhatsAppPage() {
   const router = useRouter();
   const { fetch: crmFetch } = useCRM({ token });
   const initialQrStorageScope = getInitialQrStorageScope();
+  // One-time: migrate unscoped legacy localStorage keys into user-scoped keys
+  migrateLegacyQrStorage(initialQrStorageScope);
 
   // ═════════════════════════════════════════════════════════════════════════════════
   // IMPORTANT: ALL HOOKS MUST BE DEFINED HERE, BEFORE ANY CONDITIONAL LOGIC

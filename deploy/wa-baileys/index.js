@@ -443,6 +443,9 @@ async function forwardToWebhook(session, payload) {
         'Content-Type': 'application/json',
         'x-qr-chat-secret': BRIDGE_SECRET,
         'x-bridge-secret': BRIDGE_SECRET,
+        'x-user-id': session.ownerUserId || session.userId || '',
+        'x-session-key': session.sessionKey || session.userId || '',
+        'x-tenant-id': session.tenantId || '',
       },
       body: JSON.stringify(payload),
     });
