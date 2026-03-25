@@ -2662,17 +2662,24 @@ export default function MetaInboxPage() {
                     </button>
                   )}
                 </div>
+                {windowRemaining && windowRemaining.diff > 0 ? (
                 <div className="flex items-center gap-1.5">
                   <span className="flex h-1.5 w-1.5 relative">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-70"></span>
                     <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500"></span>
                   </span>
                   <span className="text-[10px] font-bold text-red-700 uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: 'linear-gradient(135deg, #FEF2F2, #FEE2E2)', border: '1px solid rgba(239,68,68,0.2)', boxShadow: '0 1px 4px rgba(239,68,68,0.1)' }}>
-                    {windowRemaining
-                      ? `24H WINDOW • ${String(windowRemaining.hh).padStart(2, '0')}:${String(windowRemaining.mm).padStart(2, '0')}:${String(windowRemaining.ss).padStart(2, '0')}`
-                      : '24H WINDOW'}
+                    {`24H WINDOW • ${String(windowRemaining.hh).padStart(2, '0')}:${String(windowRemaining.mm).padStart(2, '0')}:${String(windowRemaining.ss).padStart(2, '0')}`}
                   </span>
                 </div>
+                ) : windowAnchorMs ? (
+                <div className="flex items-center gap-1.5">
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-slate-400"></span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: 'linear-gradient(135deg, #F8FAFC, #F1F5F9)', border: '1px solid rgba(100,116,139,0.2)' }}>
+                    WINDOW EXPIRED
+                  </span>
+                </div>
+                ) : null}
               </div>
 
               <div className="flex-1 p-6 overflow-y-auto flex flex-col gap-3" style={{ backgroundColor: '#EEF1F0', backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.7) 1px, transparent 1px)', backgroundSize: '20px 20px' }}>
