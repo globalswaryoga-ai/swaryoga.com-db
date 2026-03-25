@@ -1782,6 +1782,7 @@ app.post('/group-participants/:jid', async (req, res) => {
   if (!action || !participants?.length) return res.status(400).json({ error: 'action and participants[] required' });
   try {
     switch (action) {
+      case 'add': await session.sock.groupParticipantsUpdate(jid, participants, 'add'); break;
       case 'promote': await session.sock.groupParticipantsUpdate(jid, participants, 'promote'); break;
       case 'demote': await session.sock.groupParticipantsUpdate(jid, participants, 'demote'); break;
       case 'remove': await session.sock.groupParticipantsUpdate(jid, participants, 'remove'); break;
