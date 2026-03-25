@@ -253,6 +253,23 @@ async function validateOwnBridgeLivePhone(resolved: Extract<BridgeResolution, { 
   });
   invalidateBridgeCache(resolved.userId);
 
+  // Force-disconnect the contaminated session on the bridge so it doesn't
+  // stay connected in-memory after we've cleared the DB auth state.
+  try {
+    await fetch(`${resolved.url}/logout`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-bridge-secret': resolved.secret,
+        'x-user-id': resolved.userId,
+        'x-session-key': resolved.bridgeSessionId,
+        ...(resolved.tenantId ? { 'x-tenant-id': resolved.tenantId } : {}),
+      },
+    });
+  } catch (e) {
+    console.warn(`[QR Bridge Proxy] Failed to disconnect contaminated bridge session for ${resolved.userId}:`, (e as Error).message);
+  }
+
   console.warn(
     `[QR Bridge Proxy] Foreign live phone blocked for ${resolved.userId}: ${normalizedPhone} already belongs to ${duplicateOwners.map((owner) => owner.userId).join(', ')}`,
     cleanup

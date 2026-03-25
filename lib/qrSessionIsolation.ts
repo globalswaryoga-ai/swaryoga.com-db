@@ -12,19 +12,44 @@ export function normalizeConnectedPhone(phone: string): string {
   return String(phone || '').split(':')[0].split('@')[0].replace(/\D/g, '');
 }
 
+/**
+ * Resolve all auth-state key prefixes a user might have.
+ * The bridge keys auth state by session key, which can be the permanentTenantId
+ * (current production) or the userId (legacy). Both must be checked/cleaned.
+ */
+async function resolveAuthKeyPrefixes(userId: string): Promise<string[]> {
+  const prefixes = [userId];
+  try {
+    const CRMUserSettings = getCRMUserSettings();
+    const settings: any = await CRMUserSettings.findOne(
+      { userId },
+      { permanentTenantId: 1 }
+    ).lean();
+    if (settings?.permanentTenantId && settings.permanentTenantId !== userId) {
+      prefixes.unshift(settings.permanentTenantId); // prefer tenant ID first
+    }
+  } catch {}
+  return [...new Set(prefixes.filter(Boolean))];
+}
+
 export async function getAuthStatePhone(userId: string): Promise<string> {
   try {
     const db = mongoose.connection.useDb(AUTH_DB_NAME);
-    const doc: any = await db.collection(AUTH_COLLECTION).findOne(
-      { key: `${userId}:creds` },
-      { projection: { value: 1 } }
-    );
+    const prefixes = await resolveAuthKeyPrefixes(userId);
 
-    return normalizeConnectedPhone(
-      doc?.value?.me?.id ||
-      doc?.value?.account?.details?.phoneNumber ||
-      ''
-    );
+    for (const prefix of prefixes) {
+      const doc: any = await db.collection(AUTH_COLLECTION).findOne(
+        { key: `${prefix}:creds` },
+        { projection: { value: 1 } }
+      );
+      const phone = normalizeConnectedPhone(
+        doc?.value?.me?.id ||
+        doc?.value?.account?.details?.phoneNumber ||
+        ''
+      );
+      if (phone) return phone;
+    }
+    return '';
   } catch (error) {
     console.warn('[qrSessionIsolation] Failed to derive auth-state phone:', error);
     return '';
@@ -105,10 +130,14 @@ export async function clearQrSessionContamination(
 
   let deletedAuthDocs = 0;
   if (options.clearAuth) {
-    const authResult = await db.collection(AUTH_COLLECTION).deleteMany({
-      key: { $regex: `^${escapeRegex(userId)}:` },
-    });
-    deletedAuthDocs = authResult.deletedCount || 0;
+    // Delete auth docs under ALL possible key prefixes (userId AND permanentTenantId)
+    const prefixes = await resolveAuthKeyPrefixes(userId);
+    for (const prefix of prefixes) {
+      const authResult = await db.collection(AUTH_COLLECTION).deleteMany({
+        key: { $regex: `^${escapeRegex(prefix)}:` },
+      });
+      deletedAuthDocs += authResult.deletedCount || 0;
+    }
   }
 
   await CRMUserSettings.updateOne(
