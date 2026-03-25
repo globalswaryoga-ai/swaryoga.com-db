@@ -1,7 +1,7 @@
 'use client';
 
-import React from 'react';
-import { X, Phone, Video, MessageSquare, Hash, Info, Calendar, Users, Pencil, LogOut, Loader2, Save, Link2, Copy, RotateCcw, Lock, ChevronUp, ChevronDown, UserMinus, Shield, Crown, Tag, Funnel, Download } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, Phone, Video, MessageSquare, Hash, Info, Calendar, Users, Pencil, LogOut, Loader2, Save, Link2, Copy, RotateCcw, Lock, ChevronUp, ChevronDown, UserMinus, Shield, Crown, Tag, Funnel, Download, CheckSquare, Square, Trash2 } from 'lucide-react';
 import type { ChatItem, MessageItem, FunnelStage, LabelPreset, GroupInfo } from '../types';
 import { formatPhoneNumber, getAvatarColor, getInitials } from '../utils';
 
@@ -31,6 +31,7 @@ export interface DetailsPanelProps {
   groupSettingsLoading: string | null;
   updateGroupSetting: (setting: string) => void;
   updateGroupParticipant: (participantJid: string, action: 'promote' | 'demote' | 'remove') => void;
+  bulkRemoveParticipants?: (participantJids: string[]) => Promise<void>;
   handleRenameGroup: (newName: string) => void;
   handleLeaveGroup: () => void;
   setDetailsPanel: (v: boolean) => void;
@@ -45,6 +46,7 @@ export function DetailsPanel({
   savingDesc, updateGroupDesc,
   groupInviteLink, loadingInvite, fetchGroupInvite, revokeGroupInvite,
   groupSettingsLoading, updateGroupSetting, updateGroupParticipant,
+  bulkRemoveParticipants,
   handleRenameGroup, handleLeaveGroup,
   setDetailsPanel, setLightboxImage,
 }: DetailsPanelProps) {
@@ -379,11 +381,83 @@ export function DetailsPanel({
       {/* Group Participants */}
       {isGroupChat && (
         <div className="px-4 py-3 space-y-2 flex-1">
-          <div className="flex items-center justify-between">
-            <h5 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
-              Members ({groupInfo?.size || groupInfo?.participants?.length || 0} visible)
-            </h5>
-            {groupInfo && groupInfo.participants.length > 0 && (
+          <BulkMemberManager
+            groupInfo={groupInfo}
+            loadingGroupInfo={loadingGroupInfo}
+            chats={chats}
+            selectedChat={selectedChat}
+            updateGroupParticipant={updateGroupParticipant}
+            bulkRemoveParticipants={bulkRemoveParticipants}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Bulk Member Manager (internal sub-component) ── */
+function BulkMemberManager({ groupInfo, loadingGroupInfo, chats, selectedChat, updateGroupParticipant, bulkRemoveParticipants }: {
+  groupInfo: GroupInfo | null;
+  loadingGroupInfo: boolean;
+  chats: ChatItem[];
+  selectedChat: string;
+  updateGroupParticipant: (jid: string, action: 'promote' | 'demote' | 'remove') => void;
+  bulkRemoveParticipants?: (jids: string[]) => Promise<void>;
+}) {
+  const [selectedJids, setSelectedJids] = useState<Set<string>>(new Set());
+  const [bulkMode, setBulkMode] = useState(false);
+  const [bulkRemoving, setBulkRemoving] = useState(false);
+
+  const removableParticipants = (groupInfo?.participants || []).filter(p => p.admin !== 'superadmin');
+  const allSelected = removableParticipants.length > 0 && removableParticipants.every(p => selectedJids.has(p.id));
+
+  const toggleAll = () => {
+    if (allSelected) {
+      setSelectedJids(new Set());
+    } else {
+      setSelectedJids(new Set(removableParticipants.map(p => p.id)));
+    }
+  };
+
+  const toggleOne = (id: string) => {
+    setSelectedJids(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const handleBulkRemove = async () => {
+    if (selectedJids.size === 0) return;
+    if (!confirm(`Remove ${selectedJids.size} member${selectedJids.size !== 1 ? 's' : ''} from this group?`)) return;
+    setBulkRemoving(true);
+    try {
+      if (bulkRemoveParticipants) {
+        await bulkRemoveParticipants(Array.from(selectedJids));
+      }
+      setSelectedJids(new Set());
+      setBulkMode(false);
+    } finally {
+      setBulkRemoving(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="flex items-center justify-between">
+        <h5 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
+          Members ({groupInfo?.size || groupInfo?.participants?.length || 0} visible)
+        </h5>
+        <div className="flex items-center gap-1">
+          {groupInfo && groupInfo.participants.length > 0 && (
+            <>
+              <button
+                onClick={() => { setBulkMode(!bulkMode); setSelectedJids(new Set()); }}
+                className={`flex items-center gap-1 text-[10px] px-2 py-1 rounded-md font-medium transition border ${bulkMode ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'}`}
+                title={bulkMode ? 'Cancel bulk select' : 'Bulk select members'}
+              >
+                {bulkMode ? <><X className="w-3 h-3" /> Cancel</> : <><CheckSquare className="w-3 h-3" /> Select</>}
+              </button>
               <button
                 onClick={() => {
                   const chatObj = chats.find(c => c.id === selectedChat);
@@ -413,85 +487,114 @@ export function DetailsPanel({
               >
                 <Download className="w-3 h-3" /> Download
               </button>
-            )}
-          </div>
-          {loadingGroupInfo ? (
-            <div className="flex items-center justify-center py-6">
-              <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
-            </div>
-          ) : groupInfo ? (
-            <div className="space-y-1 max-h-64 overflow-y-auto">
-              {groupInfo.participants.length <= 3 && (
-                <p className="text-[10px] text-gray-400 italic px-2 pb-1">WhatsApp shows limited members for linked devices. More members appear as they send messages.</p>
-              )}
-              {groupInfo.participants
-                .sort((a, b) => {
-                  const order: Record<string, number> = { superadmin: 0, admin: 1 };
-                  const aOrder = a.admin ? (order[a.admin] ?? 2) : 2;
-                  const bOrder = b.admin ? (order[b.admin] ?? 2) : 2;
-                  return aOrder - bOrder;
-                })
-                .map(p => {
-                  const pId = p.id || '';
-                  const isLidId = pId.endsWith('@lid');
-                  const pPhone = pId.replace('@s.whatsapp.net', '').replace('@lid', '');
-                  const pColor = getAvatarColor(pPhone);
-                  const displayName = isLidId ? `Member ${pPhone.slice(-4)}` : formatPhoneNumber(pPhone);
-                  const isSuperAdmin = p.admin === 'superadmin';
-                  const isAdmin = p.admin === 'admin';
-                  return (
-                    <div key={p.id} className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-gray-50 group/participant">
-                      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-semibold ${pColor}`}>
-                        {pPhone.slice(-2)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs text-gray-800 truncate">{displayName}</p>
-                      </div>
-                      {isSuperAdmin && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 flex items-center gap-0.5">
-                          <Crown className="w-2.5 h-2.5" /> Owner
-                        </span>
-                      )}
-                      {isAdmin && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 flex items-center gap-0.5">
-                          <Shield className="w-2.5 h-2.5" /> Admin
-                        </span>
-                      )}
-                      {/* Admin actions - visible on hover */}
-                      {!isSuperAdmin && (
-                        <div className="hidden group-hover/participant:flex items-center gap-0.5">
-                          {isAdmin ? (
-                            <button
-                              onClick={() => updateGroupParticipant(pId, 'demote')}
-                              className="p-1 rounded hover:bg-orange-100 text-gray-400 hover:text-orange-600" title="Demote from admin"
-                            >
-                              <ChevronDown className="w-3 h-3" />
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => updateGroupParticipant(pId, 'promote')}
-                              className="p-1 rounded hover:bg-indigo-100 text-gray-400 hover:text-indigo-600" title="Make admin"
-                            >
-                              <ChevronUp className="w-3 h-3" />
-                            </button>
-                          )}
-                          <button
-                            onClick={() => updateGroupParticipant(pId, 'remove')}
-                            className="p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-600" title="Remove from group"
-                          >
-                            <UserMinus className="w-3 h-3" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-            </div>
-          ) : (
-            <p className="text-xs text-gray-400 text-center py-4">Could not load participants</p>
+            </>
           )}
         </div>
+      </div>
+      {/* Bulk action bar */}
+      {bulkMode && selectedJids.size > 0 && (
+        <div className="flex items-center justify-between bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          <span className="text-xs text-red-700 font-medium">{selectedJids.size} selected</span>
+          <button
+            onClick={handleBulkRemove}
+            disabled={bulkRemoving}
+            className="flex items-center gap-1 text-[10px] px-3 py-1.5 rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 font-medium transition"
+          >
+            {bulkRemoving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+            Remove {selectedJids.size}
+          </button>
+        </div>
       )}
-    </div>
+      {loadingGroupInfo ? (
+        <div className="flex items-center justify-center py-6">
+          <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+        </div>
+      ) : groupInfo ? (
+        <div className="space-y-1 max-h-64 overflow-y-auto">
+          {groupInfo.participants.length <= 3 && (
+            <p className="text-[10px] text-gray-400 italic px-2 pb-1">WhatsApp shows limited members for linked devices. More members appear as they send messages.</p>
+          )}
+          {/* Select all toggle */}
+          {bulkMode && removableParticipants.length > 0 && (
+            <button
+              onClick={toggleAll}
+              className="flex items-center gap-2 w-full px-2 py-1.5 text-[10px] text-gray-500 hover:bg-gray-50 rounded transition"
+            >
+              {allSelected ? <CheckSquare className="w-3.5 h-3.5 text-red-500" /> : <Square className="w-3.5 h-3.5" />}
+              {allSelected ? 'Deselect all' : 'Select all (except owner)'}
+            </button>
+          )}
+          {groupInfo.participants
+            .sort((a, b) => {
+              const order: Record<string, number> = { superadmin: 0, admin: 1 };
+              const aOrder = a.admin ? (order[a.admin] ?? 2) : 2;
+              const bOrder = b.admin ? (order[b.admin] ?? 2) : 2;
+              return aOrder - bOrder;
+            })
+            .map(p => {
+              const pId = p.id || '';
+              const isLidId = pId.endsWith('@lid');
+              const pPhone = pId.replace('@s.whatsapp.net', '').replace('@lid', '');
+              const pColor = getAvatarColor(pPhone);
+              const displayName = isLidId ? `Member ${pPhone.slice(-4)}` : formatPhoneNumber(pPhone);
+              const isSuperAdmin = p.admin === 'superadmin';
+              const isAdmin = p.admin === 'admin';
+              return (
+                <div key={p.id} className={`flex items-center gap-2 py-1.5 px-2 rounded hover:bg-gray-50 group/participant ${bulkMode && selectedJids.has(pId) ? 'bg-red-50' : ''}`}>
+                  {bulkMode && !isSuperAdmin && (
+                    <button onClick={() => toggleOne(pId)} className="flex-shrink-0">
+                      {selectedJids.has(pId) ? <CheckSquare className="w-4 h-4 text-red-500" /> : <Square className="w-4 h-4 text-gray-400" />}
+                    </button>
+                  )}
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-semibold ${pColor}`}>
+                    {pPhone.slice(-2)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-gray-800 truncate">{displayName}</p>
+                  </div>
+                  {isSuperAdmin && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 flex items-center gap-0.5">
+                      <Crown className="w-2.5 h-2.5" /> Owner
+                    </span>
+                  )}
+                  {isAdmin && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 flex items-center gap-0.5">
+                      <Shield className="w-2.5 h-2.5" /> Admin
+                    </span>
+                  )}
+                  {/* Admin actions - visible on hover (hidden in bulk mode) */}
+                  {!isSuperAdmin && !bulkMode && (
+                    <div className="hidden group-hover/participant:flex items-center gap-0.5">
+                      {isAdmin ? (
+                        <button
+                          onClick={() => updateGroupParticipant(pId, 'demote')}
+                          className="p-1 rounded hover:bg-orange-100 text-gray-400 hover:text-orange-600" title="Demote from admin"
+                        >
+                          <ChevronDown className="w-3 h-3" />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => updateGroupParticipant(pId, 'promote')}
+                          className="p-1 rounded hover:bg-indigo-100 text-gray-400 hover:text-indigo-600" title="Make admin"
+                        >
+                          <ChevronUp className="w-3 h-3" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => updateGroupParticipant(pId, 'remove')}
+                        className="p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-600" title="Remove from group"
+                      >
+                        <UserMinus className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+        </div>
+      ) : (
+        <p className="text-xs text-gray-400 text-center py-4">Could not load participants</p>
+      )}
+    </>
   );
 }

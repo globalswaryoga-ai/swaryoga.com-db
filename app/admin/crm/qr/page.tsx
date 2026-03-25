@@ -414,8 +414,9 @@ export default function QRWhatsAppPage() {
   const [mergeBusy, setMergeBusy] = useState(false);
   const [mergeProgress, setMergeProgress] = useState(0);
   const [mergeProgressText, setMergeProgressText] = useState('');
-  const [mergeResult, setMergeResult] = useState<{ targetName: string; existingCount: number; newCount: number } | null>(null);
+  const [mergeResult, setMergeResult] = useState<{ targetName: string; existingCount: number; newCount: number; removedFromSource?: number } | null>(null);
   const [mergeGroupSearch, setMergeGroupSearch] = useState('');
+  const [mergeRemoveFromSource, setMergeRemoveFromSource] = useState(false);
   const [pinnedChats, setPinnedChats] = useState<string[]>(() => {
     try {
       const v = readScopedQrStorage(getInitialQrStorageScope(), 'pinnedChats', 'crm_pinnedChats');
@@ -1273,6 +1274,21 @@ export default function QRWhatsAppPage() {
     }
   }, [selectedChat, bridgeCall, fetchGroupInfo]);
 
+  // ── Bulk remove participants from group ──
+  const bulkRemoveParticipants = useCallback(async (jids: string[]) => {
+    if (!selectedChat || jids.length === 0) return;
+    const batchSize = 20;
+    for (let i = 0; i < jids.length; i += batchSize) {
+      const batch = jids.slice(i, i + batchSize);
+      try {
+        await bridgeCall(`/group-participants/${encodeURIComponent(selectedChat)}`, 'POST', { action: 'remove', participants: batch });
+      } catch {
+        // some may fail
+      }
+    }
+    await fetchGroupInfo(selectedChat);
+  }, [selectedChat, bridgeCall, fetchGroupInfo]);
+
   // ── Fetch statuses/stories ──
   const fetchStatuses = useCallback(async () => {
     setLoadingStatuses(true);
@@ -1518,33 +1534,35 @@ export default function QRWhatsAppPage() {
     setMergeResult(null);
     try {
       // 1. Get target group info & existing participants
-      const targetInfo = await bridgeCall(`/group-info/${mergeTargetId}`) as { subject?: string; participants?: { id: string }[] };
+      const targetInfo = await bridgeCall(`/group-info/${mergeTargetId}`) as { subject?: string; participants?: { id: string; admin?: string }[] };
       const targetName = targetInfo?.subject || 'Target Group';
       const existingIds = new Set((targetInfo?.participants || []).map((p: { id: string }) => p.id));
       const existingCount = existingIds.size;
-      setMergeProgress(10);
+      setMergeProgress(5);
 
-      // 2. Collect unique participants from all source groups
+      // 2. Collect unique participants from all source groups + track per-group members
       const sourceArr = Array.from(mergeSourceIds).filter(id => id !== mergeTargetId);
       const allNewJids: string[] = [];
+      const sourceGroupMembers: Record<string, { id: string; admin?: string }[]> = {};
       for (let i = 0; i < sourceArr.length; i++) {
         setMergeProgressText(`Fetching group ${i + 1}/${sourceArr.length}…`);
         try {
-          const info = await bridgeCall(`/group-info/${sourceArr[i]}`) as { participants?: { id: string }[] };
-          const members = (info?.participants || []).map((p: { id: string }) => p.id);
-          for (const jid of members) {
-            if (!existingIds.has(jid) && !allNewJids.includes(jid)) {
-              allNewJids.push(jid);
+          const info = await bridgeCall(`/group-info/${sourceArr[i]}`) as { participants?: { id: string; admin?: string }[] };
+          const members = info?.participants || [];
+          sourceGroupMembers[sourceArr[i]] = members;
+          for (const p of members) {
+            if (!existingIds.has(p.id) && !allNewJids.includes(p.id)) {
+              allNewJids.push(p.id);
             }
           }
         } catch {
           // skip failed group
         }
-        setMergeProgress(10 + Math.round(((i + 1) / sourceArr.length) * 40));
+        setMergeProgress(5 + Math.round(((i + 1) / sourceArr.length) * 25));
       }
 
-      if (allNewJids.length === 0) {
-        setMergeResult({ targetName, existingCount, newCount: 0 });
+      if (allNewJids.length === 0 && !mergeRemoveFromSource) {
+        setMergeResult({ targetName, existingCount, newCount: 0, removedFromSource: 0 });
         setMergeProgress(100);
         setMergeProgressText('Done — no new members to add.');
         setMergeBusy(false);
@@ -1554,31 +1572,60 @@ export default function QRWhatsAppPage() {
       // 3. Add participants in batches of 20
       const batchSize = 20;
       let added = 0;
-      for (let i = 0; i < allNewJids.length; i += batchSize) {
-        const batch = allNewJids.slice(i, i + batchSize);
-        setMergeProgressText(`Adding members ${i + 1}–${Math.min(i + batchSize, allNewJids.length)} of ${allNewJids.length}…`);
-        try {
-          await bridgeCall(`/group-participants/${mergeTargetId}`, 'POST', {
-            action: 'add',
-            participants: batch,
-          });
-          added += batch.length;
-        } catch {
-          // some may fail (privacy settings etc)
+      if (allNewJids.length > 0) {
+        for (let i = 0; i < allNewJids.length; i += batchSize) {
+          const batch = allNewJids.slice(i, i + batchSize);
+          setMergeProgressText(`Adding members ${i + 1}–${Math.min(i + batchSize, allNewJids.length)} of ${allNewJids.length}…`);
+          try {
+            await bridgeCall(`/group-participants/${mergeTargetId}`, 'POST', {
+              action: 'add',
+              participants: batch,
+            });
+            added += batch.length;
+          } catch {
+            // some may fail (privacy settings etc)
+          }
+          setMergeProgress(30 + Math.round(((i + batchSize) / allNewJids.length) * 35));
         }
-        setMergeProgress(50 + Math.round(((i + batchSize) / allNewJids.length) * 50));
+      }
+
+      // 4. Remove members from source groups if requested
+      let removedFromSource = 0;
+      if (mergeRemoveFromSource) {
+        setMergeProgressText('Removing members from source groups…');
+        for (let g = 0; g < sourceArr.length; g++) {
+          const groupId = sourceArr[g];
+          const members = sourceGroupMembers[groupId] || [];
+          // Remove all non-owner members
+          const toRemove = members.filter(p => p.admin !== 'superadmin').map(p => p.id);
+          if (toRemove.length > 0) {
+            for (let i = 0; i < toRemove.length; i += batchSize) {
+              const batch = toRemove.slice(i, i + batchSize);
+              try {
+                await bridgeCall(`/group-participants/${groupId}`, 'POST', {
+                  action: 'remove',
+                  participants: batch,
+                });
+                removedFromSource += batch.length;
+              } catch {
+                // some may fail
+              }
+            }
+          }
+          setMergeProgress(65 + Math.round(((g + 1) / sourceArr.length) * 35));
+        }
       }
 
       setMergeProgress(100);
       setMergeProgressText('Merge complete!');
-      setMergeResult({ targetName, existingCount, newCount: added });
+      setMergeResult({ targetName, existingCount, newCount: added, removedFromSource });
       fetchChats();
     } catch (e: any) {
       setMergeProgressText(`Error: ${e.message || 'Merge failed'}`);
     } finally {
       setMergeBusy(false);
     }
-  }, [mergeTargetId, mergeSourceIds, mergeBusy, bridgeCall, fetchChats]);
+  }, [mergeTargetId, mergeSourceIds, mergeBusy, mergeRemoveFromSource, bridgeCall, fetchChats]);
 
   // ── Start a new chat with phone number ──
   const handleStartNewChat = useCallback(() => {
@@ -2036,7 +2083,7 @@ export default function QRWhatsAppPage() {
                 <button onClick={() => setShowGroupCreate(true)} className="px-3 py-1.5 text-xs font-medium bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 border border-purple-200 flex items-center gap-1.5 transition" title="New Group">
                   <Users className="w-3.5 h-3.5" /> New Group
                 </button>
-                <button onClick={() => { setShowMergeGroups(true); setMergeTargetId(''); setMergeSourceIds(new Set()); setMergeResult(null); setMergeProgress(0); setMergeProgressText(''); setMergeGroupSearch(''); }} className="px-3 py-1.5 text-xs font-medium bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 border border-amber-200 flex items-center gap-1.5 transition" title="Merge Groups">
+                <button onClick={() => { setShowMergeGroups(true); setMergeTargetId(''); setMergeSourceIds(new Set()); setMergeResult(null); setMergeProgress(0); setMergeProgressText(''); setMergeGroupSearch(''); setMergeRemoveFromSource(false); }} className="px-3 py-1.5 text-xs font-medium bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 border border-amber-200 flex items-center gap-1.5 transition" title="Merge Groups">
                   <Merge className="w-3.5 h-3.5" /> Merge Group
                 </button>
               </>
@@ -3035,6 +3082,7 @@ export default function QRWhatsAppPage() {
               groupSettingsLoading={groupSettingsLoading}
               updateGroupSetting={updateGroupSetting}
               updateGroupParticipant={updateGroupParticipant}
+              bulkRemoveParticipants={bulkRemoveParticipants}
               handleRenameGroup={handleRenameGroup}
               handleLeaveGroup={handleLeaveGroup}
               setDetailsPanel={setDetailsPanel}
@@ -3107,12 +3155,12 @@ export default function QRWhatsAppPage() {
       />
       {/* Merge Groups Modal */}
       {showMergeGroups && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => { if (!mergeBusy) { setShowMergeGroups(false); setMergeResult(null); setMergeProgress(0); setMergeSourceIds(new Set()); setMergeTargetId(''); setMergeGroupSearch(''); } }}>
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => { if (!mergeBusy) { setShowMergeGroups(false); setMergeResult(null); setMergeProgress(0); setMergeSourceIds(new Set()); setMergeTargetId(''); setMergeGroupSearch(''); setMergeRemoveFromSource(false); } }}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
             {/* Header */}
             <div className="px-5 py-3.5 border-b flex items-center justify-between bg-gradient-to-r from-amber-500 to-orange-500 rounded-t-2xl">
               <h3 className="font-semibold text-white flex items-center gap-2"><Merge className="w-5 h-5" /> Merge Groups</h3>
-              <button onClick={() => { if (!mergeBusy) { setShowMergeGroups(false); setMergeResult(null); setMergeProgress(0); setMergeSourceIds(new Set()); setMergeTargetId(''); setMergeGroupSearch(''); } }} className="text-white/80 hover:text-white"><X className="w-5 h-5" /></button>
+              <button onClick={() => { if (!mergeBusy) { setShowMergeGroups(false); setMergeResult(null); setMergeProgress(0); setMergeSourceIds(new Set()); setMergeTargetId(''); setMergeGroupSearch(''); setMergeRemoveFromSource(false); } }} className="text-white/80 hover:text-white"><X className="w-5 h-5" /></button>
             </div>
             <div className="p-5 space-y-4 overflow-y-auto flex-1">
               {/* Result Summary */}
@@ -3121,7 +3169,10 @@ export default function QRWhatsAppPage() {
                   <div className="text-green-700 font-bold text-lg">✅ Successfully Merged!</div>
                   <div className="text-sm text-green-800"><span className="font-semibold">{mergeResult.targetName}</span> had <span className="font-bold">{mergeResult.existingCount}</span> users</div>
                   <div className="text-sm text-green-800"><span className="font-bold text-green-600">{mergeResult.newCount}</span> new members added from other groups</div>
-                  <button onClick={() => { setShowMergeGroups(false); setMergeResult(null); setMergeProgress(0); setMergeSourceIds(new Set()); setMergeTargetId(''); setMergeGroupSearch(''); }} className="mt-3 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition">Done</button>
+                  {mergeResult.removedFromSource != null && mergeResult.removedFromSource > 0 && (
+                    <div className="text-sm text-red-700"><span className="font-bold">{mergeResult.removedFromSource}</span> members removed from source groups</div>
+                  )}
+                  <button onClick={() => { setShowMergeGroups(false); setMergeResult(null); setMergeProgress(0); setMergeSourceIds(new Set()); setMergeTargetId(''); setMergeGroupSearch(''); setMergeRemoveFromSource(false); }} className="mt-3 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition">Done</button>
                 </div>
               )}
               {/* Select target group */}
@@ -3191,6 +3242,17 @@ export default function QRWhatsAppPage() {
                       <p className="text-xs text-gray-500 text-center">{mergeProgressText}</p>
                     </div>
                   )}
+                  {/* Remove from source option */}
+                  <label className="flex items-center gap-2 px-1 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={mergeRemoveFromSource}
+                      onChange={e => setMergeRemoveFromSource(e.target.checked)}
+                      disabled={mergeBusy}
+                      className="accent-red-500 w-4 h-4"
+                    />
+                    <span className="text-sm text-gray-700">Remove members from source groups after merge</span>
+                  </label>
                   {/* Submit */}
                   <button
                     onClick={handleMergeGroups}
