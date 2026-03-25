@@ -415,6 +415,7 @@ export default function QRWhatsAppPage() {
   const [mergeProgress, setMergeProgress] = useState(0);
   const [mergeProgressText, setMergeProgressText] = useState('');
   const [mergeResult, setMergeResult] = useState<{ targetName: string; existingCount: number; newCount: number } | null>(null);
+  const [mergeGroupSearch, setMergeGroupSearch] = useState('');
   const [pinnedChats, setPinnedChats] = useState<string[]>(() => {
     try {
       const v = readScopedQrStorage(getInitialQrStorageScope(), 'pinnedChats', 'crm_pinnedChats');
@@ -2035,7 +2036,7 @@ export default function QRWhatsAppPage() {
                 <button onClick={() => setShowGroupCreate(true)} className="px-3 py-1.5 text-xs font-medium bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 border border-purple-200 flex items-center gap-1.5 transition" title="New Group">
                   <Users className="w-3.5 h-3.5" /> New Group
                 </button>
-                <button onClick={() => { setShowMergeGroups(true); setMergeTargetId(''); setMergeSourceIds(new Set()); setMergeResult(null); setMergeProgress(0); setMergeProgressText(''); }} className="px-3 py-1.5 text-xs font-medium bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 border border-amber-200 flex items-center gap-1.5 transition" title="Merge Groups">
+                <button onClick={() => { setShowMergeGroups(true); setMergeTargetId(''); setMergeSourceIds(new Set()); setMergeResult(null); setMergeProgress(0); setMergeProgressText(''); setMergeGroupSearch(''); }} className="px-3 py-1.5 text-xs font-medium bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 border border-amber-200 flex items-center gap-1.5 transition" title="Merge Groups">
                   <Merge className="w-3.5 h-3.5" /> Merge Group
                 </button>
               </>
@@ -3106,12 +3107,12 @@ export default function QRWhatsAppPage() {
       />
       {/* Merge Groups Modal */}
       {showMergeGroups && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => { if (!mergeBusy) { setShowMergeGroups(false); setMergeResult(null); setMergeProgress(0); setMergeSourceIds(new Set()); setMergeTargetId(''); } }}>
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => { if (!mergeBusy) { setShowMergeGroups(false); setMergeResult(null); setMergeProgress(0); setMergeSourceIds(new Set()); setMergeTargetId(''); setMergeGroupSearch(''); } }}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
             {/* Header */}
             <div className="px-5 py-3.5 border-b flex items-center justify-between bg-gradient-to-r from-amber-500 to-orange-500 rounded-t-2xl">
               <h3 className="font-semibold text-white flex items-center gap-2"><Merge className="w-5 h-5" /> Merge Groups</h3>
-              <button onClick={() => { if (!mergeBusy) { setShowMergeGroups(false); setMergeResult(null); setMergeProgress(0); setMergeSourceIds(new Set()); setMergeTargetId(''); } }} className="text-white/80 hover:text-white"><X className="w-5 h-5" /></button>
+              <button onClick={() => { if (!mergeBusy) { setShowMergeGroups(false); setMergeResult(null); setMergeProgress(0); setMergeSourceIds(new Set()); setMergeTargetId(''); setMergeGroupSearch(''); } }} className="text-white/80 hover:text-white"><X className="w-5 h-5" /></button>
             </div>
             <div className="p-5 space-y-4 overflow-y-auto flex-1">
               {/* Result Summary */}
@@ -3120,12 +3121,26 @@ export default function QRWhatsAppPage() {
                   <div className="text-green-700 font-bold text-lg">✅ Successfully Merged!</div>
                   <div className="text-sm text-green-800"><span className="font-semibold">{mergeResult.targetName}</span> had <span className="font-bold">{mergeResult.existingCount}</span> users</div>
                   <div className="text-sm text-green-800"><span className="font-bold text-green-600">{mergeResult.newCount}</span> new members added from other groups</div>
-                  <button onClick={() => { setShowMergeGroups(false); setMergeResult(null); setMergeProgress(0); setMergeSourceIds(new Set()); setMergeTargetId(''); }} className="mt-3 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition">Done</button>
+                  <button onClick={() => { setShowMergeGroups(false); setMergeResult(null); setMergeProgress(0); setMergeSourceIds(new Set()); setMergeTargetId(''); setMergeGroupSearch(''); }} className="mt-3 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition">Done</button>
                 </div>
               )}
               {/* Select target group */}
               {!mergeResult && (
                 <>
+                  {/* Search groups */}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={mergeGroupSearch}
+                      onChange={e => setMergeGroupSearch(e.target.value)}
+                      placeholder="Search groups…"
+                      className="w-full pl-9 pr-8 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
+                    />
+                    {mergeGroupSearch && (
+                      <button onClick={() => setMergeGroupSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+                    )}
+                  </div>
                   <div>
                     <label className="block text-xs font-semibold text-gray-600 mb-1.5">Merge Into (Target Group)</label>
                     <select
@@ -3135,7 +3150,7 @@ export default function QRWhatsAppPage() {
                       className="w-full px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white disabled:opacity-50"
                     >
                       <option value="">— Select target group —</option>
-                      {chats.filter(c => c.isGroup).sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(g => (
+                      {chats.filter(c => c.isGroup && (!mergeGroupSearch || (c.name || '').toLowerCase().includes(mergeGroupSearch.toLowerCase()))).sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(g => (
                         <option key={g.id} value={g.id}>{g.name || g.id}</option>
                       ))}
                     </select>
@@ -3144,7 +3159,7 @@ export default function QRWhatsAppPage() {
                   <div>
                     <label className="block text-xs font-semibold text-gray-600 mb-1.5">Select Groups to Merge From ({mergeSourceIds.size} selected)</label>
                     <div className="border rounded-lg max-h-52 overflow-y-auto divide-y">
-                      {chats.filter(c => c.isGroup && c.id !== mergeTargetId).sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(g => (
+                      {chats.filter(c => c.isGroup && c.id !== mergeTargetId && (!mergeGroupSearch || (c.name || '').toLowerCase().includes(mergeGroupSearch.toLowerCase()))).sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(g => (
                         <label key={g.id} className={`flex items-center gap-3 px-3 py-2.5 hover:bg-amber-50 cursor-pointer transition ${mergeSourceIds.has(g.id) ? 'bg-amber-50' : ''}`}>
                           <input
                             type="checkbox"
@@ -3162,8 +3177,8 @@ export default function QRWhatsAppPage() {
                           <span className="text-sm text-gray-700 truncate">{g.name || g.id}</span>
                         </label>
                       ))}
-                      {chats.filter(c => c.isGroup && c.id !== mergeTargetId).length === 0 && (
-                        <div className="px-3 py-4 text-center text-gray-400 text-sm">No other groups found</div>
+                      {chats.filter(c => c.isGroup && c.id !== mergeTargetId && (!mergeGroupSearch || (c.name || '').toLowerCase().includes(mergeGroupSearch.toLowerCase()))).length === 0 && (
+                        <div className="px-3 py-4 text-center text-gray-400 text-sm">{mergeGroupSearch ? 'No groups match your search' : 'No other groups found'}</div>
                       )}
                     </div>
                   </div>
