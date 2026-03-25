@@ -435,6 +435,8 @@ export default function QRWhatsAppPage() {
   const headerPhoneRecoveryRef = useRef(0);
   const profilePicLoadedRef2 = useRef<Set<string>>(new Set());
   const composerTextRef = useRef('');
+  const tokenRef = useRef(token);
+  const errorRef = useRef(error);
 
   // Update refs with current state values
   selectedChatRef.current = selectedChat;
@@ -445,6 +447,8 @@ export default function QRWhatsAppPage() {
   crmFetchRef.current = crmFetch;
   connectedRef.current = !!status?.connected;
   composerTextRef.current = composerText;
+  tokenRef.current = token;
+  errorRef.current = error;
 
   // ── Pause polling when browser tab is hidden ──
   useEffect(() => {
@@ -459,6 +463,11 @@ export default function QRWhatsAppPage() {
     Object.assign(pendingUpdatesRef.current, updates);
     if (settingsSaveTimerRef.current) clearTimeout(settingsSaveTimerRef.current);
     settingsSaveTimerRef.current = setTimeout(async () => {
+      const currentToken = tokenRef.current;
+      if (!currentToken) {
+        console.warn('[QR] Skipping save — no auth token yet');
+        return;
+      }
       const merged = { ...pendingUpdatesRef.current };
       pendingUpdatesRef.current = {};
       try {
@@ -467,7 +476,7 @@ export default function QRWhatsAppPage() {
         const response = await fetch('/api/admin/crm/settings', {
           method: 'PUT',
           headers: {
-            'Authorization': `Bearer ${token}`,
+            'Authorization': `Bearer ${currentToken}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(merged),
@@ -476,27 +485,22 @@ export default function QRWhatsAppPage() {
         if (!response.ok) {
           const errData = await response.json().catch(() => ({ error: 'Save failed' }));
           console.warn(`[QR] Save failed: ${response.status}`, errData);
-          // Show error to user if save fails
           setError(`Failed to save settings: ${errData.error || response.statusText}`);
-          // Re-queue the failed update for retry
           Object.assign(pendingUpdatesRef.current, merged);
           return;
         }
 
         console.log('[QR] ✅ Saved to MongoDB:', Object.keys(merged));
-        // Clear any previous save errors
-        if (error && error.includes('Failed to save')) {
+        if (errorRef.current && errorRef.current.includes('Failed to save')) {
           setError(null);
         }
       } catch (e: any) {
         console.warn('[QR] ❌ Failed to save to MongoDB:', e);
-        // Show error to user
         setError(`Failed to save settings: ${e?.message || 'Unknown error'}`);
-        // Re-queue the failed update for retry
         Object.assign(pendingUpdatesRef.current, merged);
       }
     }, 500);
-  }, [token, error]);
+  }, []);
 
   useEffect(() => {
     if (!token) return;
@@ -1167,7 +1171,7 @@ export default function QRWhatsAppPage() {
     setDetailsPanel(true);
     setGroupInviteLink(null);
     setEditingDesc(false);
-    const isGroup = jid.endsWith('@g.us') || jid.endsWith('@lid');
+    const isGroup = jid.endsWith('@g.us');
     if (isGroup) {
       fetchGroupInfo(jid);
     } else {
@@ -1763,6 +1767,31 @@ export default function QRWhatsAppPage() {
     setShowBulkLabel(false);
   }, [selectedChats]);
 
+  // ── Delete selected chats from sidebar ──
+  const deleteSelectedChats = useCallback(() => {
+    if (selectedChats.size === 0) return;
+    const count = selectedChats.size;
+    if (!confirm(`Remove ${count} chat${count > 1 ? 's' : ''} from your inbox? This only hides them from your QR inbox — it does not delete WhatsApp messages.`)) return;
+    setChats(prev => prev.filter(c => !selectedChats.has(c.id)));
+    // Also clean up funnel/label assignments for removed chats
+    setChatFunnels(prev => {
+      const next = { ...prev };
+      selectedChats.forEach(id => { delete next[id]; });
+      return next;
+    });
+    setChatLabels(prev => {
+      const next = { ...prev };
+      selectedChats.forEach(id => { delete next[id]; });
+      return next;
+    });
+    // If the currently open chat was deleted, close it
+    if (selectedChat && selectedChats.has(selectedChat)) {
+      setSelectedChat(null);
+    }
+    setSelectedChats(new Set());
+    setSelectionMode(false);
+  }, [selectedChats, selectedChat]);
+
   // ── Remove label from a single chat ──
   const removeChatLabel = useCallback((chatId: string, label: string) => {
     setChatLabels(prev => {
@@ -2299,6 +2328,13 @@ export default function QRWhatsAppPage() {
                         </div>
                       )}
                     </div>
+                    <button
+                      onClick={deleteSelectedChats}
+                      className="px-1.5 py-0.5 text-[10px] bg-red-50 hover:bg-red-100 rounded text-red-600 border border-red-200 flex items-center gap-0.5"
+                      title="Remove selected chats from inbox"
+                    >
+                      <Trash2 className="w-2.5 h-2.5" /> Delete
+                    </button>
                   </>
                 )}
                 <button onClick={fetchChats} className="p-1 rounded hover:bg-gray-100" title="Refresh">
@@ -2512,7 +2548,8 @@ export default function QRWhatsAppPage() {
                     </button>
                     {(() => {
                       const selectedChatInfo = chats.find(c => c.id === selectedChat);
-                      const isGroupChat = selectedChat.endsWith('@g.us') || selectedChat.endsWith('@lid');
+                      const isGroupChat = selectedChat.endsWith('@g.us');
+                      const isLidChat = selectedChat.endsWith('@lid');
                       const selectedChatFallback = {
                         id: selectedChat,
                         name: selectedChatInfo?.name || '',
@@ -2527,10 +2564,10 @@ export default function QRWhatsAppPage() {
                       const crmName = selectedChatInfo?.name && !isPlaceholderChatName(selectedChatInfo.name) ? selectedChatInfo.name : null;
                       const headerDisplayName = isGroupChat
                         ? (selectedChatInfo?.name || selectedChat.split('@')[0])
-                        : (crmName || chatPhone || chatTitle);
+                        : (crmName || chatPhone || chatTitle || 'Contact');
                       const chatName = isGroupChat
                         ? (selectedChatInfo?.name || selectedChat.split('@')[0])
-                        : (crmName || chatTitle);
+                        : (crmName || chatTitle || 'Contact');
                       const avatarColor = getAvatarColor(chatName);
                       const initials = getInitials(chatName);
                       const stage = chatFunnels[selectedChat];
@@ -2630,7 +2667,7 @@ export default function QRWhatsAppPage() {
                     <div className="text-center text-gray-400 text-sm py-10">No messages yet</div>
                   )}
                   {messages.map(msg => {
-                    const isGroupChat = selectedChat?.endsWith('@g.us') || selectedChat?.endsWith('@lid');
+                    const isGroupChat = selectedChat?.endsWith('@g.us');
                     const senderName = msg.pushName || msg.participant?.split('@')[0] || '';
                     const senderColor = senderName ? getAvatarColor(senderName) : '';
                     const isImage = msg.type === 'image' || msg.mediaMimetype?.startsWith('image/');
