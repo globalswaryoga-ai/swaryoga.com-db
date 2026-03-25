@@ -1806,6 +1806,54 @@ app.post('/group-create', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Create Community (announcement group up to 5000 members) ──
+app.post('/community-create', async (req, res) => {
+  const session = getSessionForRequest(req);
+  if (!session.sock || session.connectionState !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  const { subject, description, participants } = req.body || {};
+  if (!subject) return res.status(400).json({ error: 'Community name required' });
+  try {
+    // Create community parent group
+    const community = await session.sock.groupCreate(subject, [], { messageTimer: undefined });
+    const communityJid = community.id;
+
+    // Update description if provided
+    if (description) {
+      try { await session.sock.groupUpdateDescription(communityJid, description); } catch (e) { /* ignore */ }
+    }
+
+    // Make it announcement-only (only admins can send)
+    try { await session.sock.groupSettingUpdate(communityJid, 'announcement'); } catch (e) { /* ignore */ }
+
+    // Restrict group info editing to admins only
+    try { await session.sock.groupSettingUpdate(communityJid, 'locked'); } catch (e) { /* ignore */ }
+
+    // Add participants in batches
+    let addedCount = 0;
+    if (participants?.length) {
+      const jids = participants.map(p => p.includes('@') ? p : `${String(p).replace(/[^0-9]/g, '')}@s.whatsapp.net`);
+      const batchSize = 20;
+      for (let i = 0; i < jids.length; i += batchSize) {
+        const batch = jids.slice(i, i + batchSize);
+        try {
+          await session.sock.groupParticipantsUpdate(communityJid, batch, 'add');
+          addedCount += batch.length;
+        } catch (e) { /* some may fail if not on WhatsApp */ }
+      }
+    }
+
+    // Generate invite link
+    let inviteLink = null;
+    try {
+      const code = await session.sock.groupInviteCode(communityJid);
+      inviteLink = `https://chat.whatsapp.com/${code}`;
+    } catch (e) { /* ignore */ }
+
+    session.chatMap.set(communityJid, { id: communityJid, name: subject, isGroup: true, isLid: false, unreadCount: 0, lastMessageTime: new Date().toISOString(), lastMessage: '' });
+    res.json({ success: true, id: communityJid, subject, addedCount, inviteLink });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.post('/group-leave/:jid', async (req, res) => {
   const session = getSessionForRequest(req);
   if (!session.sock || session.connectionState !== 'connected') return res.status(503).json({ error: 'Not connected' });

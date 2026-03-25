@@ -1501,14 +1501,27 @@ export default function QRWhatsAppPage() {
     }
   }, [selectedChat, bridgeCall]);
 
-  // ── Create a new group ──
-  const handleCreateGroup = useCallback(async () => {
+  // ── Create a new group or community ──
+  const handleCreateGroup = useCallback(async (type: 'group' | 'community' = 'group') => {
     if (!newGroupName.trim() || creatingGroup) return;
     setCreatingGroup(true);
     try {
       const members = newGroupMembers.split(/[,;\n]+/).map(m => m.trim()).filter(Boolean);
-      if (members.length === 0) { setError('Add at least one member phone number'); setCreatingGroup(false); return; }
-      const result = await bridgeCall('/group-create', 'POST', { subject: newGroupName.trim(), participants: members });
+      if (type === 'group' && members.length === 0) { setError('Add at least one member phone number'); setCreatingGroup(false); return; }
+
+      let result: any;
+      if (type === 'community') {
+        result = await bridgeCall('/community-create', 'POST', { subject: newGroupName.trim(), participants: members });
+        if (result?.inviteLink) {
+          // Copy invite link to clipboard
+          try { await navigator.clipboard.writeText(result.inviteLink); } catch {}
+          setError('');
+          alert(`✅ Announcement group created!\n\n📎 Invite link copied to clipboard:\n${result.inviteLink}\n\n${result.addedCount || 0} members added.`);
+        }
+      } else {
+        result = await bridgeCall('/group-create', 'POST', { subject: newGroupName.trim(), participants: members });
+      }
+
       setShowGroupCreate(false);
       setNewGroupName('');
       setNewGroupMembers('');
@@ -1519,7 +1532,7 @@ export default function QRWhatsAppPage() {
         setTimeout(() => selectChat(result.id), 1000);
       }
     } catch (e: any) {
-      setError(e.message || 'Failed to create group');
+      setError(e.message || `Failed to create ${type}`);
     } finally {
       setCreatingGroup(false);
     }
