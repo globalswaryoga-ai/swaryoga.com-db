@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { X, Phone, Video, MessageSquare, Hash, Info, Calendar, Users, Pencil, LogOut, Loader2, Save, Link2, Copy, RotateCcw, Lock, ChevronUp, ChevronDown, UserMinus, Shield, Crown, Tag, Funnel } from 'lucide-react';
+import { X, Phone, Video, MessageSquare, Hash, Info, Calendar, Users, Pencil, LogOut, Loader2, Save, Link2, Copy, RotateCcw, Lock, ChevronUp, ChevronDown, UserMinus, Shield, Crown, Tag, Funnel, Download } from 'lucide-react';
 import type { ChatItem, MessageItem, FunnelStage, LabelPreset, GroupInfo } from '../types';
 import { formatPhoneNumber, getAvatarColor, getInitials } from '../utils';
 
@@ -379,9 +379,42 @@ export function DetailsPanel({
       {/* Group Participants */}
       {isGroupChat && (
         <div className="px-4 py-3 space-y-2 flex-1">
-          <h5 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
-            Members ({groupInfo?.size || groupInfo?.participants?.length || 0} visible)
-          </h5>
+          <div className="flex items-center justify-between">
+            <h5 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
+              Members ({groupInfo?.size || groupInfo?.participants?.length || 0} visible)
+            </h5>
+            {groupInfo && groupInfo.participants.length > 0 && (
+              <button
+                onClick={() => {
+                  const chatObj = chats.find(c => c.id === selectedChat);
+                  const groupName = chatObj?.name || groupInfo.subject || 'group';
+                  const rows = groupInfo.participants.map(p => {
+                    const pId = p.id || '';
+                    const isLid = pId.endsWith('@lid');
+                    const rawPhone = pId.replace('@s.whatsapp.net', '').replace('@lid', '');
+                    const phone = isLid ? '' : (rawPhone.length >= 7 ? `+${rawPhone}` : rawPhone);
+                    const name = isLid ? `Member ${rawPhone.slice(-4)}` : formatPhoneNumber(rawPhone);
+                    const role = p.admin === 'superadmin' ? 'Owner' : p.admin === 'admin' ? 'Admin' : 'Member';
+                    return { name, phone, role };
+                  });
+                  const csvHeader = 'Name,Phone,Role';
+                  const csvRows = rows.map(r => `"${r.name}","${r.phone}","${r.role}"`);
+                  const csv = [csvHeader, ...csvRows].join('\n');
+                  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `${groupName.replace(/[^a-zA-Z0-9 _-]/g, '')}_contacts.csv`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+                className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-md bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 font-medium transition"
+                title="Download group contacts as CSV"
+              >
+                <Download className="w-3 h-3" /> Download
+              </button>
+            )}
+          </div>
           {loadingGroupInfo ? (
             <div className="flex items-center justify-center py-6">
               <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
