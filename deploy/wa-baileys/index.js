@@ -1773,6 +1773,9 @@ app.post('/group-settings/:jid', async (req, res) => {
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Human-like delay: random ms between min and max
+const humanDelay = (min = 2000, max = 5000) => new Promise(r => setTimeout(r, Math.floor(Math.random() * (max - min)) + min));
+
 app.post('/group-participants/:jid', async (req, res) => {
   const session = getSessionForRequest(req);
   if (!session.sock || session.connectionState !== 'connected') return res.status(503).json({ error: 'Not connected' });
@@ -1781,12 +1784,18 @@ app.post('/group-participants/:jid', async (req, res) => {
   const { action, participants } = req.body || {};
   if (!action || !participants?.length) return res.status(400).json({ error: 'action and participants[] required' });
   try {
-    switch (action) {
-      case 'add': await session.sock.groupParticipantsUpdate(jid, participants, 'add'); break;
-      case 'promote': await session.sock.groupParticipantsUpdate(jid, participants, 'promote'); break;
-      case 'demote': await session.sock.groupParticipantsUpdate(jid, participants, 'demote'); break;
-      case 'remove': await session.sock.groupParticipantsUpdate(jid, participants, 'remove'); break;
-      default: return res.status(400).json({ error: 'Invalid action' });
+    // Process in small batches with human-like delays
+    const batchSize = 5;
+    for (let i = 0; i < participants.length; i += batchSize) {
+      const batch = participants.slice(i, i + batchSize);
+      if (i > 0) await humanDelay(3000, 7000);
+      switch (action) {
+        case 'add': await session.sock.groupParticipantsUpdate(jid, batch, 'add'); break;
+        case 'promote': await session.sock.groupParticipantsUpdate(jid, batch, 'promote'); break;
+        case 'demote': await session.sock.groupParticipantsUpdate(jid, batch, 'demote'); break;
+        case 'remove': await session.sock.groupParticipantsUpdate(jid, batch, 'remove'); break;
+        default: return res.status(400).json({ error: 'Invalid action' });
+      }
     }
     res.json({ success: true, action, participants });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -1800,8 +1809,19 @@ app.post('/group-create', async (req, res) => {
   if (!participants?.length) return res.status(400).json({ error: 'At least one participant required' });
   const jids = participants.map(p => p.includes('@') ? p : `${String(p).replace(/[^0-9]/g, '')}@s.whatsapp.net`);
   try {
-    const result = await session.sock.groupCreate(subject, jids);
+    // Create group with first batch (max 5), add rest slowly
+    const firstBatch = jids.slice(0, 5);
+    const result = await session.sock.groupCreate(subject, firstBatch);
     session.chatMap.set(result.id, { id: result.id, name: subject, isGroup: true, isLid: false, unreadCount: 0, lastMessageTime: new Date().toISOString(), lastMessage: '' });
+    // Add remaining members in small batches with delays
+    if (jids.length > 5) {
+      const remaining = jids.slice(5);
+      for (let i = 0; i < remaining.length; i += 5) {
+        await humanDelay(3000, 7000);
+        const batch = remaining.slice(i, i + 5);
+        try { await session.sock.groupParticipantsUpdate(result.id, batch, 'add'); } catch (e) {}
+      }
+    }
     res.json({ success: true, id: result.id, gid: result.gid, subject: result.subject });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -1828,12 +1848,13 @@ app.post('/community-create', async (req, res) => {
     // Restrict group info editing to admins only
     try { await session.sock.groupSettingUpdate(communityJid, 'locked'); } catch (e) { /* ignore */ }
 
-    // Add participants in batches
+    // Add participants in small batches with human-like delays
     let addedCount = 0;
     if (participants?.length) {
       const jids = participants.map(p => p.includes('@') ? p : `${String(p).replace(/[^0-9]/g, '')}@s.whatsapp.net`);
-      const batchSize = 20;
+      const batchSize = 5;
       for (let i = 0; i < jids.length; i += batchSize) {
+        if (i > 0) await humanDelay(3000, 8000);
         const batch = jids.slice(i, i + batchSize);
         try {
           await session.sock.groupParticipantsUpdate(communityJid, batch, 'add');

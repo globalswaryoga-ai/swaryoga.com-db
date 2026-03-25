@@ -1277,9 +1277,10 @@ export default function QRWhatsAppPage() {
   // ── Bulk remove participants from group ──
   const bulkRemoveParticipants = useCallback(async (jids: string[]) => {
     if (!selectedChat || jids.length === 0) return;
-    const batchSize = 20;
+    const batchSize = 5;
     for (let i = 0; i < jids.length; i += batchSize) {
       const batch = jids.slice(i, i + batchSize);
+      if (i > 0) await new Promise(r => setTimeout(r, 3000 + Math.random() * 4000));
       try {
         await bridgeCall(`/group-participants/${encodeURIComponent(selectedChat)}`, 'POST', { action: 'remove', participants: batch });
       } catch {
@@ -1559,6 +1560,7 @@ export default function QRWhatsAppPage() {
       const sourceGroupMembers: Record<string, { id: string; admin?: string }[]> = {};
       for (let i = 0; i < sourceArr.length; i++) {
         setMergeProgressText(`Fetching group ${i + 1}/${sourceArr.length}…`);
+        if (i > 0) await new Promise(r => setTimeout(r, 1500 + Math.random() * 2000));
         try {
           const info = await bridgeCall(`/group-info/${sourceArr[i]}`) as { participants?: { id: string; admin?: string }[] };
           const members = info?.participants || [];
@@ -1582,12 +1584,13 @@ export default function QRWhatsAppPage() {
         return;
       }
 
-      // 3. Add participants in batches of 20
-      const batchSize = 20;
+      // 3. Add participants in batches of 5 with human-like delays
+      const batchSize = 5;
       let added = 0;
       if (allNewJids.length > 0) {
         for (let i = 0; i < allNewJids.length; i += batchSize) {
           const batch = allNewJids.slice(i, i + batchSize);
+          if (i > 0) await new Promise(r => setTimeout(r, 3000 + Math.random() * 5000));
           setMergeProgressText(`Adding members ${i + 1}–${Math.min(i + batchSize, allNewJids.length)} of ${allNewJids.length}…`);
           try {
             await bridgeCall(`/group-participants/${mergeTargetId}`, 'POST', {
@@ -1614,6 +1617,7 @@ export default function QRWhatsAppPage() {
           if (toRemove.length > 0) {
             for (let i = 0; i < toRemove.length; i += batchSize) {
               const batch = toRemove.slice(i, i + batchSize);
+              if (i > 0) await new Promise(r => setTimeout(r, 3000 + Math.random() * 4000));
               try {
                 await bridgeCall(`/group-participants/${groupId}`, 'POST', {
                   action: 'remove',
