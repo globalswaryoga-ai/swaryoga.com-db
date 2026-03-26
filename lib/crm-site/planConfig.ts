@@ -359,9 +359,9 @@ export const STORAGE_BILLING = {
 
 export const TRIAL_CONFIG = {
   durationDays: 14,
-  eligiblePlans: ['free', 'basic'] as PlanTier[],
+  eligiblePlans: ['basic'] as PlanTier[],
   trialFeatures: ['leads', 'whatsapp', 'broadcasting', 'chatbot', 'templates'] as CrmModule[],
-  // During trial, free users get basic-level access to these modules
+  // Free plan never expires. Only paid plans get a trial period.
 };
 
 // ============================================================================

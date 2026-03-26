@@ -259,11 +259,13 @@ export async function POST(request: NextRequest) {
           subscription: {
             plan: selectedPlan,
             billing: 'monthly',
-            status: selectedPlan === 'free' ? 'trial' : 'active',
+            status: 'active',
             startDate: now,
-            trialStartDate: now,
-            trialEndDate: new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000),
-            trialUsed: false,
+            ...(selectedPlan !== 'free' ? {
+              trialStartDate: now,
+              trialEndDate: new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000),
+              trialUsed: false,
+            } : {}),
           },
           isActive: true,
           metadata: {
