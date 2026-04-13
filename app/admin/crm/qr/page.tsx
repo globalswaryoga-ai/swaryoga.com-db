@@ -1,4 +1,5 @@
 'use client';
+// Version: 2026-03-12 20:45 UTC — Composite deployment (useRef fix + delays + UI hides)
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
