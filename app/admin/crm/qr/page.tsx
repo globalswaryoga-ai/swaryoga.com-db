@@ -3099,63 +3099,65 @@ export default function QRWhatsAppPage() {
                     </div>
                   )}
 
-                  {/* Input Row */}
-                  <div className="px-3 py-2 flex items-center gap-1.5">
-                    {/* Attach button */}
-                    <button
-                      onClick={() => { setShowAttachMenu(!showAttachMenu); setShowEmojiPicker(false); setShowFormatBar(false); }}
-                      disabled={!isConnected}
-                      className="p-2 rounded-full hover:bg-gray-100 text-gray-500 hover:text-green-600 disabled:opacity-40 transition"
-                      title="Attach"
-                    >
-                      <Paperclip className="w-4 h-4" />
-                    </button>
-                    {/* Emoji button */}
-                    <button
-                      onClick={() => { setShowEmojiPicker(!showEmojiPicker); setShowAttachMenu(false); setShowFormatBar(false); }}
-                      className="p-2 rounded-full hover:bg-gray-100 text-gray-500 hover:text-yellow-600 transition"
-                      title="Emoji"
-                    >
-                      <Smile className="w-4 h-4" />
-                    </button>
-                    {/* Format button */}
-                    <button
-                      onClick={() => { setShowFormatBar(!showFormatBar); setShowEmojiPicker(false); setShowAttachMenu(false); }}
-                      className="p-2 rounded-full hover:bg-gray-100 text-gray-500 hover:text-indigo-600 transition"
-                      title="Format text"
-                    >
-                      <Type className="w-4 h-4" />
-                    </button>
-                    {/* Text Input */}
-                    <input
-                      ref={composerInputRef}
-                      type="text"
-                      value={composerText}
-                      onChange={e => { setComposerText(e.target.value); handleTyping(); }}
-                      onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) handleSend(); }}
-                      onFocus={closeComposerPopups}
-                      placeholder={replyingTo ? `Reply to ${replyingTo.pushName || replyingTo.from}...` : mediaPreview ? 'Add caption...' : 'Type a message...'}
-                      className="flex-1 px-4 py-2 border rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
-                      disabled={!isConnected || sending}
-                    />
-                    {/* Star button — Quick Actions */}
-                    <button
-                      onClick={() => { setShowStarPopup(true); closeComposerPopups(); }}
-                      disabled={!isConnected}
-                      className="p-2 rounded-full hover:bg-yellow-50 text-gray-500 hover:text-yellow-600 disabled:opacity-40 transition"
-                      title="Quick Actions"
-                    >
-                      <Star className="w-4 h-4" />
-                    </button>
-                    {/* Send button */}
-                    <button
-                      onClick={handleSend}
-                      disabled={(!composerText.trim() && !mediaPreview) || !isConnected || sending}
-                      className="p-2.5 bg-green-600 text-white rounded-full hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                    >
-                      {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                    </button>
-                  </div>
+                  {/* Input Row — Only show when connected */}
+                  {isConnected && (
+                    <div className="px-3 py-2 flex items-center gap-1.5">
+                      {/* Attach button */}
+                      <button
+                        onClick={() => { setShowAttachMenu(!showAttachMenu); setShowEmojiPicker(false); setShowFormatBar(false); }}
+                        disabled={!isConnected}
+                        className="p-2 rounded-full hover:bg-gray-100 text-gray-500 hover:text-green-600 disabled:opacity-40 transition"
+                        title="Attach"
+                      >
+                        <Paperclip className="w-4 h-4" />
+                      </button>
+                      {/* Emoji button */}
+                      <button
+                        onClick={() => { setShowEmojiPicker(!showEmojiPicker); setShowAttachMenu(false); setShowFormatBar(false); }}
+                        className="p-2 rounded-full hover:bg-gray-100 text-gray-500 hover:text-yellow-600 transition"
+                        title="Emoji"
+                      >
+                        <Smile className="w-4 h-4" />
+                      </button>
+                      {/* Format button */}
+                      <button
+                        onClick={() => { setShowFormatBar(!showFormatBar); setShowEmojiPicker(false); setShowAttachMenu(false); }}
+                        className="p-2 rounded-full hover:bg-gray-100 text-gray-500 hover:text-indigo-600 transition"
+                        title="Format text"
+                      >
+                        <Type className="w-4 h-4" />
+                      </button>
+                      {/* Text Input */}
+                      <input
+                        ref={composerInputRef}
+                        type="text"
+                        value={composerText}
+                        onChange={e => { setComposerText(e.target.value); handleTyping(); }}
+                        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) handleSend(); }}
+                        onFocus={closeComposerPopups}
+                        placeholder={replyingTo ? `Reply to ${replyingTo.pushName || replyingTo.from}...` : mediaPreview ? 'Add caption...' : 'Type a message...'}
+                        className="flex-1 px-4 py-2 border rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
+                        disabled={!isConnected || sending}
+                      />
+                      {/* Star button — Quick Actions */}
+                      <button
+                        onClick={() => { setShowStarPopup(true); closeComposerPopups(); }}
+                        disabled={!isConnected}
+                        className="p-2 rounded-full hover:bg-yellow-50 text-gray-500 hover:text-yellow-600 disabled:opacity-40 transition"
+                        title="Quick Actions"
+                      >
+                        <Star className="w-4 h-4" />
+                      </button>
+                      {/* Send button */}
+                      <button
+                        onClick={handleSend}
+                        disabled={(!composerText.trim() && !mediaPreview) || !isConnected || sending}
+                        className="p-2.5 bg-green-600 text-white rounded-full hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                      >
+                        {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </>
             )}
