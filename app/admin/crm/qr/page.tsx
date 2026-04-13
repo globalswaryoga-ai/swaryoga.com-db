@@ -1156,7 +1156,9 @@ export default function QRWhatsAppPage() {
   // ── Fetch messages ──
   const fetchMessages = useCallback(async (jid: string) => {
     try {
+      console.log(`[QR] Fetching messages for JID: ${jid}`);
       const data = await bridgeCall(`/messages/${jid}`);
+      console.log(`[QR] API Response for ${jid}:`, { hasMessages: !!data?.messages, count: data?.messages?.length || 0 });
       if (data?.messages) {
         // Map bridge response fields to frontend MessageItem format
         const mapped = data.messages.map((m: any) => ({
@@ -1356,6 +1358,7 @@ export default function QRWhatsAppPage() {
 
   // ── Select chat ──
   const selectChat = useCallback((jid: string) => {
+    console.log(`[QR] selectChat called with JID: ${jid}`);
     setSelectedChat(jid);
     setDetailsPanel(false);
     setGroupInfo(null);
