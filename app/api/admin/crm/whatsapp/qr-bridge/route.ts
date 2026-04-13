@@ -115,6 +115,7 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
       // Users with permanentTenantId still get their own isolated session, but through
       // the base bridge URL plus their unique user/session headers.
       if (permanentTenantId) {
+        console.log(`[QR Bridge Resolve] User ${decoded.userId} has permanentTenantId=${permanentTenantId} → hasOwnBridge=true`);
         const tenantResult: BridgeResolution = {
           ok: true,
           url: FALLBACK_BRIDGE_URL,
@@ -132,6 +133,8 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
         if (bridgeCache.size > 50) evictStaleBridgeCache();
         return tenantResult;
       }
+
+      console.warn(`[QR Bridge Resolve] User ${decoded.userId} has NO permanentTenantId - checking legacy qrBridgeUrl`);
 
       // ── LEGACY: Custom qrBridgeUrl (backward compatibility) ──
       if (settings?.qrBridgeUrl) {
@@ -671,6 +674,8 @@ export async function POST(req: NextRequest) {
     const decodedPath = decodePathFully(path);
     const basePath = '/' + decodedPath.split('/').filter(Boolean)[0];
 
+    console.log(`[QR Bridge POST] userId=${userId}, basePath=${basePath}, decodedPath=${decodedPath}, hasOwnBridge=${resolved.hasOwnBridge}, isSuperAdmin=${resolved.isSuperAdmin}`);
+
     // ════════════════════════════════════════════════════════════
     // ── COMPREHENSIVE PER-CHAT SECURITY GATE (POST) ──
     // Runs BEFORE the request reaches the bridge.
@@ -678,6 +683,8 @@ export async function POST(req: NextRequest) {
     // Isolated tenant-owned bridge sessions keep full access to their own bridge.
     // ════════════════════════════════════════════════════════════
     const requiresLeadOwnershipFilter = !resolved.hasOwnBridge;
+    console.log(`[QR Bridge POST Security] requiresLeadOwnershipFilter=${requiresLeadOwnershipFilter} (hasOwnBridge=${resolved.hasOwnBridge})`);
+    
     if (requiresLeadOwnershipFilter) {
       // 1. Super Admin-only endpoints (session management)
       // BUT: CRM tenants (with permanentTenantId) can manage their own tenant session
