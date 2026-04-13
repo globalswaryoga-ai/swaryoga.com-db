@@ -2112,8 +2112,9 @@ export default function QRWhatsAppPage() {
   const connState = status?.status || 'disconnected';
   const isConnected = connState === 'connected';
   const headerConnectedPhone = resolveConnectedPhoneLabel(status, connectedPhoneNumber);
+  // Status badge shows only connection state (not phone number, since it's in separate badge)
   const headerConnectionLabel = isConnected
-    ? (headerConnectedPhone ? `Connected ${headerConnectedPhone}` : 'Connected')
+    ? 'Connected'
     : connState === 'connecting'
     ? 'Connecting...'
     : 'Offline';
@@ -2167,7 +2168,7 @@ export default function QRWhatsAppPage() {
               isConnected ? 'bg-green-100 text-green-700 ring-1 ring-green-300 shadow-sm' :
               connState === 'connecting' ? 'bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200' :
               'bg-red-50 text-red-700 ring-1 ring-red-200'
-            }`} title={isConnected && headerConnectedPhone ? `Connected: ${headerConnectedPhone}` : undefined}>
+            }`} title={isConnected ? 'WhatsApp connected' : 'WhatsApp offline'}>
               {isConnected ? <Wifi className="w-3.5 h-3.5 stroke-[3]" /> :
                connState === 'connecting' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> :
                <WifiOff className="w-3.5 h-3.5" />}
