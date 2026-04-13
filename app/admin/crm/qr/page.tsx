@@ -467,6 +467,7 @@ export default function QRWhatsAppPage() {
   const composerTextRef = useRef('');
   const tokenRef = useRef(token);
   const errorRef = useRef(error);
+  const wasConnectedRef = useRef(false);
 
   // Update refs with current state values
   selectedChatRef.current = selectedChat;
@@ -961,11 +962,9 @@ export default function QRWhatsAppPage() {
   // ── Auto-sync chats and clear message cache on reconnect ──
   // Fixes: 1) new chats not showing after offline, 2) stale message ticks not updating
   useEffect(() => {
-    const wasConnected = useRef(false);
-    
     // Detect transition from disconnected → connected
-    if (status?.connected && !wasConnected.current) {
-      wasConnected.current = true;
+    if (status?.connected && !wasConnectedRef.current) {
+      wasConnectedRef.current = true;
       console.log('[QR] Reconnect detected — syncing chats and refreshing message cache...');
       // Delay slightly to ensure bridge has stabilized
       setTimeout(() => {
@@ -980,7 +979,7 @@ export default function QRWhatsAppPage() {
         }
       }, 500);
     } else if (!status?.connected) {
-      wasConnected.current = false;
+      wasConnectedRef.current = false;
     }
   }, [status?.connected]);
 
