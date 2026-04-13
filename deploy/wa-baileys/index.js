@@ -107,6 +107,11 @@ class UserSession {
     this.reconnectTimer = null;
     this.saveCreds = null;
 
+    // Connection stability tracking (detect flapping)
+    this.disconnectHistory = []; // { timestamp, reason, statusCode }
+    this.maxConsecutiveFlaps = 0; // Track rapid disconnect pattern
+    this.lastStableTime = Date.now(); // When was last stable connection
+
     // Per-user in-memory data
     this.chatMap = new Map();
     this.messageMap = new Map();
@@ -145,6 +150,29 @@ class UserSession {
         }
       }
     }, KEEP_ALIVE_INTERVAL);
+  }
+
+  recordDisconnect(reason = 'unknown', statusCode = null) {
+    const now = Date.now();
+    this.disconnectHistory.push({ timestamp: now, reason, statusCode });
+
+    // Keep only last 10 disconnects (5-minute window at typical reconnect times)
+    while (this.disconnectHistory.length > 10) {
+      this.disconnectHistory.shift();
+    }
+
+    // Detect connection flapping: 3+ disconnects in 60 seconds
+    const recentDisconnects = this.disconnectHistory.filter(
+      d => (now - d.timestamp) < 60000
+    ).length;
+
+    if (recentDisconnects >= 3) {
+      this.maxConsecutiveFlaps = Math.max(this.maxConsecutiveFlaps, recentDisconnects);
+      console.warn(
+        `[${this.userId}] ⚠️  CONNECTION FLAPPING: ${recentDisconnects} disconnects in 60s ` +
+        `(max: ${this.maxConsecutiveFlaps}). Recent: ${this.disconnectHistory.slice(-3).map(d => d.reason).join(' → ')}`
+      );
+    }
   }
 
   touch() {
@@ -644,6 +672,17 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
         session.retryCount = 0;
         session.intentionalDisconnect = false;
         session.phoneInfo = sock.user || null;
+        
+        // Reset flap counter on successful connection
+        if (session.maxConsecutiveFlaps > 0) {
+          console.log(
+            `[${session.ownerUserId}] ✓ Connection recovered after ${session.maxConsecutiveFlaps} flaps. ` +
+            `Session stabilizing for next 30s...`
+          );
+        }
+        session.lastStableTime = Date.now();
+        session.disconnectHistory = []; // Clear history on successful connection
+
         console.log(`[${session.ownerUserId}] Connected session ${session.sessionKey} as: ${sock.user?.id} ${sock.user?.name || ''}`);
 
         session.startKeepalive();
@@ -669,6 +708,9 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
         const statusCode = lastDisconnect?.error?.output?.statusCode || lastDisconnect?.error?.statusCode;
         const reason = lastDisconnect?.error?.message || 'unknown';
 
+        // Record disconnect for flapping detection
+        session.recordDisconnect(reason, statusCode);
+
         console.log(`[${session.ownerUserId}] Disconnected session ${session.sessionKey}: ${statusCode} (${reason})`);
 
         if (session.intentionalDisconnect) {
@@ -693,16 +735,41 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
             return;
           }
 
-          let delay;
-          if (isQrTimeout) delay = 2000;
-          else if (isConnectionConflict) delay = Math.min(10000 + session.retryCount * 5000, 120000);
-          else if (isRateLimited) delay = Math.min(15000 + session.retryCount * 5000, 120000);
-          else if (isConnectionDrop) delay = 5000;
-          else delay = Math.min(1000 * Math.pow(2, Math.min(session.retryCount - 1, 5)), 60000);
+          // Calculate delay with exponential backoff + jitter (prevents thundering herd)
+          let baseDelay;
+          if (isQrTimeout) {
+            baseDelay = 2000;
+          } else if (isConnectionConflict) {
+            baseDelay = Math.min(10000 + session.retryCount * 5000, 120000);
+          } else if (isRateLimited) {
+            baseDelay = Math.min(30000 + session.retryCount * 10000, 180000); // More patient for rate limits
+          } else if (isConnectionDrop) {
+            baseDelay = Math.min(8000 + session.retryCount * 3000, 90000); // Gradual backoff
+          } else {
+            // Standard exponential backoff: 1s → 2s → 4s → 8s → 16s → 30s → 30s...
+            baseDelay = Math.min(
+              1000 * Math.pow(2, Math.min(session.retryCount - 1, 4)),
+              30000
+            );
+          }
 
-          console.log(`[${session.ownerUserId}] Reconnect session ${session.sessionKey} in ${delay}ms`);
+          // Add ±20% jitter to prevent thundering herd
+          const jitter = baseDelay * 0.2 * (Math.random() - 0.5);
+          const delay = Math.max(1000, baseDelay + jitter);
+
+          console.log(
+            `[${session.ownerUserId}] Reconnect session ${session.sessionKey} in ${Math.round(delay)}ms ` +
+            `(attempt ${session.retryCount}/${MAX_RETRIES}, reason: ${reason})`
+          );
+
           session.clearReconnectTimer();
-          session.reconnectTimer = setTimeout(() => { session.isStarting = false; startSocket(session.sessionKey, session.ownerUserId, session.tenantId); }, delay);
+          session.reconnectTimer = setTimeout(
+            () => {
+              session.isStarting = false;
+              startSocket(session.sessionKey, session.ownerUserId, session.tenantId);
+            },
+            delay
+          );
         } else if (statusCode === DisconnectReason.loggedOut) {
           console.log(`[${session.ownerUserId}] Logged out session ${session.sessionKey} — clearing auth`);
           try {
@@ -1970,6 +2037,65 @@ app.get('/statuses', (req, res) => {
       grouped[s.senderJid].statuses.push(s);
     }
     res.json({ statuses: Object.values(grouped), total: session.statusStore.length });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// DIAGNOSTICS — Connection health monitoring
+// ═══════════════════════════════════════════════════════════════════════
+app.get('/diagnostics', (req, res) => {
+  const session = getSessionForRequest(req);
+  try {
+    const now = Date.now();
+    const uptime = session.connectionState === 'connected' ? (now - session.lastConnectedTime) : 0;
+    const connectionAge = now - session.createdAt;
+    const stableSince = session.lastStableTime ? (now - session.lastStableTime) : 0;
+
+    // Detect if currently flapping
+    const recentDisconnects = session.disconnectHistory.filter(d => (now - d.timestamp) < 60000).length;
+    const isFlapping = recentDisconnects >= 3;
+
+    res.json({
+      session: {
+        sessionKey: session.sessionKey,
+        ownerUserId: session.ownerUserId,
+        tenantId: session.tenantId,
+      },
+      connection: {
+        state: session.connectionState,
+        connectedPhone: session.phoneInfo?.id || null,
+        uptime: uptime,
+        uptimeSeconds: Math.round(uptime / 1000),
+        stableSince: stableSince,
+        connectionAge: connectionAge,
+        connectionAgeSeconds: Math.round(connectionAge / 1000),
+      },
+      stability: {
+        retryCount: session.retryCount,
+        maxRetriesSoFar: session.maxConsecutiveFlaps,
+        isFlapping: isFlapping,
+        recentDisconnects: {
+          last60s: recentDisconnects,
+          history: session.disconnectHistory.slice(-5).map(d => ({
+            secondsAgo: Math.round((now - d.timestamp) / 1000),
+            reason: d.reason,
+            statusCode: d.statusCode,
+          })),
+        },
+      },
+      qr: {
+        lastQrTime: session.lastQrTime ? new Date(session.lastQrTime).toISOString() : null,
+        hasQr: !!session.qrCode,
+      },
+      health: {
+        isHealthy: session.connectionState === 'connected' && !isFlapping,
+        recommendation: isFlapping
+          ? 'Connection is flapping. Try: (1) Scan new QR code (2) Check network stability (3) Restart bridge if persists'
+          : session.connectionState === 'disconnected'
+          ? 'Session disconnected. Scan QR code to reconnect.'
+          : 'Connection healthy ✓',
+      },
+    });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

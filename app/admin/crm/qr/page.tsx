@@ -958,6 +958,32 @@ export default function QRWhatsAppPage() {
       .catch(e => console.warn('[QR] Failed to recover saved connected phone:', e));
   }, [token, status, connectedPhoneNumber]);
 
+  // ── Auto-sync chats and clear message cache on reconnect ──
+  // Fixes: 1) new chats not showing after offline, 2) stale message ticks not updating
+  useEffect(() => {
+    const wasConnected = useRef(false);
+    
+    // Detect transition from disconnected → connected
+    if (status?.connected && !wasConnected.current) {
+      wasConnected.current = true;
+      console.log('[QR] Reconnect detected — syncing chats and refreshing message cache...');
+      // Delay slightly to ensure bridge has stabilized
+      setTimeout(() => {
+        // Auto-sync chats
+        if (fetchChatsRef.current) {
+          fetchChatsRef.current().catch(err => console.error('[QR] Auto-sync chats failed:', err));
+        }
+        // Clear message cache to refresh tick status from bridge (fixes stale single-tick issue)
+        if (selectedChatRef.current) {
+          setMessages([]); // Clear old cached messages
+          console.log('[QR] Cleared message cache — will fetch fresh ticks from bridge');
+        }
+      }, 500);
+    } else if (!status?.connected) {
+      wasConnected.current = false;
+    }
+  }, [status?.connected]);
+
   // ── Auto-fetch WhatsApp statuses when connected and on status tab ──
   useEffect(() => {
     if (status?.connected && tab === 'connection' && statusData.length === 0) {
@@ -1387,6 +1413,35 @@ export default function QRWhatsAppPage() {
       // For groups, send using the full JID; for individuals, strip the suffix
       const isGroupChat = selectedChat.endsWith('@g.us') || selectedChat.endsWith('@lid');
       const to = isGroupChat ? selectedChat : selectedChat.replace('@s.whatsapp.net', '');
+      
+      // ─── OPTIMISTIC UPDATE: Add message to UI immediately (fixes: outbound not showing) ──
+      const optimisticMsgId = `opt-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+      const optimisticMsg: MessageItem = {
+        id: optimisticMsgId,
+        chatId: selectedChat,
+        body: composerText.trim() || (mediaPreview ? `📎 ${mediaPreview.file.name}` : '(media)'),
+        timestamp: new Date(),
+        fromMe: true,
+        status: 'pending',
+        isMedia: !!mediaPreview,
+        mediaUrl: mediaPreview?.url || '',
+        mediaType: mediaPreview?.type || '',
+        participant: undefined,
+        quoted: replyingTo ? {
+          id: replyingTo.id,
+          body: replyingTo.body,
+          fromMe: replyingTo.fromMe,
+        } : undefined,
+      };
+      // Add optimistic message to UI immediately
+      setMessages(prev => [...prev, optimisticMsg]);
+      // Auto-scroll to new message
+      setTimeout(() => {
+        if (messengerRef.current) {
+          messengerRef.current.scrollTop = messengerRef.current.scrollHeight;
+        }
+      }, 0);
+      
       if (mediaPreview) {
         // Upload to Bunny Storage first (CDN URL approach, like Meta API)
         // This avoids sending huge base64 payloads through Vercel's body size limit
@@ -1459,6 +1514,8 @@ export default function QRWhatsAppPage() {
       if (hadMedia) setTimeout(() => fetchMessages(selectedChat), 4000);
     } catch (e: any) {
       setError(e.message || 'Failed to send message');
+      // Remove optimistic message on error
+      setMessages(prev => prev.filter(m => !m.id.startsWith('opt-')));
     } finally {
       setSending(false);
     }
@@ -1542,6 +1599,23 @@ export default function QRWhatsAppPage() {
   // ── Merge groups into a target group ──
   const handleMergeGroups = useCallback(async () => {
     if (!mergeTargetId || mergeSourceIds.size === 0 || mergeBusy) return;
+    
+    // Check connection stability before starting merge (prevents 24-hour blocks)
+    try {
+      const diag = await bridgeCall('/diagnostics');
+      if (diag?.stability?.isFlapping) {
+        setError('⚠️ Connection is flapping. Wait for ✓ stable badge before merging groups (prevents WhatsApp 24-hour blocks).');
+        return;
+      }
+      if (!diag?.health?.isHealthy) {
+        setError(`Connection not ready: ${diag?.health?.recommendation || 'Check connection status'}`);
+        return;
+      }
+    } catch (e) {
+      // If diagnostics fails, show warning but allow merge to proceed
+      console.warn('[QR] Could not check connection stability:', e);
+    }
+    
     setMergeBusy(true);
     setMergeProgress(0);
     setMergeProgressText('Fetching target group info…');
@@ -1560,7 +1634,8 @@ export default function QRWhatsAppPage() {
       const sourceGroupMembers: Record<string, { id: string; admin?: string }[]> = {};
       for (let i = 0; i < sourceArr.length; i++) {
         setMergeProgressText(`Fetching group ${i + 1}/${sourceArr.length}…`);
-        if (i > 0) await new Promise(r => setTimeout(r, 1500 + Math.random() * 2000));
+        // CRITICAL: Increase delay to 5-10 seconds to avoid WhatsApp API rate limits
+        if (i > 0) await new Promise(r => setTimeout(r, 5000 + Math.random() * 5000));
         try {
           const info = await bridgeCall(`/group-info/${sourceArr[i]}`) as { participants?: { id: string; admin?: string }[] };
           const members = info?.participants || [];
@@ -1590,7 +1665,8 @@ export default function QRWhatsAppPage() {
       if (allNewJids.length > 0) {
         for (let i = 0; i < allNewJids.length; i += batchSize) {
           const batch = allNewJids.slice(i, i + batchSize);
-          if (i > 0) await new Promise(r => setTimeout(r, 3000 + Math.random() * 5000));
+          // CRITICAL: Increase delay to 8-15 seconds between batches to avoid WhatsApp restrictions
+          if (i > 0) await new Promise(r => setTimeout(r, 8000 + Math.random() * 7000));
           setMergeProgressText(`Adding members ${i + 1}–${Math.min(i + batchSize, allNewJids.length)} of ${allNewJids.length}…`);
           try {
             await bridgeCall(`/group-participants/${mergeTargetId}`, 'POST', {
@@ -1617,7 +1693,8 @@ export default function QRWhatsAppPage() {
           if (toRemove.length > 0) {
             for (let i = 0; i < toRemove.length; i += batchSize) {
               const batch = toRemove.slice(i, i + batchSize);
-              if (i > 0) await new Promise(r => setTimeout(r, 3000 + Math.random() * 4000));
+              // CRITICAL: Increase delay to 8-15 seconds between removal batches
+              if (i > 0) await new Promise(r => setTimeout(r, 8000 + Math.random() * 7000));
               try {
                 await bridgeCall(`/group-participants/${groupId}`, 'POST', {
                   action: 'remove',
@@ -1701,6 +1778,16 @@ export default function QRWhatsAppPage() {
   const downloadMediaFromBridge = useCallback(async (messageId: string, fileName?: string) => {
     try {
       setDownloadingMedia(messageId);
+      // Check connection stability before downloading media
+      try {
+        const diag = await bridgeCall('/diagnostics');
+        if (diag?.stability?.isFlapping) {
+          throw new Error('Connection unstable — media cache being cleared. Wait for ✓ stable badge before retrying.');
+        }
+      } catch (e) {
+        if (e instanceof Error && e.message.includes('Connection unstable')) throw e;
+        // Ignore diagnostics fetch errors, continue with download
+      }
       // Route through our own API to avoid CORS issues with the bridge
       const proxyUrl = `/api/admin/crm/media/bridge-download?messageId=${encodeURIComponent(messageId)}&token=${encodeURIComponent(token || '')}`;
       const response = await fetch(proxyUrl);

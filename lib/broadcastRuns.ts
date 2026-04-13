@@ -488,8 +488,13 @@ export async function processDueBroadcastRuns(options?: {
           // Add delay between messages (only when interval is enabled — typically QR provider)
           const intervalEnabled = (run as any).messageInterval?.enabled !== false;
           if (intervalEnabled) {
-            const minSec = (run as any).messageInterval?.minSeconds ?? 30;
-            const maxSec = (run as any).messageInterval?.maxSeconds ?? 60;
+            // ─── SMART BROADCAST SCHEDULING ───
+            // Default: 5-15 seconds between messages (prevents WhatsApp 24-hour blocks)
+            // This allows ~10 messages per 2 minutes = 300 per hour max
+            // Safer model: 10 messages per 10 hours = 1 message per 36 minutes 
+            // But we batch in smaller chunks (30 msgs per cron) with spacing between
+            const minSec = (run as any).messageInterval?.minSeconds ?? 5;    // Changed from 30
+            const maxSec = (run as any).messageInterval?.maxSeconds ?? 15;   // Changed from 60
             const randomDelayMs = (Math.floor(Math.random() * (maxSec - minSec + 1)) + minSec) * 1000;
             console.log(`[Broadcast] Waiting ${randomDelayMs / 1000}s before next message (min: ${minSec}s, max: ${maxSec}s)`);
             await new Promise(resolve => setTimeout(resolve, randomDelayMs));
