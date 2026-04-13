@@ -1632,9 +1632,10 @@ export default function QRWhatsAppPage() {
       const allNewJids: string[] = [];
       const sourceGroupMembers: Record<string, { id: string; admin?: string }[]> = {};
       for (let i = 0; i < sourceArr.length; i++) {
-        setMergeProgressText(`Fetching group ${i + 1}/${sourceArr.length}…`);
-        // CRITICAL: Increase delay to 5-10 seconds to avoid WhatsApp API rate limits
-        if (i > 0) await new Promise(r => setTimeout(r, 5000 + Math.random() * 5000));
+        setMergeProgressText(`Fetching group ${i + 1}/${sourceArr.length}… (WhatsApp safe delays in progress)`);
+        // CRITICAL: Use 10-20 second delays to avoid WhatsApp API rate limits
+        // WhatsApp allows ~3-5 group fetches per minute max. Longer is safer.
+        if (i > 0) await new Promise(r => setTimeout(r, 10000 + Math.random() * 10000));
         try {
           const info = await bridgeCall(`/group-info/${sourceArr[i]}`) as { participants?: { id: string; admin?: string }[] };
           const members = info?.participants || [];
@@ -1664,9 +1665,11 @@ export default function QRWhatsAppPage() {
       if (allNewJids.length > 0) {
         for (let i = 0; i < allNewJids.length; i += batchSize) {
           const batch = allNewJids.slice(i, i + batchSize);
-          // CRITICAL: Increase delay to 8-15 seconds between batches to avoid WhatsApp restrictions
-          if (i > 0) await new Promise(r => setTimeout(r, 8000 + Math.random() * 7000));
-          setMergeProgressText(`Adding members ${i + 1}–${Math.min(i + batchSize, allNewJids.length)} of ${allNewJids.length}…`);
+          // CRITICAL: Use 10-20 second delays between batches to prevent WhatsApp 24-hour blocks
+          // Longer delays = safer. This prevents rate limiting and account restrictions.
+          if (i > 0) await new Promise(r => setTimeout(r, 10000 + Math.random() * 10000));
+          const estimatedRemaining = Math.ceil(((allNewJids.length - (i + batchSize)) / batchSize) * 15); // ~15s per batch
+          setMergeProgressText(`Adding members ${i + 1}–${Math.min(i + batchSize, allNewJids.length)} of ${allNewJids.length}… (ETA: ${estimatedRemaining}s, delays prevent bans)`);
           try {
             await bridgeCall(`/group-participants/${mergeTargetId}`, 'POST', {
               action: 'add',
@@ -1692,8 +1695,8 @@ export default function QRWhatsAppPage() {
           if (toRemove.length > 0) {
             for (let i = 0; i < toRemove.length; i += batchSize) {
               const batch = toRemove.slice(i, i + batchSize);
-              // CRITICAL: Increase delay to 8-15 seconds between removal batches
-              if (i > 0) await new Promise(r => setTimeout(r, 8000 + Math.random() * 7000));
+              // CRITICAL: Use 10-20 second delays between removal batches for WhatsApp safety
+              if (i > 0) await new Promise(r => setTimeout(r, 10000 + Math.random() * 10000));
               try {
                 await bridgeCall(`/group-participants/${groupId}`, 'POST', {
                   action: 'remove',

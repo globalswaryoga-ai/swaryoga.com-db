@@ -489,18 +489,18 @@ export async function processDueBroadcastRuns(options?: {
           const intervalEnabled = (run as any).messageInterval?.enabled !== false;
           if (intervalEnabled) {
             // ─── SMART BROADCAST SCHEDULING ───
-            // Default: 5-15 seconds between messages (prevents WhatsApp 24-hour blocks)
-            // This allows ~10 messages per 2 minutes = 300 per hour max
-            // Safer model: 10 messages per 10 hours = 1 message per 36 minutes 
-            // But we batch in smaller chunks (30 msgs per cron) with spacing between
-            const minSec = (run as any).messageInterval?.minSeconds ?? 5;    // Changed from 30
-            const maxSec = (run as any).messageInterval?.maxSeconds ?? 15;   // Changed from 60
+            // Default: 10-20 seconds between messages (prevents WhatsApp 24-hour blocks)
+            // WhatsApp blocks accounts that send >100 msgs rapidly to same group
+            // Delays are safety: 10-20s = ~180-360 msgs per hour (well within limits)
+            // Best practice: 10 msgs per 2 hours = 5 msgs every 60 mins (super safe)
+            const minSec = (run as any).messageInterval?.minSeconds ?? 10;   // Increased from 5
+            const maxSec = (run as any).messageInterval?.maxSeconds ?? 20;   // Increased from 15
             const randomDelayMs = (Math.floor(Math.random() * (maxSec - minSec + 1)) + minSec) * 1000;
-            console.log(`[Broadcast] Waiting ${randomDelayMs / 1000}s before next message (min: ${minSec}s, max: ${maxSec}s)`);
+            console.log(`[Broadcast] Waiting ${randomDelayMs / 1000}s before next message (min: ${minSec}s, max: ${maxSec}s, prevents WhatsApp 24h blocks)`);
             await new Promise(resolve => setTimeout(resolve, randomDelayMs));
           } else {
-            // Minimal 1s gap to avoid hammering the API
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // Minimal 2s gap to avoid hammering the API even without intervals
+            await new Promise(resolve => setTimeout(resolve, 2000));
           }
           
         } catch (err) {
@@ -519,10 +519,15 @@ export async function processDueBroadcastRuns(options?: {
                      errorLower.includes('number not on whatsapp') ||
                      errorLower.includes('wa_recipient_not_found')) {
             errorCategory = 'not_on_whatsapp';
-          } else if (errorLower.includes('rate limit') || errorLower.includes('too many')) {
+          } else if (errorLower.includes('rate limit') || errorLower.includes('too many') || errorLower.includes('throttle')) {
+            // CRITICAL: Rate limit detected — pause sends temporarily
             errorCategory = 'rate_limited';
-          } else if (errorLower.includes('blocked') || errorLower.includes('opt-out')) {
+            console.warn(`[Broadcast] ⚠️ RATE LIMIT DETECTED for ${to}. WhatsApp is throttling. Adding 30s safety pause to prevent account action.`);
+            // Additional safety pause to prevent account restrictions
+            await new Promise(resolve => setTimeout(resolve, 30000)); // 30s pause
+          } else if (errorLower.includes('blocked') || errorLower.includes('opt-out') || (errorLower.includes('account') && errorLower.includes('action'))) {
             errorCategory = 'blocked';
+            console.error(`[Broadcast] 🚫 ACCOUNT ACTION DETECTED. WhatsApp may be restricting this account. Pausing all sends.`);
           } else if (errorLower.includes('template') && (errorLower.includes('paused') || errorLower.includes('rejected'))) {
             errorCategory = 'template_issue';
           }
