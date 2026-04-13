@@ -501,6 +501,22 @@ function extractPhoneFromJid(jid: string): string {
 }
 
 /**
+ * Normalize JID format - convert @c.us (compressed) to @s.whatsapp.net (standard).
+ * This ensures fallback MongoDB queries can find stored messages regardless of
+ * which JID format the bridge returns.
+ */
+function normalizeJidFormat(jid: string): string {
+  if (jid.includes('@c.us')) {
+    return jid.replace('@c.us', '@s.whatsapp.net');
+  }
+  // Also handle group JIDs if they come in @c.us format
+  if (jid.includes('@c-us')) {
+    return jid.replace('@c-us', '@g.us');
+  }
+  return jid;
+}
+
+/**
  * Check if a user owns a lead (assigned to or created by them).
  * Handles dual phone format (with/without 91 prefix).
  * Returns true if user is allowed, false if blocked.
@@ -1508,7 +1524,9 @@ export async function GET(req: NextRequest) {
     // fall back to persistent MongoDB storage
     if (path.startsWith('/messages/') && data?.messages?.length === 0) {
       try {
-        const chatJid = decodeURIComponent(path.replace('/messages/', ''));
+        const chatJidRaw = decodeURIComponent(path.replace('/messages/', ''));
+        // Normalize JID format: @c.us → @s.whatsapp.net for consistent lookups
+        const chatJid = normalizeJidFormat(chatJidRaw);
         const connectedPhone = resolved.storedPhone || '';
         if (connectedPhone && chatJid) {
           const QrMsg = getQrWhatsAppMessage();
@@ -1520,9 +1538,11 @@ export async function GET(req: NextRequest) {
             .sort({ timestamp: 1 })
             .limit(200)
             .lean();
+          
+          console.log(`[QR Bridge Proxy] MongoDB fallback query: userId=${userId}, connectedPhone=${connectedPhone}, chatJid=${chatJid} (raw was ${chatJidRaw}) → found ${dbMessages.length} messages`);
 
           if (dbMessages.length > 0) {
-            console.log(`[QR Bridge Proxy] MongoDB fallback: ${dbMessages.length} messages for ${chatJid}`);
+            console.log(`[QR Bridge Proxy] ✅ MongoDB fallback SUCCESS: ${dbMessages.length} messages for ${chatJid}`);
             const mapped = dbMessages.map((m: any) => ({
               id: m.messageId,
               from: m.participant || m.chatJid,
@@ -1542,7 +1562,11 @@ export async function GET(req: NextRequest) {
               quotedId: m.quotedId || null,
               reactions: {},
             }));
-            return NextResponse.json({ success: true, data: { messages: mapped, source: 'mongodb' } }, { status: 200 });
+            // Return in same format as bridge: { messages: [...], source: 'mongodb' }
+            const responseData = Array.isArray(data) ? [{ messages: mapped, source: 'mongodb' }] : { messages: mapped, source: 'mongodb' };
+            return NextResponse.json({ success: true, data: responseData }, { status: 200 });
+          } else {
+            console.warn(`[QR Bridge Proxy] ⚠️ MongoDB fallback: NO MESSAGES found (chatJid=${chatJid}, raw=${chatJidRaw})`);
           }
         }
       } catch (dbErr) {
