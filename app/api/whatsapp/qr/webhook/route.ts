@@ -65,6 +65,13 @@ export async function POST(req: NextRequest) {
     if (headerUserId) payload.bridgeUserId = headerUserId;
     if (headerSessionKey && !payload.bridgeSessionId) payload.bridgeSessionId = headerSessionKey;
 
+    // Debug: Log webhook headers
+    console.log(`[QR WEBHOOK] ════════════════════════════════════════`);
+    console.log(`[QR WEBHOOK] User ID: ${headerUserId || 'NOT PROVIDED'}`);
+    console.log(`[QR WEBHOOK] Session Key: ${headerSessionKey || 'NOT PROVIDED'}`);
+    console.log(`[QR WEBHOOK] Bridge User ID (payload): ${payload.bridgeUserId || 'NOT SET'}`);
+    console.log(`[QR WEBHOOK] ════════════════════════════════════════`);
+
     // Best-effort ingestion into CRM WhatsAppMessage.
     // We keep this intentionally tolerant because QR providers differ in payload shape.
     const ingested = await ingestQRPayload(payload);
@@ -81,6 +88,8 @@ async function ingestQRPayload(payload: any) {
   if (!messages.length) {
     return { count: 0, reason: 'no_messages_detected' };
   }
+
+  console.log(`[QR WEBHOOK] Ingesting ${messages.length} message(s)`);
 
   await connectDB();
 
@@ -228,6 +237,7 @@ async function ingestQRPayload(payload: any) {
               createdByUserId: payload.bridgeUserId,
             }),
         });
+        console.log(`[QR WEBHOOK] Created lead for ${normalizedPhone}, assigned to: ${payload.bridgeUserId || 'UNASSIGNED'}`);
     } else {
         // Add 'whatsapp' label if not already there
         if (!lead.labels || !lead.labels.includes('whatsapp')) {
@@ -236,6 +246,7 @@ async function ingestQRPayload(payload: any) {
                 { $addToSet: { labels: 'whatsapp' } }
             );
         }
+        console.log(`[QR WEBHOOK] Found existing lead for ${normalizedPhone}, owned by: ${(lead as any).assignedToUserId || (lead as any).createdByUserId || 'UNASSIGNED'}`);
     }
     
     doc.leadId = lead._id;

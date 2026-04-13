@@ -507,8 +507,14 @@ function extractPhoneFromJid(jid: string): string {
  * 
  * For group chats (phone contains '-'), always returns true (groups are shared).
  * For non-existent leads, returns false (fail-safe — block unknown contacts).
+/**
+ * Check if a phone number belongs to a lead assigned to the user.
+ * Dual phone number support (10-digit + 91-digit) for Indian numbers.
+ * Returns true for group chats (safety-first).
+ * For own-bridge (tenant) users: Allow unassigned messages to be viewed (no lead needed yet).
+ * For shared-bridge: Block unassigned messages (strict tenant isolation).
  */
-async function isLeadOwnedByUser(phone: string, userId: string): Promise<boolean> {
+async function isLeadOwnedByUser(phone: string, userId: string, isOwnBridge = false): Promise<boolean> {
   if (!phone || phone.includes('-')) return true; // Group chats allowed
   if (phone.length < 10) return true; // Too short to be a real phone, let it pass
   
@@ -526,11 +532,25 @@ async function isLeadOwnedByUser(phone: string, userId: string): Promise<boolean
       { assignedToUserId: 1, createdByUserId: 1 }
     ).lean() as any;
     
-    if (!lead) return false; // No lead record → block (fail-safe)
+    if (!lead) {
+      // For own-bridge (tenant) users: Allow unassigned messages from their session
+      if (isOwnBridge) {
+        console.log(`[QR Bridge] Tenant ${userId}: allowing unassigned contact ${phone} on own bridge`);
+        return true;
+      }
+      // For shared bridge: Block unassigned messages (strict isolation)
+      console.warn(`[QR Bridge] Shared-bridge user ${userId}: blocking unassigned contact ${phone}`);
+      return false;
+    }
     return lead.assignedToUserId === userId || lead.createdByUserId === userId;
   } catch (err) {
     console.error(`[QR Bridge] Lead check error for ${phone}:`, err);
-    return false; // Fail-safe: block on error
+    // For own-bridge, be lenient on errors (will be reconciled when lead is created)
+    if (isOwnBridge) {
+      console.warn(`[QR Bridge] Tenant ${userId}: allowing on error (own bridge recovery path)`);
+      return true;
+    }
+    return false; // Fail-safe: block on error for shared bridge
   }
 }
 
@@ -660,7 +680,8 @@ export async function POST(req: NextRequest) {
         const targetJid = body.to || body.jid || body.chatId || '';
         const targetPhone = extractPhoneFromJid(typeof targetJid === 'string' ? targetJid : '');
         if (targetPhone && targetPhone.length >= 10) {
-          const allowed = await isLeadOwnedByUser(targetPhone, userId);
+          // For body-target endpoints in POST: check strict lead ownership for shared-bridge only
+          const allowed = await isLeadOwnedByUser(targetPhone, userId, resolved.hasOwnBridge);
           if (!allowed) {
             console.warn(`[QR Bridge Proxy] BLOCKED: ${userId} tried ${basePath} to ${targetPhone} (not their lead)`);
             return NextResponse.json(
@@ -675,9 +696,10 @@ export async function POST(req: NextRequest) {
       if (isPathTargetEndpoint(decodedPath)) {
         const targetPhone = extractPhoneFromPath(decodedPath);
         if (targetPhone && targetPhone.length >= 10 && !targetPhone.includes('-')) {
-          const allowed = await isLeadOwnedByUser(targetPhone, userId);
+          // For path-target endpoints: Allow own-bridge full access; filter shared-bridge by lead
+          const allowed = await isLeadOwnedByUser(targetPhone, userId, resolved.hasOwnBridge);
           if (!allowed) {
-            console.warn(`[QR Bridge Proxy] BLOCKED: ${userId} tried ${decodedPath} (not their lead)`);
+            console.warn(`[QR Bridge Proxy] BLOCKED POST: ${userId} tried ${decodedPath} (not their lead, shared bridge)`);
             // Return appropriate empty response based on endpoint type
             if (decodedPath.startsWith('/messages/')) {
               return NextResponse.json({ success: true, data: { messages: [], blocked: true } }, { status: 200 });
@@ -1119,9 +1141,10 @@ export async function GET(req: NextRequest) {
       if (isPathTargetEndpoint(path)) {
         const targetPhone = extractPhoneFromPath(path);
         if (targetPhone && targetPhone.length >= 10 && !targetPhone.includes('-')) {
-          const allowed = await isLeadOwnedByUser(targetPhone, userId);
+          // For path-target endpoints: Allow own-bridge full access; filter shared-bridge by lead
+          const allowed = await isLeadOwnedByUser(targetPhone, userId, resolved.hasOwnBridge);
           if (!allowed) {
-            console.warn(`[QR Bridge Proxy GET] BLOCKED: ${userId} tried ${path} (not their lead)`);
+            console.warn(`[QR Bridge Proxy GET] BLOCKED: ${userId} tried ${path} (not their lead, shared bridge)`);
             if (path.startsWith('/messages/')) {
               return NextResponse.json({ success: true, data: { messages: [], blocked: true } }, { status: 200 });
             }
