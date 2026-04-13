@@ -118,6 +118,7 @@ export default function AiGuideChat() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([GREETING]);
   const [input, setInput] = useState('');
+  const [hideGuide, setHideGuide] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -125,6 +126,23 @@ export default function AiGuideChat() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
+
+  // ── Hide guide when a chat is selected in QR WhatsApp ──
+  useEffect(() => {
+    const checkQrChatStatus = () => {
+      try {
+        const selectedChat = localStorage.getItem('crm_qr_selected_chat');
+        setHideGuide(!!selectedChat);
+      } catch (e) {
+        // Ignore localStorage errors
+      }
+    };
+
+    checkQrChatStatus();
+    // Poll every 500ms to catch changes
+    const interval = setInterval(checkQrChatStatus, 500);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleSend = (text?: string) => {
     const q = (text || input).trim();
@@ -144,6 +162,9 @@ export default function AiGuideChat() {
       handleSend();
     }
   };
+
+  // Hide guide when a QR chat is selected
+  if (hideGuide) return null;
 
   return (
     <>

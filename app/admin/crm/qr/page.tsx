@@ -489,6 +489,20 @@ export default function QRWhatsAppPage() {
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, []);
 
+  // ── Track selected chat in localStorage for CRM Guide visibility ──
+  useEffect(() => {
+    try {
+      if (!typeof window) return;
+      if (selectedChat) {
+        localStorage.setItem('crm_qr_selected_chat', selectedChat);
+      } else {
+        localStorage.removeItem('crm_qr_selected_chat');
+      }
+    } catch (e) {
+      // Ignore localStorage errors
+    }
+  }, [selectedChat]);
+
   // ── Define all remaining hooks BEFORE conditional JSX ──
   const saveToMongoDB = useCallback((updates: Record<string, any>) => {
     // Merge into pending updates (so chatFunnels + qrFunnelStages + etc. all go in one PUT)
