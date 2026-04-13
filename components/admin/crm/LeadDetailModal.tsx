@@ -22,6 +22,7 @@ interface Lead {
   email?: string;
   status?: string;
   labels?: string[];
+  workshops?: string[];
   source?: string;
   workshopId?: string;
   workshopName?: string;
@@ -112,6 +113,18 @@ const DEFAULT_LABELS = [
   'Demo Scheduled', 'Payment Pending', 'Completed',
 ];
 
+// Default workshops (will be fetched from API in real scenario)
+const DEFAULT_WORKSHOPS = [
+  'Basic Yoga',
+  'Advanced Yoga',
+  'Meditation',
+  'Pranayama',
+  'Philosophy',
+  'Ayurveda',
+  'Online Course',
+  'Private Sessions',
+];
+
 // Source options (where lead joined from)
 const SOURCE_OPTIONS = [
   { value: 'website', label: 'Website' },
@@ -145,7 +158,7 @@ export default function LeadDetailModal({
   onUpdate,
   adminUsers = [],
   labelOptions = DEFAULT_LABELS,
-  workshopOptions = [],
+  workshopOptions = DEFAULT_WORKSHOPS,
   stages = [],
   isSuperAdmin = false,
 }: LeadDetailModalProps) {
@@ -177,6 +190,7 @@ export default function LeadDetailModal({
 
   // Dropdowns
   const [showLabelsDropdown, setShowLabelsDropdown] = useState(false);
+  const [showWorkshopsDropdown, setShowWorkshopsDropdown] = useState(false);
   const [showStageDropdown, setShowStageDropdown] = useState(false);
   const [showAssignDropdown, setShowAssignDropdown] = useState(false);
 
@@ -480,6 +494,51 @@ export default function LeadDetailModal({
           >
             <Trash2 className="h-5 w-5" />
           </button>
+
+          {/* Workshops */}
+          <div className="relative">
+            <button
+              onClick={() => setShowWorkshopsDropdown(!showWorkshopsDropdown)}
+              className="p-2 rounded-lg hover:bg-blue-50 text-blue-600 transition flex items-center gap-1"
+              title="Add Workshops"
+            >
+              <Building2 className="h-5 w-5" />
+              <Plus className="h-4 w-4" />
+            </button>
+            {showWorkshopsDropdown && (
+              <div className="absolute top-full left-0 mt-1 w-56 bg-white rounded-xl shadow-lg border border-blue-100 py-2 z-20 max-h-64 overflow-y-auto">
+                <div className="px-3 pb-2 text-xs font-semibold text-gray-400 uppercase">Select Workshops</div>
+                {workshopOptions.map(workshop => {
+                  const selected = (editData.workshops || lead.workshops || []).includes(workshop);
+                  return (
+                    <button
+                      key={workshop}
+                      onClick={() => {
+                        const current = editData.workshops || lead.workshops || [];
+                        const next = selected ? current.filter(w => w !== workshop) : [...current, workshop];
+                        setEditData({ ...editData, workshops: next });
+                        setIsEditing(true);
+                      }}
+                      className={`w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 ${selected ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50 text-gray-700'}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={() => {}}
+                        className="pointer-events-none"
+                      />
+                      {workshop}
+                    </button>
+                  );
+                })}
+                <div className="px-3 pt-2 border-t border-blue-100 mt-2">
+                  <button onClick={() => setShowWorkshopsDropdown(false)} className="w-full px-3 py-1.5 bg-blue-100 rounded-lg text-xs font-medium text-blue-600 hover:bg-blue-200">
+                    Done
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Labels */}
           <div className="relative">
@@ -823,6 +882,26 @@ export default function LeadDetailModal({
                         {SOURCE_OPTIONS.find(s => s.value === lead.source)?.label || lead.source || '—'}
                       </span>
                     )}
+                  </div>
+
+                  {/* Workshops */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Workshops :</label>
+                    <div className="flex flex-wrap gap-1">
+                      {(isEditing ? editData.workshops : lead.workshops)?.map((workshop, i) => (
+                        <span key={i} className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                          {workshop}
+                          {isEditing && (
+                            <button
+                              onClick={() => setEditData({ ...editData, workshops: (editData.workshops || []).filter(w => w !== workshop) })}
+                              className="ml-1 text-blue-400 hover:text-blue-600"
+                            >
+                              ×
+                            </button>
+                          )}
+                        </span>
+                      )) || <span className="text-sm text-gray-400">—</span>}
+                    </div>
                   </div>
 
                   {/* Labels */}

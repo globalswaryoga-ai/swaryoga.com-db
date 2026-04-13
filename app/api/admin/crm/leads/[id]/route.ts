@@ -85,6 +85,9 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     if (body.labels !== undefined) {
       update.labels = Array.isArray(body.labels) ? body.labels.map((x: any) => String(x)) : [];
     }
+    if (body.workshops !== undefined) {
+      update.workshops = Array.isArray(body.workshops) ? body.workshops.map((x: any) => String(x)).filter((x: string) => x.trim()) : [];
+    }
     if (body.workshopId !== undefined) update.workshopId = body.workshopId || null;
     if (body.workshopName !== undefined) update.workshopName = body.workshopName || null;
     if (body.metadata !== undefined) update.metadata = body.metadata;

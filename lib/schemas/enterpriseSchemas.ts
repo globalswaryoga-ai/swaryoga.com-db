@@ -115,6 +115,7 @@ const LeadSchema = new mongoose.Schema(
     },
     workshopId: { type: mongoose.Schema.Types.ObjectId, ref: 'WorkshopSchedule', sparse: true, index: true },
     workshopName: { type: String, sparse: true },
+    workshops: { type: [String], default: [] }, // Array of workshop names (like labels)
 
     // Sales/workshop enrollment details (filled when lead progresses)
     sales: {
