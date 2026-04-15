@@ -455,6 +455,14 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
           planModule: 'aiCalls',
           description: 'AI-powered voice calling',
         },
+        {
+          icon: GraduationCap,
+          label: 'Sadhana Scheduler',
+          href: '/admin/crm/sadhana-scheduler',
+          color: 'text-purple-400',
+          module: 'whatsapp',
+          description: 'Schedule Sadhana videos & Zoom links',
+        },
       ],
     },
     {

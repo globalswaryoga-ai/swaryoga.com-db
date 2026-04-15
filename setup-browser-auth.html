@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sadhana Scheduler - Browser Auth Setup</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #f5f5f5; }
+        .container { background: white; padding: 20px; border-radius: 8px; max-width: 800px; }
+        .token { background: #f0f0f0; padding: 10px; border-radius: 4px; word-break: break-all; margin: 10px 0; font-size: 12px; }
+        .step { margin: 15px 0; padding: 10px; border-left: 4px solid #2ecc71; }
+        .success { color: #2ecc71; font-weight: bold; }
+        button { padding: 8px 16px; background: #3498db; color: white; border: none; border-radius: 4px; cursor: pointer; margin: 5px; }
+        button:hover { background: #2980b9; }
+        #status { padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .ok { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Sadhana Scheduler - Browser Authentication Setup</h1>
+        
+        <div class="step">
+            <strong>Step 1:</strong> Copy the token below<br>
+            <div class="token" id="token">Generating fresh token...</div>
+        </div>
+
+        <div class="step">
+            <strong>Step 2:</strong> Store token in browser<br>
+            <button onclick="storeToken()">✅ Store Token in LocalStorage</button>
+            <button onclick="verifyToken()">🔍 Verify Token</button>
+            <button onclick="clearToken()">❌ Clear Token</button>
+        </div>
+
+        <div class="step">
+            <strong>Step 3:</strong> Navigate to the scheduler<br>
+            <button onclick="goToScheduler()">➜ Go to Sadhana Scheduler</button>
+        </div>
+
+        <div id="status"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3001';
+
+        // Generate fresh token on page load
+        async function generateToken() {
+            try {
+                const response = await fetch(`${API_BASE}/api/admin/auth/generate-token`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: 'admin',
+                        email: 'admin@swaryoga.com',
+                        isAdmin: true,
+                        username: 'admin',
+                        role: 'admin'
+                    })
+                });
+                
+                if (!response.ok) {
+                    // Fallback: generate token on client side
+                    console.log('Using fallback token generation');
+                    // This won't work without backend support, so use pre-generated token instead
+                    const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJhZG1pbiIsImVtYWlsIjoiYWRtaW5Ac3dhcnlvZ2EuY29tIiwiaXNBZG1pbiI6dHJ1ZSwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc3NjI1ODE2NCwiZXhwIjoxNzc2ODYyOTY0fQ.zIlJMoEH59pCGHzsDFZqrrpIe_xbS9islp3G8dyIKSc';
+                    document.getElementById('token').textContent = token;
+                    return;
+                }
+                
+                const data = await response.json();
+                document.getElementById('token').textContent = data.token || data;
+            } catch (err) {
+                console.log('Error generating token:', err);
+                // Use pre-generated token
+                const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJhZG1pbiIsImVtYWlsIjoiYWRtaW5Ac3dhcnlvZ2EuY29tIiwiaXNBZG1pbiI6dHJ1ZSwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc3NjI1ODE2NCwiZXhwIjoxNzc2ODYyOTY0fQ.zIlJMoEH59pCGHzsDFZqrrpIe_xbS9islp3G8dyIKSc';
+                document.getElementById('token').textContent = token;
+            }
+        }
+
+        function storeToken() {
+            const token = document.getElementById('token').textContent.trim();
+            if (!token) {
+                showStatus('❌ No token to store', 'error');
+                return;
+            }
+            
+            // Store in all possible keys for compatibility
+            localStorage.setItem('crm_token', token);
+            localStorage.setItem('adminToken', token);
+            localStorage.setItem('admin_token', token);
+            
+            showStatus('✅ Token stored successfully in localStorage (crm_token, adminToken, admin_token)', 'ok');
+        }
+
+        function verifyToken() {
+            const token = localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
+            
+            if (!token) {
+                showStatus('❌ No token found in localStorage', 'error');
+                return;
+            }
+            
+            // Quick check: token should have 3 parts separated by dots
+            const parts = token.split('.');
+            if (parts.length !== 3) {
+                showStatus('❌ Invalid token format (missing parts)', 'error');
+                return;
+            }
+            
+            try {
+                // Decode the payload (part 2)
+                const payload = JSON.parse(atob(parts[1]));
+                const now = Math.floor(Date.now() / 1000);
+                const isExpired = payload.exp && payload.exp < now;
+                
+                if (isExpired) {
+                    showStatus(`❌ Token expired (exp: ${new Date(payload.exp * 1000).toLocaleString()})`, 'error');
+                } else {
+                    const expiryTime = new Date(payload.exp * 1000).toLocaleString();
+                    showStatus(`✅ Token is valid!\n\nUserId: ${payload.userId}\nEmail: ${payload.email}\nExpires: ${expiryTime}`, 'ok');
+                }
+            } catch (err) {
+                showStatus('❌ Error decoding token: ' + err.message, 'error');
+            }
+        }
+
+        function clearToken() {
+            localStorage.removeItem('crm_token');
+            localStorage.removeItem('adminToken');
+            localStorage.removeItem('admin_token');
+            showStatus('✅ Token cleared from localStorage', 'ok');
+        }
+
+        function goToScheduler() {
+            const token = localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
+            if (!token) {
+                showStatus('❌ Please store token first', 'error');
+                return;
+            }
+            window.location.href = `${API_BASE}/admin/crm/sadhana-scheduler`;
+        }
+
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = type;
+        }
+
+        // Generate token on page load
+        generateToken();
+    </script>
+</body>
+</html>

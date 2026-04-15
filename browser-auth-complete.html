@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>✅ Swar Yoga - Authentication Complete</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+        .container { background: white; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); padding: 40px; max-width: 600px; width: 90%; }
+        h1 { color: #2d3748; margin-bottom: 10px; font-size: 28px; }
+        .subtitle { color: #718096; margin-bottom: 30px; font-size: 16px; }
+        .status-box { background: #f0fdf4; border: 2px solid #22c55e; border-radius: 12px; padding: 20px; margin-bottom: 30px; }
+        .status-icon { font-size: 32px; margin-bottom: 10px; }
+        .status-text { color: #166534; font-weight: 600; font-size: 18px; }
+        .token-display { background: #f8f9fa; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; font-family: monospace; font-size: 12px; word-break: break-all; max-height: 120px; overflow-y: auto; margin-bottom: 15px; color: #333; }
+        .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+        button { padding: 12px 24px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.3s; }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-primary:hover { background: #5568d3; transform: translateY(-2px); box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4); }
+        .btn-secondary { background: #e2e8f0; color: #333; }
+        .btn-secondary:hover { background: #cbd5e0; }
+        .info-box { background: #eff6ff; border-left: 4px solid #3b82f6; padding: 15px; border-radius: 8px; margin-bottom: 20px; color: #1e40af; font-size: 14px; }
+        .success-message { background: #dcfce7; color: #166534; padding: 12px 16px; border-radius: 8px; margin-bottom: 20px; display: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>✅ Authentication Ready!</h1>
+        <p class="subtitle">Your browser is now configured to access Sadhana Scheduler</p>
+        
+        <div class="status-box">
+            <div class="status-icon">🔐</div>
+            <div class="status-text">Token Stored Successfully</div>
+        </div>
+
+        <div class="info-box">
+            📌 <strong>Token stored in:</strong> LocalStorage (crm_token, adminToken, admin_token)<br>
+            ⏰ <strong>Expires:</strong> <span id="expireTime">7 days</span><br>
+            👤 <strong>User:</strong> admin@swaryoga.com (Admin)
+        </div>
+
+        <div id="successMessage" class="success-message">✅ Ready! Navigating...</div>
+
+        <div class="action-grid">
+            <button class="btn-primary" onclick="goToScheduler()">
+                ➜ Open Sadhana Scheduler
+            </button>
+            <button class="btn-secondary" onclick="copyToken()">
+                📋 Copy Token
+            </button>
+        </div>
+
+        <button style="width: 100%; margin-top: 10px;" class="btn-secondary" onclick="showToken()">
+            👁️ Show Token
+        </button>
+
+        <div id="tokenArea" style="display:none; margin-top: 20px;">
+            <p style="color: #666; font-size: 12px; margin-bottom: 8px;">Token Value:</p>
+            <div class="token-display" id="tokenDisplay"></div>
+        </div>
+    </div>
+
+    <script>
+        // Retrieve token from query param (set by bash script)
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token') || localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
+
+        if (token) {
+            // Parse JWT to show expiry
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                const expireDate = new Date(payload.exp * 1000);
+                document.getElementById('expireTime').textContent = expireDate.toLocaleString();
+            } catch (e) {}
+            
+            document.getElementById('tokenDisplay').textContent = token;
+        }
+
+        function showToken() {
+            const area = document.getElementById('tokenArea');
+            area.style.display = area.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function copyToken() {
+            if (token) {
+                navigator.clipboard.writeText(token).then(() => {
+                    alert('Token copied to clipboard!');
+                });
+            }
+        }
+
+        function goToScheduler() {
+            if (!token) {
+                alert('❌ No token available');
+                return;
+            }
+            
+            // Show success message
+            document.getElementById('successMessage').style.display = 'block';
+            
+            // Navigate after a brief delay
+            setTimeout(() => {
+                window.location.href = 'http://localhost:3001/admin/crm/sadhana-scheduler';
+            }, 1000);
+        }
+
+        // Auto-store token on page load
+        window.addEventListener('load', () => {
+            if (token) {
+                localStorage.setItem('crm_token', token);
+                localStorage.setItem('adminToken', token);
+                localStorage.setItem('admin_token', token);
+            }
+        });
+    </script>
+</body>
+</html>

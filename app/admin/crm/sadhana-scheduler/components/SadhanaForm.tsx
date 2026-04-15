@@ -1,0 +1,586 @@
+'use client';
+
+import React, { useState, useEffect, useRef } from 'react';
+import { ChevronDown, Copy, AlertCircle, Loader, Upload, Eye, EyeOff, X, CheckCircle } from 'lucide-react';
+
+interface SadhanaFormProps {
+  initialData?: any;
+  onSubmit: (data: any) => void;
+  onCancel: () => void;
+  loading?: boolean;
+  token?: string;
+}
+
+const daysOptions = [
+  { value: 1, label: 'Monday' },
+  { value: 2, label: 'Tuesday' },
+  { value: 3, label: 'Wednesday' },
+  { value: 4, label: 'Thursday' },
+  { value: 5, label: 'Friday' },
+  { value: 6, label: 'Saturday' },
+  { value: 0, label: 'Sunday' },
+];
+
+export default function SadhanaForm({
+  initialData,
+  onSubmit,
+  onCancel,
+  loading = false,
+  token = '',
+}: SadhanaFormProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [formData, setFormData] = useState({
+    name: initialData?.name || '',
+    videoUrl: initialData?.videoUrl || '',
+    zoomType: initialData?.zoomLink ? 'link' : initialData?.zoomId ? 'credentials' : 'link',
+    zoomLink: initialData?.zoomLink || '',
+    zoomId: initialData?.zoomId || '',
+    zoomPassword: initialData?.zoomPassword || '',
+    times: initialData?.schedule?.times || ['06:00', '18:00'],
+    days: initialData?.schedule?.days || [1, 2, 3, 4, 5],
+    repeatFrequency: initialData?.schedule?.repeatFrequency || 'weekly',
+    startDate: initialData?.schedule?.startDate || new Date().toISOString().split('T')[0],
+    timezone: initialData?.schedule?.timezone || 'Asia/Kolkata',
+  });
+
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [showZoomCreds, setShowZoomCreds] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const validate = () => {
+    const newErrors: Record<string, string> = {};
+
+    if (!formData.name.trim()) newErrors.name = 'Name is required';
+    if (!formData.videoUrl.trim()) newErrors.videoUrl = 'Video URL is required';
+
+    if (formData.zoomType === 'link' && !formData.zoomLink.trim()) {
+      newErrors.zoomLink = 'Zoom link is required';
+    }
+    if (formData.zoomType === 'credentials') {
+      if (!formData.zoomId.trim()) newErrors.zoomId = 'Zoom ID is required';
+      if (!formData.zoomPassword.trim()) newErrors.zoomPassword = 'Zoom password is required';
+    }
+
+    if (formData.times.length === 0) newErrors.times = 'At least one time is required';
+    if (formData.days.length === 0) newErrors.days = 'At least one day is required';
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleVideoUpload = async (file: File) => {
+    try {
+      setUploading(true);
+      setUploadError(null);
+      setUploadProgress(0);
+
+      // Validate file type
+      const allowedTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo'];
+      if (!allowedTypes.includes(file.type)) {
+        setUploadError('Invalid video type. Please upload MP4, WebM, MOV, or AVI.');
+        setUploading(false);
+        return;
+      }
+
+      // Validate file size (2GB max)
+      const maxSize = 2 * 1024 * 1024 * 1024;
+      if (file.size > maxSize) {
+        setUploadError('Video too large. Maximum size is 2GB.');
+        setUploading(false);
+        return;
+      }
+
+      const formDataToSend = new FormData();
+      formDataToSend.append('file', file);
+      formDataToSend.append('fileType', 'videos');
+      formDataToSend.append('accessLevel', 'admin');
+
+      const xhr = new XMLHttpRequest();
+
+      // Track upload progress
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+          const percentComplete = Math.round((e.loaded / e.total) * 100);
+          setUploadProgress(percentComplete);
+        }
+      });
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status === 200) {
+          const response = JSON.parse(xhr.responseText);
+          if (response.success && response.data.url) {
+            setFormData({ ...formData, videoUrl: response.data.url });
+            setUploading(false);
+            setUploadProgress(0);
+          } else {
+            setUploadError(response.error || 'Upload failed');
+            setUploading(false);
+          }
+        } else {
+          const response = JSON.parse(xhr.responseText);
+          setUploadError(response.error || 'Upload failed');
+          setUploading(false);
+        }
+      });
+
+      xhr.addEventListener('error', () => {
+        setUploadError('Network error during upload');
+        setUploading(false);
+      });
+
+      xhr.open('POST', '/api/admin/crm/sadhana-scheduler/upload-video');
+      const cleanToken = (token || '').trim().replace(/^Bearer\s+/i, '');
+      xhr.setRequestHeader('Authorization', `Bearer ${cleanToken}`);
+      xhr.send(formDataToSend);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Upload failed');
+      setUploading(false);
+    }
+  };
+
+  const handleTimeChange = (index: number, value: string) => {
+    const newTimes = [...formData.times];
+    newTimes[index] = value;
+    setFormData({ ...formData, times: newTimes });
+  };
+
+  const handleDayToggle = (day: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      days: prev.days.includes(day)
+        ? prev.days.filter((d) => d !== day)
+        : [...prev.days, day].sort(),
+    }));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validate()) return;
+
+    const submitData = {
+      name: formData.name,
+      videoUrl: formData.videoUrl,
+      schedule: {
+        times: formData.times.sort(),
+        days: formData.days,
+        repeatFrequency: formData.repeatFrequency,
+        startDate: formData.startDate,
+        timezone: formData.timezone,
+      },
+      ...(formData.zoomType === 'link'
+        ? { zoomLink: formData.zoomLink }
+        : { zoomId: formData.zoomId, zoomPassword: formData.zoomPassword }),
+    };
+
+    onSubmit(submitData);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Basic Information */}
+      <div>
+        <h3 className="text-lg font-semibold text-white mb-4">📋 Basic Information</h3>
+        <div className="space-y-4">
+          {/* Name */}
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Schedule Name *
+            </label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              placeholder="e.g., Morning Sadhana - Mon to Fri"
+              className={`w-full px-4 py-2 bg-gray-700 border rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 ${
+                errors.name ? 'border-red-500' : 'border-gray-600'
+              }`}
+            />
+            {errors.name && (
+              <p className="text-red-400 text-sm mt-1">{errors.name}</p>
+            )}
+          </div>
+
+        {/* Video URL or Upload */}
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Sadhana Video URL * 
+              <span className="text-gray-500 text-xs ml-1">(Upload or paste link)</span>
+            </label>
+
+            {/* Upload Section */}
+            {!formData.videoUrl && (
+              <div
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const file = e.dataTransfer.files[0];
+                  if (file) handleVideoUpload(file);
+                }}
+                className="mb-4 border-2 border-dashed border-purple-500/50 rounded-lg p-6 text-center cursor-pointer hover:border-purple-400 transition bg-purple-900/10"
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="video/mp4,video/webm,video/quicktime,video/x-msvideo"
+                  onChange={(e) => {
+                    if (e.target.files?.[0]) {
+                      handleVideoUpload(e.target.files[0]);
+                    }
+                  }}
+                  className="hidden"
+                />
+
+                {uploading ? (
+                  <div className="space-y-3">
+                    <Loader className="mx-auto text-purple-400 animate-spin" size={32} />
+                    <p className="text-purple-300 font-medium">
+                      Uploading to Bunny CDN... {uploadProgress}%
+                    </p>
+                    <div className="w-full bg-gray-700 rounded-full h-2">
+                      <div
+                        className="bg-purple-600 h-2 rounded-full transition-all"
+                        style={{ width: `${uploadProgress}%` }}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <Upload className="mx-auto text-purple-400 mb-2" size={32} />
+                    <p className="text-gray-300 font-medium mb-1">
+                      Drag and drop your video here
+                    </p>
+                    <p className="text-gray-500 text-sm mb-3">
+                      or click to select (MP4, WebM, MOV, AVI - Max 2GB)
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm transition"
+                    >
+                      Choose File
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Error Message */}
+            {uploadError && (
+              <div className="mb-4 bg-red-900/50 border border-red-700 rounded-lg p-3 flex items-start gap-2">
+                <AlertCircle className="text-red-400 flex-shrink-0 mt-0.5" size={18} />
+                <p className="text-red-300 text-sm">{uploadError}</p>
+              </div>
+            )}
+
+            {/* Video URL Input */}
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  value={formData.videoUrl}
+                  onChange={(e) => {
+                    setFormData({ ...formData, videoUrl: e.target.value });
+                    setUploadError(null);
+                  }}
+                  placeholder="https://yourcdn.com/video.mp4"
+                  className={`flex-1 px-4 py-2 bg-gray-700 border rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 ${
+                    errors.videoUrl
+                      ? 'border-red-500'
+                      : 'border-gray-600'
+                  }`}
+                />
+                {formData.videoUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, videoUrl: '' })}
+                    className="px-3 py-2 bg-red-900/50 hover:bg-red-800/50 text-red-300 rounded-lg transition"
+                    title="Clear video URL"
+                  >
+                    <X size={18} />
+                  </button>
+                )}
+              </div>
+
+              {/* Video URL Success Indicator */}
+              {formData.videoUrl && (
+                <div className="flex items-center gap-2 text-green-400 text-sm">
+                  <CheckCircle size={16} />
+                  <span>Video ready</span>
+                </div>
+              )}
+
+              {errors.videoUrl && (
+                <p className="text-red-400 text-sm mt-1">{errors.videoUrl}</p>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Zoom Configuration */}
+      <div>
+        <h3 className="text-lg font-semibold text-white mb-4">🎥 Zoom Configuration</h3>
+
+        {/* Zoom Type Selection */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-300 mb-2">
+            Zoom Connection Type
+          </label>
+          <div className="flex gap-4">
+            <label className="flex items-center cursor-pointer">
+              <input
+                type="radio"
+                name="zoomType"
+                value="link"
+                checked={formData.zoomType === 'link'}
+                onChange={(e) =>
+                  setFormData({ ...formData, zoomType: e.target.value })
+                }
+                className="mr-2"
+              />
+              <span className="text-gray-300">Zoom Link</span>
+            </label>
+            <label className="flex items-center cursor-pointer">
+              <input
+                type="radio"
+                name="zoomType"
+                value="credentials"
+                checked={formData.zoomType === 'credentials'}
+                onChange={(e) =>
+                  setFormData({ ...formData, zoomType: e.target.value })
+                }
+                className="mr-2"
+              />
+              <span className="text-gray-300">ID & Password</span>
+            </label>
+          </div>
+        </div>
+
+        {/* Zoom Link */}
+        {formData.zoomType === 'link' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Zoom Meeting Link *
+            </label>
+            <input
+              type="url"
+              value={formData.zoomLink}
+              onChange={(e) => setFormData({ ...formData, zoomLink: e.target.value })}
+              placeholder="https://zoom.us/j/..."
+              className={`w-full px-4 py-2 bg-gray-700 border rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 ${
+                errors.zoomLink ? 'border-red-500' : 'border-gray-600'
+              }`}
+            />
+            {errors.zoomLink && (
+              <p className="text-red-400 text-sm mt-1">{errors.zoomLink}</p>
+            )}
+          </div>
+        )}
+
+        {/* Zoom Credentials */}
+        {formData.zoomType === 'credentials' && (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Zoom Meeting ID *
+              </label>
+              <input
+                type="text"
+                value={formData.zoomId}
+                onChange={(e) => setFormData({ ...formData, zoomId: e.target.value })}
+                placeholder="e.g., 123456789"
+                className={`w-full px-4 py-2 bg-gray-700 border rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 ${
+                  errors.zoomId ? 'border-red-500' : 'border-gray-600'
+                }`}
+              />
+              {errors.zoomId && (
+                <p className="text-red-400 text-sm mt-1">{errors.zoomId}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Zoom Password *
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type={showZoomCreds ? 'text' : 'password'}
+                  value={formData.zoomPassword}
+                  onChange={(e) =>
+                    setFormData({ ...formData, zoomPassword: e.target.value })
+                  }
+                  placeholder="e.g., 123456"
+                  className={`flex-1 px-4 py-2 bg-gray-700 border rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 ${
+                    errors.zoomPassword ? 'border-red-500' : 'border-gray-600'
+                  }`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowZoomCreds(!showZoomCreds)}
+                  className="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition"
+                >
+                  {showZoomCreds ? '🙈' : '👁'}
+                </button>
+              </div>
+              {errors.zoomPassword && (
+                <p className="text-red-400 text-sm mt-1">{errors.zoomPassword}</p>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Schedule Configuration */}
+      <div>
+        <h3 className="text-lg font-semibold text-white mb-4">⏰ Schedule Configuration</h3>
+
+        {/* Times */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-300 mb-2">
+            Delivery Times * (24-hour format)
+          </label>
+          <div className="space-y-2">
+            {formData.times.map((time, index) => (
+              <div key={index} className="flex gap-2">
+                <input
+                  type="time"
+                  value={time}
+                  onChange={(e) => handleTimeChange(index, e.target.value)}
+                  className="flex-1 px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-purple-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormData({
+                      ...formData,
+                      times: formData.times.filter((_, i) => i !== index),
+                    });
+                  }}
+                  className="px-3 py-2 bg-red-900/50 hover:bg-red-800/50 text-red-300 rounded-lg transition"
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() =>
+                setFormData({ ...formData, times: [...formData.times, '12:00'] })
+              }
+              className="mt-2 px-4 py-2 bg-purple-900/50 hover:bg-purple-800/50 text-purple-300 rounded-lg transition"
+            >
+              + Add Time
+            </button>
+          </div>
+          {errors.times && (
+            <p className="text-red-400 text-sm mt-1">{errors.times}</p>
+          )}
+        </div>
+
+        {/* Days */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-300 mb-3">
+            Repeat Days * (Select at least one)
+          </label>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            {daysOptions.map((day) => (
+              <button
+                key={day.value}
+                type="button"
+                onClick={() => handleDayToggle(day.value)}
+                className={`px-3 py-2 rounded-lg font-medium transition ${
+                  formData.days.includes(day.value)
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                }`}
+              >
+                {day.label}
+              </button>
+            ))}
+          </div>
+          {errors.days && (
+            <p className="text-red-400 text-sm mt-2">{errors.days}</p>
+          )}
+        </div>
+
+        {/* Repeat Frequency */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-300 mb-2">
+            Repeat Frequency
+          </label>
+          <select
+            value={formData.repeatFrequency}
+            onChange={(e) =>
+              setFormData({
+                ...formData,
+                repeatFrequency: e.target.value as any,
+              })
+            }
+            className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-purple-500"
+          >
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+          </select>
+        </div>
+
+        {/* Start Date & Timezone */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Start Date
+            </label>
+            <input
+              type="date"
+              value={formData.startDate}
+              onChange={(e) =>
+                setFormData({ ...formData, startDate: e.target.value })
+              }
+              className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-purple-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Timezone
+            </label>
+            <select
+              value={formData.timezone}
+              onChange={(e) =>
+                setFormData({ ...formData, timezone: e.target.value })
+              }
+              className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-purple-500"
+            >
+              <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
+              <option value="UTC">UTC</option>
+              <option value="America/New_York">America/New_York (EST)</option>
+              <option value="Europe/London">Europe/London (GMT)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Form Actions */}
+      <div className="flex gap-3 justify-end pt-4 border-t border-gray-700">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-6 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition"
+          disabled={loading}
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={loading}
+          className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition flex items-center gap-2 disabled:opacity-50"
+        >
+          {loading ? <Loader size={18} className="animate-spin" /> : null}
+          {initialData ? 'Update Schedule' : 'Create Schedule'}
+        </button>
+      </div>
+    </form>
+  );
+}

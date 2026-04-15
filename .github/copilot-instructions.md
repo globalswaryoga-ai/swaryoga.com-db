@@ -172,6 +172,70 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### Sadhana Video + Zoom Link Scheduler (Session: April 15, 2026 — Phase 90) — Commit `[pending]`
+
+1. **✅ Added Sadhana Scheduler Page to Admin CRM**
+   - **Purpose**: Allow admins to schedule Sadhana videos with Zoom links for automatic daily delivery (Mon-Fri)
+   - **Solution**:
+      - Added `/admin/crm/sadhana-scheduler/page.tsx` — main admin page with list, edit, delete, pause/resume
+      - Added sidebar entry in Automation section (`components/AdminSidebar.tsx`)
+      - Created reusable components:
+         - `SadhanaForm.tsx` — full form with validation
+         - `SuccessModal.tsx` — success confirmation popup
+         - `ConfirmDeleteModal.tsx` — delete confirmation dialog
+
+2. **✅ Created Complete CRUD API for Sadhana Schedules**
+   - **Solution**:
+      - Added `app/api/admin/crm/sadhana-scheduler/route.ts` — GET (list) & POST (create)
+      - Added `app/api/admin/crm/sadhana-scheduler/[id]/route.ts` — GET, PUT, PATCH, DELETE
+      - Database schema: `sadhana_schedules` collection with:
+         - `name`, `videoUrl`, `zoomLink`/`zoomId`/`zoomPassword`
+         - `schedule.times`, `schedule.days`, `schedule.repeatFrequency` (daily/weekly/monthly)
+         - `status` (active/paused), `userId`, timestamps
+
+3. **✅ Added Automatic Sadhana Message Delivery via Cron**
+   - **Solution**:
+      - Added `app/api/admin/crm/sadhana-scheduler/run/route.ts` — GET/POST endpoints
+      - Runs every minute via Vercel Cron
+      - Checks if current time matches any scheduled time (6 AM, 6 PM, custom)
+      - Sends WhatsApp message with video link + Zoom details to all admin's leads
+      - Supports both Zoom link and Zoom ID+password formats
+      - Validates recurrence frequency & day-of-week matching
+
+4. **✅ Admin Form Features**
+   - Schedule name, video URL input
+   - Zoom connection: Choose between Link OR ID+Password
+   - Multiple time slots (add/remove)
+   - Day selection (Mon-Fri, or custom days)
+   - Repeat frequency: Daily, Weekly, Monthly
+   - Start date & timezone picker
+   - Full client-side validation with error messages
+
+5. **✅ Admin Page Features**
+   - List all schedules with status badges (Active/Paused)
+   - Quick actions: Edit, Delete, Pause/Resume
+   - Schedule details display (times, days, timezone)
+   - Zoom links preview
+   - Success & delete confirmation modals
+
+6. **✅ Added Bunny CDN Video Upload to Sadhana Scheduler**
+   - **Solution**:
+      - Updated `SadhanaForm.tsx` with drag-and-drop video upload UI
+      - Videos uploaded to Bunny CDN via new endpoint `/api/admin/crm/sadhana-scheduler/upload-video`
+      - Upload progress indicator with percentage display
+      - Supports: MP4, WebM, MOV, AVI (Max 2GB)
+      - Auto-fills videoUrl field with Bunny CDN link after upload
+      - Error handling for invalid/oversized files
+   - **Features**:
+      - Drag-and-drop upload zone
+      - File picker button
+      - Real-time upload progress (%)
+      - Auto-generated Bunny CDN URL
+      - Clear/update video URL anytime
+      - Visual success indicator
+
+---
+
 ### CRM Social Inbox Backend for Messenger + Instagram (Session: March 20, 2026 — Phase 89) — Commit `[pending]`
 
 1. **✅ Added Real CRM Social Inbox Storage for Messenger and Instagram DMs**
