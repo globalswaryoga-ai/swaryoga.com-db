@@ -91,12 +91,12 @@ export default function SadhanaForm({
         return;
       }
 
-      // Validate file size (200MB max - reduced from 2GB due to Vercel limits)
-      const maxSize = 200 * 1024 * 1024;
+      // Validate file size (100MB max - safe limit accounting for multipart encoding)
+      const maxSize = 100 * 1024 * 1024;
       if (file.size > maxSize) {
         const sizeMB = Math.round(file.size / 1024 / 1024);
         console.error('[Sadhana Upload] File too large:', sizeMB, 'MB');
-        setUploadError(`Video too large (${sizeMB}MB). Maximum size is 200MB.`);
+        setUploadError(`Video too large (${sizeMB}MB). Maximum size is 100MB.`);
         setUploading(false);
         return;
       }
@@ -349,7 +349,7 @@ export default function SadhanaForm({
                       Drag and drop your video here
                     </p>
                     <p className="text-gray-500 text-sm mb-3">
-                      or click to select (MP4, WebM, MOV, AVI - Max 2GB)
+                      or click to select (MP4, WebM, MOV, AVI - Max 100MB)
                     </p>
                     <button
                       type="button"
