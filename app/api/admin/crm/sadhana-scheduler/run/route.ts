@@ -109,8 +109,8 @@ export async function POST(request: NextRequest) {
         // Build message
         const message = buildSadhanaMessage(schedule);
 
-        // Get leads for this user
-        const leads = await Lead?.find({ userId: schedule.userId }).toArray();
+        // Get leads assigned to this user
+        const leads = await Lead?.find({ assignedToUserId: schedule.userId }).toArray();
 
         if (!leads || leads.length === 0) {
           continue;
@@ -119,14 +119,17 @@ export async function POST(request: NextRequest) {
         // Send to each lead
         for (const lead of leads) {
           try {
+            const phoneNumber = lead.phone || lead.phoneNumber;
+            if (!phoneNumber) continue;
+            
             await sendWhatsAppText(
-              lead.phoneNumber,
+              phoneNumber,
               message,
               'meta'
             );
             sent++;
           } catch (err) {
-            console.error(`Failed to send to lead ${lead.phoneNumber}:`, err);
+            console.error(`Failed to send to lead ${lead.phone}:`, err);
             failed++;
           }
         }
