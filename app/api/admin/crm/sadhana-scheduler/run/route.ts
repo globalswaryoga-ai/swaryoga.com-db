@@ -74,20 +74,16 @@ function shouldTriggerBotActions(scheduleItem: any, now: Date, timezone: string)
   const times = scheduleItem.schedule.times || [];
   const days = scheduleItem.schedule.days || [];
 
-  // Get current time in the schedule's timezone using Intl (FIX: previous method was broken)
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: timezone,
-    weekday: 'numeric', // 0-6
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
-
-  const parts = formatter.formatToParts(now);
-  const currentDay = parseInt(parts.find(p => p.type === 'weekday')?.value || '0');
-  const currentHour = parts.find(p => p.type === 'hour')?.value || '00';
-  const currentMin = parts.find(p => p.type === 'minute')?.value || '00';
+  // Get current time in the schedule's timezone using native toLocaleString
+  const localStr = now.toLocaleString('en-US', { timeZone: timezone, hour12: false });
+  const [datePart, timePart] = localStr.split(', ');
+  const [month, date, year] = datePart.split('/');
+  const [currentHour, currentMin] = timePart.split(':');
   const currentTotalMin = parseInt(currentHour) * 60 + parseInt(currentMin);
+  
+  // Get day of week: create a date in that timezone and check its day
+  const utcDate = new Date(now.toLocaleString('sv-SE', { timeZone: timezone }));
+  const currentDay = utcDate.getDay(); // 0=Sun, 1=Mon, ..., 5=Fri, 6=Sat
 
   console.log(`[Sadhana] ⏰ Current time check (${timezone}): Day=${currentDay}, Time=${currentHour}:${currentMin} (${currentTotalMin}min), Scheduled days=[${days}], times=[${times}]`);
 
@@ -298,20 +294,16 @@ function isTimeToRun(scheduleItem: any, now: Date, timezone: string): boolean {
   const days = scheduleItem.schedule.days || [];
   const freq = scheduleItem.schedule.repeatFrequency || 'weekly';
 
-  // Get current day of week and time in the schedule's timezone using Intl (FIX: previous method was broken)
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: timezone,
-    weekday: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
-
-  const parts = formatter.formatToParts(now);
-  const currentDay = parseInt(parts.find(p => p.type === 'weekday')?.value || '0');
-  const currentHour = parts.find(p => p.type === 'hour')?.value || '00';
-  const currentMin = parts.find(p => p.type === 'minute')?.value || '00';
-  const currentTime = `${currentHour}:${currentMin}`;
+  // Get current day of week and time in the schedule's timezone using native toLocaleString
+  const localStr = now.toLocaleString('en-US', { timeZone: timezone, hour12: false });
+  const [datePart, timePart] = localStr.split(', ');
+  const [month, date, year] = datePart.split('/');
+  const [hour, min] = timePart.split(':');
+  const currentTime = `${hour}:${min}`;
+  
+  // Get day of week
+  const utcDate = new Date(now.toLocaleString('sv-SE', { timeZone: timezone }));
+  const currentDay = utcDate.getDay();
 
   // Check if today is in the scheduled days (support both 0-6 and Monday=1 formats)
   if (!days.includes(currentDay) && !days.includes((currentDay + 1) % 7)) {
