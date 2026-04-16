@@ -30,6 +30,15 @@ let cachedToken: string | null = null;
 let tokenExpireTime = 0;
 
 /**
+ * Clear token cache (useful for debugging or token refresh)
+ */
+export function clearTokenCache(): void {
+  cachedToken = null;
+  tokenExpireTime = 0;
+  console.log('[ZoomBotService] 🔄 Token cache cleared');
+}
+
+/**
  * Get or refresh Zoom OAuth access token
  */
 export async function getZoomAccessToken(): Promise<string> {
@@ -37,16 +46,28 @@ export async function getZoomAccessToken(): Promise<string> {
   
   // Return cached token if still valid (with 5-min buffer)
   if (cachedToken && now < tokenExpireTime - 5 * 60 * 1000) {
+    console.log('[ZoomBotService] ✅ Using cached token (expires in', Math.round((tokenExpireTime - now) / 1000), 'seconds)');
     return cachedToken;
   }
 
   try {
-    const auth = Buffer.from(`${ZOOM_CLIENT_ID}:${ZOOM_CLIENT_SECRET}`).toString('base64');
+    // Build the auth header
+    const clientId = ZOOM_CLIENT_ID || '';
+    const clientSecret = ZOOM_CLIENT_SECRET || '';
+    const accountId = ZOOM_ACCOUNT_ID || '';
     
     console.log('[ZoomBotService] 🔄 Requesting new token...');
+    console.log('[ZoomBotService] - Client ID length:', clientId.length);
+    console.log('[ZoomBotService] - Account ID length:', accountId.length);
+    
+    const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+    const requestBody = `grant_type=account_credentials&account_id=${accountId}`;
+    
+    console.log('[ZoomBotService] - Request body: grant_type=account_credentials&account_id=***');
+    console.log('[ZoomBotService] - Auth header present:', auth.length > 0 ? 'Yes' : 'No');
     
     const response = await axios.post('https://zoom.us/oauth/token', 
-      'grant_type=account_credentials&account_id=' + ZOOM_ACCOUNT_ID,
+      requestBody,
       {
         headers: {
           'Authorization': `Basic ${auth}`,
@@ -64,21 +85,30 @@ export async function getZoomAccessToken(): Promise<string> {
   } catch (err: any) {
     const errorDetail = err.response?.data || err.message || String(err);
     const statusCode = err.response?.status || 'N/A';
+    const errorMsg = typeof errorDetail === 'string' ? errorDetail : JSON.stringify(errorDetail);
     
     console.error('[ZoomBotService] ❌ Token error (Status: ' + statusCode + ')');
-    console.error('[ZoomBotService] Error details:', errorDetail);
+    console.error('[ZoomBotService] Error details:', errorMsg);
+    console.error('[ZoomBotService] Account ID present:', ZOOM_ACCOUNT_ID ? 'Yes' : 'NO ❌');
+    console.error('[ZoomBotService] Client ID present:', ZOOM_CLIENT_ID ? 'Yes' : 'NO ❌');
+    console.error('[ZoomBotService] Client Secret present:', ZOOM_CLIENT_SECRET ? 'Yes' : 'NO ❌');
     
     // More specific error messages
     if (err.code === 'ECONNABORTED') {
       throw new Error('Zoom API timeout - took too long to respond');
     } else if (err.code === 'ENOTFOUND') {
       throw new Error('Cannot reach Zoom API - network error');
+    } else if (err.code === 'ECONNREFUSED') {
+      throw new Error('Cannot connect to Zoom API server');
+    } else if (statusCode === 400 && errorMsg.includes('invalid_request')) {
+      const credSetup = `ZOOM_ACCOUNT_ID:${ZOOM_ACCOUNT_ID ? 'Yes' : 'NO'} ZOOM_CLIENT_ID:${ZOOM_CLIENT_ID ? 'Yes' : 'NO'} ZOOM_CLIENT_SECRET:${ZOOM_CLIENT_SECRET ? 'Yes' : 'NO'}`;
+      throw new Error('Zoom OAuth invalid_request - Credentials may be incomplete. Setup: ' + credSetup);
     } else if (statusCode === 401) {
       throw new Error('Zoom API rejected credentials - check CLIENT_ID and SECRET');
     } else if (statusCode === 403) {
       throw new Error('Zoom account forbidden - check ACCOUNT_ID');
     } else {
-      throw new Error('Failed to get Zoom access token: ' + (errorDetail?.message || errorDetail));
+      throw new Error('Failed to get Zoom access token: ' + errorMsg);
     }
   }
 }
