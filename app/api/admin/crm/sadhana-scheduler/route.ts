@@ -9,6 +9,7 @@ import mongoose from 'mongoose';
 const sadhanaScheduleSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
+    botName: { type: String, default: 'Swar Sadhana' }, // Name shown in Zoom meeting
     videoUrl: { type: String, required: true },
     videoDuration: { type: Number, default: 40 }, // Minutes (for auto-close)
     botJoinMinutes: { type: Number, default: 5 }, // How many minutes before scheduled time bot joins (5 or 3)

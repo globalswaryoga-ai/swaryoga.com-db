@@ -20,6 +20,7 @@ const ZOOM_CLIENT_SECRET = process.env.ZOOM_CLIENT_SECRET;
 const sadhanaScheduleSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
+    botName: { type: String, default: 'Swar Sadhana' }, // Name shown in Zoom meeting
     videoUrl: { type: String, required: true },
     videoDuration: { type: Number, default: 40 }, // Minutes (for auto-close)
     botJoinMinutes: { type: Number, default: 5 }, // How many minutes before scheduled time bot joins
@@ -472,7 +473,7 @@ export async function POST(request: NextRequest) {
             }
             
             // START LIVE STREAM: Video plays automatically for all participants
-            await startLiveStream(meetingId, schedule.videoUrl, schedule.name || 'Swar Sadhana');
+            await startLiveStream(meetingId, schedule.videoUrl, schedule.botName || schedule.name || 'Swar Sadhana');
 
             // Also send WhatsApp message with reminder
             const message = buildSadhanaMessage(schedule);

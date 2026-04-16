@@ -31,7 +31,12 @@ export default function SadhanaForm({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     name: initialData?.name || '',
+    botName: initialData?.botName || 'Swar Sadhana',
     videoUrl: initialData?.videoUrl || '',
+    videoDuration: initialData?.videoDuration || 40,
+    botJoinMinutes: initialData?.botJoinMinutes || 5,
+    autoCloseMinutes: initialData?.autoCloseMinutes || 40,
+    enableBotAutomation: initialData?.enableBotAutomation !== false,
     zoomType: initialData?.zoomLink ? 'link' : initialData?.zoomId ? 'credentials' : 'link',
     zoomLink: initialData?.zoomLink || '',
     zoomId: initialData?.zoomId || '',
@@ -161,7 +166,12 @@ export default function SadhanaForm({
 
     const submitData = {
       name: formData.name,
+      botName: formData.botName,
       videoUrl: formData.videoUrl,
+      videoDuration: formData.videoDuration,
+      botJoinMinutes: formData.botJoinMinutes,
+      autoCloseMinutes: formData.autoCloseMinutes,
+      enableBotAutomation: formData.enableBotAutomation,
       schedule: {
         times: formData.times.sort(),
         days: formData.days,
@@ -200,6 +210,23 @@ export default function SadhanaForm({
             {errors.name && (
               <p className="text-red-400 text-sm mt-1">{errors.name}</p>
             )}
+          </div>
+
+          {/* Bot Name */}
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              🤖 Bot Name (Appears in Zoom meeting)
+            </label>
+            <input
+              type="text"
+              value={formData.botName}
+              onChange={(e) => setFormData({ ...formData, botName: e.target.value })}
+              placeholder="e.g., Swar Sadhana"
+              className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+            />
+            <p className="text-gray-500 text-xs mt-1">
+              This is the name the bot will display as in your Zoom meeting.
+            </p>
           </div>
 
         {/* Video URL or Upload */}
@@ -429,6 +456,91 @@ export default function SadhanaForm({
               )}
             </div>
           </div>
+        )}
+      </div>
+
+      {/* Bot Automation Configuration */}
+      <div>
+        <h3 className="text-lg font-semibold text-white mb-4">🤖 Bot Automation</h3>
+        
+        {/* Enable Bot Automation */}
+        <div className="mb-6">
+          <label className="flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={formData.enableBotAutomation}
+              onChange={(e) => setFormData({ ...formData, enableBotAutomation: e.target.checked })}
+              className="mr-3 w-4 h-4 bg-gray-700 border border-gray-600 rounded accent-purple-600"
+            />
+            <span className="text-gray-300 font-medium">Enable Bot Automation</span>
+          </label>
+          <p className="text-gray-500 text-sm mt-1 ml-7">
+            When enabled, the bot will automatically join, send countdown messages, and play the video.
+          </p>
+        </div>
+
+        {formData.enableBotAutomation && (
+          <>
+            {/* Bot Join Minutes */}
+            <div className="mb-4 p-4 bg-purple-900/20 border border-purple-700/50 rounded-lg">
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Bot Join Time (minutes before scheduled time)
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {[2, 3, 5].map((mins) => (
+                  <button
+                    key={mins}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, botJoinMinutes: mins })}
+                    className={`px-3 py-2 rounded-lg font-medium transition ${
+                      formData.botJoinMinutes === mins
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                    }`}
+                  >
+                    {mins} min
+                  </button>
+                ))}
+              </div>
+              <p className="text-gray-500 text-xs mt-2">
+                🤖 Bot will join and send "Ready" message this many minutes before the scheduled time.
+              </p>
+            </div>
+
+            {/* Video Duration */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Video Duration (minutes)
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="180"
+                value={formData.videoDuration}
+                onChange={(e) => setFormData({ ...formData, videoDuration: parseInt(e.target.value) || 40 })}
+                className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-purple-500"
+              />
+              <p className="text-gray-500 text-xs mt-1">How long the video plays (used for auto-close)</p>
+            </div>
+
+            {/* Auto-Close Time */}
+            <div className="mb-4 p-4 bg-purple-900/20 border border-purple-700/50 rounded-lg">
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Auto-Close Meeting (minutes after video starts)
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="180"
+                value={formData.autoCloseMinutes}
+                onChange={(e) => setFormData({ ...formData, autoCloseMinutes: parseInt(e.target.value) || 40 })}
+                className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-purple-500"
+              />
+              <p className="text-gray-500 text-xs mt-2">
+                🔒 Meeting will automatically close this many minutes after the video starts. E.g., enter 40 to close after 40 minutes.
+              </p>
+            </div>
+          </>
         )}
       </div>
 

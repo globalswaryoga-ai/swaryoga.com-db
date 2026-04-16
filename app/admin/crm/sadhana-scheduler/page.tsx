@@ -21,7 +21,12 @@ import ConfirmDeleteModal from './components/ConfirmDeleteModal';
 interface SadhanaSchedule {
   _id: string;
   name: string;
+  botName?: string;
   videoUrl: string;
+  videoDuration?: number;
+  botJoinMinutes?: number;
+  autoCloseMinutes?: number;
+  enableBotAutomation?: boolean;
   zoomLink?: string;
   zoomId?: string;
   zoomPassword?: string;
