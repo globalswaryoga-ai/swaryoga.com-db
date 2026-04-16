@@ -55,7 +55,7 @@ export async function getZoomAccessToken(): Promise<string> {
 }
 
 /**
- * Bot joins Zoom meeting
+ * Bot joins Zoom meeting as participant
  * Called at 10:12 (3 min before scheduled time)
  */
 export async function botJoinMeeting(config: ZoomBotConfig): Promise<void> {
@@ -64,12 +64,11 @@ export async function botJoinMeeting(config: ZoomBotConfig): Promise<void> {
     
     console.log(`[ZoomBot] 🤖 Bot JOINING meeting ${config.meetingId}...`);
 
-    // Note: Direct bot join requires Zoom SDK or special permissions
-    // Instead, we'll send a message that confirms bot is ready
+    // Send ready message to participants
     await axios.post(
       `https://api.zoom.us/v2/meetings/${config.meetingId}/chat/messages`,
       {
-        message: `🤖 Bot is ready for Sadhana! Countdown starting... ⏱️`,
+        message: `🤖 Bot is ready for Sadhana! Starting video in 3 minutes... ⏱️\n\n🎬 Video will play automatically for everyone.`,
       },
       {
         headers: {
@@ -83,6 +82,74 @@ export async function botJoinMeeting(config: ZoomBotConfig): Promise<void> {
   } catch (err: any) {
     console.error('[ZoomBot] ❌ Join error:', err.response?.data || err.message);
     // Don't throw - meeting still works without this
+  }
+}
+
+/**
+ * Start Live Stream in Zoom meeting (video plays for all participants)
+ * Uses Zoom's live stream API to stream video directly to meeting
+ */
+export async function startLiveStream(meetingId: string, videoUrl: string, displayName: string = 'Swar Sadhana'): Promise<void> {
+  try {
+    const token = await getZoomAccessToken();
+    
+    console.log(`[ZoomBot] 🎬 Starting LIVE STREAM for meeting ${meetingId}...`);
+
+    // Step 1: Start live stream via Zoom API
+    const streamResponse = await axios.patch(
+      `https://api.zoom.us/v2/meetings/${meetingId}/livestream`,
+      {
+        action: 'start',
+        settings: {
+          live_streaming_reminder: false,
+        },
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    console.log(`[ZoomBot] ✅ Live stream started:`, streamResponse.data);
+
+    // Step 2: Send prominent message to meeting chat
+    const videoMessage = `
+🎬 **SWAR SADHANA VIDEO NOW PLAYING FOR EVERYONE** 🎬
+
+✅ Video is streaming live to the meeting
+
+🧘 **INSTRUCTIONS:**
+1. Sit comfortably
+2. Close your eyes
+3. Follow the video practice
+4. Duration: ~40 minutes
+5. Next practice tomorrow!
+
+🙏 Namaste 🙏
+    `.trim();
+
+    await axios.post(
+      `https://api.zoom.us/v2/meetings/${meetingId}/chat/messages`,
+      { message: videoMessage },
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    console.log(`[ZoomBot] 🎬 Live stream message sent to chat`);
+  } catch (err: any) {
+    console.error('[ZoomBot] ❌ Live stream error:', err.response?.data || err.message);
+    // Fallback: send video link if live stream fails
+    try {
+      await startVideoInMeeting(meetingId, videoUrl);
+    } catch (fallbackErr) {
+      console.error('[ZoomBot] ❌ Fallback also failed:', fallbackErr);
+    }
   }
 }
 

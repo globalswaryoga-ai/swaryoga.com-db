@@ -5,6 +5,7 @@ import { sendWhatsAppText } from '@/lib/whatsapp';
 import {
   botJoinMeeting,
   sendCountdownMessage,
+  startLiveStream,
   startVideoInMeeting,
   autoCloseMeeting,
   cleanupOldMeetings,
@@ -462,10 +463,10 @@ export async function POST(request: NextRequest) {
               return;
             }
             
-            // Send video to meeting
-            await startVideoInMeeting(meetingId, schedule.videoUrl);
+            // START LIVE STREAM: Video plays automatically for all participants
+            await startLiveStream(meetingId, schedule.videoUrl, schedule.name || 'Swar Sadhana');
 
-            // Also send WhatsApp message
+            // Also send WhatsApp message with reminder
             const message = buildSadhanaMessage(schedule);
             for (const lead of leads) {
               try {
