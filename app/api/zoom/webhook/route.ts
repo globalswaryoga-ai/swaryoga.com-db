@@ -141,6 +141,99 @@ async function getZoomAccessToken(): Promise<string | null> {
 }
 
 /**
+ * Bot joins meeting with "Swaryoga Bot" name (called 3 minutes before scheduled time)
+ */
+async function botJoinMeeting(meetingId: string): Promise<boolean> {
+  try {
+    const token = await getZoomAccessToken();
+    if (!token) {
+      console.error('[Zoom Bot] No access token available');
+      return false;
+    }
+
+    console.log(`[Zoom Bot] 🤖 Bot joining meeting ${meetingId} with countdown...`);
+
+    // Add bot as participant (3 minutes early)
+    const joinResponse = await fetch(
+      `https://api.zoom.us/v2/meetings/${meetingId}/registrants`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'create',
+          registrants: [
+            {
+              email: 'swarbot@swaryoga.com',
+              first_name: 'Swaryoga',
+              last_name: 'Bot',
+            }
+          ]
+        }),
+      }
+    );
+
+    if (!joinResponse.ok) {
+      const errorText = await joinResponse.text();
+      console.warn(`[Zoom Bot] Join response: ${joinResponse.status}`);
+      // Don't fail - continue with countdown
+    }
+
+    console.log('[Zoom Bot] ✅ Bot ready for countdown'); 
+    return true;
+    
+  } catch (error) {
+    console.error('[Zoom Bot] Error:', error);
+    return false;
+  }
+}
+
+/**
+ * Send countdown message to meeting chat (shows 2:59 to 0:00)
+ */
+async function sendCountdownMessage(meetingId: string, seconds: number): Promise<boolean> {
+  try {
+    const token = await getZoomAccessToken();
+    if (!token) return false;
+
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    const timeString = `${mins}:${secs.toString().padStart(2, '0')}`;
+    
+    const message = seconds === 0 
+      ? '🎥 VIDEO STARTING NOW! 🚀' 
+      : `⏳ Starting in ${timeString}...`;
+
+    // Send message to meeting
+    const msgResponse = await fetch(
+      `https://api.zoom.us/v2/meetings/${meetingId}/chat/messages`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message,
+          to: 'all'
+        }),
+      }
+    );
+
+    if (msgResponse.ok) {
+      console.log(`[Zoom Countdown] ${message}`);
+    }
+    return true;
+    
+  } catch (error) {
+    console.error('[Zoom Countdown] Error:', error);
+    return false;
+  }
+}
+
+/**
  * Start Live Stream for meeting with video URL
  */
 async function startLiveStream(meetingId: string, videoUrl: string): Promise<boolean> {

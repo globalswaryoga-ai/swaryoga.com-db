@@ -63,6 +63,13 @@ const nextConfig = {
   compress: true,
   poweredByHeader: false,
   productionBrowserSourceMaps: false,
+  // Allow large file uploads (250MB for Vercel)
+  api: {
+    bodyParser: {
+      sizeLimit: '250mb',
+    },
+    responseLimit: '250mb',
+  },
   experimental: {
     // Keep @distube/ytdl-core out of webpack bundle (modern syntax Terser can't parse)
     serverComponentsExternalPackages: ['@distube/ytdl-core'],

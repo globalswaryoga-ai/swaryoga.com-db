@@ -4,8 +4,10 @@ import { uploadToBunnyStream } from '@/lib/bunny-storage';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+export const maxDuration = 300; // 5 minutes for large uploads
 
-const MAX_VIDEO_SIZE = 2 * 1024 * 1024 * 1024; // 2GB
+// Vercel limit is 250MB max request size, reduce to 200MB per upload for safety
+const MAX_VIDEO_SIZE = 200 * 1024 * 1024; // 200MB
 
 /**
  * POST /api/admin/crm/sadhana-scheduler/upload-video

@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Swar Sadhana - Countdown</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+        }
+
+        .container {
+            text-align: center;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .heading {
+            font-size: 5rem;
+            font-weight: bold;
+            color: #fff;
+            margin-bottom: 2rem;
+            text-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+            letter-spacing: 3px;
+        }
+
+        .heading span {
+            display: block;
+            font-size: 6rem;
+            color: #ffd700;
+            margin-top: 0.5rem;
+            font-weight: 900;
+            text-shadow: 0 6px 20px rgba(255, 215, 0, 0.5);
+        }
+
+        .countdown {
+            font-size: 12rem;
+            font-weight: 900;
+            color: #ffd700;
+            line-height: 1;
+            margin: 2rem 0;
+            text-shadow: 0 8px 30px rgba(255, 215, 0, 0.6), 0 0 40px rgba(255, 215, 0, 0.4);
+            font-family: 'Courier New', monospace;
+            letter-spacing: 10px;
+            animation: pulse 1s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .status {
+            font-size: 3rem;
+            color: #fff;
+            margin-top: 2rem;
+            font-weight: bold;
+            text-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .starting {
+            font-size: 4rem;
+            color: #ff6b6b;
+            font-weight: 900;
+            margin-top: 3rem;
+            animation: blink 0.7s infinite;
+            text-shadow: 0 8px 30px rgba(255, 107, 107, 0.6);
+        }
+
+        @keyframes blink {
+            0%, 50%, 100% { opacity: 1; }
+            25%, 75% { opacity: 0.3; }
+        }
+
+        .subtitle {
+            font-size: 2rem;
+            color: rgba(255, 255, 255, 0.9);
+            margin-top: 3rem;
+            font-weight: bold;
+        }
+
+        .yoga-icon {
+            font-size: 5rem;
+            margin: 1rem 0;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+        }
+
+        /* Responsive for different screen sizes */
+        @media (max-width: 1920px) {
+            .heading { font-size: 4rem; }
+            .heading span { font-size: 5rem; }
+            .countdown { font-size: 10rem; }
+            .status { font-size: 2.5rem; }
+            .starting { font-size: 3rem; }
+        }
+
+        @media (max-width: 1280px) {
+            .heading { font-size: 3rem; }
+            .heading span { font-size: 4rem; }
+            .countdown { font-size: 8rem; }
+            .status { font-size: 2rem; }
+            .starting { font-size: 2.5rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="yoga-icon">🧘‍♀️</div>
+        
+        <div class="heading">
+            Swar Sadhana
+            <span id="scheduleTime">9:15 PM</span>
+        </div>
+
+        <div class="countdown" id="countdown">
+            2:59
+        </div>
+
+        <div class="status" id="status">
+            ⏳ Starting in...
+        </div>
+
+        <div class="subtitle" id="subtitle">
+            🎥 Video & Zoom Live Stream
+        </div>
+
+        <div class="starting" id="starting" style="display: none;">
+            🎬 VIDEO PLAYING NOW! 🚀
+        </div>
+    </div>
+
+    <script>
+        /**
+         * Countdown Timer UI
+         * Displays large countdown: 2:59 → 0:00
+         * Then shows "VIDEO PLAYING NOW"
+         */
+
+        let countdownInterval = null;
+        const TOTAL_SECONDS = 179; // 2:59
+        let secondsLeft = TOTAL_SECONDS;
+
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function updateCountdown() {
+            const countdownEl = document.getElementById('countdown');
+            const statusEl = document.getElementById('status');
+            const startingEl = document.getElementById('starting');
+
+            if (secondsLeft > 0) {
+                countdownEl.textContent = formatTime(secondsLeft);
+                statusEl.textContent = `⏳ Starting in ${formatTime(secondsLeft)}`;
+                secondsLeft--;
+            } else {
+                // Show video started message
+                countdownEl.style.display = 'none';
+                statusEl.style.display = 'none';
+                startingEl.style.display = 'block';
+            }
+        }
+
+        function startCountdown() {
+            updateCountdown(); // Show first countdown
+            countdownInterval = setInterval(updateCountdown, 1000);
+        }
+
+        // Start countdown immediately
+        startCountdown();
+
+        // Optional: Stop after 10 minutes (safety measure)
+        setTimeout(() => {
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+            }
+        }, 10 * 60 * 1000);
+    </script>
+</body>
+</html>
