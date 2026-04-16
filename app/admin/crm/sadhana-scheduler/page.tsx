@@ -14,6 +14,7 @@ import {
   Play,
   Pause,
   CheckCircle,
+  Zap,
 } from 'lucide-react';
 import SadhanaForm from './components/SadhanaForm';
 import ConfirmDeleteModal from './components/ConfirmDeleteModal';
@@ -54,6 +55,14 @@ export default function SadhanaSchedulerPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [effectiveToken, setEffectiveToken] = useState<string | null>(null);
+  const [testingBotId, setTestingBotId] = useState<string | null>(null);
+  const [testResults, setTestResults] = useState<{
+    id: string;
+    success: boolean;
+    message: string;
+    logs: string[];
+  } | null>(null);
+  const [showTestResults, setShowTestResults] = useState(false);
 
   // Sync token from localStorage as fallback
   useEffect(() => {
@@ -167,6 +176,55 @@ try {
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error updating status');
+    }
+  };
+
+  // Handle test bot
+  const handleTestBot = async (id: string, scheduleName: string) => {
+    try {
+      setTestingBotId(id);
+      setTestResults(null);
+      const cleanToken = effectiveToken?.trim().replace(/^Bearer\s+/i, '') || '';
+      
+      console.log('🤖 [Sadhana] Testing bot for schedule:', id);
+      
+      const res = await fetch('/api/admin/crm/sadhana-scheduler/test-bot', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${cleanToken}`,
+        },
+        body: JSON.stringify({ scheduleId: id }),
+      });
+
+      const data = await res.json();
+      
+      setTestResults({
+        id,
+        success: data.success,
+        message: data.message,
+        logs: data.logs || [],
+      });
+      setShowTestResults(true);
+      
+      console.log('✅ [Sadhana] Bot test response:', data);
+      
+      if (data.success) {
+        setSuccessMessage(`Bot test triggered for "${scheduleName}"`);
+        setTimeout(() => setSuccessMessage(null), 3000);
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Error testing bot';
+      console.error('❌ [Sadhana] Bot test error:', errorMsg);
+      setTestResults({
+        id,
+        success: false,
+        message: errorMsg,
+        logs: [`❌ ${errorMsg}`],
+      });
+      setShowTestResults(true);
+    } finally {
+      setTestingBotId(null);
     }
   };
 
@@ -337,6 +395,18 @@ try {
                       )}
                     </button>
                     <button
+                      onClick={() => handleTestBot(schedule._id, schedule.name)}
+                      disabled={testingBotId === schedule._id}
+                      className="p-2 rounded-lg bg-amber-900/50 hover:bg-amber-800/50 text-amber-300 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Test bot join immediately (bypass timing)"
+                    >
+                      {testingBotId === schedule._id ? (
+                        <Loader size={18} className="animate-spin" />
+                      ) : (
+                        <Zap size={18} />
+                      )}
+                    </button>
+                    <button
                       onClick={() => {
                         setEditingId(schedule._id);
                         setEditingData(schedule);
@@ -438,6 +508,96 @@ try {
             onCancel={() => setDeleteConfirm(null)}
             loading={isDeleting}
           />
+        )}
+
+        {/* Test Bot Results Modal */}
+        {showTestResults && testResults && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-gray-900 rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto border border-gray-700">
+              {/* Header */}
+              <div className="sticky top-0 bg-gray-800 border-b border-gray-700 p-6 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  {testResults.success ? (
+                    <>
+                      <CheckCircle className="text-green-400" size={24} />
+                      <h2 className="text-xl font-bold text-white">Bot Test Successful</h2>
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle className="text-red-400" size={24} />
+                      <h2 className="text-xl font-bold text-white">Bot Test Failed</h2>
+                    </>
+                  )}
+                </div>
+                <button
+                  onClick={() => setShowTestResults(false)}
+                  className="text-gray-400 hover:text-white transition"
+                  title="Close"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="p-6">
+                <div className="mb-6">
+                  <p className="text-gray-300 text-lg">{testResults.message}</p>
+                </div>
+
+                {/* Logs */}
+                <div className="mb-6">
+                  <h3 className="text-white font-semibold mb-3">Execution Logs:</h3>
+                  <div className="bg-gray-950 rounded p-4 font-mono text-sm text-gray-300 space-y-1 max-h-96 overflow-y-auto border border-gray-700">
+                    {testResults.logs.map((log, idx) => (
+                      <div key={idx} className="text-gray-300">
+                        {log}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Success Message */}
+                {testResults.success && (
+                  <div className="mb-6 bg-green-900/30 border border-green-700 rounded p-4">
+                    <p className="text-green-300 text-sm">
+                      ✅ Bot join test has been triggered. Check your Zoom meeting in about 1-2 minutes for the bot to join.
+                    </p>
+                  </div>
+                )}
+
+                {/* Error Message */}
+                {!testResults.success && (
+                  <div className="mb-6 bg-red-900/30 border border-red-700 rounded p-4">
+                    <p className="text-red-300 text-sm">
+                      ❌ The bot test failed. Check the logs above for details. Ensure the schedule has a valid Zoom link and bot automation is enabled.
+                    </p>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex gap-3 justify-end">
+                  <button
+                    onClick={() => setShowTestResults(false)}
+                    className="px-6 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition"
+                  >
+                    Close
+                  </button>
+                  {testResults.success && (
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(testResults.logs.join('\n'));
+                        setSuccessMessage('Logs copied to clipboard!');
+                        setTimeout(() => setSuccessMessage(null), 2000);
+                      }}
+                      className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
+                    >
+                      Copy Logs
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>
