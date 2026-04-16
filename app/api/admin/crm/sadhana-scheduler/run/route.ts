@@ -67,12 +67,13 @@ function extractZoomDetailsFromLink(zoomLink: string): { meetingId?: string; pas
 }
 
 /**
- * Check if we should trigger bot actions (3 minutes before scheduled time)
+ * Check if we should trigger bot actions and if we're on the right day
  */
-function shouldTriggerBotActions(scheduleItem: any, now: Date, timezone: string): { shouldJoin: boolean; shouldCountdown: boolean; shouldPlay: boolean } {
+function shouldTriggerBotActions(scheduleItem: any, now: Date, timezone: string): { shouldJoin: boolean; shouldCountdown: boolean; shouldPlay: boolean; isRightDay: boolean } {
   const times = scheduleItem.schedule.times || [];
   const days = scheduleItem.schedule.days || [];
 
+  // Get current time in the schedule's timezone
   const offsetMs = timezone === 'Asia/Kolkata' ? 5.5 * 60 * 60 * 1000 : 0;
   const tzDate = new Date(now.getTime() + offsetMs);
   
@@ -81,9 +82,12 @@ function shouldTriggerBotActions(scheduleItem: any, now: Date, timezone: string)
   const currentMin = String(tzDate.getMinutes()).padStart(2, '0');
   const currentTotalMin = parseInt(currentHour) * 60 + parseInt(currentMin);
 
-  // Check if today is in scheduled days
-  if (!days.includes(currentDay) && !days.includes((currentDay + 1) % 7)) {
-    return { shouldJoin: false, shouldCountdown: false, shouldPlay: false };
+  console.log(`[Sadhana] ⏰ Current time check: Day=${currentDay}, Time=${currentHour}:${currentMin} (${currentTotalMin}min), Scheduled days=[${days}], times=[${times}]`);
+
+  // Check if today is in scheduled days (0=Sunday, 5=Friday, etc)
+  const isRightDay = days.includes(currentDay);
+  if (!isRightDay) {
+    return { shouldJoin: false, shouldCountdown: false, shouldPlay: false, isRightDay: false };
   }
 
   let shouldJoin = false;
@@ -95,28 +99,32 @@ function shouldTriggerBotActions(scheduleItem: any, now: Date, timezone: string)
     const [schedHour, schedMin] = time.split(':');
     const schedTotalMin = parseInt(schedHour) * 60 + parseInt(schedMin);
     
-    const botJoinMinutes = schedule.botJoinMinutes || 5; // Default 5 minutes before (was 3)
+    const botJoinMinutes = scheduleItem.botJoinMinutes || 5; // Default 5 minutes before
     const botJoinTime = schedTotalMin - botJoinMinutes; // Join N min early
     const countdownWindow = 2; // 2 min before
-    const playTime = schedTotalMin; // Exact time
+
+    console.log(`[Sadhana] Checking time: scheduled=${time} (${schedTotalMin}min), current=${currentTotalMin}min, joinWindow=${botJoinTime}`);
 
     // Bot join between (scheduled - N min) and (scheduled - 2 min)
     if (currentTotalMin >= botJoinTime && currentTotalMin < schedTotalMin - 2) {
+      console.log(`[Sadhana] ✅ BOT JOIN WINDOW MATCHED: ${botJoinTime} <= ${currentTotalMin} < ${schedTotalMin - 2}`);
       shouldJoin = true;
     }
 
     // Send countdown between (scheduled - 2 min) and scheduled time
     if (currentTotalMin >= schedTotalMin - countdownWindow && currentTotalMin < schedTotalMin + 1) {
+      console.log(`[Sadhana] ✅ COUNTDOWN WINDOW MATCHED: ${schedTotalMin - countdownWindow} <= ${currentTotalMin} < ${schedTotalMin + 1}`);
       shouldCountdown = true;
     }
 
     // Play video at exact scheduled time (within 1 min window)
     if (currentTotalMin >= schedTotalMin && currentTotalMin < schedTotalMin + 1) {
+      console.log(`[Sadhana] ✅ VIDEO PLAY WINDOW MATCHED: ${schedTotalMin} <= ${currentTotalMin} < ${schedTotalMin + 1}`);
       shouldPlay = true;
     }
   }
 
-  return { shouldJoin, shouldCountdown, shouldPlay };
+  return { shouldJoin, shouldCountdown, shouldPlay, isRightDay };
 }
 
 /**
@@ -366,12 +374,12 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // 🤖 BOT JOIN PHASE (3 min before scheduled time @ 10:12)
-        if (shouldJoin && schedule.enableBotAutomation && schedule.zoomId) {
+        // 🤖 BOT JOIN PHASE (N min before scheduled time)
+        if (shouldJoin && schedule.enableBotAutomation) {
           try {
-            console.log(`[Sadhana] 🤖 BOT JOINING at 10:12 for schedule ${schedule._id}`);
+            console.log(`[Sadhana] 🤖 BOT JOINING for schedule ${schedule._id}`);
             
-            // Extract meeting ID from zoomLink if not already saved
+            // Extract meeting ID from zoomLink or zoomMeetingId
             let meetingId = schedule.zoomMeetingId || schedule.zoomId;
             let meetingPassword = schedule.zoomPassword;
             
@@ -395,8 +403,8 @@ export async function POST(request: NextRequest) {
             }
 
             if (!meetingId) {
-              console.error('[Sadhana] ❌ No meeting ID found in schedule or zoom link');
-              return;
+              console.error('[Sadhana] ❌ No meeting ID found in schedule (zoomMeetingId, zoomId, or zoomLink)');
+              continue; // Skip this schedule but continue with others
             }
 
             // Bot joins and sends ready message
@@ -417,7 +425,7 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // ⏳ COUNTDOWN PHASE (2 min before @ 10:13-10:14)
+        // ⏳ COUNTDOWN PHASE (2 min before scheduled time)
         if (shouldCountdown && schedule.enableBotAutomation) {
           try {
             // Extract meeting ID if needed
@@ -429,7 +437,7 @@ export async function POST(request: NextRequest) {
             
             if (!meetingId) {
               console.warn('[Sadhana] ⏳ No meeting ID for countdown');
-              return;
+              continue; // Skip this schedule but continue with others
             }
 
             // Send 3 min countdown, 2 min countdown, 1 min countdown
@@ -446,10 +454,10 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // 🎬 VIDEO START PHASE (exact scheduled time @ 10:15)
+        // 🎬 VIDEO START PHASE (exact scheduled time)
         if (shouldPlay && schedule.enableBotAutomation) {
           try {
-            console.log(`[Sadhana] 🎬 VIDEO STARTING at 10:15 for schedule ${schedule._id}`);
+            console.log(`[Sadhana] 🎬 VIDEO STARTING for schedule ${schedule._id}`);
             
             // Extract meeting ID if needed
             let meetingId = schedule.zoomMeetingId || schedule.zoomId;
@@ -460,7 +468,7 @@ export async function POST(request: NextRequest) {
             
             if (!meetingId) {
               console.warn('[Sadhana] 🎬 No meeting ID for video start');
-              return;
+              continue; // Skip this schedule but continue with others
             }
             
             // START LIVE STREAM: Video plays automatically for all participants

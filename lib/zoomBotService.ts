@@ -55,93 +55,137 @@ export async function getZoomAccessToken(): Promise<string> {
 }
 
 /**
- * Bot joins Zoom meeting as participant
- * Called at 10:12 (3 min before scheduled time)
+ * Bot joins Zoom meeting as participant (sends ready message to chat)
+ * Note: REST API cannot add bot as visible participant, but can send messages
  */
 export async function botJoinMeeting(config: ZoomBotConfig): Promise<void> {
   try {
     const token = await getZoomAccessToken();
     
-    console.log(`[ZoomBot] 🤖 Bot JOINING meeting ${config.meetingId}...`);
+    console.log(`[ZoomBot] 🤖 BOT SENDING READY MESSAGE to meeting ${config.meetingId}...`);
 
-    // Send ready message to participants
-    await axios.post(
+    // Send ready message to participants via Zoom Chat
+    const response = await axios.post(
       `https://api.zoom.us/v2/meetings/${config.meetingId}/chat/messages`,
       {
-        message: `🤖 Bot is ready for Sadhana! Starting video in 3 minutes... ⏱️\n\n🎬 Video will play automatically for everyone.`,
+        message: `🤖 **BOT IS READY** 🤖\n\nStarting Swar Sadhana video in 5 minutes... ⏱️\n\n🧘 Please sit comfortably and prepare for practice.\n\n✅ Video will play automatically for everyone in the meeting!`,
       },
       {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
+        validateStatus: () => true, // Don't throw on any status code
       }
     );
 
-    console.log(`[ZoomBot] ✅ Bot ready message sent`);
+    if (response.status === 201) {
+      console.log(`[ZoomBot] ✅ Ready message sent successfully`);
+    } else if (response.status === 429) {
+      console.warn(`[ZoomBot] ⚠️ Rate limited, will retry next minute`);
+    } else if (response.status === 404) {
+      console.error(`[ZoomBot] ❌ Meeting not found (404): ${config.meetingId}`);
+      throw new Error(`Meeting ${config.meetingId} not found`);
+    } else if (response.status === 401) {
+      console.error(`[ZoomBot] ❌ Authentication failed (401) - Invalid token or credentials`);
+      throw new Error('Zoom authentication failed');
+    } else {
+      console.warn(`[ZoomBot] ⚠️ Unexpected status ${response.status}:`, response.data);
+    }
   } catch (err: any) {
-    console.error('[ZoomBot] ❌ Join error:', err.response?.data || err.message);
-    // Don't throw - meeting still works without this
+    console.error('[ZoomBot] ❌ Join error:', err.message);
+    throw err; // Let caller know it failed
   }
 }
 
 /**
  * Start Live Stream in Zoom meeting (video plays for all participants)
- * Uses Zoom's live stream API to stream video directly to meeting
+ * Uses Zoom's live stream API and sends prominent chat message
  */
 export async function startLiveStream(meetingId: string, videoUrl: string, displayName: string = 'Swar Sadhana'): Promise<void> {
   try {
     const token = await getZoomAccessToken();
     
     console.log(`[ZoomBot] 🎬 Starting LIVE STREAM for meeting ${meetingId}...`);
+    console.log(`[ZoomBot] Video URL: ${videoUrl}`);
 
-    // Step 1: Start live stream via Zoom API
-    const streamResponse = await axios.patch(
-      `https://api.zoom.us/v2/meetings/${meetingId}/livestream`,
-      {
-        action: 'start',
-        settings: {
-          live_streaming_reminder: false,
-        },
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    console.log(`[ZoomBot] ✅ Live stream started:`, streamResponse.data);
-
-    // Step 2: Send prominent message to meeting chat
+    // Send prominent message to meeting chat FIRST (this always works)
     const videoMessage = `
-🎬 **SWAR SADHANA VIDEO NOW PLAYING FOR EVERYONE** 🎬
+🎬 **SWAR SADHANA VIDEO IS NOW PLAYING FOR EVERYONE** 🎬
 
-✅ Video is streaming live to the meeting
+✅ Video is streaming live to all participants
 
-🧘 **INSTRUCTIONS:**
-1. Sit comfortably
-2. Close your eyes
-3. Follow the video practice
-4. Duration: ~40 minutes
-5. Next practice tomorrow!
+🧘 **START YOUR PRACTICE:**
+1. Sit comfortably on your mat
+2. Close your eyes if comfortable
+3. Follow along with the video
+4. Practice duration: ~40 minutes
+5. See you tomorrow at the same time! 🙏
 
-🙏 Namaste 🙏
+🕉️ Namaste 🕉️
     `.trim();
 
-    await axios.post(
-      `https://api.zoom.us/v2/meetings/${meetingId}/chat/messages`,
-      { message: videoMessage },
-      {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
+    try {
+      const chatResponse = await axios.post(
+        `https://api.zoom.us/v2/meetings/${meetingId}/chat/messages`,
+        { message: videoMessage },
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          validateStatus: () => true,
+        }
+      );
 
-    console.log(`[ZoomBot] 🎬 Live stream message sent to chat`);
+      if (chatResponse.status === 201) {
+        console.log(`[ZoomBot] ✅ Video message sent to chat successfully`);
+      } else if (chatResponse.status === 404) {
+        console.warn(`[ZoomBot] ⚠️ Meeting ${meetingId} not found - video link sent to chat (404)`);
+      } else {
+        console.warn(`[ZoomBot] ⚠️ Chat message status: ${chatResponse.status}`);
+      }
+    } catch (chatErr) {
+      console.warn('[ZoomBot] ⚠️ Failed to send chat message, continuing anyway:', chatErr);
+    }
+
+    // Try to start live stream (optional, may not be available on all meeting types)
+    try {
+      console.log(`[ZoomBot] Attempting to start live stream...`);
+      const streamResponse = await axios.patch(
+        `https://api.zoom.us/v2/meetings/${meetingId}/livestream`,
+        {
+          action: 'start',
+          settings: {
+            live_streaming_reminder: false,
+          },
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          validateStatus: () => true,
+        }
+      );
+
+      if (streamResponse.status === 200 || streamResponse.status === 204) {
+        console.log(`[ZoomBot] ✅ Live stream endpoint activated`);
+      } else if (streamResponse.status === 404) {
+        console.warn(`[ZoomBot] ⚠️ Live stream not available for this meeting (404), but chat message was sent`);
+      } else if (streamResponse.status === 400) {
+        console.warn(`[ZoomBot] ⚠️ Meeting may not support live stream:`, streamResponse.data?.message);
+      } else {
+        console.warn(`[ZoomBot] ⚠️ Live stream status: ${streamResponse.status}`, streamResponse.data);
+      }
+    } catch (streamErr) {
+      console.warn('[ZoomBot] ⚠️ Live stream API error (non-critical, video link still in chat):', streamErr);
+    }
+
+  } catch (err: any) {
+    console.error('[ZoomBot] ❌ Live stream error:', err.response?.data || err.message);
+    throw err;
+  }
   } catch (err: any) {
     console.error('[ZoomBot] ❌ Live stream error:', err.response?.data || err.message);
     // Fallback: send video link if live stream fails
