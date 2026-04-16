@@ -125,7 +125,7 @@ export async function botJoinMeeting(config: ZoomBotConfig): Promise<void> {
 
     // Send ready message to participants via Zoom Chat
     const response = await axios.post(
-      `https://api.zoom.us/v2/meetings/${config.meetingId}/chat/messages`,
+      `https://zoom.us/api/v2/meetings/${config.meetingId}/chat/messages`,
       {
         message: `🤖 **BOT IS READY** 🤖\n\nStarting Swar Sadhana video in 5 minutes... ⏱️\n\n🧘 Please sit comfortably and prepare for practice.\n\n✅ Video will play automatically for everyone in the meeting!`,
       },
@@ -186,7 +186,7 @@ export async function startLiveStream(meetingId: string, videoUrl: string, displ
 
     try {
       const chatResponse = await axios.post(
-        `https://api.zoom.us/v2/meetings/${meetingId}/chat/messages`,
+        `https://zoom.us/api/v2/meetings/${meetingId}/chat/messages`,
         { message: videoMessage },
         {
           headers: {
@@ -268,7 +268,7 @@ export async function sendCountdownMessage(meetingId: string, minutesLeft: numbe
     const message = countdownMessages[minutesLeft] || `⏳ ${minutesLeft} min until video`;
 
     await axios.post(
-      `https://api.zoom.us/v2/meetings/${meetingId}/chat/messages`,
+      `https://zoom.us/api/v2/meetings/${meetingId}/chat/messages`,
       { message },
       {
         headers: {
@@ -303,7 +303,7 @@ The next 40 minutes are for YOUR well-being.
     `.trim();
 
     await axios.post(
-      `https://api.zoom.us/v2/meetings/${meetingId}/chat/messages`,
+      `https://zoom.us/api/v2/meetings/${meetingId}/chat/messages`,
       { message: videoMessage },
       {
         headers: {
@@ -326,12 +326,8 @@ export async function sendVideoEndingMessage(meetingId: string, minutesLeft: num
   try {
     const token = await getZoomAccessToken();
     
-    const message = minutesLeft === 5 
-      ? `⏳ Video finishing in 5 minutes... Start winding down your practice. 🙏`
-      : `⏳ Video will end in ${minutesLeft} minutes...`;
-
     await axios.post(
-      `https://api.zoom.us/v2/meetings/${meetingId}/chat/messages`,
+      `https://zoom.us/api/v2/meetings/${meetingId}/chat/messages`,
       { message },
       {
         headers: {
@@ -357,7 +353,7 @@ export async function autoCloseMeeting(meetingId: string): Promise<void> {
     
     // Send final message
     await axios.post(
-      `https://api.zoom.us/v2/meetings/${meetingId}/chat/messages`,
+      `https://zoom.us/api/v2/meetings/${meetingId}/chat/messages`,
       { message: `🙏 Sadhana session completed. Thank you for practicing! Namaste. 🙏\n\nMeeting will close in 30 seconds...` },
       {
         headers: {
