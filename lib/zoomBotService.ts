@@ -181,11 +181,6 @@ export async function startLiveStream(meetingId: string, videoUrl: string, displ
     } catch (streamErr) {
       console.warn('[ZoomBot] ⚠️ Live stream API error (non-critical, video link still in chat):', streamErr);
     }
-
-  } catch (err: any) {
-    console.error('[ZoomBot] ❌ Live stream error:', err.response?.data || err.message);
-    throw err;
-  }
   } catch (err: any) {
     console.error('[ZoomBot] ❌ Live stream error:', err.response?.data || err.message);
     // Fallback: send video link if live stream fails
