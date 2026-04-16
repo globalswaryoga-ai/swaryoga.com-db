@@ -47,6 +47,10 @@
       "schedule": "* * * * *"
     },
     {
+      "path": "/api/admin/crm/sadhana-scheduler/run",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/crm-site/capacity",
       "schedule": "0 * * * *"
     }
