@@ -139,7 +139,12 @@ export async function POST(request: NextRequest) {
 
     const newSchedule = new Model({
       name: body.name,
+      botName: body.botName || 'Swar Sadhana',
       videoUrl: body.videoUrl,
+      videoDuration: body.videoDuration || 40,
+      botJoinMinutes: body.botJoinMinutes || 5,
+      autoCloseMinutes: body.autoCloseMinutes || 40,
+      enableBotAutomation: body.enableBotAutomation !== false,
       zoomLink: body.zoomLink || null,
       zoomId: body.zoomId || null,
       zoomPassword: body.zoomPassword || null,

@@ -7,7 +7,12 @@ import mongoose from 'mongoose';
 const sadhanaScheduleSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
+    botName: { type: String, default: 'Swar Sadhana' },
     videoUrl: { type: String, required: true },
+    videoDuration: { type: Number, default: 40 },
+    botJoinMinutes: { type: Number, default: 5 },
+    autoCloseMinutes: { type: Number, default: 40 },
+    enableBotAutomation: { type: Boolean, default: true },
     zoomLink: { type: String },
     zoomId: { type: String },
     zoomPassword: { type: String },
@@ -124,7 +129,12 @@ export async function PUT(
 
     // Update fields
     if (body.name) schedule.name = body.name;
+    if (body.botName !== undefined) schedule.botName = body.botName || 'Swar Sadhana';
     if (body.videoUrl) schedule.videoUrl = body.videoUrl;
+    if (body.videoDuration !== undefined) schedule.videoDuration = body.videoDuration || 40;
+    if (body.botJoinMinutes !== undefined) schedule.botJoinMinutes = body.botJoinMinutes || 5;
+    if (body.autoCloseMinutes !== undefined) schedule.autoCloseMinutes = body.autoCloseMinutes || 40;
+    if (body.enableBotAutomation !== undefined) schedule.enableBotAutomation = body.enableBotAutomation !== false;
     if (body.zoomLink !== undefined) schedule.zoomLink = body.zoomLink;
     if (body.zoomId !== undefined) schedule.zoomId = body.zoomId;
     if (body.zoomPassword !== undefined) schedule.zoomPassword = body.zoomPassword;

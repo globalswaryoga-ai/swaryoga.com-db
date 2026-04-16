@@ -77,6 +77,7 @@ export default function SadhanaForm({
 
   const handleVideoUpload = async (file: File) => {
     try {
+      console.log('[Sadhana Upload] Starting upload for:', file.name);
       setUploading(true);
       setUploadError(null);
       setUploadProgress(0);
@@ -84,18 +85,23 @@ export default function SadhanaForm({
       // Validate file type
       const allowedTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo'];
       if (!allowedTypes.includes(file.type)) {
+        console.error('[Sadhana Upload] Invalid file type:', file.type);
         setUploadError('Invalid video type. Please upload MP4, WebM, MOV, or AVI.');
         setUploading(false);
         return;
       }
 
-      // Validate file size (2GB max)
-      const maxSize = 2 * 1024 * 1024 * 1024;
+      // Validate file size (200MB max - reduced from 2GB due to Vercel limits)
+      const maxSize = 200 * 1024 * 1024;
       if (file.size > maxSize) {
-        setUploadError('Video too large. Maximum size is 2GB.');
+        const sizeMB = Math.round(file.size / 1024 / 1024);
+        console.error('[Sadhana Upload] File too large:', sizeMB, 'MB');
+        setUploadError(`Video too large (${sizeMB}MB). Maximum size is 200MB.`);
         setUploading(false);
         return;
       }
+
+      console.log('[Sadhana Upload] File validated:', { name: file.name, size: Math.round(file.size / 1024 / 1024) + 'MB', type: file.type });
 
       const formDataToSend = new FormData();
       formDataToSend.append('file', file);
@@ -108,37 +114,92 @@ export default function SadhanaForm({
       xhr.upload.addEventListener('progress', (e) => {
         if (e.lengthComputable) {
           const percentComplete = Math.round((e.loaded / e.total) * 100);
+          console.log(`[Sadhana Upload] Progress: ${percentComplete}%`);
           setUploadProgress(percentComplete);
         }
       });
 
       xhr.addEventListener('load', () => {
-        if (xhr.status === 200) {
-          const response = JSON.parse(xhr.responseText);
-          if (response.success && response.data.url) {
+        try {
+          console.log('[Sadhana Upload] Load event fired, status:', xhr.status);
+
+          if (!xhr.responseText) {
+            console.error('[Sadhana Upload] Empty response text');
+            setUploadError('Empty response from server');
+            setUploading(false);
+            return;
+          }
+
+          console.log('[Sadhana Upload] Response text:', xhr.responseText.substring(0, 500));
+
+          let response;
+          try {
+            response = JSON.parse(xhr.responseText);
+            console.log('[Sadhana Upload] Parsed response:', JSON.stringify(response, null, 2));
+          } catch (parseErr) {
+            console.error('[Sadhana Upload] JSON parse error:', parseErr, 'Response:', xhr.responseText.substring(0, 200));
+            setUploadError('Invalid response format from server');
+            setUploading(false);
+            return;
+          }
+
+          if (xhr.status === 200 && response.success && response.data?.url) {
+            console.log('[Sadhana Upload] ✅ Success! URL:', response.data.url);
             setFormData({ ...formData, videoUrl: response.data.url });
             setUploading(false);
             setUploadProgress(0);
+          } else if (xhr.status >= 400) {
+            const errorMsg = response.error || response.message || `Upload failed (${xhr.status})`;
+            console.error('[Sadhana Upload] Server error:', errorMsg);
+            setUploadError(errorMsg);
+            setUploading(false);
           } else {
-            setUploadError(response.error || 'Upload failed');
+            console.warn('[Sadhana Upload] Unexpected response:', response);
+            setUploadError(response.error || 'Upload failed - unknown error');
             setUploading(false);
           }
-        } else {
-          const response = JSON.parse(xhr.responseText);
-          setUploadError(response.error || 'Upload failed');
+        } catch (err) {
+          console.error('[Sadhana Upload] Load handler error:', err);
+          setUploadError('Error processing upload response');
           setUploading(false);
         }
       });
 
       xhr.addEventListener('error', () => {
+        console.error('[Sadhana Upload] Network error');
         setUploadError('Network error during upload');
+        setUploading(false);
+      });
+
+      xhr.addEventListener('abort', () => {
+        console.warn('[Sadhana Upload] Upload aborted');
+        setUploadError('Upload was cancelled');
         setUploading(false);
       });
 
       xhr.open('POST', '/api/admin/crm/sadhana-scheduler/upload-video');
       const cleanToken = (token || '').trim().replace(/^Bearer\s+/i, '');
       xhr.setRequestHeader('Authorization', `Bearer ${cleanToken}`);
+
+      console.log('[Sadhana Upload] XHR opened, sending file...');
+
+      // Add timeout handler (30 seconds)
+      const uploadTimeout = setTimeout(() => {
+        if (xhr.readyState !== XMLHttpRequest.DONE) {
+          console.error('[Sadhana Upload] Upload timeout after 30s');
+          xhr.abort();
+          setUploadError('Upload timeout - please try again with a smaller file');
+          setUploading(false);
+        }
+      }, 30000);
+
+      xhr.addEventListener('loadend', () => {
+        console.log('[Sadhana Upload] loadend event fired');
+        clearTimeout(uploadTimeout);
+      });
+
       xhr.send(formDataToSend);
+      console.log('[Sadhana Upload] FormData sent');
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : 'Upload failed');
       setUploading(false);
@@ -166,12 +227,12 @@ export default function SadhanaForm({
 
     const submitData = {
       name: formData.name,
-      botName: formData.botName,
+      botName: formData.botName || 'Swar Sadhana',
       videoUrl: formData.videoUrl,
-      videoDuration: formData.videoDuration,
-      botJoinMinutes: formData.botJoinMinutes,
-      autoCloseMinutes: formData.autoCloseMinutes,
-      enableBotAutomation: formData.enableBotAutomation,
+      videoDuration: formData.videoDuration || 40,
+      botJoinMinutes: formData.botJoinMinutes || 5,
+      autoCloseMinutes: formData.autoCloseMinutes || 40,
+      enableBotAutomation: formData.enableBotAutomation !== false,
       schedule: {
         times: formData.times.sort(),
         days: formData.days,
@@ -180,8 +241,8 @@ export default function SadhanaForm({
         timezone: formData.timezone,
       },
       ...(formData.zoomType === 'link'
-        ? { zoomLink: formData.zoomLink }
-        : { zoomId: formData.zoomId, zoomPassword: formData.zoomPassword }),
+        ? { zoomLink: formData.zoomLink, zoomId: null, zoomPassword: null }
+        : { zoomId: formData.zoomId, zoomPassword: formData.zoomPassword, zoomLink: null }),
     };
 
     onSubmit(submitData);
