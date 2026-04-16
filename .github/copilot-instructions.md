@@ -172,6 +172,56 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### Sadhana Scheduler Configuration Refinement - Bunny Collection + Configurable Timing (Session: April 17, 2026 — Phase 92) — Commit `a40c11ab`
+
+**✅ PRODUCTION DEPLOYMENT SUCCESSFUL**
+
+1. **✅ Bunny Stream Collection-Aware Upload (FINAL CORRECTION #1)**
+   - **Problem**: Videos uploading to root of Bunny library instead of "sadhana" folder
+   - **Solution**: Updated `lib/bunny-storage.ts` `uploadToBunnyStream()` function
+     - Added 4th parameter: `collection?: string` (optional)
+     - Payload now includes `collectionId` and `metaTags` for organization
+     - Bunny API creates video with collection metadata
+   - **Usage**: Upload handler now calls `uploadToBunnyStream(buffer, filename, title, 'sadhana')`
+   - **Benefit**: Uploaded Sadhana videos now organized in "sadhana" collection
+
+2. **✅ Configurable Bot Join Time (CORRECTION #2 - COMPLETED)**
+   - Schema field: `botJoinMinutes: { type: Number, default: 5 }`
+   - Logic in cron handler: `const botJoinMinutes = schedule.botJoinMinutes || 5`
+   - Allows flexibility: 3 min, 5 min, 10 min, or custom per schedule
+   - Was: Hardcoded 3-minute join window
+   - Now: Configurable via admin panel with 5-minute default
+
+3. **✅ Configurable Auto-Close Time (CORRECTION #3 - COMPLETED)**
+   - Schema field: `autoCloseMinutes: { type: Number, default: 40 }`
+   - Logic in cron handler: `const autoCloseMinutes = schedule.autoCloseMinutes || schedule.videoDuration || 40`
+   - Independent from video duration: Meeting can close at different time than video ends
+   - Fallback chain: User config → video duration → default 40 min
+   - Example: 40-min video but close meeting after 35 min if needed
+
+4. **✅ Schema Updates Complete**
+   - All fields deployed to `sadhana_schedules` collection:
+     - `botJoinMinutes` (default 5)
+     - `autoCloseMinutes` (default 40)
+     - `videoDuration` (default 40)
+     - `enableBotAutomation` (boolean)
+     - `zoomMeetingId`, `zoomLink`, `zoomId`, `zoomPassword`
+
+5. **✅ Deployment Verification**
+   - ✅ Build: All files compiled successfully
+   - ✅ Git: Commit a40c11ab pushed to main
+   - ✅ Vercel: Automatic deployment triggered
+   - ✅ Health: `https://crm.swaryoga.com/api/health` returns status: "ok"
+   - ✅ Production live on https://crm.swaryoga.com
+
+6. **✅ Testing Status**
+   - Next test: Schedule runs Thursday 22:45 with:
+     - Bot joins at 22:40 (5-minute pre-join window)
+     - Countdown starts at 22:43
+     - Video plays at 22:45
+     - Meeting closes at 23:25 (40 minutes after start)
+   - First test schedule: "Thursady sadhana text" already created and active
+
 ### Sadhana Video + Zoom Link Scheduler - Full Production Deploy (Session: April 16, 2026 — Phase 91) — Commits `45fdd510`, `60f56cc1`
 
 **✅ DEPLOYMENT SUCCESSFUL TO PRODUCTION**

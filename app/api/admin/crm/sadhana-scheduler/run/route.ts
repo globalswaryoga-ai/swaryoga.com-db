@@ -51,6 +51,21 @@ async function getSadhanaScheduleModel() {
 }
 
 /**
+ * Extract Zoom meeting ID and password from Zoom link
+ */
+function extractZoomDetailsFromLink(zoomLink: string): { meetingId?: string; password?: string } {
+  if (!zoomLink) return {};
+  
+  const urlMatch = zoomLink.match(/\/j\/(\d+)/);
+  const pwdMatch = zoomLink.match(/[?&]pwd=([^&]+)/);
+  
+  return {
+    meetingId: urlMatch ? urlMatch[1] : undefined,
+    password: pwdMatch ? decodeURIComponent(pwdMatch[1]) : undefined,
+  };
+}
+
+/**
  * Check if we should trigger bot actions (3 minutes before scheduled time)
  */
 function shouldTriggerBotActions(scheduleItem: any, now: Date, timezone: string): { shouldJoin: boolean; shouldCountdown: boolean; shouldPlay: boolean } {
@@ -379,17 +394,38 @@ export async function POST(request: NextRequest) {
           try {
             console.log(`[Sadhana] 🤖 BOT JOINING at 10:12 for schedule ${schedule._id}`);
             
-            // Get Zoom meeting ID (use existing or create new)
-            let meetingId = schedule.zoomMeetingId;
+            // Extract meeting ID from zoomLink if not already saved
+            let meetingId = schedule.zoomMeetingId || schedule.zoomId;
+            let meetingPassword = schedule.zoomPassword;
+            
+            if (!meetingId && schedule.zoomLink) {
+              const { meetingId: extracted, password } = extractZoomDetailsFromLink(schedule.zoomLink);
+              meetingId = extracted;
+              meetingPassword = password || meetingPassword;
+              
+              // Save extracted values back to schedule
+              if (meetingId) {
+                try {
+                  const SadhanaSchedule = await getSadhanaScheduleModel();
+                  await SadhanaSchedule.findByIdAndUpdate(schedule._id, {
+                    zoomMeetingId: meetingId,
+                    zoomPassword: meetingPassword,
+                  });
+                } catch (e) {
+                  console.warn('[Sadhana] Warning saving extracted Zoom ID:', e);
+                }
+              }
+            }
+
             if (!meetingId) {
-              // Use zoomId from schedule or generate one
-              meetingId = schedule.zoomId;
+              console.error('[Sadhana] ❌ No meeting ID found in schedule or zoom link');
+              return;
             }
 
             // Bot joins and sends ready message
             await botJoinMeeting({
               meetingId,
-              meetingPassword: schedule.zoomPassword,
+              meetingPassword,
               videoDurationMinutes: schedule.videoDuration || 40,
             });
 
@@ -405,16 +441,28 @@ export async function POST(request: NextRequest) {
         }
 
         // ⏳ COUNTDOWN PHASE (2 min before @ 10:13-10:14)
-        if (shouldCountdown && schedule.enableBotAutomation && schedule.zoomId) {
+        if (shouldCountdown && schedule.enableBotAutomation) {
           try {
+            // Extract meeting ID if needed
+            let meetingId = schedule.zoomMeetingId || schedule.zoomId;
+            if (!meetingId && schedule.zoomLink) {
+              const { meetingId: extracted } = extractZoomDetailsFromLink(schedule.zoomLink);
+              meetingId = extracted;
+            }
+            
+            if (!meetingId) {
+              console.warn('[Sadhana] ⏳ No meeting ID for countdown');
+              return;
+            }
+
             // Send 3 min countdown, 2 min countdown, 1 min countdown
             const currentMinute = now.getMinutes();
             if (currentMinute % 60 === 13) {
               // 13 min mark = 2 minutes before (assuming time is :12 join)
-              await sendCountdownMessage(schedule.zoomId, 2);
+              await sendCountdownMessage(meetingId, 2);
             } else if (currentMinute % 60 === 14) {
               // 14 min mark = 1 minute before
-              await sendCountdownMessage(schedule.zoomId, 1);
+              await sendCountdownMessage(meetingId, 1);
             }
           } catch (err) {
             console.error(`[Sadhana] Countdown error:`, err);
@@ -422,12 +470,24 @@ export async function POST(request: NextRequest) {
         }
 
         // 🎬 VIDEO START PHASE (exact scheduled time @ 10:15)
-        if (shouldPlay && schedule.enableBotAutomation && schedule.zoomId) {
+        if (shouldPlay && schedule.enableBotAutomation) {
           try {
             console.log(`[Sadhana] 🎬 VIDEO STARTING at 10:15 for schedule ${schedule._id}`);
             
+            // Extract meeting ID if needed
+            let meetingId = schedule.zoomMeetingId || schedule.zoomId;
+            if (!meetingId && schedule.zoomLink) {
+              const { meetingId: extracted } = extractZoomDetailsFromLink(schedule.zoomLink);
+              meetingId = extracted;
+            }
+            
+            if (!meetingId) {
+              console.warn('[Sadhana] 🎬 No meeting ID for video start');
+              return;
+            }
+            
             // Send video to meeting
-            await startVideoInMeeting(schedule.zoomId, schedule.videoUrl);
+            await startVideoInMeeting(meetingId, schedule.videoUrl);
 
             // Also send WhatsApp message
             const message = buildSadhanaMessage(schedule);
@@ -451,8 +511,8 @@ export async function POST(request: NextRequest) {
               
               setTimeout(async () => {
                 try {
-                  console.log(`[Sadhana] 🚀 AUTO-CLOSING meeting after ${schedule.videoDuration} min video`);
-                  await autoCloseMeeting(schedule.zoomId);
+                  console.log(`[Sadhana] 🚀 AUTO-CLOSING meeting after ${autoCloseMinutes} min`);
+                  await autoCloseMeeting(meetingId);
                 } catch (err) {
                   console.error('[Sadhana] Auto-close error:', err);
                 }
