@@ -5,10 +5,19 @@
 
 import axios from 'axios';
 
-const ZOOM_ACCOUNT_ID = process.env.ZOOM_ACCOUNT_ID;
-const ZOOM_CLIENT_ID = process.env.ZOOM_CLIENT_ID;
-const ZOOM_CLIENT_SECRET = process.env.ZOOM_CLIENT_SECRET;
+// Support both naming conventions (BOT_* and regular)
+const ZOOM_ACCOUNT_ID = process.env.ZOOM_BOT_ACCOUNT_ID || process.env.ZOOM_ACCOUNT_ID;
+const ZOOM_CLIENT_ID = process.env.ZOOM_BOT_CLIENT_ID || process.env.ZOOM_CLIENT_ID;
+const ZOOM_CLIENT_SECRET = process.env.ZOOM_BOT_CLIENT_SECRET || process.env.ZOOM_CLIENT_SECRET;
 const ZOOM_BOT_JID = process.env.ZOOM_BOT_JID; // Optional: your Zoom bot user ID
+
+// CRITICAL: Log if credentials are missing
+if (!ZOOM_ACCOUNT_ID || !ZOOM_CLIENT_ID || !ZOOM_CLIENT_SECRET) {
+  console.error('[ZoomBotService] ❌ CRITICAL: Missing Zoom credentials!');
+  console.error('  ZOOM_ACCOUNT_ID:', ZOOM_ACCOUNT_ID ? '✅' : '❌');
+  console.error('  ZOOM_CLIENT_ID:', ZOOM_CLIENT_ID ? '✅' : '❌');
+  console.error('  ZOOM_CLIENT_SECRET:', ZOOM_CLIENT_SECRET ? '✅' : '❌');
+}
 
 interface ZoomBotConfig {
   meetingId: string;
