@@ -11,20 +11,19 @@ import mongoose from 'mongoose';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.text();
-    const signature = request.headers.get('x-zm-signature') || '';
-    
-    // Verify Zoom webhook signature
-    if (!verifyZoomSignature(body, signature)) {
-      console.warn('Invalid Zoom webhook signature');
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
-    }
-
     const event = JSON.parse(body);
     
-    // Handle Zoom URL validation challenge (initial setup)
+    // Handle Zoom URL validation challenge FIRST (no signature check needed)
     if (event.type === 'url_validation') {
       console.log('[Zoom] URL validation challenge received');
       return NextResponse.json({ plainToken: event.token }, { status: 200 });
+    }
+
+    // For other events, verify Zoom webhook signature
+    const signature = request.headers.get('x-zm-signature') || '';
+    if (!verifyZoomSignature(body, signature)) {
+      console.warn('Invalid Zoom webhook signature');
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
     // Handle different event types
