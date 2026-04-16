@@ -217,28 +217,64 @@ export default function QRGroupContactsPage() {
       }
 
       const participants = Array.from(uniqueJids);
+      const targetGroup = groups.find((g) => g.id === mergeTargetGroupId);
+      const targetName = targetGroup?.name || 'target group';
 
       if (mergeMode === 'existing') {
-        // Add participants to existing group in batches (WhatsApp limits)
-        const targetGroup = groups.find((g) => g.id === mergeTargetGroupId);
-        const targetName = targetGroup?.name || 'target group';
-        const BATCH_SIZE = 20; // WhatsApp limits add operations
+        // Add participants to existing group with HUMAN-LIKE rate limiting
+        // Targets: ~10 minutes for 100 numbers, random batches, random delays
+        // This prevents WhatsApp spam detection and account bans
+        
+        // Dynamic import for rate limiting helpers
+        const { getRandomBatchSize, getRandomDelay, separateAdminNumbers, shuffleArray, sleepWithJitter, calculateRateLimitTiming } = await import('@/lib/whatsappRateLimiter');
+        
+        const timing = calculateRateLimitTiming(participants.length);
+        setMergeProgress(`ℹ️ Adding ${participants.length} contacts will take ~${timing.estimatedMinutes} min (human-like speed to avoid spam detection)`);
+        await new Promise(r => setTimeout(r, 2000));
+        
+        // Prepare participants: shuffle for randomization, but keep admin at end
+        const { regularNumbers, adminNumbers } = separateAdminNumbers(participants, [/* add admin phone numbers here if known */]);
+        const shuffledRegular = shuffleArray(regularNumbers);
+        const processOrder = [...shuffledRegular, ...adminNumbers]; // Admin last
+        
         let addedCount = 0;
-        for (let i = 0; i < participants.length; i += BATCH_SIZE) {
-          const batch = participants.slice(i, i + BATCH_SIZE);
-          setMergeProgress(`Adding contacts to "${targetName}" (${Math.min(i + BATCH_SIZE, participants.length)}/${participants.length})…`);
+        let batchNumber = 0;
+        
+        for (let i = 0; i < processOrder.length; i += 1) {
+          // Get random batch size (3-6 numbers)
+          const batchSize = getRandomBatchSize();
+          const batch = processOrder.slice(i, Math.min(i + batchSize, processOrder.length));
+          
+          if (batch.length === 0) break;
+          
+          batchNumber++;
+          const progress = Math.min(i + batchSize, processOrder.length);
+          setMergeProgress(`Batch ${batchNumber}: Adding ${batch.length} contacts to "${targetName}" (${progress}/${processOrder.length})… (human-like randomization)`);
+          
           try {
             await bridgeCall(`/group-participants/${encodeURIComponent(mergeTargetGroupId)}`, 'POST', {
               action: 'add',
               participants: batch,
             });
             addedCount += batch.length;
+            
+            // Random delay between batches to avoid spam detection
+            // Skip delay after last batch
+            if (progress < processOrder.length) {
+              const delayMs = getRandomDelay();
+              const delaySec = (delayMs / 1000).toFixed(1);
+              setMergeProgress(`Waiting ${delaySec}s for next batch (anti-spam rate limit)…`);
+              await sleepWithJitter(delayMs, 10);
+            }
+            
+            i += (batch.length - 1); // Skip processed numbers
           } catch (err) {
             console.warn('Batch add failed:', err);
-            // Continue with next batch
+            // Continue with next batch (don't fail entire operation)
           }
         }
-        setSuccessMsg(`Added ${addedCount} new contacts to "${targetName}" from ${sourceGroups.length} group${sourceGroups.length !== 1 ? 's' : ''}!`);
+        
+        setSuccessMsg(`✅ Added ${addedCount} new contacts to "${targetName}" from ${sourceGroups.length} group${sourceGroups.length !== 1 ? 's' : ''} with anti-spam rate limiting!`);
       } else {
         // Create new group
         setMergeProgress(`Creating group "${mergeNewGroupName}" with ${participants.length} contacts…`);
@@ -271,17 +307,30 @@ export default function QRGroupContactsPage() {
     try {
       setSending(true);
       setError('');
+      
+      // Import rate limiter for QR anti-ban
+      const { getRandomDelay, sleepWithJitter } = await import('@/lib/whatsappRateLimiter');
+      
       let sentCount = 0;
       let failedCount = 0;
+      const groups = Array.from(selectedGroupsList);
 
-      for (const group of selectedGroupsList) {
-        setSendProgress(`Sending to ${group.name} (${sentCount + 1}/${selectedGroupsList.length})…`);
+      for (let i = 0; i < groups.length; i++) {
+        const group = groups[i];
+        setSendProgress(`Sending to ${group.name} (${sentCount + failedCount + 1}/${groups.length})…`);
         try {
           await bridgeCall('/send', 'POST', {
             to: group.id,
             message: messageText.trim(),
           });
           sentCount++;
+          
+          // Rate limiting between group sends (anti-ban protection)
+          if (i < groups.length - 1) {
+            const delayMs = getRandomDelay(); // 20-60sec random
+            setSendProgress(`Sent to ${group.name}. Waiting ${(delayMs/1000).toFixed(1)}s…`);
+            await sleepWithJitter(delayMs, 10);
+          }
         } catch {
           failedCount++;
         }

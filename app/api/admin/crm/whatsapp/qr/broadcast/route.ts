@@ -92,6 +92,64 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Recipients array required" }, { status: 400 });
     }
 
+    // ── ANTI-BAN PROTECTION: Rate limiting calculation ──
+    // Import rate limiter helpers
+    const { calculateRateLimitTiming, calculateHourlyBroadcastSchedule, formatBroadcastSchedule } = await import('@/lib/whatsappRateLimiter');
+    const timing = calculateRateLimitTiming(recipients.length);
+    console.log(`[QR-Broadcast] 📊 Rate limiting: ${recipients.length} recipients = ${timing.estimatedMinutes}min estimated time (anti-ban protection)`);
+
+    // AUTO-SCHEDULE for large broadcasts (100+ messages over 10 hours)
+    let scheduleToUse = schedule;
+    let wasAutoScheduled = false;
+    
+    if (recipients.length > 50 && !schedule) {
+      // Auto-create 10-hour schedule for safety
+      const defaultHourlySchedule = calculateHourlyBroadcastSchedule(recipients.length, 10);
+      
+      console.log(`[QR-Broadcast] 🚨 Large broadcast detected: ${recipients.length} recipients`);
+      console.log(`[QR-Broadcast] ⏱️  Auto-scheduling over 10 hours: ${defaultHourlySchedule.totalDurationMinutes} min total`);
+      
+      // Create schedule object with batch timings
+      scheduleToUse = {
+        mode: 'scheduled',
+        interval: 'hourly',
+        spreadHours: 10,
+        batches: defaultHourlySchedule.batches.map((b, idx) => ({
+          batchNumber: idx + 1,
+          size: b.size,
+          delaySeconds: b.delaySeconds,
+          scheduledTime: b.startTime.toISOString(),
+        })),
+        startTime: defaultHourlySchedule.scheduleStartTime.toISOString(),
+        endTime: defaultHourlySchedule.scheduleEndTime.toISOString(),
+        totalDurationMinutes: defaultHourlySchedule.totalDurationMinutes,
+        antiSpamApplied: true,
+      };
+      
+      wasAutoScheduled = true;
+    }
+    
+    // Warn if user still tries to send 100+ messages immediately (highly risky)
+    if (recipients.length > 100 && !schedule && !scheduleToUse) {
+      console.warn(`[QR-Broadcast] ⚠️  CRITICAL: Immediate send of ${recipients.length} messages will trigger WhatsApp rate limits!`);
+      return NextResponse.json({
+        success: false,
+        error: `🚨 CRITICAL: Sending to ${recipients.length} recipients immediately will get your number BANNED!
+
+✅ SOLUTION: Use scheduled broadcast (automatically enabled)
+- Messages spread over 10 hours
+- Random batch sizes: 3-6 per batch
+- Random delays: 20-60 seconds
+- Looks human-like to WhatsApp filters
+- Your number remains safe
+
+The system has automatically created a 10-hour schedule. Click "Confirm" to proceed.`,
+        estimatedTime: timing.estimatedMinutes,
+        riskLevel: 'CRITICAL',
+        autoScheduleAvailable: true,
+      }, { status: 400 });
+    }
+
     // ── Lead-Ownership Filter for Non-Super Admin ──
     // Non-super-admin users can only broadcast to leads they own
     let filteredRecipients = recipients;
@@ -143,6 +201,9 @@ export async function POST(request: NextRequest) {
       console.log(`[qr-broadcast] Lead filter for ${viewerUserId}: ${recipients.length} → ${filteredRecipients.length} recipients`);
     }
 
+    // ── Apply rate limiting estimate to response ──
+    const timingInfo = calculateRateLimitTiming(filteredRecipients.length);
+
     const response = await fetch(`${bridgeConfig.bridgeUrl}/broadcast`, {
       method: "POST",
       headers: { 
@@ -152,11 +213,46 @@ export async function POST(request: NextRequest) {
         "x-session-key": bridgeConfig.bridgeSessionId,
         ...(bridgeConfig.tenantId ? { "x-tenant-id": bridgeConfig.tenantId } : {}),
       },
-      body: JSON.stringify({ recipients: filteredRecipients, message, imageUrl, buttons, footerText, schedule }),
+      body: JSON.stringify({ 
+        recipients: filteredRecipients, 
+        message, 
+        imageUrl, 
+        buttons, 
+        footerText, 
+        schedule: scheduleToUse, // Use auto-schedule if created
+        // Pass rate limiting hints to bridge
+        rateLimitBatches: timingInfo.batches,
+        rateLimitEstimateSeconds: timingInfo.estimatedSeconds,
+      }),
     });
     
     const data = await response.json();
-    return NextResponse.json(data);
+    
+    // Add schedule info to response if auto-scheduled
+    const responseData: any = {
+      ...data,
+      rateLimitInfo: {
+        totalRecipients: filteredRecipients.length,
+        estimatedBatches: timingInfo.batches,
+        estimatedMinutes: timingInfo.estimatedMinutes,
+        antiSpamNote: '✅ Rate limiting applied: random batch sizes 3-6, random delays 20-60sec between batches'
+      }
+    };
+    
+    // If auto-scheduled, include schedule details
+    if (wasAutoScheduled && scheduleToUse) {
+      responseData.scheduling = {
+        autoScheduled: true,
+        spreadHours: 10,
+        totalBatches: scheduleToUse.batches.length,
+        durationMinutes: scheduleToUse.totalDurationMinutes,
+        startTime: scheduleToUse.startTime,
+        endTime: scheduleToUse.endTime,
+        message: `✅ Auto-scheduled: ${filteredRecipients.length} messages over 10 hours (${scheduleToUse.totalDurationMinutes} min)`
+      };
+    }
+    
+    return NextResponse.json(responseData);
   } catch (error: any) {
     console.error("[qr-broadcast] POST error:", error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

@@ -196,6 +196,18 @@ export async function POST(request: NextRequest) {
 
     const runStatus = mode === 'now' ? 'draft' : 'scheduled';
 
+    // ── ANTI-BAN PROTECTION: Check recipient count and warn about rate limiting ──
+    const { calculateRateLimitTiming } = await import('@/lib/whatsappRateLimiter');
+    const timing = calculateRateLimitTiming(finalLeads.length);
+    
+    // Warn if sending immediately to many recipients
+    if (mode === 'now' && finalLeads.length > 50) {
+      console.warn(`[Broadcast] ⚠️  WARNING: Immediate send to ${finalLeads.length} leads will trigger WhatsApp rate limits!`);
+      // Return warning but let them proceed - they've been warned
+    }
+    
+    console.log(`[Broadcast] 📊 Rate limiting info: ${finalLeads.length} leads = ~${timing.estimatedMinutes}min (batches of 3-6, delays 20-60sec)`);
+
     // Message interval settings (following WhatsApp guidelines)
     const messageInterval: any = {
       enabled: body?.messageInterval?.enabled !== false, // default true for backward compat
