@@ -21,11 +21,13 @@ const sadhanaScheduleSchema = new mongoose.Schema(
     name: { type: String, required: true },
     videoUrl: { type: String, required: true },
     videoDuration: { type: Number, default: 40 }, // Minutes (for auto-close)
+    botJoinMinutes: { type: Number, default: 5 }, // How many minutes before scheduled time bot joins
+    autoCloseMinutes: { type: Number, default: 40 }, // Minutes after start before auto-close
     zoomLink: { type: String },
     zoomId: { type: String },
     zoomPassword: { type: String },
     zoomMeetingId: { type: String }, // Current meeting ID if created
-    botJoinTime: { type: String, default: '10:12' }, // When bot joins (HH:MM)
+    botJoinTime: { type: String, default: '10:12' }, // When bot joins (HH:MM) - deprecated
     enableBotAutomation: { type: Boolean, default: true }, // Enable bot join/countdown/close
     schedule: {
       times: [String],
@@ -77,11 +79,12 @@ function shouldTriggerBotActions(scheduleItem: any, now: Date, timezone: string)
     const [schedHour, schedMin] = time.split(':');
     const schedTotalMin = parseInt(schedHour) * 60 + parseInt(schedMin);
     
-    const botJoinTime = schedTotalMin - 3; // Join 3 min early
+    const botJoinMinutes = schedule.botJoinMinutes || 5; // Default 5 minutes before (was 3)
+    const botJoinTime = schedTotalMin - botJoinMinutes; // Join N min early
     const countdownWindow = 2; // 2 min before
     const playTime = schedTotalMin; // Exact time
 
-    // Bot join between (scheduled - 3 min) and (scheduled - 2:30 min)
+    // Bot join between (scheduled - N min) and (scheduled - 2 min)
     if (currentTotalMin >= botJoinTime && currentTotalMin < schedTotalMin - 2) {
       shouldJoin = true;
     }
@@ -441,9 +444,10 @@ export async function POST(request: NextRequest) {
               }
             }
 
-            // Schedule auto-close after video duration
-            if (schedule.videoDuration && schedule.videoDuration > 0) {
-              const autoCloseDelayMs = (schedule.videoDuration * 60 * 1000) + 30000; // Add 30 sec buffer
+            // Schedule auto-close after configured time
+            const autoCloseMinutes = schedule.autoCloseMinutes || schedule.videoDuration || 40;
+            if (autoCloseMinutes && autoCloseMinutes > 0) {
+              const autoCloseDelayMs = (autoCloseMinutes * 60 * 1000) + 30000; // Add 30 sec buffer
               
               setTimeout(async () => {
                 try {

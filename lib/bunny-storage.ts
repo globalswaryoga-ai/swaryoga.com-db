@@ -497,12 +497,18 @@ export function isValidS3Url(url: string): boolean {
  * Returns direct CDN stream URL: https://vz-{libraryId}.bunnycdn.com/{videoGuid}.mp4
  * 
  * Usage:
- *   const streamUrl = await uploadToBunnyStream(buffer, 'sadhana-video.mp4', 'Sadhana Video');
+ *   const streamUrl = await uploadToBunnyStream(buffer, 'sadhana-video.mp4', 'Sadhana Video', 'sadhana');
+ * 
+ * @param fileBuffer - Video file buffer
+ * @param fileName - Original filename
+ * @param title - Video title in Bunny
+ * @param collection - Collection/folder name (e.g., 'sadhana') - optional
  */
 export async function uploadToBunnyStream(
   fileBuffer: Buffer,
   fileName: string,
-  title: string
+  title: string,
+  collection?: string
 ): Promise<string> {
   const libraryId = process.env.BUNNY_STREAM_LIBRARY_ID;
   const apiKey = process.env.BUNNY_API_KEY;
@@ -512,8 +518,17 @@ export async function uploadToBunnyStream(
   }
 
   try {
-    // Step 1: Create video object in library
-    console.log(`[Bunny Stream] Creating video "${title}" in library ${libraryId}...`);
+    // Step 1: Create video object in library with collection/category
+    const collectionLabel = collection ? ` in "${collection}" collection` : '';
+    console.log(`[Bunny Stream] Creating video "${title}"${collectionLabel} in library ${libraryId}...`);
+
+    const videoPayload: any = { title };
+    
+    // Add collection as a tag/category if specified
+    if (collection) {
+      videoPayload.collectionId = collection; // Bunny may organize by collectionId
+      videoPayload.metaTags = [`collection:${collection}`, 'sadhana']; // Add metadata tags
+    }
 
     const createResponse = await fetch(
       `https://api.bunny.net/videolibrary/${libraryId}/videos`,
@@ -523,7 +538,7 @@ export async function uploadToBunnyStream(
           'AccessKey': apiKey,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ title }),
+        body: JSON.stringify(videoPayload),
       }
     );
 

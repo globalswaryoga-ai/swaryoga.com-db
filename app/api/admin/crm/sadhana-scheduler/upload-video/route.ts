@@ -67,11 +67,12 @@ export async function POST(request: NextRequest) {
     // Convert file to buffer
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    // Upload directly to Bunny Stream library 638748
+    // Upload directly to Bunny Stream library 638748 into 'sadhana' collection
     const streamUrl = await uploadToBunnyStream(
       buffer,
       file.name,
-      file.name.split('.')[0] // Use filename without extension as title
+      file.name.split('.')[0], // Use filename without extension as title
+      'sadhana' // Collection/folder name
     );
 
     console.log(`[Sadhana Video Upload] ✅ Success! Stream URL: ${streamUrl}`);
