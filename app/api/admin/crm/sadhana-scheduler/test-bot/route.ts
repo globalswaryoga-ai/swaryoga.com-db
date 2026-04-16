@@ -207,10 +207,21 @@ export async function POST(request: NextRequest) {
     } catch (botError: any) {
       const errorMsg = botError?.message || String(botError);
       logs.push(`❌ Bot join failed: ${errorMsg}`);
+      
+      // Provide helpful guidance based on error type
+      let helpMessage = errorMsg;
+      if (errorMsg.includes('not found')) {
+        helpMessage = `Zoom meeting (ID: ${extractZoomDetailsFromLink(schedule.zoomLink || schedule.zoomId).meetingId}) not found or not active. Make sure the Zoom meeting is currently running before testing the bot.`;
+      } else if (errorMsg.includes('Authentication failed')) {
+        helpMessage = 'Zoom authentication failed. Check if ZOOM credentials are correctly configured in environment variables.';
+      } else if (errorMsg.includes('404')) {
+        helpMessage = 'Meeting not active. Please start the Zoom meeting and try again.';
+      }
+      
       return NextResponse.json(
         {
           success: false,
-          message: `Bot join failed: ${errorMsg}`,
+          message: helpMessage,
           logs,
         },
         { status: 400 }
