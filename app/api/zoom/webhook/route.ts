@@ -102,16 +102,17 @@ function handleUrlValidation(payload: any): NextResponse {
 }
 
 /**
- * Get Zoom Bot JWT Token using Server-to-Server OAuth
+ * Get Zoom OAuth Access Token using Server-to-Server OAuth
  */
-async function getBotJWT(): Promise<string> {
+async function getZoomAccessToken(): Promise<string | null> {
   try {
     const accountId = process.env.ZOOM_BOT_ACCOUNT_ID;
     const clientId = process.env.ZOOM_BOT_CLIENT_ID;
     const clientSecret = process.env.ZOOM_BOT_CLIENT_SECRET;
 
     if (!accountId || !clientId || !clientSecret) {
-      throw new Error('Missing Zoom bot credentials');
+      console.error('[Zoom Live Stream] Missing credentials');
+      return null;
     }
 
     const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
@@ -126,58 +127,66 @@ async function getBotJWT(): Promise<string> {
     });
 
     if (!tokenResponse.ok) {
-      throw new Error(`Failed to get JWT: ${tokenResponse.statusText}`);
+      console.error(`[Zoom Live Stream] Token fetch failed: ${tokenResponse.statusText}`);
+      return null;
     }
 
     const data = await tokenResponse.json();
+    console.log('[Zoom Live Stream] Access token obtained');
     return data.access_token;
   } catch (error) {
-    console.error('[Zoom Bot] Error getting JWT:', error);
-    throw error;
+    console.error('[Zoom Live Stream] Error getting token:', error);
+    return null;
   }
 }
 
 /**
- * Make Zoom Bot join meeting and screen-share video
+ * Start Live Stream for meeting with video URL
  */
-async function makeBotJoinAndShare(meetingId: string, videoUrl: string): Promise<void> {
+async function startLiveStream(meetingId: string, videoUrl: string): Promise<boolean> {
   try {
-    const jwt = await getBotJWT();
-    
-    console.log('[Zoom Bot] JWT obtained, attempting to join meeting...');
+    const token = await getZoomAccessToken();
+    if (!token) {
+      console.error('[Zoom Live Stream] No access token available');
+      return false;
+    }
 
-    // Step 1: Invite bot as participant to meeting (via meeting settings)
-    const meetingResponse = await fetch(
-      `https://api.zoom.us/v2/meetings/${meetingId}/registrants`,
+    console.log(`[Zoom Live Stream] Starting stream for meeting ${meetingId}`);
+    console.log(`[Zoom Live Stream] Video URL: ${videoUrl}`);
+
+    // Start live stream with video URL
+    const streamResponse = await fetch(
+      `https://api.zoom.us/v2/meetings/${meetingId}/livestream`,
       {
-        method: 'POST',
+        method: 'PATCH',
         headers: {
-          'Authorization': `Bearer ${jwt}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          action: 'create',
-          registrants: [
-            {
-              email: 'bot@swar.yoga', // Bot email placeholder
-              first_name: 'Sadhana',
-              last_name: 'Bot',
-            }
-          ]
+          action: 'start',
+          settings: {
+            active_live_stream_url: videoUrl,
+            stream_url: videoUrl,
+            bitrates: 2500,
+            resolution: '1920x1080',
+          },
         }),
       }
     );
 
-    if (!meetingResponse.ok) {
-      console.warn('[Zoom Bot] Could not register bot as participant:', meetingResponse.statusText);
+    if (!streamResponse.ok) {
+      const errorText = await streamResponse.text();
+      console.error(`[Zoom Live Stream] Start failed: ${streamResponse.status} - ${errorText}`);
+      return false;
     }
 
-    console.log('[Zoom Bot] Bot preparation complete for meeting:', meetingId);
-    console.log('[Zoom Bot] Video URL ready for screen-share:', videoUrl);
+    console.log('[Zoom Live Stream] ✅ Live stream started - video now playing in meeting');
+    return true;
     
   } catch (error) {
-    console.error('[Zoom Bot] Error joining meeting:', error);
-    // Don't throw - continue processing
+    console.error('[Zoom Live Stream] Error:', error);
+    return false;
   }
 }
 
@@ -235,17 +244,18 @@ async function handleMeetingStarted(payload: any): Promise<NextResponse> {
 
     console.log('[Zoom Webhook] Meeting event stored in database');
 
-    // ✅ NEW: Make bot join and prepare screen-share
-    console.log('[Zoom Webhook] Initiating Zoom Bot screen-share...');
-    await makeBotJoinAndShare(meetingId, schedule.videoUrl).catch(e => {
-      console.warn('[Zoom Webhook] Bot screen-share preparation error:', e.message);
+    // ✅ NEW: Start Live Stream with video
+    console.log('[Zoom Webhook] Starting Live Stream...');
+    const streamStarted = await startLiveStream(meetingId, schedule.videoUrl).catch(e => {
+      console.warn('[Zoom Webhook] Live Stream start error:', e.message);
+      return false;
     });
 
     return NextResponse.json({
       success: true,
-      message: 'Meeting started - Bot preparing to screen-share video',
+      message: streamStarted ? 'Meeting started - Live Stream active' : 'Meeting started - Live Stream attempted',
       videoUrl: schedule.videoUrl,
-      botActive: true,
+      streamActive: streamStarted,
     });
   } catch (error: any) {
     console.error('[Zoom Webhook] Error handling meeting.started:', error);
