@@ -4,6 +4,21 @@ import { verifyToken } from '@/lib/auth';
 import { botJoinMeeting } from '@/lib/zoomBotService';
 import mongoose from 'mongoose';
 
+/**
+ * Extract Zoom meeting ID and password from Zoom link
+ */
+function extractZoomDetailsFromLink(zoomLink: string): { meetingId?: string; password?: string } {
+  if (!zoomLink) return {};
+  
+  const urlMatch = zoomLink.match(/\/j\/(\d+)/);
+  const pwdMatch = zoomLink.match(/[?&]pwd=([^&]+)/);
+  
+  return {
+    meetingId: urlMatch ? urlMatch[1] : undefined,
+    password: pwdMatch ? decodeURIComponent(pwdMatch[1]) : undefined,
+  };
+}
+
 const sadhanaScheduleSchema = new mongoose.Schema({
   name: String,
   videoUrl: String,
@@ -158,16 +173,31 @@ export async function POST(request: NextRequest) {
     logs.push(`   - Video URL: ${schedule.videoUrl || 'None'}`);
 
     try {
-      // Call bot join function with schedule data
+      // Extract meeting ID and password from Zoom link
+      const { meetingId, password } = extractZoomDetailsFromLink(
+        schedule.zoomLink || schedule.zoomId
+      );
+
+      if (!meetingId) {
+        logs.push('❌ Could not extract Zoom meeting ID from link');
+        return NextResponse.json(
+          {
+            success: false,
+            message: 'Invalid Zoom link - could not extract meeting ID',
+            logs,
+          },
+          { status: 400 }
+        );
+      }
+
+      logs.push(`   - Extracted Meeting ID: ${meetingId}`);
+      logs.push(`   - Password: ${password ? '✅ Yes' : '❌ No'}`);
+
+      // Call bot join function with correct parameters
       const botResult = await botJoinMeeting({
-        name: schedule.name,
-        zoomLink: schedule.zoomLink,
-        zoomId: schedule.zoomId,
-        zoomPassword: schedule.zoomPassword,
-        videoUrl: schedule.videoUrl,
-        botName: schedule.botName || 'Swar Sadhana',
-        videoDuration: schedule.videoDuration || 40,
-        autoCloseMinutes: schedule.autoCloseMinutes || 40,
+        meetingId,
+        meetingPassword: password || schedule.zoomPassword,
+        videoDurationMinutes: schedule.videoDuration || 40,
       });
 
       logs.push('✅ Bot join triggered successfully');
@@ -176,8 +206,15 @@ export async function POST(request: NextRequest) {
       }
     } catch (botError: any) {
       const errorMsg = botError?.message || String(botError);
-      logs.push(`⚠️  Bot join call completed (may be async): ${errorMsg}`);
-      // Don't fail here - bot join can be async
+      logs.push(`❌ Bot join failed: ${errorMsg}`);
+      return NextResponse.json(
+        {
+          success: false,
+          message: `Bot join failed: ${errorMsg}`,
+          logs,
+        },
+        { status: 400 }
+      );
     }
 
     // 7️⃣ Success response
