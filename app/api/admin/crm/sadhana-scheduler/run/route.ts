@@ -101,20 +101,21 @@ function shouldTriggerBotActions(scheduleItem: any, now: Date, timezone: string)
     const schedTotalMin = parseInt(schedHour) * 60 + parseInt(schedMin);
     
     const botJoinMinutes = scheduleItem.botJoinMinutes || 5; // Default 5 minutes before
-    const botJoinTime = schedTotalMin - botJoinMinutes; // Join N min early
-    const countdownWindow = 2; // 2 min before
+    const botJoinStartTime = schedTotalMin - botJoinMinutes; // Join window starts N min early
+    const countdownStartTime = schedTotalMin - 2; // Countdown starts 2 min before
 
-    console.log(`[Sadhana] Checking time: scheduled=${time} (${schedTotalMin}min), current=${currentTotalMin}min, joinWindow=${botJoinTime}`);
+    console.log(`[Sadhana] Checking time: scheduled=${time} (${schedTotalMin}min), current=${currentTotalMin}min, joinStart=${botJoinStartTime}, countdownStart=${countdownStartTime}`);
 
-    // Bot join between (scheduled - N min) and (scheduled - 2 min)
-    if (currentTotalMin >= botJoinTime && currentTotalMin < schedTotalMin - 2) {
-      console.log(`[Sadhana] ✅ BOT JOIN WINDOW MATCHED: ${botJoinTime} <= ${currentTotalMin} < ${schedTotalMin - 2}`);
+    // Bot join between (scheduled - N min) and (scheduled - 2 min) - exclusive
+    // Only join if we're in the window before countdown starts
+    if (currentTotalMin >= botJoinStartTime && currentTotalMin < countdownStartTime) {
+      console.log(`[Sadhana] ✅ BOT JOIN WINDOW MATCHED: ${botJoinStartTime} <= ${currentTotalMin} < ${countdownStartTime}`);
       shouldJoin = true;
     }
 
-    // Send countdown between (scheduled - 2 min) and scheduled time
-    if (currentTotalMin >= schedTotalMin - countdownWindow && currentTotalMin < schedTotalMin + 1) {
-      console.log(`[Sadhana] ✅ COUNTDOWN WINDOW MATCHED: ${schedTotalMin - countdownWindow} <= ${currentTotalMin} < ${schedTotalMin + 1}`);
+    // Send countdown between (scheduled - 2 min) and scheduled time (inclusive)
+    if (currentTotalMin >= countdownStartTime && currentTotalMin <= schedTotalMin) {
+      console.log(`[Sadhana] ✅ COUNTDOWN WINDOW MATCHED: ${countdownStartTime} <= ${currentTotalMin} <= ${schedTotalMin}`);
       shouldCountdown = true;
     }
 

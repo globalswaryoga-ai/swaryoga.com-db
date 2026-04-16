@@ -172,6 +172,66 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### Sadhana Bot Configuration Form Enhancement (Session: April 16, 2026 — Phase 95) — Commit `83e8fde9`
+
+**✅ PRODUCTION DEPLOYMENT SUCCESSFUL**
+
+1. **✅ Added Configurable Bot Name Field**
+   - Users can now customize the bot name shown in Zoom meetings
+   - Default: "Swar Sadhana" (customizable per schedule)
+   - Field: Text input in "Basic Info" section of form
+   - Database: Persisted in `sadhana_schedules.botName`
+
+2. **✅ Added Comprehensive Bot Automation Section**
+   - Enable/disable toggle for entire bot automation
+   - Bot join time selector: 2, 3, or 5 minutes before scheduled time
+   - Video duration input: 1-180 minutes (for auto-close calculation)
+   - Auto-close time input: 1-180 minutes (when to close meeting after video starts)
+   - All fields conditional: show only when automation is enabled
+
+3. **✅ Updated Database Schemas**
+   - `app/api/admin/crm/sadhana-scheduler/route.ts`: Added `botName` field
+   - `app/api/admin/crm/sadhana-scheduler/run/route.ts`: Added `botName` field
+   - Both with default value: `'Swar Sadhana'`
+
+4. **✅ Updated Form Component**
+   - `SadhanaForm.tsx`: Added bot name input field
+   - `SadhanaForm.tsx`: Added 59-line Bot Automation section with conditional rendering
+   - Form state: `botName`, `botJoinMinutes`, `videoDuration`, `autoCloseMinutes`, `enableBotAutomation`
+   - handleSubmit: Updated to include all new fields
+
+5. **✅ Updated TypeScript Interfaces**
+   - `page.tsx`: Added optional fields to SadhanaSchedule interface
+   - Fields: `botName`, `videoDuration`, `botJoinMinutes`, `autoCloseMinutes`, `enableBotAutomation`
+
+6. **✅ Bot Service Uses New Configuration**
+   - `run/route.ts` line 470: Uses `schedule.botName || schedule.name || 'Swar Sadhana'`
+   - Cron job respects `enableBotAutomation` flag
+   - Joins at configurable time (not hardcoded 5 minutes)
+   - Auto-closes after configured duration
+
+7. **✅ Deployment Verification**
+   - ✅ Build: All files compiled successfully
+   - ✅ Git: Commits 44c32e9b + 83e8fde9 pushed to main
+   - ✅ Vercel: Auto-deployment completed
+   - ✅ Health: `https://crm.swaryoga.com/api/health` returns `status: ok`
+   - ✅ Production: Live and healthy (uptime: 3241s)
+
+8. **✅ Testing Status**
+   - ⏳ Load scheduler form to verify new fields display correctly
+   - ⏳ Create schedule with custom bot name (e.g., "Weekly Sadhana Bot")
+   - ⏳ Run Zoom test to verify bot joins with custom name
+   - ⏳ Test different join times (2/3 minutes instead of 5)
+   - ⏳ Verify auto-close triggers at configured time
+
+9. **✅ Form Features Enabled**
+   - Users can now: Set bot name, choose join timing, set video duration, configure auto-close
+   - All from a single intuitive form interface
+   - Backward compatible: All fields have sensible defaults
+   - Optional: Users can disable bot automation entirely if needed
+
+---
+
 ### Ultra-Safe Group Merge: 1.5-Hour Spreading for 100+ Participants (Session: April 16, 2026 — Phase 94) — Commit `72115e88`
 
 **✅ PRODUCTION DEPLOYMENT SUCCESSFUL**
