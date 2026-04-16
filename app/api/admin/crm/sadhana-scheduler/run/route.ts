@@ -287,40 +287,6 @@ async function endZoomLiveStream(meetingId: string): Promise<void> {
 }
 
 /**
- * Check if current time matches any scheduled time
- */
-function isTimeToRun(scheduleItem: any, now: Date, timezone: string): boolean {
-  const times = scheduleItem.schedule.times || [];
-  const days = scheduleItem.schedule.days || [];
-  const freq = scheduleItem.schedule.repeatFrequency || 'weekly';
-
-  // Get current day of week and time in the schedule's timezone using native toLocaleString
-  const localStr = now.toLocaleString('en-US', { timeZone: timezone, hour12: false });
-  const [datePart, timePart] = localStr.split(', ');
-  const [month, date, year] = datePart.split('/');
-  const [hour, min] = timePart.split(':');
-  const currentTime = `${hour}:${min}`;
-  
-  // Get day of week
-  const utcDate = new Date(now.toLocaleString('sv-SE', { timeZone: timezone }));
-  const currentDay = utcDate.getDay();
-
-  // Check if today is in the scheduled days (support both 0-6 and Monday=1 formats)
-  if (!days.includes(currentDay) && !days.includes((currentDay + 1) % 7)) {
-    return false;
-  }
-
-  // Check if current time is within 5 minutes of scheduled time (more flexible)
-  return times.some((time: string) => {
-    const [schedHour, schedMin] = time.split(':');
-    const currentTotalMin = parseInt(currentHour) * 60 + parseInt(currentMin);
-    const schedTotalMin = parseInt(schedHour) * 60 + parseInt(schedMin);
-    const timeDiff = Math.abs(currentTotalMin - schedTotalMin);
-    return timeDiff <= 5; // Within 5-minute window
-  });
-}
-
-/**
  * POST /api/admin/crm/sadhana-scheduler/run
  * Run scheduled Sadhana messages (called by cron)
  */
@@ -436,15 +402,9 @@ export async function POST(request: NextRequest) {
               continue; // Skip this schedule but continue with others
             }
 
-            // Send 3 min countdown, 2 min countdown, 1 min countdown
-            const currentMinute = now.getMinutes();
-            if (currentMinute % 60 === 13) {
-              // 13 min mark = 2 minutes before (assuming time is :12 join)
-              await sendCountdownMessage(meetingId, 2);
-            } else if (currentMinute % 60 === 14) {
-              // 14 min mark = 1 minute before
-              await sendCountdownMessage(meetingId, 1);
-            }
+            // Send countdown messages to meeting
+            console.log(`[Sadhana] ⏳ COUNTDOWN MESSAGE sent to meeting ${meetingId}`);
+            await sendZoomCountdownMessage(meetingId, 120); // Send 2 min countdown
           } catch (err) {
             console.error(`[Sadhana] Countdown error:`, err);
           }
@@ -505,19 +465,46 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Fallback: If no zoom enabled, just send regular message
-        if (!schedule.enableBotAutomation && isTimeToRun(schedule, now, schedule.schedule.timezone)) {
-          const message = buildSadhanaMessage(schedule);
-          for (const lead of leads) {
-            try {
-              const phoneNumber = lead.phone || lead.phoneNumber;
-              if (!phoneNumber) continue;
-              
-              await sendWhatsAppText(phoneNumber, message, 'meta');
-              sent++;
-            } catch (err) {
-              console.error(`Failed to send to lead ${lead.phone}:`, err);
-              failed++;
+        // Fallback: If bot automation disabled but it's still a scheduled time, send message via WhatsApp
+        // (The shouldTriggerBotActions already handled the time logic when enableBotAutomation=true)
+        if (!schedule.enableBotAutomation) {
+          // Check if we're at scheduled time using basic time comparison
+          const times = schedule.schedule.times || [];
+          const days = schedule.schedule.days || [];
+          
+          // Get current time in schedule timezone
+          const localStr = now.toLocaleString('en-US', { timeZone: schedule.schedule.timezone, hour12: false });
+          const [datePart, timePart] = localStr.split(', ');
+          const [hour, min] = timePart.split(':');
+          const currentTotalMin = parseInt(hour) * 60 + parseInt(min);
+          
+          // Get day of week
+          const utcDate = new Date(now.toLocaleString('sv-SE', { timeZone: schedule.schedule.timezone }));
+          const currentDay = utcDate.getDay();
+          
+          // Check if today is scheduled
+          const isScheduledDay = days.includes(currentDay);
+          
+          // Check if current time matches any scheduled time (within 5 min window)
+          const isScheduledTime = times.some((time: string) => {
+            const [sHour, sMin] = time.split(':');
+            const sTotalMin = parseInt(sHour) * 60 + parseInt(sMin);
+            return Math.abs(currentTotalMin - sTotalMin) <= 5;
+          });
+          
+          if (isScheduledDay && isScheduledTime) {
+            const message = buildSadhanaMessage(schedule);
+            for (const lead of leads) {
+              try {
+                const phoneNumber = lead.phone || lead.phoneNumber;
+                if (!phoneNumber) continue;
+                
+                await sendWhatsAppText(phoneNumber, message, 'meta');
+                sent++;
+              } catch (err) {
+                console.error(`Failed to send to lead ${lead.phone}:`, err);
+                failed++;
+              }
             }
           }
         }
@@ -601,7 +588,31 @@ export async function GET(request: NextRequest) {
 
     for (const schedule of schedules) {
       try {
-        if (!isTimeToRun(schedule, now, schedule.schedule.timezone)) {
+        // Check if we're at scheduled time
+        const times = schedule.schedule.times || [];
+        const days = schedule.schedule.days || [];
+        
+        // Get current time in schedule timezone
+        const localStr = now.toLocaleString('en-US', { timeZone: schedule.schedule.timezone, hour12: false });
+        const [datePart, timePart] = localStr.split(', ');
+        const [hour, min] = timePart.split(':');
+        const currentTotalMin = parseInt(hour) * 60 + parseInt(min);
+        
+        // Get day of week
+        const utcDate = new Date(now.toLocaleString('sv-SE', { timeZone: schedule.schedule.timezone }));
+        const currentDay = utcDate.getDay();
+        
+        // Check if today is scheduled
+        const isScheduledDay = days.includes(currentDay);
+        
+        // Check if current time matches any scheduled time (within 5 min window)
+        const isScheduledTime = times.some((time: string) => {
+          const [sHour, sMin] = time.split(':');
+          const sTotalMin = parseInt(sHour) * 60 + parseInt(sMin);
+          return Math.abs(currentTotalMin - sTotalMin) <= 5;
+        });
+        
+        if (!isScheduledDay || !isScheduledTime) {
           continue;
         }
 
