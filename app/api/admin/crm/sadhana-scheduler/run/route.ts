@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { handleCrmError } from '@/lib/crm-handlers';
 import { sendWhatsAppText } from '@/lib/whatsapp';
+import {
+  botJoinMeeting,
+  sendCountdownMessage,
+  startVideoInMeeting,
+  autoCloseMeeting,
+  cleanupOldMeetings,
+  getZoomAccessToken,
+} from '@/lib/zoomBotService';
 import mongoose from 'mongoose';
 
 const ZOOM_ACCOUNT_ID = process.env.ZOOM_ACCOUNT_ID;
@@ -12,9 +20,13 @@ const sadhanaScheduleSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
     videoUrl: { type: String, required: true },
+    videoDuration: { type: Number, default: 40 }, // Minutes (for auto-close)
     zoomLink: { type: String },
     zoomId: { type: String },
     zoomPassword: { type: String },
+    zoomMeetingId: { type: String }, // Current meeting ID if created
+    botJoinTime: { type: String, default: '10:12' }, // When bot joins (HH:MM)
+    enableBotAutomation: { type: Boolean, default: true }, // Enable bot join/countdown/close
     schedule: {
       times: [String],
       days: [Number],
@@ -347,36 +359,121 @@ export async function POST(request: NextRequest) {
 
     for (const schedule of schedules) {
       try {
-        // Check if it's time to send
-        if (!isTimeToRun(schedule, now, schedule.schedule.timezone)) {
-          continue;
-        }
-
-        // Build message
-        const message = buildSadhanaMessage(schedule);
+        const { shouldJoin, shouldCountdown, shouldPlay } = shouldTriggerBotActions(
+          schedule,
+          now,
+          schedule.schedule.timezone
+        );
 
         // Get leads assigned to this user
         const leads = await Lead?.find({ assignedToUserId: schedule.userId }).toArray();
-
         if (!leads || leads.length === 0) {
           continue;
         }
 
-        // Send to each lead
-        for (const lead of leads) {
+        // 🤖 BOT JOIN PHASE (3 min before scheduled time @ 10:12)
+        if (shouldJoin && schedule.enableBotAutomation && schedule.zoomId) {
           try {
-            const phoneNumber = lead.phone || lead.phoneNumber;
-            if (!phoneNumber) continue;
+            console.log(`[Sadhana] 🤖 BOT JOINING at 10:12 for schedule ${schedule._id}`);
             
-            await sendWhatsAppText(
-              phoneNumber,
-              message,
-              'meta'
-            );
-            sent++;
+            // Get Zoom meeting ID (use existing or create new)
+            let meetingId = schedule.zoomMeetingId;
+            if (!meetingId) {
+              // Use zoomId from schedule or generate one
+              meetingId = schedule.zoomId;
+            }
+
+            // Bot joins and sends ready message
+            await botJoinMeeting({
+              meetingId,
+              meetingPassword: schedule.zoomPassword,
+              videoDurationMinutes: schedule.videoDuration || 40,
+            });
+
+            // Clean up old stale meetings
+            try {
+              await cleanupOldMeetings(schedule.userId, 24);
+            } catch (e) {
+              console.warn('[Sadhana] Warning during cleanup:', e);
+            }
           } catch (err) {
-            console.error(`Failed to send to lead ${lead.phone}:`, err);
+            console.error(`[Sadhana] Bot join error:`, err);
+          }
+        }
+
+        // ⏳ COUNTDOWN PHASE (2 min before @ 10:13-10:14)
+        if (shouldCountdown && schedule.enableBotAutomation && schedule.zoomId) {
+          try {
+            // Send 3 min countdown, 2 min countdown, 1 min countdown
+            const currentMinute = now.getMinutes();
+            if (currentMinute % 60 === 13) {
+              // 13 min mark = 2 minutes before (assuming time is :12 join)
+              await sendCountdownMessage(schedule.zoomId, 2);
+            } else if (currentMinute % 60 === 14) {
+              // 14 min mark = 1 minute before
+              await sendCountdownMessage(schedule.zoomId, 1);
+            }
+          } catch (err) {
+            console.error(`[Sadhana] Countdown error:`, err);
+          }
+        }
+
+        // 🎬 VIDEO START PHASE (exact scheduled time @ 10:15)
+        if (shouldPlay && schedule.enableBotAutomation && schedule.zoomId) {
+          try {
+            console.log(`[Sadhana] 🎬 VIDEO STARTING at 10:15 for schedule ${schedule._id}`);
+            
+            // Send video to meeting
+            await startVideoInMeeting(schedule.zoomId, schedule.videoUrl);
+
+            // Also send WhatsApp message
+            const message = buildSadhanaMessage(schedule);
+            for (const lead of leads) {
+              try {
+                const phoneNumber = lead.phone || lead.phoneNumber;
+                if (!phoneNumber) continue;
+                
+                await sendWhatsAppText(phoneNumber, message, 'meta');
+                sent++;
+              } catch (err) {
+                console.error(`Failed to send WhatsApp to ${lead.phone}:`, err);
+                failed++;
+              }
+            }
+
+            // Schedule auto-close after video duration
+            if (schedule.videoDuration && schedule.videoDuration > 0) {
+              const autoCloseDelayMs = (schedule.videoDuration * 60 * 1000) + 30000; // Add 30 sec buffer
+              
+              setTimeout(async () => {
+                try {
+                  console.log(`[Sadhana] 🚀 AUTO-CLOSING meeting after ${schedule.videoDuration} min video`);
+                  await autoCloseMeeting(schedule.zoomId);
+                } catch (err) {
+                  console.error('[Sadhana] Auto-close error:', err);
+                }
+              }, autoCloseDelayMs);
+            }
+          } catch (err) {
+            console.error(`[Sadhana] Video start error:`, err);
             failed++;
+          }
+        }
+
+        // Fallback: If no zoom enabled, just send regular message
+        if (!schedule.enableBotAutomation && isTimeToRun(schedule, now, schedule.schedule.timezone)) {
+          const message = buildSadhanaMessage(schedule);
+          for (const lead of leads) {
+            try {
+              const phoneNumber = lead.phone || lead.phoneNumber;
+              if (!phoneNumber) continue;
+              
+              await sendWhatsAppText(phoneNumber, message, 'meta');
+              sent++;
+            } catch (err) {
+              console.error(`Failed to send to lead ${lead.phone}:`, err);
+              failed++;
+            }
           }
         }
       } catch (err) {

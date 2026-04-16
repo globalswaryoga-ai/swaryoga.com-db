@@ -10,9 +10,13 @@ const sadhanaScheduleSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
     videoUrl: { type: String, required: true },
+    videoDuration: { type: Number, default: 40 }, // Minutes (for auto-close)
     zoomLink: { type: String },
     zoomId: { type: String },
     zoomPassword: { type: String },
+    zoomMeetingId: { type: String }, // Current meeting ID if created
+    botJoinTime: { type: String, default: '10:12' }, // When bot joins (HH:MM)
+    enableBotAutomation: { type: Boolean, default: true }, // Enable bot join/countdown/close
     schedule: {
       times: [String], // ["06:00", "18:00"]
       days: [Number], // [1, 2, 3, 4, 5]
