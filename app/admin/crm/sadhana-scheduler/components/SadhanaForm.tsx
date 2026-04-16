@@ -122,23 +122,32 @@ export default function SadhanaForm({
       xhr.addEventListener('load', () => {
         try {
           console.log('[Sadhana Upload] Load event fired, status:', xhr.status);
+          console.log('[Sadhana Upload] Response headers:', {
+            contentType: xhr.getResponseHeader('content-type'),
+            contentLength: xhr.getResponseHeader('content-length'),
+          });
 
           if (!xhr.responseText) {
             console.error('[Sadhana Upload] Empty response text');
-            setUploadError('Empty response from server');
+            setUploadError('Empty response from server (HTTP ' + xhr.status + ')');
             setUploading(false);
             return;
           }
 
-          console.log('[Sadhana Upload] Response text:', xhr.responseText.substring(0, 500));
+          console.log('[Sadhana Upload] Raw response text (first 500 chars):', xhr.responseText.substring(0, 500));
+          console.log('[Sadhana Upload] Raw response text (all):', xhr.responseText);
 
           let response;
           try {
             response = JSON.parse(xhr.responseText);
-            console.log('[Sadhana Upload] Parsed response:', JSON.stringify(response, null, 2));
+            console.log('[Sadhana Upload] ✅ Parsed response:', JSON.stringify(response, null, 2));
           } catch (parseErr) {
-            console.error('[Sadhana Upload] JSON parse error:', parseErr, 'Response:', xhr.responseText.substring(0, 200));
-            setUploadError('Invalid response format from server');
+            console.error('[Sadhana Upload] ❌ JSON parse error:', parseErr);
+            console.error('[Sadhana Upload] Failed to parse response:', xhr.responseText);
+            console.error('[Sadhana Upload] Response length:', xhr.responseText.length);
+            console.error('[Sadhana Upload] Response type:', typeof xhr.responseText);
+            console.error('[Sadhana Upload] Response starts with:', xhr.responseText.charAt(0), xhr.responseText.charCodeAt(0));
+            setUploadError(`Server error (Status ${xhr.status}): Invalid response format. Check browser console for details.`);
             setUploading(false);
             return;
           }
@@ -150,16 +159,16 @@ export default function SadhanaForm({
             setUploadProgress(0);
           } else if (xhr.status >= 400) {
             const errorMsg = response.error || response.message || `Upload failed (${xhr.status})`;
-            console.error('[Sadhana Upload] Server error:', errorMsg);
+            console.error('[Sadhana Upload] ❌ Server error:', errorMsg);
             setUploadError(errorMsg);
             setUploading(false);
           } else {
-            console.warn('[Sadhana Upload] Unexpected response:', response);
+            console.warn('[Sadhana Upload] ⚠️ Unexpected response:', response);
             setUploadError(response.error || 'Upload failed - unknown error');
             setUploading(false);
           }
         } catch (err) {
-          console.error('[Sadhana Upload] Load handler error:', err);
+          console.error('[Sadhana Upload] ❌ Load handler error:', err);
           setUploadError('Error processing upload response');
           setUploading(false);
         }
