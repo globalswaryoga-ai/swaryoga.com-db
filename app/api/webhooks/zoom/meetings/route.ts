@@ -10,10 +10,10 @@ import mongoose from 'mongoose';
  */
 export async function POST(request: NextRequest) {
   try {
-    // Verify Zoom webhook signature
     const body = await request.text();
     const signature = request.headers.get('x-zm-signature') || '';
     
+    // Verify Zoom webhook signature
     if (!verifyZoomSignature(body, signature)) {
       console.warn('Invalid Zoom webhook signature');
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
@@ -21,6 +21,12 @@ export async function POST(request: NextRequest) {
 
     const event = JSON.parse(body);
     
+    // Handle Zoom URL validation challenge (initial setup)
+    if (event.type === 'url_validation') {
+      console.log('[Zoom] URL validation challenge received');
+      return NextResponse.json({ plainToken: event.token }, { status: 200 });
+    }
+
     // Handle different event types
     if (event.event === 'meeting.started') {
       await handleMeetingStarted(event);
