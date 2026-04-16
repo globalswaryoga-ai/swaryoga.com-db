@@ -40,26 +40,37 @@ function isTimeToRun(scheduleItem: any, now: Date, timezone: string): boolean {
   const days = scheduleItem.schedule.days || [];
   const freq = scheduleItem.schedule.repeatFrequency || 'weekly';
 
-  // Get current day of week (0 = Sunday, 1 = Monday, etc.)
-  const currentDay = now.getDay();
+  // Get current day of week in the schedule's timezone
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    weekday: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
 
-  // Check if today is in the scheduled days
-  if (!days.includes(currentDay)) {
+  // This is a workaround: we'll use simple UTC offset for Asia/Kolkata
+  // Asia/Kolkata is UTC+5:30
+  const offsetMs = timezone === 'Asia/Kolkata' ? 5.5 * 60 * 60 * 1000 : 0;
+  const tzDate = new Date(now.getTime() + offsetMs);
+  
+  const currentDay = tzDate.getDay();
+  const currentHour = String(tzDate.getHours()).padStart(2, '0');
+  const currentMin = String(tzDate.getMinutes()).padStart(2, '0');
+  const currentTime = `${currentHour}:${currentMin}`;
+
+  // Check if today is in the scheduled days (support both 0-6 and Monday=1 formats)
+  if (!days.includes(currentDay) && !days.includes((currentDay + 1) % 7)) {
     return false;
   }
 
-  // Get current time in HH:MM format
-  const currentHour = String(now.getHours()).padStart(2, '0');
-  const currentMin = String(now.getMinutes()).padStart(2, '0');
-  const currentTime = `${currentHour}:${currentMin}`;
-
-  // Check if current time matches any scheduled time (within 1-minute window)
+  // Check if current time is within 5 minutes of scheduled time (more flexible)
   return times.some((time: string) => {
     const [schedHour, schedMin] = time.split(':');
-    const timeDiff = Math.abs(
-      parseInt(currentHour + currentMin) - parseInt(schedHour + schedMin)
-    );
-    return timeDiff === 0; // Exact minute match
+    const currentTotalMin = parseInt(currentHour) * 60 + parseInt(currentMin);
+    const schedTotalMin = parseInt(schedHour) * 60 + parseInt(schedMin);
+    const timeDiff = Math.abs(currentTotalMin - schedTotalMin);
+    return timeDiff <= 5; // Within 5-minute window
   });
 }
 
