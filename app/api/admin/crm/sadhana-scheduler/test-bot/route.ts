@@ -208,14 +208,21 @@ export async function POST(request: NextRequest) {
       const errorMsg = botError?.message || String(botError);
       logs.push(`❌ Bot join failed: ${errorMsg}`);
       
+      // Log full error for debugging
+      console.error('[test-bot] Bot error details:', botError);
+      
       // Provide helpful guidance based on error type
       let helpMessage = errorMsg;
-      if (errorMsg.includes('not found')) {
+      if (errorMsg.includes('Zoom API rejected credentials')) {
+        helpMessage = 'Zoom credentials are invalid or expired. Please verify ZOOM_CLIENT_ID and ZOOM_CLIENT_SECRET in environment variables.';
+      } else if (errorMsg.includes('Cannot reach Zoom API')) {
+        helpMessage = 'Cannot reach Zoom API - network or firewall issue. Check your internet connection.';
+      } else if (errorMsg.includes('Zoom account forbidden')) {
+        helpMessage = 'Zoom account forbidden - check that ZOOM_ACCOUNT_ID matches your Zoom business account.';
+      } else if (errorMsg.includes('not found') || errorMsg.includes('404')) {
         helpMessage = `Zoom meeting (ID: ${extractZoomDetailsFromLink(schedule.zoomLink || schedule.zoomId).meetingId}) not found or not active. Make sure the Zoom meeting is currently running before testing the bot.`;
       } else if (errorMsg.includes('Authentication failed')) {
         helpMessage = 'Zoom authentication failed. Check if ZOOM credentials are correctly configured in environment variables.';
-      } else if (errorMsg.includes('404')) {
-        helpMessage = 'Meeting not active. Please start the Zoom meeting and try again.';
       }
       
       return NextResponse.json(

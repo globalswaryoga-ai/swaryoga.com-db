@@ -42,6 +42,9 @@ export async function getZoomAccessToken(): Promise<string> {
 
   try {
     const auth = Buffer.from(`${ZOOM_CLIENT_ID}:${ZOOM_CLIENT_SECRET}`).toString('base64');
+    
+    console.log('[ZoomBotService] 🔄 Requesting new token...');
+    
     const response = await axios.post('https://zoom.us/oauth/token', 
       'grant_type=account_credentials&account_id=' + ZOOM_ACCOUNT_ID,
       {
@@ -49,6 +52,7 @@ export async function getZoomAccessToken(): Promise<string> {
           'Authorization': `Basic ${auth}`,
           'Content-Type': 'application/x-www-form-urlencoded',
         },
+        timeout: 10000, // 10 second timeout
       }
     );
 
@@ -58,8 +62,24 @@ export async function getZoomAccessToken(): Promise<string> {
     console.log('[ZoomBotService] ✅ Token refreshed, expires in', response.data.expires_in, 'seconds');
     return cachedToken;
   } catch (err: any) {
-    console.error('[ZoomBotService] ❌ Token error:', err.response?.data || err.message);
-    throw new Error('Failed to get Zoom access token');
+    const errorDetail = err.response?.data || err.message || String(err);
+    const statusCode = err.response?.status || 'N/A';
+    
+    console.error('[ZoomBotService] ❌ Token error (Status: ' + statusCode + ')');
+    console.error('[ZoomBotService] Error details:', errorDetail);
+    
+    // More specific error messages
+    if (err.code === 'ECONNABORTED') {
+      throw new Error('Zoom API timeout - took too long to respond');
+    } else if (err.code === 'ENOTFOUND') {
+      throw new Error('Cannot reach Zoom API - network error');
+    } else if (statusCode === 401) {
+      throw new Error('Zoom API rejected credentials - check CLIENT_ID and SECRET');
+    } else if (statusCode === 403) {
+      throw new Error('Zoom account forbidden - check ACCOUNT_ID');
+    } else {
+      throw new Error('Failed to get Zoom access token: ' + (errorDetail?.message || errorDetail));
+    }
   }
 }
 
