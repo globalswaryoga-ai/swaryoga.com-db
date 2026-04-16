@@ -186,11 +186,18 @@ export default function QRGroupContactsPage() {
               if (phone) existingJids.add(`${phone}@s.whatsapp.net`);
             }
           }
-        } catch { /* continue */ }
+        } catch (err: any) {
+          const errorMsg = err?.message || String(err);
+          if (errorMsg.includes('not connected') || errorMsg.includes('not ready')) {
+            throw new Error('❌ WhatsApp is not connected. Please scan QR code first in the Connection tab.');
+          }
+          throw err;
+        }
       }
 
       const uniqueJids = new Set<string>();
       let fetchedCount = 0;
+      let fetchErrors: string[] = [];
 
       // Collect contacts from source groups (skip the target group itself)
       const sourceGroups = selectedGroupsList.filter((g) => g.id !== mergeTargetGroupId);
@@ -208,11 +215,16 @@ export default function QRGroupContactsPage() {
               }
             }
           }
-        } catch { /* skip failed groups */ }
+        } catch (err: any) {
+          const msg = err?.message || String(err);
+          console.warn(`Failed to fetch group ${group.name}: ${msg}`);
+          fetchErrors.push(`${group.name}: ${msg}`);
+        }
       }
 
       if (uniqueJids.size === 0) {
-        setError('No new contacts to add (all contacts already in target group)');
+        const errorDetail = fetchErrors.length > 0 ? `\n\nFailed groups:\n${fetchErrors.join('\n')}` : '';
+        setError(`No new contacts to add (all contacts already in target group)${errorDetail}`);
         return;
       }
 
@@ -241,6 +253,7 @@ export default function QRGroupContactsPage() {
         
         let addedCount = 0;
         let batchNumber = 0;
+        let batchErrors: Array<{ batch: number; error: string }> = [];
         
         for (let i = 0; i < processOrder.length; i += 1) {
           // Get random batch size for merge (5-8 participants)
@@ -272,14 +285,28 @@ export default function QRGroupContactsPage() {
             }
             
             i += (batch.length - 1); // Skip processed numbers
-          } catch (err) {
-            console.warn('Batch add failed:', err);
-            setMergeProgress(`⚠️ Batch ${batchNumber} incomplete, continuing with next batch...`);
-            // Continue with next batch (don't fail entire operation)
+          } catch (err: any) {
+            const errorMsg = err?.message || String(err);
+            console.error(`Batch ${batchNumber} failed:`, errorMsg);
+            batchErrors.push({ batch: batchNumber, error: errorMsg });
+            
+            // If it's a connection error, stop immediately
+            if (errorMsg.includes('not connected') || errorMsg.includes('not ready')) {
+              throw new Error(`❌ Batch ${batchNumber} failed: WhatsApp disconnected!\n\nPlease ensure QR code is still scanned and bridge is connected.\nAdded so far: ${addedCount}/${processOrder.length}`);
+            }
+            
+            // Otherwise continue with next batch
+            setMergeProgress(`⚠️ Batch ${batchNumber} failed (${errorMsg.substring(0, 50)}...), continuing...`);
           }
         }
         
-        setSuccessMsg(`✅ Merge Complete!\nAdded ${addedCount}/${processOrder.length} contacts to "${targetName}"\n⏱️ Time: ~${mergeSchedule.totalDurationMinutes} minutes (anti-ban safe)\n🔒 Used human-like randomization (30-120sec delays, 5-8 per batch)\n✅ Your number (9309986820) is PROTECTED from bans`);
+        // Check if there were errors
+        if (batchErrors.length > 0 && addedCount === 0) {
+          const errorDetail = batchErrors.map(e => `Batch ${e.batch}: ${e.error}`).join('\n');
+          throw new Error(`❌ Merge failed completely:\n\n${errorDetail}`);
+        }
+        
+        setSuccessMsg(`✅ Merge Complete!\nAdded ${addedCount}/${processOrder.length} contacts to "${targetName}"\n⏱️ Time: ~${mergeSchedule.totalDurationMinutes} minutes (anti-ban safe)\n🔒 Used human-like randomization (30-120sec delays, 5-8 per batch)\n✅ Your number (9309986820) is PROTECTED from bans${batchErrors.length > 0 ? `\n\n⚠️ Note: ${batchErrors.length} batch(es) had errors` : ''}`);
       } else {
         // Create new group
         setMergeProgress(`Creating group "${mergeNewGroupName}" with ${participants.length} contacts…`);
