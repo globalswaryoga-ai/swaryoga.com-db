@@ -5,6 +5,8 @@
  *   Returns daily usage snapshots for a specific tenant.
  */
 
+export const dynamic = 'force-dynamic';
+
 import { NextRequest } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
