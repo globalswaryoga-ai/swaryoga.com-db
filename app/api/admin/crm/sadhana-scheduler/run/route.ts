@@ -4,6 +4,10 @@ import { handleCrmError } from '@/lib/crm-handlers';
 import { sendWhatsAppText } from '@/lib/whatsapp';
 import mongoose from 'mongoose';
 
+const ZOOM_ACCOUNT_ID = process.env.ZOOM_ACCOUNT_ID;
+const ZOOM_CLIENT_ID = process.env.ZOOM_CLIENT_ID;
+const ZOOM_CLIENT_SECRET = process.env.ZOOM_CLIENT_SECRET;
+
 const sadhanaScheduleSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
@@ -30,6 +34,237 @@ const sadhanaScheduleSchema = new mongoose.Schema(
 async function getSadhanaScheduleModel() {
   const db = mongoose.connection.useDb('swaryoga_admin_crm');
   return db.models.SadhanaSchedule || db.model('SadhanaSchedule', sadhanaScheduleSchema);
+}
+
+/**
+ * Check if we should trigger bot actions (3 minutes before scheduled time)
+ */
+function shouldTriggerBotActions(scheduleItem: any, now: Date, timezone: string): { shouldJoin: boolean; shouldCountdown: boolean; shouldPlay: boolean } {
+  const times = scheduleItem.schedule.times || [];
+  const days = scheduleItem.schedule.days || [];
+
+  const offsetMs = timezone === 'Asia/Kolkata' ? 5.5 * 60 * 60 * 1000 : 0;
+  const tzDate = new Date(now.getTime() + offsetMs);
+  
+  const currentDay = tzDate.getDay();
+  const currentHour = String(tzDate.getHours()).padStart(2, '0');
+  const currentMin = String(tzDate.getMinutes()).padStart(2, '0');
+  const currentTotalMin = parseInt(currentHour) * 60 + parseInt(currentMin);
+
+  // Check if today is in scheduled days
+  if (!days.includes(currentDay) && !days.includes((currentDay + 1) % 7)) {
+    return { shouldJoin: false, shouldCountdown: false, shouldPlay: false };
+  }
+
+  let shouldJoin = false;
+  let shouldCountdown = false;
+  let shouldPlay = false;
+
+  // Check each scheduled time
+  for (const time of times) {
+    const [schedHour, schedMin] = time.split(':');
+    const schedTotalMin = parseInt(schedHour) * 60 + parseInt(schedMin);
+    
+    const botJoinTime = schedTotalMin - 3; // Join 3 min early
+    const countdownWindow = 2; // 2 min before
+    const playTime = schedTotalMin; // Exact time
+
+    // Bot join between (scheduled - 3 min) and (scheduled - 2:30 min)
+    if (currentTotalMin >= botJoinTime && currentTotalMin < schedTotalMin - 2) {
+      shouldJoin = true;
+    }
+
+    // Send countdown between (scheduled - 2 min) and scheduled time
+    if (currentTotalMin >= schedTotalMin - countdownWindow && currentTotalMin < schedTotalMin + 1) {
+      shouldCountdown = true;
+    }
+
+    // Play video at exact scheduled time (within 1 min window)
+    if (currentTotalMin >= schedTotalMin && currentTotalMin < schedTotalMin + 1) {
+      shouldPlay = true;
+    }
+  }
+
+  return { shouldJoin, shouldCountdown, shouldPlay };
+}
+
+/**
+ * Get Zoom OAuth access token
+ */
+async function getZoomAccessToken(): Promise<string> {
+  try {
+    const auth = Buffer.from(`${ZOOM_CLIENT_ID}:${ZOOM_CLIENT_SECRET}`).toString('base64');
+    const response = await fetch('https://zoom.us/oauth/token', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${auth}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: 'grant_type=account_credentials&account_id=' + ZOOM_ACCOUNT_ID,
+    });
+
+    if (!response.ok) throw new Error('Failed to get Zoom token');
+    const data = await response.json() as { access_token: string };
+    return data.access_token;
+  } catch (err) {
+    console.error('Zoom token error:', err);
+    throw err;
+  }
+}
+
+/**
+ * Send countdown message to Zoom meeting chat
+ */
+async function sendZoomCountdownMessage(meetingId: string, secondsLeft: number): Promise<void> {
+  try {
+    const token = await getZoomAccessToken();
+    const mins = Math.floor(secondsLeft / 60);
+    const secs = secondsLeft % 60;
+    const countdownText = `⏳ Video starting in ${mins}:${String(secs).padStart(2, '0')}...`;
+
+    await fetch(`https://api.zoom.us/v2/meetings/${meetingId}/chat/messages`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: countdownText,
+      }),
+    });
+  } catch (err) {
+    console.error('Zoom countdown error:', err);
+    // Don't throw - non-critical
+  }
+}
+
+/**
+ * Send started message to Zoom meeting chat
+ */
+async function sendZoomStartedMessage(meetingId: string): Promise<void> {
+  try {
+    const token = await getZoomAccessToken();
+    const startedText = `🎬 VIDEO PLAYING NOW! Swar Sadhana 🚀`;
+
+    await fetch(`https://api.zoom.us/v2/meetings/${meetingId}/chat/messages`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: startedText,
+      }),
+    });
+  } catch (err) {
+    console.error('Zoom started message error:', err);
+    // Don't throw - non-critical
+  }
+}
+
+/**
+ * Send video link to Zoom chat (native support for video playback in Zoom)
+ */
+async function startZoomLiveStream(meetingId: string, videoUrl: string): Promise<void> {
+  try {
+    const token = await getZoomAccessToken();
+    console.log(`[Zoom] Sending video link to meeting ${meetingId}`);
+
+    // Send prominent video link message - participants can click to open in browser
+    const videoMessage = `
+🎬 **SWAR SADHANA VIDEO IS LIVE** 🎬
+
+🔗 📲 WATCH VIDEO: ${videoUrl}
+
+Click the link above to stream video in your browser ▶️
+Enjoy your Swar Sadhana practice! 🙏
+    `.trim();
+
+    const response = await fetch(`https://api.zoom.us/v2/meetings/${meetingId}/chat/messages`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: videoMessage,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      console.warn(`⚠️ Video message send warning: ${error}`);
+      // Don't throw - message delivery is best-effort
+    } else {
+      console.log(`[Zoom] Video message sent to meeting successfully`);
+    }
+  } catch (err) {
+    console.warn('⚠️ Video message send failed (non-critical):', err);
+    // Don't re-throw - video link in schedule is still accessible
+  }
+}
+
+/**
+ * End/Close Zoom meeting
+ */
+async function endZoomMeeting(meetingId: string): Promise<void> {
+  try {
+    const token = await getZoomAccessToken();
+    console.log(`[Zoom] Closing meeting ${meetingId}`);
+
+    const response = await fetch(`https://api.zoom.us/v2/meetings/${meetingId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        action: 'end',
+      }),
+    });
+
+    if (!response.ok && response.status !== 204) {
+      const error = await response.text();
+      console.warn(`Zoom close warning: ${error}`);
+    }
+
+    console.log(`[Zoom] Meeting closed successfully`);
+  } catch (err) {
+    console.error('Zoom close error:', err);
+    // Don't throw - non-critical
+  }
+}
+
+/**
+ * Send live stream end message and close meeting
+ */
+async function endZoomLiveStream(meetingId: string): Promise<void> {
+  try {
+    const token = await getZoomAccessToken();
+    console.log(`[Zoom] Stopping live stream for meeting ${meetingId}`);
+
+    // First, stop the live stream
+    await fetch(`https://api.zoom.us/v2/meetings/${meetingId}/livestream`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        action: 'stop',
+      }),
+    });
+
+    // Send closing message to chat
+    await sendZoomStartedMessage(meetingId); // Reuse for final message
+
+    // Close the meeting after a short delay
+    setTimeout(() => endZoomMeeting(meetingId), 2000);
+
+    console.log(`[Zoom] Live stream stopped and meeting will close`);
+  } catch (err) {
+    console.error('Zoom end stream error:', err);
+  }
 }
 
 /**
