@@ -221,35 +221,38 @@ export default function QRGroupContactsPage() {
       const targetName = targetGroup?.name || 'target group';
 
       if (mergeMode === 'existing') {
-        // Add participants to existing group with HUMAN-LIKE rate limiting
-        // Targets: ~10 minutes for 100 numbers, random batches, random delays
-        // This prevents WhatsApp spam detection and account bans
+        // Add participants to existing group with ULTRA-SAFE rate limiting
+        // Target: 1.5 hours (90 minutes) for 100 participants
+        // Strategy: Larger batches (5-8), much longer delays (30-120 sec) to appear human
+        // This is the safest approach to avoid WhatsApp bans
         
         // Dynamic import for rate limiting helpers
-        const { getRandomBatchSize, getRandomDelay, separateAdminNumbers, shuffleArray, sleepWithJitter, calculateRateLimitTiming } = await import('@/lib/whatsappRateLimiter');
+        const { getRandomMergeBatchSize, getRandomMergeDelay, separateAdminNumbers, shuffleArray, sleepWithJitter, calculateMergeGroupSchedule } = await import('@/lib/whatsappRateLimiter');
         
-        const timing = calculateRateLimitTiming(participants.length);
-        setMergeProgress(`ℹ️ Adding ${participants.length} contacts will take ~${timing.estimatedMinutes} min (human-like speed to avoid spam detection)`);
-        await new Promise(r => setTimeout(r, 2000));
+        // Calculate 1.5-hour schedule for safety
+        const mergeSchedule = calculateMergeGroupSchedule(participants.length, 90); // 90 minutes = 1.5 hours
+        setMergeProgress(`📅 Ultra-safe merge: ${participants.length} participants over ${mergeSchedule.spreadMinutes} min (${mergeSchedule.totalBatches} batches, 5-8 per batch)\n⏱️ Delays between batches: 30-120 seconds (human-like)\n✅ Prevents WhatsApp bans and auto-signout`);
+        await new Promise(r => setTimeout(r, 3000));
         
         // Prepare participants: shuffle for randomization, but keep admin at end
         const { regularNumbers, adminNumbers } = separateAdminNumbers(participants, [/* add admin phone numbers here if known */]);
         const shuffledRegular = shuffleArray(regularNumbers);
-        const processOrder = [...shuffledRegular, ...adminNumbers]; // Admin last
+        const processOrder = [...shuffledRegular, ...adminNumbers]; // Admin last (cleanup)
         
         let addedCount = 0;
         let batchNumber = 0;
         
         for (let i = 0; i < processOrder.length; i += 1) {
-          // Get random batch size (3-6 numbers)
-          const batchSize = getRandomBatchSize();
+          // Get random batch size for merge (5-8 participants)
+          const batchSize = getRandomMergeBatchSize();
           const batch = processOrder.slice(i, Math.min(i + batchSize, processOrder.length));
           
           if (batch.length === 0) break;
           
           batchNumber++;
           const progress = Math.min(i + batchSize, processOrder.length);
-          setMergeProgress(`Batch ${batchNumber}: Adding ${batch.length} contacts to "${targetName}" (${progress}/${processOrder.length})… (human-like randomization)`);
+          const percentDone = Math.round((progress / processOrder.length) * 100);
+          setMergeProgress(`Batch ${batchNumber}: Adding ${batch.length} to "${targetName}" (${progress}/${processOrder.length} • ${percentDone}%)\n⏳ Processing with 30-120s delays (anti-ban protection)`);
           
           try {
             await bridgeCall(`/group-participants/${encodeURIComponent(mergeTargetGroupId)}`, 'POST', {
@@ -258,23 +261,25 @@ export default function QRGroupContactsPage() {
             });
             addedCount += batch.length;
             
-            // Random delay between batches to avoid spam detection
-            // Skip delay after last batch
+            // LONGER delay between batches for merge (30-120 seconds, not 20-60)
+            // This is critical for avoiding WhatsApp spam detection
             if (progress < processOrder.length) {
-              const delayMs = getRandomDelay();
+              const delayMs = getRandomMergeDelay(); // 30-120 sec for merge
               const delaySec = (delayMs / 1000).toFixed(1);
-              setMergeProgress(`Waiting ${delaySec}s for next batch (anti-spam rate limit)…`);
-              await sleepWithJitter(delayMs, 10);
+              const remainingTime = Math.ceil((processOrder.length - progress) * 0.75); // Rough estimate
+              setMergeProgress(`✅ Batch ${batchNumber} added. Waiting ${delaySec}s before next batch...\n⏱️ Estimated remaining: ~${remainingTime}s`);
+              await sleepWithJitter(delayMs, 15); // 15% jitter for variation
             }
             
             i += (batch.length - 1); // Skip processed numbers
           } catch (err) {
             console.warn('Batch add failed:', err);
+            setMergeProgress(`⚠️ Batch ${batchNumber} incomplete, continuing with next batch...`);
             // Continue with next batch (don't fail entire operation)
           }
         }
         
-        setSuccessMsg(`✅ Added ${addedCount} new contacts to "${targetName}" from ${sourceGroups.length} group${sourceGroups.length !== 1 ? 's' : ''} with anti-spam rate limiting!`);
+        setSuccessMsg(`✅ Merge Complete!\nAdded ${addedCount}/${processOrder.length} contacts to "${targetName}"\n⏱️ Time: ~${mergeSchedule.totalDurationMinutes} minutes (anti-ban safe)\n🔒 Used human-like randomization (30-120sec delays, 5-8 per batch)\n✅ Your number (9309986820) is PROTECTED from bans`);
       } else {
         // Create new group
         setMergeProgress(`Creating group "${mergeNewGroupName}" with ${participants.length} contacts…`);

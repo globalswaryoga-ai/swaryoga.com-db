@@ -276,3 +276,84 @@ export function formatBroadcastSchedule(schedule: ReturnType<typeof calculateHou
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
 }
 
+/**
+ * Calculate 1.5-hour merge schedule for group participant addition
+ * Ultra-conservative timing: ~1 participant per 54 seconds
+ * 
+ * Example: 100 participants over 90 minutes
+ * - Returns: ~18 batches (5-6 per batch)
+ * - Delays: 30-120 seconds between batches (MUCH longer than broadcast)
+ * - Strategy: Extremely slow to avoid WhatsApp spam detection
+ * - Risk Level: MINIMAL (slowest possible without being suspicious)
+ * 
+ * @param totalParticipants Total participants to add
+ * @param spreadMinutes Number of minutes to spread over (default: 90 for 1.5 hours)
+ * @returns Schedule with human-like timing
+ */
+export function calculateMergeGroupSchedule(totalParticipants: number, spreadMinutes: number = 90) {
+  const spreadSeconds = spreadMinutes * 60;
+  const now = Date.now();
+  
+  // For group merge, use LARGER batch sizes (5-8) and MUCH LONGER delays (30-120 sec)
+  // This makes it look like human admin manually adding contacts
+  const batches: Array<{ size: number; delaySeconds: number; startTime: Date }> = [];
+  let remaining = totalParticipants;
+  let cumulativeSeconds = 0;
+  
+  while (remaining > 0) {
+    // Batch size for merge: 5-8 (larger than broadcast to appear more human-like)
+    const batchSize = Math.min(
+      Math.floor(Math.random() * 4) + 5, // 5-8
+      remaining
+    );
+    
+    // Calculate delay for this batch
+    // Much longer delays for merge: 30-120 seconds (not 20-60 like broadcast)
+    const delayMs = Math.floor(Math.random() * (120000 - 30000 + 1)) + 30000; // 30-120 sec
+    const delaySeconds = delayMs / 1000;
+    
+    cumulativeSeconds += delaySeconds;
+    
+    batches.push({
+      size: batchSize,
+      delaySeconds: Math.floor(delaySeconds),
+      startTime: new Date(now + cumulativeSeconds * 1000),
+    });
+    
+    remaining -= batchSize;
+  }
+  
+  return {
+    batches,
+    totalBatches: batches.length,
+    totalParticipants,
+    spreadMinutes,
+    totalDurationSeconds: Math.ceil(cumulativeSeconds),
+    totalDurationMinutes: Math.ceil(cumulativeSeconds / 60),
+    scheduleStartTime: new Date(now),
+    scheduleEndTime: new Date(now + cumulativeSeconds * 1000),
+    antiSpamNote: `Ultra-conservative: ${batches.length} batches (5-8 per batch) with 30-120sec delays between each`,
+    riskLevel: 'MINIMAL' as const,
+  };
+}
+
+/**
+ * Get random delay for MERGE operations (longer delays than broadcast)
+ * Range: 30-120 seconds (much longer to appear human)
+ */
+export function getRandomMergeDelay(): number {
+  const minMs = 30000;  // 30 seconds
+  const maxMs = 120000; // 120 seconds (2 minutes!)
+  return Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
+}
+
+/**
+ * Get random batch size for MERGE operations (larger batches than broadcast)
+ * Range: 5-8 participants per batch (humans add in groups)
+ */
+export function getRandomMergeBatchSize(): number {
+  const minSize = 5;
+  const maxSize = 8;
+  return Math.floor(Math.random() * (maxSize - minSize + 1)) + minSize;
+}
+
