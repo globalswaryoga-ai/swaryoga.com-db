@@ -6,10 +6,11 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 export const maxDuration = 300; // 5 minutes for large uploads
 
-// Vercel hard limit: 250MB max request size for single uploads
-// For files > 220MB, consider implementing chunked upload
-// WARNING: Files >= 220MB will fail with HTTP 413 at Vercel infrastructure level
-const MAX_VIDEO_SIZE = 1 * 1024 * 1024 * 1024; // 1GB limit (code-level only)
+// Vercel actual limit: ~100-110MB for entire request (including multipart encoding overhead of ~10%)
+// 50MB file + overhead = ~55MB total request (safe)
+// WARNING: Files > 50MB will fail with FUNCTION_PAYLOAD_TOO_LARGE
+// For very large videos (>50MB), implement chunked upload
+const MAX_VIDEO_SIZE = 50 * 1024 * 1024; // 50MB (realistic Vercel limit)
 
 /**
  * POST /api/admin/crm/sadhana-scheduler/upload-video
