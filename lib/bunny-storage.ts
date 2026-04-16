@@ -12,6 +12,8 @@
  *    - BUNNY_STORAGE_CDN_HOST (e.g. yourzone.b-cdn.net)
  *    - BUNNY_STORAGE_REGION   (de | ny | la | sg | syd)
  *    - BUNNY_CDN_TOKEN_KEY    (optional - for signed/private URLs)
+ *    - BUNNY_STREAM_LIBRARY_ID (for Sadhana/Stream video uploads - e.g. 638748)
+ *    - BUNNY_API_KEY (for Stream API calls)
  */
 
 import { createHash } from 'crypto';
@@ -484,6 +486,86 @@ export async function deleteTemplateFilesFromS3(urls: string[]): Promise<boolean
 export function isValidS3Url(url: string): boolean {
   const cdnHost = getCDNHost();
   return url.includes('amazonaws.com') || (!!cdnHost && url.includes(cdnHost));
+}
+
+// ============================================
+// BUNNY STREAM VIDEO UPLOADS (Sadhana Videos)
+// ============================================
+
+/**
+ * Upload video to Bunny Stream library (for Sadhana scheduler)
+ * Returns direct CDN stream URL: https://vz-{libraryId}.bunnycdn.com/{videoGuid}.mp4
+ * 
+ * Usage:
+ *   const streamUrl = await uploadToBunnyStream(buffer, 'sadhana-video.mp4', 'Sadhana Video');
+ */
+export async function uploadToBunnyStream(
+  fileBuffer: Buffer,
+  fileName: string,
+  title: string
+): Promise<string> {
+  const libraryId = process.env.BUNNY_STREAM_LIBRARY_ID;
+  const apiKey = process.env.BUNNY_API_KEY;
+
+  if (!libraryId || !apiKey) {
+    throw new Error('BUNNY_STREAM_LIBRARY_ID and BUNNY_API_KEY not configured');
+  }
+
+  try {
+    // Step 1: Create video object in library
+    console.log(`[Bunny Stream] Creating video "${title}" in library ${libraryId}...`);
+
+    const createResponse = await fetch(
+      `https://api.bunny.net/videolibrary/${libraryId}/videos`,
+      {
+        method: 'POST',
+        headers: {
+          'AccessKey': apiKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ title }),
+      }
+    );
+
+    if (!createResponse.ok) {
+      throw new Error(`Failed to create video: ${createResponse.statusText}`);
+    }
+
+    const videoData = await createResponse.json();
+    const videoGuid = videoData.guid;
+
+    console.log(`[Bunny Stream] ✅ Video created with GUID: ${videoGuid}`);
+
+    // Step 2: Upload video file to the video object
+    console.log(`[Bunny Stream] Uploading file (${Math.round(fileBuffer.length / 1024 / 1024)} MB)...`);
+
+    const uploadResponse = await fetch(
+      `https://api.bunny.net/videolibrary/${libraryId}/videos/${videoGuid}`,
+      {
+        method: 'PUT',
+        headers: {
+          'AccessKey': apiKey,
+          'Content-Type': 'application/octet-stream',
+        },
+        body: fileBuffer,
+      }
+    );
+
+    if (!uploadResponse.ok) {
+      throw new Error(`Failed to upload video: ${uploadResponse.statusText}`);
+    }
+
+    console.log(`[Bunny Stream] ✅ Video file uploaded successfully`);
+
+    // Step 3: Return direct CDN stream URL
+    const streamUrl = `https://vz-${libraryId}.bunnycdn.com/${videoGuid}.mp4`;
+    console.log(`[Bunny Stream] 🎬 Stream URL: ${streamUrl}`);
+
+    return streamUrl;
+  } catch (error: any) {
+    console.error('[Bunny Stream] Upload error:', error.message);
+    throw error;
+  }
 }
 
 // ============================================

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
-import { uploadAdminFile } from '@/lib/bunny-storage';
+import { uploadToBunnyStream } from '@/lib/bunny-storage';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -9,7 +9,8 @@ const MAX_VIDEO_SIZE = 2 * 1024 * 1024 * 1024; // 2GB
 
 /**
  * POST /api/admin/crm/sadhana-scheduler/upload-video
- * Upload Sadhana video to Bunny CDN
+ * Upload Sadhana video directly to Bunny Stream (library 638748)
+ * Returns direct CDN stream URL for Zoom Live Stream API
  */
 export async function POST(request: NextRequest) {
   try {
@@ -27,38 +28,22 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData();
     const file = formData.get('file') as File;
-    const fileType = formData.get('fileType') as string;
-    const accessLevel = formData.get('accessLevel') as string;
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
-    }
-
-    // Validate file type
-    if (fileType !== 'videos') {
-      return NextResponse.json({ error: 'Only videos are accepted' }, { status: 400 });
-    }
-
-    if (accessLevel !== 'admin') {
-      return NextResponse.json(
-        { error: 'Sadhana videos must be uploaded as admin files' },
-        { status: 400 }
-      );
     }
 
     // Validate file size
     if (file.size > MAX_VIDEO_SIZE) {
       return NextResponse.json(
         {
-          error: `File too large. Maximum size: ${Math.round(
-            MAX_VIDEO_SIZE / (1024 * 1024 * 1024)
-          )}GB`,
+          error: `File too large. Maximum size: 2GB`,
         },
         { status: 400 }
       );
     }
 
-    // Validate file type (MIME type)
+    // Validate video MIME type
     const allowedMimeTypes = [
       'video/mp4',
       'video/webm',
@@ -69,31 +54,37 @@ export async function POST(request: NextRequest) {
     if (!allowedMimeTypes.includes(file.type)) {
       return NextResponse.json(
         {
-          error: `Invalid video format. Allowed: ${allowedMimeTypes.join(', ')}`,
+          error: `Invalid video format. Allowed: MP4, WebM, MOV, AVI`,
         },
         { status: 400 }
       );
     }
 
-    console.log(`[Sadhana Video Upload] Starting upload for ${file.name} (${file.size} bytes)`);
+    console.log(`[Sadhana Video Upload] Starting upload for ${file.name} (${Math.round(file.size / 1024 / 1024)} MB)`);
 
     // Convert file to buffer
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    // Upload to Bunny (admin access level)
-    const url = await uploadAdminFile(buffer, file.name, 'videos');
+    // Upload directly to Bunny Stream library 638748
+    const streamUrl = await uploadToBunnyStream(
+      buffer,
+      file.name,
+      file.name.split('.')[0] // Use filename without extension as title
+    );
 
-    console.log(`[Sadhana Video Upload] ✅ Successfully uploaded to: ${url}`);
+    console.log(`[Sadhana Video Upload] ✅ Success! Stream URL: ${streamUrl}`);
 
     return NextResponse.json(
       {
         success: true,
         data: {
-          url,
+          url: streamUrl,
           fileName: file.name,
           fileSize: file.size,
           mimeType: file.type,
           uploadedAt: new Date().toISOString(),
+          streamType: 'bunny-stream-direct',
+          usage: 'Paste this URL into Sadhana Scheduler for automatic video playback in Zoom meetings',
         },
       },
       { status: 200 }
