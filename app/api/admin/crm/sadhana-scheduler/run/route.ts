@@ -74,16 +74,22 @@ function shouldTriggerBotActions(scheduleItem: any, now: Date, timezone: string)
   const times = scheduleItem.schedule.times || [];
   const days = scheduleItem.schedule.days || [];
 
-  // Get current time in the schedule's timezone
-  const offsetMs = timezone === 'Asia/Kolkata' ? 5.5 * 60 * 60 * 1000 : 0;
-  const tzDate = new Date(now.getTime() + offsetMs);
-  
-  const currentDay = tzDate.getDay();
-  const currentHour = String(tzDate.getHours()).padStart(2, '0');
-  const currentMin = String(tzDate.getMinutes()).padStart(2, '0');
+  // Get current time in the schedule's timezone using Intl (FIX: previous method was broken)
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    weekday: 'numeric', // 0-6
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+
+  const parts = formatter.formatToParts(now);
+  const currentDay = parseInt(parts.find(p => p.type === 'weekday')?.value || '0');
+  const currentHour = parts.find(p => p.type === 'hour')?.value || '00';
+  const currentMin = parts.find(p => p.type === 'minute')?.value || '00';
   const currentTotalMin = parseInt(currentHour) * 60 + parseInt(currentMin);
 
-  console.log(`[Sadhana] ⏰ Current time check: Day=${currentDay}, Time=${currentHour}:${currentMin} (${currentTotalMin}min), Scheduled days=[${days}], times=[${times}]`);
+  console.log(`[Sadhana] ⏰ Current time check (${timezone}): Day=${currentDay}, Time=${currentHour}:${currentMin} (${currentTotalMin}min), Scheduled days=[${days}], times=[${times}]`);
 
   // Check if today is in scheduled days (0=Sunday, 5=Friday, etc)
   const isRightDay = days.includes(currentDay);
@@ -292,23 +298,19 @@ function isTimeToRun(scheduleItem: any, now: Date, timezone: string): boolean {
   const days = scheduleItem.schedule.days || [];
   const freq = scheduleItem.schedule.repeatFrequency || 'weekly';
 
-  // Get current day of week in the schedule's timezone
+  // Get current day of week and time in the schedule's timezone using Intl (FIX: previous method was broken)
   const formatter = new Intl.DateTimeFormat('en-US', {
     timeZone: timezone,
     weekday: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-    hour12: false
+    hour12: false,
   });
 
-  // This is a workaround: we'll use simple UTC offset for Asia/Kolkata
-  // Asia/Kolkata is UTC+5:30
-  const offsetMs = timezone === 'Asia/Kolkata' ? 5.5 * 60 * 60 * 1000 : 0;
-  const tzDate = new Date(now.getTime() + offsetMs);
-  
-  const currentDay = tzDate.getDay();
-  const currentHour = String(tzDate.getHours()).padStart(2, '0');
-  const currentMin = String(tzDate.getMinutes()).padStart(2, '0');
+  const parts = formatter.formatToParts(now);
+  const currentDay = parseInt(parts.find(p => p.type === 'weekday')?.value || '0');
+  const currentHour = parts.find(p => p.type === 'hour')?.value || '00';
+  const currentMin = parts.find(p => p.type === 'minute')?.value || '00';
   const currentTime = `${currentHour}:${currentMin}`;
 
   // Check if today is in the scheduled days (support both 0-6 and Monday=1 formats)
