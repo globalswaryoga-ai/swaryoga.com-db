@@ -119,30 +119,6 @@ function shouldTriggerBotActions(scheduleItem: any, now: Date, timezone: string)
 }
 
 /**
- * Get Zoom OAuth access token
- */
-async function getZoomAccessToken(): Promise<string> {
-  try {
-    const auth = Buffer.from(`${ZOOM_CLIENT_ID}:${ZOOM_CLIENT_SECRET}`).toString('base64');
-    const response = await fetch('https://zoom.us/oauth/token', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Basic ${auth}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: 'grant_type=account_credentials&account_id=' + ZOOM_ACCOUNT_ID,
-    });
-
-    if (!response.ok) throw new Error('Failed to get Zoom token');
-    const data = await response.json() as { access_token: string };
-    return data.access_token;
-  } catch (err) {
-    console.error('Zoom token error:', err);
-    throw err;
-  }
-}
-
-/**
  * Send countdown message to Zoom meeting chat
  */
 async function sendZoomCountdownMessage(meetingId: string, secondsLeft: number): Promise<void> {
