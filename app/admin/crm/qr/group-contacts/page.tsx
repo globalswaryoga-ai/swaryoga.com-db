@@ -307,6 +307,20 @@ export default function QRGroupContactsPage() {
         }
         
         setSuccessMsg(`✅ Merge Complete!\nAdded ${addedCount}/${processOrder.length} contacts to "${targetName}"\n⏱️ Time: ~${mergeSchedule.totalDurationMinutes} minutes (anti-ban safe)\n🔒 Used human-like randomization (30-120sec delays, 5-8 per batch)\n✅ Your number (9309986820) is PROTECTED from bans${batchErrors.length > 0 ? `\n\n⚠️ Note: ${batchErrors.length} batch(es) had errors` : ''}`);
+        
+        // Verify connection is still alive after long merge to prevent auto-logout
+        try {
+          await new Promise(r => setTimeout(r, 2000)); // Wait 2s after merge before verifying
+          const verifyResponse = await fetch('/wa-bridge/verify-connection', { 
+            headers: { 'x-bridge-secret': token || '' }
+          });
+          if (verifyResponse.ok) {
+            const verifyData = await verifyResponse.json();
+            console.log('✅ Post-merge connection verified:', verifyData);
+          }
+        } catch (err) {
+          console.warn('Post-merge connection verify (non-critical):', err);
+        }
       } else {
         // Create new group
         setMergeProgress(`Creating group "${mergeNewGroupName}" with ${participants.length} contacts…`);
