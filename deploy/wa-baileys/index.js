@@ -61,7 +61,7 @@ const MAX_SESSIONS = 1000;
 const SESSION_IDLE_TIMEOUT = 24 * 60 * 60 * 1000; // 24h — cleanup idle sessions
 const SESSION_CLEANUP_INTERVAL = 60 * 60 * 1000;  // Check every 1h
 const MAX_RETRIES = 50;
-const KEEP_ALIVE_INTERVAL = 60000;
+const KEEP_ALIVE_INTERVAL = 30000; // 30 seconds (INCREASED from 60s for better reliability during long merges)
 const STABILIZATION_THRESHOLD = 30000;
 const MAX_MSGS_PER_CHAT = 100;
 const MAX_RAW_CACHE = 500;
@@ -139,14 +139,37 @@ class UserSession {
   startKeepalive() {
     this.clearKeepaliveTimer();
     const self = this;
-    this.keepaliveTimer = setInterval(() => {
+    
+    this.keepaliveTimer = setInterval(async () => {
       if (self.connectionState === 'connected' && self.sock) {
-        const timeSinceConnect = Date.now() - self.lastConnectedTime;
-        if (timeSinceConnect > STABILIZATION_THRESHOLD) {
-          if (!self.connectionStabilizedTime) {
-            self.connectionStabilizedTime = Date.now();
-            console.log(`[${self.userId}] Connection stabilized ✓`);
+        try {
+          // CRITICAL FIX: Send actual keepalive pings to prevent WhatsApp timeout
+          // During long operations (e.g., 3-4 hour group merges), WhatsApp will disconnect
+          // if no activity occurs. This sends periodic presence updates to keep the connection alive.
+          
+          // Method 1: Send presence update (most reliable)
+          if (self.sock.sendPresenceUpdate) {
+            await self.sock.sendPresenceUpdate('available', null).catch(() => {});
           }
+          
+          // Method 2: Refresh user status (fallback)
+          if (self.sock.updateProfileStatus) {
+            const currentStatus = self.sock.user?.status || 'available';
+            await self.sock.updateProfileStatus(currentStatus).catch(() => {});
+          }
+          
+          const timeSinceConnect = Date.now() - self.lastConnectedTime;
+          if (timeSinceConnect > STABILIZATION_THRESHOLD) {
+            if (!self.connectionStabilizedTime) {
+              self.connectionStabilizedTime = Date.now();
+              console.log(`[${self.userId}] Connection stabilized ✓ (keepalive active)`);
+            }
+          }
+          
+          // Update activity time so session isn't marked as idle
+          self.lastActivityTime = Date.now();
+        } catch (e) {
+          console.warn(`[${self.userId}] Keepalive ping error (non-fatal):`, e.message);
         }
       }
     }, KEEP_ALIVE_INTERVAL);

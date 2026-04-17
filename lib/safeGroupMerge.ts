@@ -127,6 +127,48 @@ export function getNextMergeOperationDelay(): number {
 }
 
 /**
+ * Check connection health during merge to prevent auto-disconnect
+ * CRITICAL: Called every 5-10 minutes during merge to keep connection alive
+ * Without this, WhatsApp times out during 3-4 hour merges
+ */
+export async function checkMergeConnectionHealth(
+  userId: string,
+  sessionKey: string,
+  apiToken: string
+): Promise<{ healthy: boolean; message: string }> {
+  try {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+    const response = await fetch(
+      `${apiUrl}/api/admin/crm/whatsapp/qr/connection-health?userId=${encodeURIComponent(userId)}&sessionKey=${encodeURIComponent(sessionKey)}`,
+      {
+        headers: { 'Authorization': `Bearer ${apiToken}` },
+        timeout: 8000,
+      }
+    );
+    
+    if (response.ok) {
+      const data = await response.json();
+      return {
+        healthy: data.connected,
+        message: data.message || '✅ Connection healthy',
+      };
+    }
+
+    // Connection check failed - might be disconnected
+    return {
+      healthy: false,
+      message: `⚠️ Connection check failed (${response.status}). May have disconnected.`,
+    };
+  } catch (error) {
+    console.error('[safeGroupMerge] Connection health check error:', error);
+    return {
+      healthy: false,
+      message: `❌ Error checking connection: ${error instanceof Error ? error.message : 'Unknown'}`,
+    };
+  }
+}
+
+/**
  * Should we proceed with next operation?
  * Checks: time elapsed, connection status, error recovery
  */
