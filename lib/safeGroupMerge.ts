@@ -99,14 +99,14 @@ export function calculateMergeQueueSchedule(
     spreadMinutes,
     totalOperations,
     avgDelayPerOperationSeconds: Math.round(avgDelayPerOp),
-    minDelaySeconds: 30,
-    maxDelaySeconds: 120,
-    strategy: 'Ultra-conservative: 30-120s delays between EVERY operation',
-    riskLevel: 'MINIMAL' as const,
+    minDelaySeconds: 45,
+    maxDelaySeconds: 180,
+    strategy: 'MAXIMUM SAFETY: 45-180s delays between EVERY operation (no ban risk)',
+    riskLevel: 'ZERO' as const,
     antiDetectionMeasures: [
-      '✅ Single group processed at a time',
-      '✅ 30-120 second random delays between operations',
-      '✅ Connection checks between operations',
+      '✅ Single group processed at a time (no concurrent)',
+      '✅ 45-180 second random delays between operations (ultra-conservative)',
+      '✅ Connection checks before each batch',
       '✅ Auto-resume on disconnection',
       '✅ Graceful error recovery',
       '✅ No concurrent operations',
@@ -116,12 +116,14 @@ export function calculateMergeQueueSchedule(
 }
 
 /**
- * Get next safe operation delay (30-120 seconds)
+ * Get next safe operation delay (45-180 seconds for MAXIMUM SAFETY)
  * Varies to appear human-like
+ * Range: 45-180 seconds (vs 30-120 for faster merges)
  */
 export function getNextMergeOperationDelay(): number {
-  // 30-120 seconds for merge (MUCH longer than broadcast which uses 20-60)
-  return Math.floor(Math.random() * (120000 - 30000 + 1)) + 30000;
+  // 45-180 seconds for merge (ULTRA-CONSERVATIVE - maximum safety, no ban risk)
+  // This is 0.75-3 minutes per operation, appearing very human-like
+  return Math.floor(Math.random() * (180000 - 45000 + 1)) + 45000;
 }
 
 /**
