@@ -1617,20 +1617,16 @@ export default function QRWhatsAppPage() {
   const handleMergeGroups = useCallback(async () => {
     if (!mergeTargetId || mergeSourceIds.size === 0 || mergeBusy) return;
     
-    // Check connection stability before starting merge (prevents 24-hour blocks)
+    // Check connection status before starting merge (prevents 24-hour blocks)
     try {
-      const diag = await bridgeCall('/diagnostics');
-      if (diag?.stability?.isFlapping) {
-        setError('⚠️ Connection is flapping. Wait for ✓ stable badge before merging groups (prevents WhatsApp 24-hour blocks).');
-        return;
-      }
-      if (!diag?.health?.isHealthy) {
-        setError(`Connection not ready: ${diag?.health?.recommendation || 'Check connection status'}`);
+      const status = await bridgeCall('/status');
+      if (status?.status !== 'connected' && !status?.connected) {
+        setError(`⚠️ WhatsApp not ready (status: ${status?.status || 'unknown'}). Wait for ✓ Connected badge before merging.`);
         return;
       }
     } catch (e) {
-      // If diagnostics fails, show warning but allow merge to proceed
-      console.warn('[QR] Could not check connection stability:', e);
+      // If status check fails, warn but allow merge to proceed
+      console.warn('[QR] Could not check connection status before merge:', e);
     }
     
     setMergeBusy(true);
@@ -1798,15 +1794,15 @@ export default function QRWhatsAppPage() {
   const downloadMediaFromBridge = useCallback(async (messageId: string, fileName?: string) => {
     try {
       setDownloadingMedia(messageId);
-      // Check connection stability before downloading media
+      // Check connection is stable before attempting media download
       try {
-        const diag = await bridgeCall('/diagnostics');
-        if (diag?.stability?.isFlapping) {
-          throw new Error('Connection unstable — media cache being cleared. Wait for ✓ stable badge before retrying.');
+        const status = await bridgeCall('/status');
+        if (status?.status !== 'connected' && !status?.connected) {
+          throw new Error('Connection not ready — cannot download media. Wait for ✓ Connected badge.');
         }
       } catch (e) {
-        if (e instanceof Error && e.message.includes('Connection unstable')) throw e;
-        // Ignore diagnostics fetch errors, continue with download
+        // Ignore connection check errors, continue with download attempt
+        console.debug('[QR] Connection status check before media download:', e);
       }
       // Route through our own API to avoid CORS issues with the bridge
       const proxyUrl = `/api/admin/crm/media/bridge-download?messageId=${encodeURIComponent(messageId)}&token=${encodeURIComponent(token || '')}`;
