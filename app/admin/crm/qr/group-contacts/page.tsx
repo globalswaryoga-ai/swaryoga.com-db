@@ -311,15 +311,12 @@ export default function QRGroupContactsPage() {
         // Verify connection is still alive after long merge to prevent auto-logout
         try {
           await new Promise(r => setTimeout(r, 2000)); // Wait 2s after merge before verifying
-          const verifyResponse = await fetch('/wa-bridge/verify-connection', { 
-            headers: { 'x-bridge-secret': token || '' }
-          });
-          if (verifyResponse.ok) {
-            const verifyData = await verifyResponse.json();
+          const verifyData = await bridgeCall('/verify-connection');
+          if (verifyData?.ok) {
             console.log('✅ Post-merge connection verified:', verifyData);
           }
-        } catch (err) {
-          console.warn('Post-merge connection verify (non-critical):', err);
+        } catch (err: any) {
+          console.debug('Post-merge connection verify (non-critical):', err?.message);
         }
       } else {
         // Create new group

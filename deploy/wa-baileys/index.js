@@ -1783,59 +1783,40 @@ app.post('/reconnect', async (req, res) => {
 
 // ── Verify Connection After Long Operations ──────────────────────────────
 // Called after merge/long operations to ensure socket is healthy and prevent auto-logout
+// Returns 200 OK even if connection not ready (caller can check ok: true/false)
 app.get('/verify-connection', async (req, res) => {
   const session = getSessionForRequest(req);
   try {
     if (session.connectionState !== 'connected' || !session.sock) {
-      return res.status(503).json({ 
+      return res.json({ 
         ok: false, 
         message: 'WhatsApp not connected',
-        status: session.connectionState 
+        status: session.connectionState,
+        chats_count: session.chatMap.size
       });
     }
 
-    // Test socket responsiveness by fetching chats count (lightweight)
-    // This verifies the connection is actually working without side effects
+    // Test socket responsiveness (lightweight check)
     let testResult = false;
     try {
-      if (session.chatMap.size > 0) {
-        testResult = true;
-      } else if (session.sock.chats) {
-        // Try to get chats if available
-        testResult = session.sock.chats?.getAll?.().length >= 0;
-      } else {
-        // Fallback: socket is responsive if we can access basic properties
-        testResult = session.sock.user?.id !== undefined;
-      }
+      testResult = session.sock.user?.id !== undefined && session.chatMap.size >= 0;
     } catch (e) {
-      console.warn(`[${session.ownerUserId}] Connection verify test failed:`, e.message);
-      testResult = false;
-    }
-
-    if (!testResult) {
-      console.warn(`[${session.ownerUserId}] Connection test failed - socket may be in bad state after long operation`);
-      // Don't force disconnect - let the connection.update event handle it
-      return res.status(503).json({ 
-        ok: false, 
-        message: 'Socket test failed - connection may be degraded',
-        status: 'degraded'
-      });
+      console.warn(`[${session.ownerUserId}] Connection verify test error:`, e.message);
     }
 
     // Update last activity to prevent idle cleanup
     session.lastActivityTime = Date.now();
 
     res.json({ 
-      ok: true, 
-      message: 'Connection verified healthy',
+      ok: testResult, 
+      message: testResult ? 'Connection verified healthy' : 'Socket test inconclusive',
       status: 'connected',
-      socket_responsive: true,
+      socket_responsive: testResult,
       chats_count: session.chatMap.size,
-      user: session.sock.user?.id,
-      last_activity: new Date(session.lastActivityTime).toISOString()
+      user: session.sock.user?.id?.split(':')[0] || 'unknown'
     });
   } catch (e) { 
-    res.status(500).json({ error: e.message }); 
+    res.json({ ok: false, error: e.message, status: 'error' }); 
   }
 });
 
