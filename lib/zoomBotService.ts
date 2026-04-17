@@ -11,12 +11,17 @@ const ZOOM_CLIENT_ID = process.env.ZOOM_BOT_CLIENT_ID || process.env.ZOOM_CLIENT
 const ZOOM_CLIENT_SECRET = process.env.ZOOM_BOT_CLIENT_SECRET || process.env.ZOOM_CLIENT_SECRET;
 const ZOOM_BOT_JID = process.env.ZOOM_BOT_JID; // Optional: your Zoom bot user ID
 
+// User-level OAuth token (newer, preferred method - bot uses user account)
+const ZOOM_USER_ACCESS_TOKEN = process.env.ZOOM_USER_ACCESS_TOKEN;
+const ZOOM_USER_EMAIL = process.env.ZOOM_USER_EMAIL;
+
 // CRITICAL: Log if credentials are missing
-if (!ZOOM_ACCOUNT_ID || !ZOOM_CLIENT_ID || !ZOOM_CLIENT_SECRET) {
+if (!ZOOM_USER_ACCESS_TOKEN && (!ZOOM_ACCOUNT_ID || !ZOOM_CLIENT_ID || !ZOOM_CLIENT_SECRET)) {
   console.error('[ZoomBotService] ❌ CRITICAL: Missing Zoom credentials!');
-  console.error('  ZOOM_ACCOUNT_ID:', ZOOM_ACCOUNT_ID ? '✅' : '❌');
-  console.error('  ZOOM_CLIENT_ID:', ZOOM_CLIENT_ID ? '✅' : '❌');
-  console.error('  ZOOM_CLIENT_SECRET:', ZOOM_CLIENT_SECRET ? '✅' : '❌');
+  console.error('  ZOOM_USER_ACCESS_TOKEN (preferred):', ZOOM_USER_ACCESS_TOKEN ? '✅' : '❌');
+  console.error('  ZOOM_ACCOUNT_ID (fallback):', ZOOM_ACCOUNT_ID ? '✅' : '❌');
+  console.error('  ZOOM_CLIENT_ID (fallback):', ZOOM_CLIENT_ID ? '✅' : '❌');
+  console.error('  ZOOM_CLIENT_SECRET (fallback):', ZOOM_CLIENT_SECRET ? '✅' : '❌');
 }
 
 interface ZoomBotConfig {
@@ -40,23 +45,30 @@ export function clearTokenCache(): void {
 
 /**
  * Get or refresh Zoom OAuth access token
+ * Priority: User-level token > Service account token
  */
 export async function getZoomAccessToken(): Promise<string> {
+  // ⭐ PREFERRED: Use user-level token if available
+  if (ZOOM_USER_ACCESS_TOKEN) {
+    console.log('[ZoomBotService] ✅ Using user-level OAuth token (' + (ZOOM_USER_EMAIL || 'email not specified') + ')');
+    return ZOOM_USER_ACCESS_TOKEN;
+  }
+
   const now = Date.now();
   
   // Return cached token if still valid (with 5-min buffer)
   if (cachedToken && now < tokenExpireTime - 5 * 60 * 1000) {
-    console.log('[ZoomBotService] ✅ Using cached token (expires in', Math.round((tokenExpireTime - now) / 1000), 'seconds)');
+    console.log('[ZoomBotService] ✅ Using cached service account token (expires in', Math.round((tokenExpireTime - now) / 1000), 'seconds)');
     return cachedToken;
   }
 
   try {
-    // Build the auth header
+    // Fallback: Build the auth header for service account
     const clientId = ZOOM_CLIENT_ID || '';
     const clientSecret = ZOOM_CLIENT_SECRET || '';
     const accountId = ZOOM_ACCOUNT_ID || '';
     
-    console.log('[ZoomBotService] 🔄 Requesting new token...');
+    console.log('[ZoomBotService] 🔄 Requesting service account token (user token not available)...');
     console.log('[ZoomBotService] - Client ID length:', clientId.length);
     console.log('[ZoomBotService] - Account ID length:', accountId.length);
     
@@ -80,7 +92,7 @@ export async function getZoomAccessToken(): Promise<string> {
     cachedToken = response.data.access_token;
     tokenExpireTime = now + (response.data.expires_in * 1000);
     
-    console.log('[ZoomBotService] ✅ Token refreshed, expires in', response.data.expires_in, 'seconds');
+    console.log('[ZoomBotService] ✅ Service account token refreshed, expires in', response.data.expires_in, 'seconds');
     return cachedToken;
   } catch (err: any) {
     const errorDetail = err.response?.data || err.message || String(err);
