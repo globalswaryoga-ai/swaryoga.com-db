@@ -308,15 +308,32 @@ export default function QRGroupContactsPage() {
         
         setSuccessMsg(`✅ Merge Complete!\nAdded ${addedCount}/${processOrder.length} contacts to "${targetName}"\n⏱️ Time: ~${mergeSchedule.totalDurationMinutes} minutes (anti-ban safe)\n🔒 Used human-like randomization (30-120sec delays, 5-8 per batch)\n✅ Your number (9309986820) is PROTECTED from bans${batchErrors.length > 0 ? `\n\n⚠️ Note: ${batchErrors.length} batch(es) had errors` : ''}`);
         
-        // Verify connection is still alive after long merge to prevent auto-logout
+        // ═══ SAFE POST-MERGE SESSION STABILIZATION ═══
+        // After merge completes, ensure WhatsApp doesn't timeout/logout
+        // Strategy: MINIMAL verification (don't send too many commands = bot detection risk)
         try {
-          await new Promise(r => setTimeout(r, 2000)); // Wait 2s after merge before verifying
-          const verifyData = await bridgeCall('/verify-connection');
-          if (verifyData?.ok) {
-            console.log('✅ Post-merge connection verified:', verifyData);
+          setMergeProgress(`✅ Merge complete! Waiting for WhatsApp to stabilize (don't close this tab)…`);
+          
+          // Step 1: Long wait for socket to naturally stabilize (10 seconds)
+          // This gives WhatsApp time to process all the additions
+          await new Promise(r => setTimeout(r, 10000));
+          
+          // Step 2: Single gentle verification (not aggressive multi-attempt)
+          try {
+            const verifyData = await bridgeCall('/verify-connection', 'GET', {}, { timeout: 8000 });
+            if (verifyData?.ok) {
+              console.log(`✅ Post-merge verification: Connection OK, socket responsive`);
+            } else {
+              console.warn(`⚠️ Post-merge: Connection state inconclusive, but merge is complete`);
+            }
+          } catch (err: any) {
+            // Even if verify fails, the merge itself succeeded, so don't error
+            console.warn('Post-merge verification skipped (non-critical):', err?.message?.substring(0, 40));
           }
+          
+          console.log('✅ Post-merge stabilization complete');
         } catch (err: any) {
-          console.debug('Post-merge connection verify (non-critical):', err?.message);
+          console.debug('Post-merge stabilization (non-fatal):', err?.message?.substring(0, 40));
         }
       } else {
         // Create new group

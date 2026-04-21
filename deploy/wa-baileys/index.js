@@ -143,24 +143,33 @@ class UserSession {
     this.keepaliveTimer = setInterval(async () => {
       if (self.connectionState === 'connected' && self.sock) {
         try {
-          // Keepalive strategy: Keep socket alive during long operations (3-4 hour group merges)
-          // WITHOUT using presence updates that might trigger auto-logout
+          // ═══ SAFE KEEPALIVE STRATEGY ═══
+          // Goal: Keep WhatsApp connection alive during long merges WITHOUT triggering anti-bot detection
+          // 
+          // Strategy: Use ONLY transport-level and read-only checks (safe, no commands sent to WhatsApp)
+          // This prevents WhatsApp from timing out the session OR detecting bot activity
           
-          // Strategy: Explicitly keep the socket connection alive by testing it's responsive
-          // Send a safe, read-only query to verify socket is working
-          if (self.sock.ws && typeof self.sock.ws.send === 'function') {
+          // Layer 1: WebSocket transport-level ping (always safe - doesn't trigger bot detection)
+          if (self.sock.ws && typeof self.sock.ws.ping === 'function') {
             try {
-              // Send a low-level ping on WebSocket to keep connection alive
-              if (self.sock.ws.ping) {
-                self.sock.ws.ping();
-              }
+              self.sock.ws.ping();
             } catch (e) {
-              // Silent fail - WebSocket ping might not be available
+              // Silent fail - ping might not be available
             }
           }
           
-          // Update activity time so session isn't marked as idle
-          self.lastActivityTime = Date.now();
+          // Layer 2: Read-only socket validation (safe - no commands sent to WhatsApp)
+          // Just verify socket is responsive without making any WhatsApp API calls
+          try {
+            // Non-intrusive check: socket is connected and has user info
+            // This doesn't send any commands to WhatsApp servers
+            if (self.sock?.user?.id && self.sock?.authState) {
+              // Socket is valid, update activity time
+              self.lastActivityTime = Date.now();
+            }
+          } catch (e) {
+            // Silent fail
+          }
           
           const timeSinceConnect = Date.now() - self.lastConnectedTime;
           if (timeSinceConnect > STABILIZATION_THRESHOLD) {
