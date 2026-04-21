@@ -274,6 +274,20 @@ export default function QRGroupContactsPage() {
             });
             addedCount += batch.length;
             
+            // ═══ HEALTH CHECK EVERY 5 BATCHES ═══
+            // During the long delay, check if session is still alive (catches early auto-logouts)
+            if (batchNumber % 5 === 0) {
+              try {
+                const healthCheck = await bridgeCall('/verify-connection', 'GET', {}, { timeout: 5000 });
+                if (!healthCheck?.ok) {
+                  console.warn(`⚠️ Batch ${batchNumber}: Connection health check inconclusive`);
+                }
+              } catch (healthErr: any) {
+                // Non-fatal: if health check fails, connection might be bad
+                console.warn(`⚠️ Batch ${batchNumber}: Health check failed (may indicate disconnect):`, healthErr?.message?.substring(0, 40));
+              }
+            }
+            
             // LONGER delay between batches for merge (30-120 seconds, not 20-60)
             // This is critical for avoiding WhatsApp spam detection
             if (progress < processOrder.length) {
@@ -308,32 +322,59 @@ export default function QRGroupContactsPage() {
         
         setSuccessMsg(`✅ Merge Complete!\nAdded ${addedCount}/${processOrder.length} contacts to "${targetName}"\n⏱️ Time: ~${mergeSchedule.totalDurationMinutes} minutes (anti-ban safe)\n🔒 Used human-like randomization (30-120sec delays, 5-8 per batch)\n✅ Your number (9309986820) is PROTECTED from bans${batchErrors.length > 0 ? `\n\n⚠️ Note: ${batchErrors.length} batch(es) had errors` : ''}`);
         
-        // ═══ SAFE POST-MERGE SESSION STABILIZATION ═══
-        // After merge completes, ensure WhatsApp doesn't timeout/logout
-        // Strategy: MINIMAL verification (don't send too many commands = bot detection risk)
+        // ═══ AGGRESSIVE POST-MERGE RECOVERY (CRITICAL!) ═══
+        // After 90-minute merge, WhatsApp may have auto-logged us out
+        // Recovery strategy: Force connection back to life immediately
         try {
-          setMergeProgress(`✅ Merge complete! Waiting for WhatsApp to stabilize (don't close this tab)…`);
+          setMergeProgress(`✅ Merge complete! Restoring WhatsApp connection (CRITICAL - don't close tab)…`);
           
-          // Step 1: Long wait for socket to naturally stabilize (10 seconds)
-          // This gives WhatsApp time to process all the additions
-          await new Promise(r => setTimeout(r, 10000));
+          // Step 1: Immediate 5-second wait (let socket breathe)
+          await new Promise(r => setTimeout(r, 5000));
           
-          // Step 2: Single gentle verification (not aggressive multi-attempt)
+          // Step 2: FORCE activity - call /status to wake up the session
+          // This forces the bridge to verify the connection and keeps it alive
           try {
-            const verifyData = await bridgeCall('/verify-connection', 'GET', {}, { timeout: 8000 });
-            if (verifyData?.ok) {
-              console.log(`✅ Post-merge verification: Connection OK, socket responsive`);
+            const statusData = await bridgeCall('/status', 'GET', {}, { timeout: 10000 });
+            if (statusData?.connected) {
+              console.log(`✅ Post-merge status check: Connection ACTIVE`);
+              setMergeProgress(`✅ Connection verified! WhatsApp is responsive.`);
             } else {
-              console.warn(`⚠️ Post-merge: Connection state inconclusive, but merge is complete`);
+              console.warn(`⚠️ Post-merge: Status shows not connected, attempting reconnect...`);
+              // Try to reconnect if status shows disconnected
+              try {
+                await bridgeCall('/reconnect', 'POST', {}, { timeout: 10000 });
+                console.log(`✅ Reconnection triggered after disconnect`);
+                setMergeProgress(`✅ Reconnection initiated. Please wait 10 seconds...`);
+                await new Promise(r => setTimeout(r, 10000));
+              } catch (reconnectErr: any) {
+                console.warn('Reconnect attempt result:', reconnectErr?.message?.substring(0, 50));
+              }
             }
-          } catch (err: any) {
-            // Even if verify fails, the merge itself succeeded, so don't error
-            console.warn('Post-merge verification skipped (non-critical):', err?.message?.substring(0, 40));
+          } catch (statusErr: any) {
+            console.warn('Post-merge status check failed:', statusErr?.message?.substring(0, 40));
+            // Try force reconnect anyway
+            try {
+              await bridgeCall('/reconnect', 'POST', {}, { timeout: 10000 });
+              console.log(`✅ Force reconnect triggered after status failure`);
+            } catch (e) {
+              // Silent fail - connection might recover on its own
+            }
           }
           
-          console.log('✅ Post-merge stabilization complete');
+          // Step 3: Final verification - try to fetch chats (proves session is responsive)
+          try {
+            const chatsCheck = await bridgeCall('/chats', 'GET', {}, { timeout: 10000 });
+            if (Array.isArray(chatsCheck)) {
+              console.log(`✅ Final check: Sessions responsive. Chat count: ${chatsCheck.length}`);
+              setMergeProgress(`✅ WhatsApp connection RESTORED and responsive!`);
+            }
+          } catch (chatErr: any) {
+            console.warn('Chat fetch (final check) result:', chatErr?.message?.substring(0, 50));
+          }
+          
+          console.log('✅ Post-merge recovery complete');
         } catch (err: any) {
-          console.debug('Post-merge stabilization (non-fatal):', err?.message?.substring(0, 40));
+          console.debug('Post-merge recovery (non-fatal):', err?.message?.substring(0, 40));
         }
       } else {
         // Create new group

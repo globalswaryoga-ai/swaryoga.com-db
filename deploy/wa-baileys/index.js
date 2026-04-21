@@ -139,37 +139,42 @@ class UserSession {
   startKeepalive() {
     this.clearKeepaliveTimer();
     const self = this;
+    let heartbeatCounter = 0;
     
     this.keepaliveTimer = setInterval(async () => {
       if (self.connectionState === 'connected' && self.sock) {
         try {
-          // ═══ SAFE KEEPALIVE STRATEGY ═══
-          // Goal: Keep WhatsApp connection alive during long merges WITHOUT triggering anti-bot detection
-          // 
-          // Strategy: Use ONLY transport-level and read-only checks (safe, no commands sent to WhatsApp)
-          // This prevents WhatsApp from timing out the session OR detecting bot activity
-          
-          // Layer 1: WebSocket transport-level ping (always safe - doesn't trigger bot detection)
+          // ═══ MULTI-LAYER KEEPALIVE FOR LONG MERGES ═══
+          // Layer 1: WebSocket transport ping (always safe)
           if (self.sock.ws && typeof self.sock.ws.ping === 'function') {
             try {
               self.sock.ws.ping();
             } catch (e) {
-              // Silent fail - ping might not be available
+              // Silent fail
             }
           }
           
-          // Layer 2: Read-only socket validation (safe - no commands sent to WhatsApp)
-          // Just verify socket is responsive without making any WhatsApp API calls
-          try {
-            // Non-intrusive check: socket is connected and has user info
-            // This doesn't send any commands to WhatsApp servers
-            if (self.sock?.user?.id && self.sock?.authState) {
-              // Socket is valid, update activity time
-              self.lastActivityTime = Date.now();
+          // Layer 2: WhatsApp-level heartbeat (every ~90 seconds = every 3rd interval)
+          // This sends a SAFE typing indicator to our own status, which:
+          // - Resets WhatsApp session timeout (prevents auto-logout)
+          // - Does NOT trigger bot detection (very low-risk operation)
+          // - Looks like normal user activity
+          heartbeatCounter++;
+          if (heartbeatCounter % 3 === 0 && self.sock?.user?.id) {
+            try {
+              // Send "typing" indicator to own status (safest heartbeat possible)
+              // This resets WhatsApp's idle timer without sending suspicious presence updates
+              const myJid = self.sock.user.id;
+              await self.sock.sendTyping(myJid, false); // false = stop typing (less suspicious than start)
+              // console.log(`[${self.userId}] ✓ Safe heartbeat sent (counter: ${heartbeatCounter})`);
+            } catch (heartbeatErr) {
+              // Silent fail - non-critical if typing indicator fails
+              console.warn(`[${self.userId}] Heartbeat error (non-fatal):`, heartbeatErr.message?.substring(0, 40));
             }
-          } catch (e) {
-            // Silent fail
           }
+          
+          // Update activity time
+          self.lastActivityTime = Date.now();
           
           const timeSinceConnect = Date.now() - self.lastConnectedTime;
           if (timeSinceConnect > STABILIZATION_THRESHOLD) {
