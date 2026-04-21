@@ -241,9 +241,9 @@ export default function QRGroupContactsPage() {
         // Dynamic import for rate limiting helpers
         const { getRandomMergeBatchSize, getRandomMergeDelay, separateAdminNumbers, shuffleArray, sleepWithJitter, calculateMergeGroupSchedule } = await import('@/lib/whatsappRateLimiter');
         
-        // Calculate 1.5-hour schedule for safety
-        const mergeSchedule = calculateMergeGroupSchedule(participants.length, 90); // 90 minutes = 1.5 hours
-        setMergeProgress(`📅 Ultra-safe merge: ${participants.length} participants over ${mergeSchedule.spreadMinutes} min (${mergeSchedule.totalBatches} batches, 5-8 per batch)\n⏱️ Delays between batches: 30-120 seconds (human-like)\n✅ Prevents WhatsApp bans and auto-signout`);
+        // Calculate OPTION B ultra-safe schedule (default 240 min = 4+ hours)
+        const mergeSchedule = calculateMergeGroupSchedule(participants.length); // Uses Option B defaults: 240 min, 2-3 batch, 60-180s delays
+        setMergeProgress(`🔥 OPTION B ULTRA-SAFE: ${participants.length} participants over ${mergeSchedule.spreadMinutes} min\n📊 ${mergeSchedule.totalBatches} batches (2-3 per batch)\n⏱️ 60-180 sec delays (1-3 min between each) = Looks 100% HUMAN\n🛡️ Ban risk: NEARLY ZERO`);
         await new Promise(r => setTimeout(r, 3000));
         
         // Prepare participants: shuffle for randomization, but keep admin at end
@@ -265,7 +265,7 @@ export default function QRGroupContactsPage() {
           batchNumber++;
           const progress = Math.min(i + batchSize, processOrder.length);
           const percentDone = Math.round((progress / processOrder.length) * 100);
-          setMergeProgress(`Batch ${batchNumber}: Adding ${batch.length} to "${targetName}" (${progress}/${processOrder.length} • ${percentDone}%)\n⏳ Processing with 30-120s delays (anti-ban protection)`);
+          setMergeProgress(`🔄 Batch ${batchNumber}: Adding ${batch.length} to "${targetName}" (${progress}/${processOrder.length} • ${percentDone}%)\n⏱️ Option B: 60-180s delays (1-3 min, ultra-human-like)`);
           
           try {
             await bridgeCall(`/group-participants/${encodeURIComponent(mergeTargetGroupId)}`, 'POST', {
@@ -288,13 +288,13 @@ export default function QRGroupContactsPage() {
               }
             }
             
-            // LONGER delay between batches for merge (30-120 seconds, not 20-60)
-            // This is critical for avoiding WhatsApp spam detection
+            // OPTION B: 60-180 second delays (1-3 minutes) for merge
+            // This is critical for avoiding WhatsApp detection and looking human
             if (progress < processOrder.length) {
-              const delayMs = getRandomMergeDelay(); // 30-120 sec for merge
+              const delayMs = getRandomMergeDelay(); // 60-180 sec (Option B)
               const delaySec = (delayMs / 1000).toFixed(1);
-              const remainingTime = Math.ceil((processOrder.length - progress) * 0.75); // Rough estimate
-              setMergeProgress(`✅ Batch ${batchNumber} added. Waiting ${delaySec}s before next batch...\n⏱️ Estimated remaining: ~${remainingTime}s`);
+              const remainingTime = Math.ceil((processOrder.length - progress) * 2); // ~2 min per batch average
+              setMergeProgress(`✅ Batch ${batchNumber} added. Waiting ${delaySec}s before next batch...\n⏱️ Estimated remaining: ~${remainingTime}+ min`);
               await sleepWithJitter(delayMs, 15); // 15% jitter for variation
             }
             
