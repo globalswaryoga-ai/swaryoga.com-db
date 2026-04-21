@@ -1153,6 +1153,25 @@ export default function QRWhatsAppPage() {
     return () => { if (chatPollRef.current) { clearInterval(chatPollRef.current); chatPollRef.current = null; } };
   }, [tab, status?.connected, fetchChats, isPageVisible]);
 
+  // ── AGGRESSIVE RECONNECTION: Detect offline→online transitions and force immediate full fetch ──
+  // When bridge reconnects after being offline, the backend clears chatMap to get fresh sync.
+  // This effect forces the frontend to immediately fetch the new chat list.
+  useEffect(() => {
+    const isNowConnected = status?.connected === true;
+    const wasDisconnected = wasConnectedRef.current === false;
+    
+    if (isNowConnected && wasDisconnected) {
+      console.log('[QR] 🔄 RECONNECT DETECTED — forcing aggressive chat refresh...');
+      // Force immediate fetch of new offline-synced chats
+      if (fetchChatsRef.current) {
+        fetchChatsRef.current().catch(err => console.error('[QR] Reconnection fetch failed:', err));
+      }
+    }
+    
+    // Update previous connection state for next check
+    wasConnectedRef.current = isNowConnected;
+  }, [status?.connected]);
+
   // ── Fetch messages ──
   const fetchMessages = useCallback(async (jid: string) => {
     try {

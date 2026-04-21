@@ -61,7 +61,7 @@ const MAX_SESSIONS = 1000;
 const SESSION_IDLE_TIMEOUT = 24 * 60 * 60 * 1000; // 24h — cleanup idle sessions
 const SESSION_CLEANUP_INTERVAL = 60 * 60 * 1000;  // Check every 1h
 const MAX_RETRIES = 50;
-const KEEP_ALIVE_INTERVAL = 30000; // 30 seconds (INCREASED from 60s for better reliability during long merges)
+const KEEP_ALIVE_INTERVAL = 15000; // 15 seconds (AGGRESSIVE for long merges - ensures constant activity)
 const STABILIZATION_THRESHOLD = 30000;
 const MAX_MSGS_PER_CHAT = 100;
 const MAX_RAW_CACHE = 500;
@@ -141,6 +141,8 @@ class UserSession {
     const self = this;
     let heartbeatCounter = 0;
     
+    // AGGRESSIVE: Every 15 seconds instead of 30
+    // WhatsApp timeout is ~5 minutes, so 15-sec intervals create constant pinging
     this.keepaliveTimer = setInterval(async () => {
       if (self.connectionState === 'connected' && self.sock) {
         try {
@@ -154,7 +156,7 @@ class UserSession {
             }
           }
           
-          // Layer 2: WhatsApp-level heartbeat (every ~90 seconds = every 3rd interval)
+          // Layer 2: WhatsApp-level heartbeat (every ~45 seconds = every 3rd interval at 15sec)
           // This sends a SAFE typing indicator to our own status, which:
           // - Resets WhatsApp session timeout (prevents auto-logout)
           // - Does NOT trigger bot detection (very low-risk operation)
@@ -166,7 +168,7 @@ class UserSession {
               // This resets WhatsApp's idle timer without sending suspicious presence updates
               const myJid = self.sock.user.id;
               await self.sock.sendTyping(myJid, false); // false = stop typing (less suspicious than start)
-              // console.log(`[${self.userId}] ✓ Safe heartbeat sent (counter: ${heartbeatCounter})`);
+              console.log(`[${self.userId}] ✓ Keepalive heartbeat #${heartbeatCounter} sent (safe typing indicator every 45s)`);
             } catch (heartbeatErr) {
               // Silent fail - non-critical if typing indicator fails
               console.warn(`[${self.userId}] Heartbeat error (non-fatal):`, heartbeatErr.message?.substring(0, 40));
@@ -724,6 +726,14 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
         console.log(`[${session.ownerUserId}] Connected session ${session.sessionKey} as: ${sock.user?.id} ${sock.user?.name || ''}`);
 
         session.startKeepalive();
+
+        // IMPORTANT: Clear chatMap on reconnection to force fresh sync from WhatsApp
+        // This ensures any new messages received while offline are immediately synced
+        // The history sync event will repopulate chatMap with fresh data including new messages
+        if (session.chatMap.size > 0) {
+          console.log(`[${session.ownerUserId}] Clearing ${session.chatMap.size} cached chats to sync fresh data on reconnection...`);
+          session.chatMap.clear();
+        }
 
         if (ENABLE_DB_CHAT_HYDRATION && session.chatMap.size === 0) {
           loadChatsFromDB(session).catch(e => console.error(`[${session.ownerUserId}] DB-LOAD error:`, e.message));
