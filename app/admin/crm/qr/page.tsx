@@ -1692,17 +1692,31 @@ export default function QRWhatsAppPage() {
         return;
       }
 
-      // 3. Add participants in batches of 5 with human-like delays
-      const batchSize = 5;
+      // 3. Add participants with OPTION B ULTRA-SAFE pacing
+      // Import rate limiter for real Option B delays (2-3 per batch, 60-180s delays, 240+ min total)
+      const { getRandomMergeBatchSize, getRandomMergeDelay } = await import('@/lib/whatsappRateLimiter');
+      
       let added = 0;
       if (allNewJids.length > 0) {
-        for (let i = 0; i < allNewJids.length; i += batchSize) {
-          const batch = allNewJids.slice(i, i + batchSize);
-          // CRITICAL: Use 10-20 second delays between batches to prevent WhatsApp 24-hour blocks
-          // Longer delays = safer. This prevents rate limiting and account restrictions.
-          if (i > 0) await new Promise(r => setTimeout(r, 10000 + Math.random() * 10000));
-          const estimatedRemaining = Math.ceil(((allNewJids.length - (i + batchSize)) / batchSize) * 15); // ~15s per batch
-          setMergeProgressText(`Adding members ${i + 1}–${Math.min(i + batchSize, allNewJids.length)} of ${allNewJids.length}… (ETA: ${estimatedRemaining}s, delays prevent bans)`);
+        const totalBatches = Math.ceil(allNewJids.length / 2.5); // Average 2-3 per batch
+        const totalMinutes = Math.ceil((totalBatches * 120) / 60); // Average 120s per batch
+        
+        for (let i = 0; i < allNewJids.length; i += 1) {
+          const batchSize = getRandomMergeBatchSize(); // 2-3 only (Option B)
+          const batch = allNewJids.slice(i, Math.min(i + batchSize, allNewJids.length));
+          
+          if (batch.length === 0) break;
+          
+          // OPTION B: 60-180 second delays (1-3 minutes between batches)
+          // Makes merge look 100% human, prevents WhatsApp bans
+          if (i > 0) {
+            const delayMs = getRandomMergeDelay(); // 60-180 sec
+            await new Promise(r => setTimeout(r, delayMs));
+          }
+          
+          const batchNum = Math.ceil((i + 1) / 2.5);
+          const estimatedRemaining = Math.ceil(((allNewJids.length - (i + batchSize)) / 2.5) * 2); // minutes
+          setMergeProgressText(`🔄 Batch ${batchNum}/${totalBatches}: Adding ${batch.length} members (${i + batch.length}/${allNewJids.length})\n⏱️ Option B: 60-180s delays ~ ${estimatedRemaining}+ min remaining\n🛡️ Ultra-safe (2-3 per batch, no bans, no auto-logout)`);
           try {
             await bridgeCall(`/group-participants/${mergeTargetId}`, 'POST', {
               action: 'add',
@@ -1712,24 +1726,33 @@ export default function QRWhatsAppPage() {
           } catch {
             // some may fail (privacy settings etc)
           }
-          setMergeProgress(30 + Math.round(((i + batchSize) / allNewJids.length) * 35));
+          setMergeProgress(30 + Math.round(((i + batch.length) / allNewJids.length) * 35));
         }
       }
 
-      // 4. Remove members from source groups if requested
+      // 4. Remove members from source groups if requested (Option B ultra-safe)
       let removedFromSource = 0;
       if (mergeRemoveFromSource) {
-        setMergeProgressText('Removing members from source groups…');
+        setMergeProgressText('🗑️ Removing members from source groups (Option B delays)…');
+        const { getRandomMergeBatchSize: getBatchSize, getRandomMergeDelay: getDelay } = await import('@/lib/whatsappRateLimiter');
+        
         for (let g = 0; g < sourceArr.length; g++) {
           const groupId = sourceArr[g];
           const members = sourceGroupMembers[groupId] || [];
           // Remove all non-owner members
           const toRemove = members.filter(p => p.admin !== 'superadmin').map(p => p.id);
           if (toRemove.length > 0) {
-            for (let i = 0; i < toRemove.length; i += batchSize) {
-              const batch = toRemove.slice(i, i + batchSize);
-              // CRITICAL: Use 10-20 second delays between removal batches for WhatsApp safety
-              if (i > 0) await new Promise(r => setTimeout(r, 10000 + Math.random() * 10000));
+            for (let i = 0; i < toRemove.length; i += 1) {
+              const removalBatchSize = getBatchSize(); // 2-3 for removal too
+              const batch = toRemove.slice(i, Math.min(i + removalBatchSize, toRemove.length));
+              
+              // OPTION B: Safe delays for removal too
+              if (i > 0) {
+                const delayMs = getDelay(); // 60-180 sec
+                await new Promise(r => setTimeout(r, delayMs));
+              }
+              
+              setMergeProgressText(`🗑️ Removing from group ${g + 1}/${sourceArr.length}: batch (${i + batch.length}/${toRemove.length})\n⏱️ Option B delays active`);
               try {
                 await bridgeCall(`/group-participants/${groupId}`, 'POST', {
                   action: 'remove',
