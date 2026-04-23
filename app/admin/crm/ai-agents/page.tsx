@@ -158,6 +158,26 @@ export default function AIAgentsPage() {
       const res = await fetch('/api/admin/crm/ai-agents?action=list', {
         headers: { Authorization: `Bearer ${token}` },
       });
+
+      if (res.status === 403) {
+        setError('🔐 Superadmin Access Required — AI Voice Agents are managed by superadmins only. Contact your administrator.');
+        setLoading(false);
+        return;
+      }
+
+      if (res.status === 401) {
+        setError('Session expired. Please log in again.');
+        setLoading(false);
+        return;
+      }
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        setError(errData.error || `Server error (${res.status})`);
+        setLoading(false);
+        return;
+      }
+
       const data = await res.json();
       if (data.data?.agents) {
         setAgents(data.data.agents);
@@ -184,6 +204,11 @@ export default function AIAgentsPage() {
       const res = await fetch(`/api/admin/crm/ai-agents?action=detail&id=${agentId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) {
+        console.error(`Failed to fetch agent detail: ${res.status}`);
+        setDetailLoading(false);
+        return;
+      }
       const data = await res.json();
       if (data.data?.agent) {
         setSelectedAgent(data.data.agent);
@@ -204,6 +229,10 @@ export default function AIAgentsPage() {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'set_active', agentId }),
       });
+      if (!res.ok) {
+        console.error(`Failed to set active agent: ${res.status}`);
+        return;
+      }
       const data = await res.json();
       if (data.data) {
         setActiveAgentId(agentId);
@@ -222,9 +251,16 @@ export default function AIAgentsPage() {
       const res = await fetch('/api/admin/crm/calls/agent-mapping', {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) {
+        console.error(`Failed to fetch mappings: ${res.status}`);
+        setMappingsLoading(false);
+        return;
+      }
       const json = await res.json();
       if (json.data?.mappings) setMappings(json.data.mappings);
-    } catch { /* ignore */ }
+    } catch (err) {
+      console.error('Failed to fetch mappings:', err);
+    }
     setMappingsLoading(false);
   }, [token]);
 
@@ -237,7 +273,7 @@ export default function AIAgentsPage() {
     setMappingSaving(true);
     try {
       const agent = agents.find(a => a.agent_id === mappingAgentId);
-      await fetch('/api/admin/crm/calls/agent-mapping', {
+      const res = await fetch('/api/admin/crm/calls/agent-mapping', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -248,23 +284,36 @@ export default function AIAgentsPage() {
           isDefault: mappingIsDefault,
         }),
       });
+      if (!res.ok) {
+        console.error(`Failed to save mapping: ${res.status}`);
+        setMappingSaving(false);
+        return;
+      }
       setMappingLang('');
       setMappingAgentId('');
       setMappingIsDefault(false);
       fetchMappings();
-    } catch { /* ignore */ }
+    } catch (err) {
+      console.error('Failed to save mapping:', err);
+    }
     setMappingSaving(false);
   };
 
   const handleDeleteMapping = async (lang: string) => {
     if (!token) return;
     try {
-      await fetch(`/api/admin/crm/calls/agent-mapping?language=${lang}`, {
+      const res = await fetch(`/api/admin/crm/calls/agent-mapping?language=${lang}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) {
+        console.error(`Failed to delete mapping: ${res.status}`);
+        return;
+      }
       fetchMappings();
-    } catch { /* ignore */ }
+    } catch (err) {
+      console.error('Failed to delete mapping:', err);
+    }
   };
 
   const MAPPING_LANGUAGES = [
