@@ -95,7 +95,46 @@ export async function GET(request: NextRequest) {
 
     console.log(`[Test Now] 🤖 Attempting to join meeting: ${meetingId}`);
 
-    // Attempt bot join
+    const ec2Url = process.env.ZOOM_BOT_EC2_URL;
+    const ec2Secret = process.env.ZOOM_BOT_SECRET;
+
+    // Priority 1: EC2 Puppeteer bot (real participant)
+    if (ec2Url) {
+      try {
+        console.log(`[Test Now] Calling EC2 bot at ${ec2Url}`);
+        const botRes = await fetch(`${ec2Url}/start-meeting`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-bot-secret': ec2Secret || '',
+          },
+          body: JSON.stringify({
+            meetingId,
+            password: meetingPassword,
+            videoUrl: (schedule as any).videoUrl,
+            durationMinutes: schedule.videoDuration || 40,
+          }),
+        });
+        const botData = await botRes.json();
+
+        return NextResponse.json({
+          success: botRes.ok,
+          message: botRes.ok ? '✅ EC2 bot triggered — joining meeting' : '❌ EC2 bot failed',
+          ec2Response: botData,
+          meeting: { id: meetingId, password: meetingPassword ? '***' : 'none' },
+          schedule: { name: schedule.name, times: schedule.schedule?.times },
+        }, { status: botRes.ok ? 200 : 500 });
+      } catch (ec2Err: any) {
+        return NextResponse.json({
+          success: false,
+          message: '❌ Could not reach EC2 bot',
+          error: ec2Err.message,
+          hint: 'Check ZOOM_BOT_EC2_URL and that bot service is running on EC2',
+        }, { status: 500 });
+      }
+    }
+
+    // Priority 2: Fallback to Zoom API (chat message only)
     try {
       await botJoinMeeting({
         meetingId,
@@ -105,7 +144,7 @@ export async function GET(request: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        message: '✅ Bot join triggered successfully',
+        message: '✅ API bot triggered (chat only - set ZOOM_BOT_EC2_URL for real bot)',
         meeting: { id: meetingId, password: meetingPassword ? '***' : 'none' },
         schedule: { name: schedule.name, times: schedule.schedule?.times },
       }, { status: 200 });

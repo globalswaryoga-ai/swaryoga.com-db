@@ -1,0 +1,18 @@
+{
+  "name": "swar-yoga-zoom-bot",
+  "version": "1.0.0",
+  "description": "Automated Zoom bot that joins meetings, shows countdown, plays Bunny video",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "puppeteer": "^23.6.0",
+    "dotenv": "^16.4.7"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

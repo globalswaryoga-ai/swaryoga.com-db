@@ -155,7 +155,9 @@ export async function botJoinMeeting(config: ZoomBotConfig): Promise<void> {
       }
 
       // Step 2: Fallback - Try adding as regular participant
-      console.log(`[ZoomBot] ℹ️ Co-host addition failed (${coHostResponse.status}), trying as regular participant...`);
+      console.log(`[ZoomBot] ℹ️ Co-host addition failed (${coHostResponse.status})`);
+      console.log(`[ZoomBot] Response:`, JSON.stringify(coHostResponse.data));
+      console.log(`[ZoomBot] Trying as regular participant...`);
 
       const joinResponse = await axios.post(
         `https://zoom.us/api/v2/meetings/${config.meetingId}/participants`,
