@@ -379,7 +379,7 @@ export default function BroadcastPage() {
   const filteredLeads = useMemo(() => {
     // Merge DB leads + CSV contacts
     let allLeads = [...leads];
-    
+
     // Add CSV contacts as virtual leads (if not already in DB by phone)
     if (csvContacts.length > 0) {
       const existingPhones = new Set(leads.map(l => l.phoneNumber.replace(/\D/g, '').slice(-10)));
@@ -397,9 +397,20 @@ export default function BroadcastPage() {
         }
       });
     }
-    
-    return allLeads.filter(lead => {
-      const matchesSearch = !searchQuery || 
+
+    // Deduplicate by phone number (keep first occurrence)
+    const seenPhones = new Set<string>();
+    const dedupedLeads = allLeads.filter(lead => {
+      const normalPhone = lead.phoneNumber.replace(/\D/g, '').slice(-10);
+      if (seenPhones.has(normalPhone)) {
+        return false;
+      }
+      seenPhones.add(normalPhone);
+      return true;
+    });
+
+    return dedupedLeads.filter(lead => {
+      const matchesSearch = !searchQuery ||
         lead.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         lead.phoneNumber.includes(searchQuery);
       const matchesStatus = filterStatus === 'all' || lead.status === filterStatus;
