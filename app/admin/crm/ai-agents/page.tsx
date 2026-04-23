@@ -107,6 +107,17 @@ export default function AIAgentsPage() {
   const router = useRouter();
   const token = useAuth();
 
+  // Guard: Don't render until auth is verified (prevents redirect flash)
+  if (!token) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-gray-50 via-white to-violet-50/30">
+        <div className="text-center">
+          <div className="text-sm text-gray-500">Verifying authentication...</div>
+        </div>
+      </div>
+    );
+  }
+
   const [agents, setAgents] = useState<RetellAgent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
