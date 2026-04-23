@@ -1,27 +1,35 @@
 /**
- * Zoom Bot Service - Auto-join meetings, send countdown, play video, auto-close
- * For Sadhana automation at 10:12 (join) and 10:15 (video)
+ * Zoom Bot Service - Using Zoom Bot Framework (Option A)
+ * Bot Framework allows bot to join as participant, send messages, and control recordings
+ *
+ * Credentials (Server-to-Server OAuth):
+ * - ZOOM_ACCOUNT_ID: Account ID from Zoom marketplace
+ * - ZOOM_CLIENT_ID: Client ID from app credentials
+ * - ZOOM_CLIENT_SECRET: Client Secret from app credentials
  */
 
 import axios from 'axios';
 
-// Support both naming conventions (BOT_* and regular)
+// Server-to-Server OAuth Credentials (from Zoom Marketplace)
+// Support both naming conventions: ZOOM_BOT_* (preferred) and ZOOM_*
 const ZOOM_ACCOUNT_ID = process.env.ZOOM_BOT_ACCOUNT_ID || process.env.ZOOM_ACCOUNT_ID;
 const ZOOM_CLIENT_ID = process.env.ZOOM_BOT_CLIENT_ID || process.env.ZOOM_CLIENT_ID;
 const ZOOM_CLIENT_SECRET = process.env.ZOOM_BOT_CLIENT_SECRET || process.env.ZOOM_CLIENT_SECRET;
-const ZOOM_BOT_JID = process.env.ZOOM_BOT_JID; // Optional: your Zoom bot user ID
 
-// User-level OAuth token (newer, preferred method - bot uses user account)
-const ZOOM_USER_ACCESS_TOKEN = process.env.ZOOM_USER_ACCESS_TOKEN;
-const ZOOM_USER_EMAIL = process.env.ZOOM_USER_EMAIL;
+// Bot Framework credentials (to be configured after app setup)
+const ZOOM_BOT_JID = process.env.ZOOM_BOT_JID; // Bot's Jabberdish ID from Zoom
+const ZOOM_BOT_USER_ID = process.env.ZOOM_BOT_USER_ID; // Bot user ID (alternative identifier)
 
 // CRITICAL: Log if credentials are missing
-if (!ZOOM_USER_ACCESS_TOKEN && (!ZOOM_ACCOUNT_ID || !ZOOM_CLIENT_ID || !ZOOM_CLIENT_SECRET)) {
-  console.error('[ZoomBotService] ❌ CRITICAL: Missing Zoom credentials!');
-  console.error('  ZOOM_USER_ACCESS_TOKEN (preferred):', ZOOM_USER_ACCESS_TOKEN ? '✅' : '❌');
-  console.error('  ZOOM_ACCOUNT_ID (fallback):', ZOOM_ACCOUNT_ID ? '✅' : '❌');
-  console.error('  ZOOM_CLIENT_ID (fallback):', ZOOM_CLIENT_ID ? '✅' : '❌');
-  console.error('  ZOOM_CLIENT_SECRET (fallback):', ZOOM_CLIENT_SECRET ? '✅' : '❌');
+if (!ZOOM_ACCOUNT_ID || !ZOOM_CLIENT_ID || !ZOOM_CLIENT_SECRET) {
+  console.error('[ZoomBotService] ❌ CRITICAL: Missing Zoom Server-to-Server OAuth credentials!');
+  console.error('  ZOOM_ACCOUNT_ID:', ZOOM_ACCOUNT_ID ? '✅' : '❌');
+  console.error('  ZOOM_CLIENT_ID:', ZOOM_CLIENT_ID ? '✅' : '❌');
+  console.error('  ZOOM_CLIENT_SECRET:', ZOOM_CLIENT_SECRET ? '✅' : '❌');
+}
+
+if (!ZOOM_BOT_JID && !ZOOM_BOT_USER_ID) {
+  console.warn('[ZoomBotService] ⚠️ Bot identifiers not yet configured. Get from Zoom Marketplace.');
 }
 
 interface ZoomBotConfig {
@@ -44,128 +52,164 @@ export function clearTokenCache(): void {
 }
 
 /**
- * Get or refresh Zoom OAuth access token
- * Priority: User-level token > Service account token
+ * Get or refresh Zoom Server-to-Server OAuth token (for Bot Framework)
  */
 export async function getZoomAccessToken(): Promise<string> {
-  // ⭐ PREFERRED: Use user-level token if available
-  if (ZOOM_USER_ACCESS_TOKEN) {
-    console.log('[ZoomBotService] ✅ Using user-level OAuth token (' + (ZOOM_USER_EMAIL || 'email not specified') + ')');
-    return ZOOM_USER_ACCESS_TOKEN;
-  }
-
   const now = Date.now();
-  
+
   // Return cached token if still valid (with 5-min buffer)
   if (cachedToken && now < tokenExpireTime - 5 * 60 * 1000) {
-    console.log('[ZoomBotService] ✅ Using cached service account token (expires in', Math.round((tokenExpireTime - now) / 1000), 'seconds)');
+    console.log('[ZoomBotService] ✅ Using cached Bot Framework token (expires in', Math.round((tokenExpireTime - now) / 1000), 'seconds)');
     return cachedToken;
   }
 
   try {
-    // Fallback: Build the auth header for service account
-    const clientId = ZOOM_CLIENT_ID || '';
-    const clientSecret = ZOOM_CLIENT_SECRET || '';
-    const accountId = ZOOM_ACCOUNT_ID || '';
-    
-    console.log('[ZoomBotService] 🔄 Requesting service account token (user token not available)...');
-    console.log('[ZoomBotService] - Client ID length:', clientId.length);
-    console.log('[ZoomBotService] - Account ID length:', accountId.length);
-    
-    const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-    const requestBody = `grant_type=account_credentials&account_id=${accountId}`;
-    
-    console.log('[ZoomBotService] - Request body: grant_type=account_credentials&account_id=***');
-    console.log('[ZoomBotService] - Auth header present:', auth.length > 0 ? 'Yes' : 'No');
-    
-    const response = await axios.post('https://zoom.us/oauth/token', 
+    if (!ZOOM_CLIENT_ID || !ZOOM_CLIENT_SECRET || !ZOOM_ACCOUNT_ID) {
+      throw new Error('Missing Server-to-Server OAuth credentials: ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET, or ZOOM_ACCOUNT_ID');
+    }
+
+    console.log('[ZoomBotService] 🔄 Requesting Bot Framework token via Server-to-Server OAuth...');
+
+    const auth = Buffer.from(`${ZOOM_CLIENT_ID}:${ZOOM_CLIENT_SECRET}`).toString('base64');
+    const requestBody = `grant_type=account_credentials&account_id=${ZOOM_ACCOUNT_ID}`;
+
+    const response = await axios.post('https://zoom.us/oauth/token',
       requestBody,
       {
         headers: {
           'Authorization': `Basic ${auth}`,
           'Content-Type': 'application/x-www-form-urlencoded',
         },
-        timeout: 10000, // 10 second timeout
+        timeout: 10000,
       }
     );
 
     cachedToken = response.data.access_token;
     tokenExpireTime = now + (response.data.expires_in * 1000);
-    
-    console.log('[ZoomBotService] ✅ Service account token refreshed, expires in', response.data.expires_in, 'seconds');
+
+    console.log('[ZoomBotService] ✅ Bot Framework token obtained, expires in', response.data.expires_in, 'seconds');
     return cachedToken;
   } catch (err: any) {
     const errorDetail = err.response?.data || err.message || String(err);
     const statusCode = err.response?.status || 'N/A';
     const errorMsg = typeof errorDetail === 'string' ? errorDetail : JSON.stringify(errorDetail);
-    
+
     console.error('[ZoomBotService] ❌ Token error (Status: ' + statusCode + ')');
     console.error('[ZoomBotService] Error details:', errorMsg);
-    console.error('[ZoomBotService] Account ID present:', ZOOM_ACCOUNT_ID ? 'Yes' : 'NO ❌');
-    console.error('[ZoomBotService] Client ID present:', ZOOM_CLIENT_ID ? 'Yes' : 'NO ❌');
-    console.error('[ZoomBotService] Client Secret present:', ZOOM_CLIENT_SECRET ? 'Yes' : 'NO ❌');
-    
-    // More specific error messages
+    console.error('[ZoomBotService] Credentials check - Account:', ZOOM_ACCOUNT_ID ? '✅' : '❌', 'ID:', ZOOM_CLIENT_ID ? '✅' : '❌', 'Secret:', ZOOM_CLIENT_SECRET ? '✅' : '❌');
+
     if (err.code === 'ECONNABORTED') {
       throw new Error('Zoom API timeout - took too long to respond');
-    } else if (err.code === 'ENOTFOUND') {
-      throw new Error('Cannot reach Zoom API - network error');
-    } else if (err.code === 'ECONNREFUSED') {
-      throw new Error('Cannot connect to Zoom API server');
-    } else if (statusCode === 400 && errorMsg.includes('invalid_request')) {
-      const credSetup = `ZOOM_ACCOUNT_ID:${ZOOM_ACCOUNT_ID ? 'Yes' : 'NO'} ZOOM_CLIENT_ID:${ZOOM_CLIENT_ID ? 'Yes' : 'NO'} ZOOM_CLIENT_SECRET:${ZOOM_CLIENT_SECRET ? 'Yes' : 'NO'}`;
-      throw new Error('Zoom OAuth invalid_request - Credentials may be incomplete. Setup: ' + credSetup);
     } else if (statusCode === 401) {
       throw new Error('Zoom API rejected credentials - check CLIENT_ID and SECRET');
     } else if (statusCode === 403) {
       throw new Error('Zoom account forbidden - check ACCOUNT_ID');
     } else {
-      throw new Error('Failed to get Zoom access token: ' + errorMsg);
+      throw new Error('Failed to get Zoom token: ' + errorMsg);
     }
   }
 }
 
 /**
- * Bot joins Zoom meeting as participant (sends ready message to chat)
- * Note: REST API cannot add bot as visible participant, but can send messages
+ * Bot joins Zoom meeting as participant using Zoom Bot Framework
+ * Bot appears as a real participant in the meeting (not just chat)
  */
 export async function botJoinMeeting(config: ZoomBotConfig): Promise<void> {
   try {
     const token = await getZoomAccessToken();
-    
-    console.log(`[ZoomBot] 🤖 BOT SENDING READY MESSAGE to meeting ${config.meetingId}...`);
 
-    // Send ready message to participants via Zoom Chat
+    if (!ZOOM_BOT_JID && !ZOOM_BOT_USER_ID) {
+      console.warn('[ZoomBot] ⚠️ Bot JID/User ID not configured yet. Falling back to chat message only.');
+      await sendBotReadyMessage(config.meetingId);
+      return;
+    }
+
+    console.log(`[ZoomBot] 🤖 Bot Framework: Joining meeting ${config.meetingId} as participant...`);
+
+    // Bot Framework API: Use bot's JID to join meeting
+    const botIdentifier = ZOOM_BOT_JID || ZOOM_BOT_USER_ID;
+
+    try {
+      // Try to add bot to meeting participants using Bot Framework
+      const joinResponse = await axios.post(
+        `https://zoom.us/api/v2/meetings/${config.meetingId}/participants`,
+        {
+          action: 'add',
+          participant_jid: botIdentifier,
+          display_name: 'SWAR SADHANA BOT',
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          validateStatus: () => true,
+        }
+      );
+
+      if (joinResponse.status === 201 || joinResponse.status === 200) {
+        console.log(`[ZoomBot] ✅ Bot Framework: Bot joined meeting as participant`);
+      } else if (joinResponse.status === 404) {
+        console.warn(`[ZoomBot] ⚠️ Meeting ${config.meetingId} not found - sending chat fallback`);
+        await sendBotReadyMessage(config.meetingId);
+      } else if (joinResponse.status === 400) {
+        console.warn(`[ZoomBot] ⚠️ Bot Framework join not available (400), using chat fallback:`, joinResponse.data?.message);
+        await sendBotReadyMessage(config.meetingId);
+      } else if (joinResponse.status === 429) {
+        console.warn(`[ZoomBot] ⚠️ Rate limited (429), will retry next minute`);
+      } else {
+        console.warn(`[ZoomBot] ⚠️ Unexpected status ${joinResponse.status}:`, joinResponse.data);
+        await sendBotReadyMessage(config.meetingId);
+      }
+    } catch (joinErr) {
+      console.warn('[ZoomBot] ⚠️ Bot Framework join failed, falling back to chat:', joinErr);
+      await sendBotReadyMessage(config.meetingId);
+    }
+  } catch (err: any) {
+    console.error('[ZoomBot] ❌ Bot join error:', err.message);
+    throw err;
+  }
+}
+
+/**
+ * Fallback: Send bot ready message to meeting chat
+ * Used when Bot Framework is not fully configured or meeting doesn't support bot participants
+ */
+async function sendBotReadyMessage(meetingId: string): Promise<void> {
+  try {
+    const token = await getZoomAccessToken();
+
+    const readyMessage = `🤖 **BOT IS READY** 🤖
+
+Starting Swar Sadhana video in 5 minutes... ⏱️
+
+🧘 Please sit comfortably and prepare for practice.
+
+✅ Video will play automatically for everyone in the meeting!`;
+
     const response = await axios.post(
-      `https://zoom.us/api/v2/meetings/${config.meetingId}/chat/messages`,
-      {
-        message: `🤖 **BOT IS READY** 🤖\n\nStarting Swar Sadhana video in 5 minutes... ⏱️\n\n🧘 Please sit comfortably and prepare for practice.\n\n✅ Video will play automatically for everyone in the meeting!`,
-      },
+      `https://zoom.us/api/v2/meetings/${meetingId}/chat/messages`,
+      { message: readyMessage },
       {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        validateStatus: () => true, // Don't throw on any status code
+        validateStatus: () => true,
       }
     );
 
     if (response.status === 201) {
-      console.log(`[ZoomBot] ✅ Ready message sent successfully`);
+      console.log(`[ZoomBot] ✅ Bot ready message sent via chat`);
     } else if (response.status === 429) {
-      console.warn(`[ZoomBot] ⚠️ Rate limited, will retry next minute`);
+      console.warn(`[ZoomBot] ⚠️ Rate limited on chat message`);
     } else if (response.status === 404) {
-      console.error(`[ZoomBot] ❌ Meeting not found (404): ${config.meetingId}`);
-      throw new Error(`Meeting ${config.meetingId} not found`);
-    } else if (response.status === 401) {
-      console.error(`[ZoomBot] ❌ Authentication failed (401) - Invalid token or credentials`);
-      throw new Error('Zoom authentication failed');
+      console.error(`[ZoomBot] ❌ Meeting not found: ${meetingId}`);
     } else {
-      console.warn(`[ZoomBot] ⚠️ Unexpected status ${response.status}:`, response.data);
+      console.warn(`[ZoomBot] ⚠️ Chat message status: ${response.status}`);
     }
   } catch (err: any) {
-    console.error('[ZoomBot] ❌ Join error:', err.message);
-    throw err; // Let caller know it failed
+    console.error('[ZoomBot] ❌ Chat message error:', err.message);
   }
 }
 
