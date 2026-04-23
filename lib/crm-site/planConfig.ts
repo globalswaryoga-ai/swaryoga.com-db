@@ -31,11 +31,11 @@ export const PLAN_PRICING: Record<PlanTier, {
   annual: number;
   monthlyUSD: number;
 }> = {
-  free:         { monthly: 0,    quarterly: 0,     annual: 0,     monthlyUSD: 0 },
-  basic:        { monthly: 999,  quarterly: 2997,  annual: 9990,  monthlyUSD: 15 },
-  starter:      { monthly: 1999, quarterly: 5997,  annual: 19990, monthlyUSD: 29 },
-  growth:       { monthly: 4999, quarterly: 14997, annual: 49990, monthlyUSD: 69 },
-  professional: { monthly: 9999, quarterly: 29997, annual: 99990, monthlyUSD: 121 },
+  free:         { monthly: 0,     quarterly: 0,      annual: 0,      monthlyUSD: 0 },
+  basic:        { monthly: 499,   quarterly: 1299,   annual: 4500,   monthlyUSD: 8 },
+  starter:      { monthly: 1299,  quarterly: 3897,   annual: 13491,  monthlyUSD: 18 },
+  growth:       { monthly: 2400,  quarterly: 7200,   annual: 28800,  monthlyUSD: 35 },
+  professional: { monthly: 4500,  quarterly: 13500,  annual: 54000,  monthlyUSD: 65 },
 };
 
 // ============================================================================
@@ -136,20 +136,20 @@ export type CrmModule =
 export const PLAN_MODULES: Record<PlanTier, Record<CrmModule, boolean>> = {
   free: {
     leads: true,
-    whatsapp: true,
-    broadcasting: true,
-    chatbot: true,
-    aiCalls: true,
-    reports: true,
-    community: true,
-    templates: true,
-    callRecording: true,
-    emailMarketing: true,
-    landingPages: true,
-    automation: true,
-    helpdesk: true,
-    api: true,
-    customDomain: true, // Available as ₹999 add-on for all plans
+    whatsapp: false,
+    broadcasting: false,
+    chatbot: false,
+    aiCalls: false,
+    reports: false,
+    community: false,
+    templates: false,
+    callRecording: false,
+    emailMarketing: false,
+    landingPages: false,
+    automation: false,
+    helpdesk: false,
+    api: false,
+    customDomain: false,
   },
   basic: {
     leads: true,

@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import { usePlan } from '@/components/admin/crm/hooks/usePlan';
 import {
   LayoutDashboard,
   X,
@@ -60,6 +61,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
   const router = useRouter();
   const pathname = usePathname();
   const token = useAuth();
+  const plan = usePlan();
   const [unreadCount, setUnreadCount] = useState(0);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [userRole, setUserRole] = useState<string>('admin');
@@ -715,7 +717,13 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
                 {/* Category Items - collapsible */}
                 {(isExpanded || isCollapsed) && (
                   <div className={`${isCollapsed ? '' : 'ml-2 border-l border-gray-800 pl-2'} space-y-0.5 mt-0.5`}>
-                    {category.items.filter((item) => !item.superAdminOnly || isSuperAdmin).map((item) => {
+                    {category.items.filter((item) => {
+                      // Hide if superAdminOnly and not a super admin
+                      if (item.superAdminOnly && !isSuperAdmin) return false;
+                      // Hide if has planModule and user doesn't have access
+                      if (item.planModule && !plan.canAccess(item.planModule)) return false;
+                      return true;
+                    }).map((item) => {
                       const Icon = item.icon;
                       const active = isActive(item.href);
                       return (
