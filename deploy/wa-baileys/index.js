@@ -2079,11 +2079,11 @@ app.post('/group-move-batch', async (req, res) => {
     return copy;
   };
 
-  // Get random batch size: 1-2 users (Meta-approved fast rate)
-  const getRandomBatchSize = () => 1 + Math.floor(Math.random() * 2); // 1 or 2
+  // Get random batch size: 2-3 users (QR WhatsApp conservative rate)
+  const getRandomBatchSize = () => 2 + Math.floor(Math.random() * 2); // 2 or 3
 
-  // Get random wait: 2-3 seconds (matches broadcast rate: 1 per ~2 seconds)
-  const getRandomWait = () => 2000 + Math.floor(Math.random() * 1000); // 2-3 seconds
+  // Get random wait: 3-10 seconds (QR WhatsApp safe rate, prevents auto-signout)
+  const getRandomWait = () => 3000 + Math.floor(Math.random() * 7000); // 3-10 seconds
 
   // Health check: verify session is still connected
   const healthCheck = async (batchNum) => {
