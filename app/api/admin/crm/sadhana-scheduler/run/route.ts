@@ -613,21 +613,20 @@ export async function GET(request: NextRequest) {
   try {
     await connectDB();
 
-    // Verify cron secret if configured
+    // For production: verify cron secret
     const cronSecret = process.env.CRON_SECRET;
-    if (cronSecret) {
-      const provided = request.headers.get('x-cron-secret') || 
+    const userAgent = request.headers.get('user-agent') || '';
+    const isVercelCron = userAgent.includes('vercel-cron');
+
+    // Allow: Vercel cron requests OR requests with valid cron secret OR development mode
+    if (cronSecret && !isVercelCron) {
+      const provided = request.headers.get('x-cron-secret') ||
                        request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
       if (!provided || provided !== cronSecret) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
       }
     }
-
-    // Allow Vercel Cron
-    const userAgent = request.headers.get('user-agent') || '';
-    if (!userAgent.includes('vercel-cron')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    // For development without CRON_SECRET, allow any request
 
     const now = new Date();
     const Model = await getSadhanaScheduleModel();
