@@ -330,11 +330,8 @@ export async function POST(request: NextRequest) {
           schedule.schedule.timezone
         );
 
-        // Get leads assigned to this user
-        const leads = await Lead?.find({ assignedToUserId: schedule.userId }).toArray();
-        if (!leads || leads.length === 0) {
-          continue;
-        }
+        // 🤖 Bot joins and starts recording regardless of leads or participants
+        // (people can join or not - bot will be active)
 
         // 🤖 BOT JOIN PHASE (N min before scheduled time)
         if (shouldJoin && schedule.enableBotAutomation) {
