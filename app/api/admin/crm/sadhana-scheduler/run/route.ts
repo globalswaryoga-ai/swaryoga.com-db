@@ -337,23 +337,45 @@ export async function POST(request: NextRequest) {
       try {
         console.log(`[Sadhana RUN] 📋 Processing schedule: "${schedule.name}" (${schedule._id})`);
 
-        // ⚠️ FIX: Normalize times and days to always be arrays
-        if (typeof schedule.schedule?.times === 'string') {
-          schedule.schedule.times = [schedule.schedule.times];
-          console.log(`[Sadhana RUN] ⚠️ FIXED: times was string, converted to array: ${schedule.schedule.times}`);
-        }
-        if (typeof schedule.schedule?.days === 'number') {
-          schedule.schedule.days = [schedule.schedule.days];
-          console.log(`[Sadhana RUN] ⚠️ FIXED: days was number, converted to array: ${schedule.schedule.days}`);
+        // ⚠️ BULLETPROOF FIX: Ensure schedule data is valid
+        if (!schedule.schedule) {
+          console.error(`[Sadhana RUN] ❌ SKIP: No schedule object!`);
+          continue;
         }
 
-        // Ensure arrays
-        schedule.schedule.times = Array.isArray(schedule.schedule?.times) ? schedule.schedule.times : [];
-        schedule.schedule.days = Array.isArray(schedule.schedule?.days) ? schedule.schedule.days : [];
+        // Normalize times to array
+        let times = schedule.schedule.times;
+        if (typeof times === 'string') {
+          times = [times];
+          console.log(`[Sadhana RUN] ✅ FIXED: times was string, converted to array`);
+        }
+        times = Array.isArray(times) ? times : [];
+        if (times.length === 0) {
+          console.warn(`[Sadhana RUN] ⚠️ SKIP: No times configured`);
+          continue;
+        }
 
-        console.log(`[Sadhana RUN] - Times: ${schedule.schedule?.times?.join(', ') || 'NONE'}`);
-        console.log(`[Sadhana RUN] - Days: ${schedule.schedule?.days?.join(', ') || 'NONE'}`);
-        console.log(`[Sadhana RUN] - Bot Automation: ${schedule.enableBotAutomation}`);
+        // Normalize days to array
+        let days = schedule.schedule.days;
+        if (typeof days === 'number') {
+          days = [days];
+          console.log(`[Sadhana RUN] ✅ FIXED: days was number, converted to array`);
+        }
+        days = Array.isArray(days) ? days : [];
+        if (days.length === 0) {
+          console.warn(`[Sadhana RUN] ⚠️ SKIP: No days configured`);
+          continue;
+        }
+
+        // Update schedule with normalized data
+        schedule.schedule.times = times;
+        schedule.schedule.days = days;
+
+        console.log(`[Sadhana RUN] ✅ Schedule validated:`);
+        console.log(`[Sadhana RUN]    Times: [${times.join(', ')}]`);
+        console.log(`[Sadhana RUN]    Days: [${days.join(', ')}]`);
+        console.log(`[Sadhana RUN]    Timezone: ${schedule.schedule.timezone}`);
+        console.log(`[Sadhana RUN]    Bot Automation: ${schedule.enableBotAutomation}`);
 
         const { shouldJoin, shouldCountdown, shouldPlay } = shouldTriggerBotActions(
           schedule,
@@ -361,7 +383,7 @@ export async function POST(request: NextRequest) {
           schedule.schedule.timezone
         );
 
-        console.log(`[Sadhana RUN] - Trigger Result: shouldJoin=${shouldJoin}, shouldCountdown=${shouldCountdown}, shouldPlay=${shouldPlay}`);
+        console.log(`[Sadhana RUN] 🎯 Trigger Check: shouldJoin=${shouldJoin}, shouldCountdown=${shouldCountdown}, shouldPlay=${shouldPlay}`);
 
         // 🤖 Bot joins and starts recording regardless of leads or participants
         // (people can join or not - bot will be active)
