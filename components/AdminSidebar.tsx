@@ -643,18 +643,70 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
           </button>
         </div>
 
-        {/* Main Navigation - Categorized */}
+        {/* Main Navigation - Flat for Free/Basic, Grouped for Starter+ */}
         <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
-          {sidebarCategories.map((category) => {
-            const CategoryIcon = category.icon;
-            const isExpanded = expandedCategories[category.key] ?? true;
-            // Check if any item in category is active
-            const hasActiveItem = category.items.some((item) => isActive(item.href));
-            // Count badges in category
-            const totalBadges = category.items.reduce((sum, item) => sum + (item.badge || 0), 0);
+          {(plan.plan === 'free' || plan.plan === 'basic') ? (
+            // FLAT LIST - Free/Basic plans only
+            <div className="space-y-0.5">
+              {sidebarCategories.flatMap((category) =>
+                category.items
+                  .filter((item) => {
+                    if (item.superAdminOnly && !isSuperAdmin) return false;
+                    if (item.planModule && !plan.canAccess(item.planModule)) return false;
+                    return true;
+                  })
+                  .map((item) => {
+                    const Icon = item.icon;
+                    const active = isActive(item.href);
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={handleNavClick}
+                        title={isCollapsed ? item.label : undefined}
+                        className={`flex items-center ${isCollapsed ? 'justify-center' : ''} gap-3 px-3 py-2 rounded-lg transition-all group relative ${
+                          active
+                            ? 'bg-indigo-600/15 border-l-2 border-indigo-500 -ml-[2px]'
+                            : 'hover:bg-gray-800/60'
+                        }`}
+                      >
+                        <Icon className={`h-[16px] w-[16px] flex-shrink-0 transition-colors ${active ? 'text-indigo-400' : 'text-gray-400 group-hover:text-gray-200'}`} />
+                        {!isCollapsed && (
+                          <span className={`font-medium text-[13px] truncate ${active ? 'text-white' : 'text-gray-300 group-hover:text-white'}`}>
+                            {item.label}
+                          </span>
+                        )}
+                        {item.badge && item.badge > 0 && (
+                          <span className={`${isCollapsed ? 'absolute -top-0.5 -right-0.5 w-4 h-4 text-[10px]' : 'ml-auto w-5 h-5 text-xs'} bg-red-500 text-white font-bold rounded-full flex items-center justify-center flex-shrink-0`}>
+                            {item.badge > 99 ? '99+' : item.badge}
+                          </span>
+                        )}
+                        {isCollapsed && (
+                          <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-lg border border-gray-700 transition-opacity">
+                            <div className="font-medium">{item.label}</div>
+                            {item.description && (
+                              <div className="text-[10px] text-gray-400 mt-0.5">{item.description}</div>
+                            )}
+                          </div>
+                        )}
+                      </Link>
+                    );
+                  })
+              )}
+            </div>
+          ) : (
+            // GROUPED LIST - Starter+ plans
+            <>
+              {sidebarCategories.map((category) => {
+                const CategoryIcon = category.icon;
+                const isExpanded = expandedCategories[category.key] ?? true;
+                // Check if any item in category is active
+                const hasActiveItem = category.items.some((item) => isActive(item.href));
+                // Count badges in category
+                const totalBadges = category.items.reduce((sum, item) => sum + (item.badge || 0), 0);
 
-            return (
-              <div key={category.key}>
+                return (
+                  <div key={category.key}>
                 {/* Category Header */}
                 <button
                   onClick={() => !isCollapsed && toggleCategory(category.key)}
@@ -748,6 +800,8 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
               </div>
             );
           })}
+            </>
+          )}
 
           {/* Super Admin Section */}
           {isSuperAdmin && (
