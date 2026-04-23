@@ -59,16 +59,7 @@ function extractZoomDetailsFromLink(zoomLink: string): { meetingId?: string; pas
 export async function GET(request: NextRequest) {
   try {
     await connectDB();
-
-    // Allow test endpoint to work in development without strict auth
-    const token = request.headers.get('authorization')?.slice('Bearer '.length);
-    if (token) {
-      const decoded = verifyToken(token);
-      if (!decoded) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-      }
-    }
-    // If no token provided, continue anyway (test endpoint)
+    // Test endpoint - no auth required
 
     const Model = await getSadhanaScheduleModel();
 
