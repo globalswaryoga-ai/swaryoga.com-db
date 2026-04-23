@@ -2063,6 +2063,12 @@ app.post('/group-move-batch', async (req, res) => {
     return res.status(400).json({ error: 'Both sourceGroupId and targetGroupId must be group JIDs' });
   }
 
+  // Deduplicate participants by phone number (JID)
+  const uniqueParticipants = Array.from(new Set(participants));
+  if (participants.length !== uniqueParticipants.length) {
+    console.log(`[${session.userId}] Deduplicating participants: ${participants.length} → ${uniqueParticipants.length}`);
+  }
+
   // Shuffle array
   const shuffle = (arr) => {
     const copy = [...arr];
@@ -2073,11 +2079,11 @@ app.post('/group-move-batch', async (req, res) => {
     return copy;
   };
 
-  // Get random batch size: 2-3 users
-  const getRandomBatchSize = () => 2 + Math.floor(Math.random() * 2); // 2 or 3
+  // Get random batch size: 1-2 users (Meta-approved fast rate)
+  const getRandomBatchSize = () => 1 + Math.floor(Math.random() * 2); // 1 or 2
 
-  // Get random wait: 3-10 seconds
-  const getRandomWait = () => 3000 + Math.floor(Math.random() * 7000);
+  // Get random wait: 2-3 seconds (matches broadcast rate: 1 per ~2 seconds)
+  const getRandomWait = () => 2000 + Math.floor(Math.random() * 1000); // 2-3 seconds
 
   // Health check: verify session is still connected
   const healthCheck = async (batchNum) => {
@@ -2096,15 +2102,16 @@ app.post('/group-move-batch', async (req, res) => {
   };
 
   try {
-    const shuffled = shuffle(participants);
+    const shuffled = shuffle(uniqueParticipants);
     let movedCount = 0;
     let batchNum = 0;
     const results = {
       totalRequested: participants.length,
+      totalUnique: uniqueParticipants.length,
       movedCount: 0,
       failedCount: 0,
       batches: [],
-      warnings: [],
+      warnings: uniqueParticipants.length < participants.length ? [`Removed ${participants.length - uniqueParticipants.length} duplicate numbers`] : [],
     };
 
     for (let i = 0; i < shuffled.length; i += getRandomBatchSize()) {

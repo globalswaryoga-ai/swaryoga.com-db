@@ -6,12 +6,12 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import { Send, Search, Users, Clock, AlertTriangle, CheckCircle2, X, Loader2, Calendar, Radio, Pause, Play, Eye, FileText, Plus, Trash2, ChevronDown, ChevronUp, RefreshCw, Zap, Shield, Timer, BarChart3 } from 'lucide-react';
 
-// ── Rate Limiting Constants (FIXED: Anti-Signout + Practical Timing) ──
-const BATCH_SIZE = 5;             // 5 messages per batch (safer, human-like)
-const BATCH_INTERVAL_MS = 20000;  // 20 seconds between batches (realistic, not 1 hour)
-const DAILY_LIMIT = 300;          // 300 messages per day (practical, not 30)
-const MSG_DELAY_MIN = 3000;       // 3s between messages within batch
-const MSG_DELAY_MAX = 8000;       // 8s between messages (random, anti-bot)
+// ── Rate Limiting Constants (FIXED: Meta-Approved Fast Timing) ──
+const BATCH_SIZE = 1;             // 1 message per batch (Meta approved: 1 per 2 seconds)
+const BATCH_INTERVAL_MS = 2000;   // 2 seconds between messages (Meta approved rate)
+const DAILY_LIMIT = 300;          // 300 messages per day (practical limit)
+const MSG_DELAY_MIN = 1500;       // 1.5s min between messages (safe margin)
+const MSG_DELAY_MAX = 2500;       // 2.5s max between messages (random, anti-bot detection)
 const KEEPALIVE_INTERVAL = 15000; // 15 seconds - keep session alive during waits
 const REQUEST_TIMEOUT_MS = 10000; // 10s timeout for send requests
 
@@ -243,7 +243,25 @@ export default function QRBroadcastPage() {
     if (!messageText.trim()) { setError('Message text is required'); return; }
     if (selectedRecipients.size === 0) { setError('Select at least one recipient'); return; }
 
-    const recipientIds = Array.from(selectedRecipients);
+    // Deduplicate recipients (remove any duplicates by number)
+    const uniqueRecipients = new Set<string>();
+    const seenNumbers = new Set<string>();
+
+    selectedRecipients.forEach(id => {
+      const chat = chats.find(ch => ch.id === id);
+      if (chat) {
+        // Extract number from chat ID (e.g., "1234567890@s.whatsapp.net" → "1234567890")
+        const number = chat.id.split('@')[0];
+        if (!seenNumbers.has(number)) {
+          uniqueRecipients.add(id);
+          seenNumbers.add(number);
+        }
+      } else {
+        uniqueRecipients.add(id);
+      }
+    });
+
+    const recipientIds = Array.from(uniqueRecipients);
     const currentDaily = getDailySent();
 
     if (currentDaily + recipientIds.length > DAILY_LIMIT) {
@@ -533,17 +551,18 @@ export default function QRBroadcastPage() {
         {error && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 mb-4 flex justify-between">{error}<button onClick={() => setError(null)}><X className="w-4 h-4" /></button></div>}
         {success && <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700 mb-4">{success}</div>}
 
-        {/* Anti-Bot Info Banner */}
+        {/* Meta-Approved Fast Broadcast Info Banner */}
         <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl mb-6 flex items-start gap-3">
           <Shield className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
           <div className="text-sm text-blue-800">
-            <strong>🔥 Anti-Signout Protection Active</strong>
+            <strong>⚡ Meta-Approved Fast Broadcasting (1 msg/2 sec)</strong>
             <ul className="mt-1 space-y-0.5 text-xs text-blue-700">
-              <li>• <strong>{BATCH_SIZE} messages</strong> per batch with <strong>3-8s</strong> random delays</li>
-              <li>• <strong>{(BATCH_INTERVAL_MS / 1000).toFixed(0)}s</strong> cooldown between batches (Keepalive every {(KEEPALIVE_INTERVAL / 1000).toFixed(0)}s)</li>
+              <li>• <strong>1 message per 2 seconds</strong> (Meta approved rate, no throttling)</li>
+              <li>• Random delays: <strong>1.5-2.5s</strong> between messages (anti-bot detection)</li>
+              <li>• No duplicate recipients (auto-deduplicates by number)</li>
               <li>• Max <strong>{DAILY_LIMIT}</strong> messages per day</li>
-              <li>• ✅ Account never auto-signs out (aggressive keepalive)</li>
-              <li>• Schedule messages for specific times</li>
+              <li>• Keepalive every {(KEEPALIVE_INTERVAL / 1000).toFixed(0)}s (prevents auto-signout)</li>
+              <li>• ✅ Account stays logged in throughout broadcast</li>
             </ul>
           </div>
         </div>

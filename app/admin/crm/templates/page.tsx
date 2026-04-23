@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth, getLoginPath } from '@/hooks/useAuth';
-import { useCRM } from '@/hooks/useCRM';
 import {
   PageHeader,
   LoadingSpinner,
@@ -57,8 +56,6 @@ function safeParseTemplatePreview(content: string): TemplatePreviewPayload | nul
 export default function TemplatesPage() {
   const router = useRouter();
   const token = useAuth();
-  const crm = useCRM({ token });
-  const crmFetch = crm.fetch;
 
   const inFlightRef = useRef(false);
 
@@ -71,6 +68,7 @@ export default function TemplatesPage() {
 
   const [templates, setTemplates] = useState<Template[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const [providerFilter, setProviderFilter] = useState<'all' | 'meta'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | Template['status']>('all');
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
@@ -113,25 +111,34 @@ export default function TemplatesPage() {
   const fetchTemplates = useCallback(async () => {
     if (inFlightRef.current) return;
     inFlightRef.current = true;
+    setLoading(true);
     try {
       setError(null);
-      const result = await crmFetch('/api/admin/crm/templates', {
-        params: {
-          limit: pageSize,
-          skip: (page - 1) * pageSize,
-          status: statusFilter === 'all' ? undefined : statusFilter,
-          provider: providerFilter === 'all' ? undefined : providerFilter,
-        },
+      const url = new URL('/api/admin/crm/templates', typeof window !== 'undefined' ? window.location.origin : '');
+      url.searchParams.append('limit', String(pageSize));
+      url.searchParams.append('skip', String((page - 1) * pageSize));
+      if (statusFilter !== 'all') url.searchParams.append('status', statusFilter);
+      if (providerFilter !== 'all') url.searchParams.append('provider', providerFilter);
+
+      const response = await fetch(url.toString(), {
+        headers: { 'Authorization': `Bearer ${token || ''}` },
       });
 
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData?.error || `Failed to fetch templates: ${response.status}`);
+      }
+
+      const result = await response.json();
       setTemplates(result?.templates || []);
       setTotalTemplates(result?.total || 0);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
+      setLoading(false);
       inFlightRef.current = false;
     }
-  }, [crmFetch, page, pageSize, statusFilter, providerFilter]);
+  }, [token, page, pageSize, statusFilter, providerFilter]);
 
   const initialFetchDoneRef = useRef(false);
 
@@ -156,10 +163,20 @@ export default function TemplatesPage() {
 
   const handleApproveTemplate = async (templateId: string) => {
     try {
-      await crm.fetch('/api/admin/crm/templates', {
+      const response = await fetch('/api/admin/crm/templates', {
         method: 'PUT',
-        body: { templateId, action: 'approve' },
+        headers: {
+          'Authorization': `Bearer ${token || ''}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ templateId, action: 'approve' }),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData?.error || `Failed to approve: ${response.status}`);
+      }
+
       fetchTemplates();
       alert('✅ Template approved successfully!');
     } catch (err) {
@@ -172,10 +189,20 @@ export default function TemplatesPage() {
     if (reason === null) return; // User cancelled
     
     try {
-      await crm.fetch('/api/admin/crm/templates', {
+      const response = await fetch('/api/admin/crm/templates', {
         method: 'PUT',
-        body: { templateId, action: 'reject', rejectionReason: reason || 'Rejected from CRM UI' },
+        headers: {
+          'Authorization': `Bearer ${token || ''}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ templateId, action: 'reject', rejectionReason: reason || 'Rejected from CRM UI' }),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData?.error || `Failed to reject: ${response.status}`);
+      }
+
       fetchTemplates();
       alert('❌ Template rejected successfully!');
     } catch (err) {
@@ -186,10 +213,19 @@ export default function TemplatesPage() {
   const handleDeleteTemplate = async (templateId: string) => {
     if (!confirm('Delete this template?')) return;
     try {
-      await crm.fetch('/api/admin/crm/templates', {
+      const url = new URL('/api/admin/crm/templates', typeof window !== 'undefined' ? window.location.origin : '');
+      url.searchParams.append('templateId', templateId);
+
+      const response = await fetch(url.toString(), {
         method: 'DELETE',
-        params: { templateId },
+        headers: { 'Authorization': `Bearer ${token || ''}` },
       });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData?.error || `Failed to delete: ${response.status}`);
+      }
+
       fetchTemplates();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete');
@@ -200,9 +236,19 @@ export default function TemplatesPage() {
     setSyncLoading(true);
     try {
       setError(null);
-      const result = await crm.fetch('/api/admin/crm/templates/meta/sync', {
-        params: { import: 'true' },
+      const url = new URL('/api/admin/crm/templates/meta/sync', typeof window !== 'undefined' ? window.location.origin : '');
+      url.searchParams.append('import', 'true');
+
+      const response = await fetch(url.toString(), {
+        headers: { 'Authorization': `Bearer ${token || ''}` },
       });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData?.error || `Sync failed: ${response.status}`);
+      }
+
+      const result = await response.json();
 
       if (result?.success === false) {
         setError(result?.error || 'Sync failed');
@@ -388,7 +434,7 @@ export default function TemplatesPage() {
         </div>
 
         {/* Content */}
-        {crm.loading ? (
+        {loading ? (
           <LoadingSpinner />
         ) : error ? (
           <AlertBox type="error" message={error} onClose={() => setError(null)} />
@@ -414,9 +460,22 @@ export default function TemplatesPage() {
                       try {
                         setError(null);
                         await Promise.all(
-                          Array.from(selectedTemplateIds).map((templateId) =>
-                            crm.fetch('/api/admin/crm/templates', { method: 'DELETE', params: { templateId } })
-                          )
+                          Array.from(selectedTemplateIds).map(async (templateId) => {
+                            const url = new URL('/api/admin/crm/templates', typeof window !== 'undefined' ? window.location.origin : '');
+                            url.searchParams.append('templateId', templateId);
+
+                            const response = await fetch(url.toString(), {
+                              method: 'DELETE',
+                              headers: { 'Authorization': `Bearer ${token || ''}` },
+                            });
+
+                            if (!response.ok) {
+                              const errorData = await response.json().catch(() => ({}));
+                              throw new Error(errorData?.error || `Failed to delete: ${response.status}`);
+                            }
+
+                            return response.json();
+                          })
                         );
                         clearTemplateSelection();
                         fetchTemplates();

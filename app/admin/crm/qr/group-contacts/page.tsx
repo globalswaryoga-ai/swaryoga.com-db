@@ -606,6 +606,21 @@ export default function QRGroupContactsPage() {
             }
             return p;
           });
+
+          // Deduplicate participants by JID (remove duplicates)
+          const seenJids = new Set<string>();
+          const uniqueParticipants: typeof info.participants = [];
+          for (const p of info.participants) {
+            const jid = p.id;
+            if (!seenJids.has(jid)) {
+              seenJids.add(jid);
+              uniqueParticipants.push(p);
+            }
+          }
+          if (uniqueParticipants.length < info.participants.length) {
+            console.log(`[Group Contacts] Removed ${info.participants.length - uniqueParticipants.length} duplicate participants`);
+            info.participants = uniqueParticipants;
+          }
         }
 
         setGroupInfo(info);
