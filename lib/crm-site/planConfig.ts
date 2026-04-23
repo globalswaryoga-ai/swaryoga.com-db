@@ -31,11 +31,11 @@ export const PLAN_PRICING: Record<PlanTier, {
   annual: number;
   monthlyUSD: number;
 }> = {
-  free:         { monthly: 0,     quarterly: 0,      annual: 0,      monthlyUSD: 0 },
-  basic:        { monthly: 499,   quarterly: 1299,   annual: 4500,   monthlyUSD: 8 },
-  starter:      { monthly: 1299,  quarterly: 3897,   annual: 13491,  monthlyUSD: 18 },
-  growth:       { monthly: 2400,  quarterly: 7200,   annual: 28800,  monthlyUSD: 35 },
-  professional: { monthly: 4500,  quarterly: 13500,  annual: 54000,  monthlyUSD: 65 },
+  free:         { monthly: 0,     quarterly: 0,       annual: 0,       monthlyUSD: 0 },
+  basic:        { monthly: 499,   quarterly: 1299,    annual: 4500,    monthlyUSD: 8 },
+  starter:      { monthly: 999,   quarterly: 2697,    annual: 9990,    monthlyUSD: 14 },
+  growth:       { monthly: 1999,  quarterly: 5397,    annual: 19990,   monthlyUSD: 28 },
+  professional: { monthly: 3999,  quarterly: 10797,   annual: 39990,   monthlyUSD: 56 },
 };
 
 // ============================================================================
