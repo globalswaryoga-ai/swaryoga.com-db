@@ -1034,6 +1034,23 @@ export default function BroadcastPage() {
               </div>
             )}
 
+            {/* Meta WhatsApp Timing Info */}
+            {selectedLeads.size > 0 && (
+              <div className="mt-4 bg-blue-50 border border-blue-200 rounded-xl p-3">
+                <div className="flex items-start gap-2">
+                  <span>⏱️</span>
+                  <div className="text-sm text-blue-800">
+                    <strong>Meta Broadcast Timing:</strong> 1-2 seconds between messages
+                    <br />
+                    <span className="text-xs text-blue-700">
+                      {selectedLeads.size} messages = ~{Math.ceil(selectedLeads.size * 1.5 / 60)} minutes
+                      (e.g., 100 messages ≈ 2.5 minutes)
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Validation Warnings */}
             {validation && validation.warnings.length > 0 && selectedLeads.size > 0 && (
               <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-xl p-3">

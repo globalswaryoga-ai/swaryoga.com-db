@@ -206,16 +206,30 @@ export async function POST(request: NextRequest) {
       // Return warning but let them proceed - they've been warned
     }
     
-    console.log(`[Broadcast] 📊 Rate limiting info: ${finalLeads.length} leads = ~${timing.estimatedMinutes}min (batches of 3-6, delays 20-60sec)`);
+    const timingDesc = provider === 'meta'
+      ? `1-2 sec gaps (Meta approved: ${finalLeads.length} msgs = ~${Math.ceil(finalLeads.length * 1.5 / 60)}min)`
+      : `batches of 3-6, delays 20-60sec (QR safe mode)`;
+    console.log(`[Broadcast] 📊 Provider: ${provider} | ${timingDesc}`);
 
     // Message interval settings (following WhatsApp guidelines)
+    // For Meta: 1-2 seconds (approved by Meta, ensures good delivery quality)
+    // For QR: 30-60 seconds (conservative, avoids auto-signout)
+    const isMetaProvider = provider === 'meta';
     const messageInterval: any = {
       enabled: body?.messageInterval?.enabled !== false, // default true for backward compat
-      minSeconds: Math.max(5, Math.min(300, Number(body?.messageInterval?.minSeconds ?? 30))),
-      maxSeconds: Math.max(10, Math.min(300, Number(body?.messageInterval?.maxSeconds ?? 60))),
+      minSeconds: isMetaProvider
+        ? Math.max(1, Math.min(5, Number(body?.messageInterval?.minSeconds ?? 1)))      // Meta: 1-2 sec
+        : Math.max(5, Math.min(300, Number(body?.messageInterval?.minSeconds ?? 30))),  // QR: 30-60 sec
+      maxSeconds: isMetaProvider
+        ? Math.max(1, Math.min(5, Number(body?.messageInterval?.maxSeconds ?? 2)))      // Meta: 1-2 sec
+        : Math.max(10, Math.min(300, Number(body?.messageInterval?.maxSeconds ?? 60))), // QR: 30-60 sec
     };
-    // For Meta provider, disable interval by default (Meta handles rate-limiting)
+    // For Meta provider, ENABLE interval (1-2 sec gaps for quality)
     if (provider === 'meta' && body?.messageInterval?.enabled === undefined) {
+      messageInterval.enabled = true;
+    }
+    // For QR provider, disable by default (QR uses batch intervals instead)
+    if (provider === 'qr' && body?.messageInterval?.enabled === undefined) {
       messageInterval.enabled = false;
     }
     // Ensure max >= min
