@@ -106,6 +106,17 @@ export default function ChatbotsPage() {
   const router = useRouter();
   const token = useAuth();
 
+  // Guard: Don't render until auth is verified (prevents redirect flash)
+  if (!token) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-gray-50 via-white to-violet-50/30">
+        <div className="text-center">
+          <div className="text-sm text-gray-500">Verifying authentication...</div>
+        </div>
+      </div>
+    );
+  }
+
   const crmOptions = useMemo(() => ({ token }), [token]);
   const crm = useCRM(crmOptions);
   const crmFetch = crm.fetch;
