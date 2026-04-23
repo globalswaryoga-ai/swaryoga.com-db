@@ -19,6 +19,17 @@ interface Schedule {
   name: string;
   videoUrl: string;
   videoDuration: number;
+  timezone: string;
+}
+
+interface SessionInfo {
+  status: 'waiting' | 'countdown' | 'live' | 'ended';
+  sessionStartUtc: string | null;
+  sessionEndUtc: string | null;
+  nextSessionUtc: string | null;
+  videoOffsetSeconds: number;
+  countdownMinutes: number;
+  videoDurationMinutes: number;
 }
 
 function generateSessionId() {
@@ -40,14 +51,44 @@ function getStoredSessionId() {
   return id;
 }
 
+function formatCountdown(ms: number): string {
+  if (ms <= 0) return '00:00';
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (h > 0) return `${h}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+function formatNextTime(iso: string, tz: string): string {
+  try {
+    return new Date(iso).toLocaleString('en-IN', {
+      timeZone: tz,
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  } catch {
+    return iso;
+  }
+}
+
 export default function SadhanaLivePage() {
   const [name, setName] = useState('');
   const [joined, setJoined] = useState(false);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [count, setCount] = useState(0);
   const [schedule, setSchedule] = useState<Schedule | null>(null);
+  const [session, setSession] = useState<SessionInfo | null>(null);
+  const [playableVideoUrl, setPlayableVideoUrl] = useState<string | null>(null);
   const [chat, setChat] = useState<ChatMsg[]>([]);
   const [chatInput, setChatInput] = useState('');
+  const [serverTime, setServerTime] = useState<Date>(new Date());
+  const [nowTick, setNowTick] = useState<Date>(new Date());
   const sessionIdRef = useRef<string>('');
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -59,22 +100,15 @@ export default function SadhanaLivePage() {
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-
     localStorage.setItem('sadhana_live_name', name);
-
     await fetch('/api/sadhana/live/join', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sessionId: sessionIdRef.current,
-        name: name.trim(),
-      }),
+      body: JSON.stringify({ sessionId: sessionIdRef.current, name: name.trim() }),
     });
-
     setJoined(true);
   };
 
-  // Poll state every 3 seconds once joined
   useEffect(() => {
     if (!joined) return;
 
@@ -93,7 +127,10 @@ export default function SadhanaLivePage() {
           setParticipants(data.participants || []);
           setCount(data.count || 0);
           if (data.schedule) setSchedule(data.schedule);
+          setSession(data.session || null);
+          setPlayableVideoUrl(data.playableVideoUrl || null);
           setChat(data.chat || []);
+          if (data.serverTime) setServerTime(new Date(data.serverTime));
         }
       } catch (err) {
         console.warn('Poll error:', err);
@@ -106,6 +143,12 @@ export default function SadhanaLivePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [joined]);
 
+  // Local tick for smooth countdown display
+  useEffect(() => {
+    const i = setInterval(() => setNowTick(new Date()), 1000);
+    return () => clearInterval(i);
+  }, []);
+
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chat.length]);
@@ -113,7 +156,6 @@ export default function SadhanaLivePage() {
   const sendChat = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!chatInput.trim()) return;
-
     await fetch('/api/sadhana/live/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -161,10 +203,80 @@ export default function SadhanaLivePage() {
     );
   }
 
+  // Compute live countdown using server time as reference
+  const clockDrift = serverTime.getTime() - (nowTick.getTime() - 1000); // tick already ticked
+  const syncedNow = new Date(nowTick.getTime() + clockDrift);
+
+  let sessionView: React.ReactNode = null;
+
+  if (!session || session.status === 'waiting') {
+    sessionView = (
+      <div className="w-full h-full flex items-center justify-center p-8">
+        <div className="text-center">
+          <div className="text-6xl mb-4">⏳</div>
+          <p className="text-xl text-purple-100 mb-2">Waiting for next session</p>
+          {session?.nextSessionUtc && schedule && (
+            <p className="text-purple-300 text-sm">
+              Next: {formatNextTime(session.nextSessionUtc, schedule.timezone)}
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  } else if (session.status === 'countdown') {
+    const startMs = new Date(session.sessionStartUtc!).getTime() - syncedNow.getTime();
+    sessionView = (
+      <div className="w-full h-full flex items-center justify-center p-8 bg-gradient-to-br from-purple-800 to-indigo-900">
+        <div className="text-center">
+          <div className="text-6xl mb-4">🧘</div>
+          <p className="text-2xl text-white mb-2">Session starting in</p>
+          <div className="text-7xl font-bold text-white my-4">
+            {formatCountdown(startMs)}
+          </div>
+          <p className="text-purple-200">
+            🤖 Swar Sadhana Bot will play video automatically
+          </p>
+          <p className="text-purple-300 text-sm mt-2">
+            Sit comfortably and prepare for practice 🙏
+          </p>
+        </div>
+      </div>
+    );
+  } else if (session.status === 'live') {
+    sessionView = playableVideoUrl ? (
+      <iframe
+        src={playableVideoUrl}
+        className="w-full h-full"
+        allow="autoplay; encrypted-media; picture-in-picture"
+        allowFullScreen
+      />
+    ) : (
+      <div className="w-full h-full flex items-center justify-center p-8">
+        <p className="text-purple-200">Loading video...</p>
+      </div>
+    );
+  } else if (session.status === 'ended') {
+    sessionView = (
+      <div className="w-full h-full flex items-center justify-center p-8 bg-gradient-to-br from-indigo-900 to-purple-900">
+        <div className="text-center">
+          <div className="text-6xl mb-4">🙏</div>
+          <p className="text-2xl text-white mb-2">Session Complete</p>
+          <p className="text-purple-200 mb-4">Thank you for practicing with us</p>
+          {session.nextSessionUtc && schedule && (
+            <p className="text-purple-300 text-sm">
+              Next session: {formatNextTime(session.nextSessionUtc, schedule.timezone)}
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  const isLive = session?.status === 'live';
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-indigo-900 to-black text-white">
       <div className="max-w-7xl mx-auto p-4">
-        {/* Header */}
         <div className="flex items-center justify-between mb-4 bg-white/10 backdrop-blur-lg rounded-xl p-4 border border-white/20">
           <div className="flex items-center gap-3">
             <div className="text-3xl">🧘</div>
@@ -172,38 +284,25 @@ export default function SadhanaLivePage() {
               <h1 className="text-xl font-bold">
                 {schedule?.name || 'Sadhana Live'}
               </h1>
-              <p className="text-sm text-purple-200">Community Session</p>
+              <p className="text-sm text-purple-200">
+                {isLive ? 'Live Session' : session?.status === 'countdown' ? 'Starting Soon' : 'Community Session'}
+              </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 bg-red-500 px-4 py-2 rounded-full">
+          <div className={`flex items-center gap-2 px-4 py-2 rounded-full ${isLive ? 'bg-red-500' : 'bg-purple-600'}`}>
             <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
-            <span className="font-semibold">LIVE • {count} watching</span>
+            <span className="font-semibold">
+              {isLive ? 'LIVE' : session?.status?.toUpperCase() || 'ONLINE'} • {count} watching
+            </span>
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Video */}
           <div className="lg:col-span-2 bg-black rounded-xl overflow-hidden aspect-video">
-            {schedule?.videoUrl ? (
-              <iframe
-                src={schedule.videoUrl}
-                className="w-full h-full"
-                allow="autoplay; encrypted-media; picture-in-picture"
-                allowFullScreen
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-purple-200">
-                <div className="text-center">
-                  <div className="text-6xl mb-4">⏳</div>
-                  <p>Waiting for session to start...</p>
-                </div>
-              </div>
-            )}
+            {sessionView}
           </div>
 
-          {/* Sidebar */}
           <div className="space-y-4">
-            {/* Participants */}
             <div className="bg-white/10 backdrop-blur-lg rounded-xl p-4 border border-white/20">
               <h2 className="font-semibold mb-3 flex items-center gap-2">
                 👥 Participants ({count})
@@ -228,7 +327,6 @@ export default function SadhanaLivePage() {
               </div>
             </div>
 
-            {/* Chat */}
             <div className="bg-white/10 backdrop-blur-lg rounded-xl p-4 border border-white/20 flex flex-col h-96">
               <h2 className="font-semibold mb-3 flex items-center gap-2">
                 💬 Live Chat
@@ -267,7 +365,6 @@ export default function SadhanaLivePage() {
           </div>
         </div>
 
-        {/* Footer */}
         <div className="mt-4 text-center text-purple-200 text-xs">
           Swar Yoga • Sadhana Live • Namaste 🙏
         </div>
