@@ -485,6 +485,40 @@ try {
                   )}
                 </div>
 
+                {/* Live Watch Page URL - Share with Community */}
+                <div className="mt-4 p-4 bg-gradient-to-br from-purple-900/40 to-pink-900/40 rounded-lg border border-purple-500/30">
+                  <p className="text-purple-200 text-xs uppercase mb-2 font-semibold">
+                    🎯 Community Watch Link (share this!)
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 text-white text-sm bg-black/40 px-3 py-2 rounded font-mono break-all">
+                      {typeof window !== 'undefined' ? window.location.origin : 'https://swaryoga.com'}/sadhana/live
+                    </code>
+                    <button
+                      onClick={() => {
+                        const url = `${window.location.origin}/sadhana/live`;
+                        navigator.clipboard.writeText(url);
+                        setSuccessMessage('✅ Live URL copied!');
+                        setTimeout(() => setSuccessMessage(''), 2000);
+                      }}
+                      className="px-4 py-2 bg-gradient-to-r from-pink-500 to-violet-500 text-white rounded-lg text-sm font-semibold hover:opacity-90 whitespace-nowrap"
+                    >
+                      📋 Copy
+                    </button>
+                    <a
+                      href="/sadhana/live"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-4 py-2 bg-white/10 text-white rounded-lg text-sm font-semibold hover:bg-white/20 whitespace-nowrap"
+                    >
+                      👁 Preview
+                    </a>
+                  </div>
+                  <p className="text-purple-300 text-xs mt-2">
+                    Community members click this link → auto-join → watch video together with live chat
+                  </p>
+                </div>
+
                 <p className="text-gray-500 text-xs mt-4">
                   Created: {new Date(schedule.createdAt).toLocaleDateString()}
                 </p>
