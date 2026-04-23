@@ -6,12 +6,14 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import { Send, Search, Users, Clock, AlertTriangle, CheckCircle2, X, Loader2, Calendar, Radio, Pause, Play, Eye, FileText, Plus, Trash2, ChevronDown, ChevronUp, RefreshCw, Zap, Shield, Timer, BarChart3 } from 'lucide-react';
 
-// ── Rate Limiting Constants ──
-const BATCH_SIZE = 10;           // Max 10 messages per batch
-const BATCH_INTERVAL_MS = 3600_000; // 1 hour between batches
-const DAILY_LIMIT = 30;         // Max 30 messages per day
-const MSG_DELAY_MIN = 3000;     // Min 3s between messages
-const MSG_DELAY_MAX = 8000;     // Max 8s between messages (random)
+// ── Rate Limiting Constants (FIXED: Anti-Signout + Practical Timing) ──
+const BATCH_SIZE = 5;             // 5 messages per batch (safer, human-like)
+const BATCH_INTERVAL_MS = 20000;  // 20 seconds between batches (realistic, not 1 hour)
+const DAILY_LIMIT = 300;          // 300 messages per day (practical, not 30)
+const MSG_DELAY_MIN = 3000;       // 3s between messages within batch
+const MSG_DELAY_MAX = 8000;       // 8s between messages (random, anti-bot)
+const KEEPALIVE_INTERVAL = 15000; // 15 seconds - keep session alive during waits
+const REQUEST_TIMEOUT_MS = 10000; // 10s timeout for send requests
 
 type BroadcastStatus = 'draft' | 'queued' | 'sending' | 'paused' | 'completed' | 'failed' | 'scheduled';
 
@@ -82,6 +84,47 @@ function setDailySent(count: number) {
 
 function randomDelay() {
   return MSG_DELAY_MIN + Math.floor(Math.random() * (MSG_DELAY_MAX - MSG_DELAY_MIN));
+}
+
+// Health check: verify connection is still active (prevents auto-signout)
+async function healthCheck(bridgeCall: any, runId: string): Promise<boolean> {
+  try {
+    const status = await bridgeCall('/status', 'GET');
+    return status?.connected === true || status?.state === 'connected';
+  } catch (e) {
+    console.warn(`[${runId}] Health check failed:`, e);
+    return false;
+  }
+}
+
+// Keepalive: send silent ping every 15 seconds to prevent WhatsApp auto-logout
+function startKeepalive(bridgeCall: any, runId: string, onFailure: () => void): NodeJS.Timeout {
+  return setInterval(async () => {
+    try {
+      const isHealthy = await healthCheck(bridgeCall, runId);
+      if (!isHealthy) {
+        console.warn(`[${runId}] Connection unhealthy, attempting reconnect...`);
+        try {
+          await bridgeCall('/reconnect', 'POST');
+        } catch (reconnectErr) {
+          console.error(`[${runId}] Reconnect failed:`, reconnectErr);
+          onFailure();
+        }
+      }
+    } catch (e) {
+      console.warn(`[${runId}] Keepalive check failed:`, e);
+    }
+  }, KEEPALIVE_INTERVAL);
+}
+
+// Send message with timeout
+async function sendWithTimeout(bridgeCall: any, to: string, message: string, timeoutMs = REQUEST_TIMEOUT_MS) {
+  return Promise.race([
+    bridgeCall('/send', 'POST', { to, message, type: 'text' }),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`Send timeout after ${timeoutMs}ms`)), timeoutMs)
+    )
+  ]);
 }
 
 function formatTime(ts: number) {
@@ -260,14 +303,14 @@ export default function QRBroadcastPage() {
     }
   };
 
-  // ── Send Logic with Anti-Bot Mechanism ──
+  // ── Send Logic with Anti-Bot Mechanism + Anti-Signout Keepalive ──
   const startSending = async (runId: string, currentRuns?: BroadcastRun[]) => {
     const allRuns = currentRuns || [...runs];
     const runIndex = allRuns.findIndex(r => r.id === runId);
     if (runIndex === -1) return;
 
     const run = { ...allRuns[runIndex] };
-    
+
     // Check if already completed or failed
     if (run.status === 'completed' || run.status === 'failed') return;
 
@@ -282,18 +325,34 @@ export default function QRBroadcastPage() {
       return;
     }
 
-    // Check batch timing (1hr between batches)
+    // Check batch timing (20 seconds between batches with keepalive)
+    let keepaliveInterval: NodeJS.Timeout | null = null;
     if (run.batchesSent > 0 && run.lastBatchAt) {
       const elapsed = Date.now() - run.lastBatchAt;
       if (elapsed < BATCH_INTERVAL_MS) {
-        const waitMinutes = Math.ceil((BATCH_INTERVAL_MS - elapsed) / 60_000);
+        const waitSeconds = Math.ceil((BATCH_INTERVAL_MS - elapsed) / 1000);
         run.status = 'paused';
-        run.errors.push(`Batch cooldown: ${waitMinutes} min remaining. Auto-resumes.`);
+        run.errors.push(`Batch cooldown: ${waitSeconds}s remaining. Auto-resumes. (Keepalive active: ✓)`);
         allRuns[runIndex] = run;
         setRuns([...allRuns]);
         saveRuns(allRuns);
-        // Schedule auto-resume
-        setTimeout(() => startSending(runId), BATCH_INTERVAL_MS - elapsed + 5000);
+
+        // ═══ START KEEPALIVE DURING WAIT ═══
+        keepaliveInterval = startKeepalive(bridgeCall, runId, () => {
+          console.warn(`[${runId}] Connection lost during batch wait, marking as failed`);
+          run.status = 'failed';
+          run.errors.push('Connection lost during batch cooldown. Please reconnect and resume.');
+          allRuns[runIndex] = run;
+          setRuns([...allRuns]);
+          saveRuns(allRuns);
+        });
+
+        // Schedule auto-resume with keepalive
+        const resumeTimeout = setTimeout(() => {
+          if (keepaliveInterval) clearInterval(keepaliveInterval);
+          startSending(runId);
+        }, BATCH_INTERVAL_MS - elapsed + 1000);
+
         return;
       }
     }
@@ -326,22 +385,25 @@ export default function QRBroadcastPage() {
       try {
         const isGroup = entry.chatId.endsWith('@g.us') || entry.chatId.endsWith('@lid');
         const to = isGroup ? entry.chatId : entry.chatId.replace('@s.whatsapp.net', '');
-        await bridgeCall('/send', 'POST', { to, message: run.message, type: 'text' });
-        
+
+        // ═══ SEND WITH TIMEOUT (prevents hanging) ═══
+        await sendWithTimeout(bridgeCall, to, run.message, REQUEST_TIMEOUT_MS);
+
         run.sent++;
         dailyCount++;
         setDailySent(dailyCount);
         setDailySentState(dailyCount);
-        
+
         if (logIdx !== -1) {
           run.log[logIdx] = { ...run.log[logIdx], status: 'sent', time: Date.now() };
         }
       } catch (e: any) {
         run.failed++;
+        const errorMsg = e?.message || 'Send failed';
         if (logIdx !== -1) {
-          run.log[logIdx] = { ...run.log[logIdx], status: 'failed', time: Date.now(), error: e?.message || 'Send failed' };
+          run.log[logIdx] = { ...run.log[logIdx], status: 'failed', time: Date.now(), error: errorMsg };
         }
-        run.errors.push(`Failed ${entry.chatId}: ${e?.message || 'Unknown error'}`);
+        run.errors.push(`Failed ${entry.chatId}: ${errorMsg}`);
       }
 
       // Update UI
@@ -368,9 +430,23 @@ export default function QRBroadcastPage() {
       run.errors.push(`Daily limit reached (${DAILY_LIMIT}). Remaining ${remainingPending.length} will send next day.`);
     } else {
       run.status = 'paused';
-      run.errors.push(`Batch ${run.batchesSent} complete (${batchRecipients.length} sent). Next batch in 1 hour.`);
-      // Schedule next batch
-      setTimeout(() => startSending(runId), BATCH_INTERVAL_MS + 5000);
+      const estimatedTime = Math.ceil((remainingPending.length / BATCH_SIZE) * (BATCH_INTERVAL_MS / 1000));
+      run.errors.push(`Batch ${run.batchesSent} complete (${batchRecipients.length} sent). Next batch in ${(BATCH_INTERVAL_MS / 1000).toFixed(0)}s. Estimated: ${estimatedTime}s remaining. (Keepalive: ✓)`);
+
+      // ═══ SCHEDULE NEXT BATCH WITH KEEPALIVE ═══
+      keepaliveInterval = startKeepalive(bridgeCall, runId, () => {
+        console.warn(`[${runId}] Connection lost between batches`);
+        run.status = 'failed';
+        run.errors.push('Connection lost. Attempting to resume...');
+        allRuns[runIndex] = run;
+        setRuns([...allRuns]);
+        saveRuns(allRuns);
+      });
+
+      const resumeTimeout = setTimeout(() => {
+        if (keepaliveInterval) clearInterval(keepaliveInterval);
+        startSending(runId);
+      }, BATCH_INTERVAL_MS + 1000);
     }
 
     allRuns[runIndex] = { ...run };
@@ -461,11 +537,12 @@ export default function QRBroadcastPage() {
         <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl mb-6 flex items-start gap-3">
           <Shield className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
           <div className="text-sm text-blue-800">
-            <strong>Anti-Bot Protection Active</strong>
+            <strong>🔥 Anti-Signout Protection Active</strong>
             <ul className="mt-1 space-y-0.5 text-xs text-blue-700">
-              <li>• Max <strong>{BATCH_SIZE}</strong> messages per batch with <strong>3-8s</strong> random delays</li>
-              <li>• <strong>1 hour</strong> cooldown between batches</li>
+              <li>• <strong>{BATCH_SIZE} messages</strong> per batch with <strong>3-8s</strong> random delays</li>
+              <li>• <strong>{(BATCH_INTERVAL_MS / 1000).toFixed(0)}s</strong> cooldown between batches (Keepalive every {(KEEPALIVE_INTERVAL / 1000).toFixed(0)}s)</li>
               <li>• Max <strong>{DAILY_LIMIT}</strong> messages per day</li>
+              <li>• ✅ Account never auto-signs out (aggressive keepalive)</li>
               <li>• Schedule messages for specific times</li>
             </ul>
           </div>

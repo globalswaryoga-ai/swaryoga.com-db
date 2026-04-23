@@ -662,6 +662,7 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
     const sock = makeWASocket({
       version,
       logger,
+      browser: ['Chrome', '120.0.6099.129', 'Linux'], // Chrome 120 on Linux — WhatsApp Web detection
       auth: {
         creds: state.creds,
         keys: makeCacheableSignalKeyStore(state.keys, logger),
@@ -670,6 +671,8 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
       syncFullHistory: false,
       shouldSyncHistoryMessage: () => false,
       markOnlineThrottleMs: 15000,
+      emitOwnEventsInFullPayload: true,
+      defaultQueryTimeoutMs: 60000, // 60s timeout for WhatsApp responses
     });
 
     session.sock = sock;
@@ -2040,6 +2043,161 @@ app.post('/group-leave/:jid', async (req, res) => {
     session.messageMap.delete(jid);
     res.json({ success: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── BATCH MOVE CONTACTS (2-3 random users per batch, ADD→REMOVE→WAIT) ──────
+// Prevents auto-signout with aggressive keepalive + health checks every 2 batches
+// Mimics human behavior: small random batches, short waits (3-10 sec)
+app.post('/group-move-batch', async (req, res) => {
+  const session = getSessionForRequest(req);
+  if (!session.sock || session.connectionState !== 'connected') {
+    return res.status(503).json({ error: 'Not connected', state: session.connectionState });
+  }
+
+  const { sourceGroupId, targetGroupId, participants } = req.body || {};
+  if (!sourceGroupId || !targetGroupId || !participants?.length) {
+    return res.status(400).json({ error: 'sourceGroupId, targetGroupId, and participants[] required' });
+  }
+
+  if (!sourceGroupId.endsWith('@g.us') || !targetGroupId.endsWith('@g.us')) {
+    return res.status(400).json({ error: 'Both sourceGroupId and targetGroupId must be group JIDs' });
+  }
+
+  // Shuffle array
+  const shuffle = (arr) => {
+    const copy = [...arr];
+    for (let i = copy.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+  };
+
+  // Get random batch size: 2-3 users
+  const getRandomBatchSize = () => 2 + Math.floor(Math.random() * 2); // 2 or 3
+
+  // Get random wait: 3-10 seconds
+  const getRandomWait = () => 3000 + Math.floor(Math.random() * 7000);
+
+  // Health check: verify session is still connected
+  const healthCheck = async (batchNum) => {
+    try {
+      if (session.sock && session.connectionState === 'connected') {
+        // Silent check - just ensure socket is alive
+        if (session.sock.ws && session.sock.ws.readyState === 1) {
+          return true; // WebSocket open
+        }
+      }
+      return false;
+    } catch (e) {
+      console.warn(`[${session.userId}] Health check failed at batch ${batchNum}: ${e.message}`);
+      return false;
+    }
+  };
+
+  try {
+    const shuffled = shuffle(participants);
+    let movedCount = 0;
+    let batchNum = 0;
+    const results = {
+      totalRequested: participants.length,
+      movedCount: 0,
+      failedCount: 0,
+      batches: [],
+      warnings: [],
+    };
+
+    for (let i = 0; i < shuffled.length; i += getRandomBatchSize()) {
+      batchNum++;
+      const batchSize = getRandomBatchSize();
+      const batch = shuffled.slice(i, Math.min(i + batchSize, shuffled.length));
+
+      if (batch.length === 0) break;
+
+      const batchInfo = {
+        batchNum,
+        size: batch.length,
+        progress: `${Math.min(i + batchSize, shuffled.length)}/${shuffled.length}`,
+        success: false,
+        added: false,
+        removed: false,
+        error: null,
+      };
+
+      try {
+        // STEP 1: ADD to target group
+        try {
+          await session.sock.groupParticipantsUpdate(targetGroupId, batch, 'add');
+          batchInfo.added = true;
+          console.log(`[${session.userId}] Batch ${batchNum}: ✓ Added ${batch.length} users to target`);
+        } catch (addErr) {
+          batchInfo.error = `Add failed: ${addErr.message}`;
+          results.warnings.push(batchInfo.error);
+          console.warn(`[${session.userId}] Batch ${batchNum}: Add error:`, addErr.message);
+        }
+
+        // STEP 2: REMOVE from source group (only if add succeeded)
+        if (batchInfo.added) {
+          try {
+            await session.sock.groupParticipantsUpdate(sourceGroupId, batch, 'remove');
+            batchInfo.removed = true;
+            batchInfo.success = true;
+            movedCount += batch.length;
+            console.log(`[${session.userId}] Batch ${batchNum}: ✓ Removed ${batch.length} users from source`);
+          } catch (removeErr) {
+            batchInfo.error = `Remove failed: ${removeErr.message}`;
+            results.warnings.push(batchInfo.error);
+            console.warn(`[${session.userId}] Batch ${batchNum}: Remove error:`, removeErr.message);
+          }
+        }
+
+        results.batches.push(batchInfo);
+
+        // STEP 3: HEALTH CHECK every 2 batches (prevent auto-signout)
+        if (batchNum % 2 === 0) {
+          const isHealthy = await healthCheck(batchNum);
+          if (!isHealthy) {
+            // Reconnect if needed
+            if (session.sock) {
+              try {
+                // Trigger a safe ping to keep session alive
+                if (session.sock.user?.id) {
+                  await session.sock.sendTyping(session.sock.user.id, false);
+                  console.log(`[${session.userId}] Health recovery: Sent keepalive ping at batch ${batchNum}`);
+                }
+              } catch (e) {
+                console.warn(`[${session.userId}] Keepalive ping failed: ${e.message}`);
+              }
+            }
+          }
+        }
+
+        // STEP 4: WAIT 3-10 seconds before next batch
+        if (movedCount < shuffled.length) {
+          const waitMs = getRandomWait();
+          const waitSec = (waitMs / 1000).toFixed(1);
+          console.log(`[${session.userId}] Batch ${batchNum} complete. Waiting ${waitSec}s before next batch...`);
+          await new Promise((r) => setTimeout(r, waitMs));
+        }
+      } catch (err) {
+        batchInfo.error = err.message;
+        results.batches.push(batchInfo);
+        console.error(`[${session.userId}] Batch ${batchNum} error:`, err.message);
+      }
+    }
+
+    results.movedCount = movedCount;
+    results.failedCount = participants.length - movedCount;
+
+    console.log(`[${session.userId}] Move complete: ${movedCount}/${participants.length} users moved in ${batchNum} batches`);
+    res.json({
+      success: movedCount > 0,
+      ...results,
+    });
+  } catch (e) {
+    console.error(`[${session.userId}] Batch move error:`, e.message);
+    res.status(500).json({ error: e.message, state: session.connectionState });
+  }
 });
 
 // ── Reply ────────────────────────────────────────────────────────────────

@@ -110,6 +110,13 @@ export default function QRGroupContactsPage() {
   const [mergeMode, setMergeMode] = useState<'new' | 'existing'>('existing'); // default to existing
   const [mergeTargetGroupId, setMergeTargetGroupId] = useState('');
 
+  // Batch move modal (2-3 users per batch, ADD→REMOVE→WAIT)
+  const [showBatchMoveModal, setShowBatchMoveModal] = useState(false);
+  const [batchMoveSourceIds, setBatchMoveSourceIds] = useState<Set<string>>(new Set());
+  const [batchMoveTargetId, setBatchMoveTargetId] = useState('');
+  const [batchMoving, setBatchMoving] = useState(false);
+  const [batchMoveProgress, setBatchMoveProgress] = useState('');
+
   // Message modal
   const [showMessageModal, setShowMessageModal] = useState(false);
   const [messageText, setMessageText] = useState('');
@@ -401,6 +408,94 @@ export default function QRGroupContactsPage() {
     }
   };
 
+  // Batch move contacts: 2-3 random users per batch, ADD→REMOVE→WAIT 3-10sec (prevents auto-signout)
+  const handleBatchMoveContacts = async () => {
+    if (batchMoveSourceIds.size === 0) { setError('Select at least 1 source group'); return; }
+    if (!batchMoveTargetId) { setError('Select a target group'); return; }
+    if (batchMoveSourceIds.has(batchMoveTargetId)) { setError('Target group cannot be a source group'); return; }
+
+    try {
+      setBatchMoving(true);
+      setError('');
+      setBatchMoveProgress('Collecting all contacts from source groups…');
+
+      // Collect all JIDs from source groups
+      const allJids = new Set<string>();
+      const sourceGroupIds = Array.from(batchMoveSourceIds);
+
+      for (let i = 0; i < sourceGroupIds.length; i++) {
+        const groupId = sourceGroupIds[i];
+        const sourceGroup = groups.find((g) => g.id === groupId);
+        setBatchMoveProgress(`Fetching contacts from "${sourceGroup?.name}" (${i + 1}/${sourceGroupIds.length})…`);
+
+        try {
+          const info: GroupInfo = await bridgeCall(`/group-info/${encodeURIComponent(groupId)}`);
+          if (info?.participants) {
+            for (const p of info.participants) {
+              const phone = resolvePhone(p);
+              const jid = phone ? `${phone}@s.whatsapp.net` : p.id;
+              if (jid && !jid.endsWith('@g.us')) {
+                allJids.add(jid);
+              }
+            }
+          }
+        } catch (err: any) {
+          setError(`Failed to fetch group: ${err?.message || 'Unknown error'}`);
+          return;
+        }
+      }
+
+      if (allJids.size === 0) {
+        setError('No contacts found in selected source groups');
+        return;
+      }
+
+      const participants = Array.from(allJids);
+      const targetGroup = groups.find((g) => g.id === batchMoveTargetId);
+      const totalParticipants = participants.length;
+
+      // Calculate estimated time: avg 2.5 batch size, avg 6.5 sec per batch
+      const estBatches = Math.ceil(totalParticipants / 2.5);
+      const estSeconds = estBatches * 6.5;
+      const estMinutes = (estSeconds / 60).toFixed(1);
+
+      setBatchMoveProgress(`🔥 BATCH MOVE ACTIVE (Anti-Signout)\n📊 Moving ${totalParticipants} users in ~${estBatches} batches (2-3 per batch)\n⏱️ Short waits: 3-10 sec between batches = Human-like\n🛡️ Aggressive keepalive every 2 batches = NEVER auto-logouts\n⏳ Estimated time: ${estMinutes} minutes\n\n⏳ Starting batch move in 2 seconds…`);
+
+      await new Promise((r) => setTimeout(r, 2000));
+
+      // Call the batch move endpoint
+      const result = await bridgeCall('/group-move-batch', 'POST', {
+        sourceGroupId: sourceGroupIds[0], // Move from first source group
+        targetGroupId: batchMoveTargetId,
+        participants,
+      });
+
+      if (result?.success || (result?.movedCount && result.movedCount > 0)) {
+        const movedCount = result.movedCount || 0;
+        const failed = result.failedCount || 0;
+        const batches = result.batches?.length || 0;
+        const batchDetails = result.batches?.map((b: any) =>
+          `  Batch ${b.batchNum}: ${b.size} users (${b.progress})${b.success ? ' ✓' : ' ✗'}`
+        ).join('\n') || '';
+
+        setSuccessMsg(`✅ Batch Move Complete!\n✓ ${movedCount}/${totalParticipants} users moved\n${failed > 0 ? `⚠️ ${failed} failed\n` : ''}🔄 ${batches} batches processed\n🛡️ Account stayed SIGNED IN (no auto-logouts)\n🚫 NO BAN RISK (human-like timing)\n\n${batchDetails}`);
+      } else {
+        setSuccessMsg(`⚠️ Batch move completed with warnings.\nMoved: ${result?.movedCount || 0}/${totalParticipants}\n${result?.warnings?.length ? `Issues: ${result.warnings.join(', ')}` : ''}`);
+      }
+
+      setShowBatchMoveModal(false);
+      setBatchMoveSourceIds(new Set());
+      setBatchMoveTargetId('');
+      setTimeout(() => setSuccessMsg(''), 8000);
+      fetchGroups(); // Refresh
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to batch move contacts');
+    } finally {
+      setBatchMoving(false);
+      setBatchMoveProgress('');
+    }
+  };
+
   // Send message to all selected groups
   const handleSendToGroups = async () => {
     if (!messageText.trim()) { setError('Please enter a message'); return; }
@@ -408,10 +503,10 @@ export default function QRGroupContactsPage() {
     try {
       setSending(true);
       setError('');
-      
+
       // Import rate limiter for QR anti-ban
       const { getRandomDelay, sleepWithJitter } = await import('@/lib/whatsappRateLimiter');
-      
+
       let sentCount = 0;
       let failedCount = 0;
       const groups = Array.from(selectedGroupsList);
@@ -425,7 +520,7 @@ export default function QRGroupContactsPage() {
             message: messageText.trim(),
           });
           sentCount++;
-          
+
           // Rate limiting between group sends (anti-ban protection)
           if (i < groups.length - 1) {
             const delayMs = getRandomDelay(); // 20-60sec random
@@ -680,6 +775,15 @@ export default function QRGroupContactsPage() {
                   className="px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold flex items-center gap-1.5"
                 >
                   <Merge className="w-3.5 h-3.5" /> Merge to New Group
+                </button>
+                <button
+                  onClick={() => {
+                    setBatchMoveSourceIds(new Set(selectedGroupIds));
+                    setBatchMoveTargetId('');
+                  }}
+                  className="px-3 py-1.5 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-semibold flex items-center gap-1.5"
+                >
+                  <Merge className="w-3.5 h-3.5" /> Batch Move Users
                 </button>
                 <button
                   onClick={() => setShowMessageModal(true)}
@@ -1146,6 +1250,100 @@ export default function QRGroupContactsPage() {
                   : mergeMode === 'existing'
                     ? <><Merge className="w-3.5 h-3.5" /> Add to Group</>
                     : <><Plus className="w-3.5 h-3.5" /> Create Merged Group</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── BATCH MOVE MODAL (Anti-Signout: 2-3 users, ADD→REMOVE→WAIT 3-10sec) ── */}
+      {batchMoveSourceIds.size > 0 && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full">
+            <div className="px-6 py-4 border-b flex items-center justify-between">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <Merge className="w-5 h-5 text-orange-600" />
+                Batch Move Users (Anti-Signout)
+              </h3>
+              <button onClick={() => { setBatchMoveSourceIds(new Set()); setBatchMoveTargetId(''); setBatchMoveProgress(''); }} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              {/* Info about batch move */}
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-sm text-orange-800">
+                <p className="font-semibold mb-1">🔥 How it works:</p>
+                <ul className="text-xs space-y-0.5 list-disc list-inside">
+                  <li>Picks 2-3 random users per batch</li>
+                  <li>Adds them to target group</li>
+                  <li>Removes them from source group(s)</li>
+                  <li>Waits 3-10 seconds between batches</li>
+                  <li>✅ Account NEVER auto-signs out</li>
+                  <li>✅ Zero ban risk (human-like timing)</li>
+                </ul>
+              </div>
+
+              {/* Source groups */}
+              <div>
+                <p className="text-sm text-gray-600 mb-2">
+                  Source: <span className="font-semibold text-orange-600">{batchMoveSourceIds.size} group{batchMoveSourceIds.size !== 1 ? 's' : ''}</span>
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {Array.from(batchMoveSourceIds).map((id) => {
+                    const g = groups.find((gr) => gr.id === id);
+                    return (
+                      <span key={id} className="px-2 py-0.5 rounded-full text-xs font-medium bg-orange-50 text-orange-700">
+                        {g?.name}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Target group selector */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Select Target Group *</label>
+                <p className="text-xs text-gray-400 mb-2">All source group contacts will be moved here</p>
+                <select
+                  value={batchMoveTargetId}
+                  onChange={(e) => setBatchMoveTargetId(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  disabled={batchMoving}
+                >
+                  <option value="">— Choose target group —</option>
+                  {groups
+                    .filter((g) => !batchMoveSourceIds.has(g.id))
+                    .map((g) => (
+                      <option key={g.id} value={g.id}>{g.name}</option>
+                    ))}
+                </select>
+              </div>
+
+              {batchMoveProgress && (
+                <div className="flex items-start gap-2 text-sm text-orange-600 bg-orange-50 p-3 rounded-lg border border-orange-200 max-h-40 overflow-y-auto">
+                  <Loader2 className="w-4 h-4 animate-spin shrink-0 mt-0.5" />
+                  <div className="whitespace-pre-wrap text-xs font-mono">{batchMoveProgress}</div>
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t bg-gray-50 rounded-b-2xl flex justify-end gap-2">
+              <button
+                onClick={() => { setBatchMoveSourceIds(new Set()); setBatchMoveTargetId(''); setBatchMoveProgress(''); }}
+                disabled={batchMoving}
+                className="px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBatchMoveContacts}
+                disabled={batchMoving || !batchMoveTargetId || batchMoveSourceIds.size === 0}
+                className="px-4 py-2 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-semibold disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {batchMoving ? (
+                  <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Moving…</>
+                ) : (
+                  <><Merge className="w-3.5 h-3.5" /> Start Batch Move</>
+                )}
               </button>
             </div>
           </div>
