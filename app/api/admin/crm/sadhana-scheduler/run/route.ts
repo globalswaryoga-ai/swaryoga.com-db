@@ -336,6 +336,21 @@ export async function POST(request: NextRequest) {
     for (const schedule of schedules) {
       try {
         console.log(`[Sadhana RUN] 📋 Processing schedule: "${schedule.name}" (${schedule._id})`);
+
+        // ⚠️ FIX: Normalize times and days to always be arrays
+        if (typeof schedule.schedule?.times === 'string') {
+          schedule.schedule.times = [schedule.schedule.times];
+          console.log(`[Sadhana RUN] ⚠️ FIXED: times was string, converted to array: ${schedule.schedule.times}`);
+        }
+        if (typeof schedule.schedule?.days === 'number') {
+          schedule.schedule.days = [schedule.schedule.days];
+          console.log(`[Sadhana RUN] ⚠️ FIXED: days was number, converted to array: ${schedule.schedule.days}`);
+        }
+
+        // Ensure arrays
+        schedule.schedule.times = Array.isArray(schedule.schedule?.times) ? schedule.schedule.times : [];
+        schedule.schedule.days = Array.isArray(schedule.schedule?.days) ? schedule.schedule.days : [];
+
         console.log(`[Sadhana RUN] - Times: ${schedule.schedule?.times?.join(', ') || 'NONE'}`);
         console.log(`[Sadhana RUN] - Days: ${schedule.schedule?.days?.join(', ') || 'NONE'}`);
         console.log(`[Sadhana RUN] - Bot Automation: ${schedule.enableBotAutomation}`);
