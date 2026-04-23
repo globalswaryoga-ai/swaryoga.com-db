@@ -130,7 +130,33 @@ export async function botJoinMeeting(config: ZoomBotConfig): Promise<void> {
     const botIdentifier = ZOOM_BOT_JID || ZOOM_BOT_USER_ID;
 
     try {
-      // Try to add bot to meeting participants using Bot Framework
+      // Step 1: Add bot as co-host (bypasses waiting room)
+      console.log(`[ZoomBot] 🤖 Attempting to add bot as co-host to meeting ${config.meetingId}...`);
+
+      const coHostResponse = await axios.put(
+        `https://zoom.us/api/v2/meetings/${config.meetingId}`,
+        {
+          settings: {
+            co_hosts: [botIdentifier],
+          },
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          validateStatus: () => true,
+        }
+      );
+
+      if (coHostResponse.status === 204 || coHostResponse.status === 200) {
+        console.log(`[ZoomBot] ✅ Bot added as co-host successfully`);
+        return;
+      }
+
+      // Step 2: Fallback - Try adding as regular participant
+      console.log(`[ZoomBot] ℹ️ Co-host addition failed (${coHostResponse.status}), trying as regular participant...`);
+
       const joinResponse = await axios.post(
         `https://zoom.us/api/v2/meetings/${config.meetingId}/participants`,
         {
@@ -148,21 +174,21 @@ export async function botJoinMeeting(config: ZoomBotConfig): Promise<void> {
       );
 
       if (joinResponse.status === 201 || joinResponse.status === 200) {
-        console.log(`[ZoomBot] ✅ Bot Framework: Bot joined meeting as participant`);
+        console.log(`[ZoomBot] ✅ Bot joined meeting as participant`);
       } else if (joinResponse.status === 404) {
-        console.warn(`[ZoomBot] ⚠️ Meeting ${config.meetingId} not found - sending chat fallback`);
+        console.warn(`[ZoomBot] ⚠️ Meeting ${config.meetingId} not found`);
         await sendBotReadyMessage(config.meetingId);
       } else if (joinResponse.status === 400) {
-        console.warn(`[ZoomBot] ⚠️ Bot Framework join not available (400), using chat fallback:`, joinResponse.data?.message);
+        console.warn(`[ZoomBot] ⚠️ Cannot add bot (400):`, joinResponse.data?.message);
         await sendBotReadyMessage(config.meetingId);
       } else if (joinResponse.status === 429) {
-        console.warn(`[ZoomBot] ⚠️ Rate limited (429), will retry next minute`);
+        console.warn(`[ZoomBot] ⚠️ Rate limited (429)`);
       } else {
         console.warn(`[ZoomBot] ⚠️ Unexpected status ${joinResponse.status}:`, joinResponse.data);
         await sendBotReadyMessage(config.meetingId);
       }
     } catch (joinErr) {
-      console.warn('[ZoomBot] ⚠️ Bot Framework join failed, falling back to chat:', joinErr);
+      console.warn('[ZoomBot] ⚠️ Bot join failed:', joinErr);
       await sendBotReadyMessage(config.meetingId);
     }
   } catch (err: any) {
