@@ -319,16 +319,34 @@ export async function POST(request: NextRequest) {
     // Find all active schedules
     const schedules = await Model.find({ status: 'active' }).lean();
 
+    console.log(`[Sadhana RUN] 🔍 Found ${schedules.length} active schedules at ${now.toISOString()}`);
+
+    if (schedules.length === 0) {
+      console.warn('[Sadhana RUN] ⚠️ NO ACTIVE SCHEDULES FOUND!');
+      return NextResponse.json({
+        scannedSchedules: 0,
+        executedSchedules: 0,
+        error: 'No active schedules found'
+      }, { status: 200 });
+    }
+
     let sent = 0;
     let failed = 0;
 
     for (const schedule of schedules) {
       try {
+        console.log(`[Sadhana RUN] 📋 Processing schedule: "${schedule.name}" (${schedule._id})`);
+        console.log(`[Sadhana RUN] - Times: ${schedule.schedule?.times?.join(', ') || 'NONE'}`);
+        console.log(`[Sadhana RUN] - Days: ${schedule.schedule?.days?.join(', ') || 'NONE'}`);
+        console.log(`[Sadhana RUN] - Bot Automation: ${schedule.enableBotAutomation}`);
+
         const { shouldJoin, shouldCountdown, shouldPlay } = shouldTriggerBotActions(
           schedule,
           now,
           schedule.schedule.timezone
         );
+
+        console.log(`[Sadhana RUN] - Trigger Result: shouldJoin=${shouldJoin}, shouldCountdown=${shouldCountdown}, shouldPlay=${shouldPlay}`);
 
         // 🤖 Bot joins and starts recording regardless of leads or participants
         // (people can join or not - bot will be active)
