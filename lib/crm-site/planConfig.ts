@@ -26,16 +26,17 @@ export const PLAN_NAMES: Record<PlanTier, string> = {
 // ============================================================================
 
 export const PLAN_PRICING: Record<PlanTier, {
-  monthly: number;
+  monthly: number | null;
   quarterly: number;
+  sixMonth: number;
   annual: number;
   monthlyUSD: number;
 }> = {
-  free:         { monthly: 0,     quarterly: 0,       annual: 0,       monthlyUSD: 0 },
-  basic:        { monthly: 499,   quarterly: 1299,    annual: 4500,    monthlyUSD: 8 },
-  starter:      { monthly: 999,   quarterly: 2697,    annual: 9990,    monthlyUSD: 14 },
-  growth:       { monthly: 1999,  quarterly: 5397,    annual: 19990,   monthlyUSD: 28 },
-  professional: { monthly: 3999,  quarterly: 10797,   annual: 39990,   monthlyUSD: 56 },
+  free:         { monthly: null,  quarterly: 0,       sixMonth: 0,      annual: 0,       monthlyUSD: 0 },
+  basic:        { monthly: 499,   quarterly: 1299,    sixMonth: 2400,   annual: 4500,    monthlyUSD: 8 },
+  starter:      { monthly: null,  quarterly: 2697,    sixMonth: 4800,   annual: 9990,    monthlyUSD: 14 },
+  growth:       { monthly: null,  quarterly: 5397,    sixMonth: 9600,   annual: 19990,   monthlyUSD: 28 },
+  professional: { monthly: null,  quarterly: 10797,   sixMonth: 19200,  annual: 39990,   monthlyUSD: 56 },
 };
 
 // ============================================================================
