@@ -616,24 +616,49 @@ export async function GET(request: NextRequest) {
           continue;
         }
 
+        // 🤖 BOT JOIN PHASE - Trigger bot to join Zoom meeting
+        if (schedule.enableBotAutomation) {
+          try {
+            // Extract meeting ID from zoomLink or zoomId
+            let meetingId = schedule.zoomId;
+            let meetingPassword = schedule.zoomPassword;
+
+            if (!meetingId && schedule.zoomLink) {
+              const match = schedule.zoomLink.match(/\/j\/(\d+)/);
+              if (match) meetingId = match[1];
+              const pwMatch = schedule.zoomLink.match(/[?&]pwd=([^&]+)/);
+              if (pwMatch) meetingPassword = decodeURIComponent(pwMatch[1]);
+            }
+
+            if (meetingId) {
+              console.log(`[Sadhana] 🤖 BOT JOINING meeting ${meetingId}`);
+              await botJoinMeeting({
+                meetingId,
+                meetingPassword,
+                videoDurationMinutes: schedule.videoDuration || 40,
+              });
+            }
+          } catch (err) {
+            console.error(`[Sadhana] Bot join error:`, err);
+          }
+        }
+
         const message = buildSadhanaMessage(schedule);
         const leads = await LeadModel?.find({ userId: schedule.userId }).toArray();
 
-        if (!leads || leads.length === 0) {
-          continue;
-        }
-
-        for (const lead of leads) {
-          try {
-            await sendWhatsAppText(
-              lead.phoneNumber,
-              message,
-              'meta'
-            );
-            sent++;
-          } catch (err) {
-            console.error(`Failed to send to lead ${lead.phoneNumber}:`, err);
-            failed++;
+        if (leads && leads.length > 0) {
+          for (const lead of leads) {
+            try {
+              await sendWhatsAppText(
+                lead.phoneNumber || lead.phone,
+                message,
+                'meta'
+              );
+              sent++;
+            } catch (err) {
+              console.error(`Failed to send to lead ${lead.phoneNumber}:`, err);
+              failed++;
+            }
           }
         }
       } catch (err) {
