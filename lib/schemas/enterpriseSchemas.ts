@@ -3875,3 +3875,72 @@ AffiliatePayoutSchema.index({ status: 1 });
 
 export function getAffiliatePayout() { return getModel('AffiliatePayout', AffiliatePayoutSchema); }
 export const AffiliatePayout = createModelProxy('AffiliatePayout', AffiliatePayoutSchema);
+
+// ============================================================================
+// TENANT TRIAL SCHEMA - Free trial management for Basic plan
+// ============================================================================
+// Tracks free trials, prevents reuse of emails and QR WhatsApp numbers
+// User gets 15 days free, must pay ₹50 on Day 2 for storage, payment popup on Day 10
+const TenantTrialSchema = new mongoose.Schema(
+  {
+    // Email - unique per trial (one free trial per email)
+    email: { type: String, required: true, lowercase: true, trim: true, index: true },
+
+    // QR WhatsApp number (unique across ALL free trials - prevents reuse)
+    qrWhatsAppNumber: { type: String, index: true, sparse: true }, // e.g., "919876543210"
+
+    // Trial dates
+    trialStartDate: { type: Date, default: Date.now },
+    trialEndDate: { type: Date }, // Auto-calculated: trialStartDate + 15 days
+    trialUsed: { type: Boolean, default: false }, // Set to true after 15 days
+
+    // Storage payment (₹50 due on Day 2)
+    storagePaymentRequired: { type: Boolean, default: true },
+    storagePaymentPaid: { type: Boolean, default: false },
+    storagePaymentDate: { type: Date },
+    storagePaymentAmount: { type: Number, default: 50 }, // ₹50
+
+    // Popups shown
+    day2PopupShown: { type: Boolean, default: false }, // After QR scanned
+    day10PopupShown: { type: Boolean, default: false }, // Payment/Demo popup
+
+    // Final status
+    status: {
+      type: String,
+      enum: ['active', 'payment-pending', 'expired', 'converted-to-paid'],
+      default: 'active',
+      index: true
+    },
+
+    // Payment history
+    paymentHistory: [{
+      date: { type: Date, default: Date.now },
+      amount: { type: Number },
+      type: { type: String, enum: ['storage', 'plan-upgrade'] },
+      method: { type: String }, // 'razorpay', 'upi', etc
+      transactionId: { type: String },
+      status: { type: String, enum: ['pending', 'completed', 'failed'] },
+    }],
+
+    // When user upgraded to paid plan
+    upgradedToPaidAt: { type: Date },
+    upgradedToPlan: { type: String }, // 'basic', 'starter', 'growth', 'professional'
+
+    // Tracking
+    qrScannedAt: { type: Date }, // When QR was first scanned
+    lastActivityAt: { type: Date },
+
+    // Metadata
+    metadata: mongoose.Schema.Types.Mixed,
+  },
+  { timestamps: true, collection: 'tenant_trials' }
+);
+
+// Indexes for efficient queries
+TenantTrialSchema.index({ email: 1, trialStartDate: -1 });
+TenantTrialSchema.index({ qrWhatsAppNumber: 1 }); // Prevent QR reuse
+TenantTrialSchema.index({ status: 1, trialEndDate: 1 });
+TenantTrialSchema.index({ storagePaymentPaid: 1, status: 1 });
+
+export function getTenantTrial() { return getModel('TenantTrial', TenantTrialSchema); }
+export const TenantTrial = createModelProxy('TenantTrial', TenantTrialSchema);
