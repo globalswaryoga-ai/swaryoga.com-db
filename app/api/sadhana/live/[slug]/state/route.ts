@@ -126,7 +126,9 @@ function buildVideoUrlWithOffset(videoUrl: string, offsetSeconds: number): strin
   const sep = videoUrl.includes('?') ? '&' : '?';
   const autoplay = videoUrl.includes('autoplay') ? '' : `${sep}autoplay=true`;
   const start = offsetSeconds > 0 ? `${autoplay ? '&' : sep}t=${offsetSeconds}` : '';
-  return `${videoUrl}${autoplay}${start}`;
+  const controls = `${start || autoplay ? '&' : sep}controls=false`;
+  const noDownload = `&token=restricted`;
+  return `${videoUrl}${autoplay}${start}${controls}${noDownload}`;
 }
 
 export async function POST(request: NextRequest, { params }: { params: { slug: string } }) {

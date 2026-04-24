@@ -260,7 +260,13 @@ export default function ProgramLivePage() {
     );
   } else if (session.status === 'live') {
     sessionView = playableUrl ? (
-      <iframe src={playableUrl} className="w-full h-full" allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen />
+      <iframe
+        src={playableUrl}
+        className="w-full h-full pointer-events-none"
+        allow="autoplay; encrypted-media"
+        sandbox="allow-scripts allow-same-origin"
+        style={{ pointerEvents: 'none' }}
+      />
     ) : (
       <div className="w-full h-full flex items-center justify-center"><p className="text-purple-200">Loading video...</p></div>
     );
