@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, LogOut, Maximize2, Minimize2 } from 'lucide-react';
 
 interface Participant { name: string; joinedAt: string; }
 interface ChatMsg { id: string; name: string; message: string; createdAt: string; }
@@ -68,6 +68,7 @@ export default function ProgramLivePage() {
   const [showParticipants, setShowParticipants] = useState(true);
   const [showChat, setShowChat] = useState(true);
   const [showSidebar, setShowSidebar] = useState(true);
+  const [fullscreenMode, setFullscreenMode] = useState(false);
   const [announcement, setAnnouncement] = useState('');
   const sidRef = useRef<string>('');
   const chatEnd = useRef<HTMLDivElement>(null);
@@ -148,6 +149,14 @@ export default function ProgramLivePage() {
       body: JSON.stringify({ name, message: chatInput.trim() }),
     });
     setChatInput('');
+  };
+
+  const handleLeave = () => {
+    if (confirm('Leave the session?')) {
+      setJoined(false);
+      setName('');
+      localStorage.removeItem('sadhana_live_name');
+    }
   };
 
   if (programNotFound) {
@@ -284,15 +293,31 @@ export default function ProgramLivePage() {
               </p>
             </div>
           </div>
-          <div className={`flex items-center gap-2 px-4 py-2 rounded-full ${isLive ? 'bg-red-500' : 'bg-purple-600'}`}>
-            <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
-            <span className="font-semibold">{isLive ? 'LIVE' : (session?.status?.toUpperCase() || 'ONLINE')} • {count}</span>
+          <div className="flex items-center gap-3">
+            <div className={`flex items-center gap-2 px-4 py-2 rounded-full ${isLive ? 'bg-red-500' : 'bg-purple-600'}`}>
+              <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
+              <span className="font-semibold">{isLive ? 'LIVE' : (session?.status?.toUpperCase() || 'ONLINE')} • {count}</span>
+            </div>
+            <button
+              onClick={() => setFullscreenMode(!fullscreenMode)}
+              className="bg-purple-600 hover:bg-purple-500 p-2 rounded-lg transition"
+              title={fullscreenMode ? 'Exit fullscreen' : 'Fullscreen'}
+            >
+              {fullscreenMode ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+            </button>
+            <button
+              onClick={handleLeave}
+              className="bg-red-600 hover:bg-red-500 p-2 rounded-lg transition flex items-center gap-2"
+              title="Leave session"
+            >
+              <LogOut size={18} /> <span className="text-sm hidden sm:inline">Leave</span>
+            </button>
           </div>
         </div>
 
         <div>
-          <div className={`grid grid-cols-1 ${showSidebar ? 'lg:grid-cols-4' : 'lg:grid-cols-1'} gap-4`}>
-            <div className={`${showSidebar ? 'lg:col-span-3' : 'lg:col-span-1'} bg-black rounded-xl overflow-hidden aspect-video relative`}>
+          <div className={`grid grid-cols-1 ${showSidebar && !fullscreenMode ? 'lg:grid-cols-4' : 'lg:grid-cols-1'} gap-4`}>
+            <div className={`${showSidebar && !fullscreenMode ? 'lg:col-span-3' : 'lg:col-span-1'} bg-black rounded-xl overflow-hidden aspect-video relative`}>
               {sessionView}
               {showSidebar && (
                 <button
@@ -305,7 +330,7 @@ export default function ProgramLivePage() {
               )}
             </div>
 
-            {showSidebar && <div className="space-y-4">
+            {showSidebar && !fullscreenMode && <div className="space-y-4">
             <div className="bg-white/10 backdrop-blur-lg rounded-xl p-4 border border-white/20">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="font-semibold">👥 Participants ({count})</h2>
