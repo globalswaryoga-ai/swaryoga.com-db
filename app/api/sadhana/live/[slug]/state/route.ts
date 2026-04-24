@@ -41,11 +41,22 @@ function computeSessionStatus(schedule: any, now: Date) {
   const times: string[] = schedule.timeSlots || (schedule.scheduleTime ? [schedule.scheduleTime] : []);
   const videoDuration = schedule.videoDuration || 40;
   const countdownMin = schedule.countdownMinutes || 5;
+  const allowedDays = schedule.days || [0, 1, 2, 3, 4, 5, 6];
+  const startDate = schedule.startDate ? new Date(schedule.startDate) : null;
 
   const candidates: { startUtc: Date; endUtc: Date; dayOffset: number }[] = [];
 
   for (let offset = 0; offset < 8; offset++) {
     const checkDate = new Date(now.getTime() + offset * 24 * 60 * 60 * 1000);
+
+    if (startDate && checkDate < startDate) continue;
+
+    const dayOfWeek = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      weekday: 'short',
+    }).format(checkDate);
+    const dayNum = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(dayOfWeek.substring(0, 3));
+    if (!allowedDays.includes(dayNum)) continue;
 
     for (const t of times) {
       if (!t || !t.trim()) continue;
@@ -166,37 +177,39 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
     }
 
     // Auto-add bot when countdown/live starts, keep lastSeen updated
-    if (activeSchedule && (sessionInfo.status === 'countdown' || sessionInfo.status === 'live') && sessionInfo.sessionStartUtc) {
+    if (activeSchedule && activeSchedule.enableBotAutomation !== false && (sessionInfo.status === 'countdown' || sessionInfo.status === 'live') && sessionInfo.sessionStartUtc) {
+      const botName = activeSchedule.botName || '🤖 Swar Yoga Bot';
       const botExists = await participants.findOne({
-        name: '🤖 Swar Yoga Bot'
+        name: botName
       });
       if (!botExists) {
         await participants.insertOne({
-          name: '🤖 Swar Yoga Bot',
+          name: botName,
           sessionId: 'bot',
           joinedAt: now,
           lastSeen: now,
         });
         // Bot welcome message in chat
         await chatCol.insertOne({
-          name: '🤖 Swar Yoga Bot',
-          message: 'Namaste! 🙏 Session starting soon. Welcome everyone!',
+          name: botName,
+          message: `Namaste! 🙏 ${activeSchedule.name || 'Session'} starting soon. Welcome everyone!`,
           createdAt: now,
         });
       } else {
         // Keep bot's lastSeen updated so it doesn't get deleted
         await participants.updateOne(
-          { name: '🤖 Swar Yoga Bot' },
+          { name: botName },
           { $set: { lastSeen: now } }
         );
       }
-    } else if (activeSchedule && sessionInfo.status === 'ended') {
+    } else if (activeSchedule && activeSchedule.enableBotAutomation !== false && sessionInfo.status === 'ended') {
+      const botName = activeSchedule.botName || '🤖 Swar Yoga Bot';
       await participants.deleteOne({
-        name: '🤖 Swar Yoga Bot'
+        name: botName
       });
       // Bot farewell message
       await chatCol.insertOne({
-        name: '🤖 Swar Yoga Bot',
+        name: botName,
         message: 'Thank you for practicing! See you next session. 🙏',
         createdAt: now,
       });

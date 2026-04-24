@@ -13,6 +13,12 @@ interface Program {
   timezone: string;
   videoDuration: number;
   countdownMinutes: number;
+  days?: number[];
+  repeatFrequency?: string;
+  startDate?: string;
+  botName?: string;
+  botJoinMinutes?: number;
+  enableBotAutomation?: boolean;
   active: boolean;
   createdAt: string;
 }
@@ -36,6 +42,12 @@ export default function SadhanaProgramsPage() {
     timezone: 'Asia/Kolkata',
     videoDuration: 40,
     countdownMinutes: 3,
+    days: [0, 1, 2, 3, 4, 5, 6],
+    repeatFrequency: 'daily',
+    startDate: new Date().toISOString().split('T')[0],
+    botName: '🤖 Swar Yoga Bot',
+    botJoinMinutes: 5,
+    enableBotAutomation: true,
   });
 
   const [editProgram, setEditProgram] = useState({
@@ -44,6 +56,12 @@ export default function SadhanaProgramsPage() {
     timezone: 'Asia/Kolkata',
     videoDuration: 40,
     countdownMinutes: 3,
+    days: [0, 1, 2, 3, 4, 5, 6],
+    repeatFrequency: 'daily',
+    startDate: new Date().toISOString().split('T')[0],
+    botName: '🤖 Swar Yoga Bot',
+    botJoinMinutes: 5,
+    enableBotAutomation: true,
   });
 
   const load = async () => {
@@ -94,6 +112,12 @@ export default function SadhanaProgramsPage() {
       timezone: p.timezone,
       videoDuration: p.videoDuration,
       countdownMinutes: p.countdownMinutes,
+      days: p.days || [0, 1, 2, 3, 4, 5, 6],
+      repeatFrequency: p.repeatFrequency || 'daily',
+      startDate: p.startDate || new Date().toISOString().split('T')[0],
+      botName: p.botName || '🤖 Swar Yoga Bot',
+      botJoinMinutes: p.botJoinMinutes || 5,
+      enableBotAutomation: p.enableBotAutomation !== false,
     });
   };
 
@@ -302,6 +326,99 @@ export default function SadhanaProgramsPage() {
               </div>
             </div>
 
+            <div>
+              <label className="block text-sm text-gray-300 mb-2">Days of Week</label>
+              <div className="grid grid-cols-4 gap-2">
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      const days = [...(newProgram.days || [0,1,2,3,4,5,6])];
+                      if (days.includes(idx)) {
+                        setNewProgram({ ...newProgram, days: days.filter(d => d !== idx) });
+                      } else {
+                        setNewProgram({ ...newProgram, days: [...days, idx].sort() });
+                      }
+                    }}
+                    className={`py-2 rounded-lg text-sm font-semibold transition ${
+                      (newProgram.days || [0,1,2,3,4,5,6]).includes(idx)
+                        ? 'bg-pink-600 text-white'
+                        : 'bg-gray-700 text-gray-400'
+                    }`}
+                  >
+                    {day}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm text-gray-300 mb-1">Repeat Frequency</label>
+                <select
+                  value={newProgram.repeatFrequency || 'daily'}
+                  onChange={(e) => setNewProgram({ ...newProgram, repeatFrequency: e.target.value })}
+                  className="w-full bg-gray-800 text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-pink-500 outline-none"
+                >
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-300 mb-1">Start Date</label>
+                <input
+                  type="date"
+                  value={newProgram.startDate}
+                  onChange={(e) => setNewProgram({ ...newProgram, startDate: e.target.value })}
+                  className="w-full bg-gray-800 text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-pink-500 outline-none"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-300 mb-1">Bot Name</label>
+              <input
+                type="text"
+                value={newProgram.botName || ''}
+                onChange={(e) => setNewProgram({ ...newProgram, botName: e.target.value })}
+                placeholder="🤖 Swar Yoga Bot"
+                className="w-full bg-gray-800 text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-pink-500 outline-none text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-300 mb-2">Bot Joins (min before session)</label>
+              <div className="grid grid-cols-3 gap-2">
+                {[2, 3, 5].map((min) => (
+                  <button
+                    key={min}
+                    type="button"
+                    onClick={() => setNewProgram({ ...newProgram, botJoinMinutes: min })}
+                    className={`py-2 rounded-lg text-sm font-semibold transition ${
+                      (newProgram.botJoinMinutes || 5) === min
+                        ? 'bg-pink-600 text-white'
+                        : 'bg-gray-700 text-gray-400'
+                    }`}
+                  >
+                    {min}m
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="bot-automation"
+                checked={newProgram.enableBotAutomation !== false}
+                onChange={(e) => setNewProgram({ ...newProgram, enableBotAutomation: e.target.checked })}
+                className="w-4 h-4 rounded accent-pink-500"
+              />
+              <label htmlFor="bot-automation" className="text-sm text-gray-300">Enable Bot Automation</label>
+            </div>
+
             <div className="flex gap-2 pt-2">
               <button type="button" onClick={() => setShowCreate(false)} className="flex-1 bg-gray-700 text-white py-2 rounded-lg">Cancel</button>
               <button type="submit" className="flex-1 bg-gradient-to-r from-pink-500 to-violet-500 text-white py-2 rounded-lg font-semibold">Create</button>
@@ -383,6 +500,99 @@ export default function SadhanaProgramsPage() {
                   className="w-full bg-gray-800 text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-pink-500 outline-none"
                 />
               </div>
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-300 mb-2">Days of Week</label>
+              <div className="grid grid-cols-4 gap-2">
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      const days = [...(editProgram.days || [0,1,2,3,4,5,6])];
+                      if (days.includes(idx)) {
+                        setEditProgram({ ...editProgram, days: days.filter(d => d !== idx) });
+                      } else {
+                        setEditProgram({ ...editProgram, days: [...days, idx].sort() });
+                      }
+                    }}
+                    className={`py-2 rounded-lg text-sm font-semibold transition ${
+                      (editProgram.days || [0,1,2,3,4,5,6]).includes(idx)
+                        ? 'bg-pink-600 text-white'
+                        : 'bg-gray-700 text-gray-400'
+                    }`}
+                  >
+                    {day}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm text-gray-300 mb-1">Repeat Frequency</label>
+                <select
+                  value={editProgram.repeatFrequency || 'daily'}
+                  onChange={(e) => setEditProgram({ ...editProgram, repeatFrequency: e.target.value })}
+                  className="w-full bg-gray-800 text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-pink-500 outline-none"
+                >
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-300 mb-1">Start Date</label>
+                <input
+                  type="date"
+                  value={editProgram.startDate}
+                  onChange={(e) => setEditProgram({ ...editProgram, startDate: e.target.value })}
+                  className="w-full bg-gray-800 text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-pink-500 outline-none"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-300 mb-1">Bot Name</label>
+              <input
+                type="text"
+                value={editProgram.botName || ''}
+                onChange={(e) => setEditProgram({ ...editProgram, botName: e.target.value })}
+                placeholder="🤖 Swar Yoga Bot"
+                className="w-full bg-gray-800 text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-pink-500 outline-none text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-300 mb-2">Bot Joins (min before session)</label>
+              <div className="grid grid-cols-3 gap-2">
+                {[2, 3, 5].map((min) => (
+                  <button
+                    key={min}
+                    type="button"
+                    onClick={() => setEditProgram({ ...editProgram, botJoinMinutes: min })}
+                    className={`py-2 rounded-lg text-sm font-semibold transition ${
+                      (editProgram.botJoinMinutes || 5) === min
+                        ? 'bg-pink-600 text-white'
+                        : 'bg-gray-700 text-gray-400'
+                    }`}
+                  >
+                    {min}m
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="bot-automation-edit"
+                checked={editProgram.enableBotAutomation !== false}
+                onChange={(e) => setEditProgram({ ...editProgram, enableBotAutomation: e.target.checked })}
+                className="w-4 h-4 rounded accent-pink-500"
+              />
+              <label htmlFor="bot-automation-edit" className="text-sm text-gray-300">Enable Bot Automation</label>
             </div>
 
             <div className="flex gap-2 pt-2">

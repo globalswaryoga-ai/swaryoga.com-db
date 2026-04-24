@@ -71,6 +71,7 @@ export default function ProgramLivePage() {
   const [announcement, setAnnouncement] = useState('');
   const sidRef = useRef<string>('');
   const chatEnd = useRef<HTMLDivElement>(null);
+  const urlSetRef = useRef(false);
 
   useEffect(() => { setName(storedName()); sidRef.current = storedSid(slug); }, [slug]);
 
@@ -113,7 +114,15 @@ export default function ProgramLivePage() {
           setParticipants(data.participants || []);
           setCount(data.count || 0);
           setSession(data.session || null);
-          setPlayableUrl(data.playableVideoUrl || null);
+          // Only set playableUrl once when first going live
+          if (data.session?.status === 'live' && data.playableVideoUrl && !urlSetRef.current) {
+            setPlayableUrl(data.playableVideoUrl);
+            urlSetRef.current = true;
+          } else if (data.session?.status !== 'live') {
+            // Reset ref when session is no longer live
+            urlSetRef.current = false;
+            if (data.session?.status !== 'live') setPlayableUrl(null);
+          }
           setChat(data.chat || []);
           if (data.serverTime) setServerTime(new Date(data.serverTime));
         }

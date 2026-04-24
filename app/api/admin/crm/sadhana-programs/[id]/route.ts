@@ -35,6 +35,12 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
         timezone: program.timezone,
         videoDuration: program.videoDuration,
         countdownMinutes: program.countdownMinutes,
+        days: program.days || [0, 1, 2, 3, 4, 5, 6],
+        repeatFrequency: program.repeatFrequency || 'daily',
+        startDate: program.startDate,
+        botName: program.botName || '🤖 Swar Yoga Bot',
+        botJoinMinutes: program.botJoinMinutes || 5,
+        enableBotAutomation: program.enableBotAutomation !== false,
         active: program.active,
         createdAt: program.createdAt,
       },
@@ -57,7 +63,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     const body = await request.json();
     const update: any = { updatedAt: new Date() };
 
-    ['name', 'description', 'timezone'].forEach((k) => {
+    ['name', 'description', 'timezone', 'repeatFrequency', 'startDate', 'botName'].forEach((k) => {
       if (body[k] !== undefined) update[k] = body[k];
     });
     if (body.timeSlots !== undefined) {
@@ -66,6 +72,11 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     }
     if (body.videoDuration !== undefined) update.videoDuration = parseInt(body.videoDuration) || 40;
     if (body.countdownMinutes !== undefined) update.countdownMinutes = parseInt(body.countdownMinutes) || 3;
+    if (body.days !== undefined) {
+      update.days = Array.isArray(body.days) ? body.days.sort((a: number, b: number) => a - b) : [0, 1, 2, 3, 4, 5, 6];
+    }
+    if (body.botJoinMinutes !== undefined) update.botJoinMinutes = parseInt(body.botJoinMinutes) || 5;
+    if (body.enableBotAutomation !== undefined) update.enableBotAutomation = !!body.enableBotAutomation;
     if (body.active !== undefined) update.active = !!body.active;
 
     await col.updateOne(

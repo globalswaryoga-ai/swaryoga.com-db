@@ -17,6 +17,12 @@ export async function GET() {
         timezone: p.timezone,
         videoDuration: p.videoDuration,
         countdownMinutes: p.countdownMinutes,
+        days: p.days || [0, 1, 2, 3, 4, 5, 6],
+        repeatFrequency: p.repeatFrequency || 'daily',
+        startDate: p.startDate,
+        botName: p.botName || '🤖 Swar Yoga Bot',
+        botJoinMinutes: p.botJoinMinutes || 5,
+        enableBotAutomation: p.enableBotAutomation !== false,
         active: p.active,
         createdAt: p.createdAt,
       })),
@@ -29,7 +35,10 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, description, timeSlots, timezone, videoDuration, countdownMinutes } = body;
+    const {
+      name, description, timeSlots, timezone, videoDuration, countdownMinutes,
+      days, repeatFrequency, startDate, botName, botJoinMinutes, enableBotAutomation
+    } = body;
 
     if (!name || !timeSlots || timeSlots.length === 0) {
       return NextResponse.json({ error: 'name and timeSlots required' }, { status: 400 });
@@ -53,6 +62,12 @@ export async function POST(request: NextRequest) {
       timezone: timezone || 'Asia/Kolkata',
       videoDuration: parseInt(videoDuration) || 40,
       countdownMinutes: parseInt(countdownMinutes) || 3,
+      days: Array.isArray(days) ? days.sort((a, b) => a - b) : [0, 1, 2, 3, 4, 5, 6],
+      repeatFrequency: repeatFrequency || 'daily',
+      startDate: startDate || null,
+      botName: botName || '🤖 Swar Yoga Bot',
+      botJoinMinutes: parseInt(botJoinMinutes) || 5,
+      enableBotAutomation: enableBotAutomation !== false,
       active: true,
       createdAt: now,
       updatedAt: now,
