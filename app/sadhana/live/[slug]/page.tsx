@@ -309,7 +309,16 @@ export default function ProgramLivePage() {
   } else if (session.status === 'live') {
     if (playerMode === 'hls' && playerUrl) {
       sessionView = (
-        <HLSPlayer url={playerUrl} videoRef={videoRef} offsetSeconds={session.videoOffsetSeconds} />
+        <div className="relative w-full h-full">
+          <HLSPlayer url={playerUrl} videoRef={videoRef} offsetSeconds={session.videoOffsetSeconds} />
+          <button
+            onClick={() => setShowSidebar(!showSidebar)}
+            className="absolute bottom-4 right-4 z-50 bg-black/70 hover:bg-black/90 text-white px-4 py-2 rounded-lg font-semibold transition"
+            title={showSidebar ? 'Full screen' : 'Show sidebar'}
+          >
+            {showSidebar ? '🖥️ Full' : '📱 Small'}
+          </button>
+        </div>
       );
     } else {
       const isValidUrl = playableUrl && playableUrl.startsWith('http');
