@@ -165,7 +165,7 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       }
     }
 
-    // Auto-add bot when countdown/live starts
+    // Auto-add bot when countdown/live starts, keep lastSeen updated
     if (activeSchedule && (sessionInfo.status === 'countdown' || sessionInfo.status === 'live') && sessionInfo.sessionStartUtc) {
       const botExists = await participants.findOne({
         name: '🤖 Swar Yoga Bot'
@@ -177,10 +177,28 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
           joinedAt: now,
           lastSeen: now,
         });
+        // Bot welcome message in chat
+        await chatCol.insertOne({
+          name: '🤖 Swar Yoga Bot',
+          message: 'Namaste! 🙏 Session starting soon. Welcome everyone!',
+          createdAt: now,
+        });
+      } else {
+        // Keep bot's lastSeen updated so it doesn't get deleted
+        await participants.updateOne(
+          { name: '🤖 Swar Yoga Bot' },
+          { $set: { lastSeen: now } }
+        );
       }
     } else if (activeSchedule && sessionInfo.status === 'ended') {
       await participants.deleteOne({
         name: '🤖 Swar Yoga Bot'
+      });
+      // Bot farewell message
+      await chatCol.insertOne({
+        name: '🤖 Swar Yoga Bot',
+        message: 'Thank you for practicing! See you next session. 🙏',
+        createdAt: now,
       });
     }
 
