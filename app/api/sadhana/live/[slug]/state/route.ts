@@ -236,7 +236,7 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
         }
       }
 
-      if (sessionInfo.status === 'live' && videoUrlForPlayback) {
+      if (sessionInfo.status === 'live' && videoUrlForPlayback && videoUrlForPlayback.startsWith('http')) {
         playableVideoUrl = buildVideoUrlWithOffset(
           videoUrlForPlayback,
           sessionInfo.videoOffsetSeconds
@@ -339,6 +339,10 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       };
     }
 
+    const playerMode = activeSchedule?.playerMode || 'player';
+    const playerUrl = activeSchedule?.playerUrl || '';
+    const validPlayerUrl = playerUrl && playerUrl.startsWith('http') ? playerUrl : '';
+
     return NextResponse.json({
       success: true,
       count: activeParticipants.length,
@@ -355,8 +359,8 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       upcomingVideos,
       session: sessionInfo,
       playableVideoUrl,
-      playerMode: activeSchedule?.playerMode || 'player',
-      playerUrl: activeSchedule?.playerUrl || '',
+      playerMode,
+      playerUrl: validPlayerUrl,
       chat: chatMessages.reverse().map((m: any) => ({
         id: m._id.toString(),
         name: m.name,
