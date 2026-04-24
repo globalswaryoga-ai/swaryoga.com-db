@@ -367,8 +367,6 @@ export default function SadhanaProgramsPage() {
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-
-            <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm text-gray-300 mb-1">Video Duration (min)</label>
                 <input
