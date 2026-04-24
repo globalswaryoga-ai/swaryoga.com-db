@@ -67,7 +67,7 @@ export default function ProgramLivePage() {
   const [nowTick, setNowTick] = useState<Date>(new Date());
   const [showParticipants, setShowParticipants] = useState(true);
   const [showChat, setShowChat] = useState(true);
-  const [showSidebar, setShowSidebar] = useState(true);
+  const [showSidebar, setShowSidebar] = useState(false);
   const [fullscreenMode, setFullscreenMode] = useState(false);
   const [announcement, setAnnouncement] = useState('');
   const [playerMode, setPlayerMode] = useState<'player' | 'hls'>('player');
