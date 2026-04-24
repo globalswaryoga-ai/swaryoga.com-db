@@ -205,7 +205,7 @@ export async function POST(request: NextRequest) {
       .limit(200)
       .toArray();
 
-    let sessionInfo = null;
+    let sessionInfo: any = null;
     let playableVideoUrl = null;
     if (activeSchedule) {
       sessionInfo = computeSessionStatus(activeSchedule, now);

@@ -164,7 +164,7 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       return NextResponse.json({ error: 'Program not found' }, { status: 404 });
     }
 
-    let sessionInfo = null;
+    let sessionInfo: any = null;
     let playableVideoUrl = null;
     if (activeSchedule) {
       sessionInfo = computeSessionStatus(activeSchedule, now);
@@ -177,7 +177,7 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
     }
 
     // Auto-add bot when countdown/live starts, keep lastSeen updated
-    if (activeSchedule && activeSchedule.enableBotAutomation !== false && (sessionInfo.status === 'countdown' || sessionInfo.status === 'live') && sessionInfo.sessionStartUtc) {
+    if (activeSchedule && sessionInfo && activeSchedule.enableBotAutomation !== false && (sessionInfo.status === 'countdown' || sessionInfo.status === 'live') && sessionInfo.sessionStartUtc) {
       const botName = activeSchedule.botName || '🤖 Swar Yoga Bot';
       const botExists = await participants.findOne({
         name: botName
@@ -202,7 +202,7 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
           { $set: { lastSeen: now } }
         );
       }
-    } else if (activeSchedule && activeSchedule.enableBotAutomation !== false && sessionInfo.status === 'ended') {
+    } else if (activeSchedule && sessionInfo && activeSchedule.enableBotAutomation !== false && sessionInfo.status === 'ended') {
       const botName = activeSchedule.botName || '🤖 Swar Yoga Bot';
       await participants.deleteOne({
         name: botName
