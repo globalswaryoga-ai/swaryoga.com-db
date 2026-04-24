@@ -538,7 +538,6 @@ interface HLSPlayerProps {
 }
 
 function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
-  const lastTimeRef = useRef(0);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -551,34 +550,25 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
     }
 
     const video = videoRef.current;
-    let isPlaying = false;
 
-    const handlePlay = () => { isPlaying = true; };
-    const handlePause = () => { isPlaying = false; video.play().catch(() => {}); };
+    const handleSeeking = (e: Event) => {
+      console.log('Seeking attempt blocked');
+      e.preventDefault();
+    };
+    const handleRateChange = (e: Event) => {
+      console.log('Speed change blocked');
+      if (video.playbackRate !== 1) video.playbackRate = 1;
+    };
 
-    const handleSeeking = (e: Event) => { e.preventDefault(); video.currentTime = lastTimeRef.current; };
-    const handleTimeUpdate = () => { lastTimeRef.current = video.currentTime; };
-    const handleRateChange = (e: Event) => { e.preventDefault(); if (video.playbackRate !== 1) video.playbackRate = 1; };
-
-    video.addEventListener('play', handlePlay);
-    video.addEventListener('pause', handlePause);
     video.addEventListener('seeking', handleSeeking);
-    video.addEventListener('timeupdate', handleTimeUpdate);
     video.addEventListener('ratechange', handleRateChange);
 
-    const canPlayNativeHLS = video.canPlayType('application/vnd.apple.mpegurl') !== '';
-    if (canPlayNativeHLS) {
-      console.log('Native HLS supported, using browser playback');
-      if (offsetSeconds > 0) video.currentTime = offsetSeconds;
-      video.play().catch(() => {});
-      return () => {
-        video.removeEventListener('play', handlePlay);
-        video.removeEventListener('pause', handlePause);
-        video.removeEventListener('seeking', handleSeeking);
-        video.removeEventListener('timeupdate', handleTimeUpdate);
-        video.removeEventListener('ratechange', handleRateChange);
-      };
-    }
+    console.log('Native HLS setup, offset:', offsetSeconds);
+
+    return () => {
+      video.removeEventListener('seeking', handleSeeking);
+      video.removeEventListener('ratechange', handleRateChange);
+    };
 
     const loadHLS = async () => {
       try {
