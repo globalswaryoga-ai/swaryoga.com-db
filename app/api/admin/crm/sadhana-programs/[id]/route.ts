@@ -42,6 +42,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
         botJoinMinutes: program.botJoinMinutes || 5,
         enableBotAutomation: program.enableBotAutomation !== false,
         videoCalendar: program.videoCalendar || {},
+        playerMode: program.playerMode || 'player',
+        playerUrl: program.playerUrl || '',
         active: program.active,
         createdAt: program.createdAt,
       },
@@ -64,7 +66,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     const body = await request.json();
     const update: any = { updatedAt: new Date() };
 
-    ['name', 'description', 'timezone', 'repeatFrequency', 'startDate', 'botName'].forEach((k) => {
+    ['name', 'description', 'timezone', 'repeatFrequency', 'startDate', 'botName', 'playerMode', 'playerUrl'].forEach((k) => {
       if (body[k] !== undefined) update[k] = body[k];
     });
     if (body.timeSlots !== undefined) {

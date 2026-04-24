@@ -184,6 +184,8 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
             botName: program.botName,
             botJoinMinutes: program.botJoinMinutes,
             enableBotAutomation: program.enableBotAutomation,
+            playerMode: program.playerMode || 'player',
+            playerUrl: program.playerUrl || '',
           };
         }
       } catch {
@@ -348,6 +350,8 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       upcomingVideos,
       session: sessionInfo,
       playableVideoUrl,
+      playerMode: activeSchedule?.playerMode || 'player',
+      playerUrl: activeSchedule?.playerUrl || '',
       chat: chatMessages.reverse().map((m: any) => ({
         id: m._id.toString(),
         name: m.name,

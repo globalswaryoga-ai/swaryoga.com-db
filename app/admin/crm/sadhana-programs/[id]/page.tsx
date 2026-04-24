@@ -9,6 +9,7 @@ interface Program {
   id: string; slug: string; name: string; description?: string;
   timeSlots: string[]; timezone: string;
   videoDuration: number; countdownMinutes: number; active: boolean;
+  playerMode?: string; playerUrl?: string;
 }
 interface Video { id: string; date: string; title: string; videoUrl: string; order?: number; }
 
@@ -41,7 +42,7 @@ export default function ProgramDetailPage() {
   const [form, setForm] = useState({ title: '', videoUrl: '' });
   const [toast, setToast] = useState('');
   const [editingProgram, setEditingProgram] = useState(false);
-  const [editForm, setEditForm] = useState({ name: '', description: '', timeSlots: ['', '', '', ''], timezone: 'Asia/Kolkata', videoDuration: 40, countdownMinutes: 3 });
+  const [editForm, setEditForm] = useState({ name: '', description: '', timeSlots: ['', '', '', ''], timezone: 'Asia/Kolkata', videoDuration: 40, countdownMinutes: 3, playerMode: 'player', playerUrl: '' });
 
   const load = async () => {
     setLoading(true);
@@ -98,6 +99,8 @@ export default function ProgramDetailPage() {
       timezone: program.timezone,
       videoDuration: program.videoDuration,
       countdownMinutes: program.countdownMinutes,
+      playerMode: program.playerMode || 'player',
+      playerUrl: program.playerUrl || '',
     });
     setEditingProgram(true);
   };
@@ -383,6 +386,30 @@ export default function ProgramDetailPage() {
                 />
               </div>
             </div>
+
+            <div>
+              <label className="block text-sm text-gray-100 mb-1">Player Mode *</label>
+              <select
+                value={editForm.playerMode}
+                onChange={(e) => setEditForm({ ...editForm, playerMode: e.target.value })}
+                className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg border border-gray-600 focus:border-pink-400 outline-none"
+              >
+                <option value="player">🎬 Player Mode (Embedded Bunny Player)</option>
+                <option value="hls">📡 HLS Mode (Live Streaming)</option>
+              </select>
+            </div>
+
+            {editForm.playerMode === 'hls' && (
+              <div>
+                <label className="block text-sm text-gray-100 mb-1">HLS Playlist URL</label>
+                <input
+                  type="url" value={editForm.playerUrl}
+                  onChange={(e) => setEditForm({ ...editForm, playerUrl: e.target.value })}
+                  placeholder="https://vz-...cdn.net/...playlist.m3u8"
+                  className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg border border-gray-600 focus:border-pink-400 outline-none text-sm"
+                />
+              </div>
+            )}
 
             <div className="flex gap-2 pt-2">
               <button onClick={() => setEditingProgram(false)} className="flex-1 bg-gray-700 text-white py-2 rounded-lg">Cancel</button>

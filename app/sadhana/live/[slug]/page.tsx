@@ -70,9 +70,12 @@ export default function ProgramLivePage() {
   const [showSidebar, setShowSidebar] = useState(true);
   const [fullscreenMode, setFullscreenMode] = useState(false);
   const [announcement, setAnnouncement] = useState('');
+  const [playerMode, setPlayerMode] = useState<'player' | 'hls'>('player');
+  const [playerUrl, setPlayerUrl] = useState<string | null>(null);
   const sidRef = useRef<string>('');
   const chatEnd = useRef<HTMLDivElement>(null);
   const urlSetRef = useRef(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => { setName(storedName()); sidRef.current = storedSid(slug); }, [slug]);
 
@@ -116,6 +119,8 @@ export default function ProgramLivePage() {
           setParticipants(data.participants || []);
           setCount(data.count || 0);
           setSession(data.session || null);
+          setPlayerMode(data.playerMode || 'player');
+          setPlayerUrl(data.playerUrl || null);
           // Only set playableUrl once when first going live
           if (data.session?.status === 'live' && data.playableVideoUrl && !urlSetRef.current) {
             setPlayableUrl(data.playableVideoUrl);
@@ -259,17 +264,23 @@ export default function ProgramLivePage() {
       </div>
     );
   } else if (session.status === 'live') {
-    sessionView = playableUrl ? (
-      <iframe
-        src={playableUrl}
-        className="w-full h-full pointer-events-none"
-        allow="autoplay; encrypted-media"
-        sandbox="allow-scripts allow-same-origin"
-        style={{ pointerEvents: 'none' }}
-      />
-    ) : (
-      <div className="w-full h-full flex items-center justify-center"><p className="text-purple-200">Loading video...</p></div>
-    );
+    if (playerMode === 'hls' && playerUrl) {
+      sessionView = (
+        <HLSPlayer url={playerUrl} videoRef={videoRef} />
+      );
+    } else {
+      sessionView = playableUrl ? (
+        <iframe
+          src={playableUrl}
+          className="w-full h-full pointer-events-none"
+          allow="autoplay; encrypted-media"
+          sandbox="allow-scripts allow-same-origin"
+          style={{ pointerEvents: 'none' }}
+        />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center"><p className="text-purple-200">Loading video...</p></div>
+      );
+    }
   } else if (session.status === 'ended') {
     sessionView = (
       <div className="w-full h-full flex items-center justify-center p-8 bg-gradient-to-br from-indigo-900 to-purple-900">
@@ -445,5 +456,63 @@ export default function ProgramLivePage() {
         <div className="mt-4 text-center text-purple-200 text-xs">Swar Yoga • Sadhana Live • Namaste 🙏</div>
       </div>
     </div>
+  );
+}
+
+interface HLSPlayerProps {
+  url: string;
+  videoRef: React.RefObject<HTMLVideoElement>;
+}
+
+function HLSPlayer({ url, videoRef }: HLSPlayerProps) {
+  useEffect(() => {
+    if (!videoRef.current || !url) return;
+
+    const loadHLS = async () => {
+      try {
+        const scriptId = 'hls-js-script';
+        if (document.getElementById(scriptId)) {
+          const HLS = (window as any).HLS;
+          if (HLS && HLS.isSupported()) {
+            const hls = new HLS({ autoStartLoad: true });
+            hls.loadSource(url);
+            hls.attachMedia(videoRef.current);
+            hls.on((window as any).HLS.Events.MANIFEST_PARSED, () => {
+              videoRef.current?.play().catch(() => {});
+            });
+          }
+        } else {
+          const script = document.createElement('script');
+          script.id = scriptId;
+          script.src = 'https://cdn.jsdelivr.net/npm/hls.js@latest/dist/hls.min.js';
+          script.onload = () => {
+            const HLS = (window as any).HLS;
+            if (HLS && HLS.isSupported() && videoRef.current) {
+              const hls = new HLS({ autoStartLoad: true });
+              hls.loadSource(url);
+              hls.attachMedia(videoRef.current);
+              hls.on((window as any).HLS.Events.MANIFEST_PARSED, () => {
+                videoRef.current?.play().catch(() => {});
+              });
+            }
+          };
+          document.head.appendChild(script);
+        }
+      } catch (err) {
+        console.error('HLS loading error:', err);
+      }
+    };
+
+    loadHLS();
+  }, [url, videoRef]);
+
+  return (
+    <video
+      ref={videoRef}
+      className="w-full h-full bg-black"
+      controls
+      autoPlay
+      muted
+    />
   );
 }

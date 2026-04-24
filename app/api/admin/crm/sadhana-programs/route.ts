@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     const {
       name, description, timeSlots, timezone, videoDuration, countdownMinutes,
       days, repeatFrequency, startDate, botName, botJoinMinutes, enableBotAutomation,
-      videoCalendar
+      videoCalendar, playerMode, playerUrl
     } = body;
 
     if (!name || !timeSlots || timeSlots.length === 0) {
@@ -71,6 +71,8 @@ export async function POST(request: NextRequest) {
       botJoinMinutes: parseInt(botJoinMinutes) || 5,
       enableBotAutomation: enableBotAutomation !== false,
       videoCalendar: videoCalendar || {},
+      playerMode: playerMode || 'player',
+      playerUrl: playerUrl || '',
       active: true,
       createdAt: now,
       updatedAt: now,
