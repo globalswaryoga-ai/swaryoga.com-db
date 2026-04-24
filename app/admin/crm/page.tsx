@@ -22,8 +22,6 @@ import {
   Settings,
   QrCode,
   Sparkles,
-  Video,
-  Clock,
 } from 'lucide-react';
 
 interface CRMStats {
@@ -547,8 +545,6 @@ export default function CRMDashboard() {
                 <QuickActionCard href="/admin/crm/broadcast" icon={Radio} label="Broadcast" color="pink" />
                 <QuickActionCard href="/admin/crm/calls" icon={UserPlus} label="Call Workflows" color="emerald" />
                 <QuickActionCard href="/admin/crm/templates" icon={FileText} label="Templates" color="orange" />
-                <QuickActionCard href="/admin/crm/sadhana-programs" icon={Video} label="Sadhana Programs" color="purple" />
-                <QuickActionCard href="/admin/crm/sadhana-scheduler" icon={Clock} label="Sadhana Scheduler" color="pink" />
                 <QuickActionCard href="/admin/crm/analytics" icon={BarChart3} label="Analytics" color="purple" />
                 <QuickActionCard href="/admin/crm/settings" icon={Settings} label="Auto Config" color="gray" />
               </div>

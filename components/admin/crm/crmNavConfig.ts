@@ -325,7 +325,6 @@ export const sectionConfigs: SectionConfig[] = [
       { label: 'AI Agents', href: '/admin/crm/ai-agents', icon: Cpu },
     ],
     moreItems: [
-      { label: 'Automation', href: '/admin/crm/automation', icon: Zap },
       { label: 'Chatbot Settings', href: '/admin/crm/chatbot-settings', icon: Settings },
     ],
     prefixes: [
@@ -333,7 +332,24 @@ export const sectionConfigs: SectionConfig[] = [
       '/admin/crm/chatbot-settings',
       '/admin/crm/knowledge-base',
       '/admin/crm/ai-agents',
+    ],
+  },
+
+  // 8.5 Automation
+  {
+    key: 'automation',
+    title: 'Automation',
+    icon: Zap,
+    items: [
+      { label: 'Automation', href: '/admin/crm/automation', icon: Zap },
+      { label: 'Sadhana Programs', href: '/admin/crm/sadhana-programs', icon: Video },
+      { label: 'Sadhana Scheduler', href: '/admin/crm/sadhana-scheduler', icon: Clock },
+    ],
+    moreItems: [],
+    prefixes: [
       '/admin/crm/automation',
+      '/admin/crm/sadhana-programs',
+      '/admin/crm/sadhana-scheduler',
     ],
   },
 
