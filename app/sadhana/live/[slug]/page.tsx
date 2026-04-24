@@ -566,6 +566,20 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
     video.addEventListener('timeupdate', handleTimeUpdate);
     video.addEventListener('ratechange', handleRateChange);
 
+    const canPlayNativeHLS = video.canPlayType('application/vnd.apple.mpegurl') !== '';
+    if (canPlayNativeHLS) {
+      console.log('Native HLS supported, using browser playback');
+      if (offsetSeconds > 0) video.currentTime = offsetSeconds;
+      video.play().catch(() => {});
+      return () => {
+        video.removeEventListener('play', handlePlay);
+        video.removeEventListener('pause', handlePause);
+        video.removeEventListener('seeking', handleSeeking);
+        video.removeEventListener('timeupdate', handleTimeUpdate);
+        video.removeEventListener('ratechange', handleRateChange);
+      };
+    }
+
     const loadHLS = async () => {
       try {
         console.log('Loading HLS URL:', url);
