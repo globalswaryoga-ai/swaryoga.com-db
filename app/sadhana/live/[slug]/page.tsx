@@ -4,30 +4,40 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { ChevronDown, ChevronUp, LogOut, Maximize2, Minimize2, Play } from 'lucide-react';
 
-// Hide all video player controls
+// Hide all video player controls - AGGRESSIVE
 if (typeof document !== 'undefined') {
   const style = document.createElement('style');
   style.textContent = `
-    /* Hide native HTML5 video controls */
+    /* Hide ALL video controls - webkit browsers */
     video::-webkit-media-controls { display: none !important; }
+    video::-webkit-media-controls-enclosure { display: none !important; }
     video::-webkit-media-controls-panel { display: none !important; }
     video::-webkit-media-controls-play-button { display: none !important; }
-    video::-webkit-media-controls-volume-slider-container { display: none !important; }
+    video::-webkit-media-controls-timeline-container { display: none !important; }
     video::-webkit-media-controls-current-time-display { display: none !important; }
     video::-webkit-media-controls-time-remaining-display { display: none !important; }
     video::-webkit-media-controls-timeline { display: none !important; }
-    video::-webkit-media-controls-fullscreen-button { display: none !important; }
+    video::-webkit-media-controls-volume-slider-container { display: none !important; }
+    video::-webkit-media-controls-volume-slider { display: none !important; }
     video::-webkit-media-controls-mute-button { display: none !important; }
+    video::-webkit-media-controls-fullscreen-button { display: none !important; }
     video::-webkit-media-controls-toggle-closed-captions-button { display: none !important; }
+    video::-webkit-media-controls-download-button { display: none !important; }
+    /* Hide Firefox controls */
     video::-moz-media-controls { display: none !important; }
-    /* Bunny player controls */
-    .bm-video-controls { display: none !important; }
-    .bm-player-controls { display: none !important; }
-    .bm-controls { display: none !important; }
-    [class*="controls"] { display: none !important; }
-    [class*="player-ui"] { display: none !important; }
   `;
+  style.setAttribute('data-hide-video-controls', 'true');
   document.head.appendChild(style);
+
+  // Add inline style to hide controls on all video elements
+  const observer = new MutationObserver(() => {
+    document.querySelectorAll('video').forEach(video => {
+      video.removeAttribute('controls');
+      video.style.outline = 'none';
+    });
+  });
+
+  observer.observe(document.body, { childList: true, subtree: true });
 }
 
 interface Participant { name: string; joinedAt: string; }
@@ -645,7 +655,6 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
       className="w-full h-full bg-black"
       autoPlay
       playsInline
-      controls={false}
       crossOrigin="anonymous"
       onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); return false; }}
       onKeyDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
