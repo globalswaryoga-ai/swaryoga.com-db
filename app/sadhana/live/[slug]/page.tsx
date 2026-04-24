@@ -309,16 +309,7 @@ export default function ProgramLivePage() {
   } else if (session.status === 'live') {
     if (playerMode === 'hls' && playerUrl) {
       sessionView = (
-        <div className="relative w-full h-full">
-          <HLSPlayer url={playerUrl} videoRef={videoRef} offsetSeconds={session.videoOffsetSeconds} />
-          <button
-            onClick={() => setShowSidebar(!showSidebar)}
-            className="absolute bottom-4 right-4 z-50 bg-black/70 hover:bg-black/90 text-white px-4 py-2 rounded-lg font-semibold transition"
-            title={showSidebar ? 'Full screen' : 'Show sidebar'}
-          >
-            {showSidebar ? '🖥️ Full' : '📱 Small'}
-          </button>
-        </div>
+        <HLSPlayer url={playerUrl} videoRef={videoRef} offsetSeconds={session.videoOffsetSeconds} />
       );
     } else {
       const isValidUrl = playableUrl && playableUrl.startsWith('http');
@@ -526,13 +517,22 @@ export default function ProgramLivePage() {
           <div className="flex-1">
             {sessionView}
           </div>
-          <button
-            onClick={handleLeave}
-            className="absolute top-4 right-4 bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg font-semibold z-50"
-            title="Leave session"
-          >
-            Leave
-          </button>
+          <div className="absolute top-4 right-4 flex gap-2 z-50">
+            <button
+              onClick={() => setShowSidebar(!showSidebar)}
+              className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg font-semibold"
+              title={showSidebar ? 'Full screen' : 'Show sidebar'}
+            >
+              {showSidebar ? '📱 Small' : '🖥️ Full'}
+            </button>
+            <button
+              onClick={handleLeave}
+              className="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg font-semibold"
+              title="Leave session"
+            >
+              Leave
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -576,8 +576,7 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
     // Native HLS - modern browsers handle HLS.m3u8 natively
     console.log('Using native HLS video element for:', url);
     video.src = url;
-    video.muted = false;  // Enable audio
-    // Don't set currentTime here - let onLoadedMetadata handle it
+    // Don't set muted or currentTime here - let events handle it
 
     return () => {
       video.removeEventListener('seeking', handleSeeking);
