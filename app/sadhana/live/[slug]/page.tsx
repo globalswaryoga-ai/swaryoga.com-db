@@ -486,11 +486,13 @@ function HLSPlayer({ url, videoRef }: HLSPlayerProps) {
 
     const handleSeeking = () => { video.currentTime = lastTimeRef.current; };
     const handleTimeUpdate = () => { lastTimeRef.current = video.currentTime; };
+    const handleRateChange = () => { if (video.playbackRate !== 1) video.playbackRate = 1; };
 
     video.addEventListener('play', handlePlay);
     video.addEventListener('pause', handlePause);
     video.addEventListener('seeking', handleSeeking);
     video.addEventListener('timeupdate', handleTimeUpdate);
+    video.addEventListener('ratechange', handleRateChange);
 
     const loadHLS = async () => {
       try {
@@ -534,6 +536,7 @@ function HLSPlayer({ url, videoRef }: HLSPlayerProps) {
       video.removeEventListener('pause', handlePause);
       video.removeEventListener('seeking', handleSeeking);
       video.removeEventListener('timeupdate', handleTimeUpdate);
+      video.removeEventListener('ratechange', handleRateChange);
     };
   }, [url, videoRef]);
 
