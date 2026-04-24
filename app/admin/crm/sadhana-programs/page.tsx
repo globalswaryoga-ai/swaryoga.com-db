@@ -257,7 +257,7 @@ export default function SadhanaProgramsPage() {
       {/* Create Modal */}
       {showCreate && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
-          <form onSubmit={create} className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-md w-full space-y-4">
+          <form onSubmit={create} className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-md w-full space-y-4 max-h-[80vh] overflow-y-auto">
             <h2 className="text-xl font-bold text-white">Create Program</h2>
 
             <div>
@@ -435,7 +435,7 @@ export default function SadhanaProgramsPage() {
       {/* Edit Modal */}
       {editingId && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
-          <form onSubmit={update} className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-md w-full space-y-4">
+          <form onSubmit={update} className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-md w-full space-y-4 max-h-[80vh] overflow-y-auto">
             <h2 className="text-xl font-bold text-white">Edit Program</h2>
 
             <div>
