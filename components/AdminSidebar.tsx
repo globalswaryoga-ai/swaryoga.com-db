@@ -46,6 +46,8 @@ import {
   PieChart,
   Users,
   UsersRound,
+  Sparkles,
+  CalendarDays,
 } from 'lucide-react';
 import { PlanBadge, SidebarLock } from './admin/crm/PlanComponents';
 import type { CrmModule } from '@/lib/crm-site/planConfig';
@@ -440,6 +442,22 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
           module: 'calls',
           planModule: 'aiCalls',
           description: 'AI-powered voice calling',
+        },
+        {
+          icon: Sparkles,
+          label: 'Sadhana Programs',
+          href: '/admin/crm/sadhana-programs',
+          color: 'text-pink-400',
+          module: 'dashboard' as CrmModule,
+          description: 'Daily videos on a live shared link',
+        },
+        {
+          icon: CalendarDays,
+          label: 'Sadhana Scheduler',
+          href: '/admin/crm/sadhana-scheduler',
+          color: 'text-purple-400',
+          module: 'dashboard' as CrmModule,
+          description: 'Recurring weekly/daily sessions',
         },
       ],
     },
