@@ -657,7 +657,6 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
       ref={videoRef}
       className="w-full h-full bg-black"
       autoPlay
-      muted
       playsInline
       crossOrigin="anonymous"
       onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); return false; }}
