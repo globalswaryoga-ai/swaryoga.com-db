@@ -67,6 +67,7 @@ export default function ProgramLivePage() {
   const [nowTick, setNowTick] = useState<Date>(new Date());
   const [showParticipants, setShowParticipants] = useState(true);
   const [showChat, setShowChat] = useState(true);
+  const [showSidebar, setShowSidebar] = useState(true);
   const [announcement, setAnnouncement] = useState('');
   const sidRef = useRef<string>('');
   const chatEnd = useRef<HTMLDivElement>(null);
@@ -258,18 +259,30 @@ export default function ProgramLivePage() {
         </div>
 
         <div>
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-            <div className="lg:col-span-3 bg-black rounded-xl overflow-hidden aspect-video">{sessionView}</div>
+          <div className={`grid grid-cols-1 ${showSidebar ? 'lg:grid-cols-4' : 'lg:grid-cols-1'} gap-4`}>
+            <div className={`${showSidebar ? 'lg:col-span-3' : 'lg:col-span-1'} bg-black rounded-xl overflow-hidden aspect-video relative`}>
+              {sessionView}
+              {showSidebar && (
+                <button
+                  onClick={() => setShowSidebar(false)}
+                  className="absolute top-4 right-4 bg-black/70 hover:bg-black/90 text-white p-2 rounded-lg transition text-xs font-semibold"
+                  title="Hide sidebar for fullscreen video"
+                >
+                  ⛔ Hide
+                </button>
+              )}
+            </div>
 
-          <div className="space-y-4">
+            {showSidebar && <div className="space-y-4">
             <div className="bg-white/10 backdrop-blur-lg rounded-xl p-4 border border-white/20">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="font-semibold">👥 Participants ({count})</h2>
                 <button
                   onClick={() => setShowParticipants(!showParticipants)}
-                  className="text-gray-300 hover:text-white transition"
+                  className="text-gray-300 hover:text-white hover:bg-white/10 p-1 rounded transition"
+                  title={showParticipants ? 'Hide' : 'Show'}
                 >
-                  {showParticipants ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                  {showParticipants ? <ChevronUp size={22} /> : <ChevronDown size={22} />}
                 </button>
               </div>
               {showParticipants && (
@@ -308,9 +321,10 @@ export default function ProgramLivePage() {
                 <h2 className="font-semibold">💬 Live Chat</h2>
                 <button
                   onClick={() => setShowChat(!showChat)}
-                  className="text-gray-300 hover:text-white transition"
+                  className="text-gray-300 hover:text-white hover:bg-white/10 p-1 rounded transition"
+                  title={showChat ? 'Hide' : 'Show'}
                 >
-                  {showChat ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                  {showChat ? <ChevronUp size={22} /> : <ChevronDown size={22} />}
                 </button>
               </div>
               {showChat && (
@@ -338,8 +352,18 @@ export default function ProgramLivePage() {
                 </>
               )}
             </div>
+            </div>}
           </div>
-            </div>
+
+          {!showSidebar && (
+            <button
+              onClick={() => setShowSidebar(true)}
+              className="absolute bottom-20 right-4 bg-gradient-to-r from-pink-500 to-violet-500 text-white px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition z-40"
+              title="Show sidebar"
+            >
+              👁 Show Chat & Participants
+            </button>
+          )}
 
           {announcement && (
             <div className="mt-4 bg-gradient-to-r from-purple-900 via-indigo-900 to-purple-900 rounded-lg overflow-hidden border border-purple-500/30">

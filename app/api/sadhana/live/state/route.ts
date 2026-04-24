@@ -18,12 +18,10 @@ async function getDb() {
  * Returns session start/end times for today's session (if applicable) in UTC.
  */
 function computeSessionStatus(schedule: any, now: Date) {
-  const tz = schedule.schedule?.timezone || 'Asia/Kolkata';
-  const times: string[] = schedule.schedule?.times || [];
-  const days: number[] = schedule.schedule?.days || [];
+  const tz = schedule.timezone || 'Asia/Kolkata';
+  const times: string[] = schedule.timeSlots || (schedule.scheduleTime ? [schedule.scheduleTime] : []);
   const videoDuration = schedule.videoDuration || 40;
-  const countdownMin = schedule.botJoinMinutes || 5;
-  const repeatFrequency = schedule.schedule?.repeatFrequency || 'weekly';
+  const countdownMin = schedule.countdownMinutes || 5;
 
   // Get "now" in the schedule's timezone as Y-M-D H:M
   const localParts = new Intl.DateTimeFormat('en-CA', {
@@ -41,29 +39,15 @@ function computeSessionStatus(schedule: any, now: Date) {
   const partsMap: Record<string, string> = {};
   localParts.forEach((p) => { partsMap[p.type] = p.value; });
 
-  const todayDayOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(partsMap.weekday);
-  const nowHour = parseInt(partsMap.hour);
-  const nowMin = parseInt(partsMap.minute);
-  const nowTotalMin = nowHour * 60 + nowMin;
-
   // Build candidate session windows (today + next 7 days)
+  // Programs run daily with multiple time slots
   const candidates: { startUtc: Date; endUtc: Date; dayOffset: number }[] = [];
 
   for (let offset = 0; offset < 8; offset++) {
     const checkDate = new Date(now.getTime() + offset * 24 * 60 * 60 * 1000);
-    const dayOfWeek = parseInt(
-      new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'narrow' })
-        .format(checkDate) === '' ? '0' : '0'
-    );
-    const dayName = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short' })
-      .format(checkDate);
-    const dayIdx = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(dayName);
-
-    // Check if this day is scheduled
-    const isScheduled = repeatFrequency === 'daily' || days.includes(dayIdx);
-    if (!isScheduled) continue;
 
     for (const t of times) {
+      if (!t || !t.trim()) continue;
       const [h, m] = t.split(':').map(Number);
       if (isNaN(h) || isNaN(m)) continue;
 
