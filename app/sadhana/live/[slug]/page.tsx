@@ -308,9 +308,9 @@ export default function ProgramLivePage() {
         const sep = url.includes('?') ? '&' : '?';
         return url + sep + params.join('&');
       };
-      const playerUrlWithParams = isValidUrl ? addParams(playableUrl, 'autoplay=true', 'ui=false', 'controls=false') : '';
+      const playerUrlWithParams = isValidUrl ? addParams(playableUrl, 'autoplay=true') : '';
       sessionView = isValidUrl ? (
-        <div className="relative w-full h-full group">
+        <div className="relative w-full h-full overflow-hidden bg-black">
           <iframe
             key={`${videoStarted}`}
             src={videoStarted ? playerUrlWithParams : playableUrl}
@@ -324,7 +324,7 @@ export default function ProgramLivePage() {
           {!videoStarted && (
             <button
               onClick={() => setVideoStarted(true)}
-              className="absolute inset-0 flex items-center justify-center bg-black/40 hover:bg-black/20 transition z-20"
+              className="absolute inset-0 flex items-center justify-center bg-black/40 hover:bg-black/20 transition z-40"
               title="Start video"
             >
               <div className="flex items-center justify-center w-20 h-20 bg-white/30 rounded-full hover:bg-white/50 transition">
@@ -333,19 +333,21 @@ export default function ProgramLivePage() {
             </button>
           )}
           {videoStarted && (
-            <div className="absolute bottom-0 left-0 right-0 h-20 z-30 pointer-events-none" />
+            <>
+              <div className="absolute bottom-0 left-0 right-0 h-16 z-40 bg-black/50" />
+              <button
+                onClick={() => {
+                  const iframe = document.querySelector('iframe') as HTMLIFrameElement | null;
+                  if (iframe?.requestFullscreen) iframe.requestFullscreen().catch(() => {});
+                  else if ((iframe as any)?.webkitRequestFullscreen) (iframe as any).webkitRequestFullscreen();
+                }}
+                className="absolute top-4 right-4 z-40 bg-black/60 hover:bg-black/80 text-white p-2 rounded transition"
+                title="Fullscreen"
+              >
+                <Maximize2 size={20} />
+              </button>
+            </>
           )}
-          <button
-            onClick={() => {
-              const iframe = document.querySelector('iframe');
-              if (iframe?.requestFullscreen) iframe.requestFullscreen();
-              else if ((iframe as any)?.webkitRequestFullscreen) (iframe as any).webkitRequestFullscreen();
-            }}
-            className="absolute top-4 right-4 z-10 bg-black/60 hover:bg-black/80 text-white p-2 rounded transition"
-            title="Fullscreen"
-          >
-            <Maximize2 size={20} />
-          </button>
         </div>
       ) : (
         <div className="w-full h-full flex items-center justify-center"><p className="text-purple-200">Loading video...</p></div>
