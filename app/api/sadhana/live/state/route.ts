@@ -171,6 +171,31 @@ export async function POST(request: NextRequest) {
 
     await participants.deleteMany({ lastSeen: { $lt: activeThreshold } });
 
+    // Auto-add bot when countdown/live starts, remove after session ends
+    if (activeSchedule) {
+      const sessionStatus = computeSessionStatus(activeSchedule, now);
+      if ((sessionStatus.status === 'countdown' || sessionStatus.status === 'live') && sessionStatus.sessionStartUtc) {
+        const botExists = await participants.findOne({
+          scheduleId: activeSchedule._id.toString(),
+          name: '🤖 Swar Yoga Bot'
+        });
+        if (!botExists) {
+          await participants.insertOne({
+            scheduleId: activeSchedule._id.toString(),
+            sessionId: 'bot',
+            name: '🤖 Swar Yoga Bot',
+            joinedAt: now,
+            lastSeen: now,
+          });
+        }
+      } else if (sessionStatus.status === 'ended') {
+        await participants.deleteOne({
+          scheduleId: activeSchedule._id.toString(),
+          name: '🤖 Swar Yoga Bot'
+        });
+      }
+    }
+
     const activeParticipants = await participants
       .find({ lastSeen: { $gte: activeThreshold } })
       .sort({ joinedAt: 1 })
