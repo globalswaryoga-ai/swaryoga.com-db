@@ -186,6 +186,7 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
             enableBotAutomation: program.enableBotAutomation,
             playerMode: program.playerMode || 'player',
             playerUrl: program.playerUrl || '',
+            videoCalendar: program.videoCalendar || {},
           };
         }
       } catch {
