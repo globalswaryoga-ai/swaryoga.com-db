@@ -160,6 +160,35 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       activeSchedule = null;
     }
 
+    // Fallback: if no schedule, try to find program directly and use it as schedule
+    if (!activeSchedule) {
+      try {
+        const programsDb = await getProgramsDb();
+        const programsCol = programsDb.collection('sadhana_programs');
+        const program = await programsCol.findOne({ slug: params.slug });
+        if (program) {
+          activeSchedule = {
+            _id: program._id,
+            slug: program.slug,
+            name: program.name,
+            description: program.description,
+            programSlug: program.slug,
+            timeSlots: program.timeSlots,
+            timezone: program.timezone,
+            videoDuration: program.videoDuration,
+            countdownMinutes: program.countdownMinutes,
+            days: program.days,
+            startDate: program.startDate,
+            botName: program.botName,
+            botJoinMinutes: program.botJoinMinutes,
+            enableBotAutomation: program.enableBotAutomation,
+          };
+        }
+      } catch {
+        activeSchedule = null;
+      }
+    }
+
     if (!activeSchedule) {
       return NextResponse.json({ error: 'Program not found' }, { status: 404 });
     }
@@ -168,9 +197,28 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
     let playableVideoUrl = null;
     if (activeSchedule) {
       sessionInfo = computeSessionStatus(activeSchedule, now);
-      if (sessionInfo.status === 'live' && activeSchedule.videoUrl) {
+
+      // Get video URL for playback - try schedule first, then program calendar
+      let videoUrlForPlayback = activeSchedule.videoUrl;
+
+      if (!videoUrlForPlayback && activeSchedule?.slug) {
+        try {
+          const programsDb = await getProgramsDb();
+          const programsCol = programsDb.collection('sadhana_programs');
+          const program = await programsCol.findOne({ slug: activeSchedule.slug });
+          const yyyymmdd = now.toISOString().split('T')[0];
+          const todayEntry = program?.videoCalendar?.[yyyymmdd];
+          if (todayEntry?.videoUrl) {
+            videoUrlForPlayback = todayEntry.videoUrl;
+          }
+        } catch (err) {
+          // Ignore errors
+        }
+      }
+
+      if (sessionInfo.status === 'live' && videoUrlForPlayback) {
         playableVideoUrl = buildVideoUrlWithOffset(
-          activeSchedule.videoUrl,
+          videoUrlForPlayback,
           sessionInfo.videoOffsetSeconds
         );
       }
@@ -221,6 +269,45 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       .limit(50)
       .toArray();
 
+    // Get todayVideo from program calendar or schedule videoUrl
+    let todayVideo = null;
+    let upcomingVideos: any[] = [];
+    if (activeSchedule?.slug) {
+      try {
+        const programsDb = await getProgramsDb();
+        const programsCol = programsDb.collection('sadhana_programs');
+        const program = await programsCol.findOne({ slug: activeSchedule.slug });
+
+        if (program?.videoCalendar) {
+          const yyyymmdd = now.toISOString().split('T')[0];
+          const todayEntry = program.videoCalendar?.[yyyymmdd];
+          if (todayEntry) {
+            todayVideo = { date: yyyymmdd, title: todayEntry.title, videoUrl: todayEntry.videoUrl };
+          }
+
+          // Get next 7 days of videos
+          for (let i = 1; i <= 7; i++) {
+            const futureDate = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
+            const futureDateStr = futureDate.toISOString().split('T')[0];
+            const entry = program.videoCalendar?.[futureDateStr];
+            if (entry) {
+              upcomingVideos.push({ date: futureDateStr, title: entry.title });
+            }
+          }
+        }
+      } catch (err) {
+        // Fallback to videoUrl if calendar not available
+      }
+    }
+
+    // Fallback to schedule videoUrl if no calendar
+    if (!todayVideo && activeSchedule?.videoUrl) {
+      todayVideo = {
+        title: activeSchedule.name || 'Session',
+        videoUrl: activeSchedule.videoUrl,
+      };
+    }
+
     return NextResponse.json({
       success: true,
       count: activeParticipants.length,
@@ -233,11 +320,8 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
         name: activeSchedule?.name || 'Sadhana Live',
         timezone: activeSchedule?.timezone || 'Asia/Kolkata',
       },
-      todayVideo: activeSchedule?.videoUrl ? {
-        title: activeSchedule.name || 'Session',
-        videoUrl: activeSchedule.videoUrl,
-      } : null,
-      upcomingVideos: [],
+      todayVideo,
+      upcomingVideos,
       session: sessionInfo,
       playableVideoUrl,
       chat: chatMessages.reverse().map((m: any) => ({
