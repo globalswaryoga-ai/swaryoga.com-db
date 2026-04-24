@@ -76,16 +76,17 @@ export default function ProgramLivePage() {
 
   useEffect(() => { setName(storedName()); sidRef.current = storedSid(slug); }, [slug]);
 
-  useEffect(() => {
-    const loadAnnouncement = async () => {
-      try {
-        const res = await fetch('/api/admin/sadhana-announcements');
-        const data = await res.json();
-        if (data.success) setAnnouncement(data.announcement);
-      } catch (err) { console.warn('Failed to load announcement:', err); }
-    };
-    loadAnnouncement();
-  }, []);
+  // Announcements endpoint disabled (not implemented)
+  // useEffect(() => {
+  //   const loadAnnouncement = async () => {
+  //     try {
+  //       const res = await fetch('/api/admin/sadhana-announcements');
+  //       const data = await res.json();
+  //       if (data.success) setAnnouncement(data.announcement);
+  //     } catch (err) { console.warn('Failed to load announcement:', err); }
+  //   };
+  //   loadAnnouncement();
+  // }, []);
 
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
