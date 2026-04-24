@@ -467,9 +467,16 @@ interface HLSPlayerProps {
 
 function HLSPlayer({ url, videoRef }: HLSPlayerProps) {
   const lastTimeRef = useRef(0);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!videoRef.current || !url) return;
+
+    const isValidHlsUrl = url && (url.endsWith('.m3u8') || url.includes('playlist'));
+    if (!isValidHlsUrl) {
+      setError('Invalid HLS URL');
+      return;
+    }
 
     const video = videoRef.current;
     let isPlaying = false;
@@ -529,6 +536,14 @@ function HLSPlayer({ url, videoRef }: HLSPlayerProps) {
       video.removeEventListener('timeupdate', handleTimeUpdate);
     };
   }, [url, videoRef]);
+
+  if (error) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-black">
+        <p className="text-red-400">{error}</p>
+      </div>
+    );
+  }
 
   return (
     <video
