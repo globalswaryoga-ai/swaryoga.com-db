@@ -23,6 +23,8 @@ function computeSessionStatus(schedule: any, now: Date) {
   const times: string[] = schedule.timeSlots || (schedule.scheduleTime ? [schedule.scheduleTime] : []);
   const videoDuration = schedule.videoDuration || 40;
   const countdownMin = schedule.countdownMinutes || 5;
+  const allowedDays = schedule.days || [0, 1, 2, 3, 4, 5, 6];
+  const startDate = schedule.startDate ? new Date(schedule.startDate) : null;
 
   // Get "now" in the schedule's timezone as Y-M-D H:M
   const localParts = new Intl.DateTimeFormat('en-CA', {
@@ -46,6 +48,15 @@ function computeSessionStatus(schedule: any, now: Date) {
 
   for (let offset = 0; offset < 8; offset++) {
     const checkDate = new Date(now.getTime() + offset * 24 * 60 * 60 * 1000);
+
+    if (startDate && checkDate < startDate) continue;
+
+    const dayOfWeek = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      weekday: 'short',
+    }).format(checkDate);
+    const dayNum = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(dayOfWeek.substring(0, 3));
+    if (!allowedDays.includes(dayNum)) continue;
 
     for (const t of times) {
       if (!t || !t.trim()) continue;
@@ -171,37 +182,6 @@ export async function POST(request: NextRequest) {
 
     await participants.deleteMany({ lastSeen: { $lt: activeThreshold } });
 
-    // Auto-add bot when countdown/live starts, remove after session ends
-    if (activeSchedule) {
-      const sessionStatus = computeSessionStatus(activeSchedule, now);
-      if ((sessionStatus.status === 'countdown' || sessionStatus.status === 'live') && sessionStatus.sessionStartUtc) {
-        const botExists = await participants.findOne({
-          scheduleId: activeSchedule._id.toString(),
-          name: '🤖 Swar Yoga Bot'
-        });
-        if (!botExists) {
-          await participants.insertOne({
-            scheduleId: activeSchedule._id.toString(),
-            sessionId: 'bot',
-            name: '🤖 Swar Yoga Bot',
-            joinedAt: now,
-            lastSeen: now,
-          });
-        }
-      } else if (sessionStatus.status === 'ended') {
-        await participants.deleteOne({
-          scheduleId: activeSchedule._id.toString(),
-          name: '🤖 Swar Yoga Bot'
-        });
-      }
-    }
-
-    const activeParticipants = await participants
-      .find({ lastSeen: { $gte: activeThreshold } })
-      .sort({ joinedAt: 1 })
-      .limit(200)
-      .toArray();
-
     let activeSchedule: any = null;
     if (scheduleId && scheduleId !== 'default') {
       try {
@@ -219,10 +199,40 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const activeParticipants = await participants
+      .find({ lastSeen: { $gte: activeThreshold } })
+      .sort({ joinedAt: 1 })
+      .limit(200)
+      .toArray();
+
     let sessionInfo = null;
     let playableVideoUrl = null;
     if (activeSchedule) {
       sessionInfo = computeSessionStatus(activeSchedule, now);
+
+      // Auto-add bot when countdown/live starts, remove after session ends
+      if (activeSchedule.enableBotAutomation !== false && (sessionInfo.status === 'countdown' || sessionInfo.status === 'live') && sessionInfo.sessionStartUtc) {
+        const botName = activeSchedule.botName || '🤖 Swar Yoga Bot';
+        const botExists = await participants.findOne({
+          scheduleId: activeSchedule._id.toString(),
+          name: botName
+        });
+        if (!botExists) {
+          await participants.insertOne({
+            scheduleId: activeSchedule._id.toString(),
+            sessionId: 'bot',
+            name: botName,
+            joinedAt: now,
+            lastSeen: now,
+          });
+        }
+      } else if (activeSchedule.enableBotAutomation !== false && sessionInfo.status === 'ended') {
+        const botName = activeSchedule.botName || '🤖 Swar Yoga Bot';
+        await participants.deleteOne({
+          scheduleId: activeSchedule._id.toString(),
+          name: botName
+        });
+      }
       if (sessionInfo.status === 'live' && activeSchedule.videoUrl) {
         playableVideoUrl = buildVideoUrlWithOffset(
           activeSchedule.videoUrl,
