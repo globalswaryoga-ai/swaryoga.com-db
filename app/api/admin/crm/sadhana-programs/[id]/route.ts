@@ -31,7 +31,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
         slug: program.slug,
         name: program.name,
         description: program.description,
-        scheduleTime: program.scheduleTime,
+        timeSlots: program.timeSlots || (program.scheduleTime ? [program.scheduleTime] : []),
         timezone: program.timezone,
         videoDuration: program.videoDuration,
         countdownMinutes: program.countdownMinutes,
@@ -57,9 +57,13 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     const body = await request.json();
     const update: any = { updatedAt: new Date() };
 
-    ['name', 'description', 'scheduleTime', 'timezone'].forEach((k) => {
+    ['name', 'description', 'timezone'].forEach((k) => {
       if (body[k] !== undefined) update[k] = body[k];
     });
+    if (body.timeSlots !== undefined) {
+      const slots = Array.isArray(body.timeSlots) ? body.timeSlots : [body.timeSlots];
+      update.timeSlots = slots.filter((s: string) => s.trim()).slice(0, 4);
+    }
     if (body.videoDuration !== undefined) update.videoDuration = parseInt(body.videoDuration) || 40;
     if (body.countdownMinutes !== undefined) update.countdownMinutes = parseInt(body.countdownMinutes) || 3;
     if (body.active !== undefined) update.active = !!body.active;

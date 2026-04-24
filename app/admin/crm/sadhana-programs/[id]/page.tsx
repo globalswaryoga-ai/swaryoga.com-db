@@ -7,7 +7,7 @@ import { ArrowLeft, ChevronLeft, ChevronRight, Copy, ExternalLink, X } from 'luc
 
 interface Program {
   id: string; slug: string; name: string; description?: string;
-  scheduleTime: string; timezone: string;
+  timeSlots: string[]; timezone: string;
   videoDuration: number; countdownMinutes: number; active: boolean;
 }
 interface Video { id: string; date: string; title: string; videoUrl: string; order?: number; }
@@ -108,7 +108,9 @@ export default function ProgramDetailPage() {
         {program.description && <p className="text-purple-50 text-sm mb-3">{program.description}</p>}
 
         <div className="flex flex-wrap gap-2 text-sm mb-4">
-          <span className="bg-black/50 text-purple-100 px-2 py-1 rounded">⏰ Daily at {program.scheduleTime}</span>
+          {program.timeSlots.map((time, idx) => (
+            <span key={idx} className="bg-black/50 text-purple-100 px-2 py-1 rounded">⏰ {time}</span>
+          ))}
           <span className="bg-black/50 text-indigo-100 px-2 py-1 rounded">🌏 {program.timezone}</span>
           <span className="bg-black/50 text-pink-100 px-2 py-1 rounded">🎥 {program.videoDuration}min video</span>
           <span className="bg-black/50 text-blue-100 px-2 py-1 rounded">⏱ {program.countdownMinutes}min countdown</span>

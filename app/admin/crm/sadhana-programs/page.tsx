@@ -2,14 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Plus, Calendar, Copy, ExternalLink, Trash2 } from 'lucide-react';
+import { Plus, Calendar, Copy, ExternalLink, Trash2, Pencil } from 'lucide-react';
 
 interface Program {
   id: string;
   slug: string;
   name: string;
   description?: string;
-  scheduleTime: string;
+  timeSlots: string[];
   timezone: string;
   videoDuration: number;
   countdownMinutes: number;
@@ -27,11 +27,20 @@ export default function SadhanaProgramsPage() {
   const [programs, setPrograms] = useState<Program[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [toast, setToast] = useState('');
 
   const [newProgram, setNewProgram] = useState({
     name: '', description: '',
-    scheduleTime: '22:00',
+    timeSlots: ['22:00', '', '', ''],
+    timezone: 'Asia/Kolkata',
+    videoDuration: 40,
+    countdownMinutes: 3,
+  });
+
+  const [editProgram, setEditProgram] = useState({
+    name: '', description: '',
+    timeSlots: ['', '', '', ''],
     timezone: 'Asia/Kolkata',
     videoDuration: 40,
     countdownMinutes: 3,
@@ -51,17 +60,62 @@ export default function SadhanaProgramsPage() {
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
+    const timeSlots = newProgram.timeSlots.filter(t => t.trim());
+    if (!timeSlots.length) {
+      setToast('⚠️ Add at least one time slot');
+      setTimeout(() => setToast(''), 3000);
+      return;
+    }
     try {
       const res = await fetch('/api/admin/crm/sadhana-programs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newProgram),
+        body: JSON.stringify({ ...newProgram, timeSlots }),
       });
       const data = await res.json();
       if (data.success) {
         setToast('✅ Program created');
         setShowCreate(false);
-        setNewProgram({ name: '', description: '', scheduleTime: '22:00', timezone: 'Asia/Kolkata', videoDuration: 40, countdownMinutes: 3 });
+        setNewProgram({ name: '', description: '', timeSlots: ['22:00', '', '', ''], timezone: 'Asia/Kolkata', videoDuration: 40, countdownMinutes: 3 });
+        load();
+        setTimeout(() => setToast(''), 3000);
+      }
+    } catch (err) { console.error(err); }
+  };
+
+  const openEdit = (p: Program) => {
+    setEditingId(p.id);
+    const slots = [...p.timeSlots];
+    while (slots.length < 4) slots.push('');
+    setEditProgram({
+      name: p.name,
+      description: p.description || '',
+      timeSlots: slots.slice(0, 4),
+      timezone: p.timezone,
+      videoDuration: p.videoDuration,
+      countdownMinutes: p.countdownMinutes,
+    });
+  };
+
+  const update = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingId) return;
+    const timeSlots = editProgram.timeSlots.filter(t => t.trim());
+    if (!timeSlots.length) {
+      setToast('⚠️ Add at least one time slot');
+      setTimeout(() => setToast(''), 3000);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/admin/crm/sadhana-programs/${editingId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...editProgram, timeSlots }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setToast('✅ Program updated');
+        setEditingId(null);
         load();
         setTimeout(() => setToast(''), 3000);
       }
@@ -120,13 +174,20 @@ export default function SadhanaProgramsPage() {
                   <h3 className="text-xl font-bold text-white">{p.name}</h3>
                   {p.description && <p className="text-sm text-gray-400 mt-1">{p.description}</p>}
                 </div>
-                <button onClick={() => del(p.id, p.name)} className="text-red-400 hover:text-red-300 p-1">
-                  <Trash2 size={16} />
-                </button>
+                <div className="flex gap-1">
+                  <button onClick={() => openEdit(p)} className="text-blue-400 hover:text-blue-300 p-1">
+                    <Pencil size={16} />
+                  </button>
+                  <button onClick={() => del(p.id, p.name)} className="text-red-400 hover:text-red-300 p-1">
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               </div>
 
               <div className="flex flex-wrap gap-2 text-sm mb-4">
-                <span className="bg-purple-900/50 text-purple-200 px-2 py-1 rounded">⏰ {p.scheduleTime}</span>
+                {p.timeSlots.map((time, idx) => (
+                  <span key={idx} className="bg-purple-900/50 text-purple-200 px-2 py-1 rounded">⏰ {time}</span>
+                ))}
                 <span className="bg-indigo-900/50 text-indigo-200 px-2 py-1 rounded">🌏 {p.timezone}</span>
                 <span className="bg-pink-900/50 text-pink-200 px-2 py-1 rounded">🎥 {p.videoDuration}min</span>
                 <span className="bg-blue-900/50 text-blue-200 px-2 py-1 rounded">⏱ -{p.countdownMinutes}min countdown</span>
@@ -191,25 +252,35 @@ export default function SadhanaProgramsPage() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm text-gray-300 mb-1">Daily Time *</label>
-                <input
-                  type="time" required value={newProgram.scheduleTime}
-                  onChange={(e) => setNewProgram({ ...newProgram, scheduleTime: e.target.value })}
-                  className="w-full bg-gray-800 text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-pink-500 outline-none"
-                />
+            <div>
+              <label className="block text-sm text-gray-300 mb-2">Time Slots (up to 4) *</label>
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                {newProgram.timeSlots.map((time, idx) => (
+                  <input
+                    key={idx}
+                    type="time"
+                    value={time}
+                    onChange={(e) => {
+                      const slots = [...newProgram.timeSlots];
+                      slots[idx] = e.target.value;
+                      setNewProgram({ ...newProgram, timeSlots: slots });
+                    }}
+                    placeholder={`Slot ${idx + 1}`}
+                    className="bg-gray-800 text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-pink-500 outline-none text-sm"
+                  />
+                ))}
               </div>
-              <div>
-                <label className="block text-sm text-gray-300 mb-1">Timezone *</label>
-                <select
-                  value={newProgram.timezone}
-                  onChange={(e) => setNewProgram({ ...newProgram, timezone: e.target.value })}
-                  className="w-full bg-gray-800 text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-pink-500 outline-none"
-                >
-                  {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
-                </select>
-              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-300 mb-1">Timezone *</label>
+              <select
+                value={newProgram.timezone}
+                onChange={(e) => setNewProgram({ ...newProgram, timezone: e.target.value })}
+                className="w-full bg-gray-800 text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-pink-500 outline-none"
+              >
+                {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
+              </select>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -234,6 +305,91 @@ export default function SadhanaProgramsPage() {
             <div className="flex gap-2 pt-2">
               <button type="button" onClick={() => setShowCreate(false)} className="flex-1 bg-gray-700 text-white py-2 rounded-lg">Cancel</button>
               <button type="submit" className="flex-1 bg-gradient-to-r from-pink-500 to-violet-500 text-white py-2 rounded-lg font-semibold">Create</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {editingId && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
+          <form onSubmit={update} className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-md w-full space-y-4">
+            <h2 className="text-xl font-bold text-white">Edit Program</h2>
+
+            <div>
+              <label className="block text-sm text-gray-300 mb-1">Program Name *</label>
+              <input
+                required value={editProgram.name}
+                onChange={(e) => setEditProgram({ ...editProgram, name: e.target.value })}
+                className="w-full bg-gray-800 text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-pink-500 outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-300 mb-1">Description</label>
+              <textarea
+                value={editProgram.description}
+                onChange={(e) => setEditProgram({ ...editProgram, description: e.target.value })}
+                rows={2}
+                className="w-full bg-gray-800 text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-pink-500 outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-300 mb-2">Time Slots (up to 4) *</label>
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                {editProgram.timeSlots.map((time, idx) => (
+                  <input
+                    key={idx}
+                    type="time"
+                    value={time}
+                    onChange={(e) => {
+                      const slots = [...editProgram.timeSlots];
+                      slots[idx] = e.target.value;
+                      setEditProgram({ ...editProgram, timeSlots: slots });
+                    }}
+                    placeholder={`Slot ${idx + 1}`}
+                    className="bg-gray-800 text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-pink-500 outline-none text-sm"
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-300 mb-1">Timezone *</label>
+              <select
+                value={editProgram.timezone}
+                onChange={(e) => setEditProgram({ ...editProgram, timezone: e.target.value })}
+                className="w-full bg-gray-800 text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-pink-500 outline-none"
+              >
+                {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm text-gray-300 mb-1">Video Duration (min)</label>
+                <input
+                  type="number" min={5} max={180} value={editProgram.videoDuration}
+                  onChange={(e) => setEditProgram({ ...editProgram, videoDuration: parseInt(e.target.value) || 40 })}
+                  className="w-full bg-gray-800 text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-pink-500 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-300 mb-1">Countdown (min before)</label>
+                <input
+                  type="number" min={0} max={30} value={editProgram.countdownMinutes}
+                  onChange={(e) => setEditProgram({ ...editProgram, countdownMinutes: parseInt(e.target.value) || 3 })}
+                  className="w-full bg-gray-800 text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-pink-500 outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button type="button" onClick={() => setEditingId(null)} className="flex-1 bg-gray-700 text-white py-2 rounded-lg">Cancel</button>
+              <button type="submit" className="flex-1 bg-gradient-to-r from-pink-500 to-violet-500 text-white py-2 rounded-lg font-semibold">Update</button>
             </div>
           </form>
         </div>

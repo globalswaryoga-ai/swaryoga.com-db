@@ -13,7 +13,7 @@ export async function GET() {
         slug: p.slug,
         name: p.name,
         description: p.description,
-        scheduleTime: p.scheduleTime,
+        timeSlots: p.timeSlots || (p.scheduleTime ? [p.scheduleTime] : []),
         timezone: p.timezone,
         videoDuration: p.videoDuration,
         countdownMinutes: p.countdownMinutes,
@@ -29,10 +29,10 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, description, scheduleTime, timezone, videoDuration, countdownMinutes } = body;
+    const { name, description, timeSlots, timezone, videoDuration, countdownMinutes } = body;
 
-    if (!name || !scheduleTime) {
-      return NextResponse.json({ error: 'name and scheduleTime required' }, { status: 400 });
+    if (!name || !timeSlots || timeSlots.length === 0) {
+      return NextResponse.json({ error: 'name and timeSlots required' }, { status: 400 });
     }
 
     const col = await getProgramsCollection();
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
       slug,
       name: String(name).slice(0, 100),
       description: description ? String(description).slice(0, 500) : '',
-      scheduleTime: String(scheduleTime),
+      timeSlots: Array.isArray(timeSlots) ? timeSlots.slice(0, 4) : [timeSlots],
       timezone: timezone || 'Asia/Kolkata',
       videoDuration: parseInt(videoDuration) || 40,
       countdownMinutes: parseInt(countdownMinutes) || 3,
