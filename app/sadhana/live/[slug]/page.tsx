@@ -4,18 +4,28 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { ChevronDown, ChevronUp, LogOut, Maximize2, Minimize2, Play } from 'lucide-react';
 
-// Hide Bunny player controls globally
+// Hide all video player controls
 if (typeof document !== 'undefined') {
   const style = document.createElement('style');
   style.textContent = `
-    /* Hide Bunny player controls */
+    /* Hide native HTML5 video controls */
+    video::-webkit-media-controls { display: none !important; }
+    video::-webkit-media-controls-panel { display: none !important; }
+    video::-webkit-media-controls-play-button { display: none !important; }
+    video::-webkit-media-controls-volume-slider-container { display: none !important; }
+    video::-webkit-media-controls-current-time-display { display: none !important; }
+    video::-webkit-media-controls-time-remaining-display { display: none !important; }
+    video::-webkit-media-controls-timeline { display: none !important; }
+    video::-webkit-media-controls-fullscreen-button { display: none !important; }
+    video::-webkit-media-controls-mute-button { display: none !important; }
+    video::-webkit-media-controls-toggle-closed-captions-button { display: none !important; }
+    video::-moz-media-controls { display: none !important; }
+    /* Bunny player controls */
     .bm-video-controls { display: none !important; }
     .bm-player-controls { display: none !important; }
     .bm-controls { display: none !important; }
     [class*="controls"] { display: none !important; }
     [class*="player-ui"] { display: none !important; }
-    /* Block interactions with player chrome */
-    iframe[src*="mediadelivery"] ~ * { pointer-events: none !important; }
   `;
   document.head.appendChild(style);
 }
@@ -289,18 +299,7 @@ export default function ProgramLivePage() {
   } else if (session.status === 'live') {
     if (playerMode === 'hls' && playerUrl) {
       sessionView = (
-        <div className="relative w-full h-full">
-          <HLSPlayer url={playerUrl} videoRef={videoRef} offsetSeconds={session.videoOffsetSeconds} />
-          <button
-            onClick={() => {
-              if (videoRef.current?.requestFullscreen) videoRef.current.requestFullscreen();
-              else if ((videoRef.current as any)?.webkitRequestFullscreen) (videoRef.current as any).webkitRequestFullscreen();
-            }}
-            className="absolute top-4 right-4 z-10 bg-black/60 hover:bg-black/80 text-white p-2 rounded transition"
-          >
-            <Maximize2 size={20} />
-          </button>
-        </div>
+        <HLSPlayer url={playerUrl} videoRef={videoRef} offsetSeconds={session.videoOffsetSeconds} />
       );
     } else {
       const isValidUrl = playableUrl && playableUrl.startsWith('http');
@@ -312,42 +311,13 @@ export default function ProgramLivePage() {
       sessionView = isValidUrl ? (
         <div className="relative w-full h-full overflow-hidden bg-black">
           <iframe
-            key={`${videoStarted}`}
-            src={videoStarted ? playerUrlWithParams : playableUrl}
+            src={playerUrlWithParams}
             className="w-full h-full"
             allow="autoplay; encrypted-media"
             sandbox="allow-scripts allow-same-origin"
             style={{ border: 'none' }}
-            autoPlay={videoStarted}
             title="Video player"
           />
-          {!videoStarted && (
-            <button
-              onClick={() => setVideoStarted(true)}
-              className="absolute inset-0 flex items-center justify-center bg-black/40 hover:bg-black/20 transition z-40"
-              title="Start video"
-            >
-              <div className="flex items-center justify-center w-20 h-20 bg-white/30 rounded-full hover:bg-white/50 transition">
-                <Play size={40} fill="white" className="text-white ml-1" />
-              </div>
-            </button>
-          )}
-          {videoStarted && (
-            <>
-              <div className="absolute bottom-0 left-0 right-0 h-16 z-40 bg-black/50" />
-              <button
-                onClick={() => {
-                  const iframe = document.querySelector('iframe') as HTMLIFrameElement | null;
-                  if (iframe?.requestFullscreen) iframe.requestFullscreen().catch(() => {});
-                  else if ((iframe as any)?.webkitRequestFullscreen) (iframe as any).webkitRequestFullscreen();
-                }}
-                className="absolute top-4 right-4 z-40 bg-black/60 hover:bg-black/80 text-white p-2 rounded transition"
-                title="Fullscreen"
-              >
-                <Maximize2 size={20} />
-              </button>
-            </>
-          )}
         </div>
       ) : (
         <div className="w-full h-full flex items-center justify-center"><p className="text-purple-200">Loading video...</p></div>
@@ -579,10 +549,13 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
             hls.attachMedia(videoRef.current);
             hls.on((window as any).HLS.Events.MANIFEST_PARSED, () => {
               console.log('HLS manifest parsed, applying offset:', offsetSeconds);
-              if (videoRef.current && offsetSeconds > 0) {
-                videoRef.current.currentTime = offsetSeconds;
+              if (videoRef.current) {
+                videoRef.current.muted = false;
+                if (offsetSeconds > 0) {
+                  videoRef.current.currentTime = offsetSeconds;
+                }
+                videoRef.current.play().catch((err) => console.error('Play error:', err));
               }
-              videoRef.current?.play().catch((err) => console.error('Play error:', err));
             });
             hls.on((window as any).HLS.Events.ERROR, (event: any, data: any) => {
               console.error('HLS error:', data);
@@ -606,10 +579,13 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
               hls.attachMedia(videoRef.current);
               hls.on((window as any).HLS.Events.MANIFEST_PARSED, () => {
                 console.log('HLS manifest parsed, applying offset:', offsetSeconds);
-                if (videoRef.current && offsetSeconds > 0) {
-                  videoRef.current.currentTime = offsetSeconds;
+                if (videoRef.current) {
+                  videoRef.current.muted = false;
+                  if (offsetSeconds > 0) {
+                    videoRef.current.currentTime = offsetSeconds;
+                  }
+                  videoRef.current.play().catch((err) => console.error('Play error:', err));
                 }
-                videoRef.current?.play().catch((err) => console.error('Play error:', err));
               });
               hls.on((window as any).HLS.Events.ERROR, (event: any, data: any) => {
                 console.error('HLS error:', data);
@@ -657,10 +633,13 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
       onMouseUp={(e) => { if (e.button === 2) { e.preventDefault(); e.stopPropagation(); } }}
       onLoadedMetadata={() => {
         console.log('Video metadata loaded, duration:', videoRef.current?.duration);
-        if (videoRef.current && offsetSeconds > 0) {
-          videoRef.current.currentTime = offsetSeconds;
+        if (videoRef.current) {
+          videoRef.current.muted = false;
+          if (offsetSeconds > 0) {
+            videoRef.current.currentTime = offsetSeconds;
+          }
+          videoRef.current.play().catch((err) => console.error('Play failed:', err));
         }
-        videoRef.current?.play().catch((err) => console.error('Play failed:', err));
       }}
       onError={(e) => {
         console.error('Video error:', (e.target as HTMLVideoElement).error?.message);
