@@ -340,45 +340,48 @@ export default function ProgramLivePage() {
 
   const isLive = session?.status === 'live';
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-indigo-900 to-black text-white">
-      <div className="max-w-7xl mx-auto p-4">
-        <div className="flex items-center justify-between mb-4 bg-white/10 backdrop-blur-lg rounded-xl p-4 border border-white/20">
-          <div className="flex items-center gap-3">
-            <div className="text-3xl">🧘</div>
-            <div>
-              <h1 className="text-xl font-bold">{program?.name || 'Sadhana Live'}</h1>
-              <p className="text-sm text-purple-200">
-                {todayVideo?.title ? `Today: ${todayVideo.title}` : 'Community Program'}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className={`flex items-center gap-2 px-4 py-2 rounded-full ${isLive ? 'bg-red-500' : 'bg-purple-600'}`}>
-              <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
-              <span className="font-semibold">{isLive ? 'LIVE' : (session?.status?.toUpperCase() || 'ONLINE')} • {count}</span>
-            </div>
-            <button
-              onClick={() => setFullscreenMode(!fullscreenMode)}
-              className="bg-purple-600 hover:bg-purple-500 p-2 rounded-lg transition"
-              title={fullscreenMode ? 'Exit fullscreen' : 'Fullscreen'}
-            >
-              {fullscreenMode ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
-            </button>
-            <button
-              onClick={handleLeave}
-              className="bg-red-600 hover:bg-red-500 p-2 rounded-lg transition flex items-center gap-2"
-              title="Leave session"
-            >
-              <LogOut size={18} /> <span className="text-sm hidden sm:inline">Leave</span>
-            </button>
-          </div>
-        </div>
+  const isLiveVideo = session?.status === 'live' && (playerMode === 'hls' || (playerMode !== 'hls' && playableUrl));
 
-        <div>
-          <div className={`grid grid-cols-1 ${showSidebar && !fullscreenMode ? 'lg:grid-cols-4' : 'lg:grid-cols-1'} gap-4`}>
-            <div className={`${showSidebar && !fullscreenMode ? 'lg:col-span-3' : 'lg:col-span-1'} bg-black rounded-xl overflow-hidden aspect-video relative`}>
-              {sessionView}
+  return (
+    <div className={`${isLiveVideo ? 'fixed inset-0' : 'min-h-screen'} bg-gradient-to-br from-purple-900 via-indigo-900 to-black text-white`}>
+      {!isLiveVideo && (
+        <div className="max-w-7xl mx-auto p-4">
+          <div className="flex items-center justify-between mb-4 bg-white/10 backdrop-blur-lg rounded-xl p-4 border border-white/20">
+            <div className="flex items-center gap-3">
+              <div className="text-3xl">🧘</div>
+              <div>
+                <h1 className="text-xl font-bold">{program?.name || 'Sadhana Live'}</h1>
+                <p className="text-sm text-purple-200">
+                  {todayVideo?.title ? `Today: ${todayVideo.title}` : 'Community Program'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className={`flex items-center gap-2 px-4 py-2 rounded-full ${isLive ? 'bg-red-500' : 'bg-purple-600'}`}>
+                <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
+                <span className="font-semibold">{isLive ? 'LIVE' : (session?.status?.toUpperCase() || 'ONLINE')} • {count}</span>
+              </div>
+              <button
+                onClick={() => setFullscreenMode(!fullscreenMode)}
+                className="bg-purple-600 hover:bg-purple-500 p-2 rounded-lg transition"
+                title={fullscreenMode ? 'Exit fullscreen' : 'Fullscreen'}
+              >
+                {fullscreenMode ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+              </button>
+              <button
+                onClick={handleLeave}
+                className="bg-red-600 hover:bg-red-500 p-2 rounded-lg transition flex items-center gap-2"
+                title="Leave session"
+              >
+                <LogOut size={18} /> <span className="text-sm hidden sm:inline">Leave</span>
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <div className={`grid grid-cols-1 ${showSidebar && !fullscreenMode ? 'lg:grid-cols-4' : 'lg:grid-cols-1'} gap-4`}>
+              <div className={`${showSidebar && !fullscreenMode ? 'lg:col-span-3' : 'lg:col-span-1'} bg-black rounded-xl overflow-hidden aspect-video relative`}>
+                {sessionView}
               {showSidebar && (
                 <button
                   onClick={() => setShowSidebar(false)}
@@ -475,28 +478,44 @@ export default function ProgramLivePage() {
           </div>
 
           {!showSidebar && (
-            <button
-              onClick={() => setShowSidebar(true)}
-              className="absolute bottom-20 right-4 bg-gradient-to-r from-pink-500 to-violet-500 text-white px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition z-40"
-              title="Show sidebar"
-            >
-              👁 Show Chat & Participants
-            </button>
-          )}
+                <button
+                  onClick={() => setShowSidebar(true)}
+                  className="absolute bottom-20 right-4 bg-gradient-to-r from-pink-500 to-violet-500 text-white px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition z-40"
+                  title="Show sidebar"
+                >
+                  👁 Show Chat & Participants
+                </button>
+              )}
 
-          {announcement && (
-            <div className="mt-4 bg-gradient-to-r from-purple-900 via-indigo-900 to-purple-900 rounded-lg overflow-hidden border border-purple-500/30">
-              <div className="py-2 px-4">
-                <div className="animate-marquee whitespace-nowrap text-white text-sm font-medium">
-                  📢 {announcement} • 📢 {announcement} •
+              {announcement && (
+                <div className="mt-4 bg-gradient-to-r from-purple-900 via-indigo-900 to-purple-900 rounded-lg overflow-hidden border border-purple-500/30">
+                  <div className="py-2 px-4">
+                    <div className="animate-marquee whitespace-nowrap text-white text-sm font-medium">
+                      📢 {announcement} • 📢 {announcement} •
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
-          )}
-        </div>
 
-        <div className="mt-4 text-center text-purple-200 text-xs">Swar Yoga • Sadhana Live • Namaste 🙏</div>
-      </div>
+            <div className="mt-4 text-center text-purple-200 text-xs">Swar Yoga • Sadhana Live • Namaste 🙏</div>
+          </div>
+        )}
+
+      {isLiveVideo && (
+        <div className="w-full h-full flex flex-col">
+          <div className="flex-1">
+            {sessionView}
+          </div>
+          <button
+            onClick={handleLeave}
+            className="absolute top-4 right-4 bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg font-semibold z-50"
+            title="Leave session"
+          >
+            Leave
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -626,6 +645,7 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
       className="w-full h-full bg-black"
       autoPlay
       playsInline
+      controls={false}
       crossOrigin="anonymous"
       onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); return false; }}
       onKeyDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
