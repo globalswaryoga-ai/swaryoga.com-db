@@ -273,61 +273,63 @@ export default function ProgramDetailPage() {
       {/* Edit Modal */}
       {editDate && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-          <div className="bg-gray-800 border border-gray-600 rounded-xl p-6 max-w-md w-full space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between">
+          <div className="bg-gray-800 border border-gray-600 rounded-xl max-w-md w-full max-h-[90vh] flex flex-col">
+            <div className="p-6 flex items-center justify-between border-b border-gray-700">
               <h3 className="text-lg font-bold text-white">Video for {editDate}</h3>
               <button onClick={() => setEditDate(null)} className="text-gray-300 hover:text-white">
                 <X size={20} />
               </button>
             </div>
 
-            <div>
-              <label className="block text-sm text-gray-100 mb-1">Title (optional)</label>
-              <input
-                type="text" value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-                placeholder="Day 1 - Introduction to breath"
-                className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg border border-gray-600 focus:border-pink-400 outline-none"
-              />
+            <div className="overflow-y-auto flex-1 p-6 space-y-4">
+              <div>
+                <label className="block text-sm text-gray-100 mb-1">Title (optional)</label>
+                <input
+                  type="text" value={form.title}
+                  onChange={(e) => setForm({ ...form, title: e.target.value })}
+                  placeholder="Day 1 - Introduction to breath"
+                  className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg border border-gray-600 focus:border-pink-400 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-100 mb-1">
+                  Player URL (for Player Mode)
+                  {form.hlsUrl && <span className="text-gray-500 text-xs ml-2">← Clear HLS to enable</span>}
+                </label>
+                <input
+                  type="url" value={form.videoUrl}
+                  onChange={(e) => setForm({ ...form, videoUrl: e.target.value, hlsUrl: '' })}
+                  disabled={!!form.hlsUrl}
+                  placeholder="https://player.mediadelivery.net/play/638748/..."
+                  className={`w-full px-3 py-2 rounded-lg border outline-none text-sm ${
+                    form.hlsUrl
+                      ? 'bg-gray-600 text-gray-400 border-gray-700 cursor-not-allowed'
+                      : 'bg-gray-700 text-white border-gray-600 focus:border-pink-400'
+                  }`}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-100 mb-1">
+                  HLS URL (for HLS Mode)
+                  {form.videoUrl && <span className="text-gray-500 text-xs ml-2">← Clear Player to enable</span>}
+                </label>
+                <input
+                  type="url" value={form.hlsUrl}
+                  onChange={(e) => setForm({ ...form, hlsUrl: e.target.value, videoUrl: '' })}
+                  disabled={!!form.videoUrl}
+                  placeholder="https://vz-fdeab82b-805.b-cdn.net/...playlist.m3u8"
+                  className={`w-full px-3 py-2 rounded-lg border outline-none text-sm ${
+                    form.videoUrl
+                      ? 'bg-gray-600 text-gray-400 border-gray-700 cursor-not-allowed'
+                      : 'bg-gray-700 text-white border-gray-600 focus:border-pink-400'
+                  }`}
+                />
+              </div>
             </div>
 
-            <div>
-              <label className="block text-sm text-gray-100 mb-1">
-                Player URL (for Player Mode)
-                {form.hlsUrl && <span className="text-gray-500 text-xs ml-2">← Clear HLS to enable</span>}
-              </label>
-              <input
-                type="url" value={form.videoUrl}
-                onChange={(e) => setForm({ ...form, videoUrl: e.target.value, hlsUrl: '' })}
-                disabled={!!form.hlsUrl}
-                placeholder="https://player.mediadelivery.net/play/638748/..."
-                className={`w-full px-3 py-2 rounded-lg border outline-none text-sm ${
-                  form.hlsUrl
-                    ? 'bg-gray-600 text-gray-400 border-gray-700 cursor-not-allowed'
-                    : 'bg-gray-700 text-white border-gray-600 focus:border-pink-400'
-                }`}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm text-gray-100 mb-1">
-                HLS URL (for HLS Mode)
-                {form.videoUrl && <span className="text-gray-500 text-xs ml-2">← Clear Player to enable</span>}
-              </label>
-              <input
-                type="url" value={form.hlsUrl}
-                onChange={(e) => setForm({ ...form, hlsUrl: e.target.value, videoUrl: '' })}
-                disabled={!!form.videoUrl}
-                placeholder="https://vz-fdeab82b-805.b-cdn.net/...playlist.m3u8"
-                className={`w-full px-3 py-2 rounded-lg border outline-none text-sm ${
-                  form.videoUrl
-                    ? 'bg-gray-600 text-gray-400 border-gray-700 cursor-not-allowed'
-                    : 'bg-gray-700 text-white border-gray-600 focus:border-pink-400'
-                }`}
-              />
-            </div>
-
-            <div className="flex gap-2 pt-2">
+            <div className="border-t border-gray-700 p-6 flex gap-2">
               {videosByDate[editDate] && (
                 <button onClick={removeVideo} className="bg-red-600 text-white px-3 py-2 rounded-lg text-sm hover:bg-red-500">
                   Remove
@@ -346,13 +348,15 @@ export default function ProgramDetailPage() {
 
       {editingProgram && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
-          <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-md w-full space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between">
+          <div className="bg-gray-900 border border-gray-700 rounded-xl max-w-md w-full max-h-[90vh] flex flex-col">
+            <div className="p-6 flex items-center justify-between border-b border-gray-700">
               <h3 className="text-lg font-bold text-white">Edit Program</h3>
               <button onClick={() => setEditingProgram(false)} className="text-gray-400 hover:text-white">
                 <X size={20} />
               </button>
             </div>
+
+            <div className="overflow-y-auto flex-1 p-6 space-y-4">
 
             <div>
               <label className="block text-sm text-gray-100 mb-1">Program Name *</label>
@@ -446,45 +450,46 @@ export default function ProgramDetailPage() {
               </div>
             )}
 
-            <div className="border-t border-gray-600 pt-4 mt-4">
-              <h3 className="text-sm font-semibold text-purple-300 mb-3">🤖 Bot Settings</h3>
+              <div className="border-t border-gray-600 pt-4 mt-4">
+                <h3 className="text-sm font-semibold text-purple-300 mb-3">🤖 Bot Settings</h3>
 
-              <div className="flex items-center gap-3 mb-3">
-                <input
-                  type="checkbox"
-                  checked={editForm.enableBotAutomation}
-                  onChange={(e) => setEditForm({ ...editForm, enableBotAutomation: e.target.checked })}
-                  className="w-5 h-5 rounded cursor-pointer"
-                />
-                <label className="text-sm text-gray-100">Enable Bot Auto-Join</label>
+                <div className="flex items-center gap-3 mb-3">
+                  <input
+                    type="checkbox"
+                    checked={editForm.enableBotAutomation}
+                    onChange={(e) => setEditForm({ ...editForm, enableBotAutomation: e.target.checked })}
+                    className="w-5 h-5 rounded cursor-pointer"
+                  />
+                  <label className="text-sm text-gray-100">Enable Bot Auto-Join</label>
+                </div>
+
+                {editForm.enableBotAutomation && (
+                  <>
+                    <div>
+                      <label className="block text-sm text-gray-100 mb-1">Bot Name</label>
+                      <input
+                        type="text" value={editForm.botName}
+                        onChange={(e) => setEditForm({ ...editForm, botName: e.target.value })}
+                        placeholder="🤖 Swar Yoga Bot"
+                        className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg border border-gray-600 focus:border-pink-400 outline-none text-sm"
+                      />
+                    </div>
+
+                    <div className="mt-3">
+                      <label className="block text-sm text-gray-100 mb-1">Bot Join Minutes Before Session</label>
+                      <input
+                        type="number" min={0} max={30} value={editForm.botJoinMinutes}
+                        onChange={(e) => setEditForm({ ...editForm, botJoinMinutes: parseInt(e.target.value) || 5 })}
+                        className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg border border-gray-600 focus:border-pink-400 outline-none text-sm"
+                      />
+                      <p className="text-xs text-gray-400 mt-1">Default: 5 minutes before countdown</p>
+                    </div>
+                  </>
+                )}
               </div>
-
-              {editForm.enableBotAutomation && (
-                <>
-                  <div>
-                    <label className="block text-sm text-gray-100 mb-1">Bot Name</label>
-                    <input
-                      type="text" value={editForm.botName}
-                      onChange={(e) => setEditForm({ ...editForm, botName: e.target.value })}
-                      placeholder="🤖 Swar Yoga Bot"
-                      className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg border border-gray-600 focus:border-pink-400 outline-none text-sm"
-                    />
-                  </div>
-
-                  <div className="mt-3">
-                    <label className="block text-sm text-gray-100 mb-1">Bot Join Minutes Before Session</label>
-                    <input
-                      type="number" min={0} max={30} value={editForm.botJoinMinutes}
-                      onChange={(e) => setEditForm({ ...editForm, botJoinMinutes: parseInt(e.target.value) || 5 })}
-                      className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg border border-gray-600 focus:border-pink-400 outline-none text-sm"
-                    />
-                    <p className="text-xs text-gray-400 mt-1">Default: 5 minutes before countdown</p>
-                  </div>
-                </>
-              )}
             </div>
 
-            <div className="flex gap-2 pt-2">
+            <div className="border-t border-gray-700 p-6 flex gap-2">
               <button onClick={() => setEditingProgram(false)} className="flex-1 bg-gray-700 text-white py-2 rounded-lg">Cancel</button>
               <button onClick={updateProgram} className="flex-1 bg-gradient-to-r from-pink-500 to-violet-500 text-white py-2 rounded-lg font-semibold">Update</button>
             </div>
