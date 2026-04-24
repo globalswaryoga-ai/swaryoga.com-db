@@ -668,10 +668,23 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
       className="w-full h-full bg-black"
       autoPlay
       muted
+      playsInline
+      crossOrigin="anonymous"
       onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); return false; }}
       onKeyDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
       onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
       onMouseUp={(e) => { if (e.button === 2) { e.preventDefault(); e.stopPropagation(); } }}
+      onLoadedMetadata={() => {
+        console.log('Video metadata loaded, duration:', videoRef.current?.duration);
+        if (videoRef.current && offsetSeconds > 0) {
+          videoRef.current.currentTime = offsetSeconds;
+        }
+        videoRef.current?.play().catch((err) => console.error('Play failed:', err));
+      }}
+      onError={(e) => {
+        console.error('Video error:', (e.target as HTMLVideoElement).error?.message);
+        setError('Failed to load video');
+      }}
       style={{ userSelect: 'none', WebkitUserSelect: 'none' } as React.CSSProperties}
     >
       <source src={url} type="application/x-mpegURL" />
