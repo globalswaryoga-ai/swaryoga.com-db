@@ -496,36 +496,58 @@ function HLSPlayer({ url, videoRef }: HLSPlayerProps) {
 
     const loadHLS = async () => {
       try {
+        console.log('Loading HLS URL:', url);
         const scriptId = 'hls-js-script';
         if (document.getElementById(scriptId)) {
           const HLS = (window as any).HLS;
+          console.log('HLS.js already loaded, HLS available:', !!HLS);
           if (HLS && HLS.isSupported()) {
+            console.log('Creating new HLS instance');
             const hls = new HLS({ autoStartLoad: true });
             hls.loadSource(url);
             hls.attachMedia(videoRef.current);
             hls.on((window as any).HLS.Events.MANIFEST_PARSED, () => {
-              videoRef.current?.play().catch(() => {});
+              console.log('HLS manifest parsed, starting playback');
+              videoRef.current?.play().catch((err) => console.error('Play error:', err));
             });
+            hls.on((window as any).HLS.Events.ERROR, (event: any, data: any) => {
+              console.error('HLS error:', data);
+            });
+          } else {
+            console.warn('HLS not supported in this browser');
+            setError('HLS not supported in this browser');
           }
         } else {
+          console.log('Loading HLS.js script from CDN');
           const script = document.createElement('script');
           script.id = scriptId;
           script.src = 'https://cdn.jsdelivr.net/npm/hls.js@latest/dist/hls.min.js';
           script.onload = () => {
+            console.log('HLS.js script loaded');
             const HLS = (window as any).HLS;
             if (HLS && HLS.isSupported() && videoRef.current) {
+              console.log('Creating HLS instance after script load');
               const hls = new HLS({ autoStartLoad: true });
               hls.loadSource(url);
               hls.attachMedia(videoRef.current);
               hls.on((window as any).HLS.Events.MANIFEST_PARSED, () => {
-                videoRef.current?.play().catch(() => {});
+                console.log('HLS manifest parsed, starting playback');
+                videoRef.current?.play().catch((err) => console.error('Play error:', err));
+              });
+              hls.on((window as any).HLS.Events.ERROR, (event: any, data: any) => {
+                console.error('HLS error:', data);
               });
             }
+          };
+          script.onerror = () => {
+            console.error('Failed to load HLS.js from CDN');
+            setError('Failed to load HLS library');
           };
           document.head.appendChild(script);
         }
       } catch (err) {
         console.error('HLS loading error:', err);
+        setError('Error loading HLS: ' + String(err));
       }
     };
 
