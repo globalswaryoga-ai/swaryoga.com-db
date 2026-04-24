@@ -269,7 +269,8 @@ export default function ProgramLivePage() {
         <HLSPlayer url={playerUrl} videoRef={videoRef} />
       );
     } else {
-      sessionView = playableUrl ? (
+      const isValidUrl = playableUrl && playableUrl.startsWith('http');
+      sessionView = isValidUrl ? (
         <iframe
           src={playableUrl}
           className="w-full h-full pointer-events-none"
@@ -465,8 +466,24 @@ interface HLSPlayerProps {
 }
 
 function HLSPlayer({ url, videoRef }: HLSPlayerProps) {
+  const lastTimeRef = useRef(0);
+
   useEffect(() => {
     if (!videoRef.current || !url) return;
+
+    const video = videoRef.current;
+    let isPlaying = false;
+
+    const handlePlay = () => { isPlaying = true; };
+    const handlePause = () => { isPlaying = false; video.play().catch(() => {}); };
+
+    const handleSeeking = () => { video.currentTime = lastTimeRef.current; };
+    const handleTimeUpdate = () => { lastTimeRef.current = video.currentTime; };
+
+    video.addEventListener('play', handlePlay);
+    video.addEventListener('pause', handlePause);
+    video.addEventListener('seeking', handleSeeking);
+    video.addEventListener('timeupdate', handleTimeUpdate);
 
     const loadHLS = async () => {
       try {
@@ -504,15 +521,25 @@ function HLSPlayer({ url, videoRef }: HLSPlayerProps) {
     };
 
     loadHLS();
+
+    return () => {
+      video.removeEventListener('play', handlePlay);
+      video.removeEventListener('pause', handlePause);
+      video.removeEventListener('seeking', handleSeeking);
+      video.removeEventListener('timeupdate', handleTimeUpdate);
+    };
   }, [url, videoRef]);
 
   return (
     <video
       ref={videoRef}
-      className="w-full h-full bg-black"
-      controls
+      className="w-full h-full bg-black pointer-events-none"
       autoPlay
       muted
+      onContextMenu={(e) => e.preventDefault()}
+      onKeyDown={(e) => e.preventDefault()}
+      onDoubleClick={(e) => e.preventDefault()}
+      style={{ userSelect: 'none' }}
     />
   );
 }
