@@ -197,15 +197,38 @@ export default function ProgramLivePage() {
   if (!session || session.status === 'waiting') {
     sessionView = (
       <div className="w-full h-full flex items-center justify-center p-8">
-        <div className="text-center">
+        <div className="text-center max-w-md">
           <div className="text-6xl mb-4">⏳</div>
-          <p className="text-xl text-purple-100 mb-2">
+          <p className="text-xl text-purple-100 mb-4">
             {todayVideo ? 'Session starts later today' : 'No session scheduled for today'}
           </p>
+
           {session?.nextSessionUtc && program && (
-            <p className="text-purple-300 text-sm">
-              Next: {fmtTime(session.nextSessionUtc, program.timezone)}
-            </p>
+            <div className="mb-6 p-4 bg-purple-900/40 border border-purple-500/50 rounded-lg">
+              <p className="text-sm text-purple-300 mb-2">Next Session</p>
+              <p className="text-lg font-bold text-white">
+                {fmtTime(session.nextSessionUtc, program.timezone)}
+              </p>
+            </div>
+          )}
+
+          {program?.scheduleTime && (
+            <div className="space-y-2">
+              <p className="text-sm text-purple-300">Today's Sessions</p>
+              <div className="flex flex-wrap gap-2 justify-center">
+                {Array.isArray(program.scheduleTime) ? (
+                  program.scheduleTime.map((time: string, idx: number) => (
+                    <span key={idx} className="bg-pink-600 text-white px-3 py-1 rounded-full text-sm font-semibold">
+                      {time}
+                    </span>
+                  ))
+                ) : (
+                  <span className="bg-pink-600 text-white px-3 py-1 rounded-full text-sm font-semibold">
+                    {program.scheduleTime}
+                  </span>
+                )}
+              </div>
+            </div>
           )}
         </div>
       </div>

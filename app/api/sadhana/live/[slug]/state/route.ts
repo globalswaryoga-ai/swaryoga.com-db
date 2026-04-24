@@ -263,8 +263,10 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       });
     }
 
+    // Get chat for today only (last 24 hours)
+    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const chatMessages = await chatCol
-      .find({})
+      .find({ createdAt: { $gte: oneDayAgo } })
       .sort({ createdAt: -1 })
       .limit(50)
       .toArray();
