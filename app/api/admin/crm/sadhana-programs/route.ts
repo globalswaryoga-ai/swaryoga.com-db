@@ -23,6 +23,7 @@ export async function GET() {
         botName: p.botName || '🤖 Swar Yoga Bot',
         botJoinMinutes: p.botJoinMinutes || 5,
         enableBotAutomation: p.enableBotAutomation !== false,
+        videoCalendar: p.videoCalendar || {},
         active: p.active,
         createdAt: p.createdAt,
       })),
@@ -37,7 +38,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const {
       name, description, timeSlots, timezone, videoDuration, countdownMinutes,
-      days, repeatFrequency, startDate, botName, botJoinMinutes, enableBotAutomation
+      days, repeatFrequency, startDate, botName, botJoinMinutes, enableBotAutomation,
+      videoCalendar
     } = body;
 
     if (!name || !timeSlots || timeSlots.length === 0) {
@@ -68,6 +70,7 @@ export async function POST(request: NextRequest) {
       botName: botName || '🤖 Swar Yoga Bot',
       botJoinMinutes: parseInt(botJoinMinutes) || 5,
       enableBotAutomation: enableBotAutomation !== false,
+      videoCalendar: videoCalendar || {},
       active: true,
       createdAt: now,
       updatedAt: now,

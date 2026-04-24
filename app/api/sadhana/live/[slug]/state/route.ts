@@ -214,7 +214,11 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
           });
 
           if (program?.videoCalendar) {
-            const yyyymmdd = now.toISOString().split('T')[0];
+            const tz = activeSchedule.timezone || 'Asia/Kolkata';
+            const y = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric' }).format(now);
+            const mo = new Intl.DateTimeFormat('en-CA', { timeZone: tz, month: '2-digit' }).format(now);
+            const d = new Intl.DateTimeFormat('en-CA', { timeZone: tz, day: '2-digit' }).format(now);
+            const yyyymmdd = `${y}-${mo}-${d}`;
             const todayEntry = program.videoCalendar[yyyymmdd];
             if (todayEntry?.videoUrl) {
               videoUrlForPlayback = todayEntry.videoUrl;
@@ -290,7 +294,11 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
         const program = await programsCol.findOne({ slug: activeSchedule.slug });
 
         if (program?.videoCalendar) {
-          const yyyymmdd = now.toISOString().split('T')[0];
+          const tz = activeSchedule.timezone || 'Asia/Kolkata';
+          const y = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric' }).format(now);
+          const mo = new Intl.DateTimeFormat('en-CA', { timeZone: tz, month: '2-digit' }).format(now);
+          const d = new Intl.DateTimeFormat('en-CA', { timeZone: tz, day: '2-digit' }).format(now);
+          const yyyymmdd = `${y}-${mo}-${d}`;
           const todayEntry = program.videoCalendar?.[yyyymmdd];
           if (todayEntry) {
             todayVideo = { date: yyyymmdd, title: todayEntry.title, videoUrl: todayEntry.videoUrl };
@@ -299,7 +307,10 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
           // Get next 7 days of videos
           for (let i = 1; i <= 7; i++) {
             const futureDate = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
-            const futureDateStr = futureDate.toISOString().split('T')[0];
+            const fy = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric' }).format(futureDate);
+            const fmo = new Intl.DateTimeFormat('en-CA', { timeZone: tz, month: '2-digit' }).format(futureDate);
+            const fd = new Intl.DateTimeFormat('en-CA', { timeZone: tz, day: '2-digit' }).format(futureDate);
+            const futureDateStr = `${fy}-${fmo}-${fd}`;
             const entry = program.videoCalendar?.[futureDateStr];
             if (entry) {
               upcomingVideos.push({ date: futureDateStr, title: entry.title });

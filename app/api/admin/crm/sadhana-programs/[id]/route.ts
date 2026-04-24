@@ -41,6 +41,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
         botName: program.botName || '🤖 Swar Yoga Bot',
         botJoinMinutes: program.botJoinMinutes || 5,
         enableBotAutomation: program.enableBotAutomation !== false,
+        videoCalendar: program.videoCalendar || {},
         active: program.active,
         createdAt: program.createdAt,
       },
@@ -77,6 +78,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     }
     if (body.botJoinMinutes !== undefined) update.botJoinMinutes = parseInt(body.botJoinMinutes) || 5;
     if (body.enableBotAutomation !== undefined) update.enableBotAutomation = !!body.enableBotAutomation;
+    if (body.videoCalendar !== undefined) update.videoCalendar = body.videoCalendar || {};
     if (body.active !== undefined) update.active = !!body.active;
 
     await col.updateOne(

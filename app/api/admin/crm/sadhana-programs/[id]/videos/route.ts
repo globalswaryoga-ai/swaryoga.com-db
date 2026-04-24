@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { handleCrmError } from '@/lib/crm-handlers';
-import { getProgramVideosCollection } from '@/lib/sadhanaPrograms';
+import { getProgramVideosCollection, getProgramsCollection } from '@/lib/sadhanaPrograms';
 import mongoose from 'mongoose';
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
@@ -11,8 +11,10 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       return NextResponse.json({ error: 'date and videoUrl required' }, { status: 400 });
     }
 
-    const col = await getProgramVideosCollection();
-    await col.updateOne(
+    const videosCol = await getProgramVideosCollection();
+    const programsCol = await getProgramsCollection();
+
+    await videosCol.updateOne(
       { programId: params.id, date },
       {
         $set: {
@@ -24,6 +26,19 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         },
       },
       { upsert: true }
+    );
+
+    // Also update the program's videoCalendar field for live API compatibility
+    await programsCol.updateOne(
+      { _id: new mongoose.Types.ObjectId(params.id) },
+      {
+        $set: {
+          [`videoCalendar.${date}`]: {
+            title: title ? String(title).slice(0, 150) : '',
+            videoUrl: String(videoUrl),
+          },
+        },
+      }
     );
 
     return NextResponse.json({ success: true });
@@ -38,12 +53,24 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     const videoId = url.searchParams.get('videoId');
     const date = url.searchParams.get('date');
 
-    const col = await getProgramVideosCollection();
+    const videosCol = await getProgramVideosCollection();
+    const programsCol = await getProgramsCollection();
 
     if (videoId) {
-      await col.deleteOne({ _id: new mongoose.Types.ObjectId(videoId) });
+      const video = await videosCol.findOne({ _id: new mongoose.Types.ObjectId(videoId) });
+      await videosCol.deleteOne({ _id: new mongoose.Types.ObjectId(videoId) });
+      if (video) {
+        await programsCol.updateOne(
+          { _id: new mongoose.Types.ObjectId(params.id) },
+          { $unset: { [`videoCalendar.${video.date}`]: 1 } }
+        );
+      }
     } else if (date) {
-      await col.deleteOne({ programId: params.id, date });
+      await videosCol.deleteOne({ programId: params.id, date });
+      await programsCol.updateOne(
+        { _id: new mongoose.Types.ObjectId(params.id) },
+        { $unset: { [`videoCalendar.${date}`]: 1 } }
+      );
     } else {
       return NextResponse.json({ error: 'videoId or date required' }, { status: 400 });
     }
