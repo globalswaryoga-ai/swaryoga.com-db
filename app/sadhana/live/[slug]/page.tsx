@@ -266,7 +266,18 @@ export default function ProgramLivePage() {
   } else if (session.status === 'live') {
     if (playerMode === 'hls' && playerUrl) {
       sessionView = (
-        <HLSPlayer url={playerUrl} videoRef={videoRef} />
+        <div className="relative w-full h-full">
+          <HLSPlayer url={playerUrl} videoRef={videoRef} offsetSeconds={session.videoOffsetSeconds} />
+          <button
+            onClick={() => {
+              if (videoRef.current?.requestFullscreen) videoRef.current.requestFullscreen();
+              else if ((videoRef.current as any)?.webkitRequestFullscreen) (videoRef.current as any).webkitRequestFullscreen();
+            }}
+            className="absolute top-4 right-4 z-10 bg-black/60 hover:bg-black/80 text-white p-2 rounded transition"
+          >
+            <Maximize2 size={20} />
+          </button>
+        </div>
       );
     } else {
       const isValidUrl = playableUrl && playableUrl.startsWith('http');
@@ -462,9 +473,10 @@ export default function ProgramLivePage() {
 interface HLSPlayerProps {
   url: string;
   videoRef: React.RefObject<HTMLVideoElement>;
+  offsetSeconds: number;
 }
 
-function HLSPlayer({ url, videoRef }: HLSPlayerProps) {
+function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
   const lastTimeRef = useRef(0);
   const [error, setError] = useState<string | null>(null);
 
@@ -483,9 +495,9 @@ function HLSPlayer({ url, videoRef }: HLSPlayerProps) {
     const handlePlay = () => { isPlaying = true; };
     const handlePause = () => { isPlaying = false; video.play().catch(() => {}); };
 
-    const handleSeeking = () => { video.currentTime = lastTimeRef.current; };
+    const handleSeeking = (e: Event) => { e.preventDefault(); video.currentTime = lastTimeRef.current; };
     const handleTimeUpdate = () => { lastTimeRef.current = video.currentTime; };
-    const handleRateChange = () => { if (video.playbackRate !== 1) video.playbackRate = 1; };
+    const handleRateChange = (e: Event) => { e.preventDefault(); if (video.playbackRate !== 1) video.playbackRate = 1; };
 
     video.addEventListener('play', handlePlay);
     video.addEventListener('pause', handlePause);
@@ -506,7 +518,10 @@ function HLSPlayer({ url, videoRef }: HLSPlayerProps) {
             hls.loadSource(url);
             hls.attachMedia(videoRef.current);
             hls.on((window as any).HLS.Events.MANIFEST_PARSED, () => {
-              console.log('HLS manifest parsed, starting playback');
+              console.log('HLS manifest parsed, applying offset:', offsetSeconds);
+              if (videoRef.current && offsetSeconds > 0) {
+                videoRef.current.currentTime = offsetSeconds;
+              }
               videoRef.current?.play().catch((err) => console.error('Play error:', err));
             });
             hls.on((window as any).HLS.Events.ERROR, (event: any, data: any) => {
@@ -530,7 +545,10 @@ function HLSPlayer({ url, videoRef }: HLSPlayerProps) {
               hls.loadSource(url);
               hls.attachMedia(videoRef.current);
               hls.on((window as any).HLS.Events.MANIFEST_PARSED, () => {
-                console.log('HLS manifest parsed, starting playback');
+                console.log('HLS manifest parsed, applying offset:', offsetSeconds);
+                if (videoRef.current && offsetSeconds > 0) {
+                  videoRef.current.currentTime = offsetSeconds;
+                }
                 videoRef.current?.play().catch((err) => console.error('Play error:', err));
               });
               hls.on((window as any).HLS.Events.ERROR, (event: any, data: any) => {
@@ -559,7 +577,7 @@ function HLSPlayer({ url, videoRef }: HLSPlayerProps) {
       video.removeEventListener('timeupdate', handleTimeUpdate);
       video.removeEventListener('ratechange', handleRateChange);
     };
-  }, [url, videoRef]);
+  }, [url, videoRef, offsetSeconds]);
 
   if (error) {
     return (
@@ -575,11 +593,11 @@ function HLSPlayer({ url, videoRef }: HLSPlayerProps) {
       className="w-full h-full bg-black"
       autoPlay
       muted
-      controls
-      onContextMenu={(e) => e.preventDefault()}
-      onKeyDown={(e) => e.preventDefault()}
-      onDoubleClick={(e) => e.preventDefault()}
-      style={{ userSelect: 'none' }}
+      onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); return false; }}
+      onKeyDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      onMouseUp={(e) => { if (e.button === 2) { e.preventDefault(); e.stopPropagation(); } }}
+      style={{ userSelect: 'none', WebkitUserSelect: 'none' } as React.CSSProperties}
     />
   );
 }
