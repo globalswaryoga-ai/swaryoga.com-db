@@ -564,76 +564,33 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
 
     console.log('Native HLS setup, offset:', offsetSeconds);
 
-    const loadHLS = async () => {
-      try {
-        console.log('Loading HLS URL:', url);
-        const scriptId = 'hls-js-script';
-        if (document.getElementById(scriptId)) {
-          const HLS = (window as any).HLS;
-          console.log('HLS.js already loaded, HLS available:', !!HLS);
-          if (HLS && HLS.isSupported()) {
-            console.log('Creating new HLS instance');
-            const hls = new HLS({ autoStartLoad: true });
-            hls.loadSource(url);
-            hls.attachMedia(videoRef.current);
-            hls.on((window as any).HLS.Events.MANIFEST_PARSED, () => {
-              console.log('HLS manifest parsed, applying offset:', offsetSeconds);
-              if (videoRef.current) {
-                videoRef.current.muted = false;
-                if (offsetSeconds > 0) {
-                  videoRef.current.currentTime = offsetSeconds;
-                }
-                videoRef.current.play().catch((err) => console.error('Play error:', err));
-              }
-            });
-            hls.on((window as any).HLS.Events.ERROR, (event: any, data: any) => {
-              console.error('HLS error:', data);
-            });
-          } else {
-            console.warn('HLS not supported in this browser');
-            setError('HLS not supported in this browser');
+    // Native HLS - modern browsers handle HLS.m3u8 natively
+    console.log('Using native HLS video element for:', url);
+    if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      console.log('✅ Native HLS support detected');
+      video.src = url;
+      video.muted = false;
+      if (offsetSeconds > 0) {
+        setTimeout(() => {
+          if (videoRef.current) {
+            videoRef.current.currentTime = offsetSeconds;
           }
-        } else {
-          console.log('Loading HLS.js script from CDN');
-          const script = document.createElement('script');
-          script.id = scriptId;
-          script.src = 'https://cdn.jsdelivr.net/npm/hls.js@latest/dist/hls.min.js';
-          script.onload = () => {
-            console.log('HLS.js script loaded');
-            const HLS = (window as any).HLS;
-            if (HLS && HLS.isSupported() && videoRef.current) {
-              console.log('Creating HLS instance after script load');
-              const hls = new HLS({ autoStartLoad: true });
-              hls.loadSource(url);
-              hls.attachMedia(videoRef.current);
-              hls.on((window as any).HLS.Events.MANIFEST_PARSED, () => {
-                console.log('HLS manifest parsed, applying offset:', offsetSeconds);
-                if (videoRef.current) {
-                  videoRef.current.muted = false;
-                  if (offsetSeconds > 0) {
-                    videoRef.current.currentTime = offsetSeconds;
-                  }
-                  videoRef.current.play().catch((err) => console.error('Play error:', err));
-                }
-              });
-              hls.on((window as any).HLS.Events.ERROR, (event: any, data: any) => {
-                console.error('HLS error:', data);
-              });
-            }
-          };
-          script.onerror = () => {
-            console.error('Failed to load HLS.js from CDN');
-            setError('Failed to load HLS library');
-          };
-          document.head.appendChild(script);
-        }
-      } catch (err) {
-        console.error('HLS loading error:', err);
-        setError('Error loading HLS: ' + String(err));
+        }, 500);
       }
-    };
-
-    loadHLS();
+      video.play().catch((err) => console.error('Play error:', err));
+    } else {
+      console.log('Native HLS not available, video element will attempt to play');
+      video.src = url;
+      video.muted = false;
+      if (offsetSeconds > 0) {
+        setTimeout(() => {
+          if (videoRef.current) {
+            videoRef.current.currentTime = offsetSeconds;
+          }
+        }, 500);
+      }
+      video.play().catch((err) => console.error('Play error:', err));
+    }
 
     return () => {
       video.removeEventListener('seeking', handleSeeking);
@@ -675,9 +632,6 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
         setError('Failed to load video');
       }}
       style={{ userSelect: 'none', WebkitUserSelect: 'none' } as React.CSSProperties}
-    >
-      <source src={url} type="application/x-mpegURL" />
-      Your browser does not support HLS video playback.
-    </video>
+    />
   );
 }
