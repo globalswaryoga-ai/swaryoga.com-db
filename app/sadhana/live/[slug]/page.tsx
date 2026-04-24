@@ -566,31 +566,9 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
 
     // Native HLS - modern browsers handle HLS.m3u8 natively
     console.log('Using native HLS video element for:', url);
-    if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      console.log('✅ Native HLS support detected');
-      video.src = url;
-      video.muted = false;
-      if (offsetSeconds > 0) {
-        setTimeout(() => {
-          if (videoRef.current) {
-            videoRef.current.currentTime = offsetSeconds;
-          }
-        }, 500);
-      }
-      video.play().catch((err) => console.error('Play error:', err));
-    } else {
-      console.log('Native HLS not available, video element will attempt to play');
-      video.src = url;
-      video.muted = false;
-      if (offsetSeconds > 0) {
-        setTimeout(() => {
-          if (videoRef.current) {
-            videoRef.current.currentTime = offsetSeconds;
-          }
-        }, 500);
-      }
-      video.play().catch((err) => console.error('Play error:', err));
-    }
+    video.src = url;
+    video.muted = false;  // Enable audio
+    // Don't set currentTime here - let onLoadedMetadata handle it
 
     return () => {
       video.removeEventListener('seeking', handleSeeking);
@@ -618,13 +596,10 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
       onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
       onMouseUp={(e) => { if (e.button === 2) { e.preventDefault(); e.stopPropagation(); } }}
       onLoadedMetadata={() => {
-        console.log('Video metadata loaded, duration:', videoRef.current?.duration);
-        if (videoRef.current) {
-          videoRef.current.muted = false;
-          if (offsetSeconds > 0) {
-            videoRef.current.currentTime = offsetSeconds;
-          }
-          videoRef.current.play().catch((err) => console.error('Play failed:', err));
+        console.log('Video metadata loaded, duration:', videoRef.current?.duration, 'offset:', offsetSeconds);
+        if (videoRef.current && offsetSeconds > 0) {
+          videoRef.current.currentTime = offsetSeconds;
+          console.log('Set video offset to:', offsetSeconds);
         }
       }}
       onError={(e) => {
