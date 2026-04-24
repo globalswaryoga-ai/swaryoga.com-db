@@ -150,7 +150,7 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
     await participants.deleteMany({ lastSeen: { $lt: activeThreshold } });
 
     const activeParticipants = await participants
-      .find({ lastSeen: { $gte: activeThreshold } })
+      .find({ programSlug: params.slug, lastSeen: { $gte: activeThreshold } })
       .sort({ joinedAt: 1 })
       .limit(200)
       .toArray();
@@ -259,14 +259,22 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       }
     }
 
-    // Auto-add bot when countdown/live starts, keep lastSeen updated
-    if (activeSchedule && sessionInfo && activeSchedule.enableBotAutomation !== false && (sessionInfo.status === 'countdown' || sessionInfo.status === 'live') && sessionInfo.sessionStartUtc) {
+    // Auto-add bot botJoinMinutes before session starts, keep lastSeen updated
+    if (activeSchedule && sessionInfo && activeSchedule.enableBotAutomation !== false && sessionInfo.sessionStartUtc) {
+      const botJoinMinutes = activeSchedule.botJoinMinutes || 5;
+      const sessionStart = new Date(sessionInfo.sessionStartUtc).getTime();
+      const botJoinTime = sessionStart - (botJoinMinutes * 60 * 1000);
+      const shouldBotBeActive = now.getTime() >= botJoinTime && sessionInfo.status !== 'ended';
+
       const botName = activeSchedule.botName || '🤖 Swar Yoga Bot';
       const botExists = await participants.findOne({
+        programSlug: params.slug,
         name: botName
       });
-      if (!botExists) {
+
+      if (shouldBotBeActive && !botExists) {
         await participants.insertOne({
+          programSlug: params.slug,
           name: botName,
           sessionId: 'bot',
           joinedAt: now,
@@ -274,28 +282,31 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
         });
         // Bot welcome message in chat
         await chatCol.insertOne({
+          programSlug: params.slug,
           name: botName,
           message: `Namaste! 🙏 ${activeSchedule.name || 'Session'} starting soon. Welcome everyone!`,
           createdAt: now,
         });
-      } else {
+      } else if (shouldBotBeActive && botExists) {
         // Keep bot's lastSeen updated so it doesn't get deleted
         await participants.updateOne(
-          { name: botName },
+          { programSlug: params.slug, name: botName },
           { $set: { lastSeen: now } }
         );
+      } else if (!shouldBotBeActive && botExists) {
+        // Remove bot after session ends
+        await participants.deleteOne({
+          programSlug: params.slug,
+          name: botName
+        });
+        // Bot farewell message
+        await chatCol.insertOne({
+          programSlug: params.slug,
+          name: botName,
+          message: 'Thank you for practicing! See you next session. 🙏',
+          createdAt: now,
+        });
       }
-    } else if (activeSchedule && sessionInfo && activeSchedule.enableBotAutomation !== false && sessionInfo.status === 'ended') {
-      const botName = activeSchedule.botName || '🤖 Swar Yoga Bot';
-      await participants.deleteOne({
-        name: botName
-      });
-      // Bot farewell message
-      await chatCol.insertOne({
-        name: botName,
-        message: 'Thank you for practicing! See you next session. 🙏',
-        createdAt: now,
-      });
     }
 
     // Get chat for today only (last 24 hours)

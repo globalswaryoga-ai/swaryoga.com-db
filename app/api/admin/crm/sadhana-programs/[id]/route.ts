@@ -67,9 +67,10 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     const body = await request.json();
     const update: any = { updatedAt: new Date() };
 
-    ['name', 'description', 'timezone', 'repeatFrequency', 'startDate', 'botName', 'playerMode', 'playerUrl'].forEach((k) => {
+    ['name', 'description', 'timezone', 'repeatFrequency', 'startDate', 'botName', 'botJoinMinutes', 'playerMode', 'playerUrl'].forEach((k) => {
       if (body[k] !== undefined) update[k] = body[k];
     });
+    if (body.enableBotAutomation !== undefined) update.enableBotAutomation = !!body.enableBotAutomation;
     if (body.timeSlots !== undefined) {
       const slots = Array.isArray(body.timeSlots) ? body.timeSlots : [body.timeSlots];
       update.timeSlots = slots.filter((s: string) => s.trim()).slice(0, 4);

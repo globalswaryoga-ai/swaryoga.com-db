@@ -10,6 +10,7 @@ interface Program {
   timeSlots: string[]; timezone: string;
   videoDuration: number; countdownMinutes: number; active: boolean;
   playerMode?: string; playerUrl?: string;
+  botName?: string; botJoinMinutes?: number; enableBotAutomation?: boolean;
 }
 interface Video { id: string; date: string; title: string; videoUrl: string; hlsUrl?: string; order?: number; }
 
@@ -42,7 +43,7 @@ export default function ProgramDetailPage() {
   const [form, setForm] = useState({ title: '', videoUrl: '', hlsUrl: '' });
   const [toast, setToast] = useState('');
   const [editingProgram, setEditingProgram] = useState(false);
-  const [editForm, setEditForm] = useState({ name: '', description: '', timeSlots: ['', '', '', ''], timezone: 'Asia/Kolkata', videoDuration: 40, countdownMinutes: 3, playerMode: 'player', playerUrl: '' });
+  const [editForm, setEditForm] = useState({ name: '', description: '', timeSlots: ['', '', '', ''], timezone: 'Asia/Kolkata', videoDuration: 40, countdownMinutes: 3, playerMode: 'player', playerUrl: '', botName: '', botJoinMinutes: 5, enableBotAutomation: true });
 
   const load = async () => {
     setLoading(true);
@@ -106,6 +107,9 @@ export default function ProgramDetailPage() {
       countdownMinutes: program.countdownMinutes,
       playerMode: program.playerMode || 'player',
       playerUrl: program.playerUrl || '',
+      botName: program.botName || '🤖 Swar Yoga Bot',
+      botJoinMinutes: program.botJoinMinutes || 5,
+      enableBotAutomation: program.enableBotAutomation !== false,
     });
     setEditingProgram(true);
   };
@@ -441,6 +445,44 @@ export default function ProgramDetailPage() {
                 />
               </div>
             )}
+
+            <div className="border-t border-gray-600 pt-4 mt-4">
+              <h3 className="text-sm font-semibold text-purple-300 mb-3">🤖 Bot Settings</h3>
+
+              <div className="flex items-center gap-3 mb-3">
+                <input
+                  type="checkbox"
+                  checked={editForm.enableBotAutomation}
+                  onChange={(e) => setEditForm({ ...editForm, enableBotAutomation: e.target.checked })}
+                  className="w-5 h-5 rounded cursor-pointer"
+                />
+                <label className="text-sm text-gray-100">Enable Bot Auto-Join</label>
+              </div>
+
+              {editForm.enableBotAutomation && (
+                <>
+                  <div>
+                    <label className="block text-sm text-gray-100 mb-1">Bot Name</label>
+                    <input
+                      type="text" value={editForm.botName}
+                      onChange={(e) => setEditForm({ ...editForm, botName: e.target.value })}
+                      placeholder="🤖 Swar Yoga Bot"
+                      className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg border border-gray-600 focus:border-pink-400 outline-none text-sm"
+                    />
+                  </div>
+
+                  <div className="mt-3">
+                    <label className="block text-sm text-gray-100 mb-1">Bot Join Minutes Before Session</label>
+                    <input
+                      type="number" min={0} max={30} value={editForm.botJoinMinutes}
+                      onChange={(e) => setEditForm({ ...editForm, botJoinMinutes: parseInt(e.target.value) || 5 })}
+                      className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg border border-gray-600 focus:border-pink-400 outline-none text-sm"
+                    />
+                    <p className="text-xs text-gray-400 mt-1">Default: 5 minutes before countdown</p>
+                  </div>
+                </>
+              )}
+            </div>
 
             <div className="flex gap-2 pt-2">
               <button onClick={() => setEditingProgram(false)} className="flex-1 bg-gray-700 text-white py-2 rounded-lg">Cancel</button>
