@@ -201,18 +201,27 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       // Get video URL for playback - try schedule first, then program calendar
       let videoUrlForPlayback = activeSchedule.videoUrl;
 
-      if (!videoUrlForPlayback && activeSchedule?.slug) {
+      if (!videoUrlForPlayback) {
         try {
           const programsDb = await getProgramsDb();
           const programsCol = programsDb.collection('sadhana_programs');
-          const program = await programsCol.findOne({ slug: activeSchedule.slug });
-          const yyyymmdd = now.toISOString().split('T')[0];
-          const todayEntry = program?.videoCalendar?.[yyyymmdd];
-          if (todayEntry?.videoUrl) {
-            videoUrlForPlayback = todayEntry.videoUrl;
+          // Try to find program by programSlug or slug
+          const program = await programsCol.findOne({
+            $or: [
+              { slug: activeSchedule.programSlug || activeSchedule.slug },
+              { slug: params.slug }
+            ]
+          });
+
+          if (program?.videoCalendar) {
+            const yyyymmdd = now.toISOString().split('T')[0];
+            const todayEntry = program.videoCalendar[yyyymmdd];
+            if (todayEntry?.videoUrl) {
+              videoUrlForPlayback = todayEntry.videoUrl;
+            }
           }
         } catch (err) {
-          // Ignore errors
+          console.error('Error fetching video from calendar:', err);
         }
       }
 
