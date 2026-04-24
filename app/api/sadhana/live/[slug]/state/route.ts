@@ -134,6 +134,7 @@ function buildVideoUrlWithOffset(videoUrl: string, offsetSeconds: number): strin
 export async function POST(request: NextRequest, { params }: { params: { slug: string } }) {
   try {
     const { sessionId } = await request.json();
+    console.log(`[Sadhana Live] ${params.slug} - Session state requested`, { sessionId, time: new Date().toISOString() });
     const db = await getDb();
     const participants = db.collection('sadhana_live_participants');
     const schedules = db.collection('sadhana_schedules');
@@ -195,8 +196,16 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
     }
 
     if (!activeSchedule) {
+      console.log(`[Sadhana Live] ${params.slug} - Program not found`);
       return NextResponse.json({ error: 'Program not found' }, { status: 404 });
     }
+
+    console.log(`[Sadhana Live] ${params.slug} - Program found`, {
+      name: activeSchedule.name,
+      playerMode: activeSchedule.playerMode,
+      hasVideoUrl: !!activeSchedule.videoUrl,
+      hasPlayerUrl: !!activeSchedule.playerUrl,
+    });
 
     let sessionInfo: any = null;
     let playableVideoUrl = null;
@@ -205,6 +214,7 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
 
       // Get video URL for playback - try schedule first, then program calendar
       let videoUrlForPlayback = activeSchedule.videoUrl;
+      console.log(`[Sadhana Live] ${params.slug} - Looking for video`, { status: sessionInfo.status, hasScheduleUrl: !!videoUrlForPlayback });
 
       if (!videoUrlForPlayback) {
         try {
@@ -228,8 +238,12 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
             const playerMode = activeSchedule.playerMode || 'player';
             if (playerMode === 'hls' && todayEntry?.hlsUrl) {
               videoUrlForPlayback = todayEntry.hlsUrl;
+              console.log(`[Sadhana Live] ${params.slug} - Using HLS URL from calendar`);
             } else if (todayEntry?.videoUrl) {
               videoUrlForPlayback = todayEntry.videoUrl;
+              console.log(`[Sadhana Live] ${params.slug} - Using Player URL from calendar`);
+            } else {
+              console.log(`[Sadhana Live] ${params.slug} - Calendar entry has no valid URL`, { playerMode, hasHls: !!todayEntry?.hlsUrl, hasPlayer: !!todayEntry?.videoUrl });
             }
           }
         } catch (err) {
@@ -376,6 +390,14 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
     }
 
     const validPlayerUrl = playerUrl && playerUrl.startsWith('http') ? playerUrl : '';
+
+    console.log(`[Sadhana Live] ${params.slug} - Returning response`, {
+      status: sessionInfo.status,
+      playerMode,
+      hasPlayableUrl: !!playableVideoUrl,
+      hasPlayerUrl: !!validPlayerUrl,
+      participants: activeParticipants.length,
+    });
 
     return NextResponse.json({
       success: true,
