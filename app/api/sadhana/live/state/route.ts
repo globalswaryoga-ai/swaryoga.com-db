@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { handleCrmError } from '@/lib/crm-handlers';
+import { getProgramsDb } from '@/lib/sadhanaPrograms';
 import mongoose from 'mongoose';
 
 async function getDb() {
@@ -211,6 +212,35 @@ export async function POST(request: NextRequest) {
       .limit(50)
       .toArray();
 
+    // Get program details (from sadhana_programs collection)
+    const programsDb = await getProgramsDb();
+    const programsCol = programsDb.collection('sadhana_programs');
+    let program = null;
+    let todayVideo = null;
+    let upcomingVideos: any[] = [];
+
+    if (activeSchedule?.programSlug) {
+      program = await programsCol.findOne({ slug: activeSchedule.programSlug });
+
+      if (program) {
+        const yyyymmdd = now.toISOString().split('T')[0];
+        const todayEntry = program.videoCalendar?.[yyyymmdd];
+        if (todayEntry) {
+          todayVideo = { date: yyyymmdd, title: todayEntry.title, videoUrl: todayEntry.videoUrl };
+        }
+
+        // Get next 7 days of videos
+        for (let i = 1; i <= 7; i++) {
+          const futureDate = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
+          const futureDateStr = futureDate.toISOString().split('T')[0];
+          const entry = program.videoCalendar?.[futureDateStr];
+          if (entry) {
+            upcomingVideos.push({ date: futureDateStr, title: entry.title });
+          }
+        }
+      }
+    }
+
     return NextResponse.json({
       success: true,
       count: activeParticipants.length,
@@ -218,15 +248,15 @@ export async function POST(request: NextRequest) {
         name: p.name,
         joinedAt: p.joinedAt,
       })),
-      schedule: activeSchedule
-        ? {
-            id: activeSchedule._id.toString(),
-            name: activeSchedule.name,
-            videoUrl: activeSchedule.videoUrl,
-            videoDuration: activeSchedule.videoDuration || 40,
-            timezone: activeSchedule.schedule?.timezone || 'Asia/Kolkata',
-          }
-        : null,
+      program: program ? {
+        slug: program.slug,
+        name: program.name,
+        description: program.description,
+        timezone: activeSchedule?.timezone || 'Asia/Kolkata',
+        scheduleTime: activeSchedule?.timeSlots?.[0] || activeSchedule?.scheduleTime,
+      } : null,
+      todayVideo,
+      upcomingVideos,
       session: sessionInfo,
       playableVideoUrl,
       chat: chatMessages.reverse().map((m: any) => ({
