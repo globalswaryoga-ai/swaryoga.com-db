@@ -374,42 +374,44 @@ export default function ProgramLivePage() {
               </div>
             )}
 
-            <div className="bg-white/10 backdrop-blur-lg rounded-xl p-4 border border-white/20 flex flex-col h-96">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold">💬 Live Chat</h2>
-                <button
-                  onClick={() => setShowChat(!showChat)}
-                  className="text-gray-300 hover:text-white hover:bg-white/10 p-1 rounded transition"
-                  title={showChat ? 'Hide' : 'Show'}
-                >
-                  {showChat ? <ChevronUp size={22} /> : <ChevronDown size={22} />}
-                </button>
+            {session?.status !== 'ended' && (
+              <div className="bg-white/10 backdrop-blur-lg rounded-xl p-4 border border-white/20 flex flex-col h-96">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="font-semibold">💬 Live Chat</h2>
+                  <button
+                    onClick={() => setShowChat(!showChat)}
+                    className="text-gray-300 hover:text-white hover:bg-white/10 p-1 rounded transition"
+                    title={showChat ? 'Hide' : 'Show'}
+                  >
+                    {showChat ? <ChevronUp size={22} /> : <ChevronDown size={22} />}
+                  </button>
+                </div>
+                {showChat && (
+                  <>
+                    <div className="flex-1 overflow-y-auto space-y-2 mb-3">
+                      {chat.map((msg) => (
+                        <div key={msg.id} className="text-sm">
+                          <span className="font-semibold text-pink-300">{msg.name}:</span>{' '}
+                          <span className="text-white">{msg.message}</span>
+                        </div>
+                      ))}
+                      {chat.length === 0 && (
+                        <p className="text-purple-200 text-sm text-center py-4">Be the first to say Namaste 🙏</p>
+                      )}
+                      <div ref={chatEnd} />
+                    </div>
+                    <form onSubmit={sendChat} className="flex gap-2">
+                      <input
+                        type="text" value={chatInput} onChange={(e) => setChatInput(e.target.value)}
+                        placeholder="Type a message..." maxLength={300}
+                        className="flex-1 px-3 py-2 bg-white/20 rounded-lg text-sm placeholder-purple-200 border border-white/30 focus:outline-none focus:border-white"
+                      />
+                      <button type="submit" className="px-4 py-2 bg-gradient-to-r from-pink-500 to-violet-500 rounded-lg font-semibold text-sm hover:opacity-90">Send</button>
+                    </form>
+                  </>
+                )}
               </div>
-              {showChat && (
-                <>
-                  <div className="flex-1 overflow-y-auto space-y-2 mb-3">
-                    {chat.map((msg) => (
-                      <div key={msg.id} className="text-sm">
-                        <span className="font-semibold text-pink-300">{msg.name}:</span>{' '}
-                        <span className="text-white">{msg.message}</span>
-                      </div>
-                    ))}
-                    {chat.length === 0 && (
-                      <p className="text-purple-200 text-sm text-center py-4">Be the first to say Namaste 🙏</p>
-                    )}
-                    <div ref={chatEnd} />
-                  </div>
-                  <form onSubmit={sendChat} className="flex gap-2">
-                    <input
-                      type="text" value={chatInput} onChange={(e) => setChatInput(e.target.value)}
-                      placeholder="Type a message..." maxLength={300}
-                      className="flex-1 px-3 py-2 bg-white/20 rounded-lg text-sm placeholder-purple-200 border border-white/30 focus:outline-none focus:border-white"
-                    />
-                    <button type="submit" className="px-4 py-2 bg-gradient-to-r from-pink-500 to-violet-500 rounded-lg font-semibold text-sm hover:opacity-90">Send</button>
-                  </form>
-                </>
-              )}
-            </div>
+            )}
             </div>}
           </div>
 
