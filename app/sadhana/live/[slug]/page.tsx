@@ -565,11 +565,6 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
 
     console.log('Native HLS setup, offset:', offsetSeconds);
 
-    return () => {
-      video.removeEventListener('seeking', handleSeeking);
-      video.removeEventListener('ratechange', handleRateChange);
-    };
-
     const loadHLS = async () => {
       try {
         console.log('Loading HLS URL:', url);
@@ -636,10 +631,7 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
     loadHLS();
 
     return () => {
-      video.removeEventListener('play', handlePlay);
-      video.removeEventListener('pause', handlePause);
       video.removeEventListener('seeking', handleSeeking);
-      video.removeEventListener('timeupdate', handleTimeUpdate);
       video.removeEventListener('ratechange', handleRateChange);
     };
   }, [url, videoRef, offsetSeconds]);
