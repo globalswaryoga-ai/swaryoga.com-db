@@ -1,4 +1,4 @@
-'use client';
+ 'use client';
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -103,19 +103,19 @@ export default function ProgramDetailPage() {
         </Link>
       </div>
 
-      <div className="bg-gradient-to-br from-purple-900/40 to-pink-900/40 border border-purple-500/30 rounded-xl p-5 mb-6">
+      <div className="bg-gradient-to-br from-purple-800 to-pink-800 border border-purple-400 rounded-xl p-5 mb-6">
         <h1 className="text-2xl font-bold text-white mb-1">{program.name}</h1>
-        {program.description && <p className="text-purple-200 text-sm mb-3">{program.description}</p>}
+        {program.description && <p className="text-purple-50 text-sm mb-3">{program.description}</p>}
 
         <div className="flex flex-wrap gap-2 text-sm mb-4">
-          <span className="bg-black/30 text-purple-200 px-2 py-1 rounded">⏰ Daily at {program.scheduleTime}</span>
-          <span className="bg-black/30 text-indigo-200 px-2 py-1 rounded">🌏 {program.timezone}</span>
-          <span className="bg-black/30 text-pink-200 px-2 py-1 rounded">🎥 {program.videoDuration}min video</span>
-          <span className="bg-black/30 text-blue-200 px-2 py-1 rounded">⏱ {program.countdownMinutes}min countdown</span>
+          <span className="bg-black/50 text-purple-100 px-2 py-1 rounded">⏰ Daily at {program.scheduleTime}</span>
+          <span className="bg-black/50 text-indigo-100 px-2 py-1 rounded">🌏 {program.timezone}</span>
+          <span className="bg-black/50 text-pink-100 px-2 py-1 rounded">🎥 {program.videoDuration}min video</span>
+          <span className="bg-black/50 text-blue-100 px-2 py-1 rounded">⏱ {program.countdownMinutes}min countdown</span>
         </div>
 
-        <div className="bg-black/40 rounded-lg p-3 flex items-center gap-2">
-          <code className="flex-1 text-purple-200 text-sm break-all">{liveUrl}</code>
+        <div className="bg-black/60 rounded-lg p-3 flex items-center gap-2">
+          <code className="flex-1 text-purple-100 text-sm break-all">{liveUrl}</code>
           <button
             onClick={() => {
               navigator.clipboard.writeText(liveUrl);
@@ -136,7 +136,7 @@ export default function ProgramDetailPage() {
       </div>
 
       {/* Calendar */}
-      <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-5">
+      <div className="bg-gray-800 border border-gray-600 rounded-xl p-5">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold text-white">📅 Video Calendar</h2>
           <div className="flex items-center gap-3">
@@ -195,32 +195,32 @@ export default function ProgramDetailPage() {
 
       {/* Edit Modal */}
       {editDate && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
-          <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-md w-full space-y-4">
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+          <div className="bg-gray-800 border border-gray-600 rounded-xl p-6 max-w-md w-full space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold text-white">Video for {editDate}</h3>
-              <button onClick={() => setEditDate(null)} className="text-gray-400 hover:text-white">
+              <button onClick={() => setEditDate(null)} className="text-gray-300 hover:text-white">
                 <X size={20} />
               </button>
             </div>
 
             <div>
-              <label className="block text-sm text-gray-300 mb-1">Title (optional)</label>
+              <label className="block text-sm text-gray-100 mb-1">Title (optional)</label>
               <input
                 type="text" value={form.title}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
                 placeholder="Day 1 - Introduction to breath"
-                className="w-full bg-gray-800 text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-pink-500 outline-none"
+                className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg border border-gray-600 focus:border-pink-400 outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-sm text-gray-300 mb-1">Bunny Video URL *</label>
+              <label className="block text-sm text-gray-100 mb-1">Bunny Video URL *</label>
               <input
                 type="url" required value={form.videoUrl}
                 onChange={(e) => setForm({ ...form, videoUrl: e.target.value })}
                 placeholder="https://player.mediadelivery.net/play/638748/..."
-                className="w-full bg-gray-800 text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-pink-500 outline-none text-sm"
+                className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg border border-gray-600 focus:border-pink-400 outline-none text-sm"
               />
             </div>
 
