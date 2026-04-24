@@ -3,12 +3,42 @@ import { handleCrmError } from '@/lib/crm-handlers';
 import { getProgramVideosCollection, getProgramsCollection } from '@/lib/sadhanaPrograms';
 import mongoose from 'mongoose';
 
+function isValidUrl(url: string): boolean {
+  if (!url) return false;
+  try {
+    const u = new URL(url);
+    return u.protocol === 'http:' || u.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function isValidDate(date: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) && !isNaN(new Date(date).getTime());
+}
+
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const { date, title, videoUrl, hlsUrl, order } = await request.json();
 
-    if (!date || (!videoUrl && !hlsUrl)) {
-      return NextResponse.json({ error: 'date and at least one URL (videoUrl or hlsUrl) required' }, { status: 400 });
+    if (!date) {
+      return NextResponse.json({ error: 'Date is required (format: YYYY-MM-DD)' }, { status: 400 });
+    }
+
+    if (!isValidDate(date)) {
+      return NextResponse.json({ error: 'Invalid date format. Use YYYY-MM-DD' }, { status: 400 });
+    }
+
+    if (!videoUrl && !hlsUrl) {
+      return NextResponse.json({ error: 'At least one URL (Player URL or HLS URL) is required' }, { status: 400 });
+    }
+
+    if (videoUrl && !isValidUrl(videoUrl)) {
+      return NextResponse.json({ error: 'Player URL must be a valid HTTP(S) URL' }, { status: 400 });
+    }
+
+    if (hlsUrl && !isValidUrl(hlsUrl)) {
+      return NextResponse.json({ error: 'HLS URL must be a valid HTTP(S) URL' }, { status: 400 });
     }
 
     const videosCol = await getProgramVideosCollection();
@@ -33,14 +63,17 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     );
 
     // Also update the program's videoCalendar field for live API compatibility
+    const calendarEntry: any = {
+      title: title ? String(title).slice(0, 150) : '',
+    };
+    if (videoUrl) calendarEntry.videoUrl = String(videoUrl);
+    if (hlsUrl) calendarEntry.hlsUrl = String(hlsUrl);
+
     await programsCol.updateOne(
       { _id: new mongoose.Types.ObjectId(params.id) },
       {
         $set: {
-          [`videoCalendar.${date}`]: {
-            title: title ? String(title).slice(0, 150) : '',
-            videoUrl: String(videoUrl),
-          },
+          [`videoCalendar.${date}`]: calendarEntry,
         },
       }
     );
