@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, ChevronLeft, ChevronRight, Copy, ExternalLink, X } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Copy, ExternalLink, X, Pencil, Trash2 } from 'lucide-react';
 
 interface Program {
   id: string; slug: string; name: string; description?: string;
@@ -40,6 +40,8 @@ export default function ProgramDetailPage() {
   const [editDate, setEditDate] = useState<string | null>(null);
   const [form, setForm] = useState({ title: '', videoUrl: '' });
   const [toast, setToast] = useState('');
+  const [editingProgram, setEditingProgram] = useState(false);
+  const [editForm, setEditForm] = useState({ name: '', description: '', timeSlots: ['', '', '', ''], timezone: 'Asia/Kolkata', videoDuration: 40, countdownMinutes: 3 });
 
   const load = async () => {
     setLoading(true);
@@ -85,6 +87,55 @@ export default function ProgramDetailPage() {
     setTimeout(() => setToast(''), 2500);
   };
 
+  const openProgramEdit = () => {
+    if (!program) return;
+    const slots = [...program.timeSlots];
+    while (slots.length < 4) slots.push('');
+    setEditForm({
+      name: program.name,
+      description: program.description || '',
+      timeSlots: slots.slice(0, 4),
+      timezone: program.timezone,
+      videoDuration: program.videoDuration,
+      countdownMinutes: program.countdownMinutes,
+    });
+    setEditingProgram(true);
+  };
+
+  const updateProgram = async () => {
+    if (!program) return;
+    const timeSlots = editForm.timeSlots.filter(t => t.trim());
+    if (!timeSlots.length) {
+      setToast('⚠️ Add at least one time slot');
+      setTimeout(() => setToast(''), 3000);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/admin/crm/sadhana-programs/${program.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...editForm, timeSlots }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setToast('✅ Program updated');
+        setEditingProgram(false);
+        load();
+        setTimeout(() => setToast(''), 3000);
+      }
+    } catch (err) { console.error(err); }
+  };
+
+  const deleteProgram = async () => {
+    if (!program) return;
+    if (!confirm(`Delete program "${program.name}"? All videos will be removed.`)) return;
+    try {
+      await fetch(`/api/admin/crm/sadhana-programs/${program.id}`, { method: 'DELETE' });
+      setToast('🗑️ Program deleted');
+      setTimeout(() => router.push('/admin/crm/sadhana-programs'), 1500);
+    } catch (err) { console.error(err); }
+  };
+
   if (loading) return <div className="p-6 text-gray-400">Loading...</div>;
   if (!program) return <div className="p-6 text-red-400">Program not found</div>;
 
@@ -104,8 +155,20 @@ export default function ProgramDetailPage() {
       </div>
 
       <div className="bg-gradient-to-br from-purple-800 to-pink-800 border border-purple-400 rounded-xl p-5 mb-6">
-        <h1 className="text-2xl font-bold text-white mb-1">{program.name}</h1>
-        {program.description && <p className="text-purple-50 text-sm mb-3">{program.description}</p>}
+        <div className="flex items-start justify-between mb-3">
+          <div>
+            <h1 className="text-2xl font-bold text-white mb-1">{program.name}</h1>
+            {program.description && <p className="text-purple-50 text-sm">{program.description}</p>}
+          </div>
+          <div className="flex gap-1">
+            <button onClick={openProgramEdit} className="text-blue-300 hover:text-blue-200 p-1">
+              <Pencil size={18} />
+            </button>
+            <button onClick={deleteProgram} className="text-red-300 hover:text-red-200 p-1">
+              <Trash2 size={18} />
+            </button>
+          </div>
+        </div>
 
         <div className="flex flex-wrap gap-2 text-sm mb-4">
           {program.timeSlots.map((time, idx) => (
@@ -238,6 +301,92 @@ export default function ProgramDetailPage() {
               <button onClick={saveVideo} className="flex-1 bg-gradient-to-r from-pink-500 to-violet-500 text-white py-2 rounded-lg font-semibold text-sm">
                 Save
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingProgram && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
+          <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-md w-full space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-white">Edit Program</h3>
+              <button onClick={() => setEditingProgram(false)} className="text-gray-400 hover:text-white">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-100 mb-1">Program Name *</label>
+              <input
+                value={editForm.name}
+                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg border border-gray-600 focus:border-pink-400 outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-100 mb-1">Description</label>
+              <textarea
+                value={editForm.description}
+                onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                rows={2}
+                className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg border border-gray-600 focus:border-pink-400 outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-100 mb-2">Time Slots (up to 4) *</label>
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                {editForm.timeSlots.map((time, idx) => (
+                  <input
+                    key={idx}
+                    type="time"
+                    value={time}
+                    onChange={(e) => {
+                      const slots = [...editForm.timeSlots];
+                      slots[idx] = e.target.value;
+                      setEditForm({ ...editForm, timeSlots: slots });
+                    }}
+                    className="bg-gray-700 text-white px-3 py-2 rounded-lg border border-gray-600 focus:border-pink-400 outline-none text-sm"
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-100 mb-1">Timezone *</label>
+              <select
+                value={editForm.timezone}
+                onChange={(e) => setEditForm({ ...editForm, timezone: e.target.value })}
+                className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg border border-gray-600 focus:border-pink-400 outline-none"
+              >
+                {['Asia/Kolkata', 'Asia/Dubai', 'Asia/Singapore', 'Asia/Tokyo', 'Europe/London', 'Europe/Berlin', 'America/New_York', 'America/Los_Angeles', 'Australia/Sydney', 'UTC'].map((tz) => <option key={tz} value={tz}>{tz}</option>)}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm text-gray-100 mb-1">Video Duration (min)</label>
+                <input
+                  type="number" min={5} max={180} value={editForm.videoDuration}
+                  onChange={(e) => setEditForm({ ...editForm, videoDuration: parseInt(e.target.value) || 40 })}
+                  className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg border border-gray-600 focus:border-pink-400 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-100 mb-1">Countdown (min)</label>
+                <input
+                  type="number" min={0} max={30} value={editForm.countdownMinutes}
+                  onChange={(e) => setEditForm({ ...editForm, countdownMinutes: parseInt(e.target.value) || 3 })}
+                  className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg border border-gray-600 focus:border-pink-400 outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button onClick={() => setEditingProgram(false)} className="flex-1 bg-gray-700 text-white py-2 rounded-lg">Cancel</button>
+              <button onClick={updateProgram} className="flex-1 bg-gradient-to-r from-pink-500 to-violet-500 text-white py-2 rounded-lg font-semibold">Update</button>
             </div>
           </div>
         </div>
