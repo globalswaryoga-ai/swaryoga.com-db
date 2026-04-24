@@ -80,6 +80,12 @@ export default function ProgramLivePage() {
 
   useEffect(() => { setName(storedName()); sidRef.current = storedSid(slug); }, [slug]);
 
+  useEffect(() => {
+    if (session?.status === 'live' && !videoStarted) {
+      setVideoStarted(true);
+    }
+  }, [session?.status, videoStarted]);
+
   // Announcements endpoint disabled (not implemented)
   // useEffect(() => {
   //   const loadAnnouncement = async () => {
