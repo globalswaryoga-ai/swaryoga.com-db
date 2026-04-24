@@ -546,7 +546,6 @@ export default function CRMDashboard() {
                 <QuickActionCard href="/admin/crm/calls" icon={UserPlus} label="Call Workflows" color="emerald" />
                 <QuickActionCard href="/admin/crm/templates" icon={FileText} label="Templates" color="orange" />
                 <QuickActionCard href="/admin/crm/analytics" icon={BarChart3} label="Analytics" color="purple" />
-                <QuickActionCard href="/admin/crm/sadhana-programs" icon={Sparkles} label="Sadhana Programs" color="pink" />
                 <QuickActionCard href="/admin/crm/settings" icon={Settings} label="Auto Config" color="gray" />
               </div>
 
