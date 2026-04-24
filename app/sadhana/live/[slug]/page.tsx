@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 
 interface Participant { name: string; joinedAt: string; }
 interface ChatMsg { id: string; name: string; message: string; createdAt: string; }
@@ -64,6 +65,8 @@ export default function ProgramLivePage() {
   const [chatInput, setChatInput] = useState('');
   const [serverTime, setServerTime] = useState<Date>(new Date());
   const [nowTick, setNowTick] = useState<Date>(new Date());
+  const [showParticipants, setShowParticipants] = useState(true);
+  const [showChat, setShowChat] = useState(true);
   const sidRef = useRef<string>('');
   const chatEnd = useRef<HTMLDivElement>(null);
 
@@ -247,20 +250,30 @@ export default function ProgramLivePage() {
 
           <div className="space-y-4">
             <div className="bg-white/10 backdrop-blur-lg rounded-xl p-4 border border-white/20">
-              <h2 className="font-semibold mb-3">👥 Participants ({count})</h2>
-              <div className="space-y-1 max-h-48 overflow-y-auto">
-                {participants.map((p, i) => (
-                  <div key={i} className="flex items-center gap-2 px-3 py-2 bg-white/5 rounded-lg text-sm">
-                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-pink-500 to-violet-500 flex items-center justify-center text-xs font-bold">
-                      {p.name[0]?.toUpperCase() || '?'}
-                    </div>
-                    <span className="truncate">{p.name}</span>
-                  </div>
-                ))}
-                {participants.length === 0 && (
-                  <p className="text-purple-200 text-sm text-center py-4">No participants yet</p>
-                )}
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="font-semibold">👥 Participants ({count})</h2>
+                <button
+                  onClick={() => setShowParticipants(!showParticipants)}
+                  className="text-gray-300 hover:text-white transition"
+                >
+                  {showParticipants ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                </button>
               </div>
+              {showParticipants && (
+                <div className="space-y-1 max-h-48 overflow-y-auto">
+                  {participants.map((p, i) => (
+                    <div key={i} className="flex items-center gap-2 px-3 py-2 bg-white/5 rounded-lg text-sm">
+                      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-pink-500 to-violet-500 flex items-center justify-center text-xs font-bold">
+                        {p.name[0]?.toUpperCase() || '?'}
+                      </div>
+                      <span className="truncate">{p.name}</span>
+                    </div>
+                  ))}
+                  {participants.length === 0 && (
+                    <p className="text-purple-200 text-sm text-center py-4">No participants yet</p>
+                  )}
+                </div>
+              )}
             </div>
 
             {upcoming.length > 0 && (
@@ -278,27 +291,39 @@ export default function ProgramLivePage() {
             )}
 
             <div className="bg-white/10 backdrop-blur-lg rounded-xl p-4 border border-white/20 flex flex-col h-96">
-              <h2 className="font-semibold mb-3">💬 Live Chat</h2>
-              <div className="flex-1 overflow-y-auto space-y-2 mb-3">
-                {chat.map((msg) => (
-                  <div key={msg.id} className="text-sm">
-                    <span className="font-semibold text-pink-300">{msg.name}:</span>{' '}
-                    <span className="text-white">{msg.message}</span>
-                  </div>
-                ))}
-                {chat.length === 0 && (
-                  <p className="text-purple-200 text-sm text-center py-4">Be the first to say Namaste 🙏</p>
-                )}
-                <div ref={chatEnd} />
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="font-semibold">💬 Live Chat</h2>
+                <button
+                  onClick={() => setShowChat(!showChat)}
+                  className="text-gray-300 hover:text-white transition"
+                >
+                  {showChat ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                </button>
               </div>
-              <form onSubmit={sendChat} className="flex gap-2">
-                <input
-                  type="text" value={chatInput} onChange={(e) => setChatInput(e.target.value)}
-                  placeholder="Type a message..." maxLength={300}
-                  className="flex-1 px-3 py-2 bg-white/20 rounded-lg text-sm placeholder-purple-200 border border-white/30 focus:outline-none focus:border-white"
-                />
-                <button type="submit" className="px-4 py-2 bg-gradient-to-r from-pink-500 to-violet-500 rounded-lg font-semibold text-sm hover:opacity-90">Send</button>
-              </form>
+              {showChat && (
+                <>
+                  <div className="flex-1 overflow-y-auto space-y-2 mb-3">
+                    {chat.map((msg) => (
+                      <div key={msg.id} className="text-sm">
+                        <span className="font-semibold text-pink-300">{msg.name}:</span>{' '}
+                        <span className="text-white">{msg.message}</span>
+                      </div>
+                    ))}
+                    {chat.length === 0 && (
+                      <p className="text-purple-200 text-sm text-center py-4">Be the first to say Namaste 🙏</p>
+                    )}
+                    <div ref={chatEnd} />
+                  </div>
+                  <form onSubmit={sendChat} className="flex gap-2">
+                    <input
+                      type="text" value={chatInput} onChange={(e) => setChatInput(e.target.value)}
+                      placeholder="Type a message..." maxLength={300}
+                      className="flex-1 px-3 py-2 bg-white/20 rounded-lg text-sm placeholder-purple-200 border border-white/30 focus:outline-none focus:border-white"
+                    />
+                    <button type="submit" className="px-4 py-2 bg-gradient-to-r from-pink-500 to-violet-500 rounded-lg font-semibold text-sm hover:opacity-90">Send</button>
+                  </form>
+                </>
+              )}
             </div>
           </div>
         </div>
