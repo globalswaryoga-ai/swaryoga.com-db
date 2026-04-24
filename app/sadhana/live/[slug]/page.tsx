@@ -273,10 +273,9 @@ export default function ProgramLivePage() {
       sessionView = isValidUrl ? (
         <iframe
           src={playableUrl}
-          className="w-full h-full pointer-events-none"
+          className="w-full h-full"
           allow="autoplay; encrypted-media"
           sandbox="allow-scripts allow-same-origin"
-          style={{ pointerEvents: 'none' }}
         />
       ) : (
         <div className="w-full h-full flex items-center justify-center"><p className="text-purple-200">Loading video...</p></div>
@@ -573,9 +572,10 @@ function HLSPlayer({ url, videoRef }: HLSPlayerProps) {
   return (
     <video
       ref={videoRef}
-      className="w-full h-full bg-black pointer-events-none"
+      className="w-full h-full bg-black"
       autoPlay
       muted
+      controls
       onContextMenu={(e) => e.preventDefault()}
       onKeyDown={(e) => e.preventDefault()}
       onDoubleClick={(e) => e.preventDefault()}
