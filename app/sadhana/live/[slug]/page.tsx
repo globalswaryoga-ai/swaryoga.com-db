@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { ChevronDown, ChevronUp, LogOut, Maximize2, Minimize2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, LogOut, Maximize2, Minimize2, Play } from 'lucide-react';
 
 interface Participant { name: string; joinedAt: string; }
 interface ChatMsg { id: string; name: string; message: string; createdAt: string; }
@@ -72,6 +72,7 @@ export default function ProgramLivePage() {
   const [announcement, setAnnouncement] = useState('');
   const [playerMode, setPlayerMode] = useState<'player' | 'hls'>('player');
   const [playerUrl, setPlayerUrl] = useState<string | null>(null);
+  const [videoStarted, setVideoStarted] = useState(false);
   const sidRef = useRef<string>('');
   const chatEnd = useRef<HTMLDivElement>(null);
   const urlSetRef = useRef(false);
@@ -283,15 +284,26 @@ export default function ProgramLivePage() {
       const isValidUrl = playableUrl && playableUrl.startsWith('http');
       const autoplayUrl = isValidUrl ? (playableUrl.includes('?') ? `${playableUrl}&autoplay=true` : `${playableUrl}?autoplay=true`) : '';
       sessionView = isValidUrl ? (
-        <div className="relative w-full h-full">
+        <div className="relative w-full h-full group">
           <iframe
-            src={autoplayUrl}
+            src={videoStarted ? autoplayUrl : playableUrl}
             className="w-full h-full"
             allow="autoplay; encrypted-media"
             sandbox="allow-scripts allow-same-origin"
             style={{ border: 'none' }}
-            autoPlay
+            autoPlay={videoStarted}
           />
+          {!videoStarted && (
+            <button
+              onClick={() => setVideoStarted(true)}
+              className="absolute inset-0 flex items-center justify-center bg-black/40 hover:bg-black/20 transition z-20"
+              title="Start video"
+            >
+              <div className="flex items-center justify-center w-20 h-20 bg-white/30 rounded-full hover:bg-white/50 transition">
+                <Play size={40} fill="white" className="text-white ml-1" />
+              </div>
+            </button>
+          )}
           <button
             onClick={() => {
               const iframe = document.querySelector('iframe');
