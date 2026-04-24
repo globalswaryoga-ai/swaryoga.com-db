@@ -281,13 +281,29 @@ export default function ProgramLivePage() {
       );
     } else {
       const isValidUrl = playableUrl && playableUrl.startsWith('http');
+      const autoplayUrl = isValidUrl ? (playableUrl.includes('?') ? `${playableUrl}&autoplay=true` : `${playableUrl}?autoplay=true`) : '';
       sessionView = isValidUrl ? (
-        <iframe
-          src={playableUrl}
-          className="w-full h-full"
-          allow="autoplay; encrypted-media"
-          sandbox="allow-scripts allow-same-origin"
-        />
+        <div className="relative w-full h-full">
+          <iframe
+            src={autoplayUrl}
+            className="w-full h-full"
+            allow="autoplay; encrypted-media"
+            sandbox="allow-scripts allow-same-origin"
+            style={{ border: 'none' }}
+            autoPlay
+          />
+          <button
+            onClick={() => {
+              const iframe = document.querySelector('iframe');
+              if (iframe?.requestFullscreen) iframe.requestFullscreen();
+              else if ((iframe as any)?.webkitRequestFullscreen) (iframe as any).webkitRequestFullscreen();
+            }}
+            className="absolute top-4 right-4 z-10 bg-black/60 hover:bg-black/80 text-white p-2 rounded transition"
+            title="Fullscreen"
+          >
+            <Maximize2 size={20} />
+          </button>
+        </div>
       ) : (
         <div className="w-full h-full flex items-center justify-center"><p className="text-purple-200">Loading video...</p></div>
       );
