@@ -309,7 +309,15 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
           const yyyymmdd = `${y}-${mo}-${d}`;
           const todayEntry = program.videoCalendar?.[yyyymmdd];
           if (todayEntry) {
-            const playerMode = activeSchedule.playerMode || 'player';
+            let playerMode = activeSchedule.playerMode || 'player';
+            // Fallback: if playerMode is 'player' but only hlsUrl is available, switch to HLS mode
+            if (playerMode === 'player' && !todayEntry.videoUrl && todayEntry.hlsUrl) {
+              playerMode = 'hls';
+              if (sessionInfo.status === 'live') {
+                activeSchedule.playerMode = 'hls';
+                activeSchedule.playerUrl = todayEntry.hlsUrl;
+              }
+            }
             const url = playerMode === 'hls' && todayEntry.hlsUrl ? todayEntry.hlsUrl : todayEntry.videoUrl;
             todayVideo = { date: yyyymmdd, title: todayEntry.title, videoUrl: url };
           }
@@ -340,8 +348,33 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       };
     }
 
-    const playerMode = activeSchedule?.playerMode || 'player';
-    const playerUrl = activeSchedule?.playerUrl || '';
+    // Determine playerMode with fallback: if only hlsUrl available, use HLS
+    let playerMode = activeSchedule?.playerMode || 'player';
+    let playerUrl = activeSchedule?.playerUrl || '';
+
+    // Secondary fallback: check if we need to switch to HLS mode based on available URLs
+    if (playerMode === 'player' && !playerUrl && sessionInfo.status === 'live') {
+      try {
+        const programsDb = await getProgramsDb();
+        const programsCol = programsDb.collection('sadhana_programs');
+        const program = await programsCol.findOne({ slug: activeSchedule.slug });
+        if (program?.videoCalendar) {
+          const tz = activeSchedule.timezone || 'Asia/Kolkata';
+          const y = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric' }).format(now);
+          const mo = new Intl.DateTimeFormat('en-CA', { timeZone: tz, month: '2-digit' }).format(now);
+          const d = new Intl.DateTimeFormat('en-CA', { timeZone: tz, day: '2-digit' }).format(now);
+          const yyyymmdd = `${y}-${mo}-${d}`;
+          const entry = program.videoCalendar?.[yyyymmdd];
+          if (entry?.hlsUrl && !entry.videoUrl) {
+            playerMode = 'hls';
+            playerUrl = entry.hlsUrl;
+          }
+        }
+      } catch {
+        // Fallback attempt failed, continue
+      }
+    }
+
     const validPlayerUrl = playerUrl && playerUrl.startsWith('http') ? playerUrl : '';
 
     return NextResponse.json({
