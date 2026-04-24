@@ -1,80 +1,191 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { connectDB } from '@/lib/db';
 import { handleCrmError } from '@/lib/crm-handlers';
-import {
-  getProgramsCollection,
-  getProgramVideosCollection,
-  getProgramsDb,
-  computeProgramSession,
-  buildVideoUrlWithOffset,
-  todayInTimezone,
-} from '@/lib/sadhanaPrograms';
+import { getProgramsDb } from '@/lib/sadhanaPrograms';
+import mongoose from 'mongoose';
+
+async function getDb() {
+  await connectDB();
+  return mongoose.connection.useDb('swaryoga_admin_crm');
+}
+
+function zonedTimeToUtc(localIso: string, tz: string): Date {
+  const asUtc = new Date(localIso + 'Z');
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+  const parts = dtf.formatToParts(asUtc);
+  const map: Record<string, string> = {};
+  parts.forEach((p) => { map[p.type] = p.value; });
+  const tzLocalAsUtc = Date.UTC(
+    parseInt(map.year),
+    parseInt(map.month) - 1,
+    parseInt(map.day),
+    parseInt(map.hour),
+    parseInt(map.minute),
+    parseInt(map.second)
+  );
+  const offset = tzLocalAsUtc - asUtc.getTime();
+  return new Date(asUtc.getTime() - offset);
+}
+
+function computeSessionStatus(schedule: any, now: Date) {
+  const tz = schedule.timezone || 'Asia/Kolkata';
+  const times: string[] = schedule.timeSlots || (schedule.scheduleTime ? [schedule.scheduleTime] : []);
+  const videoDuration = schedule.videoDuration || 40;
+  const countdownMin = schedule.countdownMinutes || 5;
+
+  const candidates: { startUtc: Date; endUtc: Date; dayOffset: number }[] = [];
+
+  for (let offset = 0; offset < 8; offset++) {
+    const checkDate = new Date(now.getTime() + offset * 24 * 60 * 60 * 1000);
+
+    for (const t of times) {
+      if (!t || !t.trim()) continue;
+      const [h, m] = t.split(':').map(Number);
+      if (isNaN(h) || isNaN(m)) continue;
+
+      const y = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric' }).format(checkDate);
+      const mo = new Intl.DateTimeFormat('en-CA', { timeZone: tz, month: '2-digit' }).format(checkDate);
+      const d = new Intl.DateTimeFormat('en-CA', { timeZone: tz, day: '2-digit' }).format(checkDate);
+
+      const iso = `${y}-${mo}-${d}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
+      const startUtc = zonedTimeToUtc(iso, tz);
+      const endUtc = new Date(startUtc.getTime() + videoDuration * 60 * 1000);
+
+      candidates.push({ startUtc, endUtc, dayOffset: offset });
+    }
+  }
+
+  candidates.sort((a, b) => a.startUtc.getTime() - b.startUtc.getTime());
+
+  let currentSession: { startUtc: Date; endUtc: Date } | null = null;
+  let nextSession: { startUtc: Date; endUtc: Date } | null = null;
+
+  for (const c of candidates) {
+    const countdownStart = new Date(c.startUtc.getTime() - countdownMin * 60 * 1000);
+    if (now >= countdownStart && now < c.endUtc) {
+      currentSession = c;
+      break;
+    }
+    if (now < countdownStart) {
+      nextSession = c;
+      break;
+    }
+  }
+
+  if (!currentSession && !nextSession && candidates.length > 0) {
+    nextSession = candidates[0];
+  }
+
+  let status: 'waiting' | 'countdown' | 'live' | 'ended' = 'waiting';
+  let videoOffsetSeconds = 0;
+
+  if (currentSession) {
+    if (now < currentSession.startUtc) {
+      status = 'countdown';
+    } else if (now < currentSession.endUtc) {
+      status = 'live';
+      videoOffsetSeconds = Math.floor((now.getTime() - currentSession.startUtc.getTime()) / 1000);
+    } else {
+      status = 'ended';
+    }
+  }
+
+  return {
+    status,
+    sessionStartUtc: currentSession?.startUtc.toISOString() || null,
+    sessionEndUtc: currentSession?.endUtc.toISOString() || null,
+    nextSessionUtc: nextSession?.startUtc.toISOString() || null,
+    videoOffsetSeconds,
+    countdownMinutes: countdownMin,
+    videoDurationMinutes: videoDuration,
+  };
+}
+
+function buildVideoUrlWithOffset(videoUrl: string, offsetSeconds: number): string {
+  if (!videoUrl) return videoUrl;
+  const sep = videoUrl.includes('?') ? '&' : '?';
+  const autoplay = videoUrl.includes('autoplay') ? '' : `${sep}autoplay=true`;
+  const start = offsetSeconds > 0 ? `${autoplay ? '&' : sep}t=${offsetSeconds}` : '';
+  return `${videoUrl}${autoplay}${start}`;
+}
 
 export async function POST(request: NextRequest, { params }: { params: { slug: string } }) {
   try {
     const { sessionId } = await request.json();
-    const db = await getProgramsDb();
-    const programs = await getProgramsCollection();
-    const videos = await getProgramVideosCollection();
+    const db = await getDb();
     const participants = db.collection('sadhana_live_participants');
+    const schedules = db.collection('sadhana_schedules');
     const chatCol = db.collection('sadhana_live_chat');
-
-    const program = await programs.findOne({ slug: params.slug });
-    if (!program) {
-      return NextResponse.json({ error: 'Program not found', slug: params.slug }, { status: 404 });
-    }
 
     const now = new Date();
     const activeThreshold = new Date(now.getTime() - 15 * 1000);
 
     if (sessionId) {
-      await participants.updateOne(
-        { sessionId, programSlug: params.slug },
-        { $set: { lastSeen: now } }
-      );
+      await participants.updateOne({ sessionId }, { $set: { lastSeen: now } });
     }
 
-    await participants.deleteMany({
-      programSlug: params.slug,
-      lastSeen: { $lt: activeThreshold },
-    });
+    await participants.deleteMany({ lastSeen: { $lt: activeThreshold } });
 
     const activeParticipants = await participants
-      .find({ programSlug: params.slug, lastSeen: { $gte: activeThreshold } })
+      .find({ lastSeen: { $gte: activeThreshold } })
       .sort({ joinedAt: 1 })
       .limit(200)
       .toArray();
 
-    const todayDate = todayInTimezone(now, program.timezone);
-    const todayVideo = await videos.findOne({
-      programId: program._id.toString(),
-      date: todayDate,
-    });
-
-    // Find next upcoming video if no session today or session ended
-    const upcomingVideos = await videos
-      .find({ programId: program._id.toString(), date: { $gte: todayDate } })
-      .sort({ date: 1 })
-      .limit(5)
-      .toArray();
-
-    const sessionInfo = computeProgramSession(program as any, todayVideo as any, now);
-
-    // If no session today, show next upcoming video's date as nextSessionUtc
-    if (!todayVideo && upcomingVideos.length > 0) {
-      const next = upcomingVideos[0];
-      const [h, m] = program.scheduleTime.split(':').map(Number);
-      const iso = `${next.date}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
-      const { zonedTimeToUtc } = await import('@/lib/sadhanaPrograms');
-      sessionInfo.nextSessionUtc = zonedTimeToUtc(iso, program.timezone).toISOString();
+    // Find schedule by program slug
+    let activeSchedule: any = null;
+    try {
+      activeSchedule = await schedules.findOne({ programSlug: params.slug });
+    } catch {
+      activeSchedule = null;
     }
 
-    let playableVideoUrl: string | null = null;
-    if (sessionInfo.status === 'live' && todayVideo) {
-      playableVideoUrl = buildVideoUrlWithOffset(todayVideo.videoUrl, sessionInfo.videoOffsetSeconds);
+    if (!activeSchedule) {
+      return NextResponse.json({ error: 'Program not found' }, { status: 404 });
+    }
+
+    let sessionInfo = null;
+    let playableVideoUrl = null;
+    if (activeSchedule) {
+      sessionInfo = computeSessionStatus(activeSchedule, now);
+      if (sessionInfo.status === 'live' && activeSchedule.videoUrl) {
+        playableVideoUrl = buildVideoUrlWithOffset(
+          activeSchedule.videoUrl,
+          sessionInfo.videoOffsetSeconds
+        );
+      }
+    }
+
+    // Auto-add bot when countdown/live starts
+    if (activeSchedule && (sessionInfo.status === 'countdown' || sessionInfo.status === 'live') && sessionInfo.sessionStartUtc) {
+      const botExists = await participants.findOne({
+        name: '🤖 Swar Yoga Bot'
+      });
+      if (!botExists) {
+        await participants.insertOne({
+          name: '🤖 Swar Yoga Bot',
+          sessionId: 'bot',
+          joinedAt: now,
+          lastSeen: now,
+        });
+      }
+    } else if (activeSchedule && sessionInfo.status === 'ended') {
+      await participants.deleteOne({
+        name: '🤖 Swar Yoga Bot'
+      });
     }
 
     const chatMessages = await chatCol
-      .find({ programSlug: params.slug })
+      .find({})
       .sort({ createdAt: -1 })
       .limit(50)
       .toArray();
@@ -87,23 +198,13 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
         joinedAt: p.joinedAt,
       })),
       program: {
-        slug: program.slug,
-        name: program.name,
-        description: program.description,
-        timezone: program.timezone,
-        scheduleTime: program.scheduleTime,
+        slug: params.slug,
+        name: activeSchedule?.name || 'Sadhana Live',
+        timezone: activeSchedule?.timezone || 'Asia/Kolkata',
       },
-      todayVideo: todayVideo
-        ? {
-            date: todayVideo.date,
-            title: todayVideo.title,
-            videoUrl: todayVideo.videoUrl,
-          }
-        : null,
-      upcomingVideos: upcomingVideos.slice(1).map((v: any) => ({
-        date: v.date,
-        title: v.title,
-      })),
+      todayVideo: {
+        title: activeSchedule?.name || 'Session',
+      },
       session: sessionInfo,
       playableVideoUrl,
       chat: chatMessages.reverse().map((m: any) => ({
