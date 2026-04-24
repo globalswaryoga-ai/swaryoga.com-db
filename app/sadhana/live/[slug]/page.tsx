@@ -288,16 +288,22 @@ export default function ProgramLivePage() {
       );
     } else {
       const isValidUrl = playableUrl && playableUrl.startsWith('http');
-      const autoplayUrl = isValidUrl ? (playableUrl.includes('?') ? `${playableUrl}&autoplay=true` : `${playableUrl}?autoplay=true`) : '';
+      const addParams = (url: string, ...params: string[]) => {
+        const sep = url.includes('?') ? '&' : '?';
+        return url + sep + params.join('&');
+      };
+      const playerUrlWithParams = isValidUrl ? addParams(playableUrl, 'autoplay=true', 'controls=false') : '';
       sessionView = isValidUrl ? (
         <div className="relative w-full h-full group">
           <iframe
-            src={videoStarted ? autoplayUrl : playableUrl}
+            key={`${videoStarted}`}
+            src={videoStarted ? playerUrlWithParams : playableUrl}
             className="w-full h-full"
             allow="autoplay; encrypted-media"
             sandbox="allow-scripts allow-same-origin"
             style={{ border: 'none' }}
             autoPlay={videoStarted}
+            title="Video player"
           />
           {!videoStarted && (
             <button
