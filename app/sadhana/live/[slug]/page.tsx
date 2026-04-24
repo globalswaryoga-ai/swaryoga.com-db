@@ -659,6 +659,9 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
       onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
       onMouseUp={(e) => { if (e.button === 2) { e.preventDefault(); e.stopPropagation(); } }}
       style={{ userSelect: 'none', WebkitUserSelect: 'none' } as React.CSSProperties}
-    />
+    >
+      <source src={url} type="application/x-mpegURL" />
+      Your browser does not support HLS video playback.
+    </video>
   );
 }
