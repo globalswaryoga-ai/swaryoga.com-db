@@ -11,7 +11,7 @@ interface Program {
   videoDuration: number; countdownMinutes: number; active: boolean;
   playerMode?: string; playerUrl?: string;
 }
-interface Video { id: string; date: string; title: string; videoUrl: string; order?: number; }
+interface Video { id: string; date: string; title: string; videoUrl: string; hlsUrl?: string; order?: number; }
 
 function pad(n: number) { return String(n).padStart(2, '0'); }
 function dateKey(y: number, m: number, d: number) { return `${y}-${pad(m + 1)}-${pad(d)}`; }
@@ -39,7 +39,7 @@ export default function ProgramDetailPage() {
   const [loading, setLoading] = useState(true);
   const [cursor, setCursor] = useState(new Date());
   const [editDate, setEditDate] = useState<string | null>(null);
-  const [form, setForm] = useState({ title: '', videoUrl: '' });
+  const [form, setForm] = useState({ title: '', videoUrl: '', hlsUrl: '' });
   const [toast, setToast] = useState('');
   const [editingProgram, setEditingProgram] = useState(false);
   const [editForm, setEditForm] = useState({ name: '', description: '', timeSlots: ['', '', '', ''], timezone: 'Asia/Kolkata', videoDuration: 40, countdownMinutes: 3, playerMode: 'player', playerUrl: '' });
@@ -62,15 +62,20 @@ export default function ProgramDetailPage() {
   const openEditor = (dateStr: string) => {
     const existing = videosByDate[dateStr];
     setEditDate(dateStr);
-    setForm({ title: existing?.title || '', videoUrl: existing?.videoUrl || '' });
+    setForm({ title: existing?.title || '', videoUrl: existing?.videoUrl || '', hlsUrl: existing?.hlsUrl || '' });
   };
 
   const saveVideo = async () => {
-    if (!editDate || !form.videoUrl.trim()) return;
+    if (!editDate || (!form.videoUrl.trim() && !form.hlsUrl.trim())) return;
     await fetch(`/api/admin/crm/sadhana-programs/${params.id}/videos`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ date: editDate, title: form.title.trim(), videoUrl: form.videoUrl.trim() }),
+      body: JSON.stringify({
+        date: editDate,
+        title: form.title.trim(),
+        videoUrl: form.videoUrl.trim() || null,
+        hlsUrl: form.hlsUrl.trim() || null
+      }),
     });
     setToast('✅ Video saved');
     setEditDate(null);
@@ -283,12 +288,38 @@ export default function ProgramDetailPage() {
             </div>
 
             <div>
-              <label className="block text-sm text-gray-100 mb-1">Bunny Video URL *</label>
+              <label className="block text-sm text-gray-100 mb-1">
+                Player URL (for Player Mode)
+                {form.hlsUrl && <span className="text-gray-500 text-xs ml-2">← Clear HLS to enable</span>}
+              </label>
               <input
-                type="url" required value={form.videoUrl}
-                onChange={(e) => setForm({ ...form, videoUrl: e.target.value })}
+                type="url" value={form.videoUrl}
+                onChange={(e) => setForm({ ...form, videoUrl: e.target.value, hlsUrl: '' })}
+                disabled={!!form.hlsUrl}
                 placeholder="https://player.mediadelivery.net/play/638748/..."
-                className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg border border-gray-600 focus:border-pink-400 outline-none text-sm"
+                className={`w-full px-3 py-2 rounded-lg border outline-none text-sm ${
+                  form.hlsUrl
+                    ? 'bg-gray-600 text-gray-400 border-gray-700 cursor-not-allowed'
+                    : 'bg-gray-700 text-white border-gray-600 focus:border-pink-400'
+                }`}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-100 mb-1">
+                HLS URL (for HLS Mode)
+                {form.videoUrl && <span className="text-gray-500 text-xs ml-2">← Clear Player to enable</span>}
+              </label>
+              <input
+                type="url" value={form.hlsUrl}
+                onChange={(e) => setForm({ ...form, hlsUrl: e.target.value, videoUrl: '' })}
+                disabled={!!form.videoUrl}
+                placeholder="https://vz-fdeab82b-805.b-cdn.net/...playlist.m3u8"
+                className={`w-full px-3 py-2 rounded-lg border outline-none text-sm ${
+                  form.videoUrl
+                    ? 'bg-gray-600 text-gray-400 border-gray-700 cursor-not-allowed'
+                    : 'bg-gray-700 text-white border-gray-600 focus:border-pink-400'
+                }`}
               />
             </div>
 

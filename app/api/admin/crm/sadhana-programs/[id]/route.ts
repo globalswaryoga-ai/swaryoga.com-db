@@ -52,6 +52,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
         date: v.date,
         title: v.title,
         videoUrl: v.videoUrl,
+        hlsUrl: v.hlsUrl,
         order: v.order,
       })),
     });

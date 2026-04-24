@@ -5,25 +5,29 @@ import mongoose from 'mongoose';
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { date, title, videoUrl, order } = await request.json();
+    const { date, title, videoUrl, hlsUrl, order } = await request.json();
 
-    if (!date || !videoUrl) {
-      return NextResponse.json({ error: 'date and videoUrl required' }, { status: 400 });
+    if (!date || (!videoUrl && !hlsUrl)) {
+      return NextResponse.json({ error: 'date and at least one URL (videoUrl or hlsUrl) required' }, { status: 400 });
     }
 
     const videosCol = await getProgramVideosCollection();
     const programsCol = await getProgramsCollection();
 
+    const updateData: any = {
+      programId: params.id,
+      date,
+      title: title ? String(title).slice(0, 150) : '',
+      order: order !== undefined ? parseInt(order) : undefined,
+    };
+
+    if (videoUrl) updateData.videoUrl = String(videoUrl);
+    if (hlsUrl) updateData.hlsUrl = String(hlsUrl);
+
     await videosCol.updateOne(
       { programId: params.id, date },
       {
-        $set: {
-          programId: params.id,
-          date,
-          title: title ? String(title).slice(0, 150) : '',
-          videoUrl: String(videoUrl),
-          order: order !== undefined ? parseInt(order) : undefined,
-        },
+        $set: updateData,
       },
       { upsert: true }
     );

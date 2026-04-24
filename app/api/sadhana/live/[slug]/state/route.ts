@@ -224,7 +224,10 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
             const d = new Intl.DateTimeFormat('en-CA', { timeZone: tz, day: '2-digit' }).format(now);
             const yyyymmdd = `${y}-${mo}-${d}`;
             const todayEntry = program.videoCalendar[yyyymmdd];
-            if (todayEntry?.videoUrl) {
+            const playerMode = activeSchedule.playerMode || 'player';
+            if (playerMode === 'hls' && todayEntry?.hlsUrl) {
+              videoUrlForPlayback = todayEntry.hlsUrl;
+            } else if (todayEntry?.videoUrl) {
               videoUrlForPlayback = todayEntry.videoUrl;
             }
           }
@@ -305,7 +308,9 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
           const yyyymmdd = `${y}-${mo}-${d}`;
           const todayEntry = program.videoCalendar?.[yyyymmdd];
           if (todayEntry) {
-            todayVideo = { date: yyyymmdd, title: todayEntry.title, videoUrl: todayEntry.videoUrl };
+            const playerMode = activeSchedule.playerMode || 'player';
+            const url = playerMode === 'hls' && todayEntry.hlsUrl ? todayEntry.hlsUrl : todayEntry.videoUrl;
+            todayVideo = { date: yyyymmdd, title: todayEntry.title, videoUrl: url };
           }
 
           // Get next 7 days of videos
