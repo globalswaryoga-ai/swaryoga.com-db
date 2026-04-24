@@ -202,9 +202,11 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
         name: activeSchedule?.name || 'Sadhana Live',
         timezone: activeSchedule?.timezone || 'Asia/Kolkata',
       },
-      todayVideo: {
-        title: activeSchedule?.name || 'Session',
-      },
+      todayVideo: activeSchedule?.videoUrl ? {
+        title: activeSchedule.name || 'Session',
+        videoUrl: activeSchedule.videoUrl,
+      } : null,
+      upcomingVideos: [],
       session: sessionInfo,
       playableVideoUrl,
       chat: chatMessages.reverse().map((m: any) => ({
