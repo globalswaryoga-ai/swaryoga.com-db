@@ -67,10 +67,22 @@ export default function ProgramLivePage() {
   const [nowTick, setNowTick] = useState<Date>(new Date());
   const [showParticipants, setShowParticipants] = useState(true);
   const [showChat, setShowChat] = useState(true);
+  const [announcement, setAnnouncement] = useState('');
   const sidRef = useRef<string>('');
   const chatEnd = useRef<HTMLDivElement>(null);
 
   useEffect(() => { setName(storedName()); sidRef.current = storedSid(slug); }, [slug]);
+
+  useEffect(() => {
+    const loadAnnouncement = async () => {
+      try {
+        const res = await fetch('/api/admin/sadhana-announcements');
+        const data = await res.json();
+        if (data.success) setAnnouncement(data.announcement);
+      } catch (err) { console.warn('Failed to load announcement:', err); }
+    };
+    loadAnnouncement();
+  }, []);
 
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -245,8 +257,9 @@ export default function ProgramLivePage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-          <div className="lg:col-span-3 bg-black rounded-xl overflow-hidden aspect-video">{sessionView}</div>
+        <div>
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+            <div className="lg:col-span-3 bg-black rounded-xl overflow-hidden aspect-video">{sessionView}</div>
 
           <div className="space-y-4">
             <div className="bg-white/10 backdrop-blur-lg rounded-xl p-4 border border-white/20">
@@ -326,6 +339,17 @@ export default function ProgramLivePage() {
               )}
             </div>
           </div>
+            </div>
+
+          {announcement && (
+            <div className="mt-4 bg-gradient-to-r from-purple-900 via-indigo-900 to-purple-900 rounded-lg overflow-hidden border border-purple-500/30">
+              <div className="py-2 px-4">
+                <div className="animate-marquee whitespace-nowrap text-white text-sm font-medium">
+                  📢 {announcement} • 📢 {announcement} •
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="mt-4 text-center text-purple-200 text-xs">Swar Yoga • Sadhana Live • Namaste 🙏</div>
