@@ -249,7 +249,7 @@ export default function ProgramLivePage() {
       </div>
     );
   } else if (session.status === 'countdown') {
-    const ms = new Date(session.sessionStartUtc!).getTime() - synced.getTime();
+    const ms = new Date(session.sessionStartUtc!).getTime() - nowTick.getTime();
     sessionView = (
       <div className="w-full h-full flex items-center justify-center p-8 bg-gradient-to-br from-purple-800 to-indigo-900">
         <div className="text-center">
