@@ -273,7 +273,7 @@ export default function ProgramDetailPage() {
       {/* Edit Modal */}
       {editDate && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-          <div className="bg-gray-800 border border-gray-600 rounded-xl p-6 max-w-md w-full space-y-4">
+          <div className="bg-gray-800 border border-gray-600 rounded-xl p-6 max-w-md w-full space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold text-white">Video for {editDate}</h3>
               <button onClick={() => setEditDate(null)} className="text-gray-300 hover:text-white">
@@ -346,7 +346,7 @@ export default function ProgramDetailPage() {
 
       {editingProgram && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
-          <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-md w-full space-y-4">
+          <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-md w-full space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold text-white">Edit Program</h3>
               <button onClick={() => setEditingProgram(false)} className="text-gray-400 hover:text-white">
