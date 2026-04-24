@@ -4,6 +4,22 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { ChevronDown, ChevronUp, LogOut, Maximize2, Minimize2, Play } from 'lucide-react';
 
+// Hide Bunny player controls globally
+if (typeof document !== 'undefined') {
+  const style = document.createElement('style');
+  style.textContent = `
+    /* Hide Bunny player controls */
+    .bm-video-controls { display: none !important; }
+    .bm-player-controls { display: none !important; }
+    .bm-controls { display: none !important; }
+    [class*="controls"] { display: none !important; }
+    [class*="player-ui"] { display: none !important; }
+    /* Block interactions with player chrome */
+    iframe[src*="mediadelivery"] ~ * { pointer-events: none !important; }
+  `;
+  document.head.appendChild(style);
+}
+
 interface Participant { name: string; joinedAt: string; }
 interface ChatMsg { id: string; name: string; message: string; createdAt: string; }
 interface Program { slug: string; name: string; description?: string; timezone: string; scheduleTime: string; }
@@ -292,7 +308,7 @@ export default function ProgramLivePage() {
         const sep = url.includes('?') ? '&' : '?';
         return url + sep + params.join('&');
       };
-      const playerUrlWithParams = isValidUrl ? addParams(playableUrl, 'autoplay=true', 'controls=false') : '';
+      const playerUrlWithParams = isValidUrl ? addParams(playableUrl, 'autoplay=true', 'ui=false', 'controls=false') : '';
       sessionView = isValidUrl ? (
         <div className="relative w-full h-full group">
           <iframe
@@ -315,6 +331,9 @@ export default function ProgramLivePage() {
                 <Play size={40} fill="white" className="text-white ml-1" />
               </div>
             </button>
+          )}
+          {videoStarted && (
+            <div className="absolute bottom-0 left-0 right-0 h-20 z-30 pointer-events-none" />
           )}
           <button
             onClick={() => {
