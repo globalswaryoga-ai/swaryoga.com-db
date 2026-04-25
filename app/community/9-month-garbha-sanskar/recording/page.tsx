@@ -30,7 +30,7 @@ interface Recording {
   comments?: RecordingComment[];
 }
 
-export default function 9MonthGarbhaSanskarRecordingsPage() {
+export default function NineMonthGarbhaSanskarRecordingsPage() {
   const router = useRouter();
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [loading, setLoading] = useState(true);
