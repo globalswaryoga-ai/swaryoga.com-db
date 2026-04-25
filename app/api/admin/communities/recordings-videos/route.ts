@@ -3,12 +3,14 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 import {
-  uploadCommunityVideo, 
+  uploadCommunityVideo,
   deleteFromS3,
-  extractS3Key
+  extractS3Key,
+  generateUploadUrl
 } from '@/lib/aws-s3';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 300;
 
 
 /**
