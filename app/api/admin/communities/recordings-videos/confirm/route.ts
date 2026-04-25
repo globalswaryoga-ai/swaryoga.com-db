@@ -58,9 +58,10 @@ export async function POST(request: NextRequest) {
     if (!community) {
       community = await Community.findOne({
         $or: [
-          { slug: communityId },
+          { id: communityId },
           { name: communityId },
           { type: communityId },
+          { name: { $regex: new RegExp(`^${communityId.replace(/-/g, '[\\s-]')}$`, 'i') } },
         ],
       });
     }

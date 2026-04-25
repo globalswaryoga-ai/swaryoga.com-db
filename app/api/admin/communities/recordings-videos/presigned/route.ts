@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
 
     await connectDB();
 
-    // Robust community lookup: try by ObjectId, slug, name, or type
+    // Robust community lookup: try by ObjectId, custom id, name, or type
     const { getCommunity } = await import('@/lib/db');
     const Community = getCommunity();
     let community: any = null;
@@ -63,9 +63,10 @@ export async function POST(request: NextRequest) {
     if (!community) {
       community = await Community.findOne({
         $or: [
-          { slug: communityId },
+          { id: communityId },
           { name: communityId },
           { type: communityId },
+          { name: { $regex: new RegExp(`^${communityId.replace(/-/g, '[\\s-]')}$`, 'i') } },
         ],
       });
     }
