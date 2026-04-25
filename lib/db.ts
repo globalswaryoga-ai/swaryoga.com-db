@@ -486,7 +486,19 @@ const communityVideoSchema = new mongoose.Schema({
   // 'aws' - Uploaded to S3, requires signed URL
   // 'youtube' - YouTube unlisted video, proxy through embed
   // 'bunny-stream' - Bunny Stream HLS video, direct CDN playback
-  videoSource: { type: String, enum: ['aws', 'youtube', 'bunny-stream'], default: 'aws', index: true },
+  videoSource: { 
+    type: String, 
+    enum: ['aws', 'youtube', 'bunny-stream', 'bunny', 'bunny_stream'], // Support multiple variations
+    default: 'aws', 
+    index: true,
+    validate: {
+      validator: function(v: any) {
+        // Accept any of these values
+        return ['aws', 'youtube', 'bunny-stream', 'bunny', 'bunny_stream'].includes(v);
+      },
+      message: 'Invalid videoSource: {VALUE}. Must be one of: aws, youtube, bunny-stream, bunny, bunny_stream'
+    }
+  },
   
   // For AWS videos
   s3Key: { type: String }, // Path in S3: community/{id}/videos/{filename}
