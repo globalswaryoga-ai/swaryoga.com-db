@@ -149,17 +149,17 @@ export const COMMUNITY_DESIGNS: CommunityDesign[] = [
     category: 'health'
   },
   {
-    id: 'aahar',
-    name: 'Aahar (Diet & Nutrition)',
+    id: 'swar-aahar-shastra',
+    name: 'Swar Aahar Shastra',
     icon: Leaf,
-    description: 'Yoga-based diet and nutrition guidance',
+    description: 'Yoga-based diet and nutrition guidance through Swar Yoga principles',
     color: {
-      light: 'bg-lime-50 border-lime-200',
-      main: 'text-lime-600 bg-lime-100',
-      dark: 'from-lime-600 to-lime-700',
-      gradient: 'from-lime-500 to-green-500'
+      light: 'bg-yellow-50 border-yellow-200',
+      main: 'text-yellow-600 bg-yellow-100',
+      dark: 'from-yellow-600 to-yellow-700',
+      gradient: 'from-yellow-500 to-orange-500'
     },
-    philosophy: 'Proper nutrition for yoga practitioners.',
+    philosophy: 'Ancient wisdom of conscious eating aligned with Swar Yoga practices.',
     members: 0,
     isPublic: false,
     category: 'health'
