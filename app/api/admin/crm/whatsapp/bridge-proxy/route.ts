@@ -3,6 +3,8 @@ import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 
+export const dynamic = 'force-dynamic';
+
 const { url: BRIDGE_URL, secret: BRIDGE_SECRET } = getWhatsAppBridgeConfig();
 
 /**

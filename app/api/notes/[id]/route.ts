@@ -3,6 +3,8 @@ import { connectDB, Note } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { Types } from 'mongoose';
 
+export const dynamic = 'force-dynamic';
+
 // PUT - Update note
 export async function PUT(
   request: NextRequest,

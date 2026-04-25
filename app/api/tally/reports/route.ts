@@ -12,6 +12,8 @@ import { NextRequest } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import {
+
+export const dynamic = 'force-dynamic';
   generateTrialBalance,
   generateProfitLoss,
   generateBalanceSheet,

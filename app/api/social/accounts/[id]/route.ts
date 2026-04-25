@@ -4,6 +4,8 @@ import { SocialAccount, Post } from '@/lib/schemas/socialMediaSchemas';
 import { verifyToken } from '@/lib/auth';
 import mongoose from 'mongoose';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * DELETE /api/social/accounts/[id]
  * Disconnect a social media account

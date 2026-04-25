@@ -8,6 +8,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import {
+
+export const dynamic = 'force-dynamic';
   getTenantBySlug,
   getTenantById,
   upgradePlan,

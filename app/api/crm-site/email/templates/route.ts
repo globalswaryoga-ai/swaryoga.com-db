@@ -4,6 +4,8 @@ import { EMAIL_LIMITS, DEFAULT_TEMPLATES, TEMPLATE_CATEGORIES } from '@/lib/crm-
 import { resolveCrmSiteTenantAccess } from '@/lib/crm-site/tenantAccess';
 import { resolveEmailPlanAccess, resolveTenantPlanAccess } from '@/lib/crm-site/tenantPlanAccess';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * Email Templates API
  * GET - List templates

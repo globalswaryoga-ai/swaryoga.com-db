@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/admin/crm/media/proxy?url=<MEDIA_URL>&token=<AUTH_TOKEN>
  * 

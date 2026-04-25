@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { resolveCrmSiteTenantAccess } from '@/lib/crm-site/tenantAccess';
 import { resolveTenantPlanAccess } from '@/lib/crm-site/tenantPlanAccess';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/crm-site/analytics
  * Get tenant analytics - leads, messages, growth metrics

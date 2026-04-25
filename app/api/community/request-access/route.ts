@@ -3,6 +3,8 @@ import { connectDB, CommunityMember } from '@/lib/db';
 import { getOrCreateLeadIdForPhone } from '@/lib/crm/leadNumber';
 import mongoose from 'mongoose';
 
+export const dynamic = 'force-dynamic';
+
 // Join Request Schema (if not exists in db.ts)
 const joinRequestSchema = new mongoose.Schema({
   name: { type: String, required: true },

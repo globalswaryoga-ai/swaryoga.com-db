@@ -10,6 +10,8 @@ import { apiError, apiSuccess } from '@/lib/api-error';
 import { CRM_ADDONS, getEnabledAddons, validateAddonEnv } from '@/lib/crm/addons.registry';
 import { connectDB } from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/admin/crm/addons
  * List all available addons with status

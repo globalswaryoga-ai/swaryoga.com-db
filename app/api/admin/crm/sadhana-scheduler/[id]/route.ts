@@ -4,6 +4,8 @@ import { verifyToken } from '@/lib/auth';
 import { handleCrmError, isSuperAdmin } from '@/lib/crm-handlers';
 import mongoose from 'mongoose';
 
+export const dynamic = 'force-dynamic';
+
 const sadhanaScheduleSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },

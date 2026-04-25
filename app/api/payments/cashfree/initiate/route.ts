@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, Order } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import {
+
+export const dynamic = 'force-dynamic';
   cashfreeCreateOrder,
   getCashfreeEnv,
   getCashfreeReturnUrl,

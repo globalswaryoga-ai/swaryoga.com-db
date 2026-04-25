@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { cashfreeGetOrder } from '@/lib/payments/cashfree';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/crm-site/billing/return
  *

@@ -3,6 +3,8 @@ import { connectDB, VideoPlaylist, PlaylistVideo } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import crypto from 'crypto';
 
+export const dynamic = 'force-dynamic';
+
 // Generate a unique short code for video URLs (e.g. Xsde123)
 function generateShortCode(length = 7): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';

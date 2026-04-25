@@ -18,6 +18,8 @@ import { getUserCompartment } from '@/lib/schemas/enterpriseSchemas';
 import { isBunnyStorageConfigured } from '@/lib/bunny-storage';
 import crypto from 'crypto';
 
+export const dynamic = 'force-dynamic';
+
 // Storage plans
 const STORAGE_PLANS = {
   none: { quotaMB: 0, price: 0 },

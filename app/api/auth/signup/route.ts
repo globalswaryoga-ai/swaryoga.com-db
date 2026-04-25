@@ -17,6 +17,8 @@ import bcrypt from 'bcryptjs';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 import { notifySignupConfirmation } from '@/lib/notifications';
 
+export const dynamic = 'force-dynamic';
+
 // Rate limiting: 5 signup attempts per 10 minutes per IP
 const SIGNUP_RATE_LIMIT = {
   windowMs: 10 * 60 * 1000, // 10 minutes

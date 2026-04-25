@@ -19,6 +19,8 @@ import { provisionTenantDb, tenantDbName } from '@/lib/tenant/tenantDb';
 import { PlanTier } from '@/lib/tenant/types';
 import type { CreateTenantRequest } from '@/lib/tenant/types';
 
+export const dynamic = 'force-dynamic';
+
 // ---------------------------------------------------------------------------
 // Auth guard (superadmin only)
 // ---------------------------------------------------------------------------

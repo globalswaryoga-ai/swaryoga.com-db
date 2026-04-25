@@ -3,6 +3,8 @@ import { connectDB, Order, WorkshopSeatInventory } from '@/lib/db';
 import { PAYU_MERCHANT_SALT, verifyPayUHash } from '@/lib/payments/payu';
 import { notifyPaymentConfirmation } from '@/lib/notifications';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();

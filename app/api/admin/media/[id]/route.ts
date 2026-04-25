@@ -4,6 +4,8 @@ import { MediaPost } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { Types } from 'mongoose';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/admin/media/[id]
  * Fetch single media post

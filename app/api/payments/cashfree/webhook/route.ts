@@ -3,6 +3,8 @@ import { connectDB, Order, WorkshopSchedule, WorkshopSeatInventory } from '@/lib
 import { cashfreeGetOrder } from '@/lib/payments/cashfree';
 import { notifyPaymentConfirmation } from '@/lib/notifications';
 
+export const dynamic = 'force-dynamic';
+
 // Cashfree webhook handler.
 // We keep verification simple and robust:
 // - accept payload

@@ -3,6 +3,8 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { getLeadAssignmentSettings } from '@/lib/schemas/enterpriseSchemas';
 
+export const dynamic = 'force-dynamic';
+
 // GET - Fetch lead assignment settings
 export async function GET(request: NextRequest) {
   try {

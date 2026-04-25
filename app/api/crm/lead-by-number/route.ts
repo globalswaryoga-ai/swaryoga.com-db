@@ -5,6 +5,8 @@ import { verifyToken } from '@/lib/auth';
 import { normalizeLeadNumberInput } from '@/lib/crm/leadNumber';
 import { getLead } from '@/lib/schemas/enterpriseSchemas';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/crm/lead-by-number?leadNumber=006999
  *

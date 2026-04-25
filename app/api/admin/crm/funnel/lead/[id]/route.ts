@@ -7,6 +7,8 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import {
+
+export const dynamic = 'force-dynamic';
   getLead,
   getWhatsAppMessage,
   getFunnelStageHistory,

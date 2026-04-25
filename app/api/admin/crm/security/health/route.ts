@@ -11,6 +11,8 @@ import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 import { securityLog } from '@/lib/security/monitor';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   // Verify super admin auth
   const authHeader = request.headers.get('authorization');

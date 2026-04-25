@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { validateSubmission, mapToLeadData, LANDING_PAGE_LIMITS } from '@/lib/crm-site/landingPageConfig';
 
+export const dynamic = 'force-dynamic';
+
 // POST - Submit form on landing page (public endpoint)
 export async function POST(request: NextRequest) {
   try {

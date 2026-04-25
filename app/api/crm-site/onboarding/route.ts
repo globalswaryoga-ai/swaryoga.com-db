@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { resolveCrmSiteTenantAccess } from '@/lib/crm-site/tenantAccess';
 import { 
+
+export const dynamic = 'force-dynamic';
   ONBOARDING_STEPS, 
   calculateOnboardingProgress, 
   isOnboardingComplete,

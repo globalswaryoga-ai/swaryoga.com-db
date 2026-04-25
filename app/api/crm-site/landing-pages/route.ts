@@ -3,6 +3,8 @@ import { LANDING_PAGE_LIMITS, generateSlug, DEFAULT_FORM_FIELDS } from '@/lib/cr
 import { resolveCrmSiteTenantAccess } from '@/lib/crm-site/tenantAccess';
 import { resolveLandingPagePlanAccess, resolveTenantPlanAccess } from '@/lib/crm-site/tenantPlanAccess';
 
+export const dynamic = 'force-dynamic';
+
 // GET - List landing pages or get single page
 export async function GET(request: NextRequest) {
   try {

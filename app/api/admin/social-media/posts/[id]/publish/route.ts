@@ -6,6 +6,8 @@ import { decryptCredential } from '@/lib/encryption';
 import { upsertMediaPostFromSocialPost } from '@/lib/socialToMediaPost';
 import crypto from 'crypto';
 
+export const dynamic = 'force-dynamic';
+
 function generateAppSecretProof(accessToken: string, appSecret?: string): string | undefined {
   if (!appSecret) return undefined;
   return crypto.createHmac('sha256', appSecret).update(accessToken).digest('hex');

@@ -4,6 +4,8 @@ import { verifyToken } from '@/lib/auth';
 import { encryptCredential } from '@/lib/encryption';
 import { buildSocialMediaScopeFilter, resolveSocialMediaScope, type SocialMediaScope } from '@/lib/socialMediaScope';
 
+export const dynamic = 'force-dynamic';
+
 const META_GRAPH_API_VERSION = process.env.META_GRAPH_API_VERSION || 'v24.0';
 
 type UpsertSocialAccountInput = {

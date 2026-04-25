@@ -13,6 +13,8 @@ import { isSuperAdmin } from '@/lib/crm-handlers';
 import { getTallyReceiptFile } from '@/lib/schemas/enterpriseSchemas';
 import { uploadToS3, buildS3Path, generatePresignedUrl } from '@/lib/bunny-storage';
 
+export const dynamic = 'force-dynamic';
+
 function unauthorized() {
   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 }

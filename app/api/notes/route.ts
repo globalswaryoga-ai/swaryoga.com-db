@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, Note, User } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
 // GET - Fetch user's notes with filtering
 export async function GET(request: NextRequest) {
   try {

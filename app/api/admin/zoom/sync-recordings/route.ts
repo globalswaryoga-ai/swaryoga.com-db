@@ -11,6 +11,8 @@ import { connectDB, Community, CommunityVideo } from '@/lib/db';
 import { getZoomAccessToken, syncZoomRecordingsToS3 } from '@/lib/zoom-s3-sync';
 import { getZoomRecordingSync } from '@/lib/schemas/enterpriseSchemas';
 
+export const dynamic = 'force-dynamic';
+
 // Rate limiting: track last sync time per meeting
 const syncCooldowns = new Map<string, number>();
 const COOLDOWN_MS = 60000; // 1 minute between syncs for same meeting

@@ -3,6 +3,8 @@ import { connectDB } from '@/lib/db';
 import { Post, SocialAccount } from '@/lib/schemas/socialMediaSchemas';
 import { verifyToken } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/social/posts
  * Create new post ready for publishing

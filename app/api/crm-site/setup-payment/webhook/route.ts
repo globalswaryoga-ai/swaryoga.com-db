@@ -3,6 +3,8 @@ import { connectDB } from '@/lib/db';
 import { getUserCompartment } from '@/lib/schemas/enterpriseSchemas';
 import crypto from 'crypto';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/crm-site/setup-payment/webhook
  * 

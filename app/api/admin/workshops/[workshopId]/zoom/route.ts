@@ -11,6 +11,8 @@ import { getWorkshop } from '@/lib/schemas/workshopSchemas';
 import { updateZoomMeeting, deleteZoomMeeting, createZoomMeeting } from '@/lib/zoom-meetings';
 import { notifyZoomLink } from '@/lib/notifications';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * PATCH - Update Zoom meeting for workshop
  */

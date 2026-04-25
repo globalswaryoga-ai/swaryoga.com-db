@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { resolveCrmSiteTenantAccess } from '@/lib/crm-site/tenantAccess';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/crm-site/webhooks
  * List webhooks for a tenant

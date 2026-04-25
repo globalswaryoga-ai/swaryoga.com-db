@@ -16,6 +16,8 @@ import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 import { getTallyManualVoucher } from '@/lib/schemas/enterpriseSchemas';
 
+export const dynamic = 'force-dynamic';
+
 function unauthorized() {
   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 }

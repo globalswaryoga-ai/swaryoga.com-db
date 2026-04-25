@@ -4,6 +4,8 @@ import { RecordedWorkshop } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/admin/workshops/recorded (SUPERADMIN ONLY)
  * Fetch all recorded workshops (paginated)

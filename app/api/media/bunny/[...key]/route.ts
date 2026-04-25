@@ -3,6 +3,8 @@ import { verifyToken } from '@/lib/auth';
 import { getViewerUserId, isSuperAdmin } from '@/lib/crm-handlers';
 import { extractUserIdFromKey } from '@/lib/bunny-storage';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/media/bunny/[...key]
  * 

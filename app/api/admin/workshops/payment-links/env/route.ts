@@ -5,6 +5,8 @@ import { join } from 'path';
 import type { PaymentLink } from '@/lib/workshopDatabase';
 import { isAdminAuthorized } from '@/lib/adminAuth';
 
+export const dynamic = 'force-dynamic';
+
 const ENV_PAYMENT_PATH = join(process.cwd(), '.env.payment');
 
 function readPaymentLinksFromFile(): PaymentLink[] {

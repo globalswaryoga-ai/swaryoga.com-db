@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
+
+export const dynamic = 'force-dynamic';
   HELPDESK_LIMITS,
   DEFAULT_CATEGORIES,
   generateTicketNumber,

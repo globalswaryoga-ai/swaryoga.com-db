@@ -9,6 +9,8 @@ import { verifyToken } from '@/lib/auth';
 import { tenantFilter, getViewerUserId } from '@/lib/crm-handlers';
 import { getInvestment } from '@/lib/schemas/investmentSchemas';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);

@@ -4,6 +4,8 @@ import mongoose from 'mongoose';
 import { connectDB } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { ConsentManager } from '@/lib/consentManager';
+
+export const dynamic = 'force-dynamic';
 // NOTE: Models are imported DYNAMICALLY after connectDB() is called in the handler
 // to avoid calling mongoose.model() before the connection is established
 import { handleInboundWhatsAppAutomations } from '@/lib/whatsappAutomation';

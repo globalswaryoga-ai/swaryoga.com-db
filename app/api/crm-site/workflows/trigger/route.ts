@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { processWorkflowTrigger } from '@/lib/crm-site/workflowEngine';
 import { resolveCrmSiteTenantAccess } from '@/lib/crm-site/tenantAccess';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/crm-site/workflows/trigger
  * Trigger workflows for a specific event

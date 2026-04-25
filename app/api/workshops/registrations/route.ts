@@ -3,6 +3,8 @@ import mongoose from 'mongoose';
 import { connectDB, WorkshopSeatInventory } from '@/lib/db';
 import { notifyWorkshopEnrollment } from '@/lib/notifications';
 
+export const dynamic = 'force-dynamic';
+
 // Workshop Registration Schema
 const workshopRegistrationSchema = new mongoose.Schema(
   {

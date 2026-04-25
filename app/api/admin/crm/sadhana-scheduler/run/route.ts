@@ -3,6 +3,8 @@ import { connectDB } from '@/lib/db';
 import { handleCrmError } from '@/lib/crm-handlers';
 import { sendWhatsAppText } from '@/lib/whatsapp';
 import {
+
+export const dynamic = 'force-dynamic';
   botJoinMeeting,
   sendCountdownMessage,
   startLiveStream,

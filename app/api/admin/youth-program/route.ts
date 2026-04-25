@@ -11,6 +11,8 @@ import { connectDB, Community, CommunityVideo } from '@/lib/db';
 import { getZoomAccessToken } from '@/lib/zoom-s3-sync';
 import { COMMUNITY_TYPES } from '@/lib/community-manager';
 
+export const dynamic = 'force-dynamic';
+
 const YOUTH_MEETING_ID = '83376917306';
 
 export async function GET(request: NextRequest) {

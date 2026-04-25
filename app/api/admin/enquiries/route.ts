@@ -9,6 +9,8 @@ import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 
+export const dynamic = 'force-dynamic';
+
 // Path to store enquiries as JSON file
 const enquiriesDir = path.join(process.cwd(), 'data');
 const enquiriesFilePath = path.join(enquiriesDir, 'enquiries.json');

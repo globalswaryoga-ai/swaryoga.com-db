@@ -14,6 +14,8 @@ import { connectDB } from '@/lib/db';
 import { syncZoomRecordingsToS3, getRecordingTypeDisplayName } from '@/lib/zoom-s3-sync';
 import * as crypto from 'crypto';
 
+export const dynamic = 'force-dynamic';
+
 // Zoom webhook event types we handle
 const HANDLED_EVENTS = ['recording.completed', 'meeting.started'];
 

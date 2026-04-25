@@ -9,6 +9,8 @@ import { apiError, apiSuccess } from '@/lib/api-error';
 import { closeFinancialYear } from '@/lib/tally/engine';
 import { getTallyOwnerIdForWrite } from '@/lib/tally/access';
 
+export const dynamic = 'force-dynamic';
+
 function getAuth(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
   const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;

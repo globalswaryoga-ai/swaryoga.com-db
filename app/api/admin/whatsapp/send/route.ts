@@ -6,6 +6,8 @@ import { AuditLogger } from '@/lib/auditLogger';
 import { getLead, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { normalizePhone, sendWhatsAppText } from '@/lib/whatsapp';
 
+export const dynamic = 'force-dynamic';
+
 function looksLikeObjectId(value: unknown): value is string {
   return typeof value === 'string' && /^[0-9a-fA-F]{24}$/.test(value);
 }

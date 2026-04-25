@@ -18,6 +18,8 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 import {
+
+export const dynamic = 'force-dynamic';
   getTallyConfig,
   testTallyConnection,
   fetchDashboardSummary,

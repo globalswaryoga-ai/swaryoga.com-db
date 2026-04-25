@@ -3,6 +3,8 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { BUILT_IN_REPORTS, REPORT_LIMITS, getDateRange, formatMetricValue } from '@/lib/crm-site/analyticsConfig';
 
+export const dynamic = 'force-dynamic';
+
 // GET - Get specific report data
 export async function GET(request: NextRequest) {
   try {

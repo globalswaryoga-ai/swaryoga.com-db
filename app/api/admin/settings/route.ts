@@ -10,6 +10,8 @@ import { getAdminSettings } from '@/lib/schemas/adminSettingsSchema';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     // Verify superadmin access for GET too

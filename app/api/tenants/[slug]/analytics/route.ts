@@ -10,6 +10,8 @@ import { tenantError, tenantSuccess } from '@/lib/multiTenant/middleware';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { slug: string } }

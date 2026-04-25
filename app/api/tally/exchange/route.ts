@@ -10,6 +10,8 @@ import { apiError, apiSuccess } from '@/lib/api-error';
 import { exportTallyXML, buildTallyXML, importTallyXML, exportTallyJSON, importTallyJSON, importExcelTally, importBankStatement } from '@/lib/tally/engine';
 import { resolveTallyOwnerId, getTallyOwnerIdForWrite } from '@/lib/tally/access';
 
+export const dynamic = 'force-dynamic';
+
 function getAuth(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
   const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;

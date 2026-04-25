@@ -3,6 +3,8 @@ import { put } from '@vercel/blob';
 import { randomUUID } from 'crypto';
 import { verifyToken } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024; // 8MB (serverless-safe)
 
 function isAllowedContentType(contentType: string | undefined) {

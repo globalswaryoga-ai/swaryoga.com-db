@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { PAYU_MERCHANT_KEY, PAYU_MERCHANT_SALT, PAYU_MODE } from '@/lib/payments/payu';
 import crypto from 'crypto';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * Verify Payment Status API
  * Query PayU for transaction status

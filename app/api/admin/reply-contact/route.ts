@@ -3,6 +3,8 @@ import { connectDB, Message, Contact } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import mongoose from 'mongoose';
 
+export const dynamic = 'force-dynamic';
+
 // Admin sends reply to a contact message
 export async function POST(request: NextRequest) {
   try {

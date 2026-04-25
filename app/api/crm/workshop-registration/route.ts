@@ -3,6 +3,8 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { notifyWorkshopEnrollment } from '@/lib/notifications';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/crm/workshop-registration
  * 

@@ -18,6 +18,8 @@ import { verifyToken } from '@/lib/auth';
 import { getZoomAccessToken, syncZoomToBunny, SyncProgressEvent } from '@/lib/zoom-s3-sync';
 import crypto from 'crypto';
 
+export const dynamic = 'force-dynamic';
+
 const ZOOM_API = 'https://api.zoom.us/v2';
 
 /** Generate a unique 7-char short code */

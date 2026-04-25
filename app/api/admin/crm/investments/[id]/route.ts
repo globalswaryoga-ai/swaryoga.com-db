@@ -9,6 +9,8 @@ import { connectDB } from '@/lib/db';
 import { getInvestment } from '@/lib/schemas/investmentSchemas';
 import { verifyToken } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }

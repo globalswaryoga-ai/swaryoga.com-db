@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAndPublishScheduledPosts, getSchedulerStatus } from '@/lib/socialMediaScheduler';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * Scheduled Post Publisher Cron Endpoint
  * 

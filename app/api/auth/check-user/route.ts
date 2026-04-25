@@ -9,6 +9,8 @@ import { normalizePhone } from '@/lib/whatsapp';
 import { apiError, apiSuccess, logError } from '@/lib/api-error';
 import { checkRateLimit, getClientId } from '@/lib/rate-limit';
 
+export const dynamic = 'force-dynamic';
+
 // Rate limiting: 20 checks per 5 minutes per IP
 const CHECK_RATE_LIMIT = {
   windowMs: 5 * 60 * 1000,

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, SocialMediaAccount } from '@/lib/db';
 import { encryptCredential } from '@/lib/encryption';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * YouTube OAuth 2.0 Callback Handler
  * 

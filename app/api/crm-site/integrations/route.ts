@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { 
+
+export const dynamic = 'force-dynamic';
   INTEGRATION_LIMITS,
   INTEGRATION_CATALOG
 } from '@/lib/crm-site/integrationsConfig';

@@ -5,6 +5,8 @@ import { join } from 'path';
 import type { WorkshopSchedule } from '@/lib/workshopDatabase';
 import { isAdminAuthorized } from '@/lib/adminAuth';
 
+export const dynamic = 'force-dynamic';
+
 const ENV_WORKSHOP_PATH = join(process.cwd(), '.env.workshop');
 
 function readSchedulesFromFile(): WorkshopSchedule[] {

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, VideoPlaylist, PlaylistVideo } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
 // GET - List all playlists with filters
 export async function GET(request: NextRequest) {
   try {

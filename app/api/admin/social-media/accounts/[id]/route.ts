@@ -4,6 +4,8 @@ import { verifyToken } from '@/lib/auth';
 import mongoose from 'mongoose';
 import { buildSocialMediaScopeFilter, resolveSocialMediaScope } from '@/lib/socialMediaScope';
 
+export const dynamic = 'force-dynamic';
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
