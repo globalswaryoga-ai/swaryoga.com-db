@@ -7,6 +7,8 @@ import { logApiError } from '@/lib/error-logger';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 import { clearQrSessionContamination, findOtherUsersWithConnectedPhone, getAuthStatePhone, normalizeConnectedPhone, reconcileQrConnectedPhone } from '@/lib/qrSessionIsolation';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * WhatsApp QR Bridge Proxy Endpoint
  * Proxies requests to the WhatsApp bridge service (Baileys).
@@ -43,7 +45,6 @@ const AUTH_COLLECTION = 'baileys_auth_state';
 const AUTH_DB_NAME = process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm';
 
 // Mark as dynamic (uses request.nextUrl for query parameters)
-export const dynamic = 'force-dynamic';
 // Allow large media payloads (base64 encoded images/videos up to 50MB)
 export const maxDuration = 60; // 60s function timeout for Vercel
 

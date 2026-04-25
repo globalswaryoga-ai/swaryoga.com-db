@@ -5,6 +5,8 @@ import * as XLSX from 'xlsx';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import { normalizePhoneStrict } from '@/lib/crm/phone';
 import { 
+
+export const dynamic = 'force-dynamic';
   verifyAdminAccess, 
   getViewerUserId, 
   isSuperAdmin, 
@@ -17,7 +19,6 @@ import { verifyToken } from '@/lib/auth';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 
 // Mark as dynamic since this route uses request.headers or request.url
-export const dynamic = 'force-dynamic';
 
 
 /**

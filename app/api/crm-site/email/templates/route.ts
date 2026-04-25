@@ -6,6 +6,7 @@ import { resolveEmailPlanAccess, resolveTenantPlanAccess } from '@/lib/crm-site/
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * Email Templates API
  * GET - List templates

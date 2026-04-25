@@ -5,6 +5,7 @@ import { TenantTrial } from '@/lib/schemas/enterpriseSchemas';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * POST /api/admin/crm/tenant/qr-lock
  * Lock a QR WhatsApp number to prevent reuse in free trials

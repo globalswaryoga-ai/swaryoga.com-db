@@ -5,6 +5,7 @@ import { handleCrmError, isSuperAdmin, tenantFilter } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
+
 // Import or create SadhanaSchedule model
 import mongoose from 'mongoose';
 

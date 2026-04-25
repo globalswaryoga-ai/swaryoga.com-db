@@ -9,11 +9,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import {
+
+export const dynamic = 'force-dynamic';
   getRecordedCourse,
   getCourseEnrollment,
 } from '@/lib/schemas/recordedCourseSchemas';
 
-export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {

@@ -7,6 +7,7 @@ import { isAdminAuthorized } from '@/lib/adminAuth';
 
 export const dynamic = 'force-dynamic';
 
+
 const ENV_WORKSHOP_PATH = join(process.cwd(), '.env.workshop');
 
 function readSchedulesFromFile(): WorkshopSchedule[] {

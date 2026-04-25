@@ -6,6 +6,7 @@ import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
+
 const sadhanaScheduleSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },

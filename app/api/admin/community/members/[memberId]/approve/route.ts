@@ -1,12 +1,13 @@
 import { connectDB, Community } from '@/lib/db';
 
-export const dynamic = 'force-dynamic';
 
 import { CommunityMember } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 import { notifyCommunityApproval } from '@/lib/notifications';
+
+export const dynamic = 'force-dynamic';
 
 export async function PUT(
   request: NextRequest,

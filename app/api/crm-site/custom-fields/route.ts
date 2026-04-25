@@ -4,13 +4,14 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { 
 
+export const dynamic = 'force-dynamic';
+
   CUSTOM_FIELD_LIMITS, 
   SYSTEM_FIELDS,
   generateFieldKey,
   CustomField 
 } from '@/lib/crm-site/customFieldsConfig';
 
-export const dynamic = 'force-dynamic';
 
 // GET - List custom fields
 export async function GET(request: NextRequest) {

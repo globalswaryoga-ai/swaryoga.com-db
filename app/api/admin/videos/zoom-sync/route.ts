@@ -20,6 +20,7 @@ import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
+
 const ZOOM_API = 'https://api.zoom.us/v2';
 
 /** Generate a unique 7-char short code */

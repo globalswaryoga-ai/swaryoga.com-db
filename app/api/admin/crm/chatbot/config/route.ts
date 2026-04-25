@@ -6,6 +6,7 @@ import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
+
 // Chatbot Config Schema (stored in settings collection)
 const ChatbotConfigSchema = new mongoose.Schema({
   key: { type: String, default: 'chatbot_config', unique: true },

@@ -6,8 +6,9 @@ import { normalizePhone, sendWhatsAppText, sendWhatsAppMedia } from '@/lib/whats
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 
-// Mark as dynamic since this route uses request.headers or request.url
 export const dynamic = 'force-dynamic';
+
+// Mark as dynamic since this route uses request.headers or request.url
 
 /**
  * POST /api/admin/crm/whatsapp/send

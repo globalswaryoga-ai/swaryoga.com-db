@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-export const dynamic = 'force-dynamic';
 
 import { generateAccountingReportHtml } from '@/lib/accountingReportHtml';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
+
+export const dynamic = 'force-dynamic';
 
 // Simple HTML to PDF using a library-free approach
 export async function POST(request: NextRequest) {

@@ -5,6 +5,7 @@ import { isSuperAdmin } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
+
 // Create a new offer (POST) - SUPERADMIN ONLY
 export async function POST(request: NextRequest) {
   try {

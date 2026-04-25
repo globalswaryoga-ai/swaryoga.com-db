@@ -6,6 +6,7 @@ import { apiError, apiSuccess } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * Super Admin Dashboard Stats
  * GET: Returns aggregate stats — total users, signups, payments, plans breakdown

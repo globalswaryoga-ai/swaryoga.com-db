@@ -9,6 +9,7 @@ import { broadcastToTelegram as sendToTelegram, convertToTelegramHTML } from '@/
 import axios from 'axios';
 
 export const dynamic = 'force-dynamic';
+
 export const revalidate = 0;
 
 type ButtonAction = {

@@ -10,6 +10,7 @@ import { connectDB } from '@/lib/db';
 import {
 
 export const dynamic = 'force-dynamic';
+
   createTenant as createTenantHandler,
   generateAPIKey,
   getTenantBySlug,

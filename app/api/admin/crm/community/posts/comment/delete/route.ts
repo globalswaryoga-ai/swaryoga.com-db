@@ -3,6 +3,7 @@ import { connectDB, CommunityPost } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
+
 export const revalidate = 0;
 
 /**

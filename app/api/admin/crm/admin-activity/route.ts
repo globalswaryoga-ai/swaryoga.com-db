@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import {
+
+export const dynamic = 'force-dynamic';
   getLead,
   getWhatsAppMessage,
   getSalesReport,
@@ -11,7 +13,6 @@ import {
 } from '@/lib/schemas/enterpriseSchemas';
 import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 
-export const dynamic = 'force-dynamic';
 
 /**
  * Admin User Activity & Performance API

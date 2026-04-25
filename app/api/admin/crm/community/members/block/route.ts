@@ -4,6 +4,7 @@ import { verifyToken } from '@/lib/auth';
 import { verifyCommunityTenant, getAccessibleCommunityIds } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
+
 export const revalidate = 0;
 
 /**

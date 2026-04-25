@@ -22,6 +22,7 @@ import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 
 export const dynamic = 'force-dynamic';
 
+
 const { url: BRIDGE_URL, secret: BRIDGE_SECRET } = getWhatsAppBridgeConfig();
 
 async function resolveBridgeConfig(userId: string) {

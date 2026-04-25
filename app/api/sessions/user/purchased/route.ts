@@ -5,6 +5,7 @@ import { verifyToken } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * GET /api/sessions/user/purchased
  * Get all sessions purchased by current user with progress

@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import {
+
+export const dynamic = 'force-dynamic';
   fetchEmails,
   fetchEmailByUid,
   markEmailRead,
@@ -11,7 +13,6 @@ import {
   getImapUser,
 } from '@/lib/imapClient';
 
-export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/admin/crm/email/inbox

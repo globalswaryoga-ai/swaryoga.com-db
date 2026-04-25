@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server';
 import { connectDB } from '@/lib/db';
 import {
+
+export const dynamic = 'force-dynamic';
   verifyAdminAccess,
   parsePagination,
   handleCrmError,
@@ -12,7 +14,6 @@ import {
 import { getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { verifyToken } from '@/lib/auth';
 
-export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 function escapeRegexLiteral(input: string): string {

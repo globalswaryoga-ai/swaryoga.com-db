@@ -3,6 +3,7 @@ import { connectDB, CommunityMember } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * GET /api/community/membership/check
  * Check which communities a user is a member of

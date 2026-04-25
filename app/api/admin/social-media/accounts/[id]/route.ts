@@ -6,6 +6,7 @@ import { buildSocialMediaScopeFilter, resolveSocialMediaScope } from '@/lib/soci
 
 export const dynamic = 'force-dynamic';
 
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }

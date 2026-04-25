@@ -3,6 +3,7 @@ import { connectDB, User } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
+
 export async function PUT(request: NextRequest) {
   try {
     await connectDB();

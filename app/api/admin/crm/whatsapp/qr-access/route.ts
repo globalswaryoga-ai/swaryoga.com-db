@@ -7,6 +7,7 @@ import { isSuperAdmin } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * GET /api/admin/crm/whatsapp/qr-access
  * Super admin only: List all CRM users and their QR WhatsApp access status.

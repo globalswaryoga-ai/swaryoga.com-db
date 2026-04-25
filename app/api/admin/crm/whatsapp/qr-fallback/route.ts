@@ -14,13 +14,14 @@ import fs from 'fs';
 import path from 'path';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 
+export const dynamic = 'force-dynamic';
+
 const execAsync = promisify(exec);
 
 const { url: BRIDGE_URL, secret: BRIDGE_SECRET } = getWhatsAppBridgeConfig();
 const CACHE_DIR = path.join(process.cwd(), '.qr-cache');
 const QR_CACHE_FILE = path.join(CACHE_DIR, 'latest-qr.html');
 
-export const dynamic = 'force-dynamic';
 
 // Ensure cache directory exists
 function ensureCacheDir() {

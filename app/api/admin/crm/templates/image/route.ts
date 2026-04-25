@@ -4,6 +4,7 @@ import { generatePresignedUrl } from '@/lib/bunny-storage';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * Get a signed URL for a template image
  * This solves the problem of private S3 buckets not being accessible directly

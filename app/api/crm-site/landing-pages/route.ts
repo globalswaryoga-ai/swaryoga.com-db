@@ -5,6 +5,7 @@ import { resolveLandingPagePlanAccess, resolveTenantPlanAccess } from '@/lib/crm
 
 export const dynamic = 'force-dynamic';
 
+
 // GET - List landing pages or get single page
 export async function GET(request: NextRequest) {
   try {

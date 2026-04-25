@@ -9,6 +9,7 @@ import { apiError, apiSuccess } from '@/lib/api-error';
 import { getFullMeetingAnalytics } from '@/lib/zoom-analytics';
 
 export const dynamic = 'force-dynamic';
+
 export const maxDuration = 60; // Allow up to 60s for large meetings
 
 export async function GET(req: NextRequest) {

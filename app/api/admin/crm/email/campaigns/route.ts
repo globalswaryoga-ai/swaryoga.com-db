@@ -6,8 +6,9 @@ import { getEmailCampaign } from '@/lib/schemas/enterpriseSchemas';
 import { hasPermission } from '@/lib/permissions';
 import { tenantFilter } from '@/lib/crm-handlers';
 
-// Mark as dynamic since this route uses request.headers and request.url
 export const dynamic = 'force-dynamic';
+
+// Mark as dynamic since this route uses request.headers and request.url
 
 // GET /api/admin/crm/email/campaigns - List all email campaigns
 export async function GET(request: NextRequest) {

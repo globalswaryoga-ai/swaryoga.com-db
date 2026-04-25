@@ -6,6 +6,7 @@ import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
+
 // Secret for generating secure video tokens
 const VIDEO_ACCESS_SECRET = process.env.JWT_SECRET || 'fallback-video-secret';
 

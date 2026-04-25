@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-export const dynamic = 'force-dynamic';
 
 import { connectDB, CommunityMember } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+
+export const dynamic = 'force-dynamic';
 
 type Body = {
   chatEnabled?: boolean;

@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { POST as originalPOST } from '../../send/route';
 import crypto from 'crypto';
 
-// Mark as dynamic since this route uses request.headers or request.url
 export const dynamic = 'force-dynamic';
+
+// Mark as dynamic since this route uses request.headers or request.url
 
 
 /**

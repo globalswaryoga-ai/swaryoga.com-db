@@ -5,6 +5,7 @@ import { getWhatsAppMessage, getLead, getBroadcastRunMessage } from '@/lib/schem
 import { getViewerUserId, isSuperAdmin, getVisibleUserIds } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
+
 export const revalidate = 0; // Disable caching for real-time data
 
 /**

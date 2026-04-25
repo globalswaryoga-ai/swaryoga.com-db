@@ -7,6 +7,7 @@ import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
+
 function generateAppSecretProof(accessToken: string, appSecret: string): string {
   return crypto.createHmac('sha256', appSecret).update(accessToken).digest('hex');
 }

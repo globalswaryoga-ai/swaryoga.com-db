@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// Required: This route uses request.url and request.headers
 export const dynamic = 'force-dynamic';
+
+// Required: This route uses request.url and request.headers
 
 /**
  * Debug endpoint to see exactly what Meta is sending during webhook verification

@@ -5,6 +5,7 @@ import { isSuperAdmin } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * Extract YouTube video ID from various URL formats
  * Supports:

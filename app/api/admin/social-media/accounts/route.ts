@@ -6,6 +6,7 @@ import { buildSocialMediaScopeFilter, resolveSocialMediaScope, type SocialMediaS
 
 export const dynamic = 'force-dynamic';
 
+
 const META_GRAPH_API_VERSION = process.env.META_GRAPH_API_VERSION || 'v24.0';
 
 type UpsertSocialAccountInput = {

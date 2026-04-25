@@ -16,6 +16,7 @@ import bcrypt from 'bcryptjs';
 
 export const dynamic = 'force-dynamic';
 
+
 // Rate limiting: 10 login attempts per minute per IP
 const LOGIN_RATE_LIMIT = {
   windowMs: 60 * 1000, // 1 minute

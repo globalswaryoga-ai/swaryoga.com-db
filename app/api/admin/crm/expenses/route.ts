@@ -6,6 +6,7 @@ import { getViewerUserId, isSuperAdmin } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * Expense Tracking API
  * GET: Fetch expenses with filters

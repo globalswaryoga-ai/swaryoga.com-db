@@ -7,6 +7,7 @@ import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * GET /api/admin/crm/whatsapp/window-status?leadIds=id1,id2,...
  * Returns the Meta 24-hour messaging window status for each lead.

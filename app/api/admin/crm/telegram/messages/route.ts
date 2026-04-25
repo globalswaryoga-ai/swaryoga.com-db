@@ -10,6 +10,7 @@ import { getViewerUserId } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
+
 export async function GET(req: NextRequest) {
   try {
     const token = req.headers.get('authorization')?.slice('Bearer '.length);

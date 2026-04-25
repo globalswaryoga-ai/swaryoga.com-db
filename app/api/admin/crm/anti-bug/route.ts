@@ -9,6 +9,7 @@ import { getErrorStats, getRecentErrors } from '@/lib/error-logger';
 import { getCRMUserSettings, getQrWhatsAppChat, getQrWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 
 export const dynamic = 'force-dynamic';
+
 const SUPER_ADMIN_IDS = new Set(['admin', 'admincrm']);
 
 type BridgeEndpointStatus = {

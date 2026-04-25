@@ -15,6 +15,7 @@ import { uploadToS3, buildS3Path, generatePresignedUrl } from '@/lib/bunny-stora
 
 export const dynamic = 'force-dynamic';
 
+
 function unauthorized() {
   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 }

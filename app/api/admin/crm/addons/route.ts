@@ -12,6 +12,7 @@ import { connectDB } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * GET /api/admin/crm/addons
  * List all available addons with status

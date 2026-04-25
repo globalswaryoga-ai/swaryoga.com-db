@@ -6,6 +6,7 @@ import { workshopCatalog, workshopDetails } from '@/lib/workshopsData';
 
 export const dynamic = 'force-dynamic';
 
+
 export async function POST(request: NextRequest) {
   try {
     if (!isAdminAuthorized(request)) {

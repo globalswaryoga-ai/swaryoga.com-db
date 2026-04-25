@@ -5,6 +5,7 @@ import { BulkMessageManager } from '@/lib/bulkMessageManager';
 
 export const dynamic = 'force-dynamic';
 
+
 function verifyAdmin(request: NextRequest) {
   const token = request.headers.get('authorization')?.slice('Bearer '.length);
   const decoded = verifyToken(token);

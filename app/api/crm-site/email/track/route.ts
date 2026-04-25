@@ -3,6 +3,7 @@ import { connectDB } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * Email Tracking Endpoint
  * Handles open tracking (via pixel) and click tracking (via redirect)

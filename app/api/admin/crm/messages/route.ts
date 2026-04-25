@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import {
+
+export const dynamic = 'force-dynamic';
   verifyAdminAccess,
   parsePagination,
   buildFilter,
@@ -26,7 +28,6 @@ import { sendWhatsAppText, sendWhatsAppMedia } from '@/lib/whatsapp';
  */
 
 // Mark this route as dynamic (uses request.url for filtering)
-export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {

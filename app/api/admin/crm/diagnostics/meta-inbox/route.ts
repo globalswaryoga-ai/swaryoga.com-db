@@ -5,6 +5,7 @@ import { verifyToken } from '@/lib/auth';
 import { getLead, getWhatsAppMessage, getWhatsAppWebhookEvent } from '@/lib/schemas/enterpriseSchemas';
 
 export const dynamic = 'force-dynamic';
+
 export const revalidate = 0;
 
 /**

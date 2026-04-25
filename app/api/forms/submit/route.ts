@@ -18,6 +18,7 @@ import { notifyFormSubmission } from '@/lib/notifications';
 
 export const dynamic = 'force-dynamic';
 
+
 // Rate limiting: 10 submissions per 15 minutes per IP
 const FORM_RATE_LIMIT = {
   windowMs: 15 * 60 * 1000, // 15 minutes

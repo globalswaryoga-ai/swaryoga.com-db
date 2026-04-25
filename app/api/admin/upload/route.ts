@@ -13,6 +13,7 @@ import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
+
 // Simple schema for uploaded images
 const uploadSchema = new mongoose.Schema({
   filename: String,

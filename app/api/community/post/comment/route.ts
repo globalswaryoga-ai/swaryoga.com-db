@@ -5,6 +5,7 @@ import { CommunityPost } from '@/lib/db';
 import { contentHasLink, enforceCommunityChatPolicy, getMyCommunityChatPolicy } from '@/lib/communityChatPolicy';
 
 export const dynamic = 'force-dynamic';
+
 export const revalidate = 0;
 
 const isObjectIdLike = (value: string) => /^[a-f\d]{24}$/i.test(value);

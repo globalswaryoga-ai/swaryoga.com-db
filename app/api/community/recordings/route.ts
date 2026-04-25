@@ -4,6 +4,7 @@ import { getProtectedUrl } from '@/lib/aws-s3';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * GET /api/community/recordings
  * Public API to fetch community recordings

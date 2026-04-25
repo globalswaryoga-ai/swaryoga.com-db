@@ -5,6 +5,7 @@ import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
+
 // GET - List all landing pages
 export async function GET(request: NextRequest) {
   try {

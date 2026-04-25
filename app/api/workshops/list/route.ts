@@ -3,6 +3,7 @@ import { connectDB, WorkshopSchedule } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
+
 export async function GET() {
   try {
     await connectDB();

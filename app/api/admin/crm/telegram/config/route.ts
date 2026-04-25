@@ -14,6 +14,7 @@ import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
+
 function getBaseUrl(req: NextRequest): string {
   const proto = req.headers.get('x-forwarded-proto') || 'https';
   const host = req.headers.get('host') || 'swaryoga.com';

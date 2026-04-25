@@ -5,6 +5,7 @@ import { tenantFilter } from '@/lib/crm-handlers';
 import { getWhatsAppMessage, getLead } from '@/lib/schemas/enterpriseSchemas';
 
 export const dynamic = 'force-dynamic';
+
 export const revalidate = 0;
 
 /**

@@ -5,6 +5,7 @@ import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
+
 function isValidUrl(url: string): boolean {
   if (!url) return false;
   try {

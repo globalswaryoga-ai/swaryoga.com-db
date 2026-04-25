@@ -5,6 +5,7 @@ import { isSuperAdmin } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
+
 export async function GET(req: NextRequest) {
   try {
     // Verify admin token

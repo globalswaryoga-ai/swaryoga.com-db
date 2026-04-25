@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-export const dynamic = 'force-dynamic';
 
 import { connectDB, Account, Transaction } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
+
+export const dynamic = 'force-dynamic';
 
 const getAdminOwner = (request: NextRequest) => {
   const token = request.headers.get('authorization')?.slice('Bearer '.length);

@@ -6,6 +6,7 @@ import { LEAD_NUMBER_COUNTER_ID } from '@/lib/crm/leadNumber';
 
 export const dynamic = 'force-dynamic';
 
+
 function getViewerUserId(decoded: any): string {
   return String(decoded?.userId || decoded?.username || '').trim();
 }

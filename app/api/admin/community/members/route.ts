@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-export const dynamic = 'force-dynamic';
 
 import { connectDB, CommunityMember } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
+
+export const dynamic = 'force-dynamic';
 
 // GET - Fetch community members (SUPERADMIN ONLY)
 export async function GET(request: NextRequest) {

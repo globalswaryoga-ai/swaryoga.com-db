@@ -9,6 +9,7 @@ import { connectDB, SocialMediaAccount } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
+
 const SETUP_PAGE = '/admin/social-media-setup?platform=linkedin';
 
 export async function GET(req: NextRequest) {

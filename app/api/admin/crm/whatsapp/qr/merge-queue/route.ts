@@ -14,6 +14,8 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import mongoose from 'mongoose';
 import {
+
+export const dynamic = 'force-dynamic';
   createMergeQueueEntry,
   shouldProceedWithNextMergeOperation,
   formatMergeQueueProgress,
@@ -58,7 +60,6 @@ const mergeQueueSchema = new mongoose.Schema({
 });
 
 export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
 
 /**
  * POST /api/admin/crm/whatsapp/qr/merge-queue

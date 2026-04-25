@@ -8,6 +8,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import {
+
+export const dynamic = 'force-dynamic';
   getRecordedCourse,
   getCourseVideo,
   getCourseEnrollment,
@@ -15,7 +17,6 @@ import {
   getCourseDevice,
 } from '@/lib/schemas/recordedCourseSchemas';
 
-export const dynamic = 'force-dynamic';
 
 interface RouteParams {
   params: Promise<{ videoId: string }>;

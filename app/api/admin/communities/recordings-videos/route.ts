@@ -3,12 +3,13 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 import { 
+
+export const dynamic = 'force-dynamic';
   uploadCommunityVideo, 
   deleteFromS3,
   extractS3Key
 } from '@/lib/aws-s3';
 
-export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/admin/communities/recordings-videos

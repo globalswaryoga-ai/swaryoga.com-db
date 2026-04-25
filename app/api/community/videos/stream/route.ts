@@ -3,6 +3,7 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
+
 export const maxDuration = 300; // 5 min for large videos
 
 // ── In-memory cache for resolved CDN URLs (avoids re-calling ytdl on every range request) ──

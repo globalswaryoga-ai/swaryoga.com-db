@@ -20,6 +20,7 @@ import { isSuperAdmin } from '@/lib/crm-handlers';
 import {
 
 export const dynamic = 'force-dynamic';
+
   getTallyConfig,
   testTallyConnection,
   fetchDashboardSummary,

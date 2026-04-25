@@ -5,8 +5,9 @@ import { Lead } from '@/lib/schemas/enterpriseSchemas';
 import { isValidObjectId, toObjectId } from '@/lib/crm-handlers';
 import { normalizeLeadNumberInput } from '@/lib/crm/leadNumber';
 
-// Mark as dynamic since this route uses request.headers or request.url
 export const dynamic = 'force-dynamic';
+
+// Mark as dynamic since this route uses request.headers or request.url
 
 
 function getViewerUserId(decoded: any): string {

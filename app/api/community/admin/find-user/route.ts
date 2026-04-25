@@ -3,6 +3,7 @@ import { isAdminAuthorized } from '@/lib/adminAuth';
 import { connectDB, User } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
+
 export const revalidate = 0;
 
 const isObjectIdLike = (value: string) => /^[a-f\d]{24}$/i.test(value);

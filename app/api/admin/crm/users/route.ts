@@ -6,6 +6,7 @@ import { getViewerUserId, isSuperAdmin } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * GET /api/admin/crm/users
  * Returns a list of admin users derived from lead assignments.

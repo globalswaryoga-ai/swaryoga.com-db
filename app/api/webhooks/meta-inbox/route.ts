@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
+
+export const dynamic = 'force-dynamic';
   getMetaInboxVerifyToken,
   ingestMetaSocialEvent,
   parseMetaSocialWebhookPayload,
@@ -7,7 +9,6 @@ import {
 } from '@/lib/socialInbox';
 import { logError } from '@/lib/api-error';
 
-export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);

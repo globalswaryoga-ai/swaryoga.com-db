@@ -7,6 +7,7 @@ import { hasPermission } from '@/lib/permissions';
 
 export const dynamic = 'force-dynamic';
 
+
 // GET /api/admin/crm/email/logs - List email logs with filters
 export async function GET(request: NextRequest) {
   try {

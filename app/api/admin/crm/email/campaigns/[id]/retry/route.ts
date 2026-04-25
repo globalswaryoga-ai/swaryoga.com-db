@@ -6,10 +6,11 @@ import { getEmailCampaign } from '@/lib/schemas/enterpriseSchemas';
 import { hasPermission } from '@/lib/permissions';
 import { tenantFilter } from '@/lib/crm-handlers';
 
+export const dynamic = 'force-dynamic';
+
 // POST /api/admin/crm/email/campaigns/[id]/retry - Retry failed email campaign
 
 // Mark as dynamic since this route uses request.headers or request.url
-export const dynamic = 'force-dynamic';
 
 export async function POST(
   request: NextRequest,

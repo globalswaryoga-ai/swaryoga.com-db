@@ -4,8 +4,9 @@ import { handleCrmError, tenantFilter } from '@/lib/crm-handlers';
 import { verifyToken } from '@/lib/auth';
 import { BroadcastRun, BroadcastRunMessage } from '@/lib/schemas/enterpriseSchemas';
 
-export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+export const runtime = 'nodejs';
 export const revalidate = 0;
 
 function verifyAdmin(request: NextRequest) {

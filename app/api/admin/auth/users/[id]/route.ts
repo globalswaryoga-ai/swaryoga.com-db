@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-export const dynamic = 'force-dynamic';
 
 import { connectDB, getUser } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { Types } from 'mongoose';
 import bcrypt from 'bcryptjs';
+
+export const dynamic = 'force-dynamic';
 
 export async function PUT(
   request: NextRequest,

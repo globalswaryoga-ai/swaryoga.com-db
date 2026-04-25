@@ -9,6 +9,7 @@ import { tenantFilter } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
+
 // POST /api/admin/crm/email/logs/resend - Resend failed emails
 export async function POST(request: NextRequest) {
   try {

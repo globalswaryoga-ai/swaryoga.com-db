@@ -5,6 +5,7 @@ import { verifyToken } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * GET /api/crm-site/account
  * Returns the logged-in CRM user's profile.

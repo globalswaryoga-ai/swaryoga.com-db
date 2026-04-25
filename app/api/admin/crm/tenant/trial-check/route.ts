@@ -5,6 +5,7 @@ import { TenantTrial } from '@/lib/schemas/enterpriseSchemas';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * GET /api/admin/crm/tenant/trial-check
  * Check trial status, return popup info needed

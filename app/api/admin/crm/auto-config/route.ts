@@ -7,6 +7,7 @@ import { isSuperAdmin } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * GET /api/admin/crm/auto-config (SUPERADMIN ONLY)
  * Fetch current auto-config settings

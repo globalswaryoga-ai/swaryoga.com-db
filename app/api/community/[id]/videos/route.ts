@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { 
+
+export const dynamic = 'force-dynamic';
   uploadCommunityVideo, 
   listCommunityVideos, 
   getProtectedUrl,
@@ -9,7 +11,6 @@ import {
   extractS3Key
 } from '@/lib/aws-s3';
 
-export const dynamic = 'force-dynamic';
 
 // Video metadata stored in MongoDB
 interface CommunityVideo {

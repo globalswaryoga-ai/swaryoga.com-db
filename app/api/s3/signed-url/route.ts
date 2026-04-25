@@ -3,6 +3,7 @@ import { generatePresignedUrl } from '@/lib/bunny-storage';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * GET /api/s3/signed-url?key=path/to/file.jpg&bucket=optional-bucket
  * Returns a signed URL for accessing private S3 objects

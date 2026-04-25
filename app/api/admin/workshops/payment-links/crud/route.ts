@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
+
 const proxyToEnv = async (request: NextRequest, init: RequestInit & { method: string }) => {
   const origin = new URL(request.url).origin;
   const url = new URL('/api/admin/workshops/payment-links/env', origin);

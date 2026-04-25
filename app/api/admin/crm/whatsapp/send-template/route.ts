@@ -5,8 +5,9 @@ import { getLead, getWhatsAppMessage, getWhatsAppTemplate, getAnalyticsEvent } f
 import { buildCloudTemplateSendInput, normalizePhone, sendWhatsAppTemplate } from '@/lib/whatsapp';
 import crypto from 'crypto';
 
-// Mark as dynamic since this route uses request.headers or request.url
 export const dynamic = 'force-dynamic';
+
+// Mark as dynamic since this route uses request.headers or request.url
 
 // Cost per template message in INR (Meta charges ~₹0.70 for marketing templates in India)
 const TEMPLATE_COST_INR = parseFloat(process.env.META_TEMPLATE_COST_INR || '0.70');

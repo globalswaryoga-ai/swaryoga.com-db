@@ -5,8 +5,9 @@ import { connectDB } from '@/lib/db';
 import { getWhatsAppWebhookEvent } from '@/lib/schemas/enterpriseSchemas';
 import { generateAppSecretProof } from '@/lib/whatsapp';
 
-// Mark as dynamic since this route uses request.headers or request.url
 export const dynamic = 'force-dynamic';
+
+// Mark as dynamic since this route uses request.headers or request.url
 
 
 function mask(v: string | undefined | null): string {

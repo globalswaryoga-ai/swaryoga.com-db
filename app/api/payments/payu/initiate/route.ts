@@ -10,13 +10,14 @@ import { connectDB, Order } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import {
 
+export const dynamic = 'force-dynamic';
+
   PAYU_MERCHANT_KEY,
   PAYU_MERCHANT_SALT,
   generatePayUHash,
   getPayUPaymentUrl,
 } from '@/lib/payments/payu';
 
-export const dynamic = 'force-dynamic';
 
 // Clean payment initiation - NO rate limiting - TESTED AND WORKING
 export async function POST(request: NextRequest) {

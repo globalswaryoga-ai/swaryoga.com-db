@@ -4,6 +4,7 @@ import { verifyToken } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
+
 // GET - Fetch user's notes with filtering
 export async function GET(request: NextRequest) {
   try {

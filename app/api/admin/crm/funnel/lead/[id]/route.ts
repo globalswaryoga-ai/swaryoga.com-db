@@ -8,6 +8,8 @@ import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import {
 
+export const dynamic = 'force-dynamic';
+
   getLead,
   getWhatsAppMessage,
   getFunnelStageHistory,
@@ -15,7 +17,6 @@ import {
   getSalesReport,
 } from '@/lib/schemas/enterpriseSchemas';
 
-export const dynamic = 'force-dynamic';
 
 export async function GET(
   request: NextRequest,

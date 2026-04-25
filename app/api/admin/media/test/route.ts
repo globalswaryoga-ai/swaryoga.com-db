@@ -4,6 +4,7 @@ import { S3Client, HeadBucketCommand } from '@aws-sdk/client-s3';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * POST /api/admin/media/test
  * Test S3 connection

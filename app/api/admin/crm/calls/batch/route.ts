@@ -12,6 +12,7 @@ import { tenantFilter, isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers'
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * POST /api/admin/crm/calls/batch
  * Body: { leadIds: string[], purpose, language, customPrompt?, name?, maxConcurrency? }

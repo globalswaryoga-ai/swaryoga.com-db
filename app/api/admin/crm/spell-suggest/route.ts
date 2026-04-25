@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * POST /api/admin/crm/spell-suggest
  * Get spelling suggestions for a potentially misspelled word.

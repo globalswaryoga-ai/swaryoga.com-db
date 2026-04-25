@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, MediaPost } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
+
 export const revalidate = 0;
 
 /**

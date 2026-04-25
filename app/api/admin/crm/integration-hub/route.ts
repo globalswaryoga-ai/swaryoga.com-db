@@ -6,6 +6,7 @@ import { getViewerUserId } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * GET /api/admin/crm/integration-hub
  * Fetch integration hub settings for the logged-in user

@@ -3,8 +3,9 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { DeletedLead } from '@/lib/schemas/enterpriseSchemas';
 
-// Mark as dynamic since this route uses request.headers or request.url
 export const dynamic = 'force-dynamic';
+
+// Mark as dynamic since this route uses request.headers or request.url
 
 
 function getViewerUserId(decoded: any): string {

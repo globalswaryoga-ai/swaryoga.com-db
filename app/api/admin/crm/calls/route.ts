@@ -13,6 +13,7 @@ import { tenantFilter, isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers'
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * GET /api/admin/crm/calls?leadId=xxx
  * Get call history for a specific lead or all recent calls

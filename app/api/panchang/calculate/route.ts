@@ -3,6 +3,7 @@ import { spawn } from 'child_process';
 import path from 'path';
 
 export const dynamic = 'force-dynamic';
+
 export const revalidate = 0;
 
 /**

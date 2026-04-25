@@ -7,6 +7,7 @@ import { join } from 'path';
 
 export const dynamic = 'force-dynamic';
 
+
 const execAsync = promisify(exec);
 
 export async function POST(request: NextRequest) {

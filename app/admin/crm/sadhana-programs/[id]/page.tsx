@@ -13,6 +13,10 @@ interface Program {
   botName?: string; botJoinMinutes?: number; enableBotAutomation?: boolean;
 }
 interface Video { id: string; date: string; title: string; videoUrl: string; hlsUrl?: string; order?: number; }
+interface LiveStats {
+  activeParticipants: number;
+  chatMessages24h: number;
+}
 
 function pad(n: number) { return String(n).padStart(2, '0'); }
 function dateKey(y: number, m: number, d: number) { return `${y}-${pad(m + 1)}-${pad(d)}`; }
@@ -37,6 +41,7 @@ export default function ProgramDetailPage() {
   const router = useRouter();
   const [program, setProgram] = useState<Program | null>(null);
   const [videos, setVideos] = useState<Video[]>([]);
+  const [liveStats, setLiveStats] = useState<LiveStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [cursor, setCursor] = useState(new Date());
   const [editDate, setEditDate] = useState<string | null>(null);
@@ -52,6 +57,7 @@ export default function ProgramDetailPage() {
     if (data.success) {
       setProgram(data.program);
       setVideos(data.videos);
+      setLiveStats(data.liveStats || null);
     }
     setLoading(false);
   };
@@ -167,7 +173,7 @@ export default function ProgramDetailPage() {
       </div>
 
       <div className="bg-gradient-to-br from-purple-800 to-pink-800 border border-purple-400 rounded-xl p-5 mb-6">
-        <div className="flex items-start justify-between mb-3">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between mb-3">
           <div>
             <h1 className="text-2xl font-bold text-white mb-1">{program.name}</h1>
             {program.description && <p className="text-purple-50 text-sm">{program.description}</p>}
@@ -191,6 +197,22 @@ export default function ProgramDetailPage() {
           <span className="bg-black/50 text-blue-100 px-2 py-1 rounded">⏱ {program.countdownMinutes}min countdown</span>
         </div>
 
+        <div className="grid gap-3 md:grid-cols-3 mb-4">
+          <div className="bg-black/60 rounded-lg p-3 flex flex-col gap-2">
+            <span className="text-xs uppercase tracking-[0.2em] text-gray-400">Live session</span>
+            <span className="text-3xl font-bold text-white">{liveStats ? liveStats.activeParticipants : '—'}</span>
+            <span className="text-sm text-gray-300">Currently joined</span>
+          </div>
+          <div className="bg-black/60 rounded-lg p-3 flex flex-col gap-2">
+            <span className="text-xs uppercase tracking-[0.2em] text-gray-400">Recent chat</span>
+            <span className="text-3xl font-bold text-white">{liveStats ? liveStats.chatMessages24h : '—'}</span>
+            <span className="text-sm text-gray-300">Messages in last 24 hours</span>
+          </div>
+          <div className="bg-black/60 rounded-lg p-3 flex flex-col gap-2">
+            <span className="text-xs uppercase tracking-[0.2em] text-gray-400">Program URL</span>
+            <code className="text-purple-100 text-sm break-all">{liveUrl}</code>
+          </div>
+        </div>
         <div className="bg-black/60 rounded-lg p-3 flex items-center gap-2">
           <code className="flex-1 text-purple-100 text-sm break-all">{liveUrl}</code>
           <button
@@ -257,6 +279,12 @@ export default function ProgramDetailPage() {
                   </div>
                 ) : (
                   <div className="text-[10px] text-gray-500 mt-1">+ Add video</div>
+                )}
+                {isToday && liveStats && (
+                  <div className="mt-2 space-y-1 text-[10px]">
+                    <div className="text-sky-200">👥 {liveStats.activeParticipants} joined</div>
+                    <div className="text-emerald-200">💬 {liveStats.chatMessages24h} chat</div>
+                  </div>
                 )}
               </button>
             );

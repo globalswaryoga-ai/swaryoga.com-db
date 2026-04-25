@@ -4,6 +4,8 @@ import { connectDB } from '@/lib/db';
 import { apiError, apiSuccess, logError } from '@/lib/api-error';
 import { verifyToken } from '@/lib/auth';
 import {
+
+export const dynamic = 'force-dynamic';
   buildSocialInboxScopeFilter,
   createOutboundSocialMessage,
   markSocialConversationRead,
@@ -13,7 +15,6 @@ import {
 import { resolveSocialMediaScope } from '@/lib/socialMediaScope';
 import { getSocialInboxConversation, getSocialInboxMessage } from '@/lib/schemas/enterpriseSchemas';
 
-export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {

@@ -7,11 +7,12 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
-export const dynamic = 'force-dynamic';
 
 import { connectDB, Account } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import type { AuthContext, AccountType } from '@/lib/types';
+
+export const dynamic = 'force-dynamic';
 
 const getUserOwner = (request: NextRequest): AuthContext | null => {
   const authHeader = request.headers.get('authorization');

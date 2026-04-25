@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { connectDB, Offer } from '@/lib/db';
 
-// This route depends on MongoDB; ensure it's never pre-rendered at build time.
 export const dynamic = 'force-dynamic';
+
+// This route depends on MongoDB; ensure it's never pre-rendered at build time.
 export const revalidate = 0;
 
 // Get active offers for users

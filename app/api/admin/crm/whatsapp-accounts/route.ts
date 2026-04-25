@@ -5,8 +5,9 @@ import { verifyToken } from '@/lib/auth';
 import { Types } from 'mongoose';
 import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 
-// Mark as dynamic since this route uses request.headers or request.url
 export const dynamic = 'force-dynamic';
+
+// Mark as dynamic since this route uses request.headers or request.url
 
 
 export async function GET(request: NextRequest) {

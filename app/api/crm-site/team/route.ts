@@ -6,6 +6,7 @@ import { resolveUserSeatLimit } from '@/lib/crm-site/tenantPlanAccess';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * GET /api/crm-site/team
  * List team members for a tenant

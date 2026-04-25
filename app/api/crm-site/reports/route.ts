@@ -5,6 +5,7 @@ import { BUILT_IN_REPORTS, REPORT_LIMITS, getDateRange, formatMetricValue } from
 
 export const dynamic = 'force-dynamic';
 
+
 // GET - Get specific report data
 export async function GET(request: NextRequest) {
   try {

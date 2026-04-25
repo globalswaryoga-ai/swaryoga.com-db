@@ -4,6 +4,7 @@ import { verifyToken } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * POST /api/admin/media/presigned
  * Generate a presigned URL for direct S3 upload (bypasses 4.5MB Vercel limit)

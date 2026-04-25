@@ -13,6 +13,7 @@ import { isSuperAdmin } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
+
 // Rate limit: max 30 error reports per minute per IP
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 

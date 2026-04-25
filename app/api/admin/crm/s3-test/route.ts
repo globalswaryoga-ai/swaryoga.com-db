@@ -10,6 +10,7 @@ import { S3Client, HeadBucketCommand } from '@aws-sdk/client-s3';
 
 export const dynamic = 'force-dynamic';
 
+
 export async function GET(request: NextRequest) {
   try {
     // 1. Verify admin access

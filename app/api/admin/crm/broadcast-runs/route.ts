@@ -5,8 +5,9 @@ import { verifyToken } from '@/lib/auth';
 import { BroadcastListMember, BroadcastRun, BroadcastRunMessage, Lead, WhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
 import mongoose from 'mongoose';
 
-export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+export const runtime = 'nodejs';
 export const revalidate = 0;
 
 function verifyAdmin(request: NextRequest) {

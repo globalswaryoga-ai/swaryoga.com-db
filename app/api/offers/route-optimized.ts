@@ -6,6 +6,7 @@ import { isRateLimited } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 
+
 export const revalidate = 300; // Revalidate every 5 minutes (ISR)
 
 /**

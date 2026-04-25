@@ -8,6 +8,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { 
+
+export const dynamic = 'force-dynamic';
   getLogs, 
   getUserLogs, 
   getRequestLogs,
@@ -20,7 +22,6 @@ import {
 import { Timer } from '@/lib/logging';
 
 // Required: This route uses request.url
-export const dynamic = 'force-dynamic';
 
 const timer = new Timer();
 

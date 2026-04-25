@@ -4,6 +4,7 @@ import { validateSubmission, mapToLeadData, LANDING_PAGE_LIMITS } from '@/lib/cr
 
 export const dynamic = 'force-dynamic';
 
+
 // POST - Submit form on landing page (public endpoint)
 export async function POST(request: NextRequest) {
   try {

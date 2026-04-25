@@ -11,6 +11,7 @@ import { isSuperAdmin } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * GET /api/admin/crm/ai-agents (SUPERADMIN ONLY)
  * ?action=list          → List all agents

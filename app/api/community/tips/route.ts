@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
+
 // Tips Schema
 const TipSchema = new mongoose.Schema({
   userId: { type: String },

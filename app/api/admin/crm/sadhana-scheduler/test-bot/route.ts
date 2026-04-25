@@ -4,6 +4,8 @@ import { verifyToken } from '@/lib/auth';
 import { botJoinMeeting } from '@/lib/zoomBotService';
 import mongoose from 'mongoose';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * Extract Zoom meeting ID and password from Zoom link
  */
@@ -44,7 +46,6 @@ const sadhanaScheduleSchema = new mongoose.Schema({
 });
 
 export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
 
 /**
  * POST /api/admin/crm/sadhana-scheduler/test-bot

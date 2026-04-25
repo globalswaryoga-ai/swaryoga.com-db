@@ -6,6 +6,7 @@ import { connectDB } from '@/lib/db';
 import { WhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 
 export const dynamic = 'force-dynamic';
+
 export const revalidate = 0;
 
 /**

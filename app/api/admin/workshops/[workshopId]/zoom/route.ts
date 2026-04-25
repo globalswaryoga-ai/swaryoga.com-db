@@ -13,6 +13,7 @@ import { notifyZoomLink } from '@/lib/notifications';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * PATCH - Update Zoom meeting for workshop
  */

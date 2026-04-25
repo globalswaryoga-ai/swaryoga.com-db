@@ -5,6 +5,7 @@ import { TenantTrial } from '@/lib/schemas/enterpriseSchemas';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * POST /api/admin/crm/tenant/storage-payment
  * Process ₹50 storage payment on Day 2

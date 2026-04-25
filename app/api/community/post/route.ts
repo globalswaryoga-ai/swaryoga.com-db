@@ -4,6 +4,7 @@ import { requireCommunityMembership } from '@/lib/communityAuth';
 import { CommunityPost } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
+
 export const revalidate = 0;
 
 const isObjectIdLike = (value: string) => /^[a-f\d]{24}$/i.test(value);

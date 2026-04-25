@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import {
+
+export const dynamic = 'force-dynamic';
   verifyAdminAccess,
   parsePagination,
   handleCrmError,
@@ -25,7 +27,6 @@ import { verifyToken } from '@/lib/auth';
 // Predefined roles with default permissions
 
 // Mark as dynamic since this route uses request.headers or request.url
-export const dynamic = 'force-dynamic';
 
 const DEFAULT_ROLES = {
   admin: [

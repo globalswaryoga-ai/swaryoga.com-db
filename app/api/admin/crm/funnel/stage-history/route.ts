@@ -8,6 +8,7 @@ import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * GET /api/admin/crm/funnel/stage-history?leadId=xxx
  * Returns stage change history for a single lead (most recent first, limit 20).

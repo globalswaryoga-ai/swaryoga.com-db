@@ -15,6 +15,7 @@ import { sendBulkEmails } from '@/lib/email';
 import type { EmailRecipient, EmailAttachment } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
+
 export const maxDuration = 60; // allow up to 60s for bulk sends
 
 export async function POST(request: NextRequest) {

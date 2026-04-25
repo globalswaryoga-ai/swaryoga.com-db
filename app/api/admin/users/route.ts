@@ -5,6 +5,7 @@ import { isSuperAdmin } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
+
 // GET - Fetch admin users (SUPERADMIN ONLY)
 export async function GET(request: NextRequest) {
   try {

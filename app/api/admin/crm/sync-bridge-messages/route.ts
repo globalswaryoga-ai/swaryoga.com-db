@@ -3,12 +3,13 @@ import { connectDB } from '@/lib/db';
 import { verifyAdminAccess, handleCrmError } from '@/lib/crm-handlers';
 import { getLead, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * Sync messages from WhatsApp bridge to CRM database
  * This endpoint fetches all sent messages from the bridge and logs them in the CRM
  * Used when messages are sent directly through the bridge without CRM API
  */
-export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {

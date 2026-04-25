@@ -4,8 +4,9 @@ import { Session, Purchase, ViewTracking } from '@/lib/schemas/recordedSessionsS
 import { verifyToken } from '@/lib/auth';
 import mongoose from 'mongoose';
 
-// Required: This route uses request.headers
 export const dynamic = 'force-dynamic';
+
+// Required: This route uses request.headers
 
 /**
  * GET /api/sessions/[id]

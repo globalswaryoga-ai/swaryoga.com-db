@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-export const dynamic = 'force-dynamic';
 
 import { connectDB, Account, AccountingInvestment } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+
+export const dynamic = 'force-dynamic';
 
 const getUserOwner = (request: NextRequest) => {
   const authHeader = request.headers.get('authorization');

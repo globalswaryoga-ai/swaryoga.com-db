@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { PAYU_BASE_URL, PAYU_MODE } from '@/lib/payments/payu';
 
 export const dynamic = 'force-dynamic';
+
 export const revalidate = 0;
 
 export async function GET() {

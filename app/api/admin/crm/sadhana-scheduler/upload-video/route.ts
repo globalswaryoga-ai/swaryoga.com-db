@@ -3,6 +3,7 @@ import { verifyToken } from '@/lib/auth';
 import { uploadToBunnyStream } from '@/lib/bunny-storage';
 
 export const dynamic = 'force-dynamic';
+
 export const runtime = 'nodejs';
 export const maxDuration = 300; // 5 minutes for large uploads
 

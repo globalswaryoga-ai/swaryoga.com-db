@@ -5,6 +5,7 @@ import { Types } from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
+
 function getAuthedIdentity(request: NextRequest): { userId?: string; email?: string } | null {
   const authHeader = request.headers.get('authorization');
   if (!authHeader) return null;

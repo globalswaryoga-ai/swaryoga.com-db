@@ -7,8 +7,9 @@ import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import { normalizePhoneStrict } from '@/lib/crm/phone';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 
-// Mark as dynamic since this route uses request.headers or request.url
 export const dynamic = 'force-dynamic';
+
+// Mark as dynamic since this route uses request.headers or request.url
 
 
 function getViewerUserId(decoded: any): string {

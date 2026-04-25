@@ -7,6 +7,7 @@ import { getLead } from '@/lib/schemas/enterpriseSchemas';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * GET /api/crm/lead-by-number?leadNumber=006999
  *

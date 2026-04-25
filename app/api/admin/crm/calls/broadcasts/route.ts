@@ -14,6 +14,7 @@ import { tenantFilter, isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers'
 
 export const dynamic = 'force-dynamic';
 
+
 // ── Period helpers ──
 function getPeriodStart(period: string): Date {
   const now = new Date();

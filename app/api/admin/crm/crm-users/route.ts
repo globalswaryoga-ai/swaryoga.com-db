@@ -4,6 +4,8 @@ import { apiError, apiSuccess } from '@/lib/api-error';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 import {
+
+export const dynamic = 'force-dynamic';
   normalizePlanTier,
   resolveTenantPlanAccess,
   sanitizeTenantChannelAccess,
@@ -12,7 +14,6 @@ import {
   sanitizeTenantModuleOverrides,
 } from '@/lib/crm-site/tenantPlanAccess';
 
-export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/admin/crm/crm-users

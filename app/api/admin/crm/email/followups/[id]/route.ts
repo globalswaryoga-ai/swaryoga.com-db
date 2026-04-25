@@ -6,6 +6,8 @@ import { getFollowUpSequence } from '@/lib/schemas/enterpriseSchemas';
 import { hasPermission } from '@/lib/permissions';
 import { tenantFilter } from '@/lib/crm-handlers';
 
+export const dynamic = 'force-dynamic';
+
 // PUT /api/admin/crm/email/followups/[id] - Update follow-up sequence
 export async function PUT(
   request: NextRequest,
@@ -90,7 +92,6 @@ export async function PUT(
 // DELETE /api/admin/crm/email/followups/[id] - Delete follow-up sequence
 
 // Mark as dynamic since this route uses request.headers or request.url
-export const dynamic = 'force-dynamic';
 
 export async function DELETE(
   request: NextRequest,

@@ -5,6 +5,7 @@ import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * POST /api/admin/crm/community/posts/toggle-public
  * Toggle the isPublic flag on a post (admin only)

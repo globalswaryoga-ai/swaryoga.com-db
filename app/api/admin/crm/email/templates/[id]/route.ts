@@ -6,6 +6,8 @@ import { getEmailTemplate } from '@/lib/schemas/enterpriseSchemas';
 import { hasPermission } from '@/lib/permissions';
 import { tenantFilter } from '@/lib/crm-handlers';
 
+export const dynamic = 'force-dynamic';
+
 // PUT /api/admin/crm/email/templates/[id] - Update email template
 export async function PUT(
   request: NextRequest,
@@ -77,7 +79,6 @@ export async function PUT(
 // DELETE /api/admin/crm/email/templates/[id] - Delete email template
 
 // Mark as dynamic since this route uses request.headers or request.url
-export const dynamic = 'force-dynamic';
 
 export async function DELETE(
   request: NextRequest,

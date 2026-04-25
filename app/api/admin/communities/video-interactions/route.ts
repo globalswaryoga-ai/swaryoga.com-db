@@ -4,6 +4,7 @@ import { verifyToken } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * DELETE /api/admin/communities/video-interactions
  * Delete a comment from a video (admin only)

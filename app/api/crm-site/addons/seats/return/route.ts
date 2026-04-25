@@ -3,6 +3,7 @@ import { connectDB } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * GET /api/crm-site/addons/seats/return
  * Return URL after Cashfree payment

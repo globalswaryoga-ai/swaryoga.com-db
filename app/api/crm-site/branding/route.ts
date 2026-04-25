@@ -3,6 +3,7 @@ import { resolveCrmSiteTenantAccess } from '@/lib/crm-site/tenantAccess';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * GET /api/crm-site/branding
  * Get tenant branding settings

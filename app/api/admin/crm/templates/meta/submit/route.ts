@@ -4,6 +4,8 @@ import { verifyToken } from '@/lib/auth';
 import { tenantFilter, getViewerUserId } from '@/lib/crm-handlers';
 import { getWhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
 import {
+
+export const dynamic = 'force-dynamic';
   submitTemplateToMeta,
   convertToMetaFormat,
   getTemplateStatusFromMeta,
@@ -13,7 +15,6 @@ import {
 import { getPublicMediaUrl } from '@/lib/whatsapp';
 import mongoose from 'mongoose';
 
-export const dynamic = 'force-dynamic';
 
 /**
  * POST /api/admin/crm/templates/meta/submit

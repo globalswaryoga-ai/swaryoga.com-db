@@ -5,6 +5,8 @@ import { getViewerUserId } from '@/lib/crm-handlers';
 import { getCRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/admin/crm/media/bridge-download?messageId=<id>
  *
@@ -55,7 +57,6 @@ async function resolveBridgeConfig(userId: string) {
   };
 }
 
-export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {

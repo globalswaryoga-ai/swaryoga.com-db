@@ -4,6 +4,7 @@ import { verifyToken } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
+
 // GET - List all playlists with filters
 export async function GET(request: NextRequest) {
   try {

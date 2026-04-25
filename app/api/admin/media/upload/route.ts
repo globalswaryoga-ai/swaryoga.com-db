@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { 
+
+export const dynamic = 'force-dynamic';
   uploadPublicFile, 
   uploadAdminFile, 
   uploadCommunityFile,
   uploadCommunityVideo 
 } from '@/lib/bunny-storage';
 
-export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 // Max file sizes

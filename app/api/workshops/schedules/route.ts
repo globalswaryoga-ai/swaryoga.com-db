@@ -11,6 +11,7 @@ import { connectDB, WorkshopSchedule } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
+
 const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 export async function GET(request: NextRequest) {

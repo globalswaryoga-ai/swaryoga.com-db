@@ -4,6 +4,7 @@ import { verifyAdminAccess, handleCrmError, formatCrmSuccess } from '@/lib/crm-h
 import { ChatbotSettings } from '@/lib/schemas/enterpriseSchemas';
 
 export const dynamic = 'force-dynamic';
+
 export const revalidate = 0;
 
 export async function GET(request: NextRequest) {

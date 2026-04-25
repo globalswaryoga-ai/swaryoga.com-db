@@ -14,6 +14,7 @@ import type { TelegramUpdate } from '@/lib/telegram';
 
 export const dynamic = 'force-dynamic';
 
+
 export async function POST(req: NextRequest) {
   try {
     const url = new URL(req.url);

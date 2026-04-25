@@ -11,6 +11,7 @@ import { connectDB } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
+
 async function checkMongoDB(): Promise<{ ok: boolean; latencyMs: number; error?: string }> {
   const start = Date.now();
   try {

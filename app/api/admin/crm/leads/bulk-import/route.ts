@@ -3,6 +3,8 @@ import { connectDB } from '@/lib/db';
 import { getLead } from '@/lib/schemas/enterpriseSchemas';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import {
+
+export const dynamic = 'force-dynamic';
   verifyAdminAccess,
   getViewerUserId,
   isSuperAdmin,
@@ -10,7 +12,6 @@ import {
 import { verifyToken } from '@/lib/auth';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 
-export const dynamic = 'force-dynamic';
 
 /**
  * POST: Bulk-import leads from a pre-parsed JSON array (CSV upload path).

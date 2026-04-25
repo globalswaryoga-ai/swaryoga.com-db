@@ -6,6 +6,7 @@ import { isSuperAdmin } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * Debug endpoint to check which database has the leads
  * SUPERADMIN ONLY - exposes database internals

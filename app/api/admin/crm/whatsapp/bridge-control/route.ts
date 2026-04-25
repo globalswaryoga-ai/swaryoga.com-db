@@ -11,6 +11,7 @@ import { getWhatsAppBridgeUrl } from '@/lib/whatsappBridgeConfig';
 
 export const dynamic = 'force-dynamic';
 
+
 function requireSuperAdmin(request: NextRequest) {
   const token = request.headers.get('authorization')?.slice('Bearer '.length);
   const decoded = verifyToken(token);

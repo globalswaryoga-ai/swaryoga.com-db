@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { handleCrmError } from '@/lib/crm-handlers';
 import { runDueChatbotActions } from '@/lib/chatbotScheduler';
 
-// Mark as dynamic since this route uses request.headers
 export const dynamic = 'force-dynamic';
+
+// Mark as dynamic since this route uses request.headers
 
 function verifyCronSecret(request: NextRequest): boolean {
   const expected = process.env.CRON_SECRET;

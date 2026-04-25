@@ -5,7 +5,6 @@
  *   Returns daily usage snapshots for a specific tenant.
  */
 
-export const dynamic = 'force-dynamic';
 
 import { NextRequest } from 'next/server';
 import { connectDB } from '@/lib/db';
@@ -15,6 +14,8 @@ import { isSuperAdmin } from '@/lib/crm-handlers';
 import { getTenantUsageModel, getTenantModel } from '@/lib/tenant/tenantSchemas';
 import { getTenantDb } from '@/lib/tenant/tenantDb';
 import { resolveEffectiveLimits } from '@/lib/tenant/plans';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   await connectDB();

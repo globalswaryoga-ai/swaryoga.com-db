@@ -8,6 +8,7 @@ import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * GET /api/admin/crm/templates/[id]
  * Fetch a single template by ID

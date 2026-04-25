@@ -12,6 +12,7 @@ import { isSuperAdmin } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
+
 // Default 11-step funnel with 4K vibrant colors
 const DEFAULT_STAGES = [
   { key: 'new_lead',       name: 'New Lead',       color: '#6366F1', colorGradient: '#818CF8', order: 0,  icon: 'sparkles',      isDefault: true,  description: 'Fresh lead just entered the funnel' },

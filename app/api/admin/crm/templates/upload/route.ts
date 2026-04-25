@@ -6,12 +6,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import {
+
+export const dynamic = 'force-dynamic';
   uploadTemplateFileToS3,
   validateTemplateFile,
 } from '@/lib/bunny-storage';
 
 // Mark as dynamic since this route uses request.headers or request.url
-export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {

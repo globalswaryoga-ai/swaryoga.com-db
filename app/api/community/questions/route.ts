@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
+
 // Question Schema
 const QuestionSchema = new mongoose.Schema({
   userId: { type: String },

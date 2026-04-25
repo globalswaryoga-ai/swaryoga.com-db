@@ -6,8 +6,9 @@ import * as XLSX from 'xlsx';
 import { normalizeLeadNumberInput } from '@/lib/crm/leadNumber';
 import { Types } from 'mongoose';
 
-// Mark as dynamic since this route uses request.headers or request.url
 export const dynamic = 'force-dynamic';
+
+// Mark as dynamic since this route uses request.headers or request.url
 
 
 function getViewerUserId(decoded: any): string {

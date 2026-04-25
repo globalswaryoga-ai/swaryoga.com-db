@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
+
 // Backwards-compatible alias for the existing enquiries API.
 // The UI currently posts to /api/workshop-enquiry, while the server route is /api/enquiries.
 // We keep both so older links/components keep working.

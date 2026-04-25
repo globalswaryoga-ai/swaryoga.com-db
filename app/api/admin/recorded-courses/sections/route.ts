@@ -11,12 +11,13 @@ import connectDB from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 import {
+
+export const dynamic = 'force-dynamic';
   getRecordedCourse,
   getCourseSection,
   getCourseVideo,
 } from '@/lib/schemas/recordedCourseSchemas';
 
-export const dynamic = 'force-dynamic';
 
 // Check superadmin access - E-Learning management is superadmin only
 function checkSuperAdminAccess(decoded: any | null): boolean {

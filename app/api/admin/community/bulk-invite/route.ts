@@ -5,6 +5,7 @@ import { getLead } from '@/lib/schemas/enterpriseSchemas';
 
 export const dynamic = 'force-dynamic';
 
+
 // Community Join Links — canonical /join/<id> form
 // Any communityId not listed here will auto-generate: https://swaryoga.com/join/<id>
 const COMMUNITY_JOIN_LINKS: Record<string, string> = {

@@ -6,6 +6,7 @@ import { resolveTenantPlanAccess } from '@/lib/crm-site/tenantPlanAccess';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * GET /api/crm-site/subscription
  *

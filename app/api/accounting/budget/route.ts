@@ -5,6 +5,7 @@ import type { AuthContext, BudgetAllocation, NormalizedAllocationsResult } from 
 
 export const dynamic = 'force-dynamic';
 
+
 const getUserOwner = (request: NextRequest): AuthContext | null => {
   const authHeader = request.headers.get('authorization');
   const token = authHeader?.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : null;

@@ -13,6 +13,7 @@ import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
+
 // Generate unique affiliate code
 function generateAffiliateCode(name: string): string {
   const cleanName = (name || 'affiliate').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 6);

@@ -4,6 +4,7 @@ import { verifyToken } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * GET /api/community/videos/embed?v=VIDEO_DB_ID&token=JWT
  *

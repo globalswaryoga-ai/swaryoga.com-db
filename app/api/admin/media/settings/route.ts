@@ -3,6 +3,7 @@ import { verifyToken } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * GET /api/admin/media/settings
  * Get S3 settings (masked for security)

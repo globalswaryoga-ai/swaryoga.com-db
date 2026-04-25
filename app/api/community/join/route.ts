@@ -7,6 +7,7 @@ import { notifyCommunityJoin } from '@/lib/notifications';
 
 export const dynamic = 'force-dynamic';
 
+
 function escapeRegexLiteral(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

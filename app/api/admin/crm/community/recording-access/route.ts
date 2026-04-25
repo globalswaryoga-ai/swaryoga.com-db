@@ -5,6 +5,7 @@ import { verifyCommunityTenant, getAccessibleCommunityIds } from '@/lib/crm-hand
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * GET /api/admin/crm/community/recording-access
  * Fetch all playlists and the access mapping for all communities (or a specific community)

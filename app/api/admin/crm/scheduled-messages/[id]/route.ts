@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import {
+
+export const dynamic = 'force-dynamic';
   verifyAdminAccess,
   handleCrmError,
   isValidObjectId,
@@ -10,7 +12,6 @@ import {
 import { WhatsAppScheduledJob } from '@/lib/schemas/enterpriseSchemas';
 
 // Mark as dynamic since this route uses request.headers or request.url
-export const dynamic = 'force-dynamic';
 
 
 export async function GET(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {

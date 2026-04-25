@@ -6,6 +6,7 @@ import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * GET /api/admin/crm/sadhana-scheduler/verify
  * Verifies all components are connected and working

@@ -10,6 +10,7 @@ import { uploadAdminFile } from '@/lib/bunny-storage';
 import { hasPermission } from '@/lib/permissions';
 
 export const dynamic = 'force-dynamic';
+
 export const runtime = 'nodejs';
 
 // Max file sizes

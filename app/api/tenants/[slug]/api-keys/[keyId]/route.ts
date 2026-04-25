@@ -12,6 +12,7 @@ import { isSuperAdmin } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { slug: string; keyId: string } }

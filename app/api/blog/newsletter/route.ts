@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
+
 // Lazy load newsletter model to avoid MongoDB connection during build
 function getNewsletterModel() {
   const newsletterSchema = new mongoose.Schema({

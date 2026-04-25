@@ -3,6 +3,7 @@ import { calculateTithiAccurate, calculateSunriseTime } from '@/lib/calendarCalc
 
 export const dynamic = 'force-dynamic';
 
+
 const timezoneAliasOffsets: Record<string, number> = {
   'asia/kolkata': 5.5,
   kolkata: 5.5,

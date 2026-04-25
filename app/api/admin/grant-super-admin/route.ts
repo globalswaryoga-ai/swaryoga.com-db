@@ -4,6 +4,7 @@ import { verifyToken } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * POST /api/admin/grant-super-admin
  * Grant full super admin permissions to admincrm user

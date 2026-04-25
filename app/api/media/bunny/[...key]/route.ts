@@ -5,6 +5,7 @@ import { extractUserIdFromKey } from '@/lib/bunny-storage';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * GET /api/media/bunny/[...key]
  * 

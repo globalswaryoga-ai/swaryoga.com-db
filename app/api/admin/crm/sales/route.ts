@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import {
+
+export const dynamic = 'force-dynamic';
   parsePagination,
   handleCrmError,
   formatCrmSuccess,
@@ -16,7 +18,6 @@ import { verifyToken } from '@/lib/auth';
 import { notifyRefundSuccessful, notifyAmountReceived } from '@/lib/notifications';
 
 // Mark as dynamic since this route uses request.headers or request.url
-export const dynamic = 'force-dynamic';
 
 function csvEscape(v: any): string {
   const s = v === null || v === undefined ? '' : String(v);

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import {
+
+export const dynamic = 'force-dynamic';
   verifyAdminAccess,
   handleCrmError,
   formatCrmSuccess,
@@ -8,7 +10,6 @@ import {
 import { getWhatsAppMessage, getLead } from '@/lib/schemas/enterpriseSchemas';
 
 // Required: This route uses request.headers which cannot be statically rendered
-export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/admin/crm/messages/unread-count

@@ -6,6 +6,7 @@ import { normalizePhone } from '@/lib/whatsapp';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * POST /api/admin/crm/whatsapp/send-template-qr
  * 

@@ -7,6 +7,7 @@ import { normalizePhone, sendWhatsAppText, sendWhatsAppPresence, sendWhatsAppInt
 
 export const dynamic = 'force-dynamic';
 
+
 function applySpintax(text: string): string {
   return text.replace(/\{([^{}]+)\}/g, (_, options) => {
     const parts = options.split('|').map((s: string) => s.trim());

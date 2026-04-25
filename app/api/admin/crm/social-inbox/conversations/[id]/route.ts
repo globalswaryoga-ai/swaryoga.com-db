@@ -9,6 +9,7 @@ import { getSocialInboxConversation } from '@/lib/schemas/enterpriseSchemas';
 
 export const dynamic = 'force-dynamic';
 
+
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);

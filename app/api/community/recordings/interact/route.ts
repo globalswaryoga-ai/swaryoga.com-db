@@ -3,6 +3,7 @@ import { connectDB } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * POST /api/community/recordings/interact
  * Handle video interactions: view, like, comment

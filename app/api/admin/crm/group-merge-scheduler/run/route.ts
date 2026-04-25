@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
+
 const groupMergeScheduleSchema = new mongoose.Schema(
   {
     name: { type: String },

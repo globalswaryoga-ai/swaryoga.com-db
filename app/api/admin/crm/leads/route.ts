@@ -4,6 +4,8 @@ import { verifyToken } from '@/lib/auth';
 import { getLead, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import { 
+
+export const dynamic = 'force-dynamic';
   escapeRegexLiteral, 
   getViewerUserId, 
   isSuperAdmin,
@@ -15,7 +17,6 @@ import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 import { logger } from '@/lib/logger';
 
 // Mark as dynamic since this route uses request.headers or request.url
-export const dynamic = 'force-dynamic';
 
 
 export async function GET(request: NextRequest) {

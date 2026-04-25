@@ -4,6 +4,7 @@ import { verifyToken } from '@/lib/auth';
 import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
+
 export const revalidate = 0;
 
 export async function POST(request: NextRequest) {

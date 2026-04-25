@@ -5,8 +5,9 @@ import { Lead } from '@/lib/schemas/enterpriseSchemas';
 import mongoose from 'mongoose';
 import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 
-// Mark as dynamic since this route uses request.headers or request.url
 export const dynamic = 'force-dynamic';
+
+// Mark as dynamic since this route uses request.headers or request.url
 
 /**
  * Label management for CRM leads

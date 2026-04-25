@@ -3,6 +3,7 @@ import { connectDB, LandingPage } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
+
 // GET - Fetch public landing page by slug
 export async function GET(
   request: NextRequest,

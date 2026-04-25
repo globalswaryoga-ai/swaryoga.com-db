@@ -5,6 +5,7 @@ import { makeWorkshopScheduleId } from '@/lib/workshopScheduleIds';
 
 export const dynamic = 'force-dynamic';
 
+
 const toDateOrUndefined = (value: unknown): Date | undefined => {
   if (!value) return undefined;
   if (typeof value === 'string' && value.trim() === '') return undefined;

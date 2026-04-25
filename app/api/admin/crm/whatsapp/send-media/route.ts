@@ -5,8 +5,9 @@ import { getLead, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { normalizePhone, sendWhatsAppMedia } from '@/lib/whatsapp';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 
-// Mark as dynamic since this route uses request.headers or request.url
 export const dynamic = 'force-dynamic';
+
+// Mark as dynamic since this route uses request.headers or request.url
 
 
 /**

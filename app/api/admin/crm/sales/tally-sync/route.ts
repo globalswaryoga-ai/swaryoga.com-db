@@ -7,6 +7,7 @@ import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * POST /api/admin/crm/sales/tally-sync
  * Sync a sale entry to Tally Prime and optionally generate/link a receipt.

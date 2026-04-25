@@ -3,6 +3,7 @@ import { connectDB, Order } from '@/lib/db';
 import { isAdminAuthorized } from '@/lib/adminAuth';
 
 export const dynamic = 'force-dynamic';
+
 export const revalidate = 0;
 
 function escapeRegExp(value: string): string {

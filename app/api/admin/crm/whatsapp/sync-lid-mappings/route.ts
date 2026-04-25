@@ -12,9 +12,10 @@ import { getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { verifyToken } from '@/lib/auth';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 
+export const dynamic = 'force-dynamic';
+
 const { url: BRIDGE_URL, secret: BRIDGE_SECRET } = getWhatsAppBridgeConfig();
 
-export const dynamic = 'force-dynamic';
 
 /**
  * Extract LID->Phone mappings from CRM messages

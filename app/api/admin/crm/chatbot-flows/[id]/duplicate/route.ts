@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import {
+
+export const dynamic = 'force-dynamic';
   verifyAdminAccess,
   handleCrmError,
   formatCrmSuccess,
@@ -9,7 +11,6 @@ import {
 } from '@/lib/crm-handlers';
 import { ChatbotFlow } from '@/lib/schemas/enterpriseSchemas';
 
-export const dynamic = 'force-dynamic';
 
 /**
  * POST /api/admin/crm/chatbot-flows/[id]/duplicate

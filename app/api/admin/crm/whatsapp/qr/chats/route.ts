@@ -5,9 +5,10 @@ import { getLead, getCRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
 import { getViewerUserId, isSuperAdmin } from '@/lib/crm-handlers';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 
+export const dynamic = 'force-dynamic';
+
 const { url: BRIDGE_URL, secret: BRIDGE_SECRET } = getWhatsAppBridgeConfig();
 
-export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export async function GET(req: NextRequest) {

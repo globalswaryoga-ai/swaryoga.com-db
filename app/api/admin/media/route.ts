@@ -6,6 +6,7 @@ import { isSuperAdmin } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * GET /api/admin/media
  * Fetch all media posts (SUPERADMIN ONLY)

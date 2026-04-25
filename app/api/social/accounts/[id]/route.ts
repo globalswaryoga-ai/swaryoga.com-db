@@ -6,6 +6,7 @@ import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * DELETE /api/social/accounts/[id]
  * Disconnect a social media account

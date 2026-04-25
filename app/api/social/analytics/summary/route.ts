@@ -6,6 +6,7 @@ import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * GET /api/social/analytics/summary
  * Get overall analytics for all posts of current user

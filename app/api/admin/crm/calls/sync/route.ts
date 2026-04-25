@@ -15,6 +15,7 @@ import { tenantFilter, isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers'
 
 export const dynamic = 'force-dynamic';
 
+
 /**
  * POST /api/admin/crm/calls/sync
  * Body: { action: 'sync_stuck' | 'sync_one', callId?: string }

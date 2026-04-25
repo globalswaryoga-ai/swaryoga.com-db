@@ -12,6 +12,7 @@ import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
+
 function getFinancialYearRange(date: Date) {
   const year = date.getFullYear();
   const month = date.getMonth(); // 0-indexed

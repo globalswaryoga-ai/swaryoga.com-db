@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
+
+export const dynamic = 'force-dynamic';
   getRecentLogs,
   getErrorSummary,
   getOperationMetrics,
@@ -7,7 +9,6 @@ import {
 } from '@/lib/socialMediaErrorLogger';
 import { verifyToken } from '@/lib/auth';
 
-export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 /**
