@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, ChevronLeft, ChevronRight, Copy, ExternalLink, X, Pencil, Trash2 } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Copy, ExternalLink, X, Pencil, Trash2, Users, MessageCircle, Clock, Video, CalendarCheck } from 'lucide-react';
 
 interface Program {
   id: string; slug: string; name: string; description?: string;
@@ -49,6 +49,9 @@ export default function ProgramDetailPage() {
   const [toast, setToast] = useState('');
   const [editingProgram, setEditingProgram] = useState(false);
   const [editForm, setEditForm] = useState({ name: '', description: '', timeSlots: ['', '', '', ''], timezone: 'Asia/Kolkata', videoDuration: 40, countdownMinutes: 3, playerMode: 'player', playerUrl: '', botName: '', botJoinMinutes: 5, enableBotAutomation: true });
+  const [liveCount, setLiveCount] = useState<number | null>(null);
+  const [chatCount, setChatCount] = useState<number | null>(null);
+  const [liveStatus, setLiveStatus] = useState<string>('offline');
 
   const load = async () => {
     setLoading(true);
@@ -63,6 +66,28 @@ export default function ProgramDetailPage() {
   };
 
   useEffect(() => { load(); }, [params.id]);
+
+  useEffect(() => {
+    if (!program?.slug) return;
+    const fetchLiveStats = async () => {
+      try {
+        const res = await fetch(`/api/sadhana/live/${program.slug}/state`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId: 'admin-stats' }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          setLiveCount(typeof data.count === 'number' ? data.count : null);
+          setChatCount(Array.isArray(data.chat) ? data.chat.length : null);
+          setLiveStatus(data.session?.status || 'offline');
+        }
+      } catch (err) {
+        console.error('Failed to fetch sadhana live stats', err);
+      }
+    };
+    fetchLiveStats();
+  }, [program?.slug]);
 
   const videosByDate = videos.reduce<Record<string, Video>>((acc, v) => { acc[v.date] = v; return acc; }, {});
 
@@ -177,6 +202,9 @@ export default function ProgramDetailPage() {
           <div>
             <h1 className="text-2xl font-bold text-white mb-1">{program.name}</h1>
             {program.description && <p className="text-purple-50 text-sm">{program.description}</p>}
+            <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-black/40 px-3 py-1 text-xs text-gray-200 border border-white/10">
+              <span className="inline-flex items-center gap-1"><Users size={12} /> {liveStatus === 'live' ? 'Live now' : liveStatus === 'countdown' ? 'Starting soon' : liveStatus === 'waiting' ? 'Waiting' : 'Offline'}</span>
+            </div>
           </div>
           <div className="flex gap-1">
             <button onClick={openProgramEdit} className="text-blue-300 hover:text-blue-200 p-1">
@@ -190,11 +218,43 @@ export default function ProgramDetailPage() {
 
         <div className="flex flex-wrap gap-2 text-sm mb-4">
           {program.timeSlots.map((time, idx) => (
-            <span key={idx} className="bg-black/50 text-purple-100 px-2 py-1 rounded">⏰ {time}</span>
+            <span key={idx} className="bg-black/50 text-purple-100 px-2 py-1 rounded inline-flex items-center gap-1">
+              <Clock size={14} /> {time}
+            </span>
           ))}
-          <span className="bg-black/50 text-indigo-100 px-2 py-1 rounded">🌏 {program.timezone}</span>
-          <span className="bg-black/50 text-pink-100 px-2 py-1 rounded">🎥 {program.videoDuration}min video</span>
-          <span className="bg-black/50 text-blue-100 px-2 py-1 rounded">⏱ {program.countdownMinutes}min countdown</span>
+          <span className="bg-black/50 text-indigo-100 px-2 py-1 rounded inline-flex items-center gap-1">
+            <CalendarCheck size={14} /> {program.timezone}
+          </span>
+          <span className="bg-black/50 text-pink-100 px-2 py-1 rounded inline-flex items-center gap-1">
+            <Video size={14} /> {program.videoDuration}min
+          </span>
+          <span className="bg-black/50 text-blue-100 px-2 py-1 rounded inline-flex items-center gap-1">
+            <Clock size={14} /> -{program.countdownMinutes}m countdown
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4 text-sm">
+          <div className="bg-white/5 rounded-lg p-3 flex items-center gap-2 border border-white/10">
+            <Users size={16} className="text-white" />
+            <div>
+              <div className="text-xs uppercase text-gray-400">Joined</div>
+              <div className="font-semibold text-white">{liveCount !== null ? liveCount : '—'}</div>
+            </div>
+          </div>
+          <div className="bg-white/5 rounded-lg p-3 flex items-center gap-2 border border-white/10">
+            <Clock size={16} className="text-white" />
+            <div>
+              <div className="text-xs uppercase text-gray-400">Duration</div>
+              <div className="font-semibold text-white">{program.videoDuration} min</div>
+            </div>
+          </div>
+          <div className="bg-white/5 rounded-lg p-3 flex items-center gap-2 border border-white/10">
+            <MessageCircle size={16} className="text-white" />
+            <div>
+              <div className="text-xs uppercase text-gray-400">Chat</div>
+              <div className="font-semibold text-white">{chatCount !== null ? chatCount : '—'}</div>
+            </div>
+          </div>
         </div>
 
         <div className="grid gap-3 md:grid-cols-3 mb-4">
@@ -272,13 +332,18 @@ export default function ProgramDetailPage() {
                     : 'bg-gray-800/50 border-gray-700 hover:bg-gray-800 hover:border-gray-600'
                 } ${isToday ? 'ring-2 ring-yellow-400' : ''}`}
               >
-                <div className={`text-sm font-semibold ${video ? 'text-white' : 'text-gray-300'}`}>{day}</div>
+                <div className="flex items-start justify-between gap-2">
+                  <div className={`text-sm font-semibold ${video ? 'text-white' : 'text-gray-300'}`}>{day}</div>
+                  {video && <Video size={12} className="text-yellow-300 mt-1" />}
+                </div>
                 {video ? (
                   <div className="flex-1 mt-1 overflow-hidden">
-                    <div className="text-[10px] text-purple-200 line-clamp-2">{video.title || '🎥 Video set'}</div>
+                    <div className="text-[10px] text-purple-200 line-clamp-2">{video.title || 'Video scheduled'}</div>
                   </div>
                 ) : (
-                  <div className="text-[10px] text-gray-500 mt-1">+ Add video</div>
+                  <div className="text-[10px] text-gray-500 mt-1 flex items-center gap-1">
+                    <span className="text-yellow-300">+</span> Add video
+                  </div>
                 )}
                 {isToday && liveStats && (
                   <div className="mt-2 space-y-1 text-[10px]">
@@ -291,8 +356,8 @@ export default function ProgramDetailPage() {
           })}
         </div>
 
-        <div className="mt-4 flex gap-3 text-xs text-gray-400">
-          <span className="flex items-center gap-1"><span className="w-3 h-3 bg-gradient-to-br from-purple-700 to-pink-700 rounded"></span> Video scheduled</span>
+        <div className="mt-4 flex flex-wrap gap-3 text-xs text-gray-400">
+          <span className="flex items-center gap-1"><Video size={12} className="text-yellow-300" /> Video scheduled</span>
           <span className="flex items-center gap-1"><span className="w-3 h-3 bg-gray-800 border border-gray-700 rounded"></span> Empty (click to add)</span>
           <span className="flex items-center gap-1"><span className="w-3 h-3 border-2 border-yellow-400 rounded"></span> Today</span>
         </div>

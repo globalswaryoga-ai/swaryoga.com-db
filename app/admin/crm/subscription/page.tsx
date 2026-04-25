@@ -270,8 +270,8 @@ export default function SubscriptionPage() {
               ? Math.round(pricing.annual / 12)
               : billingCycle === 'quarterly'
                 ? Math.round(pricing.quarterly / 3)
-                : pricing.monthly;
-            const originalPrice = pricing.monthly;
+                : (pricing.monthly ?? 0);
+            const originalPrice = pricing.monthly ?? 0;
 
             return (
               <div

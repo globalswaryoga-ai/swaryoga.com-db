@@ -77,6 +77,7 @@ type Message = {
   messageType?: string;
   direction: 'inbound' | 'outbound';
   createdAt: string;
+  sentAt?: string;
   status: 'queued' | 'sent' | 'delivered' | 'read' | 'failed';
   media?: {
     kind?: 'image' | 'video' | 'document' | 'audio' | 'sticker';

@@ -285,7 +285,7 @@ export default function QRGroupContactsPage() {
             // During the long delay, check if session is still alive (catches early auto-logouts)
             if (batchNumber % 5 === 0) {
               try {
-                const healthCheck = await bridgeCall('/verify-connection', 'GET', {}, { timeout: 5000 });
+                const healthCheck = await bridgeCall('/verify-connection', 'GET', {});
                 if (!healthCheck?.ok) {
                   console.warn(`⚠️ Batch ${batchNumber}: Connection health check inconclusive`);
                 }
@@ -341,7 +341,7 @@ export default function QRGroupContactsPage() {
           // Step 2: FORCE activity - call /status to wake up the session
           // This forces the bridge to verify the connection and keeps it alive
           try {
-            const statusData = await bridgeCall('/status', 'GET', {}, { timeout: 10000 });
+            const statusData = await bridgeCall('/status', 'GET', {});
             if (statusData?.connected) {
               console.log(`✅ Post-merge status check: Connection ACTIVE`);
               setMergeProgress(`✅ Connection verified! WhatsApp is responsive.`);
@@ -349,7 +349,7 @@ export default function QRGroupContactsPage() {
               console.warn(`⚠️ Post-merge: Status shows not connected, attempting reconnect...`);
               // Try to reconnect if status shows disconnected
               try {
-                await bridgeCall('/reconnect', 'POST', {}, { timeout: 10000 });
+                await bridgeCall('/reconnect', 'POST', {});
                 console.log(`✅ Reconnection triggered after disconnect`);
                 setMergeProgress(`✅ Reconnection initiated. Please wait 10 seconds...`);
                 await new Promise(r => setTimeout(r, 10000));
@@ -361,7 +361,7 @@ export default function QRGroupContactsPage() {
             console.warn('Post-merge status check failed:', statusErr?.message?.substring(0, 40));
             // Try force reconnect anyway
             try {
-              await bridgeCall('/reconnect', 'POST', {}, { timeout: 10000 });
+              await bridgeCall('/reconnect', 'POST', {});
               console.log(`✅ Force reconnect triggered after status failure`);
             } catch (e) {
               // Silent fail - connection might recover on its own
@@ -370,7 +370,7 @@ export default function QRGroupContactsPage() {
           
           // Step 3: Final verification - try to fetch chats (proves session is responsive)
           try {
-            const chatsCheck = await bridgeCall('/chats', 'GET', {}, { timeout: 10000 });
+            const chatsCheck = await bridgeCall('/chats', 'GET', {});
             if (Array.isArray(chatsCheck)) {
               console.log(`✅ Final check: Sessions responsive. Chat count: ${chatsCheck.length}`);
               setMergeProgress(`✅ WhatsApp connection RESTORED and responsive!`);

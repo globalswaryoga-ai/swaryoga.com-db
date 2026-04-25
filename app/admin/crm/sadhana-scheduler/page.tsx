@@ -322,7 +322,7 @@ try {
                 setEditingData(null);
               }}
               loading={loading}
-              token={effectiveToken}
+              token={effectiveToken ?? undefined}
             />
           </div>
         )}

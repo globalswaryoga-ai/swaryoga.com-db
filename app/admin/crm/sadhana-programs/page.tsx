@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Plus, Calendar, Copy, ExternalLink, Trash2, Pencil } from 'lucide-react';
+import { Plus, Calendar, Copy, ExternalLink, Trash2, Pencil, Clock, Video, CalendarCheck } from 'lucide-react';
 
 interface Program {
   id: string;
@@ -215,11 +215,19 @@ export default function SadhanaProgramsPage() {
 
               <div className="flex flex-wrap gap-2 text-sm mb-4">
                 {p.timeSlots.map((time, idx) => (
-                  <span key={idx} className="bg-purple-900/50 text-purple-200 px-2 py-1 rounded">⏰ {time}</span>
+                  <span key={idx} className="bg-purple-900/50 text-purple-200 px-2 py-1 rounded inline-flex items-center gap-1">
+                    <Clock size={13} /> {time}
+                  </span>
                 ))}
-                <span className="bg-indigo-900/50 text-indigo-200 px-2 py-1 rounded">🌏 {p.timezone}</span>
-                <span className="bg-pink-900/50 text-pink-200 px-2 py-1 rounded">🎥 {p.videoDuration}min</span>
-                <span className="bg-blue-900/50 text-blue-200 px-2 py-1 rounded">⏱ -{p.countdownMinutes}min countdown</span>
+                <span className="bg-indigo-900/50 text-indigo-200 px-2 py-1 rounded inline-flex items-center gap-1">
+                  <CalendarCheck size={13} /> {p.timezone}
+                </span>
+                <span className="bg-pink-900/50 text-pink-200 px-2 py-1 rounded inline-flex items-center gap-1">
+                  <Video size={13} /> {p.videoDuration}min
+                </span>
+                <span className="bg-blue-900/50 text-blue-200 px-2 py-1 rounded inline-flex items-center gap-1">
+                  <Clock size={13} /> -{p.countdownMinutes}min countdown
+                </span>
               </div>
 
               <div className="bg-black/30 rounded-lg p-3 mb-3">

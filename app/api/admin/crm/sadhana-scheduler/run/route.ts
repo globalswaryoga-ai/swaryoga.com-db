@@ -487,12 +487,13 @@ export async function POST(request: NextRequest) {
 
             // Also send WhatsApp message with reminder
             const message = buildSadhanaMessage(schedule);
+            const leads = await Lead?.find({ userId: schedule.userId }).toArray() ?? [];
             for (const lead of leads) {
               try {
                 const phoneNumber = lead.phone || lead.phoneNumber;
                 if (!phoneNumber) continue;
-                
-                await sendWhatsAppText(phoneNumber, message, 'meta');
+
+                await sendWhatsAppText(phoneNumber, message);
                 sent++;
               } catch (err) {
                 console.error(`Failed to send WhatsApp to ${lead.phone}:`, err);
@@ -549,12 +550,13 @@ export async function POST(request: NextRequest) {
           
           if (isScheduledDay && isScheduledTime) {
             const message = buildSadhanaMessage(schedule);
+            const leads = await Lead?.find({ userId: schedule.userId }).toArray() ?? [];
             for (const lead of leads) {
               try {
                 const phoneNumber = lead.phone || lead.phoneNumber;
                 if (!phoneNumber) continue;
-                
-                await sendWhatsAppText(phoneNumber, message, 'meta');
+
+                await sendWhatsAppText(phoneNumber, message);
                 sent++;
               } catch (err) {
                 console.error(`Failed to send to lead ${lead.phone}:`, err);
@@ -713,8 +715,7 @@ export async function GET(request: NextRequest) {
             try {
               await sendWhatsAppText(
                 lead.phoneNumber || lead.phone,
-                message,
-                'meta'
+                message
               );
               sent++;
             } catch (err) {

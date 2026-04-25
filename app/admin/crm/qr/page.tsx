@@ -1454,19 +1454,19 @@ export default function QRWhatsAppPage() {
       const optimisticMsgId = `opt-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
       const optimisticMsg: MessageItem = {
         id: optimisticMsgId,
-        chatId: selectedChat,
-        body: composerText.trim() || (mediaPreview ? `📎 ${mediaPreview.file.name}` : '(media)'),
-        timestamp: new Date(),
+        from: connectedPhoneNumber || 'unknown',
+        text: composerText.trim() || (mediaPreview ? `📎 ${mediaPreview.file.name}` : '(media)'),
+        timestamp: Date.now(),
         fromMe: true,
-        status: 'pending',
-        isMedia: !!mediaPreview,
-        mediaUrl: mediaPreview?.url || '',
-        mediaType: mediaPreview?.type || '',
+        type: mediaPreview ? 'media' : 'text',
+        status: 0,
+        hasMedia: !!mediaPreview,
+        mediaUrl: mediaPreview ? URL.createObjectURL(mediaPreview.file) : null,
+        mediaMimetype: mediaPreview?.type || null,
         participant: undefined,
         quoted: replyingTo ? {
           id: replyingTo.id,
-          body: replyingTo.body,
-          fromMe: replyingTo.fromMe,
+          text: replyingTo.text,
         } : undefined,
       };
       // Add optimistic message to UI immediately
@@ -2796,6 +2796,8 @@ export default function QRWhatsAppPage() {
                         resolvedPhone: selectedChatInfo?.resolvedPhone,
                         chatId: selectedChat,
                         jid: selectedChat,
+                        unreadCount: 0,
+                        lastMessageTime: null,
                       } as ChatItem & Record<string, any>;
                       // For non-group chats: prefer CRM lead name (set during enrichment) over raw phone
                       const chatTitle = getSidebarChatTitle((selectedChatInfo || selectedChatFallback) as ChatItem);
@@ -3269,7 +3271,6 @@ export default function QRWhatsAppPage() {
         setSelectedStatusUser={setSelectedStatusUser}
         currentStatusIndex={currentStatusIndex}
         setCurrentStatusIndex={setCurrentStatusIndex}
-        token={token}
       />
       <ExtensionModal
         showExtensionModal={showExtensionModal}

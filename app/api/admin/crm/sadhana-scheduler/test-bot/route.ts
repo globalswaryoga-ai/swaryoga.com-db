@@ -202,9 +202,6 @@ export async function POST(request: NextRequest) {
       });
 
       logs.push('✅ Bot join triggered successfully');
-      if (botResult) {
-        logs.push(`   - Result: ${JSON.stringify(botResult).substring(0, 100)}`);
-      }
     } catch (botError: any) {
       const errorMsg = botError?.message || String(botError);
       logs.push(`❌ Bot join failed: ${errorMsg}`);

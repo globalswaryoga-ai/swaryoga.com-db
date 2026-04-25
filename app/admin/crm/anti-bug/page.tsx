@@ -439,7 +439,7 @@ export default function AntiBugPage() {
                     ['Missing compartments', report.provisioningStats.sampleMissingCompartmentUsers],
                     ['Missing crm_tenants', report.provisioningStats.sampleMissingCrmTenantSlugs],
                     ['Missing tenant_setup', report.provisioningStats.sampleMissingTenantSetupSlugs],
-                  ].map(([label, items]) => (
+                  ].map(([label, items]: [string, string[]]) => (
                     <div key={label} className="rounded-xl border border-gray-100 bg-gray-50/50 p-3">
                       <p className="text-xs font-semibold text-gray-700 mb-2">{label}</p>
                       {(items as string[]).length > 0 ? (

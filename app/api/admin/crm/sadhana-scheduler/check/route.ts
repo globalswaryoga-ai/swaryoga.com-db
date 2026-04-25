@@ -196,23 +196,14 @@ async function executeBotActionsAsync(
 
     // Step 2: Send countdown
     console.log(`[Sadhana Action] ⏰ Sending 3-minute countdown...`);
-    await sendCountdownMessage({
-      meetingId,
-      meetingPassword: password,
-      countdownSeconds: 180,
-    });
+    await sendCountdownMessage(meetingId, 3);
     console.log(`[Sadhana Action] ✅ Countdown sent`);
 
     // Step 3: Wait 3 minutes then start video
     await new Promise((resolve) => setTimeout(resolve, 3 * 60 * 1000));
 
     console.log(`[Sadhana Action] 🎬 Starting video playback...`);
-    await startVideoInMeeting({
-      meetingId,
-      meetingPassword: password,
-      videoUrl: schedule.videoUrl,
-      videoDurationMinutes: videoDuration,
-    });
+    await startVideoInMeeting(meetingId, schedule.videoUrl);
     console.log(`[Sadhana Action] ✅ Video started`);
 
     // Step 4: Schedule auto-close
@@ -220,11 +211,7 @@ async function executeBotActionsAsync(
     setTimeout(async () => {
       try {
         console.log(`[Sadhana Action] 🛑 Auto-closing meeting...`);
-        await autoCloseMeeting({
-          meetingId,
-          meetingPassword: password,
-          videoDurationMinutes: videoDuration,
-        });
+        await autoCloseMeeting(meetingId);
         console.log(`[Sadhana Action] ✅ Meeting closed`);
       } catch (err) {
         console.error(`[Sadhana Action] ❌ Error closing meeting:`, err);

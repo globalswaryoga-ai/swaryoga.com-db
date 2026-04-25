@@ -112,7 +112,32 @@ export default function ProgramLivePage() {
   const sidRef = useRef<string>('');
   const chatEnd = useRef<HTMLDivElement>(null);
   const urlSetRef = useRef(false);
+  const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const onFullScreenChange = () => {
+      setFullscreenMode(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', onFullScreenChange);
+    return () => document.removeEventListener('fullscreenchange', onFullScreenChange);
+  }, []);
+
+  const toggleFullscreen = async () => {
+    if (!containerRef.current) return;
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+        setFullscreenMode(false);
+      } else {
+        await containerRef.current.requestFullscreen();
+        setFullscreenMode(true);
+      }
+    } catch (err) {
+      console.warn('Fullscreen toggle failed:', err);
+      setFullscreenMode((prev) => !prev);
+    }
+  };
 
   useEffect(() => { setName(storedName()); sidRef.current = storedSid(slug); }, [slug]);
 
@@ -323,13 +348,14 @@ export default function ProgramLivePage() {
           <iframe
             src={playerUrlWithParams}
             className="w-full h-full"
-            allow="autoplay; encrypted-media"
-            sandbox="allow-scripts allow-same-origin"
+            allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+            sandbox="allow-scripts allow-same-origin allow-presentation"
+            loading="eager"
             style={{ border: 'none' }}
             title="Video player"
           />
-        </div>
-      ) : (
+        <ref={containerRef} className={`${fullscreenMode ? 'fixed inset-0 z-50' : 'min-h-screen'} bg-gradient-to-br from-purple-900 via-indigo-900 to-black text-white`}>
+      {!fullscreenMode
         <div className="w-full h-full flex items-center justify-center"><p className="text-purple-200">Loading video...</p></div>
       );
     }
@@ -347,14 +373,14 @@ export default function ProgramLivePage() {
       </div>
     );
   }
-
+toggleFullscreen
   const isLive = session?.status === 'live';
 
   const isLiveVideo = session?.status === 'live' && (playerMode === 'hls' || (playerMode !== 'hls' && playableUrl));
 
   return (
-    <div className={`${isLiveVideo ? 'fixed inset-0' : 'min-h-screen'} bg-gradient-to-br from-purple-900 via-indigo-900 to-black text-white`}>
-      {!isLiveVideo && (
+    <div ref={containerRef} className={`${fullscreenMode ? 'fixed inset-0 z-50' : 'min-h-screen'} bg-gradient-to-br from-purple-900 via-indigo-900 to-black text-white`}>
+      {!fullscreenMode && (
         <div className="max-w-7xl mx-auto p-4">
           <div className="flex items-center justify-between mb-4 bg-white/10 backdrop-blur-lg rounded-xl p-4 border border-white/20">
             <div className="flex items-center gap-3">
@@ -487,18 +513,18 @@ export default function ProgramLivePage() {
             </div>}
           </div>
 
-          {!showSidebar && (
-                <button
-                  onClick={() => setShowSidebar(true)}
-                  className="absolute bottom-20 right-4 bg-gradient-to-r from-pink-500 to-violet-500 text-white px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition z-40"
-                  title="Show sidebar"
-                >
+       fullscreenMode && (
+        <div className="w-full h-full flex flex-col">
+          <div className="flex-1">
+            {sessionView}
+          </div>
+          <div className="absolute top-4 right-4 flex flex-col sm:flex-row
                   👁 Show Chat & Participants
-                </button>
-              )}
-
-              {announcement && (
-                <div className="mt-4 bg-gradient-to-r from-purple-900 via-indigo-900 to-purple-900 rounded-lg overflow-hidden border border-purple-500/30">
+                </buttotoggleFullscreen}
+              className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg font-semibold"
+              title={fullscreenMode ? 'Minimize screen' : 'Fullscreen'}
+            >
+              {fullscreenMode ? '🔽 Minimize' : '🔍nt-to-r from-purple-900 via-indigo-900 to-purple-900 rounded-lg overflow-hidden border border-purple-500/30">
                   <div className="py-2 px-4">
                     <div className="animate-marquee whitespace-nowrap text-white text-sm font-medium">
                       📢 {announcement} • 📢 {announcement} •
@@ -512,26 +538,33 @@ export default function ProgramLivePage() {
           </div>
         )}
 
-      {isLiveVideo && (
+      {fullscreenMode && (
         <div className="w-full h-full flex flex-col">
-          <div className="flex-1">
+          <div className="flex-1 relative">
             {sessionView}
-          </div>
-          <div className="absolute top-4 right-4 flex gap-2 z-50">
-            <button
-              onClick={() => setShowSidebar(!showSidebar)}
-              className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg font-semibold"
-              title={showSidebar ? 'Full screen' : 'Show sidebar'}
-            >
-              {showSidebar ? '📱 Small' : '🖥️ Full'}
-            </button>
-            <button
-              onClick={handleLeave}
-              className="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg font-semibold"
-              title="Leave session"
-            >
-              Leave
-            </button>
+            <div className="absolute top-4 right-4 flex gap-2 z-50 flex-wrap justify-end">
+              <button
+                onClick={toggleFullscreen}
+                className="bg-purple-600 hover:bg-purple-500 text-white px-3 py-2 rounded-lg font-semibold text-sm"
+                title={fullscreenMode ? 'Exit fullscreen' : 'Enter fullscreen'}
+              >
+                {fullscreenMode ? <Minimize2 size={16} /> : <Maximize2 size={16} />} {fullscreenMode ? 'Minimize' : 'Maximize'}
+              </button>
+              <button
+                onClick={() => setShowSidebar(!showSidebar)}
+                className="bg-purple-600 hover:bg-purple-500 text-white px-3 py-2 rounded-lg font-semibold text-sm"
+                title={showSidebar ? 'Hide sidebar' : 'Show sidebar'}
+              >
+                {showSidebar ? 'Hide panel' : 'Show panel'}
+              </button>
+              <button
+                onClick={handleLeave}
+                className="bg-red-600 hover:bg-red-500 text-white px-3 py-2 rounded-lg font-semibold text-sm"
+                title="Leave session"
+              >
+                Leave
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -548,6 +581,8 @@ interface HLSPlayerProps {
 function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
   const [error, setError] = useState<string | null>(null);
 
+  const seekPerformed = useRef(false);
+
   useEffect(() => {
     if (!videoRef.current || !url) return;
 
@@ -558,6 +593,7 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
     }
 
     const video = videoRef.current;
+    seekPerformed.current = false;
 
     const handleSeeking = (e: Event) => {
       console.log('Seeking attempt blocked');
@@ -567,22 +603,55 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
       console.log('Speed change blocked');
       if (video.playbackRate !== 1) video.playbackRate = 1;
     };
+    const handleCanPlay = () => {
+      if (!video.paused) return;
+      video.play().catch((err) => {
+        console.warn('HLS autoplay attempt failed:', err);
+      });
+    };
 
+    video.muted = false;
+    video.autoplay = true;
+    video.playsInline = true;
+    video.preload = 'auto';
+    video.src = url;
+    video.load();
     video.addEventListener('seeking', handleSeeking);
     video.addEventListener('ratechange', handleRateChange);
+    video.addEventListener('canplay', handleCanPlay);
 
-    console.log('Native HLS setup, offset:', offsetSeconds);
+    console.log('Native HLS setup, url:', url, 'offset:', offsetSeconds);
 
-    // Native HLS - modern browsers handle HLS.m3u8 natively
-    console.log('Using native HLS video element for:', url);
-    video.src = url;
-    // Don't set muted or currentTime here - let events handle it
+    const playPromise = video.play();
+    if (playPromise && typeof playPromise.then === 'function') {
+      playPromise.catch((err) => {
+        console.warn('Video.play() failed on init:', err);
+      });
+    }
 
     return () => {
       video.removeEventListener('seeking', handleSeeking);
       video.removeEventListener('ratechange', handleRateChange);
+      video.removeEventListener('canplay', handleCanPlay);
     };
-  }, [url, videoRef, offsetSeconds]);
+  }, [url, videoRef]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !url || seekPerformed.current) return;
+    if (offsetSeconds > 0) {
+      const handleLoadedMetadata = () => {
+        if (!seekPerformed.current) {
+          video.currentTime = offsetSeconds;
+          seekPerformed.current = true;
+        }
+      };
+      video.addEventListener('loadedmetadata', handleLoadedMetadata);
+      return () => {
+        video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      };
+    }
+  }, [offsetSeconds, url, videoRef]);
 
   if (error) {
     return (
@@ -605,10 +674,6 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
       onMouseUp={(e) => { if (e.button === 2) { e.preventDefault(); e.stopPropagation(); } }}
       onLoadedMetadata={() => {
         console.log('Video metadata loaded, duration:', videoRef.current?.duration, 'offset:', offsetSeconds);
-        if (videoRef.current && offsetSeconds > 0) {
-          videoRef.current.currentTime = offsetSeconds;
-          console.log('Set video offset to:', offsetSeconds);
-        }
       }}
       onError={(e) => {
         console.error('Video error:', (e.target as HTMLVideoElement).error?.message);
