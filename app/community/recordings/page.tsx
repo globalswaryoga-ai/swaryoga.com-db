@@ -136,7 +136,13 @@ function RecordingsContent() {
 
   const fetchCommunities = async () => {
     try {
-      const res = await fetch('/api/community/list');
+      const token = localStorage.getItem('token');
+      const headers: HeadersInit = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const res = await fetch('/api/community/list', { headers });
       const data = await res.json();
 
       if (data.success) {
