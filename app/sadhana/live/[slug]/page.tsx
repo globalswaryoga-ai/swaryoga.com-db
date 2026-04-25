@@ -375,7 +375,7 @@ export default function ProgramLivePage() {
       </div>
     );
   }
-toggleFullscreen
+
   const isLive = session?.status === 'live';
 
   const isLiveVideo = session?.status === 'live' && (playerMode === 'hls' || (playerMode !== 'hls' && playableUrl));
@@ -420,16 +420,16 @@ toggleFullscreen
             <div className={`grid grid-cols-1 ${showSidebar && !fullscreenMode ? 'lg:grid-cols-4' : 'lg:grid-cols-1'} gap-4`}>
               <div className={`${showSidebar && !fullscreenMode ? 'lg:col-span-3' : 'lg:col-span-1'} bg-black rounded-xl overflow-hidden aspect-video relative`}>
                 {sessionView}
-              {showSidebar && (
-                <button
-                  onClick={() => setShowSidebar(false)}
-                  className="absolute top-4 right-4 bg-black/70 hover:bg-black/90 text-white p-2 rounded-lg transition text-xs font-semibold"
-                  title="Hide sidebar for fullscreen video"
-                >
-                  ⛔ Hide
-                </button>
-              )}
-            </div>
+                {showSidebar && (
+                  <button
+                    onClick={() => setShowSidebar(false)}
+                    className="absolute top-4 right-4 bg-black/70 hover:bg-black/90 text-white p-2 rounded-lg transition text-xs font-semibold"
+                    title="Hide sidebar for fullscreen video"
+                  >
+                    ⛔ Hide
+                  </button>
+                )}
+              </div>
 
             {showSidebar && !fullscreenMode && <div className="space-y-4">
             <div className="bg-white/10 backdrop-blur-lg rounded-xl p-4 border border-white/20">
@@ -512,33 +512,34 @@ toggleFullscreen
                 )}
               </div>
             )}
-            </div>}
-          </div>
-
-       fullscreenMode && (
-        <div className="w-full h-full flex flex-col">
-          <div className="flex-1">
-            {sessionView}
-          </div>
-          <div className="absolute top-4 right-4 flex flex-col sm:flex-row
-                  👁 Show Chat & Participants
-                </buttotoggleFullscreen}
-              className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg font-semibold"
-              title={fullscreenMode ? 'Minimize screen' : 'Fullscreen'}
-            >
-              {fullscreenMode ? '🔽 Minimize' : '🔍nt-to-r from-purple-900 via-indigo-900 to-purple-900 rounded-lg overflow-hidden border border-purple-500/30">
-                  <div className="py-2 px-4">
-                    <div className="animate-marquee whitespace-nowrap text-white text-sm font-medium">
-                      📢 {announcement} • 📢 {announcement} •
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
-
-            <div className="mt-4 text-center text-purple-200 text-xs">Swar Yoga • Sadhana Live • Namaste 🙏</div>
+            }
           </div>
-        )}
+
+          {!showSidebar && (
+            <button
+              onClick={() => setShowSidebar(true)}
+              className="absolute bottom-20 right-4 bg-gradient-to-r from-pink-500 to-violet-500 text-white px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition z-40"
+              title="Show sidebar"
+            >
+              👁 Show Chat & Participants
+            </button>
+          )}
+
+          {announcement && (
+            <div className="mt-4 bg-gradient-to-r from-purple-900 via-indigo-900 to-purple-900 rounded-lg overflow-hidden border border-purple-500/30">
+              <div className="py-2 px-4">
+                <div className="animate-marquee whitespace-nowrap text-white text-sm font-medium">
+                  📢 {announcement} • 📢 {announcement} •
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-4 text-center text-purple-200 text-xs">Swar Yoga • Sadhana Live • Namaste 🙏</div>
+        </div>
+      </div>
+    )}
 
       {fullscreenMode && (
         <div className="w-full h-full flex flex-col">
