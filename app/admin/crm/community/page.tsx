@@ -1345,12 +1345,14 @@ export default function AdminCommunityPage() {
     setShowPostModal(true);
   };
 
-  // Upload new video using presigned URLs (bypasses server payload limits)
+  // Upload new video via Bunny Stream (handles large files natively)
   const uploadNewVideo = async (file: File) => {
     if (!token || !file) return;
     setUploadingVideo(true);
     try {
-      // Step 1: Get presigned upload URL from server
+      const title = videoTitle || file.name;
+
+      // Step 1: Create video in Bunny Stream
       const presignedRes = await fetch('/api/admin/communities/recordings-videos/presigned', {
         method: 'POST',
         headers: {
@@ -1360,24 +1362,20 @@ export default function AdminCommunityPage() {
         body: JSON.stringify({
           fileName: file.name,
           communityId: selectedCommunity,
-          title: videoTitle || file.name,
-          description: videoDescription,
+          title,
         }),
       });
 
-      if (!presignedRes.ok) throw new Error('Failed to get upload URL');
+      if (!presignedRes.ok) {
+        const err = await presignedRes.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to create video in Bunny Stream');
+      }
       const presigned = await presignedRes.json();
 
-      // Step 2: Upload file directly to Bunny Storage
-      const uploadRes = await fetch(presigned.uploadUrl, {
-        method: 'PUT',
-        headers: presigned.headers,
-        body: file,
-      });
+      // Step 2: Upload file via TUS protocol to Bunny Stream (resumable, no size limits)
+      await uploadToBunnyStreamTUS(file, presigned);
 
-      if (!uploadRes.ok) throw new Error('Failed to upload to storage');
-
-      // Step 3: Confirm upload and save metadata
+      // Step 3: Save metadata
       const confirmRes = await fetch('/api/admin/communities/recordings-videos/confirm', {
         method: 'POST',
         headers: {
@@ -1385,31 +1383,83 @@ export default function AdminCommunityPage() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          storagePath: presigned.storagePath,
+          videoId: presigned.videoId,
+          libraryId: presigned.libraryId,
           communityId: selectedCommunity,
-          title: videoTitle || file.name,
+          title,
           description: videoDescription,
         }),
       });
 
-      if (!confirmRes.ok) throw new Error('Failed to confirm upload');
-      const confirmed = await confirmRes.json();
-
-      if (confirmed.success) {
-        alert('✅ Video uploaded successfully!');
-        setShowUploadVideoModal(false);
-        setVideoTitle('');
-        setVideoDescription('');
-        fetchVideos();
+      if (!confirmRes.ok) {
+        const err = await confirmRes.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to save video metadata');
       }
+
+      alert('✅ Video uploaded successfully!');
+      setShowUploadVideoModal(false);
+      setVideoTitle('');
+      setVideoDescription('');
+      fetchVideos();
     } catch (error: any) {
+      console.error('Upload error:', error);
       alert('❌ Upload failed: ' + error.message);
     } finally {
       setUploadingVideo(false);
     }
   };
 
-  // Upload recording with folder/playlist structure using presigned URLs
+  // Upload to Bunny Stream using TUS protocol (resumable, chunked, no size limits)
+  const uploadToBunnyStreamTUS = async (file: File, presigned: any): Promise<void> => {
+    const { videoId, libraryId, authSignature, expirationTime, uploadEndpoint } = presigned;
+
+    // Use TUS protocol for resumable chunked uploads
+    return new Promise((resolve, reject) => {
+      // Dynamically load tus-js-client
+      import('tus-js-client').then(({ Upload }) => {
+        const upload = new Upload(file, {
+          endpoint: uploadEndpoint,
+          retryDelays: [0, 3000, 5000, 10000, 20000],
+          headers: {
+            AuthorizationSignature: authSignature,
+            AuthorizationExpire: String(expirationTime),
+            VideoId: videoId,
+            LibraryId: String(libraryId),
+          },
+          metadata: {
+            filetype: file.type,
+            title: presigned.community?.name || 'Video',
+          },
+          chunkSize: 50 * 1024 * 1024, // 50MB chunks
+          onError: (error) => {
+            console.error('TUS upload error:', error);
+            reject(error);
+          },
+          onProgress: (bytesUploaded, bytesTotal) => {
+            const percentage = ((bytesUploaded / bytesTotal) * 100).toFixed(1);
+            console.log(`Upload progress: ${percentage}%`);
+          },
+          onSuccess: () => {
+            console.log('TUS upload complete');
+            resolve();
+          },
+        });
+        upload.start();
+      }).catch(() => {
+        // Fallback: Use simple PUT if tus-js-client not available
+        fetch(presigned.simpleUpload.url, {
+          method: 'PUT',
+          headers: presigned.simpleUpload.headers,
+          body: file,
+        }).then((res) => {
+          if (!res.ok) reject(new Error(`Upload failed: ${res.status}`));
+          else resolve();
+        }).catch(reject);
+      });
+    });
+  };
+
+  // Upload recording via Bunny Stream (handles large files, no payload limits)
   const uploadNewRecording = async (file: File) => {
     if (!token || !file) return;
     if (!recordingFolderName.trim()) {
@@ -1429,7 +1479,7 @@ export default function AdminCommunityPage() {
     try {
       const title = `${recordingFolderName} > ${recordingPlaylistName} > Video ${recordingVideoNumber}`;
 
-      // Step 1: Get presigned upload URL from server
+      // Step 1: Create video in Bunny Stream
       const presignedRes = await fetch('/api/admin/communities/recordings-videos/presigned', {
         method: 'POST',
         headers: {
@@ -1440,23 +1490,19 @@ export default function AdminCommunityPage() {
           fileName: file.name,
           communityId: selectedCommunity,
           title,
-          description: recordingDescription,
         }),
       });
 
-      if (!presignedRes.ok) throw new Error('Failed to get upload URL');
+      if (!presignedRes.ok) {
+        const err = await presignedRes.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to create video in Bunny Stream');
+      }
       const presigned = await presignedRes.json();
 
-      // Step 2: Upload file directly to Bunny Storage
-      const uploadRes = await fetch(presigned.uploadUrl, {
-        method: 'PUT',
-        headers: presigned.headers,
-        body: file,
-      });
+      // Step 2: Upload via TUS protocol
+      await uploadToBunnyStreamTUS(file, presigned);
 
-      if (!uploadRes.ok) throw new Error('Failed to upload to storage');
-
-      // Step 3: Confirm upload and save metadata with folder/playlist info
+      // Step 3: Save metadata with folder/playlist info
       const confirmRes = await fetch('/api/admin/communities/recordings-videos/confirm', {
         method: 'POST',
         headers: {
@@ -1464,27 +1510,31 @@ export default function AdminCommunityPage() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          storagePath: presigned.storagePath,
+          videoId: presigned.videoId,
+          libraryId: presigned.libraryId,
           communityId: selectedCommunity,
           title,
           description: recordingDescription,
-          tags: [`folder:${recordingFolderName}`, `playlist:${recordingPlaylistName}`, `video:${recordingVideoNumber}`],
+          folderName: recordingFolderName.trim(),
+          playlistName: recordingPlaylistName.trim(),
+          videoNumber: recordingVideoNumber.trim(),
         }),
       });
 
-      if (!confirmRes.ok) throw new Error('Failed to confirm upload');
-      const confirmed = await confirmRes.json();
-
-      if (confirmed.success) {
-        alert('✅ Recording uploaded successfully!');
-        setShowUploadRecordingModal(false);
-        setRecordingFolderName('');
-        setRecordingPlaylistName('');
-        setRecordingVideoNumber('');
-        setRecordingDescription('');
-        fetchRecordings();
+      if (!confirmRes.ok) {
+        const err = await confirmRes.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to save video metadata');
       }
+
+      alert('✅ Recording uploaded successfully!');
+      setShowUploadRecordingModal(false);
+      setRecordingFolderName('');
+      setRecordingPlaylistName('');
+      setRecordingVideoNumber('');
+      setRecordingDescription('');
+      fetchRecordings();
     } catch (error: any) {
+      console.error('Upload error:', error);
       alert('❌ Upload failed: ' + error.message);
     } finally {
       setUploadingRecording(false);

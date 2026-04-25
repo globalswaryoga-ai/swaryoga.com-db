@@ -1,17 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { getPublicFileUrl } from '@/lib/bunny-storage';
+import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * POST /api/admin/communities/recordings-videos/confirm
- * Confirm upload and save video metadata after file is uploaded to Bunny
+ * Save Bunny Stream video metadata after successful upload
  */
 export async function POST(request: NextRequest) {
   try {
-    // Verify admin authentication
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -24,39 +23,73 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { storagePath, title, description = '', communityId, tags = '', isCommon = false } = body;
+    const {
+      videoId,
+      libraryId,
+      title,
+      description = '',
+      communityId,
+      tags = [],
+      isCommon = false,
+      folderName,
+      playlistName,
+      videoNumber,
+    } = body;
 
-    if (!storagePath || !title || !communityId) {
+    console.log('[confirm] Request:', { videoId, libraryId, communityId, title });
+
+    if (!videoId || !libraryId || !title || !communityId) {
       return NextResponse.json(
-        { error: 'storagePath, title, and communityId are required' },
+        { error: 'videoId, libraryId, title, and communityId are required' },
         { status: 400 }
       );
     }
 
     await connectDB();
 
-    // Verify community exists
-    const { getCommunityVideo, getCommunity } = await import('@/lib/db');
+    // Robust community lookup
+    const { getCommunity, getCommunityVideo } = await import('@/lib/db');
     const Community = getCommunity();
-    const community = await Community.findById(communityId);
+    let community: any = null;
+
+    if (mongoose.Types.ObjectId.isValid(communityId)) {
+      community = await Community.findById(communityId);
+    }
+    if (!community) {
+      community = await Community.findOne({
+        $or: [
+          { slug: communityId },
+          { name: communityId },
+          { type: communityId },
+        ],
+      });
+    }
+
     if (!community) {
       return NextResponse.json({ error: 'Community not found' }, { status: 404 });
     }
 
-    // Get public URL for the uploaded file
-    const s3Url = getPublicFileUrl(storagePath);
+    // Build stream URLs
+    const streamUrl = `https://vz-${libraryId}.b-cdn.net/${videoId}/playlist.m3u8`;
+    const thumbnailUrl = `https://vz-${libraryId}.b-cdn.net/${videoId}/thumbnail.jpg`;
 
-    // Parse tags
-    const tagArray = tags.split(',').map((t: string) => t.trim()).filter((t: string) => t);
+    // Build tags array
+    const tagArray = Array.isArray(tags) ? tags : [];
+    if (folderName) tagArray.push(`folder:${folderName}`);
+    if (playlistName) tagArray.push(`playlist:${playlistName}`);
+    if (videoNumber) tagArray.push(`video:${videoNumber}`);
 
-    // Save metadata to MongoDB
     const CommunityVideo = getCommunityVideo();
     const video = await CommunityVideo.create({
-      communityId,
+      communityId: community._id.toString(),
       title,
       description,
-      s3Key: storagePath,
-      s3Url,
+      s3Key: videoId,
+      s3Url: streamUrl,
+      thumbnailUrl,
+      videoSource: 'bunny-stream',
+      bunnyVideoId: videoId,
+      bunnyLibraryId: libraryId,
       uploadedBy: decoded.email || decoded.userId || 'admin',
       isShareable: false,
       isCommon,
@@ -65,23 +98,22 @@ export async function POST(request: NextRequest) {
       createdAt: new Date(),
     });
 
-    console.log(`✅ Video metadata saved for community ${communityId}: ${title}`);
+    console.log(`✅ [confirm] Video saved: ${videoId} for community ${community.name}`);
 
     return NextResponse.json({
       success: true,
-      message: 'Video confirmed and saved',
+      message: 'Video uploaded and saved successfully',
       content: {
         _id: video._id,
         title: video.title,
         communityId: video.communityId,
         communityName: community.name,
-        s3Url,
-        uploadedBy: video.uploadedBy,
-        createdAt: video.createdAt,
+        streamUrl,
+        thumbnailUrl,
       },
     });
   } catch (error: any) {
-    console.error('❌ Confirm video upload error:', error);
+    console.error('❌ [confirm] Error:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to confirm video' },
       { status: 500 }

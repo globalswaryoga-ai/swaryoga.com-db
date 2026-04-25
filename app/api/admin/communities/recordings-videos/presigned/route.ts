@@ -2,13 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import crypto from 'crypto';
+import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 /**
  * POST /api/admin/communities/recordings-videos/presigned
- * Generate a presigned Bunny Storage upload URL for direct client uploads
- * Bypasses server payload limits by uploading directly to Bunny
+ *
+ * Creates a video in Bunny Stream and returns TUS upload credentials.
+ * Bunny Stream handles large files natively via TUS protocol (resumable, chunked).
+ * No server payload limits - uploads go directly to Bunny CDN.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -25,9 +29,9 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { fileName, communityId, title, description } = body;
+    const { fileName, communityId, title } = body;
 
-    console.log('[presigned] Request:', { fileName, communityId, title });
+    console.log('[presigned] Request received:', { fileName, communityId, title });
 
     if (!fileName || !communityId || !title) {
       return NextResponse.json(
@@ -37,83 +41,129 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate file extension
-    const validExtensions = ['mp4', 'webm', 'mov', 'avi'];
+    const validExtensions = ['mp4', 'webm', 'mov', 'avi', 'mkv'];
     const ext = fileName.toLowerCase().split('.').pop();
     if (!validExtensions.includes(ext || '')) {
       return NextResponse.json(
-        { error: 'Invalid video format. Allowed: MP4, WebM, MOV, AVI' },
+        { error: 'Invalid video format. Allowed: MP4, WebM, MOV, AVI, MKV' },
         { status: 400 }
       );
     }
 
     await connectDB();
 
-    // Verify community exists
+    // Robust community lookup: try by ObjectId, slug, name, or type
+    const { getCommunity } = await import('@/lib/db');
+    const Community = getCommunity();
     let community: any = null;
-    try {
-      const { getCommunity } = await import('@/lib/db');
-      const Community = getCommunity();
+
+    if (mongoose.Types.ObjectId.isValid(communityId)) {
       community = await Community.findById(communityId);
-
-      console.log('[presigned] Community lookup:', { communityId, found: !!community });
-
-      if (!community) {
-        return NextResponse.json({ error: 'Community not found' }, { status: 404 });
-      }
-    } catch (dbError: any) {
-      console.error('[presigned] Database error:', dbError.message);
-      throw dbError;
+    }
+    if (!community) {
+      community = await Community.findOne({
+        $or: [
+          { slug: communityId },
+          { name: communityId },
+          { type: communityId },
+        ],
+      });
     }
 
-    // Get Bunny credentials from env
-    const bunnyZone = process.env.BUNNY_STORAGE_ZONE_NAME;
-    const bunnyApiKey = process.env.BUNNY_STORAGE_API_KEY;
-    const bunnyHost = process.env.BUNNY_STORAGE_REGION ?
-      `${process.env.BUNNY_STORAGE_REGION}.storage.bunnycdn.com` :
-      'storage.bunnycdn.com';
+    console.log('[presigned] Community lookup:', {
+      communityId,
+      found: !!community,
+      foundId: community?._id?.toString(),
+    });
 
-    if (!bunnyZone || !bunnyApiKey) {
-      console.error('[presigned] Bunny not configured:', { bunnyZone: !!bunnyZone, bunnyApiKey: !!bunnyApiKey });
+    if (!community) {
       return NextResponse.json(
-        { error: 'Bunny Storage not configured' },
+        { error: `Community not found for: ${communityId}` },
+        { status: 404 }
+      );
+    }
+
+    // Get Bunny Stream credentials
+    const libraryId = process.env.BUNNY_STREAM_LIBRARY_ID;
+    const apiKey = process.env.BUNNY_API_KEY;
+
+    if (!libraryId || !apiKey) {
+      console.error('[presigned] Bunny Stream not configured:', {
+        hasLibraryId: !!libraryId,
+        hasApiKey: !!apiKey,
+      });
+      return NextResponse.json(
+        { error: 'Bunny Stream not configured. Missing BUNNY_STREAM_LIBRARY_ID or BUNNY_API_KEY' },
         { status: 500 }
       );
     }
 
-    // Generate storage path
-    const timestamp = Date.now();
-    const random = crypto.randomBytes(4).toString('hex');
-    const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const storagePath = `community/${communityId}/videos/${timestamp}-${random}-${safeName}`;
+    // Step 1: Create video record in Bunny Stream
+    console.log('[presigned] Creating video in Bunny Stream library:', libraryId);
+    const createRes = await fetch(
+      `https://video.bunnycdn.com/library/${libraryId}/videos`,
+      {
+        method: 'POST',
+        headers: {
+          AccessKey: apiKey,
+          'Content-Type': 'application/json',
+          accept: 'application/json',
+        },
+        body: JSON.stringify({ title }),
+      }
+    );
 
-    // Build presigned upload URL for Bunny Storage
-    const uploadUrl = `https://${bunnyHost}/${bunnyZone}/${storagePath}`;
+    if (!createRes.ok) {
+      const errorText = await createRes.text();
+      console.error('[presigned] Bunny Stream create failed:', {
+        status: createRes.status,
+        body: errorText,
+      });
+      return NextResponse.json(
+        { error: `Bunny Stream create failed: ${createRes.status} - ${errorText}` },
+        { status: 500 }
+      );
+    }
 
-    console.log('[presigned] Generating upload URL:', { uploadUrl, storagePath });
+    const videoData = await createRes.json();
+    const videoId = videoData.guid;
+
+    console.log('[presigned] Video created with GUID:', videoId);
+
+    // Step 2: Generate TUS authentication signature
+    // Signature = SHA256(libraryId + apiKey + expirationTime + videoId)
+    const expirationTime = Math.floor(Date.now() / 1000) + 3600; // 1 hour
+    const signatureString = `${libraryId}${apiKey}${expirationTime}${videoId}`;
+    const authSignature = crypto.createHash('sha256').update(signatureString).digest('hex');
 
     return NextResponse.json({
       success: true,
-      uploadUrl,
-      storagePath,
+      provider: 'bunny-stream',
+      videoId,
+      libraryId,
+      authSignature,
+      expirationTime,
+      uploadEndpoint: 'https://video.bunnycdn.com/tusupload',
+      streamUrl: `https://vz-${libraryId}.b-cdn.net/${videoId}/playlist.m3u8`,
+      directUrl: `https://video.bunnycdn.com/library/${libraryId}/videos/${videoId}`,
       community: {
-        id: communityId,
+        id: community._id.toString(),
         name: community.name,
+        slug: community.slug,
       },
-      headers: {
-        AccessKey: bunnyApiKey,
-        'Content-Type': 'application/octet-stream',
-      },
-      instructions: {
-        step1: 'Upload file directly to uploadUrl using PUT method',
-        step2: 'Include AccessKey header from headers object',
-        step3: 'After upload completes, call POST /api/admin/communities/recordings-videos/confirm',
-        step4: 'Pass: { storagePath, title, description, communityId }',
+      // For simple PUT upload (alternative to TUS)
+      simpleUpload: {
+        url: `https://video.bunnycdn.com/library/${libraryId}/videos/${videoId}`,
+        method: 'PUT',
+        headers: {
+          AccessKey: apiKey,
+        },
       },
     });
   } catch (error: any) {
-    console.error('❌ Generate presigned URL error:', error);
+    console.error('❌ [presigned] Error:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to generate upload URL' },
+      { error: error.message || 'Failed to generate upload URL', stack: error.stack },
       { status: 500 }
     );
   }
