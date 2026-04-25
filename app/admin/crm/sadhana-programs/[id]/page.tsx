@@ -348,7 +348,34 @@ export default function ProgramDetailPage() {
                 {isToday && liveStats && (
                   <div className="mt-2 space-y-1 text-[10px]">
                     <div className="text-sky-200">👥 {liveStats.activeParticipants} joined</div>
-                    <div className="text-emerald-200">💬 {liveStats.chatMessages24h} chat</div>
+                    <div className="text-emerald-200 flex items-center gap-2">
+                      <span>💬 {liveStats.chatMessages24h} chat</span>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          // Preview chats
+                          console.log('Preview chats for', editDate);
+                        }}
+                        className="p-1 hover:bg-emerald-500/20 rounded transition"
+                        title="Preview chats"
+                      >
+                        👁️
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (confirm(`Delete all chats for ${editDate}?`)) {
+                            console.log('Delete chats for', editDate);
+                          }
+                        }}
+                        className="p-1 hover:bg-red-500/20 rounded transition"
+                        title="Delete chats"
+                      >
+                        🗑️
+                      </button>
+                    </div>
                   </div>
                 )}
               </button>
