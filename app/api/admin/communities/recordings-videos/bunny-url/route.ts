@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
 
     const CommunityVideo = getCommunityVideo();
     const video = await CommunityVideo.create({
-      communityId: community._id.toString(),
+      communityId: communityId,
       title,
       description,
       s3Key: bunnyUrl,
