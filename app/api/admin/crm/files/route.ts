@@ -4,12 +4,13 @@ import { verifyToken } from '@/lib/auth';
 import { getViewerUserId, isSuperAdmin } from '@/lib/crm-handlers';
 import {
 
-export const dynamic = 'force-dynamic';
   listUserFiles,
   deleteUserFile,
   getUserStorageUsage,
   getUserStoragePath,
 } from '@/lib/bunny-storage';
+
+export const dynamic = 'force-dynamic';
 
 export const runtime = 'nodejs';
 

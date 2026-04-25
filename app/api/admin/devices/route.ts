@@ -4,7 +4,6 @@ import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 import { 
 
-export const dynamic = 'force-dynamic';
   getAllUserDevices, 
   getDevicesByUser, 
   blockDevice, 
@@ -12,6 +11,8 @@ export const dynamic = 'force-dynamic';
   removeAllUserDevices,
   getDeviceStats,
 } from '@/lib/device-control';
+
+export const dynamic = 'force-dynamic';
 import { apiError, apiSuccess } from '@/lib/api-error';
 
 // GET - Get all devices or devices by user (SUPERADMIN ONLY)
