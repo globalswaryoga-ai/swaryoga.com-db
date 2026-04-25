@@ -9,13 +9,14 @@ import connectDB from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import {
 
-export const dynamic = 'force-dynamic';
   getRecordedCourse,
   getCourseVideo,
   getCourseEnrollment,
   getVideoWatchLog,
   getCourseDevice,
 } from '@/lib/schemas/recordedCourseSchemas';
+
+export const dynamic = 'force-dynamic';
 
 
 interface RouteParams {

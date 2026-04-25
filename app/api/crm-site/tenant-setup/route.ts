@@ -6,7 +6,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
 
-export const dynamic = 'force-dynamic';
 
   TenantSetup,
   createDefaultSetup,
@@ -18,6 +17,8 @@ export const dynamic = 'force-dynamic';
   calculateSetupProgress,
   SETUP_SECTIONS_BY_PLAN,
 } from '@/lib/crm-site/tenantSetupConfig';
+
+export const dynamic = 'force-dynamic';
 import { resolveCrmSiteTenantAccess } from '@/lib/crm-site/tenantAccess';
 
 // GET - Get tenant setup data

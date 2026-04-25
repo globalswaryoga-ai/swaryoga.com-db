@@ -16,12 +16,13 @@ import { apiSuccess, apiError } from '@/lib/api-error';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 import {
 
-export const dynamic = 'force-dynamic';
 
   setTenantKey,
   deleteTenantKey,
   listTenantKeyNames,
 } from '@/lib/tenant/apiKeyVault';
+
+export const dynamic = 'force-dynamic';
 
 
 function requireSuperAdmin(request: NextRequest) {

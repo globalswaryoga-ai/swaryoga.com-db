@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import {
 
-export const dynamic = 'force-dynamic';
   verifyAdminAccess,
   parsePagination,
   handleCrmError,
@@ -12,6 +11,8 @@ export const dynamic = 'force-dynamic';
   toObjectId,
   isSuperAdmin,
 } from '@/lib/crm-handlers';
+
+export const dynamic = 'force-dynamic';
 import { Permission } from '@/lib/schemas/enterpriseSchemas';
 import mongoose from 'mongoose';
 import { verifyToken } from '@/lib/auth';

@@ -3,7 +3,6 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import {
 
-export const dynamic = 'force-dynamic';
   tenantFilter,
   parsePagination,
   handleCrmError,
@@ -11,6 +10,8 @@ export const dynamic = 'force-dynamic';
   buildMetadata,
   isValidObjectId,
 } from '@/lib/crm-handlers';
+
+export const dynamic = 'force-dynamic';
 import { UserConsent } from '@/lib/schemas/enterpriseSchemas';
 import mongoose from 'mongoose';
 

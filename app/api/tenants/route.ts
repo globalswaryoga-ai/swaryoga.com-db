@@ -9,13 +9,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import {
 
-export const dynamic = 'force-dynamic';
 
   createTenant as createTenantHandler,
   generateAPIKey,
   getTenantBySlug,
   getTenantById,
 } from '@/lib/multiTenant/handlers';
+
+export const dynamic = 'force-dynamic';
 import { buildTenantContext, tenantError, tenantSuccess } from '@/lib/multiTenant/middleware';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';

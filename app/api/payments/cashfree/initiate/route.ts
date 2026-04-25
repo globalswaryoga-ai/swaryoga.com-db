@@ -3,7 +3,6 @@ import { connectDB, Order } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import {
 
-export const dynamic = 'force-dynamic';
 
   cashfreeCreateOrder,
   getCashfreeEnv,
@@ -11,6 +10,8 @@ export const dynamic = 'force-dynamic';
   getCashfreeSdkUrl,
   getCashfreeWebhookUrl,
 } from '@/lib/payments/cashfree';
+
+export const dynamic = 'force-dynamic';
 
 
 // Cashfree payment initiation

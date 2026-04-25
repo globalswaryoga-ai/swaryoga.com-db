@@ -3,7 +3,6 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import {
 
-export const dynamic = 'force-dynamic';
   getLead,
   getWhatsAppMessage,
   getSalesReport,
@@ -11,6 +10,8 @@ export const dynamic = 'force-dynamic';
   getLeadFollowUp,
   getAuditLog,
 } from '@/lib/schemas/enterpriseSchemas';
+
+export const dynamic = 'force-dynamic';
 import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 
 

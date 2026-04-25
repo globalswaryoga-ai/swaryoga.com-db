@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import {
 
-export const dynamic = 'force-dynamic';
   verifyAdminAccess,
   parsePagination,
   handleCrmError,
   formatCrmSuccess,
   buildMetadata,
 } from '@/lib/crm-handlers';
+
+export const dynamic = 'force-dynamic';
 import { WhatsAppAutomationRule } from '@/lib/schemas/enterpriseSchemas';
 
 // Mark as dynamic since this route uses request.headers or request.url

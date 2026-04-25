@@ -3,13 +3,14 @@ import { v4 as uuidv4 } from 'uuid';
 import { resolveCrmSiteTenantAccess } from '@/lib/crm-site/tenantAccess';
 import {
 
-export const dynamic = 'force-dynamic';
 
   EMAIL_LIMITS,
   CAMPAIGN_TYPES,
   CAMPAIGN_STATUS,
   DEFAULT_TEMPLATES,
 } from '@/lib/crm-site/emailMarketingConfig';
+
+export const dynamic = 'force-dynamic';
 import { resolveEmailPlanAccess, resolveTenantPlanAccess } from '@/lib/crm-site/tenantPlanAccess';
 
 /**

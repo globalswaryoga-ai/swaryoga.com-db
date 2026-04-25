@@ -5,7 +5,6 @@ import { getLead, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import { 
 
-export const dynamic = 'force-dynamic';
   escapeRegexLiteral, 
   getViewerUserId, 
   isSuperAdmin,
@@ -13,6 +12,8 @@ export const dynamic = 'force-dynamic';
   getVisibleUserIds,
   normalizePhone 
 } from '@/lib/crm-handlers';
+
+export const dynamic = 'force-dynamic';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 import { logger } from '@/lib/logger';
 

@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import {
 
-export const dynamic = 'force-dynamic';
   parsePagination,
   handleCrmError,
   formatCrmSuccess,
@@ -12,6 +11,8 @@ export const dynamic = 'force-dynamic';
   getViewerUserId,
   getVisibleUserIds,
 } from '@/lib/crm-handlers';
+
+export const dynamic = 'force-dynamic';
 import { getSalesReport, getLead } from '@/lib/schemas/enterpriseSchemas';
 import mongoose from 'mongoose';
 import { verifyToken } from '@/lib/auth';

@@ -2,7 +2,6 @@ import { NextRequest } from 'next/server';
 import { connectDB } from '@/lib/db';
 import {
 
-export const dynamic = 'force-dynamic';
   verifyAdminAccess,
   parsePagination,
   handleCrmError,
@@ -11,6 +10,8 @@ export const dynamic = 'force-dynamic';
   isSuperAdmin,
   getVisibleUserIds,
 } from '@/lib/crm-handlers';
+
+export const dynamic = 'force-dynamic';
 import { getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { verifyToken } from '@/lib/auth';
 

@@ -4,7 +4,6 @@ import { verifyToken } from '@/lib/auth';
 import { getUserCompartment } from '@/lib/schemas/enterpriseSchemas';
 import {
 
-export const dynamic = 'force-dynamic';
 
   PlanTier,
   PLAN_LIMITS,
@@ -13,6 +12,8 @@ export const dynamic = 'force-dynamic';
   isInTrial,
   getTrialDaysRemaining,
 } from '@/lib/crm-site/planConfig';
+
+export const dynamic = 'force-dynamic';
 import { resolveTenantPlanAccess } from '@/lib/crm-site/tenantPlanAccess';
 
 const corsHeaders = {

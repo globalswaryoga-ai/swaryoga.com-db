@@ -9,7 +9,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { 
 
-export const dynamic = 'force-dynamic';
   getLogs, 
   getUserLogs, 
   getRequestLogs,
@@ -19,6 +18,8 @@ export const dynamic = 'force-dynamic';
   logRequest,
   logResponse,
 } from '@/lib/logging';
+
+export const dynamic = 'force-dynamic';
 import { Timer } from '@/lib/logging';
 
 // Required: This route uses request.url

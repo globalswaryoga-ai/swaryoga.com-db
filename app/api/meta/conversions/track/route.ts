@@ -9,7 +9,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
 
-export const dynamic = 'force-dynamic';
 
   trackFormSubmission,
   trackCRMLeadEvent,
@@ -20,6 +19,8 @@ export const dynamic = 'force-dynamic';
   trackInitiateCheckout,
   trackCustomEvent,
 } from '@/lib/meta-conversions/api-gateway';
+
+export const dynamic = 'force-dynamic';
 
 
 export async function POST(request: NextRequest) {

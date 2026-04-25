@@ -15,10 +15,11 @@ import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 import { 
 
-export const dynamic = 'force-dynamic';
   initializeSystemCommunities, 
   COMMUNITY_TYPES 
 } from '@/lib/community-manager';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {

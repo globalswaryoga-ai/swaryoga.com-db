@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
 
-export const dynamic = 'force-dynamic';
 
   HELPDESK_LIMITS,
   DEFAULT_CATEGORIES,
   generateTicketNumber,
   calculateSLADeadline,
 } from '@/lib/crm-site/helpdeskConfig';
+
+export const dynamic = 'force-dynamic';
 import { resolveCrmSiteTenantAccess } from '@/lib/crm-site/tenantAccess';
 import { resolveHelpdeskPlanAccess, resolveTenantPlanAccess } from '@/lib/crm-site/tenantPlanAccess';
 

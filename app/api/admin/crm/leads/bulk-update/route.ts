@@ -4,13 +4,14 @@ import { verifyToken } from '@/lib/auth';
 import { Lead } from '@/lib/schemas/enterpriseSchemas';
 import { 
 
-export const dynamic = 'force-dynamic';
   tenantOrFilter, 
   toObjectId, 
   isValidObjectId, 
   handleCrmError, 
   formatCrmSuccess 
 } from '@/lib/crm-handlers';
+
+export const dynamic = 'force-dynamic';
 
 // Mark as dynamic since this route uses request.headers or request.url
 

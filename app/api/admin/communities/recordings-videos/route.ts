@@ -4,11 +4,12 @@ import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 import { 
 
-export const dynamic = 'force-dynamic';
   uploadCommunityVideo, 
   deleteFromS3,
   extractS3Key
 } from '@/lib/aws-s3';
+
+export const dynamic = 'force-dynamic';
 
 
 /**

@@ -4,11 +4,12 @@ import { getLead } from '@/lib/schemas/enterpriseSchemas';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import {
 
-export const dynamic = 'force-dynamic';
   verifyAdminAccess,
   getViewerUserId,
   isSuperAdmin,
 } from '@/lib/crm-handlers';
+
+export const dynamic = 'force-dynamic';
 import { verifyToken } from '@/lib/auth';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 

@@ -7,10 +7,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import {
 
-export const dynamic = 'force-dynamic';
   uploadTemplateFileToS3,
   validateTemplateFile,
 } from '@/lib/bunny-storage';
+
+export const dynamic = 'force-dynamic';
 
 // Mark as dynamic since this route uses request.headers or request.url
 

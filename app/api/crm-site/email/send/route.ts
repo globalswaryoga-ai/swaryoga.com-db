@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
 
-export const dynamic = 'force-dynamic';
 
   EMAIL_LIMITS,
   replaceEmailVariables,
   generateTrackingPixel,
   wrapLinksForTracking,
 } from '@/lib/crm-site/emailMarketingConfig';
+
+export const dynamic = 'force-dynamic';
 import { resolveCrmSiteTenantAccess } from '@/lib/crm-site/tenantAccess';
 import { resolveEmailPlanAccess, resolveTenantPlanAccess } from '@/lib/crm-site/tenantPlanAccess';
 

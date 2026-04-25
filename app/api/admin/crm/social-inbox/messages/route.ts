@@ -5,13 +5,14 @@ import { apiError, apiSuccess, logError } from '@/lib/api-error';
 import { verifyToken } from '@/lib/auth';
 import {
 
-export const dynamic = 'force-dynamic';
   buildSocialInboxScopeFilter,
   createOutboundSocialMessage,
   markSocialConversationRead,
   normalizeSocialInboxPlatform,
   resolveSocialInboxAccount,
 } from '@/lib/socialInbox';
+
+export const dynamic = 'force-dynamic';
 import { resolveSocialMediaScope } from '@/lib/socialMediaScope';
 import { getSocialInboxConversation, getSocialInboxMessage } from '@/lib/schemas/enterpriseSchemas';
 

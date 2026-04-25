@@ -19,7 +19,6 @@ import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 import {
 
-export const dynamic = 'force-dynamic';
 
   getTallyConfig,
   testTallyConnection,
@@ -31,6 +30,8 @@ export const dynamic = 'force-dynamic';
   fetchProfitAndLoss,
   fetchBalanceSheet,
 } from '@/lib/tally/tallyPrimeAPI';
+
+export const dynamic = 'force-dynamic';
 import { runTallyAutoSync, getLastSyncInfo } from '@/lib/tally/tallyAutoSync';
 import { getTallyManualVoucher, getTallyManualBalance } from '@/lib/schemas/enterpriseSchemas';
 import mongoose from 'mongoose';

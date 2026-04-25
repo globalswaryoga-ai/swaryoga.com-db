@@ -9,7 +9,6 @@ import connectDB from '@/lib/db';
 import { verifyToken, TokenPayload } from '@/lib/auth';
 import {
 
-export const dynamic = 'force-dynamic';
   getRecordedCourse,
   getCourseVideo,
   getCourseSection,
@@ -17,6 +16,8 @@ export const dynamic = 'force-dynamic';
   getCourseEnrollment,
   getCourseReview,
 } from '@/lib/schemas/recordedCourseSchemas';
+
+export const dynamic = 'force-dynamic';
 
 
 // Helper to get user-preferred language

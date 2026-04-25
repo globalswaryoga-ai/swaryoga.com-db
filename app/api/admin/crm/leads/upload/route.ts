@@ -6,7 +6,6 @@ import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import { normalizePhoneStrict } from '@/lib/crm/phone';
 import { 
 
-export const dynamic = 'force-dynamic';
   verifyAdminAccess, 
   getViewerUserId, 
   isSuperAdmin, 
@@ -15,6 +14,8 @@ export const dynamic = 'force-dynamic';
   toObjectId,
   normalizePhone
 } from '@/lib/crm-handlers';
+
+export const dynamic = 'force-dynamic';
 import { verifyToken } from '@/lib/auth';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 

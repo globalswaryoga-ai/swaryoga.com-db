@@ -3,7 +3,6 @@ import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import {
 
-export const dynamic = 'force-dynamic';
   fetchEmails,
   fetchEmailByUid,
   markEmailRead,
@@ -12,6 +11,8 @@ export const dynamic = 'force-dynamic';
   isImapConfigured,
   getImapUser,
 } from '@/lib/imapClient';
+
+export const dynamic = 'force-dynamic';
 
 
 /**

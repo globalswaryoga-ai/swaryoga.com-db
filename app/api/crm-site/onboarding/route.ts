@@ -3,7 +3,6 @@ import { connectDB } from '@/lib/db';
 import { resolveCrmSiteTenantAccess } from '@/lib/crm-site/tenantAccess';
 import { 
 
-export const dynamic = 'force-dynamic';
 
   ONBOARDING_STEPS, 
   calculateOnboardingProgress, 
@@ -11,6 +10,8 @@ export const dynamic = 'force-dynamic';
   getNextStep,
   OnboardingProgress 
 } from '@/lib/crm-site/onboardingConfig';
+
+export const dynamic = 'force-dynamic';
 
 
 /**

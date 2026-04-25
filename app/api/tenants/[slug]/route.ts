@@ -9,7 +9,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import {
 
-export const dynamic = 'force-dynamic';
 
   getTenantBySlug,
   getTenantById,
@@ -20,6 +19,8 @@ export const dynamic = 'force-dynamic';
   verifyCustomDomain,
   deleteTenant,
 } from '@/lib/multiTenant/handlers';
+
+export const dynamic = 'force-dynamic';
 import { buildTenantContext, tenantError, tenantSuccess, withTenantContext } from '@/lib/multiTenant/middleware';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';

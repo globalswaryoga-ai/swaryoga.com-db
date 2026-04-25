@@ -5,13 +5,14 @@ import { tenantFilter, getViewerUserId } from '@/lib/crm-handlers';
 import { getWhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
 import {
 
-export const dynamic = 'force-dynamic';
   submitTemplateToMeta,
   convertToMetaFormat,
   getTemplateStatusFromMeta,
   mapMetaStatusToLocal,
   uploadMediaToMeta,
 } from '@/lib/meta-templates';
+
+export const dynamic = 'force-dynamic';
 import { getPublicMediaUrl } from '@/lib/whatsapp';
 import mongoose from 'mongoose';
 

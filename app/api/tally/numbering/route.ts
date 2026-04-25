@@ -11,13 +11,14 @@ import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import {
 
-export const dynamic = 'force-dynamic';
 
   getAllNumberingSeries,
   updateNumberingSeries,
   resetNumberingCounter,
   formatVoucherNumber,
 } from '@/lib/tally/engine';
+
+export const dynamic = 'force-dynamic';
 import { resolveTallyOwnerId } from '@/lib/tally/access';
 
 function getAuth(request: NextRequest) {

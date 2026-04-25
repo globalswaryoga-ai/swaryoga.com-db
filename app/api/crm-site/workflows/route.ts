@@ -3,7 +3,6 @@ import { v4 as uuidv4 } from 'uuid';
 import { resolveCrmSiteTenantAccess } from '@/lib/crm-site/tenantAccess';
 import {
 
-export const dynamic = 'force-dynamic';
 
   AUTOMATION_LIMITS,
   validateWorkflow,
@@ -11,6 +10,8 @@ export const dynamic = 'force-dynamic';
   TRIGGER_TYPES,
   ACTION_TYPES,
 } from '@/lib/crm-site/automationConfig';
+
+export const dynamic = 'force-dynamic';
 import { resolveTenantPlanAccess, resolveWorkflowPlanAccess } from '@/lib/crm-site/tenantPlanAccess';
 
 /**

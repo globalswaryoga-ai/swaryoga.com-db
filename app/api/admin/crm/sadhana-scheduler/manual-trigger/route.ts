@@ -3,13 +3,14 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import {
 
-export const dynamic = 'force-dynamic';
 
   botJoinMeeting,
   sendCountdownMessage,
   startLiveStream,
   cleanupOldMeetings,
 } from '@/lib/zoomBotService';
+
+export const dynamic = 'force-dynamic';
 
 import mongoose from 'mongoose';
 

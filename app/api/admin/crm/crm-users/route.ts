@@ -5,7 +5,6 @@ import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 import {
 
-export const dynamic = 'force-dynamic';
   normalizePlanTier,
   resolveTenantPlanAccess,
   sanitizeTenantChannelAccess,
@@ -13,6 +12,8 @@ export const dynamic = 'force-dynamic';
   sanitizeTenantCustomPricing,
   sanitizeTenantModuleOverrides,
 } from '@/lib/crm-site/tenantPlanAccess';
+
+export const dynamic = 'force-dynamic';
 
 
 /**

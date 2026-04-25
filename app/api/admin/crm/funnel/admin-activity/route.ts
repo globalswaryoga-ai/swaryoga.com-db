@@ -8,7 +8,6 @@ import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import {
 
-export const dynamic = 'force-dynamic';
 
   getLead,
   getWhatsAppMessage,
@@ -16,6 +15,8 @@ export const dynamic = 'force-dynamic';
   getSalesReport,
   getAdminSession,
 } from '@/lib/schemas/enterpriseSchemas';
+
+export const dynamic = 'force-dynamic';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 
 export async function GET(request: NextRequest) {

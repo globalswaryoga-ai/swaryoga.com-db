@@ -9,12 +9,13 @@ import { getCRMUserSettings, getTelegramContact, getTelegramMessage } from '@/li
 import { getViewerUserId } from '@/lib/crm-handlers';
 import {
 
-export const dynamic = 'force-dynamic';
   sendTelegramMessage,
   sendTelegramPhoto,
   sendTelegramVideo,
   sendTelegramDocument,
 } from '@/lib/telegram';
+
+export const dynamic = 'force-dynamic';
 
 
 export async function POST(req: NextRequest) {

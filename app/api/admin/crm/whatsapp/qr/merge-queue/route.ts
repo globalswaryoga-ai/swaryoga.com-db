@@ -15,7 +15,6 @@ import { verifyToken } from '@/lib/auth';
 import mongoose from 'mongoose';
 import {
 
-export const dynamic = 'force-dynamic';
   createMergeQueueEntry,
   shouldProceedWithNextMergeOperation,
   formatMergeQueueProgress,
@@ -23,6 +22,8 @@ export const dynamic = 'force-dynamic';
   blockMergeQueue,
   getNextMergeOperationDelay,
 } from '@/lib/safeGroupMerge';
+
+export const dynamic = 'force-dynamic';
 
 const mergeQueueSchema = new mongoose.Schema({
   userId: String,

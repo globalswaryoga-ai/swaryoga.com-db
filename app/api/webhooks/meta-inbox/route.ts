@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
 
-export const dynamic = 'force-dynamic';
   getMetaInboxVerifyToken,
   ingestMetaSocialEvent,
   parseMetaSocialWebhookPayload,
   verifyMetaInboxSignature,
 } from '@/lib/socialInbox';
+
+export const dynamic = 'force-dynamic';
 import { logError } from '@/lib/api-error';
 
 

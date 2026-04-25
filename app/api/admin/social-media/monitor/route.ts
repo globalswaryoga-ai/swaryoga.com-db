@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
 
-export const dynamic = 'force-dynamic';
   getRecentLogs,
   getErrorSummary,
   getOperationMetrics,
   createErrorReport,
 } from '@/lib/socialMediaErrorLogger';
+
+export const dynamic = 'force-dynamic';
 import { verifyToken } from '@/lib/auth';
 
 export const revalidate = 0;

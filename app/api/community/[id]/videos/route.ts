@@ -3,13 +3,14 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { 
 
-export const dynamic = 'force-dynamic';
   uploadCommunityVideo, 
   listCommunityVideos, 
   getProtectedUrl,
   deleteFromS3,
   extractS3Key
 } from '@/lib/aws-s3';
+
+export const dynamic = 'force-dynamic';
 
 
 // Video metadata stored in MongoDB

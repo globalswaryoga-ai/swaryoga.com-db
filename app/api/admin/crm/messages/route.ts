@@ -3,7 +3,6 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import {
 
-export const dynamic = 'force-dynamic';
   verifyAdminAccess,
   parsePagination,
   buildFilter,
@@ -14,6 +13,8 @@ export const dynamic = 'force-dynamic';
   toObjectId,
   normalizePhone,
 } from '@/lib/crm-handlers';
+
+export const dynamic = 'force-dynamic';
 import { getLead, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { ConsentManager } from '@/lib/consentManager';
 import { AuditLogger } from '@/lib/auditLogger';
