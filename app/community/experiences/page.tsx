@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 
 interface Experience {
   _id: string;
@@ -41,10 +42,13 @@ const communities = [
 ];
 
 export default function ExperiencesPage() {
+  const searchParams = useSearchParams();
+  const communityIdParam = searchParams.get('communityId');
+
   const [experiences, setExperiences] = useState<Experience[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedCommunity, setSelectedCommunity] = useState('global');
+  const [selectedCommunity, setSelectedCommunity] = useState(communityIdParam || 'global');
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);

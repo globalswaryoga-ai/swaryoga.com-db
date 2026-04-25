@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 
 interface Tip {
   _id: string;
@@ -30,6 +31,9 @@ const categories = [
 ];
 
 export default function TipsPage() {
+  const searchParams = useSearchParams();
+  const communityId = searchParams.get('communityId');
+
   const [tips, setTips] = useState<Tip[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -60,11 +64,15 @@ export default function TipsPage() {
       const params = new URLSearchParams();
       if (selectedCategory !== 'all') params.set('category', selectedCategory);
       if (searchTerm) params.set('search', searchTerm);
-      
+
+      const postsParams = new URLSearchParams();
+      postsParams.set('category', 'tips');
+      if (communityId) postsParams.set('communityId', communityId);
+
       // Fetch both tips collection AND posts with category='tips'
       const [tipsRes, postsRes] = await Promise.all([
         fetch(`/api/community/tips?${params}`),
-        fetch(`/api/community/posts?category=tips`)
+        fetch(`/api/community/posts?${postsParams}`)
       ]);
       
       const tipsData = await tipsRes.json();

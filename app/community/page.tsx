@@ -354,7 +354,12 @@ function CommunityPageContent() {
     setLoading(true);
     setPostsError('');
     try {
-      const response = await fetch('/api/community/posts?category=' + selectedCategory, {
+      const params = new URLSearchParams();
+      params.set('category', selectedCategory);
+      if (selectedCommunity && selectedCommunity !== 'global') {
+        params.set('communityId', selectedCommunity);
+      }
+      const response = await fetch('/api/community/posts?' + params.toString(), {
         cache: 'no-store',
       });
       
@@ -385,7 +390,7 @@ function CommunityPageContent() {
     } finally {
       setLoading(false);
     }
-  }, [selectedCategory, retryCount]);
+  }, [selectedCategory, selectedCommunity, retryCount]);
 
   useEffect(() => {
     fetchPosts();
@@ -1149,16 +1154,17 @@ function CommunityPageContent() {
                     key={category.id}
                     onClick={() => {
                       // Route to dedicated pages for each category
+                      const communityParam = selectedCommunity && selectedCommunity !== 'global' ? `?communityId=${selectedCommunity}` : '';
                       if (category.id === 'recordings') {
-                        router.push('/community/recordings');
+                        router.push(`/community/recordings${communityParam}`);
                       } else if (category.id === 'experiences') {
-                        router.push('/community/experiences');
+                        router.push(`/community/experiences${communityParam}`);
                       } else if (category.id === 'questions') {
-                        router.push('/community/questions');
+                        router.push(`/community/questions${communityParam}`);
                       } else if (category.id === 'tips') {
-                        router.push('/community/tips');
+                        router.push(`/community/tips${communityParam}`);
                       } else if (category.id === 'transformations') {
-                        router.push('/community/transformations');
+                        router.push(`/community/transformations${communityParam}`);
                       } else {
                         setSelectedCategory(category.id);
                         setViewMode('posts');

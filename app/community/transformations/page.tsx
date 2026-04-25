@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useSearchParams } from 'next/navigation';
 
 interface Transformation {
   _id: string;
@@ -40,10 +41,13 @@ const communities = [
 ];
 
 export default function TransformationsPage() {
+  const searchParams = useSearchParams();
+  const communityIdParam = searchParams.get('communityId');
+
   const [transformations, setTransformations] = useState<Transformation[]>([]);
   const [stats, setStats] = useState<{ totalCount: number; withPhotos: number } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedCommunity, setSelectedCommunity] = useState('global');
+  const [selectedCommunity, setSelectedCommunity] = useState(communityIdParam || 'global');
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);

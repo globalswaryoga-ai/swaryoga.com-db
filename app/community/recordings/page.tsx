@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { ArrowLeft, ArrowRight, Play, Calendar, Lock, Users, Video, Heart, MessageCircle, Send, X, Maximize, Minimize } from 'lucide-react';
 
 interface RecordingComment {
@@ -49,11 +50,14 @@ const GRADIENT_COLORS = [
 ];
 
 export default function RecordingsPage() {
+  const searchParams = useSearchParams();
+  const communityIdParam = searchParams.get('communityId');
+
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [communities, setCommunities] = useState<Community[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [selectedCommunity, setSelectedCommunity] = useState<string>('all');
+  const [selectedCommunity, setSelectedCommunity] = useState<string>(communityIdParam || 'all');
   const [user, setUser] = useState<any>(null);
   const [playingVideo, setPlayingVideo] = useState<Recording | null>(null);
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);

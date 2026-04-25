@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 
 interface Question {
   _id: string;
@@ -35,6 +36,9 @@ const categories = [
 ];
 
 export default function QuestionsPage() {
+  const searchParams = useSearchParams();
+  const communityId = searchParams.get('communityId');
+
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -65,11 +69,15 @@ export default function QuestionsPage() {
       const params = new URLSearchParams();
       if (selectedCategory !== 'all') params.set('category', selectedCategory);
       if (searchTerm) params.set('search', searchTerm);
-      
+
+      const postsParams = new URLSearchParams();
+      postsParams.set('category', 'questions');
+      if (communityId) postsParams.set('communityId', communityId);
+
       // Fetch both questions collection AND posts with category='questions'
       const [questionsRes, postsRes] = await Promise.all([
         fetch(`/api/community/questions?${params}`),
-        fetch(`/api/community/posts?category=questions`)
+        fetch(`/api/community/posts?${postsParams}`)
       ]);
       
       const questionsData = await questionsRes.json();
