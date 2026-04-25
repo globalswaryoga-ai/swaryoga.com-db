@@ -87,12 +87,15 @@ export async function POST(request: NextRequest) {
     const isHls = bunnyUrl.includes('playlist.m3u8');
     const streamUrl = isHls ? bunnyUrl : bunnyUrl;
 
-    // Extract video ID from URL if possible for thumbnail
+    // Extract video ID and library ID from URL for thumbnail
     let thumbnailUrl = '';
     const videoIdMatch = bunnyUrl.match(/\/([a-f0-9-]+)\//);
-    if (videoIdMatch) {
+    const libraryMatch = bunnyUrl.match(/vz-([a-zA-Z0-9]+)\./);
+
+    if (videoIdMatch && libraryMatch) {
       const videoId = videoIdMatch[1];
-      thumbnailUrl = `https://vz-${bunnyUrl.split('vz-')[1]?.split('.')[0]}.b-cdn.net/${videoId}/thumbnail.jpg`;
+      const libraryIdFromUrl = libraryMatch[1];
+      thumbnailUrl = `https://vz-${libraryIdFromUrl}.b-cdn.net/${videoId}/thumbnail.jpg`;
     }
 
     const CommunityVideo = getCommunityVideo();
