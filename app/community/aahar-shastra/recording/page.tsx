@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Play, Calendar, Lock, Users, Video, Heart, MessageCircle, Send, X, Maximize, Minimize } from 'lucide-react';
+import { ArrowLeft, Play, Calendar, Lock, Users, Video, Heart, MessageCircle, Send, X, Maximize, Minimize, Copy, Check } from 'lucide-react';
 
 interface RecordingComment {
   userId: string;
@@ -46,6 +46,7 @@ export default function AaharShastraRecordingsPage() {
   const [submittingComment, setSubmittingComment] = useState(false);
   const [likingVideoId, setLikingVideoId] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [copiedUrl, setCopiedUrl] = useState(false);
   const videoContainerRef = useRef<HTMLDivElement>(null);
 
   const toggleFullscreen = useCallback(() => {
@@ -54,6 +55,16 @@ export default function AaharShastraRecordingsPage() {
       videoContainerRef.current.requestFullscreen().catch(() => {});
     } else {
       document.exitFullscreen().catch(() => {});
+    }
+  }, []);
+
+  const copyUrlToClipboard = useCallback(() => {
+    const url = typeof window !== 'undefined' ? window.location.href : '';
+    if (url) {
+      navigator.clipboard.writeText(url).then(() => {
+        setCopiedUrl(true);
+        setTimeout(() => setCopiedUrl(false), 2000);
+      });
     }
   }, []);
 
@@ -298,17 +309,43 @@ export default function AaharShastraRecordingsPage() {
     <div className="min-h-screen bg-white">
       <header className="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
         <div className="max-w-6xl mx-auto px-4 py-4">
-          <div className="flex items-center gap-4">
-            <Link
-              href="/community"
-              className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5 text-slate-700" />
-            </Link>
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">Aahar Shastra Recordings</h1>
-              <p className="text-slate-500 text-sm">Learn about diet & nutrition</p>
+          <div className="flex items-center justify-between gap-4 mb-3">
+            <div className="flex items-center gap-4">
+              <Link
+                href="/community"
+                className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                <ArrowLeft className="w-5 h-5 text-slate-700" />
+              </Link>
+              <div>
+                <h1 className="text-2xl font-bold text-slate-900">Aahar Shastra Recordings</h1>
+                <p className="text-slate-500 text-sm">Learn about diet & nutrition</p>
+              </div>
             </div>
+          </div>
+          {/* URL Copy Bar */}
+          <div className="flex items-center gap-2 bg-slate-50 rounded-lg p-3 border border-slate-200">
+            <span className="text-xs text-slate-600 font-medium">Share URL:</span>
+            <code className="flex-1 text-sm text-slate-700 bg-white px-3 py-1 rounded border border-slate-200 overflow-x-auto font-mono">
+              {typeof window !== 'undefined' ? window.location.href : 'swaryoga.com/community/aahar-shastra/recording'}
+            </code>
+            <button
+              onClick={copyUrlToClipboard}
+              className="flex items-center gap-2 px-3 py-1 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-medium whitespace-nowrap"
+              title="Copy URL"
+            >
+              {copiedUrl ? (
+                <>
+                  <Check className="w-4 h-4" />
+                  Copied!
+                </>
+              ) : (
+                <>
+                  <Copy className="w-4 h-4" />
+                  Copy URL
+                </>
+              )}
+            </button>
           </div>
         </div>
       </header>
