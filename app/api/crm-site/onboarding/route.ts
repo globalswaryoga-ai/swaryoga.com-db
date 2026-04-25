@@ -3,13 +3,14 @@ import { connectDB } from '@/lib/db';
 import { resolveCrmSiteTenantAccess } from '@/lib/crm-site/tenantAccess';
 import { 
 
-export const dynamic = 'force-dynamic';
   ONBOARDING_STEPS, 
   calculateOnboardingProgress, 
   isOnboardingComplete,
   getNextStep,
   OnboardingProgress 
 } from '@/lib/crm-site/onboardingConfig';
+
+export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/crm-site/onboarding

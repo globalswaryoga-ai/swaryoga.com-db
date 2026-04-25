@@ -4,7 +4,6 @@ import { handleCrmError } from '@/lib/crm-handlers';
 import { sendWhatsAppText } from '@/lib/whatsapp';
 import {
 
-export const dynamic = 'force-dynamic';
   botJoinMeeting,
   sendCountdownMessage,
   startLiveStream,
@@ -13,6 +12,8 @@ export const dynamic = 'force-dynamic';
   cleanupOldMeetings,
   getZoomAccessToken,
 } from '@/lib/zoomBotService';
+
+export const dynamic = 'force-dynamic';
 import mongoose from 'mongoose';
 
 const ZOOM_ACCOUNT_ID = process.env.ZOOM_ACCOUNT_ID;

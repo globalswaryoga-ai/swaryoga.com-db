@@ -13,8 +13,6 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 import {
-
-export const dynamic = 'force-dynamic';
   fetchDashboardSummary,
   fetchLedgers,
   fetchVouchers,
@@ -22,6 +20,8 @@ export const dynamic = 'force-dynamic';
   fetchBalanceSheet,
   testTallyConnection,
 } from '@/lib/tally/tallyPrimeAPI';
+
+export const dynamic = 'force-dynamic';
 
 function unauthorized() {
   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
