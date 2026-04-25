@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { isSuperAdmin } from '@/lib/crm-handlers';
 import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
@@ -28,6 +27,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { fileName, communityId, title, description } = body;
 
+    console.log('[presigned] Request:', { fileName, communityId, title });
+
     if (!fileName || !communityId || !title) {
       return NextResponse.json(
         { error: 'fileName, communityId, and title are required' },
@@ -48,11 +49,20 @@ export async function POST(request: NextRequest) {
     await connectDB();
 
     // Verify community exists
-    const { getCommunity } = await import('@/lib/db');
-    const Community = getCommunity();
-    const community = await Community.findById(communityId);
-    if (!community) {
-      return NextResponse.json({ error: 'Community not found' }, { status: 404 });
+    let community: any = null;
+    try {
+      const { getCommunity } = await import('@/lib/db');
+      const Community = getCommunity();
+      community = await Community.findById(communityId);
+
+      console.log('[presigned] Community lookup:', { communityId, found: !!community });
+
+      if (!community) {
+        return NextResponse.json({ error: 'Community not found' }, { status: 404 });
+      }
+    } catch (dbError: any) {
+      console.error('[presigned] Database error:', dbError.message);
+      throw dbError;
     }
 
     // Get Bunny credentials from env
@@ -63,6 +73,7 @@ export async function POST(request: NextRequest) {
       'storage.bunnycdn.com';
 
     if (!bunnyZone || !bunnyApiKey) {
+      console.error('[presigned] Bunny not configured:', { bunnyZone: !!bunnyZone, bunnyApiKey: !!bunnyApiKey });
       return NextResponse.json(
         { error: 'Bunny Storage not configured' },
         { status: 500 }
@@ -77,6 +88,8 @@ export async function POST(request: NextRequest) {
 
     // Build presigned upload URL for Bunny Storage
     const uploadUrl = `https://${bunnyHost}/${bunnyZone}/${storagePath}`;
+
+    console.log('[presigned] Generating upload URL:', { uploadUrl, storagePath });
 
     return NextResponse.json({
       success: true,
