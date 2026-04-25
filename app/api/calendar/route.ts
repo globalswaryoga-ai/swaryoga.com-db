@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 // IMPORTANT:
 // We intentionally keep this API route free of native dependencies.
 // The @bidyashish/panchang package depends on a native swisseph addon which may not bundle cleanly.

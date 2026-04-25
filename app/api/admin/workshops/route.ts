@@ -6,6 +6,8 @@ import { getWorkshop, getBatch, getWorkshopVideo } from '@/lib/schemas/workshopS
 import { createZoomMeeting } from '@/lib/zoom-meetings';
 import { createWorkshopCommunity, initializeSystemCommunities } from '@/lib/community-manager';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/admin/workshops (SUPERADMIN ONLY)
  * List all workshops with their batches

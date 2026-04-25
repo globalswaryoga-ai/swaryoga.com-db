@@ -4,6 +4,8 @@ import { connectDB } from '@/lib/db';
 import { getWorkshop, getBatch, getWorkshopVideo } from '@/lib/schemas/workshopSchemas';
 import mongoose from 'mongoose';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/workshops
  * List workshops for public/logged-in users

@@ -4,6 +4,8 @@ import { verifyToken } from '@/lib/auth';
 import { getViolations, getViolationsByUser, markViolationReviewed } from '@/lib/device-control';
 import { apiError, apiSuccess } from '@/lib/api-error';
 
+export const dynamic = 'force-dynamic';
+
 // GET - Get violations
 export async function GET(req: NextRequest) {
   try {

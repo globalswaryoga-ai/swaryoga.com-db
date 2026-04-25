@@ -4,6 +4,8 @@ import { connectDB } from '@/lib/db';
 import { getUserDevice } from '@/lib/schemas/workshopSchemas';
 import mongoose from 'mongoose';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/workshops/video/devices
  * Get user's registered devices

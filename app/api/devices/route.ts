@@ -4,6 +4,8 @@ import { verifyToken } from '@/lib/auth';
 import { getUserDevices, removeDevice } from '@/lib/device-control';
 import { apiError, apiSuccess } from '@/lib/api-error';
 
+export const dynamic = 'force-dynamic';
+
 // GET - Get user's devices
 export async function GET(req: NextRequest) {
   try {

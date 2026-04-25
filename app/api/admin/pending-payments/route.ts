@@ -4,6 +4,8 @@ import { getPendingPayment, getLead } from '@/lib/schemas/enterpriseSchemas';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/admin/pending-payments
  * Fetch all pending payments for admin approval (SUPERADMIN ONLY)

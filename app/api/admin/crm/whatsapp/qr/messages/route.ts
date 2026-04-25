@@ -16,6 +16,8 @@ import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 import { apiError, apiSuccess } from '@/lib/api-error';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization');

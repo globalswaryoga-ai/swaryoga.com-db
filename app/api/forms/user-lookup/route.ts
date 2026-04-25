@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, getUser } from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/forms/user-lookup?userId=xxx
  * Fetch user data by userId/profileId for form auto-fill

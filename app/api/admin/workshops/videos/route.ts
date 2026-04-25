@@ -6,6 +6,8 @@ import { getWorkshopVideo, getVideoAccessLog } from '@/lib/schemas/workshopSchem
 import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import mongoose from 'mongoose';
 
+export const dynamic = 'force-dynamic';
+
 const s3 = new S3Client({
   region: process.env.AWS_REGION || 'us-east-1',
   credentials: {

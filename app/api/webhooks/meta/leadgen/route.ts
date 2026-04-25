@@ -6,6 +6,8 @@ import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import { normalizePhone, generateAppSecretProof } from '@/lib/whatsapp';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 
+export const dynamic = 'force-dynamic';
+
 const APP_SECRET = process.env.META_APP_SECRET || '';
 const VERIFY_TOKEN = process.env.META_VERIFY_TOKEN || '';
 const GRAPH_API_VERSION = process.env.META_GRAPH_API_VERSION || 'v24.0';

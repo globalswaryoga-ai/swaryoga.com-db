@@ -4,6 +4,8 @@ import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import mongoose from 'mongoose';
 
+export const dynamic = 'force-dynamic';
+
 // Define submission schema (same as user-facing API)
 const communitySubmissionSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },

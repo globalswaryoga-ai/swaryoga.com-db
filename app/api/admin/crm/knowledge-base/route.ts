@@ -4,6 +4,8 @@ import { apiError, apiSuccess } from '@/lib/api-error';
 import { verifyAdminAccess, isSuperAdmin, getViewerUserId, handleCrmError } from '@/lib/crm-handlers';
 import { verifyToken } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
 // GET - List all knowledge base articles
 export async function GET(req: NextRequest) {
   try {

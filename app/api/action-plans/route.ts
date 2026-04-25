@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ActionPlan } from '@/lib/types/lifePlanner';
 
+export const dynamic = 'force-dynamic';
+
 // In-memory storage for demo (replace with MongoDB for production)
 let actionPlansData: ActionPlan[] = [];
 

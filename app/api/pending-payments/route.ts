@@ -3,6 +3,8 @@ import { connectDB } from '@/lib/db';
 import { getPendingPayment, getLead } from '@/lib/schemas/enterpriseSchemas';
 import { normalizePhone } from '@/lib/whatsapp';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/pending-payments
  * Create a new pending payment for Nepal/QR code payments

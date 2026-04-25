@@ -5,6 +5,8 @@ import { apiError, apiSuccess } from '@/lib/api-error';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin, getViewerUserId, getVisibleUserIds } from '@/lib/crm-handlers';
 
+export const dynamic = 'force-dynamic';
+
 const CRM_DB_NAME = process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm';
 
 // GET /api/admin/crm/funnel - List funnel config with stage distribution

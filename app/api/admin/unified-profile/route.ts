@@ -6,6 +6,8 @@ import { connectDB, User, Contact, Order, CommunityMembership, CommunityPost, Us
 import { getLead, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { apiError, apiSuccess } from '@/lib/api-error';
 
+export const dynamic = 'force-dynamic';
+
 // GET - Get unified profile (SUPERADMIN ONLY)
 export async function GET(req: NextRequest) {
   try {

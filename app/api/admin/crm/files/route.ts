@@ -3,6 +3,8 @@ import { apiError, apiSuccess } from '@/lib/api-error';
 import { verifyToken } from '@/lib/auth';
 import { getViewerUserId, isSuperAdmin } from '@/lib/crm-handlers';
 import {
+
+export const dynamic = 'force-dynamic';
   listUserFiles,
   deleteUserFile,
   getUserStorageUsage,

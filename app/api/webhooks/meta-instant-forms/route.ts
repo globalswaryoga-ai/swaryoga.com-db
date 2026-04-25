@@ -8,6 +8,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { MongoClient } from 'mongodb';
 
+export const dynamic = 'force-dynamic';
+
 // Verify webhook signature from Meta
 function verifyWebhookSignature(
   payload: string,

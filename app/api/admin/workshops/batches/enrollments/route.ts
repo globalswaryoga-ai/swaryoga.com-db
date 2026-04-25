@@ -5,6 +5,8 @@ import { getBatch, getWorkshop } from '@/lib/schemas/workshopSchemas';
 import { addUserToWorkshopCommunity } from '@/lib/community-manager';
 import mongoose from 'mongoose';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/admin/workshops/batches/enrollments
  * Get enrollments for a batch

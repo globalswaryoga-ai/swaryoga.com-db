@@ -5,6 +5,8 @@ import { connectDB } from '@/lib/db';
 import { getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { DeleteObjectCommand, S3Client } from '@aws-sdk/client-s3';
 
+export const dynamic = 'force-dynamic';
+
 const s3Client = new S3Client({
   region: process.env.AWS_REGION || 'us-east-1',
   credentials: {

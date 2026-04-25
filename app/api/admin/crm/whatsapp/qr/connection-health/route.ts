@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/admin/crm/whatsapp/qr/connection-health
  * Check connection is alive during long operations (like merges)

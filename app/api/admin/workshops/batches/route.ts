@@ -5,6 +5,8 @@ import { connectDB } from '@/lib/db';
 import { getBatch, getWorkshopVideo } from '@/lib/schemas/workshopSchemas';
 import mongoose from 'mongoose';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/admin/workshops/batches (SUPERADMIN ONLY)
  * List batches for a workshop
