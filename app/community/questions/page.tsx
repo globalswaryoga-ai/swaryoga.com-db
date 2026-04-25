@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect , Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 
@@ -37,7 +37,7 @@ const categories = [
   { id: 'children', name: 'Children', icon: '✦', color: '#A855F7' },
 ];
 
-export default function QuestionsPage() {
+function QuestionsContent() {
   const searchParams = useSearchParams();
   const communityId = searchParams.get('communityId');
 
@@ -425,5 +425,14 @@ export default function QuestionsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+
+export default function QuestionsPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div></div>}>
+      <QuestionsContent />
+    </Suspense>
   );
 }

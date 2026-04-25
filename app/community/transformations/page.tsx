@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect , Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
@@ -42,7 +42,7 @@ const communities = [
   { id: 'children', name: 'Children', icon: '✦', color: '#A855F7' },
 ];
 
-export default function TransformationsPage() {
+function TransformationsContent() {
   const searchParams = useSearchParams();
   const communityIdParam = searchParams.get('communityId');
 
@@ -606,5 +606,14 @@ export default function TransformationsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+
+export default function TransformationsPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div></div>}>
+      <TransformationsContent />
+    </Suspense>
   );
 }

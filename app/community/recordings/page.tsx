@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback , Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { ArrowLeft, ArrowRight, Play, Calendar, Lock, Users, Video, Heart, MessageCircle, Send, X, Maximize, Minimize } from 'lucide-react';
@@ -51,7 +51,7 @@ const GRADIENT_COLORS = [
   'from-rose-500 to-orange-500',
 ];
 
-export default function RecordingsPage() {
+function RecordingsContent() {
   const searchParams = useSearchParams();
   const communityIdParam = searchParams.get('communityId');
 
@@ -731,5 +731,14 @@ export default function RecordingsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+
+export default function RecordingsPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div></div>}>
+      <RecordingsContent />
+    </Suspense>
   );
 }
