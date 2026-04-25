@@ -1345,27 +1345,57 @@ export default function AdminCommunityPage() {
     setShowPostModal(true);
   };
 
-  // Upload new video
+  // Upload new video using presigned URLs (bypasses server payload limits)
   const uploadNewVideo = async (file: File) => {
     if (!token || !file) return;
     setUploadingVideo(true);
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('communityId', selectedCommunity);
-      formData.append('title', videoTitle || file.name);
-      formData.append('description', videoDescription);
-
-      const res = await fetch('/api/admin/communities/recordings-videos', {
+      // Step 1: Get presigned upload URL from server
+      const presignedRes = await fetch('/api/admin/communities/recordings-videos/presigned', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          fileName: file.name,
+          communityId: selectedCommunity,
+          title: videoTitle || file.name,
+          description: videoDescription,
+        }),
       });
 
-      if (!res.ok) throw new Error('Upload failed');
-      
-      const json = await res.json();
-      if (json.success) {
+      if (!presignedRes.ok) throw new Error('Failed to get upload URL');
+      const presigned = await presignedRes.json();
+
+      // Step 2: Upload file directly to Bunny Storage
+      const uploadRes = await fetch(presigned.uploadUrl, {
+        method: 'PUT',
+        headers: presigned.headers,
+        body: file,
+      });
+
+      if (!uploadRes.ok) throw new Error('Failed to upload to storage');
+
+      // Step 3: Confirm upload and save metadata
+      const confirmRes = await fetch('/api/admin/communities/recordings-videos/confirm', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          storagePath: presigned.storagePath,
+          communityId: selectedCommunity,
+          title: videoTitle || file.name,
+          description: videoDescription,
+        }),
+      });
+
+      if (!confirmRes.ok) throw new Error('Failed to confirm upload');
+      const confirmed = await confirmRes.json();
+
+      if (confirmed.success) {
         alert('✅ Video uploaded successfully!');
         setShowUploadVideoModal(false);
         setVideoTitle('');
@@ -1379,7 +1409,7 @@ export default function AdminCommunityPage() {
     }
   };
 
-  // Upload recording with folder/playlist structure
+  // Upload recording with folder/playlist structure using presigned URLs
   const uploadNewRecording = async (file: File) => {
     if (!token || !file) return;
     if (!recordingFolderName.trim()) {
@@ -1394,32 +1424,58 @@ export default function AdminCommunityPage() {
       alert('❌ Please enter a Video number');
       return;
     }
-    
+
     setUploadingRecording(true);
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('communityId', selectedCommunity);
-      // Title format: "FolderName > PlaylistName > Video X"
       const title = `${recordingFolderName} > ${recordingPlaylistName} > Video ${recordingVideoNumber}`;
-      formData.append('title', title);
-      formData.append('description', recordingDescription);
-      // Add metadata for folder/playlist organization
-      formData.append('folderName', recordingFolderName.trim());
-      formData.append('playlistName', recordingPlaylistName.trim());
-      formData.append('videoNumber', recordingVideoNumber.trim());
-      formData.append('isRecording', 'true');
 
-      const res = await fetch('/api/admin/communities/recordings-videos', {
+      // Step 1: Get presigned upload URL from server
+      const presignedRes = await fetch('/api/admin/communities/recordings-videos/presigned', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          fileName: file.name,
+          communityId: selectedCommunity,
+          title,
+          description: recordingDescription,
+        }),
       });
 
-      if (!res.ok) throw new Error('Upload failed');
-      
-      const json = await res.json();
-      if (json.success) {
+      if (!presignedRes.ok) throw new Error('Failed to get upload URL');
+      const presigned = await presignedRes.json();
+
+      // Step 2: Upload file directly to Bunny Storage
+      const uploadRes = await fetch(presigned.uploadUrl, {
+        method: 'PUT',
+        headers: presigned.headers,
+        body: file,
+      });
+
+      if (!uploadRes.ok) throw new Error('Failed to upload to storage');
+
+      // Step 3: Confirm upload and save metadata with folder/playlist info
+      const confirmRes = await fetch('/api/admin/communities/recordings-videos/confirm', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          storagePath: presigned.storagePath,
+          communityId: selectedCommunity,
+          title,
+          description: recordingDescription,
+          tags: [`folder:${recordingFolderName}`, `playlist:${recordingPlaylistName}`, `video:${recordingVideoNumber}`],
+        }),
+      });
+
+      if (!confirmRes.ok) throw new Error('Failed to confirm upload');
+      const confirmed = await confirmRes.json();
+
+      if (confirmed.success) {
         alert('✅ Recording uploaded successfully!');
         setShowUploadRecordingModal(false);
         setRecordingFolderName('');
