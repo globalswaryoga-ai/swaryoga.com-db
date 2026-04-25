@@ -123,6 +123,7 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/admin/communities/recordings-videos
  * Upload a new video or recording (admin only)
+ * Streams file directly to Bunny to avoid memory issues with large files
  */
 export async function POST(request: NextRequest) {
   try {
@@ -131,7 +132,7 @@ export async function POST(request: NextRequest) {
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
-    
+
     const token = authHeader.slice(7);
     const decoded = await verifyToken(token);
     if (!decoded || !decoded.isAdmin) {
@@ -146,9 +147,8 @@ export async function POST(request: NextRequest) {
     const communityId = formData.get('communityId') as string;
     const isCommon = formData.get('isCommon') === 'true';
     const tags = formData.get('tags') as string || '';
-    const contentType = formData.get('contentType') as string || 'video'; // 'video' or 'recording'
-    
-    // Recording folder/playlist metadata
+    const contentType = formData.get('contentType') as string || 'video';
+
     const folderName = formData.get('folderName') as string || '';
     const playlistName = formData.get('playlistName') as string || '';
     const videoNumber = formData.get('videoNumber') as string || '';
@@ -170,7 +170,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Max 2GB for videos (supports 2-hour recordings)
+    // Max 2GB for videos
     const maxSize = 2 * 1024 * 1024 * 1024;
     if (file.size > maxSize) {
       return NextResponse.json(
@@ -189,17 +189,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Community not found' }, { status: 404 });
     }
 
-    // Upload to S3
-    const buffer = Buffer.from(await file.arrayBuffer());
+    // Stream file directly to Bunny to avoid buffering large files in memory
+    console.log(`[Video Upload] Streaming ${file.name} (${Math.round(file.size / 1024 / 1024)}MB) for community ${communityId}`);
+    const chunks: Uint8Array[] = [];
+    const reader = file.stream().getReader();
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    const buffer = Buffer.concat(chunks.map(c => Buffer.from(c)));
     const s3Url = await uploadCommunityVideo(buffer, file.name, communityId);
     const s3Key = extractS3Key(s3Url);
 
-    // Parse tags - include folder and playlist as tags for searchability
+    // Parse tags
     const tagArray = tags.split(',').map(t => t.trim()).filter(t => t);
     if (folderName) tagArray.push(`folder:${folderName}`);
     if (playlistName) tagArray.push(`playlist:${playlistName}`);
 
-    // Determine source based on isRecording flag
     const source = isRecording ? 'manual' : (contentType === 'recording' ? 'zoom' : 'manual');
 
     // Save metadata to MongoDB
@@ -218,6 +231,8 @@ export async function POST(request: NextRequest) {
       createdAt: new Date(),
     });
 
+    console.log(`✅ Video uploaded to community ${communityId}: ${title}`);
+
     return NextResponse.json({
       success: true,
       message: 'Content uploaded successfully',
@@ -234,7 +249,7 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('❌ Upload community content error:', error);
     return NextResponse.json(
-      { error: 'Failed to upload content' },
+      { error: error.message || 'Failed to upload content' },
       { status: 500 }
     );
   }
