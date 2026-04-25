@@ -71,6 +71,7 @@ function RecordingsContent() {
   const [likingVideoId, setLikingVideoId] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const videoContainerRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   // Toggle fullscreen on the container div so overlays stay visible
   const toggleFullscreen = useCallback(() => {
@@ -382,15 +383,29 @@ function RecordingsContent() {
                     </button>
                   </div>
                 ) : playingVideo.videoUrl ? (
-                  <video
-                    src={playingVideo.videoUrl}
-                    controls
-                    autoPlay
-                    className="w-full aspect-video"
-                    controlsList="nodownload noremoteplayback"
-                    disablePictureInPicture
-                    onContextMenu={(e) => e.preventDefault()}
-                  />
+                  <div className="relative w-full aspect-video bg-black group">
+                    <video
+                      ref={videoRef}
+                      src={playingVideo.videoUrl}
+                      autoPlay
+                      playsInline
+                      crossOrigin="anonymous"
+                      className="w-full h-full"
+                      controls
+                      controlsList="nodownload noremoteplayback"
+                      disablePictureInPicture
+                      onContextMenu={(e) => e.preventDefault()}
+                    />
+
+                    {/* Fullscreen Button Overlay */}
+                    <button
+                      onClick={toggleFullscreen}
+                      className="absolute bottom-12 right-4 z-20 bg-black/70 hover:bg-white/20 text-white p-2 rounded transition"
+                      title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+                    >
+                      {isFullscreen ? '⛔ Exit' : '⛶ Fullscreen'}
+                    </button>
+                  </div>
                 ) : (
                   <div className="w-full aspect-video flex items-center justify-center text-white">
                     <p>Video unavailable</p>
