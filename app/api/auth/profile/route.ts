@@ -18,13 +18,19 @@ export async function GET(request: NextRequest) {
     const token = authHeader.slice(7);
     const decoded = await verifyToken(token);
 
-    if (!decoded || !decoded.userId) {
+    if (!decoded) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
+
+    // Get user ID from various possible fields in the token
+    const userId = decoded.userId || decoded._id || decoded.id;
+    if (!userId) {
+      return NextResponse.json({ error: 'Invalid token - no user ID' }, { status: 401 });
     }
 
     await connectDB();
 
-    const user = await User.findById(decoded.userId)
+    const user: any = await User.findById(userId)
       .select('_id name email phone profileId profileImage createdAt')
       .lean();
 
@@ -39,8 +45,8 @@ export async function GET(request: NextRequest) {
         name: user.name,
         email: user.email,
         phone: user.phone,
-        profileId: (user as any).profileId,
-        profileImage: (user as any).profileImage,
+        profileId: user.profileId,
+        profileImage: user.profileImage,
         createdAt: user.createdAt,
       },
     });
