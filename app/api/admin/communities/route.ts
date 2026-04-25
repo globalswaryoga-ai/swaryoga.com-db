@@ -13,8 +13,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, Community, CommunityMembership } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
-import { 
-
+import {
   initializeSystemCommunities, 
   COMMUNITY_TYPES 
 } from '@/lib/community-manager';

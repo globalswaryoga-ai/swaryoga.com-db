@@ -7,8 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { 
-
+import {
   getLogs, 
   getUserLogs, 
   getRequestLogs,

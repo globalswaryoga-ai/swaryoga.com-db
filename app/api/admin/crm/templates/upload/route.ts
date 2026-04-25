@@ -6,7 +6,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import {
-
   uploadTemplateFileToS3,
   validateTemplateFile,
 } from '@/lib/bunny-storage';

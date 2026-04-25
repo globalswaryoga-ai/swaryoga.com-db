@@ -4,7 +4,6 @@ import { connectDB } from '@/lib/db';
 import { apiError, apiSuccess, logError } from '@/lib/api-error';
 import { verifyToken } from '@/lib/auth';
 import {
-
   buildSocialInboxScopeFilter,
   createOutboundSocialMessage,
   markSocialConversationRead,

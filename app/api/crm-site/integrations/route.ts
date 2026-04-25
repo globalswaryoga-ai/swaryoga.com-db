@@ -2,9 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { 
-
-
+import {
   INTEGRATION_LIMITS,
   INTEGRATION_CATALOG
 } from '@/lib/crm-site/integrationsConfig';

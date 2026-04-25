@@ -10,8 +10,6 @@ import { NextRequest } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import {
-
-
   getAllNumberingSeries,
   updateNumberingSeries,
   resetNumberingCounter,

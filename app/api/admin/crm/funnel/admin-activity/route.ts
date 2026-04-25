@@ -7,8 +7,6 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import {
-
-
   getLead,
   getWhatsAppMessage,
   getFunnelStageHistory,

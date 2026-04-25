@@ -8,8 +8,6 @@ import { NextRequest } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import {
-
-
   getStockGroups,
   createStockGroup,
   getStockItems,

@@ -14,7 +14,6 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import mongoose from 'mongoose';
 import {
-
   createMergeQueueEntry,
   shouldProceedWithNextMergeOperation,
   formatMergeQueueProgress,

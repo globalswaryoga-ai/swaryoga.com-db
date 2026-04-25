@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
-
-
   HELPDESK_LIMITS,
   DEFAULT_CATEGORIES,
   generateTicketNumber,

@@ -4,7 +4,6 @@ import { verifyToken } from '@/lib/auth';
 import { tenantFilter, getViewerUserId } from '@/lib/crm-handlers';
 import { getWhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
 import {
-
   submitTemplateToMeta,
   convertToMetaFormat,
   getTemplateStatusFromMeta,

@@ -2,8 +2,7 @@
 import { NextRequest } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
-import { 
-
+import {
   getAllUserDevices, 
   getDevicesByUser, 
   blockDevice, 

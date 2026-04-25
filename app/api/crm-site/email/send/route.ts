@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
-
-
   EMAIL_LIMITS,
   replaceEmailVariables,
   generateTrackingPixel,

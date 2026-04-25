@@ -11,7 +11,6 @@ import connectDB from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 import {
-
   getRecordedCourse,
   getCourseSection,
   getCourseVideo,

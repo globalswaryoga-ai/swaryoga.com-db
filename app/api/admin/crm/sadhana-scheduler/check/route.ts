@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import mongoose from 'mongoose';
 import {
-
   botJoinMeeting,
   sendCountdownMessage,
   startVideoInMeeting,

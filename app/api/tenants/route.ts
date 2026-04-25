@@ -8,8 +8,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import {
-
-
   createTenant as createTenantHandler,
   generateAPIKey,
   getTenantBySlug,
