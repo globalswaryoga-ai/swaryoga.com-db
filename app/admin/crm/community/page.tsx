@@ -240,6 +240,8 @@ export default function AdminCommunityPage() {
   // YouTube Recording Add Modal State
   const [showAddYouTubeRecordingModal, setShowAddYouTubeRecordingModal] = useState(false);
   const [youtubeRecordingUrl, setYoutubeRecordingUrl] = useState('');
+  const [bunnyRecordingUrl, setBunnyRecordingUrl] = useState('');
+  const [recordingUrlMode, setRecordingUrlMode] = useState<'youtube' | 'bunny'>('youtube');
   const [addingYouTubeRecording, setAddingYouTubeRecording] = useState(false);
   
   // Recording Upload Modal State (Folder > Playlist > Video structure)
@@ -1538,6 +1540,58 @@ export default function AdminCommunityPage() {
       alert('❌ Upload failed: ' + error.message);
     } finally {
       setUploadingRecording(false);
+    }
+  };
+
+  // Add Bunny Stream video by URL
+  const addBunnyStreamRecording = async () => {
+    if (!bunnyRecordingUrl.trim()) {
+      alert('Bunny Stream URL is required');
+      return;
+    }
+    if (!recordingFolderName.trim() || !recordingPlaylistName.trim() || !recordingVideoNumber.trim()) {
+      alert('Workshop name, Batch name, and Video number are required');
+      return;
+    }
+    if (!token) return;
+
+    setAddingYouTubeRecording(true);
+    try {
+      const title = `${recordingFolderName} > ${recordingPlaylistName} > Video ${recordingVideoNumber}`;
+      const res = await fetch('/api/admin/communities/recordings-videos/bunny-url', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          bunnyUrl: bunnyRecordingUrl.trim(),
+          communityId: selectedCommunity,
+          title,
+          description: recordingDescription.trim(),
+          isCommon: true,
+          tags: [`folder:${recordingFolderName}`, `playlist:${recordingPlaylistName}`, 'recording'],
+          folderName: recordingFolderName,
+          playlistName: recordingPlaylistName,
+          videoNumber: recordingVideoNumber,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Failed to add recording');
+      alert('✅ Bunny Stream recording added successfully!');
+      setShowAddYouTubeRecordingModal(false);
+      setBunnyRecordingUrl('');
+      setYoutubeRecordingUrl('');
+      setRecordingFolderName('');
+      setRecordingPlaylistName('');
+      setRecordingVideoNumber('');
+      setRecordingDescription('');
+      setRecordingUrlMode('youtube');
+      fetchRecordings();
+    } catch (err: any) {
+      alert('❌ Error: ' + err.message);
+    } finally {
+      setAddingYouTubeRecording(false);
     }
   };
 
@@ -3343,16 +3397,16 @@ export default function AdminCommunityPage() {
 
       {/* Upload Recording Modal - Folder/Playlist/Video Structure */}
       {showUploadRecordingModal && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[100] flex items-center justify-center animate-in fade-in">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-8 m-4">
-            <div className="flex items-center justify-between mb-6">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[100] flex items-center justify-center animate-in fade-in p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-8 border-b border-slate-200 shrink-0">
               <h3 className="text-xl font-bold text-slate-900">🎥 Upload Recording</h3>
               <button onClick={() => setShowUploadRecordingModal(false)} className="p-2 hover:bg-slate-100 rounded-xl transition-all">
                 <Plus className="rotate-45" size={20} />
               </button>
             </div>
-            
-            <div className="space-y-4">
+
+            <div className="flex-1 overflow-y-auto p-8 space-y-4">
               {/* Folder/Workshop Name */}
               <div>
                 <label className="text-sm font-bold text-slate-700 mb-2 block">
@@ -3452,35 +3506,73 @@ export default function AdminCommunityPage() {
         </div>
       )}
 
-      {/* Add YouTube Recording Modal - with Folder/Playlist structure */}
+      {/* Add YouTube/Bunny Recording Modal - with Folder/Playlist structure */}
       {showAddYouTubeRecordingModal && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[100] flex items-center justify-center animate-in fade-in">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-8 m-4">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-slate-900">▶ Add YouTube Recording</h3>
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[100] flex items-center justify-center animate-in fade-in p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-8 border-b border-slate-200 shrink-0">
+              <h3 className="text-xl font-bold text-slate-900">▶ Add Recording</h3>
               <button onClick={() => setShowAddYouTubeRecordingModal(false)} className="p-2 hover:bg-slate-100 rounded-xl transition-all">
                 <Plus className="rotate-45" size={20} />
               </button>
             </div>
-            
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
-              <p className="text-amber-800 text-sm">
-                <strong>🔒 Privacy:</strong> YouTube videos should be <strong>unlisted</strong> to prevent unauthorized access. 
-              </p>
-            </div>
-            
-            <div className="space-y-4">
-              {/* YouTube URL */}
-              <div>
-                <label className="text-sm font-bold text-slate-700 mb-2 block">YouTube URL or Video ID *</label>
-                <input 
-                  type="text" 
-                  value={youtubeRecordingUrl} 
-                  onChange={e => setYoutubeRecordingUrl(e.target.value)}
-                  placeholder="https://www.youtube.com/watch?v=... or video ID"
-                  className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 transition-all"
-                />
+
+            <div className="flex-1 overflow-y-auto p-8 space-y-4">
+              {/* URL Type Selector */}
+              <div className="flex gap-3 mb-6 sticky top-0 bg-white">
+                <button
+                  onClick={() => setRecordingUrlMode('youtube')}
+                  className={`flex-1 py-2 px-3 rounded-xl font-semibold text-sm transition-all ${recordingUrlMode === 'youtube' ? 'bg-red-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                >
+                  ▶ YouTube
+                </button>
+                <button
+                  onClick={() => setRecordingUrlMode('bunny')}
+                  className={`flex-1 py-2 px-3 rounded-xl font-semibold text-sm transition-all ${recordingUrlMode === 'bunny' ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                >
+                  🎥 Bunny Stream
+                </button>
               </div>
+
+              {recordingUrlMode === 'youtube' && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                  <p className="text-amber-800 text-sm">
+                    <strong>🔒 Privacy:</strong> YouTube videos should be <strong>unlisted</strong> to prevent unauthorized access.
+                  </p>
+                </div>
+              )}
+
+              {recordingUrlMode === 'bunny' && (
+                <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+                  <p className="text-purple-800 text-sm">
+                    <strong>🎥 Bunny Stream:</strong> Paste your Bunny Stream HLS URL or video URL directly.
+                  </p>
+                </div>
+              )}
+              {/* URL Input - YouTube or Bunny */}
+              {recordingUrlMode === 'youtube' ? (
+                <div>
+                  <label className="text-sm font-bold text-slate-700 mb-2 block">YouTube URL or Video ID *</label>
+                  <input
+                    type="text"
+                    value={youtubeRecordingUrl}
+                    onChange={e => setYoutubeRecordingUrl(e.target.value)}
+                    placeholder="https://www.youtube.com/watch?v=... or video ID"
+                    className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 transition-all"
+                  />
+                </div>
+              ) : (
+                <div>
+                  <label className="text-sm font-bold text-slate-700 mb-2 block">Bunny Stream URL *</label>
+                  <input
+                    type="text"
+                    value={bunnyRecordingUrl}
+                    onChange={e => setBunnyRecordingUrl(e.target.value)}
+                    placeholder="https://vz-xxxx.b-cdn.net/xxxxx/playlist.m3u8 or video URL"
+                    className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-300 transition-all"
+                  />
+                </div>
+              )}
               
               {/* Folder/Workshop Name */}
               <div>
@@ -3547,51 +3639,58 @@ export default function AdminCommunityPage() {
               
               <button
                 onClick={async () => {
-                  if (!youtubeRecordingUrl.trim()) {
-                    alert('YouTube URL is required');
+                  const urlValue = recordingUrlMode === 'youtube' ? youtubeRecordingUrl : bunnyRecordingUrl;
+                  if (!urlValue.trim()) {
+                    alert(`${recordingUrlMode === 'youtube' ? 'YouTube' : 'Bunny Stream'} URL is required`);
                     return;
                   }
                   if (!recordingFolderName.trim() || !recordingPlaylistName.trim() || !recordingVideoNumber.trim()) {
                     alert('Workshop name, Batch name, and Video number are required');
                     return;
                   }
-                  setAddingYouTubeRecording(true);
-                  try {
-                    const title = `${recordingFolderName} > ${recordingPlaylistName} > Video ${recordingVideoNumber}`;
-                    const res = await fetch('/api/admin/communities/youtube-videos', {
-                      method: 'POST',
-                      headers: {
-                        'Content-Type': 'application/json',
-                        Authorization: `Bearer ${token}`,
-                      },
-                      body: JSON.stringify({
-                        communityId: selectedCommunity,
-                        youtubeUrl: youtubeRecordingUrl.trim(),
-                        title: title,
-                        description: recordingDescription.trim(),
-                        isCommon: true,
-                        tags: [`folder:${recordingFolderName}`, `playlist:${recordingPlaylistName}`, 'recording'],
-                        isRecording: true,
-                      }),
-                    });
-                    const json = await res.json();
-                    if (!res.ok) throw new Error(json.error || 'Failed to add recording');
-                    alert('✅ YouTube recording added successfully!');
-                    setShowAddYouTubeRecordingModal(false);
-                    setYoutubeRecordingUrl('');
-                    setRecordingFolderName('');
-                    setRecordingPlaylistName('');
-                    setRecordingVideoNumber('');
-                    setRecordingDescription('');
-                    fetchRecordings();
-                  } catch (err: any) {
-                    alert('❌ Error: ' + err.message);
-                  } finally {
-                    setAddingYouTubeRecording(false);
+
+                  if (recordingUrlMode === 'youtube') {
+                    setAddingYouTubeRecording(true);
+                    try {
+                      const title = `${recordingFolderName} > ${recordingPlaylistName} > Video ${recordingVideoNumber}`;
+                      const res = await fetch('/api/admin/communities/youtube-videos', {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          Authorization: `Bearer ${token}`,
+                        },
+                        body: JSON.stringify({
+                          communityId: selectedCommunity,
+                          youtubeUrl: youtubeRecordingUrl.trim(),
+                          title: title,
+                          description: recordingDescription.trim(),
+                          isCommon: true,
+                          tags: [`folder:${recordingFolderName}`, `playlist:${recordingPlaylistName}`, 'recording'],
+                          isRecording: true,
+                        }),
+                      });
+                      const json = await res.json();
+                      if (!res.ok) throw new Error(json.error || 'Failed to add recording');
+                      alert('✅ YouTube recording added successfully!');
+                      setShowAddYouTubeRecordingModal(false);
+                      setYoutubeRecordingUrl('');
+                      setRecordingFolderName('');
+                      setRecordingPlaylistName('');
+                      setRecordingVideoNumber('');
+                      setRecordingDescription('');
+                      setRecordingUrlMode('youtube');
+                      fetchRecordings();
+                    } catch (err: any) {
+                      alert('❌ Error: ' + err.message);
+                    } finally {
+                      setAddingYouTubeRecording(false);
+                    }
+                  } else {
+                    await addBunnyStreamRecording();
                   }
                 }}
-                disabled={addingYouTubeRecording || !youtubeRecordingUrl.trim() || !recordingFolderName.trim() || !recordingPlaylistName.trim() || !recordingVideoNumber.trim()}
-                className="w-full h-12 bg-red-600 text-white rounded-xl font-bold text-sm hover:bg-red-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={addingYouTubeRecording || !((recordingUrlMode === 'youtube' ? youtubeRecordingUrl : bunnyRecordingUrl).trim()) || !recordingFolderName.trim() || !recordingPlaylistName.trim() || !recordingVideoNumber.trim()}
+                className={`w-full h-12 text-white rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${recordingUrlMode === 'youtube' ? 'bg-red-600 hover:bg-red-700' : 'bg-purple-600 hover:bg-purple-700'}`}
               >
                 {addingYouTubeRecording ? (
                   <>
@@ -3599,7 +3698,7 @@ export default function AdminCommunityPage() {
                     Adding...
                   </>
                 ) : (
-                  <>▶ Add YouTube Recording</>
+                  <>{recordingUrlMode === 'youtube' ? '▶ Add YouTube Recording' : '🎥 Add Bunny Stream Recording'}</>
                 )}
               </button>
             </div>

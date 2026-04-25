@@ -485,7 +485,8 @@ const communityVideoSchema = new mongoose.Schema({
   // === Video Source ===
   // 'aws' - Uploaded to S3, requires signed URL
   // 'youtube' - YouTube unlisted video, proxy through embed
-  videoSource: { type: String, enum: ['aws', 'youtube'], default: 'aws', index: true },
+  // 'bunny-stream' - Bunny Stream HLS video, direct CDN playback
+  videoSource: { type: String, enum: ['aws', 'youtube', 'bunny-stream'], default: 'aws', index: true },
   
   // For AWS videos
   s3Key: { type: String }, // Path in S3: community/{id}/videos/{filename}
