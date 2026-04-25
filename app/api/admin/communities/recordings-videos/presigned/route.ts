@@ -29,9 +29,9 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { fileName, communityId, title } = body;
+    const { fileName, communityId, title, folderName, playlistName, videoNumber } = body;
 
-    console.log('[presigned] Request received:', { fileName, communityId, title });
+    console.log('[presigned] Request received:', { fileName, communityId, title, folderName, playlistName, videoNumber });
 
     if (!fileName || !communityId || !title) {
       return NextResponse.json(
@@ -99,8 +99,66 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Step 1: Create video record in Bunny Stream
+    // Step 1: Create folder structure using Collections
+    let collectionId = null;
+
+    if (folderName && playlistName) {
+      // Create/get main folder (Workshop Name)
+      const folderRes = await fetch(
+        `https://video.bunnycdn.com/library/${libraryId}/collections`,
+        {
+          method: 'POST',
+          headers: {
+            AccessKey: apiKey,
+            'Content-Type': 'application/json',
+            accept: 'application/json',
+          },
+          body: JSON.stringify({ name: folderName }),
+        }
+      ).catch(() => null);
+
+      let folderId = null;
+      if (folderRes?.ok) {
+        const folderData = await folderRes.json();
+        folderId = folderData.guid;
+        console.log('[presigned] Created folder collection:', { folderName, folderId });
+      }
+
+      // Create sub-folder (Batch Name) inside main folder if folder exists
+      if (folderId) {
+        const playlistRes = await fetch(
+          `https://video.bunnycdn.com/library/${libraryId}/collections`,
+          {
+            method: 'POST',
+            headers: {
+              AccessKey: apiKey,
+              'Content-Type': 'application/json',
+              accept: 'application/json',
+            },
+            body: JSON.stringify({
+              name: playlistName,
+              parentCollectionId: folderId
+            }),
+          }
+        ).catch(() => null);
+
+        if (playlistRes?.ok) {
+          const playlistData = await playlistRes.json();
+          collectionId = playlistData.guid;
+          console.log('[presigned] Created playlist collection:', { playlistName, collectionId, parentId: folderId });
+        } else {
+          collectionId = folderId;
+        }
+      }
+    }
+
+    // Step 2: Create video record in Bunny Stream
     console.log('[presigned] Creating video in Bunny Stream library:', libraryId);
+    const videoBody: any = { title };
+    if (collectionId) {
+      videoBody.collectionId = collectionId;
+    }
+
     const createRes = await fetch(
       `https://video.bunnycdn.com/library/${libraryId}/videos`,
       {
@@ -110,7 +168,7 @@ export async function POST(request: NextRequest) {
           'Content-Type': 'application/json',
           accept: 'application/json',
         },
-        body: JSON.stringify({ title }),
+        body: JSON.stringify(videoBody),
       }
     );
 

@@ -1492,6 +1492,9 @@ export default function AdminCommunityPage() {
           fileName: file.name,
           communityId: selectedCommunity,
           title,
+          folderName: recordingFolderName.trim(),
+          playlistName: recordingPlaylistName.trim(),
+          videoNumber: recordingVideoNumber.trim(),
         }),
       });
 
