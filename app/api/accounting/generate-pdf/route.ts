@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+
+export const dynamic = 'force-dynamic';
+
 import { verifyToken } from '@/lib/auth';
 import { generateAccountingReportHtml } from '@/lib/accountingReportHtml';
 

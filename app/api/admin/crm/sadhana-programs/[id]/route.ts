@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { handleCrmError } from '@/lib/crm-handlers';
-import { getProgramsCollection, getProgramVideosCollection } from '@/lib/sadhanaPrograms';
+import { getProgramsCollection, getProgramVideosCollection, getProgramsDb } from '@/lib/sadhanaPrograms';
 import mongoose from 'mongoose';
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
@@ -24,8 +24,28 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       .sort({ date: 1 })
       .toArray();
 
+    const statsDb = await getProgramsDb();
+    const participantsCol = statsDb.collection('sadhana_live_participants');
+    const chatCol = statsDb.collection('sadhana_live_chat');
+    const now = new Date();
+    const activeThreshold = new Date(now.getTime() - 15 * 1000);
+
+    const activeParticipants = await participantsCol.countDocuments({
+      programSlug: program.slug,
+      lastSeen: { $gte: activeThreshold },
+    });
+
+    const chatMessages24h = await chatCol.countDocuments({
+      programSlug: program.slug,
+      createdAt: { $gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) },
+    });
+
     return NextResponse.json({
       success: true,
+      liveStats: {
+        activeParticipants,
+        chatMessages24h,
+      },
       program: {
         id: program._id.toString(),
         slug: program.slug,

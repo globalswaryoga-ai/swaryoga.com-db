@@ -1,4 +1,7 @@
 import { connectDB, Community } from '@/lib/db';
+
+export const dynamic = 'force-dynamic';
+
 import { CommunityMember } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';

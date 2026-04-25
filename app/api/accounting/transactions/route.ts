@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+
+export const dynamic = 'force-dynamic';
+
 import { connectDB, Account, Transaction } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 
