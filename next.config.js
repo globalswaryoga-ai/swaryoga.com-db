@@ -1,4 +1,7 @@
 /** @type {import('next').NextConfig} */
+// Disable Next.js telemetry for cleaner builds
+process.env.NEXT_TELEMETRY_DISABLED = '1';
+
 // Force rebuild with env vars - 2026-01-07
 const fs = require('fs');
 const path = require('path');
