@@ -354,9 +354,11 @@ export default function ProgramLivePage() {
             style={{ border: 'none' }}
             title="Video player"
           />
-        <ref={containerRef} className={`${fullscreenMode ? 'fixed inset-0 z-50' : 'min-h-screen'} bg-gradient-to-br from-purple-900 via-indigo-900 to-black text-white`}>
-      {!fullscreenMode
-        <div className="w-full h-full flex items-center justify-center"><p className="text-purple-200">Loading video...</p></div>
+        </div>
+      ) : (
+        <div className="w-full h-full flex items-center justify-center">
+          <p className="text-purple-200">Loading video...</p>
+        </div>
       );
     }
   } else if (session.status === 'ended') {
