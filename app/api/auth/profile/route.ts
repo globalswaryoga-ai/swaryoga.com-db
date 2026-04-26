@@ -67,9 +67,9 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error: any) {
-    console.error('[Profile] Error:', error.message);
+    console.error('[Profile] Error:', error.message, error.name);
     return NextResponse.json(
-      { error: 'Failed to fetch profile' },
+      { error: error.message, type: error.name },
       { status: 500 }
     );
   }
