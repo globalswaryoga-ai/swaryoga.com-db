@@ -84,7 +84,7 @@ export default function BackupReminder() {
         <div className="bg-gradient-to-r from-indigo-600 to-indigo-600 p-6 text-white relative">
           <button
             onClick={handleDismiss}
-            className="absolute top-4 right-4 p-1 rounded-full hover:bg-white/20 transition"
+            className="absolute top-4 right-4 w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center text-white transition-all"
           >
             <X className="w-5 h-5" />
           </button>

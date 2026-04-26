@@ -170,9 +170,9 @@ export default function StoragePurchaseModal({
               </div>
               <button
                 onClick={onClose}
-                className="text-white/70 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors"
+                className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center text-white transition-all"
               >
-                <X className="h-6 w-6" />
+                <X className="h-5 w-5" />
               </button>
             </div>
           </div>
