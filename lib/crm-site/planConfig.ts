@@ -137,8 +137,8 @@ export type CrmModule =
 export const PLAN_MODULES: Record<PlanTier, Record<CrmModule, boolean>> = {
   free: {
     leads: true,
-    whatsapp: false,
-    broadcasting: false,
+    whatsapp: true,        // Enable QR WhatsApp for free plan
+    broadcasting: true,    // Enable QR Broadcast for free plan
     chatbot: false,
     aiCalls: false,
     reports: false,

@@ -143,12 +143,12 @@ export async function GET(request: NextRequest) {
       { $sort: { '_id.period': 1 } },
     ]);
 
-    // ── Messages sent over time ──
+    // ── Messages sent over time (only for super admins) ──
     const msgFilter: any = {
       direction: 'outbound',
       sentAt: { $gte: periodStart, $lte: periodEnd },
     };
-    const messagesOverTime = await WhatsAppMessage.aggregate([
+    const messagesOverTime = isSuper ? (await WhatsAppMessage.aggregate([
       { $match: msgFilter },
       {
         $group: {
@@ -157,7 +157,7 @@ export async function GET(request: NextRequest) {
         },
       },
       { $sort: { _id: 1 } },
-    ]);
+    ])) : [];
 
     // ── Sales over time ──
     const salesFilter: any = {
@@ -187,15 +187,14 @@ export async function GET(request: NextRequest) {
 
     // ── Summary stats ──
     const totalLeads = await Lead.countDocuments(userFilter);
-    const totalMessages = await WhatsAppMessage.countDocuments({
-      ...msgFilter,
-    });
+    // Note: Message count is disabled for data isolation - only show for super-admins with proper filters
+    const totalMessages = isSuper ? (await WhatsAppMessage.countDocuments({ ...msgFilter })) : 0;
     const totalSales = await SalesReport.countDocuments(salesFilter);
     const totalRevenue = salesOverTime.reduce((sum: number, s: any) => sum + (s.revenue || 0), 0);
 
     // Today's stats
     const todayLeads = await Lead.countDocuments({ ...userFilter, createdAt: { $gte: today } });
-    const todayMessages = await WhatsAppMessage.countDocuments({ direction: 'outbound', sentAt: { $gte: today } });
+    const todayMessages = isSuper ? (await WhatsAppMessage.countDocuments({ direction: 'outbound', sentAt: { $gte: today } })) : 0;
     const todaySales = await SalesReport.countDocuments({ ...salesFilter, saleDate: { $gte: today } });
 
     // ── Country-wise breakdown ──
