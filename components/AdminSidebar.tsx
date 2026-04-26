@@ -397,6 +397,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
           planModule: 'whatsapp',
           badge: unreadCount,
           description: '1:1 WhatsApp messaging',
+          superAdminOnly: true,  // Hide from basic plan
         },
         {
           icon: QrCode,
@@ -433,6 +434,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
           module: 'messages',
           planModule: 'whatsapp',
           description: 'Text messaging',
+          superAdminOnly: true,  // Hide from basic plan
         },
         // --- Lead Capture & Campaigns ---
         {

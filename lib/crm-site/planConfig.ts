@@ -137,15 +137,15 @@ export type CrmModule =
 export const PLAN_MODULES: Record<PlanTier, Record<CrmModule, boolean>> = {
   free: {
     leads: true,
-    whatsapp: true,        // Enable QR WhatsApp for free plan
-    broadcasting: true,    // Enable QR Broadcast for free plan
+    whatsapp: true,        // QR WhatsApp + QR Leads + QR Groups/Contacts
+    broadcasting: true,    // QR Broadcast
     chatbot: false,
     aiCalls: false,
-    reports: false,
+    reports: true,         // Dashboard overview
     community: false,
-    templates: false,
+    templates: true,       // For QR templates
     callRecording: false,
-    emailMarketing: false,
+    emailMarketing: true,  // Email-1000/month
     landingPages: false,
     automation: false,
     helpdesk: false,
@@ -154,20 +154,20 @@ export const PLAN_MODULES: Record<PlanTier, Record<CrmModule, boolean>> = {
   },
   basic: {
     leads: true,
-    whatsapp: true,
-    broadcasting: true,
-    chatbot: true,
-    aiCalls: true,
-    reports: true,
-    community: true,
-    templates: true,
-    callRecording: true,
-    emailMarketing: true,
-    landingPages: true,
-    automation: true,
-    helpdesk: true,
-    api: true,
-    customDomain: true,
+    whatsapp: true,        // QR WhatsApp + QR Leads + QR Groups/Contacts
+    broadcasting: true,    // QR Broadcast
+    chatbot: false,        // REMOVED
+    aiCalls: false,        // REMOVED
+    reports: true,         // Dashboard overview
+    community: false,
+    templates: true,       // For QR templates
+    callRecording: false,  // REMOVED
+    emailMarketing: true,  // Email-1000/month
+    landingPages: false,   // REMOVED
+    automation: false,     // REMOVED
+    helpdesk: false,       // REMOVED
+    api: false,            // REMOVED
+    customDomain: false,   // REMOVED
   },
   starter: {
     leads: true,
