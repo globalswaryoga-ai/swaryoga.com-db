@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback , Suspense } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { ArrowLeft, ArrowRight, Play, Calendar, Lock, Users, Video, Heart, MessageCircle, Send, X, Maximize, Minimize } from 'lucide-react';
-import HLS from 'hls.js';
+import { ArrowLeft, ArrowRight, Play, Calendar, Lock, Video, Heart, MessageCircle, Send, X } from 'lucide-react';
+import VideoPlayer from '@/components/VideoPlayer';
 
 export const dynamic = 'force-dynamic';
 
@@ -70,59 +70,6 @@ function RecordingsContent() {
   const [commentText, setCommentText] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
   const [likingVideoId, setLikingVideoId] = useState<string | null>(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const videoContainerRef = useRef<HTMLDivElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-
-  // Toggle fullscreen on the container div so overlays stay visible
-  const toggleFullscreen = useCallback(() => {
-    if (!videoContainerRef.current) return;
-    if (!document.fullscreenElement) {
-      videoContainerRef.current.requestFullscreen().catch(() => {});
-    } else {
-      document.exitFullscreen().catch(() => {});
-    }
-  }, []);
-
-  // Listen for fullscreen changes
-  useEffect(() => {
-    const handler = () => setIsFullscreen(!!document.fullscreenElement);
-    document.addEventListener('fullscreenchange', handler);
-    return () => document.removeEventListener('fullscreenchange', handler);
-  }, []);
-
-  // Initialize HLS.js for streaming videos
-  useEffect(() => {
-    if (!videoRef.current || !playingVideo?.videoUrl) return;
-
-    const video = videoRef.current;
-    const videoUrl = playingVideo.videoUrl;
-
-    // Check if URL is HLS stream
-    if (videoUrl.includes('.m3u8')) {
-      if (HLS.isSupported()) {
-        const hls = new HLS({
-          debug: false,
-          enableWorker: true,
-          lowLatencyMode: false,
-        });
-        hls.loadSource(videoUrl);
-        hls.attachMedia(video);
-        hls.on(HLS.Events.MANIFEST_PARSED, () => {
-          video.play().catch(() => {});
-        });
-        return () => hls.destroy();
-      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        // Safari native HLS support
-        video.src = videoUrl;
-        video.play().catch(() => {});
-      }
-    } else {
-      // Regular MP4 or other formats
-      video.src = videoUrl;
-      video.play().catch(() => {});
-    }
-  }, [playingVideo?.videoUrl, playingVideo?._id]);
 
   useEffect(() => {
     checkAuth();
@@ -391,59 +338,12 @@ function RecordingsContent() {
                 ✕ Close
               </button>
               <div className="bg-black rounded-xl overflow-hidden" onContextMenu={(e) => e.preventDefault()}>
-                {playingVideo.videoSource === 'youtube' && playingVideo._id ? (
-                  <div
-                    ref={videoContainerRef}
-                    className={'relative w-full overflow-hidden bg-black' + (isFullscreen ? ' flex items-center justify-center' : '')}
-                    style={isFullscreen ? { width: '100vw', height: '100vh' } : { paddingBottom: '56.25%' }}
-                  >
-                    {/* Secure video proxy — no YouTube reference reaches the client */}
-                    <iframe
-                      src={`/api/community/videos/embed?v=${playingVideo._id}&token=${typeof window !== 'undefined' ? localStorage.getItem('token') || '' : ''}`}
-                      className={isFullscreen ? 'w-full h-full' : 'absolute inset-0 w-full h-full'}
-                      style={{ border: 'none' }}
-                      allow="accelerometer; autoplay; encrypted-media; gyroscope; fullscreen"
-                      allowFullScreen
-                      referrerPolicy="no-referrer"
-                      sandbox="allow-scripts allow-same-origin allow-presentation"
-                    />
-                    {/* Outer fullscreen button (backup) */}
-                    <button
-                      onClick={toggleFullscreen}
-                      className="absolute bottom-[6px] right-[6px] z-20 w-[42px] h-[34px] flex items-center justify-center bg-black/90 hover:bg-white/20 text-white rounded-md transition-colors border border-white/10"
-                      title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
-                    >
-                      {isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
-                    </button>
-                  </div>
-                ) : playingVideo.videoUrl ? (
-                  <div className="relative w-full aspect-video bg-black group">
-                    <video
-                      ref={videoRef}
-                      autoPlay
-                      playsInline
-                      crossOrigin="anonymous"
-                      className="w-full h-full"
-                      controls
-                      controlsList="nodownload noremoteplayback"
-                      disablePictureInPicture
-                      onContextMenu={(e) => e.preventDefault()}
-                    />
-
-                    {/* Fullscreen Button Overlay */}
-                    <button
-                      onClick={toggleFullscreen}
-                      className="absolute bottom-12 right-4 z-20 bg-black/70 hover:bg-white/20 text-white p-2 rounded transition"
-                      title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
-                    >
-                      {isFullscreen ? '⛔ Exit' : '⛶ Fullscreen'}
-                    </button>
-                  </div>
-                ) : (
-                  <div className="w-full aspect-video flex items-center justify-center text-white">
-                    <p>Video unavailable</p>
-                  </div>
-                )}
+                <VideoPlayer
+                  videoUrl={playingVideo.videoUrl || ''}
+                  videoId={playingVideo._id}
+                  videoSource={playingVideo.videoSource}
+                  youtubeVideoId={playingVideo.youtubeVideoId}
+                />
                 <div className="p-4 bg-gray-900">
                   <h3 className="text-white font-semibold">
                     {playingVideo.title?.split(' > ').pop() || playingVideo.title}
