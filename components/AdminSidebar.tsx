@@ -553,14 +553,6 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
           description: 'Third-party integrations',
         },
         {
-          icon: Languages,
-          label: 'Translator',
-          href: '/admin/crm/translate',
-          color: 'text-gray-400',
-          module: 'translate',
-          description: 'Multi-language support',
-        },
-        {
           icon: Calculator,
           label: 'Accounting',
           href: '/admin/crm/accounting',
