@@ -37,6 +37,7 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
+  const [currentPlan, setCurrentPlan] = useState<string>('basic');
 
   const {
     status,
@@ -57,6 +58,25 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
     const email = localStorage.getItem('crm_user_email') || '';
     setUserName(name);
     setUserEmail(email);
+  }, []);
+
+  // Fetch current plan
+  useEffect(() => {
+    const fetchPlan = async () => {
+      try {
+        const token = localStorage.getItem('token') || localStorage.getItem('crm_token');
+        const res = await fetch('/api/admin/crm/subscription', {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (data.success && data.subscription?.currentPlan) {
+          setCurrentPlan(data.subscription.currentPlan);
+        }
+      } catch (err) {
+        console.warn('Failed to fetch plan:', err);
+      }
+    };
+    fetchPlan();
   }, []);
 
   // Auto-detect current section from pathname
@@ -153,8 +173,8 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
         {/* Trial Banner */}
         <TrialBanner />
 
-        {/* Section Sub-Nav Header */}
-        {section && (
+        {/* Section Sub-Nav Header - Hidden for Basic Plan */}
+        {section && currentPlan !== 'basic' && (
           <CrmSubNav
             title={section.title}
             icon={section.icon}

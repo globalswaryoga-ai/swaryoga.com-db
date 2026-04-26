@@ -6,6 +6,7 @@ import { useCRM } from '@/hooks/useCRM';
 import { LoadingSpinner } from '@/components/admin/crm';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { X } from 'lucide-react';
 
 type Period = 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
 type MessageStatus = 'all' | 'pending' | 'sent' | 'delivered' | 'read' | 'failed' | 'wrong_number';
@@ -674,9 +675,9 @@ export default function BroadcastDashboardPage() {
               <h3 className="font-bold text-slate-800">Message Details</h3>
               <button
                 onClick={() => setViewMessage(null)}
-                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all"
+                className="w-10 h-10 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center text-gray-700 transition-all"
               >
-                <i className="ph ph-x text-lg"></i>
+                <X className="w-5 h-5" />
               </button>
             </div>
             <div className="p-6 overflow-y-auto">
