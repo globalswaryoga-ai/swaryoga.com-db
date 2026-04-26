@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useCallback , Suspense } from 'reac
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { ArrowLeft, ArrowRight, Play, Calendar, Lock, Users, Video, Heart, MessageCircle, Send, X, Maximize, Minimize } from 'lucide-react';
+import HLS from 'hls.js';
 
 export const dynamic = 'force-dynamic';
 
@@ -89,6 +90,39 @@ function RecordingsContent() {
     document.addEventListener('fullscreenchange', handler);
     return () => document.removeEventListener('fullscreenchange', handler);
   }, []);
+
+  // Initialize HLS.js for streaming videos
+  useEffect(() => {
+    if (!videoRef.current || !playingVideo?.videoUrl) return;
+
+    const video = videoRef.current;
+    const videoUrl = playingVideo.videoUrl;
+
+    // Check if URL is HLS stream
+    if (videoUrl.includes('.m3u8')) {
+      if (HLS.isSupported()) {
+        const hls = new HLS({
+          debug: false,
+          enableWorker: true,
+          lowLatencyMode: false,
+        });
+        hls.loadSource(videoUrl);
+        hls.attachMedia(video);
+        hls.on(HLS.Events.MANIFEST_PARSED, () => {
+          video.play().catch(() => {});
+        });
+        return () => hls.destroy();
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        // Safari native HLS support
+        video.src = videoUrl;
+        video.play().catch(() => {});
+      }
+    } else {
+      // Regular MP4 or other formats
+      video.src = videoUrl;
+      video.play().catch(() => {});
+    }
+  }, [playingVideo?.videoUrl, playingVideo?._id]);
 
   useEffect(() => {
     checkAuth();
@@ -386,7 +420,6 @@ function RecordingsContent() {
                   <div className="relative w-full aspect-video bg-black group">
                     <video
                       ref={videoRef}
-                      src={playingVideo.videoUrl}
                       autoPlay
                       playsInline
                       crossOrigin="anonymous"
