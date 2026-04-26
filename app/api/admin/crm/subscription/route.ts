@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
         teamMembersLimit: 1,
         workflowsLimit: 3,
         emailLimitPerMonth: 1000,
-        storageIncludedGB: 5,
+        storageIncludedGB: 1, // 1GB for basic
         apiRequestsPerMonth: 0, // No API access for basic
         // Usage tracking
         leadsCount: 0,
@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
           teamMembersLimit: 1,
           workflowsLimit: 3,
           emailLimitPerMonth: 1000,
-          storageIncludedGB: 5,
+          storageIncludedGB: 1, // 1GB for basic
           apiRequestsPerMonth: 0, // No API
         },
         professional: {

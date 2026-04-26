@@ -44,7 +44,7 @@ export default function BillingPage() {
         teamMembers: 1,
         workflows: 3,
         emailPerMonth: 1000,
-        storage: '5GB included, ₹50/1GB extra',
+        storage: '1GB included, ₹50/1GB extra',
       },
       features: [
         'Leads Management (500 leads)',
@@ -57,7 +57,7 @@ export default function BillingPage() {
         'Broadcast Templates',
         'Automation (3 workflows)',
         'Basic Reports',
-        '5GB Storage',
+        '1GB Storage',
       ],
     },
     {

@@ -2162,7 +2162,7 @@ const crmSubscriptionSchema = new mongoose.Schema({
   teamMembersLimit: { type: Number, default: 1 },
   workflowsLimit: { type: Number, default: 3 },
   emailLimitPerMonth: { type: Number, default: 1000 },
-  storageIncludedGB: { type: Number, default: 5 },
+  storageIncludedGB: { type: Number, default: 1 }, // Basic: 1GB, Pro: 25GB, Enterprise: unlimited
   apiRequestsPerMonth: { type: Number, default: 0 }, // 0 = no API access for basic
 
   // Current usage tracking
