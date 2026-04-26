@@ -283,20 +283,23 @@ export const sectionConfigs: SectionConfig[] = [
     ],
   },
 
-  // 7. QR WhatsApp
+  // 7. QR (WhatsApp, Leads, Groups, Contacts)
   {
     key: 'qr',
-    title: 'QR WhatsApp',
+    title: 'QR',
     icon: QrCode,
     items: [
-      { label: 'QR Inbox', href: '/admin/crm/qr', icon: QrCode },
+      { label: 'QR WhatsApp', href: '/admin/crm/qr', icon: QrCode },
+      { label: 'QR Leads', href: '/admin/crm/qr/leads', icon: Users },
+      { label: 'QR Groups', href: '/admin/crm/qr/group-contacts', icon: Users },
+      { label: 'QR Contacts', href: '/admin/crm/qr/group-contacts', icon: Users },
+    ],
+    moreItems: [
       { label: 'Templates', href: '/admin/crm/qr/templates', icon: FileEdit },
       { label: 'Broadcast', href: '/admin/crm/qr/broadcast', icon: Radio },
       { label: 'Funnel Report', href: '/admin/crm/qr/funnel-report', icon: BarChart3 },
       { label: 'Manage Funnel', href: '/admin/crm/qr/manage', icon: Filter },
-      { label: 'Leads', href: '/admin/crm/qr/leads', icon: Users },
     ],
-    moreItems: [],
     prefixes: ['/admin/crm/qr'],
   },
 
