@@ -71,6 +71,7 @@ function QuestionsContent() {
       const params = new URLSearchParams();
       if (selectedCategory !== 'all') params.set('category', selectedCategory);
       if (searchTerm) params.set('search', searchTerm);
+      if (communityId) params.set('communityId', communityId);
 
       const postsParams = new URLSearchParams();
       postsParams.set('category', 'questions');

@@ -136,13 +136,11 @@ export default function AaharShastraRecordingsPage() {
   const fetchRecordings = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/community/recordings');
+      const res = await fetch('/api/community/recordings?communityId=aahar-shastra');
       const data = await res.json();
 
       if (data.success) {
-        // Filter for aahar community only
-        const aaharRecordings = data.recordings?.filter((r: Recording) => r.communityName === 'Aahar (Diet & Nutrition)' || r.communityId === 'aahar') || [];
-        setRecordings(aaharRecordings);
+        setRecordings(data.recordings || []);
       } else {
         setError(data.error || 'Failed to load recordings');
       }

@@ -134,12 +134,11 @@ export default function NineMonthGarbhaSanskarRecordingsPage() {
   const fetchRecordings = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/community/recordings');
+      const res = await fetch('/api/community/recordings?communityId=9-month-garbha-sanskar');
       const data = await res.json();
 
       if (data.success) {
-        const filteredRecordings = data.recordings?.filter((r: Recording) => r.communityId === '9-month-garbha-sanskar') || [];
-        setRecordings(filteredRecordings);
+        setRecordings(data.recordings || []);
       } else {
         setError(data.error || 'Failed to load recordings');
       }

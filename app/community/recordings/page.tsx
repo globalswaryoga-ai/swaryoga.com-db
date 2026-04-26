@@ -100,7 +100,10 @@ function RecordingsContent() {
   const fetchRecordings = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/community/recordings');
+      const url = communityIdParam
+        ? `/api/community/recordings?communityId=${encodeURIComponent(communityIdParam)}`
+        : '/api/community/recordings';
+      const res = await fetch(url);
       const data = await res.json();
 
       if (data.success) {

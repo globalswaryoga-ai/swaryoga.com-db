@@ -134,12 +134,11 @@ export default function SwarYogaL2RecordingsPage() {
   const fetchRecordings = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/community/recordings');
+      const res = await fetch('/api/community/recordings?communityId=swar-yoga-l2');
       const data = await res.json();
 
       if (data.success) {
-        const filteredRecordings = data.recordings?.filter((r: Recording) => r.communityId === 'swar-yoga-l2') || [];
-        setRecordings(filteredRecordings);
+        setRecordings(data.recordings || []);
       } else {
         setError(data.error || 'Failed to load recordings');
       }

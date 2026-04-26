@@ -10,21 +10,28 @@ export const dynamic = 'force-dynamic';
  * Public API to fetch community recordings
  * Returns public recordings and member-only recordings (with access flag)
  */
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
     await connectDB();
-    
+
     const { getCommunityVideo, getCommunity } = await import('@/lib/db');
     const CommunityVideo = getCommunityVideo();
     const Community = getCommunity();
+
+    const { searchParams } = new URL(request.url);
+    const communityId = searchParams.get('communityId');
 
     // Get all communities with recordings
     const communities = await Community.find({
       isArchived: { $ne: true },
     }).select('_id name type').lean();
 
-    // Get all videos (we'll filter by access on frontend)
-    const videos = await CommunityVideo.find({})
+    // Get videos, optionally filtered by communityId
+    const query: any = {};
+    if (communityId) {
+      query.communityId = communityId;
+    }
+    const videos = await CommunityVideo.find(query)
       .sort({ recordedAt: -1, createdAt: -1 })
       .limit(100)
       .lean();
