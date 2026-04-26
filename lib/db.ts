@@ -2130,6 +2130,56 @@ landingPageSchema.index({ status: 1, createdAt: -1 });
 
 export const LandingPage = mongoose.models.LandingPage || mongoose.model('LandingPage', landingPageSchema);
 
+// CRM Subscription Schema - Tracks user plans, trials, and billing
+const crmSubscriptionSchema = new mongoose.Schema({
+  userId: { type: String, required: true, unique: true, trim: true, index: true },
+  currentPlan: { type: String, enum: ['basic', 'professional', 'enterprise'], default: 'basic' },
+
+  // Trial tracking
+  trialStartedAt: { type: Date },
+  trialEndsAt: { type: Date },
+  trialDaysRemaining: { type: Number, default: 15 },
+  isTrialActive: { type: Boolean, default: true },
+
+  // Subscription tracking
+  subscriptionStartedAt: { type: Date },
+  subscriptionEndsAt: { type: Date },
+  status: { type: String, enum: ['trial', 'active', 'expired', 'cancelled'], default: 'trial' },
+
+  // Payment & billing
+  autoRenewal: { type: Boolean, default: true },
+  paymentMethod: { type: String }, // e.g., 'razorpay', 'card'
+  lastPaymentDate: { type: Date },
+  nextBillingDate: { type: Date },
+
+  // Usage tracking
+  storageUsedGB: { type: Number, default: 0, min: 0 },
+  emailsSentThisMonth: { type: Number, default: 0, min: 0 },
+  lastEmailResetDate: { type: Date, default: Date.now },
+
+  // Feature limits per plan
+  emailLimitPerMonth: { type: Number, default: 1000 },
+  storageIncludedGB: { type: Number, default: 5 },
+
+  // Invoice/Order tracking
+  orderId: { type: String }, // Razorpay order ID
+  invoiceIds: [{ type: String }],
+
+  // Metadata
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
+});
+
+crmSubscriptionSchema.index({ userId: 1 });
+crmSubscriptionSchema.index({ status: 1, trialEndsAt: 1 });
+crmSubscriptionSchema.index({ nextBillingDate: 1 });
+
+export const CRMSubscription = mongoose.models.CRMSubscription || mongoose.model('CRMSubscription', crmSubscriptionSchema);
+
+export function getCRMSubscription() {
+  return mongoose.models.CRMSubscription || mongoose.model('CRMSubscription', crmSubscriptionSchema);
+}
+
 export function getLandingPage() {
   return mongoose.models.LandingPage || mongoose.model('LandingPage', landingPageSchema);
 }
