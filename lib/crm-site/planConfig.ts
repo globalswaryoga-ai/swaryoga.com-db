@@ -132,7 +132,9 @@ export type CrmModule =
   | 'automation'
   | 'helpdesk'
   | 'api'
-  | 'customDomain';
+  | 'customDomain'
+  | 'accounting'
+  | 'lifePlanner';
 
 export const PLAN_MODULES: Record<PlanTier, Record<CrmModule, boolean>> = {
   free: {
@@ -151,6 +153,8 @@ export const PLAN_MODULES: Record<PlanTier, Record<CrmModule, boolean>> = {
     helpdesk: false,
     api: false,
     customDomain: false,
+    accounting: false,
+    lifePlanner: false,
   },
   basic: {
     leads: true,
@@ -168,6 +172,8 @@ export const PLAN_MODULES: Record<PlanTier, Record<CrmModule, boolean>> = {
     helpdesk: false,       // REMOVED
     api: false,            // REMOVED
     customDomain: false,   // REMOVED
+    accounting: true,      // Life Planner - Accounting
+    lifePlanner: true,     // Life Planner - Accounting & Goals
   },
   starter: {
     leads: true,
@@ -185,6 +191,8 @@ export const PLAN_MODULES: Record<PlanTier, Record<CrmModule, boolean>> = {
     helpdesk: true,
     api: true,
     customDomain: true,
+    accounting: true,
+    lifePlanner: true,
   },
   growth: {
     leads: true,
@@ -202,6 +210,8 @@ export const PLAN_MODULES: Record<PlanTier, Record<CrmModule, boolean>> = {
     helpdesk: true,
     api: true,
     customDomain: true,
+    accounting: true,
+    lifePlanner: true,
   },
   professional: {
     leads: true,
@@ -219,6 +229,8 @@ export const PLAN_MODULES: Record<PlanTier, Record<CrmModule, boolean>> = {
     helpdesk: true,
     api: true,
     customDomain: true,
+    accounting: true,
+    lifePlanner: true,
   },
 };
 
@@ -454,4 +466,6 @@ export const PATH_TO_MODULE: Record<string, CrmModule> = {
   '/admin/crm/helpdesk': 'helpdesk',
   '/admin/crm/funnel': 'leads',
   '/admin/crm/leads': 'leads',
+  '/admin/crm/accounting': 'accounting',
+  '/admin/crm/life-planner': 'lifePlanner',
 };
