@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
  * Public API to fetch community recordings
  * Returns public recordings and member-only recordings (with access flag)
  */
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     await connectDB();
     
@@ -85,11 +85,17 @@ export async function GET(request: NextRequest) {
           }
         }
 
+        // Build proxied thumbnail URL for Bunny Stream (CDN is token-protected)
+        let thumbnailUrl = v.thumbnailUrl || null;
+        if (bunnyEmbedLibraryId && bunnyEmbedVideoId) {
+          thumbnailUrl = `/api/community/thumbnail?lib=${bunnyEmbedLibraryId}&vid=${bunnyEmbedVideoId}`;
+        }
+
         return {
           _id: v._id.toString(),
           title: v.title || 'Untitled Recording',
           description: v.description,
-          thumbnailUrl: v.thumbnailUrl,
+          thumbnailUrl,
           videoUrl,
           videoSource: v.videoSource || 'aws',
           youtubeVideoId: v.youtubeVideoId,
