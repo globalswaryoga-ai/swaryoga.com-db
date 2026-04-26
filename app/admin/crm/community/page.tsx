@@ -250,6 +250,8 @@ export default function AdminCommunityPage() {
   const [recordingPlaylistName, setRecordingPlaylistName] = useState(''); // Batch name
   const [recordingVideoNumber, setRecordingVideoNumber] = useState(''); // Video number
   const [recordingDescription, setRecordingDescription] = useState('');
+  const [recordingThumbnailUrl, setRecordingThumbnailUrl] = useState(''); // Custom thumbnail URL
+  const [uploadStep, setUploadStep] = useState<'folder' | 'video'>('folder'); // 2-step upload
   const [uploadingRecording, setUploadingRecording] = useState(false);
   
   // Folder/Playlist view state for recordings
@@ -1520,6 +1522,7 @@ export default function AdminCommunityPage() {
           communityId: selectedCommunity,
           title,
           description: recordingDescription,
+          thumbnailUrl: recordingThumbnailUrl.trim() || undefined,
           folderName: recordingFolderName.trim(),
           playlistName: recordingPlaylistName.trim(),
           videoNumber: recordingVideoNumber.trim(),
@@ -1533,10 +1536,12 @@ export default function AdminCommunityPage() {
 
       alert('✅ Recording uploaded successfully!');
       setShowUploadRecordingModal(false);
+      setUploadStep('folder');
       setRecordingFolderName('');
       setRecordingPlaylistName('');
       setRecordingVideoNumber('');
       setRecordingDescription('');
+      setRecordingThumbnailUrl('');
       fetchRecordings();
     } catch (error: any) {
       console.error('Upload error:', error);
@@ -3410,100 +3415,111 @@ export default function AdminCommunityPage() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-8 space-y-4">
-              {/* Folder/Workshop Name */}
-              <div>
-                <label className="text-sm font-bold text-slate-700 mb-2 block">
-                  📁 Workshop Name (Folder)
-                </label>
-                <input 
-                  type="text" 
-                  value={recordingFolderName} 
-                  onChange={e => setRecordingFolderName(e.target.value)}
-                  placeholder="e.g., Swar Yoga Workshop"
-                  className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 transition-all"
-                />
-              </div>
-              
-              {/* Playlist/Batch Name */}
-              <div>
-                <label className="text-sm font-bold text-slate-700 mb-2 block">
-                  🎬 Batch Name (Playlist)
-                </label>
-                <input 
-                  type="text" 
-                  value={recordingPlaylistName} 
-                  onChange={e => setRecordingPlaylistName(e.target.value)}
-                  placeholder="e.g., February 2026 Batch"
-                  className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 transition-all"
-                />
-              </div>
-              
-              {/* Video Number */}
-              <div>
-                <label className="text-sm font-bold text-slate-700 mb-2 block">
-                  🔢 Video Number
-                </label>
-                <input 
-                  type="text" 
-                  value={recordingVideoNumber} 
-                  onChange={e => setRecordingVideoNumber(e.target.value)}
-                  placeholder="e.g., 1, 2, 3..."
-                  className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 transition-all"
-                />
-              </div>
-              
-              {/* Description */}
-              <div>
-                <label className="text-sm font-bold text-slate-700 mb-2 block">Description (Optional)</label>
-                <textarea 
-                  value={recordingDescription} 
-                  onChange={e => setRecordingDescription(e.target.value)}
-                  placeholder="e.g., Introduction to Nadi, Breathing techniques..."
-                  className="w-full h-20 p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 transition-all resize-none"
-                />
-              </div>
-              
-              {/* Preview */}
-              {recordingFolderName && recordingPlaylistName && recordingVideoNumber && (
-                <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
-                  <p className="text-xs font-bold text-emerald-700 uppercase mb-1">Video will be saved as:</p>
-                  <p className="text-sm text-emerald-800 font-medium">
-                    📁 {recordingFolderName} → 🎬 {recordingPlaylistName} → 🎥 Video {recordingVideoNumber}
-                  </p>
+                {/* Step indicator */}
+                <div className="flex items-center gap-3 mb-2">
+                  <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold ${uploadStep === 'folder' ? 'bg-emerald-600 text-white' : 'bg-emerald-100 text-emerald-700'}`}>
+                    <span className="w-4 h-4 rounded-full bg-white/30 flex items-center justify-center text-xs">1</span>
+                    Create Folder
+                  </div>
+                  <div className="h-px flex-1 bg-slate-200" />
+                  <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold ${uploadStep === 'video' ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                    <span className="w-4 h-4 rounded-full bg-white/30 flex items-center justify-center text-xs">2</span>
+                    Upload Video
+                  </div>
                 </div>
-              )}
-              
-              {/* Video File Upload */}
-              <div>
-                <label className="text-sm font-bold text-slate-700 mb-2 block">Video File</label>
-                <label className={`flex flex-col items-center justify-center h-32 border-2 border-dashed rounded-2xl cursor-pointer transition-all ${uploadingRecording ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 hover:border-emerald-300 hover:bg-emerald-50'}`}>
-                  {uploadingRecording ? (
-                    <>
-                      <Loader className="animate-spin text-emerald-600 mb-2" size={32} />
-                      <span className="text-sm font-bold text-emerald-600">Uploading...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="text-slate-400 mb-2" size={32} />
-                      <span className="text-sm font-medium text-slate-600">Click to select video</span>
-                      <span className="text-xs text-slate-400">MP4, WebM, MOV (max 2GB)</span>
-                    </>
-                  )}
-                  <input 
-                    type="file" 
-                    className="hidden" 
-                    accept="video/*" 
-                    onChange={e => {
-                      const file = e.target.files?.[0];
-                      if (file) uploadNewRecording(file);
-                    }}
-                    disabled={uploadingRecording || !recordingFolderName || !recordingPlaylistName || !recordingVideoNumber}
-                  />
-                </label>
-                {(!recordingFolderName || !recordingPlaylistName || !recordingVideoNumber) && (
-                  <p className="text-xs text-amber-600 mt-2">⚠️ Fill all required fields above before uploading</p>
+
+                {/* STEP 1: Create Folder */}
+                {uploadStep === 'folder' && (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-sm font-bold text-slate-700 mb-2 block">📁 Workshop Name (Folder)</label>
+                      <input type="text" value={recordingFolderName} onChange={e => setRecordingFolderName(e.target.value)}
+                        placeholder="e.g., Swar Aahar Shastra-Hindi"
+                        className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 transition-all" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-bold text-slate-700 mb-2 block">🎬 Batch Name (Playlist)</label>
+                      <input type="text" value={recordingPlaylistName} onChange={e => setRecordingPlaylistName(e.target.value)}
+                        placeholder="e.g., 25th April 26 Batch"
+                        className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 transition-all" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-bold text-slate-700 mb-2 block">🖼️ Thumbnail URL</label>
+                      <input type="url" value={recordingThumbnailUrl} onChange={e => setRecordingThumbnailUrl(e.target.value)}
+                        placeholder="https://example.com/image.jpg"
+                        className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 transition-all" />
+                      <p className="text-xs text-slate-400 mt-1">Paste any public image URL — shown on all videos in this folder</p>
+                    </div>
+                    {/* Thumbnail preview */}
+                    {recordingThumbnailUrl && (
+                      <div className="rounded-xl overflow-hidden border border-slate-200 aspect-video bg-slate-100">
+                        <img src={recordingThumbnailUrl} alt="Thumbnail preview" className="w-full h-full object-cover"
+                          onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                      </div>
+                    )}
+                    <button
+                      onClick={() => {
+                        if (!recordingFolderName.trim()) return alert('Enter workshop name');
+                        if (!recordingPlaylistName.trim()) return alert('Enter batch name');
+                        setUploadStep('video');
+                      }}
+                      className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-all"
+                    >
+                      Next: Upload Video →
+                    </button>
+                  </div>
                 )}
-              </div>
+
+                {/* STEP 2: Upload Video */}
+                {uploadStep === 'video' && (
+                  <div className="space-y-4">
+                    {/* Folder summary */}
+                    <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center gap-3">
+                      {recordingThumbnailUrl && (
+                        <img src={recordingThumbnailUrl} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-emerald-600 font-bold">📁 {recordingFolderName}</p>
+                        <p className="text-xs text-emerald-700">🎬 {recordingPlaylistName}</p>
+                      </div>
+                      <button onClick={() => setUploadStep('folder')} className="text-xs text-slate-400 hover:text-slate-600 underline flex-shrink-0">Edit</button>
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-bold text-slate-700 mb-2 block">🔢 Video Number</label>
+                      <input type="text" value={recordingVideoNumber} onChange={e => setRecordingVideoNumber(e.target.value)}
+                        placeholder="e.g., 1, 2, 3..."
+                        className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 transition-all" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-bold text-slate-700 mb-2 block">📝 Description (Optional)</label>
+                      <textarea value={recordingDescription} onChange={e => setRecordingDescription(e.target.value)}
+                        placeholder="e.g., Day-1 on Digestion and Food..."
+                        className="w-full h-20 p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 transition-all resize-none" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-bold text-slate-700 mb-2 block">📹 Video File</label>
+                      <label className={`flex flex-col items-center justify-center h-32 border-2 border-dashed rounded-2xl cursor-pointer transition-all ${uploadingRecording ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 hover:border-emerald-300 hover:bg-emerald-50'}`}>
+                        {uploadingRecording ? (
+                          <>
+                            <Loader className="animate-spin text-emerald-600 mb-2" size={32} />
+                            <span className="text-sm font-bold text-emerald-600">Uploading...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="text-slate-400 mb-2" size={32} />
+                            <span className="text-sm font-medium text-slate-600">Click to select video</span>
+                            <span className="text-xs text-slate-400">MP4, WebM, MOV (max 2GB)</span>
+                          </>
+                        )}
+                        <input type="file" className="hidden" accept="video/*"
+                          onChange={e => { const file = e.target.files?.[0]; if (file) uploadNewRecording(file); }}
+                          disabled={uploadingRecording || !recordingVideoNumber} />
+                      </label>
+                      {!recordingVideoNumber && <p className="text-xs text-amber-600 mt-2">⚠️ Enter video number first</p>}
+                    </div>
+                  </div>
+                )}
             </div>
           </div>
         </div>

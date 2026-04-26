@@ -34,6 +34,7 @@ export async function POST(request: NextRequest) {
       folderName,
       playlistName,
       videoNumber,
+      thumbnailUrl: customThumbnailUrl,
     } = body;
 
     console.log('[confirm] Request:', { videoId, libraryId, communityId, title });
@@ -79,7 +80,8 @@ export async function POST(request: NextRequest) {
 
     // Build stream URLs
     const streamUrl = `https://vz-${libraryId}.b-cdn.net/${videoId}/playlist.m3u8`;
-    const thumbnailUrl = `https://vz-${libraryId}.b-cdn.net/${videoId}/thumbnail.jpg`;
+    // Use custom thumbnail URL if provided, otherwise fall back to Bunny auto-generated
+    const thumbnailUrl = customThumbnailUrl?.trim() || `https://vz-${libraryId}.b-cdn.net/${videoId}/thumbnail.jpg`;
 
     // Build tags array
     const tagArray = Array.isArray(tags) ? tags : [];
