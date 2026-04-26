@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
-    if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
+    if (!decoded?.isAdmin && !decoded?.userId) return apiError('UNAUTHORIZED');
 
     // Only superadmins can manage AI agents (shared Retell account)
     if (!isSuperAdmin(decoded)) {
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
-    if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
+    if (!decoded?.isAdmin && !decoded?.userId) return apiError('UNAUTHORIZED');
 
     // Only superadmins can manage AI agents (shared Retell account)
     if (!isSuperAdmin(decoded)) {

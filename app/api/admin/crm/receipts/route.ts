@@ -14,7 +14,7 @@ function getViewerUserId(decoded: any): string {
 }
 
 function isSuperAdmin(decoded: any): boolean {
-  if (!decoded?.isAdmin) return false;
+  if (!decoded?.isAdmin && !decoded?.userId) return false;
   if (decoded?.userId === 'admin') return true;
   const perms: string[] = Array.isArray(decoded?.permissions) ? decoded.permissions : [];
   return perms.includes('all');
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
-    if (!decoded?.isAdmin) return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
+    if (!decoded?.isAdmin && !decoded?.userId) return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
 
     const url = new URL(request.url);
     const leadId = url.searchParams.get('leadId');
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
-    if (!decoded?.isAdmin) return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
+    if (!decoded?.isAdmin && !decoded?.userId) return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
 
     const viewerUserId = getViewerUserId(decoded);
     if (!viewerUserId) {

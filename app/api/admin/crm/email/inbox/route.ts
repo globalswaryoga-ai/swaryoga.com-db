@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
-    if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
+    if (!decoded?.isAdmin && !decoded?.userId) return apiError('UNAUTHORIZED');
 
     if (!isImapConfigured()) {
       return apiError('BAD_REQUEST', 400, 'Gmail IMAP not configured');

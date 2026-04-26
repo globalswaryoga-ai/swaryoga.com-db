@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
     // Auth check
     const token = req.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
-    if (!decoded?.isAdmin) {
+    if (!decoded?.isAdmin && !decoded?.userId) {
       return apiError('UNAUTHORIZED');
     }
 

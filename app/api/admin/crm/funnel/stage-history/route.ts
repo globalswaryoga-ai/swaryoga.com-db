@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
-    if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
+    if (!decoded?.isAdmin && !decoded?.userId) return apiError('UNAUTHORIZED');
 
     const leadId = request.nextUrl.searchParams.get('leadId');
     if (!leadId) return apiError('VALIDATION_ERROR', 'leadId is required');
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
-    if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
+    if (!decoded?.isAdmin && !decoded?.userId) return apiError('UNAUTHORIZED');
 
     const { leadId, note } = await request.json();
     if (!leadId || !note?.trim()) return apiError('VALIDATION_ERROR', 'leadId and note are required');

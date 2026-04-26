@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
 
-    if (!decoded?.isAdmin) {
+    if (!decoded?.isAdmin && !decoded?.userId) {
       console.error('[Template Upload] Auth failed - not admin');
       return NextResponse.json(
         { error: 'Unauthorized: Admin access required' },

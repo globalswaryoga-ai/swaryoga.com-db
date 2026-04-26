@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
-    if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
+    if (!decoded?.isAdmin && !decoded?.userId) return apiError('UNAUTHORIZED');
     if (!isSuperAdmin(decoded)) return apiError('FORBIDDEN', 'Super admin access required');
 
     await connectDB();

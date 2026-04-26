@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
-    if (!decoded?.isAdmin) {
+    if (!decoded?.isAdmin && !decoded?.userId) {
       return apiError('UNAUTHORIZED');
     }
 
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
-    if (!decoded?.isAdmin) {
+    if (!decoded?.isAdmin && !decoded?.userId) {
       return apiError('UNAUTHORIZED');
     }
 

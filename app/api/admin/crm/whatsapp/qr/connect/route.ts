@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
       return apiError('UNAUTHORIZED', 'No token provided');
     }
     const decoded = await verifyToken(token);
-    if (!decoded?.isAdmin) {
+    if (!decoded?.isAdmin && !decoded?.userId) {
       return apiError('UNAUTHORIZED', 'Unauthorized');
     }
 

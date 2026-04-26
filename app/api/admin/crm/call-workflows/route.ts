@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
-    if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
+    if (!decoded?.isAdmin && !decoded?.userId) return apiError('UNAUTHORIZED');
     const tf = tenantFilter(decoded, 'createdBy');
 
     await connectDB();
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
-    if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
+    if (!decoded?.isAdmin && !decoded?.userId) return apiError('UNAUTHORIZED');
     const tf = tenantFilter(decoded, 'createdBy');
 
     const { leadIds, direction } = await request.json();
@@ -146,7 +146,7 @@ export async function PUT(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
-    if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
+    if (!decoded?.isAdmin && !decoded?.userId) return apiError('UNAUTHORIZED');
     const tf = tenantFilter(decoded, 'createdBy');
 
     const { id, updates } = await request.json();

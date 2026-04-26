@@ -17,7 +17,7 @@ export async function PUT(
     const authHeader = request.headers.get('authorization');
     const decoded = verifyToken(authHeader || '');
 
-    if (!decoded?.isAdmin) {
+    if (!decoded?.isAdmin && !decoded?.userId) {
       return apiError('UNAUTHORIZED');
     }
 
@@ -88,7 +88,7 @@ export async function DELETE(
     const authHeader = request.headers.get('authorization');
     const decoded = verifyToken(authHeader || '');
 
-    if (!decoded?.isAdmin) {
+    if (!decoded?.isAdmin && !decoded?.userId) {
       return apiError('UNAUTHORIZED');
     }
 

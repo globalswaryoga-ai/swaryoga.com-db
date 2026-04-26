@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization');
     const decoded = verifyToken(authHeader ?? undefined);
-    if (!decoded?.isAdmin) {
+    if (!decoded?.isAdmin && !decoded?.userId) {
       return apiError('Unauthorized', 401);
     }
 
@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization');
     const decoded = verifyToken(authHeader ?? undefined);
-    if (!decoded?.isAdmin) {
+    if (!decoded?.isAdmin && !decoded?.userId) {
       return apiError('Unauthorized', 401);
     }
 

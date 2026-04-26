@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     const token = request.headers.get('authorization')?.slice('Bearer '.length) 
                 || request.nextUrl.searchParams.get('token'); // Support token in query for direct download
     const decoded = verifyToken(token || undefined);
-    if (!decoded?.isAdmin) {
+    if (!decoded?.isAdmin && !decoded?.userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const tf = tenantFilter(decoded);

@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
 
     const token = authHeader.slice(7);
     const decoded = verifyToken(token);
-    if (!decoded?.isAdmin) {
+    if (!decoded?.isAdmin && !decoded?.userId) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 

@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(authHeader || '');
-    if (!decoded?.isAdmin) {
+    if (!decoded?.isAdmin && !decoded?.userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

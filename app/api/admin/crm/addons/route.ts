@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
     const decoded = verifyToken(token);
 
-    if (!decoded?.isAdmin) {
+    if (!decoded?.isAdmin && !decoded?.userId) {
       return apiError('Access denied', 403);
     }
 
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
     const decoded = verifyToken(token);
 
-    if (!decoded?.isAdmin) {
+    if (!decoded?.isAdmin && !decoded?.userId) {
       return apiError('Access denied', 403);
     }
 
@@ -89,7 +89,7 @@ export async function PUT(request: NextRequest) {
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
     const decoded = verifyToken(token);
 
-    if (!decoded?.isAdmin) {
+    if (!decoded?.isAdmin && !decoded?.userId) {
       return apiError('Access denied', 403);
     }
 
@@ -134,7 +134,7 @@ export async function DELETE(request: NextRequest) {
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
     const decoded = verifyToken(token);
 
-    if (!decoded?.isAdmin) {
+    if (!decoded?.isAdmin && !decoded?.userId) {
       return apiError('Access denied', 403);
     }
 

@@ -258,7 +258,7 @@ export async function DELETE(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
-    if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
+    if (!decoded?.isAdmin && !decoded?.userId) return apiError('UNAUTHORIZED');
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

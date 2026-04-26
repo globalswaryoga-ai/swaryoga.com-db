@@ -243,7 +243,7 @@ export async function GET(request: NextRequest) {
     const authHeader = request.headers.get('authorization') || '';
     const decoded = verifyToken(authHeader);
 
-    if (!decoded?.isAdmin) {
+    if (!decoded?.isAdmin && !decoded?.userId) {
       return apiError('UNAUTHORIZED', 'Admin access required');
     }
 

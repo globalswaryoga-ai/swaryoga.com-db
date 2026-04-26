@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     
-    if (!decoded?.isAdmin) {
+    if (!decoded?.isAdmin && !decoded?.userId) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     
-    if (!decoded?.isAdmin) {
+    if (!decoded?.isAdmin && !decoded?.userId) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
