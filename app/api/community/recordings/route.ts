@@ -39,29 +39,35 @@ export async function GET(request: NextRequest) {
       videos.map(async (v: any) => {
         let videoUrl: string | null = null;
 
-        // For Bunny Stream videos, build HLS URL
+        // For Bunny Stream videos — extract libraryId+videoId for embed player
+        let bunnyEmbedLibraryId: string | null = null;
+        let bunnyEmbedVideoId: string | null = null;
+
         if (v.videoSource === 'bunny-stream') {
-          if (v.s3Url && v.s3Url.includes('b-cdn.net')) {
-            // Already a full CDN URL — use as-is, ensure it's HLS
-            videoUrl = v.s3Url.includes('playlist.m3u8') ? v.s3Url
-              : v.s3Url.replace(/\/?$/, '/playlist.m3u8');
-          } else if (v.bunnyLibraryId && v.bunnyVideoId) {
-            // Uploaded via presigned/confirm — rebuild from stored IDs
+          // Priority 1: explicitly stored IDs from confirm/presigned upload
+          if (v.bunnyLibraryId && v.bunnyVideoId) {
+            bunnyEmbedLibraryId = v.bunnyLibraryId;
+            bunnyEmbedVideoId = v.bunnyVideoId;
             videoUrl = `https://vz-${v.bunnyLibraryId}.b-cdn.net/${v.bunnyVideoId}/playlist.m3u8`;
-          } else if (v.s3Key && v.s3Key.includes('b-cdn.net')) {
-            // s3Key is a full Bunny URL
-            const videoIdMatch = v.s3Key.match(/\/([a-f0-9-]{36})/);
-            const libMatch = v.s3Key.match(/vz-([a-zA-Z0-9-]+)\./);
-            if (videoIdMatch && libMatch) {
-              videoUrl = `https://vz-${libMatch[1]}.b-cdn.net/${videoIdMatch[1]}/playlist.m3u8`;
-            } else {
-              videoUrl = v.s3Key;
+          }
+          // Priority 2: extract from s3Url CDN URL
+          else {
+            const srcUrl = v.s3Url || v.s3Key || '';
+            const libMatch = srcUrl.match(/vz-([^.]+)\.b-cdn\.net/);
+            const vidMatch = srcUrl.match(/\/([a-f0-9-]{36})/);
+            if (libMatch && vidMatch) {
+              bunnyEmbedLibraryId = libMatch[1];
+              bunnyEmbedVideoId = vidMatch[1];
+              videoUrl = `https://vz-${libMatch[1]}.b-cdn.net/${vidMatch[1]}/playlist.m3u8`;
             }
-          } else if (v.s3Key && /^[a-f0-9-]{36}$/.test(v.s3Key)) {
-            // s3Key is just a UUID videoId — use env library ID
-            const libraryId = process.env.BUNNY_STREAM_LIBRARY_ID;
-            if (libraryId) {
-              videoUrl = `https://vz-${libraryId}.b-cdn.net/${v.s3Key}/playlist.m3u8`;
+            // Priority 3: UUID-only s3Key — use env library ID
+            else if (v.s3Key && /^[a-f0-9-]{36}$/.test(v.s3Key)) {
+              const libraryId = process.env.BUNNY_STREAM_LIBRARY_ID;
+              if (libraryId) {
+                bunnyEmbedLibraryId = libraryId;
+                bunnyEmbedVideoId = v.s3Key;
+                videoUrl = `https://vz-${libraryId}.b-cdn.net/${v.s3Key}/playlist.m3u8`;
+              }
             }
           }
         }
@@ -87,6 +93,8 @@ export async function GET(request: NextRequest) {
           videoUrl,
           videoSource: v.videoSource || 'aws',
           youtubeVideoId: v.youtubeVideoId,
+          bunnyLibraryId: bunnyEmbedLibraryId,
+          bunnyVideoId: bunnyEmbedVideoId,
           duration: v.duration,
           recordingType: v.recordingType,
           zoomMeetingId: v.zoomMeetingId,

@@ -23,6 +23,8 @@ interface Recording {
   videoUrl?: string;
   videoSource?: string;
   youtubeVideoId?: string;
+  bunnyLibraryId?: string;
+  bunnyVideoId?: string;
   duration?: number;
   recordingType?: string;
   zoomMeetingId?: string;
@@ -343,6 +345,8 @@ function RecordingsContent() {
                   videoId={playingVideo._id}
                   videoSource={playingVideo.videoSource}
                   youtubeVideoId={playingVideo.youtubeVideoId}
+                  bunnyLibraryId={playingVideo.bunnyLibraryId}
+                  bunnyVideoId={playingVideo.bunnyVideoId}
                 />
                 <div className="p-4 bg-gray-900">
                   <h3 className="text-white font-semibold">
