@@ -153,8 +153,8 @@ export const PLAN_MODULES: Record<PlanTier, Record<CrmModule, boolean>> = {
     helpdesk: false,
     api: false,
     customDomain: false,
-    accounting: false,
-    lifePlanner: false,
+    accounting: true,      // Life Planner - Accounting
+    lifePlanner: true,     // Life Planner - Accounting & Goals
   },
   basic: {
     leads: true,
