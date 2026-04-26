@@ -76,7 +76,9 @@ const LeadSchema = new mongoose.Schema(
   title: { type: String, enum: ['Mr', 'Miss', ''], default: '', trim: true },
   displayName: { type: String, trim: true },
 
-    phoneNumber: { type: String, required: true, unique: true, index: true },
+    // NOTE: phoneNumber is indexed but NOT globally unique to support multi-tenant phone reuse.
+    // Duplicate detection is handled per-tenant in API (checks createdByUserId/assignedToUserId).
+    phoneNumber: { type: String, required: true, index: true },
     email: { type: String, trim: true, lowercase: true },
     status: {
       type: String,
@@ -560,7 +562,8 @@ WhatsAppWebhookEventSchema.index({ receivedAt: -1, kind: 1 });
 const UserConsentSchema = new mongoose.Schema(
   {
     leadId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lead', required: false, index: true },
-    phoneNumber: { type: String, required: true, unique: true, index: true },
+    // NOTE: phoneNumber is indexed but NOT globally unique to support multi-tenant phone reuse.
+    phoneNumber: { type: String, required: true, index: true },
 
     // Channel-specific consent (used by admin CRM consent APIs + tests)
     channel: {
@@ -1789,7 +1792,9 @@ const ChatbotConversationStateSchema = new mongoose.Schema(
   { timestamps: true, collection: 'chatbot_conversation_states' }
 );
 
-ChatbotConversationStateSchema.index({ phoneNumber: 1 }, { unique: true });
+// NOTE: Removed global unique index on phoneNumber to support multi-tenant phone reuse.
+// Use compound index with leadId instead for better multi-tenant support.
+ChatbotConversationStateSchema.index({ leadId: 1, phoneNumber: 1 });
 ChatbotConversationStateSchema.index({ leadId: 1 });
 ChatbotConversationStateSchema.index({ mode: 1, waitingForAdmin: 1 });
 
