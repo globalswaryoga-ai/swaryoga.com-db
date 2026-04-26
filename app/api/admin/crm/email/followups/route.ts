@@ -16,12 +16,12 @@ export async function GET(request: NextRequest) {
     const authHeader = request.headers.get('authorization');
     const decoded = verifyToken(authHeader || '');
 
-    if (!decoded?.isAdmin) {
+    if (!decoded?.isAdmin && !decoded?.userId) {
       return apiError('UNAUTHORIZED');
     }
 
-    // Check permission
-    if (!hasPermission(decoded?.permissionsV2, 'email', 'read')) {
+    // Check permission only for admin users (basic plan users have default access)
+    if (decoded?.isAdmin && !hasPermission(decoded?.permissionsV2, 'email', 'read')) {
       return apiError('FORBIDDEN', 'You do not have permission to view follow-up sequences');
     }
 
@@ -57,12 +57,12 @@ export async function POST(request: NextRequest) {
     const authHeader = request.headers.get('authorization');
     const decoded = verifyToken(authHeader || '');
 
-    if (!decoded?.isAdmin) {
+    if (!decoded?.isAdmin && !decoded?.userId) {
       return apiError('UNAUTHORIZED');
     }
 
-    // Check permission
-    if (!hasPermission(decoded?.permissionsV2, 'email', 'manageTemplates')) {
+    // Check permission only for admin users (basic plan users have default access)
+    if (decoded?.isAdmin && !hasPermission(decoded?.permissionsV2, 'email', 'manageTemplates')) {
       return apiError('FORBIDDEN', 'You do not have permission to manage follow-up sequences');
     }
 

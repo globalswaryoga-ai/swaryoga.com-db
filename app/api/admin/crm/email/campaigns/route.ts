@@ -16,12 +16,12 @@ export async function GET(request: NextRequest) {
     const authHeader = request.headers.get('authorization');
     const decoded = verifyToken(authHeader || '');
 
-    if (!decoded?.isAdmin) {
+    if (!decoded?.isAdmin && !decoded?.userId) {
       return apiError('UNAUTHORIZED');
     }
 
-    // Check permission (read permission is enough to view campaigns)
-    if (!hasPermission(decoded?.permissionsV2, 'email', 'read')) {
+    // Check permission only for admin users (basic plan users have default access)
+    if (decoded?.isAdmin && !hasPermission(decoded?.permissionsV2, 'email', 'read')) {
       return apiError('FORBIDDEN', 'You do not have permission to view email campaigns');
     }
 

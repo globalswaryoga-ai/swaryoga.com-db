@@ -16,20 +16,25 @@ export async function POST(request: NextRequest) {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
 
-    if (!decoded?.isAdmin) {
+    if (!decoded?.isAdmin && !decoded?.userId) {
       return apiError('UNAUTHORIZED');
     }
 
-    const isSuperAdmin = decoded?.userId === 'admin' || 
+    const isSuperAdmin = decoded?.userId === 'admin' ||
                         decoded?.userId === 'admincrm' ||
                         (Array.isArray(decoded?.permissions) && decoded.permissions.includes('all'));
-    
-    const canSendEmail = isSuperAdmin || 
-                        (decoded?.permissions && Array.isArray(decoded.permissions) && decoded.permissions.includes('email')) ||
-                        hasPermission(decoded?.permissionsV2, 'email', 'send');
 
-    if (!canSendEmail) {
-      return apiError('FORBIDDEN', 'You do not have permission to send emails');
+    // Basic plan users (non-admin userId) have default email access
+    if (!isSuperAdmin && decoded?.userId && !decoded?.isAdmin) {
+      // Basic plan user - allow by default
+    } else if (decoded?.isAdmin) {
+      // Admin user - check permissions
+      const canSendEmail = isSuperAdmin ||
+                          (decoded?.permissions && Array.isArray(decoded.permissions) && decoded.permissions.includes('email')) ||
+                          hasPermission(decoded?.permissionsV2, 'email', 'send');
+      if (!canSendEmail) {
+        return apiError('FORBIDDEN', 'You do not have permission to send emails');
+      }
     }
 
     const body = await request.json();
