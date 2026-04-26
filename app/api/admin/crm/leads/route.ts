@@ -4,13 +4,14 @@ import { verifyToken } from '@/lib/auth';
 import { getLead, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import {
-  escapeRegexLiteral, 
-  getViewerUserId, 
+  escapeRegexLiteral,
+  getViewerUserId,
   isSuperAdmin,
   isManager,
   getVisibleUserIds,
-  normalizePhone 
+  normalizePhone
 } from '@/lib/crm-handlers';
+import { getTenantFilter, enrichTenantData } from '@/lib/crm/tenantIsolation';
 
 export const dynamic = 'force-dynamic';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
@@ -32,6 +33,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized: Missing user identity' }, { status: 401 });
     }
 
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // TENANT ISOLATION: Leads are completely isolated by tenant (CRM admin)
+    // - Super Admin: can view all leads from all tenants (with optional userId filter)
+    // - Regular Admin (Tenant): ONLY views leads they created or are assigned to
+    // - Manager: views their team's leads only
+    // This ensures each tenant's leads are completely private
+    // ═══════════════════════════════════════════════════════════════════════════════
     const superAdmin = isSuperAdmin(decoded);
     const manager = isManager(decoded);
     const visibleUserIds = getVisibleUserIds(decoded);
@@ -225,7 +233,10 @@ export async function POST(request: NextRequest) {
     const workshopId = body?.workshopId ? String(body.workshopId).trim() : undefined;
     const workshopName = body?.workshopName ? String(body.workshopName).trim() : undefined;
 
-    // Ownership fields
+    // ─── TENANT ISOLATION: Lead ownership ───
+    // Each lead must be assigned to a tenant (CRM admin)
+    // Regular tenants can only create leads assigned to themselves
+    // Super-admin can create leads for other tenants
     const requestedAssignedTo = body?.assignedToUserId ? String(body.assignedToUserId).trim() : '';
     const assignedToUserId = superAdmin && requestedAssignedTo ? requestedAssignedTo : viewerUserId;
 
