@@ -157,6 +157,10 @@ export default function FunnelManagePage() {
   const [windowStatus, setWindowStatus] = useState<Record<string, { lastInboundAt: string | null; expiresAt: string | null; isOpen: boolean }>>({});
   const [now, setNow] = useState(Date.now());
 
+  // Plan-based button visibility
+  const [subscription, setSubscription] = useState<any>(null);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(true);
+
   // Delete confirmation
   const [deleteLeadId, setDeleteLeadId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -315,6 +319,27 @@ export default function FunnelManagePage() {
   useEffect(() => {
     if (token) fetchLeads();
   }, [token, fetchLeads]);
+
+  // Fetch subscription for plan-based button visibility
+  useEffect(() => {
+    if (!token) return;
+    const fetchSubscription = async () => {
+      try {
+        const res = await fetch('/api/admin/crm/subscription', {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (data.success) {
+          setSubscription(data.subscription);
+        }
+      } catch (err) {
+        console.error('Failed to fetch subscription:', err);
+      } finally {
+        setSubscriptionLoading(false);
+      }
+    };
+    fetchSubscription();
+  }, [token]);
 
   // Reset page on filter change
   useEffect(() => { setPage(0); }, [activeStage, searchQuery, filterCountry, filterLanguage, filterAdmin, filterWorkshop, filterLabel, filterMonth]);
@@ -1285,8 +1310,9 @@ export default function FunnelManagePage() {
                       </div>
                     </div>
                   </div>
-                  {/* Row 2: Meta WA, Email, SMS, Call, Chatbot */}
+                  {/* Row 2: Action buttons (plan-based) */}
                   <div className="flex items-center gap-2">
+                    {/* QR WA - Always show */}
                     <button
                       onClick={() => { touchLead(lead._id); router.push(`/admin/crm/meta?phone=${encodeURIComponent(lead.phoneNumber?.replace(/\D/g, '') || '')}`); }}
                       title="WhatsApp (Meta)"
@@ -1294,8 +1320,10 @@ export default function FunnelManagePage() {
                       style={{ background: '#128C7E' }}
                     >
                       <Send className="h-3.5 w-3.5" />
-                      Meta WA
+                      QR WA
                     </button>
+
+                    {/* Email - Always show */}
                     <a
                       href={`mailto:${lead.email || ''}`}
                       title="Send email"
@@ -1304,22 +1332,8 @@ export default function FunnelManagePage() {
                       <Mail className="h-3.5 w-3.5" />
                       Email
                     </a>
-                    <a
-                      href={`sms:${lead.phoneNumber || ''}`}
-                      title="Send SMS"
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-cyan-50 text-cyan-600 hover:bg-cyan-100 transition whitespace-nowrap"
-                    >
-                      <MessageSquare className="h-3.5 w-3.5" />
-                      SMS
-                    </a>
-                    <button
-                      onClick={() => { touchLead(lead._id); setAiCallLeadId(lead._id); }}
-                      title="AI Call"
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-orange-50 text-orange-600 hover:bg-orange-100 transition whitespace-nowrap"
-                    >
-                      <PhoneCall className="h-3.5 w-3.5" />
-                      Call
-                    </button>
+
+                    {/* Chatbot - Always show */}
                     <button
                       onClick={() => {
                         touchLead(lead._id);
@@ -1368,27 +1382,55 @@ export default function FunnelManagePage() {
                         );
                       })()}
                     </button>
+
+                    {/* Pro/Enterprise only buttons */}
+                    {subscription?.currentPlan !== 'basic' && (
+                      <>
+                        {/* SMS - Pro+ only */}
+                        <a
+                          href={`sms:${lead.phoneNumber || ''}`}
+                          title="Send SMS"
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-cyan-50 text-cyan-600 hover:bg-cyan-100 transition whitespace-nowrap"
+                        >
+                          <MessageSquare className="h-3.5 w-3.5" />
+                          SMS
+                        </a>
+
+                        {/* Call - Pro+ only */}
+                        <button
+                          onClick={() => { touchLead(lead._id); setAiCallLeadId(lead._id); }}
+                          title="AI Call"
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-orange-50 text-orange-600 hover:bg-orange-100 transition whitespace-nowrap"
+                        >
+                          <PhoneCall className="h-3.5 w-3.5" />
+                          Call
+                        </button>
+                      </>
+                    )}
                   </div>
-                  {/* Row 3: Receipts + Updates */}
-                  <div className="flex items-center gap-2 justify-center">
-                    <button
-                      onClick={() => { touchLead(lead._id); setReceiptLeadId(lead._id); }}
-                      title="Receipts"
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition whitespace-nowrap"
-                    >
-                      <Receipt className="h-3.5 w-3.5" />
-                      Receipts
-                    </button>
-                    <button
-                      onClick={() => fetchStageHistory(lead._id)}
-                      title="Stage change updates"
-                      className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold text-green-800 transition hover:opacity-90 whitespace-nowrap"
-                      style={{ background: '#E8E0F0' }}
-                    >
-                      <History className="h-3.5 w-3.5" />
-                      Updates
-                    </button>
-                  </div>
+
+                  {/* Row 3: Receipts + Updates (Pro+ only) */}
+                  {subscription?.currentPlan !== 'basic' && (
+                    <div className="flex items-center gap-2 justify-center">
+                      <button
+                        onClick={() => { touchLead(lead._id); setReceiptLeadId(lead._id); }}
+                        title="Receipts"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition whitespace-nowrap"
+                      >
+                        <Receipt className="h-3.5 w-3.5" />
+                        Receipts
+                      </button>
+                      <button
+                        onClick={() => fetchStageHistory(lead._id)}
+                        title="Stage change updates"
+                        className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold text-green-800 transition hover:opacity-90 whitespace-nowrap"
+                        style={{ background: '#E8E0F0' }}
+                      >
+                        <History className="h-3.5 w-3.5" />
+                        Updates
+                      </button>
+                    </div>
+                  )}
 
 
                 </div>
