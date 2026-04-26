@@ -330,6 +330,32 @@ async function handleWebhookPayload(payload: any) {
             { $set: update }
           );
 
+          // Blocked / failed lead tracking — 3-strike system
+          const errorCode = st?.errors?.[0]?.code;
+          const isBlockedError =
+            errorCode === 131026 || errorCode === 131047 ||
+            errorCode === '131026' || errorCode === '131047';
+          const recipientPhone = String(st?.recipient_id || '').trim();
+
+          if ((isBlockedError || status === 'failed') && recipientPhone) {
+            const failedLead = await Lead.findOne({ phoneNumber: recipientPhone });
+            if (failedLead && !failedLead.isBlocked) {
+              const newCount = (failedLead.waFailCount || 0) + 1;
+              const leadUpdate: any = {
+                waFailCount: newCount,
+                waLastFailAt: now,
+                waLastFailCode: errorCode?.toString() || 'failed',
+              };
+              if (isBlockedError || newCount >= 3) {
+                leadUpdate.isBlocked = true;
+                leadUpdate.waBlockedAt = now;
+                leadUpdate.waBlockedReason = isBlockedError ? 'User blocked this number' : '3 consecutive delivery failures';
+                console.log(`🚫 [BLOCKED] Lead ${failedLead._id} (${recipientPhone}) auto-blocked after ${newCount} failures`);
+              }
+              await Lead.updateOne({ _id: failedLead._id }, { $set: leadUpdate });
+            }
+          }
+
           // Also update BroadcastRunMessage if this was part of a broadcast
           if (BroadcastRunMessage) {
             const broadcastUpdate: any = { status, updatedAt: now };
@@ -340,9 +366,7 @@ async function handleWebhookPayload(payload: any) {
               broadcastUpdate.failureReason = err?.title || err?.message || 'Failed';
               broadcastUpdate.failureCode = err?.code?.toString() || undefined;
             }
-            // 'blocked' detection: error code 131026 = blocked, 131047 = business account blocked
-            const errorCode = st?.errors?.[0]?.code;
-            if (errorCode === 131026 || errorCode === 131047 || errorCode === '131026' || errorCode === '131047') {
+            if (isBlockedError) {
               broadcastUpdate.status = 'blocked';
             }
             

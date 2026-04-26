@@ -204,6 +204,13 @@ const LeadSchema = new mongoose.Schema(
     blockedReason: { type: String, trim: true }, // 'stop_keyword' | 'manual' | 'spam' | etc.
     unblockedAt: { type: Date },
 
+    // WhatsApp delivery failure tracking (3-strike auto-block system)
+    waFailCount: { type: Number, default: 0 },         // consecutive delivery failures
+    waLastFailAt: { type: Date },                       // timestamp of last failure
+    waLastFailCode: { type: String },                   // Meta error code e.g. 131026
+    waBlockedAt: { type: Date },                        // when auto-blocked
+    waBlockedReason: { type: String },                  // 'User blocked this number' | '3 consecutive delivery failures'
+
     metadata: mongoose.Schema.Types.Mixed,
   },
   { timestamps: true, collection: 'leads' }
