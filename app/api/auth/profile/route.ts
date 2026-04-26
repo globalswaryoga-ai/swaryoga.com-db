@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, User } from '@/lib/db';
+import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -29,6 +29,9 @@ export async function GET(request: NextRequest) {
     }
 
     await connectDB();
+
+    const { getUser } = await import('@/lib/db');
+    const User = getUser();
 
     const user: any = await User.findById(userId)
       .select('_id name email phone profileId profileImage createdAt')
