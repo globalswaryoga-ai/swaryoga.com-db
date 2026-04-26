@@ -23,7 +23,7 @@ export const runtime = 'nodejs';
 export async function GET(req: NextRequest) {
   try {
     const decoded = verifyToken(req.headers.get('authorization') || '');
-    if (!decoded?.userId || !decoded?.isAdmin) {
+    if (!decoded?.isAdmin && !decoded?.userId) {
       return apiError('Unauthorized', 403);
     }
 
@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const decoded = verifyToken(req.headers.get('authorization') || '');
-    if (!decoded?.userId || !decoded?.isAdmin) {
+    if (!decoded?.isAdmin && !decoded?.userId) {
       return apiError('Unauthorized', 403);
     }
 

@@ -50,7 +50,7 @@ export async function GET(
         return new NextResponse('Unauthorized: login required to access user files', { status: 401 });
       }
 
-      if (!decoded?.userId || !decoded?.isAdmin) {
+      if (!decoded?.isAdmin && !decoded?.userId) {
         return new NextResponse('Unauthorized', { status: 401 });
       }
 

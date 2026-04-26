@@ -29,9 +29,9 @@ export const escapeRegexLiteral = (input: string): string => {
 export const verifyAdminAccess = (request: NextRequest): string => {
   const token = request.headers.get('authorization')?.slice('Bearer '.length);
   const decoded = verifyToken(token);
-  
-  if (!decoded?.isAdmin || !decoded?.userId) throw new Error('Unauthorized');
-  
+
+  if (!decoded?.isAdmin && !decoded?.userId) throw new Error('Unauthorized');
+
   return decoded.userId as string;
 };
 

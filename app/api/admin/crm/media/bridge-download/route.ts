@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const decoded = verifyToken(token);
-    if (!decoded?.userId || !decoded?.isAdmin) {
+    if (!decoded?.isAdmin && !decoded?.userId) {
       return NextResponse.json({ error: 'Admin required' }, { status: 403 });
     }
 

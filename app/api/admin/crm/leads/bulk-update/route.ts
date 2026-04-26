@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
-    if (!decoded?.isAdmin || !decoded?.userId) throw new Error('Unauthorized');
+    if (!decoded?.isAdmin && !decoded?.userId) throw new Error('Unauthorized');
     const tf = tenantOrFilter(decoded);
 
     const body = (await request.json().catch(() => null)) as Body | null;

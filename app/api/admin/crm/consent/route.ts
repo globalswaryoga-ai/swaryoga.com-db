@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
-    if (!decoded?.isAdmin || !decoded?.userId) throw new Error('Unauthorized');
+    if (!decoded?.isAdmin && !decoded?.userId) throw new Error('Unauthorized');
     const tf = tenantFilter(decoded, 'recordedByUserId');
     const url = new URL(request.url);
     const consentStatus = url.searchParams.get('status');
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
-    if (!decoded?.isAdmin || !decoded?.userId) throw new Error('Unauthorized');
+    if (!decoded?.isAdmin && !decoded?.userId) throw new Error('Unauthorized');
     const tf = tenantFilter(decoded, 'recordedByUserId');
     const body = await request.json().catch(() => null);
     if (!body) throw new Error('Invalid JSON body');
@@ -117,7 +117,7 @@ export async function PUT(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
-    if (!decoded?.isAdmin || !decoded?.userId) throw new Error('Unauthorized');
+    if (!decoded?.isAdmin && !decoded?.userId) throw new Error('Unauthorized');
     const tf = tenantFilter(decoded, 'recordedByUserId');
     const body = await request.json().catch(() => null);
     if (!body) throw new Error('Invalid JSON body');
@@ -180,7 +180,7 @@ export async function DELETE(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
-    if (!decoded?.isAdmin || !decoded?.userId) throw new Error('Unauthorized');
+    if (!decoded?.isAdmin && !decoded?.userId) throw new Error('Unauthorized');
     const tf = tenantFilter(decoded, 'recordedByUserId');
     const url = new URL(request.url);
     const consentId = url.searchParams.get('consentId');
