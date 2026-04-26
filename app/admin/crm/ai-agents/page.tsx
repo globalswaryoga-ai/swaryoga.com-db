@@ -1091,7 +1091,7 @@ export default function AIAgentsPage() {
               </div>
               <button
                 onClick={() => { setShowCreateWizard(false); setWizardStep(1); }}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
+                className="w-10 h-10 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center text-gray-700 transition-all"
               >
                 <X className="w-5 h-5" />
               </button>
