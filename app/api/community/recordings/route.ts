@@ -39,9 +39,31 @@ export async function GET(request: NextRequest) {
       videos.map(async (v: any) => {
         let videoUrl: string | null = null;
 
-        // For Bunny Stream videos, use the direct HLS/CDN URL
-        if (v.videoSource === 'bunny-stream' && v.s3Url) {
-          videoUrl = v.s3Url;
+        // For Bunny Stream videos, build HLS URL
+        if (v.videoSource === 'bunny-stream') {
+          if (v.s3Url && v.s3Url.includes('b-cdn.net')) {
+            // Already a full CDN URL — use as-is, ensure it's HLS
+            videoUrl = v.s3Url.includes('playlist.m3u8') ? v.s3Url
+              : v.s3Url.replace(/\/?$/, '/playlist.m3u8');
+          } else if (v.bunnyLibraryId && v.bunnyVideoId) {
+            // Uploaded via presigned/confirm — rebuild from stored IDs
+            videoUrl = `https://vz-${v.bunnyLibraryId}.b-cdn.net/${v.bunnyVideoId}/playlist.m3u8`;
+          } else if (v.s3Key && v.s3Key.includes('b-cdn.net')) {
+            // s3Key is a full Bunny URL
+            const videoIdMatch = v.s3Key.match(/\/([a-f0-9-]{36})/);
+            const libMatch = v.s3Key.match(/vz-([a-zA-Z0-9-]+)\./);
+            if (videoIdMatch && libMatch) {
+              videoUrl = `https://vz-${libMatch[1]}.b-cdn.net/${videoIdMatch[1]}/playlist.m3u8`;
+            } else {
+              videoUrl = v.s3Key;
+            }
+          } else if (v.s3Key && /^[a-f0-9-]{36}$/.test(v.s3Key)) {
+            // s3Key is just a UUID videoId — use env library ID
+            const libraryId = process.env.BUNNY_STREAM_LIBRARY_ID;
+            if (libraryId) {
+              videoUrl = `https://vz-${libraryId}.b-cdn.net/${v.s3Key}/playlist.m3u8`;
+            }
+          }
         }
         // For YouTube recordings, use embed proxy
         else if (v.videoSource === 'youtube' && v.youtubeVideoId) {
@@ -53,10 +75,7 @@ export async function GET(request: NextRequest) {
             videoUrl = await getProtectedUrl(v.s3Key, 'community', 3600);
           } catch (err) {
             console.error(`[Recordings] Failed to sign URL for ${v._id}:`, err);
-            // Fallback to s3Url if protected URL generation fails
-            if (v.s3Url) {
-              videoUrl = v.s3Url;
-            }
+            if (v.s3Url) videoUrl = v.s3Url;
           }
         }
 
