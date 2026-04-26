@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth, getLoginPath } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
+import { X } from 'lucide-react';
 import { PageHeader, LoadingSpinner, AlertBox, TemplateSelector, type WhatsAppTemplate } from '@/components/admin/crm';
 
 type FetchScope = 'page' | 'rules' | 'scheduled' | 'broadcast' | 'save' | null;
@@ -397,9 +398,10 @@ export default function AutomationPage() {
                     setShowEditModal(false);
                     setEditingRuleId(null);
                   }}
-                  className="px-3 py-1.5 rounded-lg bg-slate-700/60 hover:bg-slate-700 text-white text-sm"
+                  className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center text-white transition-all"
+                  title="Close"
                 >
-                  Close
+                  <X className="w-5 h-5" />
                 </button>
               </div>
 
@@ -989,7 +991,14 @@ export default function AutomationPage() {
       {/* New Rule Modal */}
       {showNewRuleModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 rounded-xl border border-purple-500/50 p-8 max-w-md w-full">
+          <div className="bg-slate-800 rounded-xl border border-purple-500/50 p-8 max-w-md w-full relative">
+            <button
+              onClick={() => setShowNewRuleModal(false)}
+              className="absolute top-4 right-4 w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center text-white transition-all"
+              title="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
             <h2 className="text-2xl font-bold text-white mb-6">Create Automation Rule</h2>
 
             <form onSubmit={handleCreateRule} className="space-y-4">
