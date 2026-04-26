@@ -519,7 +519,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
         {
           icon: BarChart3,
           label: 'All Reports',
-          href: '/admin/crm/reports',
+          href: '/admin/crm/all-reports',
           color: 'text-blue-400',
           module: 'analytics',
           planModule: 'reports',
