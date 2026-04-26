@@ -276,11 +276,22 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Check for duplicates by email or phone number
+    // Check for duplicates by email or phone number - WITHIN CURRENT TENANT ONLY
     const existingLead = await Lead.findOne({
-      $or: [
-        ...(email ? [{ email }] : []),
-        { phoneNumber },
+      $and: [
+        {
+          $or: [
+            ...(email ? [{ email }] : []),
+            { phoneNumber },
+          ],
+        },
+        // CRITICAL: Filter by current user/tenant to prevent cross-tenant data exposure
+        {
+          $or: [
+            { assignedToUserId: viewerUserId },
+            { createdByUserId: viewerUserId },
+          ],
+        },
       ],
     });
 
