@@ -15,11 +15,9 @@ export async function GET(request: NextRequest) {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
 
-    if (!decoded?.userId) {
+    if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    const userId = decoded.userId as string;
     const url = new URL(request.url);
     const range = url.searchParams.get('range') || 'month';
 

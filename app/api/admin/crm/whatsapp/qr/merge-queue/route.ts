@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     
     const decoded = verifyToken(token);
-    if (!decoded?.userId) return NextResponse.json({ error: 'Invalid token' }, { status: 403 });
+    if (!decoded?.isAdmin && !decoded?.userId) return NextResponse.json({ error: 'Invalid token' }, { status: 403 });
     
     await connectDB();
     const body = await request.json();
@@ -138,7 +138,7 @@ export async function GET(
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     
     const decoded = verifyToken(token);
-    if (!decoded?.userId) return NextResponse.json({ error: 'Invalid token' }, { status: 403 });
+    if (!decoded?.isAdmin && !decoded?.userId) return NextResponse.json({ error: 'Invalid token' }, { status: 403 });
     
     const queueId = request.nextUrl.searchParams.get('queueId');
     if (!queueId) {
@@ -183,7 +183,7 @@ export async function putResumeQueue(request: NextRequest) {
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     
     const decoded = verifyToken(token);
-    if (!decoded?.userId) return NextResponse.json({ error: 'Invalid token' }, { status: 403 });
+    if (!decoded?.isAdmin && !decoded?.userId) return NextResponse.json({ error: 'Invalid token' }, { status: 403 });
     
     const queueId = request.nextUrl.searchParams.get('queueId');
     if (!queueId) {
