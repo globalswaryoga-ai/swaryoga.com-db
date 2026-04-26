@@ -94,6 +94,30 @@ export async function POST(request: NextRequest) {
     }
 
     const now = new Date();
+
+    // Duplicate send guard — reject if same message sent to same lead in last 30 seconds
+    const thirtySecondsAgo = new Date(now.getTime() - 30_000);
+    const recentDuplicate = await WhatsAppMessage.findOne({
+      leadId: lead._id,
+      messageContent: message,
+      direction: 'outbound',
+      provider: 'meta',
+      sentAt: { $gte: thirtySecondsAgo },
+      status: { $nin: ['failed'] },
+    }).lean();
+
+    if (recentDuplicate) {
+      return NextResponse.json({
+        success: true,
+        duplicate: true,
+        data: {
+          messageId: String((recentDuplicate as any)._id),
+          waMessageId: (recentDuplicate as any).waMessageId,
+          to,
+        },
+      }, { status: 200 });
+    }
+
     const msgDoc = await WhatsAppMessage.create({
       leadId: lead._id,
       phoneNumber: to,
@@ -101,13 +125,11 @@ export async function POST(request: NextRequest) {
       messageType: 'text',
       messageContent: message,
       status: 'queued',
-      provider: 'meta', // Set this early so it shows in CRM lists
+      provider: 'meta',
       sentBy: decoded?.userId || undefined,
       sentByLabel: decoded?.username || 'admin',
       sentAt: now,
-      metadata: {
-        dryRun,
-      },
+      metadata: { dryRun },
     });
 
     if (dryRun) {

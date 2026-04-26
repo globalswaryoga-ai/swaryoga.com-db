@@ -337,7 +337,14 @@ async function handleWebhookPayload(payload: any) {
             errorCode === '131026' || errorCode === '131047';
           const recipientPhone = String(st?.recipient_id || '').trim();
 
-          if ((isBlockedError || status === 'failed') && recipientPhone) {
+          // Only count failures for Meta outgoing messages (not inbound, not other providers)
+          const metaMsg = await WhatsAppMessage.findOne({
+            $or: [{ waMessageId }, { externalMessageId: waMessageId }],
+            direction: 'outbound',
+            provider: 'meta',
+          }).lean();
+
+          if ((isBlockedError || status === 'failed') && recipientPhone && metaMsg) {
             const failedLead = await Lead.findOne({ phoneNumber: recipientPhone });
             if (failedLead && !failedLead.isBlocked) {
               const newCount = (failedLead.waFailCount || 0) + 1;
