@@ -276,17 +276,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Check for duplicates by email or phone number (within current tenant only)
+    // Check for duplicates by email or phone number
     const existingLead = await Lead.findOne({
-      $and: [
-        {
-          $or: [
-            ...(email ? [{ email }] : []),
-            { phoneNumber },
-          ],
-        },
-        // Ensure duplicate check is within current tenant (createdByUserId)
-        { createdByUserId: viewerUserId },
+      $or: [
+        ...(email ? [{ email }] : []),
+        { phoneNumber },
       ],
     });
 

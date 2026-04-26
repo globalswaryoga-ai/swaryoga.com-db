@@ -9,7 +9,7 @@ import TenantOnboarding from './TenantOnboarding';
 import StoragePurchaseModal from './StoragePurchaseModal';
 import CompartmentSetupModal from './CompartmentSetupModal';
 import CompartmentGuard from './CompartmentGuard';
-import { PlanProvider } from './hooks/usePlan';
+import { PlanProvider, usePlan } from './hooks/usePlan';
 import { TrialBanner, PlanGate } from './PlanComponents';
 import { PATH_TO_MODULE, CrmModule } from '@/lib/crm-site/planConfig';
 import { useOnboarding } from './hooks/useOnboarding';
@@ -37,7 +37,7 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
-  const [currentPlan, setCurrentPlan] = useState<string>('basic');
+  const [currentPlan, setCurrentPlan] = useState<string>('');
 
   const {
     status,
@@ -60,20 +60,22 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
     setUserEmail(email);
   }, []);
 
-  // Fetch current plan
+  // Get current plan from subscription API
   useEffect(() => {
     const fetchPlan = async () => {
       try {
-        const token = localStorage.getItem('token') || localStorage.getItem('crm_token');
+        const token = localStorage.getItem('token') || localStorage.getItem('crm_token') || localStorage.getItem('adminToken');
+        if (!token) return;
+
         const res = await fetch('/api/admin/crm/subscription', {
           headers: { 'Authorization': `Bearer ${token}` },
         });
         const data = await res.json();
-        if (data.success && data.subscription?.currentPlan) {
+        if (data?.subscription?.currentPlan) {
           setCurrentPlan(data.subscription.currentPlan);
         }
       } catch (err) {
-        console.warn('Failed to fetch plan:', err);
+        console.log('Plan fetch failed, defaulting to show header');
       }
     };
     fetchPlan();

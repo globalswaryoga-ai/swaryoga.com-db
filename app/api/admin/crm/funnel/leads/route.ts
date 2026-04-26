@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(Number(url.searchParams.get('limit') || 50), 200);
     const skip = Number(url.searchParams.get('skip') || 0);
 
-    // Build base query
+    // Build base query - ALWAYS filter to prevent data leakage
     const query: any = {};
 
     // Non-super admins only see their own leads
@@ -54,7 +54,14 @@ export async function GET(request: NextRequest) {
         ] },
       ];
     } else if (assignedTo) {
+      // Super admin with specific user filter
       query.assignedToUserId = assignedTo;
+    } else {
+      // Super admin without specific filter - show own leads only to prevent data leakage
+      query.$or = [
+        { assignedToUserId: viewerId },
+        { createdByUserId: viewerId },
+      ];
     }
 
     if (search) {

@@ -56,12 +56,18 @@ export async function GET(request: NextRequest) {
     const weekStart = startOfWeek(now);
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    // Build user filter
+    // Build user filter - ALWAYS filter by current user to prevent data leakage
     const userFilter: any = {};
     if (!isSuper) {
+      // Regular admin: only see their own leads
       userFilter.$or = [{ assignedToUserId: viewerId }, { createdByUserId: viewerId }];
     } else if (assignedTo) {
+      // Super admin with specific user filter
       userFilter.assignedToUserId = assignedTo;
+    } else {
+      // Super admin without specific filter - only show leads created by them or assigned to them
+      // This prevents showing all data
+      userFilter.$or = [{ assignedToUserId: viewerId }, { createdByUserId: viewerId }];
     }
 
     // ── Stage Distribution (current snapshot) ──
