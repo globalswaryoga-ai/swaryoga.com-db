@@ -246,34 +246,29 @@ export async function POST(request: NextRequest) {
     // ── Enforce plan lead limit for non-Super-Admin users ──
     if (!superAdmin) {
       try {
-        const mongoose = (await import('mongoose')).default;
-        const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
-        const tenant = await crmDb.collection('crm_tenants').findOne({
-          $or: [
-            { ownerUserId: viewerUserId },
-            { adminUserId: viewerUserId },
-            { slug: decoded.tenantSlug },
-          ],
-        });
-        const { resolveTenantPlanAccess } = await import('@/lib/crm-site/tenantPlanAccess');
-        const planAccess = resolveTenantPlanAccess(tenant || {});
-        const maxLeads = planAccess.limits.maxLeads || 100;
-        const currentCount = await Lead.countDocuments({
-          $or: [
-            { assignedToUserId: viewerUserId },
-            { createdByUserId: viewerUserId },
-          ],
-        });
-        if (currentCount >= maxLeads) {
-          return NextResponse.json(
-            {
-              error: `Lead limit reached (${maxLeads}). Upgrade your plan to add more leads.`,
-              limitReached: true,
-              currentCount,
-              maxLeads,
-            },
-            { status: 402 },
-          );
+        const { getCRMSubscription } = await import('@/lib/db');
+        const CRMSubscription = getCRMSubscription();
+
+        const subscription = await CRMSubscription.findOne({ userId: viewerUserId });
+        if (subscription) {
+          const maxLeads = subscription.leadsLimit || 500;
+          const currentCount = await Lead.countDocuments({
+            $or: [
+              { assignedToUserId: viewerUserId },
+              { createdByUserId: viewerUserId },
+            ],
+          });
+          if (currentCount >= maxLeads) {
+            return NextResponse.json(
+              {
+                error: `Lead limit reached (${maxLeads}). Upgrade your plan to add more leads.`,
+                limitReached: true,
+                currentCount,
+                maxLeads,
+              },
+              { status: 402 },
+            );
+          }
         }
       } catch (e) {
         // Log but don't block lead creation if plan check fails

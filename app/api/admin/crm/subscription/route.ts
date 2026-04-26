@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     const userId = decoded.userId as string;
     let subscription = await CRMSubscription.findOne({ userId }).lean();
 
-    // If no subscription exists, create one
+    // If no subscription exists, create one with Basic plan defaults
     if (!subscription) {
       const newSub = {
         userId,
@@ -35,8 +35,17 @@ export async function GET(request: NextRequest) {
         trialDaysRemaining: 15,
         isTrialActive: true,
         status: 'trial',
+        // Basic plan limits
+        leadsLimit: 500,
+        teamMembersLimit: 1,
+        workflowsLimit: 3,
         emailLimitPerMonth: 1000,
         storageIncludedGB: 5,
+        apiRequestsPerMonth: 0, // No API access for basic
+        // Usage tracking
+        leadsCount: 0,
+        teamMembersCount: 1, // Owner counts as 1
+        workflowsCount: 0,
       };
 
       const created = await CRMSubscription.create(newSub);
@@ -123,13 +132,37 @@ export async function POST(request: NextRequest) {
     const updates: any = {};
     if (currentPlan) {
       updates.currentPlan = currentPlan;
-      // Update email limit based on plan
-      const emailLimits = {
-        basic: 1000,
-        professional: 5000,
-        enterprise: 999999, // Unlimited
+
+      // Set plan-specific limits
+      const planLimits = {
+        basic: {
+          leadsLimit: 500,
+          teamMembersLimit: 1,
+          workflowsLimit: 3,
+          emailLimitPerMonth: 1000,
+          storageIncludedGB: 5,
+          apiRequestsPerMonth: 0, // No API
+        },
+        professional: {
+          leadsLimit: 5000,
+          teamMembersLimit: 3,
+          workflowsLimit: 10,
+          emailLimitPerMonth: 5000,
+          storageIncludedGB: 25,
+          apiRequestsPerMonth: 100,
+        },
+        enterprise: {
+          leadsLimit: 999999,
+          teamMembersLimit: 999999,
+          workflowsLimit: 999999,
+          emailLimitPerMonth: 999999,
+          storageIncludedGB: 1000,
+          apiRequestsPerMonth: 999999,
+        },
       };
-      updates.emailLimitPerMonth = emailLimits[currentPlan as keyof typeof emailLimits] || 1000;
+
+      const limits = planLimits[currentPlan as keyof typeof planLimits] || planLimits.basic;
+      Object.assign(updates, limits);
     }
     if (typeof autoRenewal === 'boolean') {
       updates.autoRenewal = autoRenewal;

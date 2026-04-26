@@ -2158,8 +2158,17 @@ const crmSubscriptionSchema = new mongoose.Schema({
   lastEmailResetDate: { type: Date, default: Date.now },
 
   // Feature limits per plan
+  leadsLimit: { type: Number, default: 500 },
+  teamMembersLimit: { type: Number, default: 1 },
+  workflowsLimit: { type: Number, default: 3 },
   emailLimitPerMonth: { type: Number, default: 1000 },
   storageIncludedGB: { type: Number, default: 5 },
+  apiRequestsPerMonth: { type: Number, default: 0 }, // 0 = no API access for basic
+
+  // Current usage tracking
+  leadsCount: { type: Number, default: 0 },
+  teamMembersCount: { type: Number, default: 1 },
+  workflowsCount: { type: Number, default: 0 },
 
   // Invoice/Order tracking
   orderId: { type: String }, // Razorpay order ID
