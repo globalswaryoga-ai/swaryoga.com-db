@@ -1180,19 +1180,17 @@ function CommunityPageContent() {
                   </button>
                 ))}
                 
-                {/* Videos Tab - Only show for non-global communities and members */}
-                {selectedCommunity !== 'global' && (
-                  <button
-                    onClick={() => setViewMode('videos')}
-                    className={`shrink-0 px-4 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-bold transition-all duration-200 active:scale-95 shadow-sm flex items-center gap-2 whitespace-nowrap ${
-                      viewMode === 'videos'
-                        ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white shadow-md'
-                        : 'bg-white text-gray-700 border border-gray-200 hover:border-purple-500 hover:bg-purple-50'
-                    }`}
-                  >
-                    🎥 Videos
-                  </button>
-                )}
+                {/* Videos Tab - show for all communities */}
+                <button
+                  onClick={() => setViewMode('videos')}
+                  className={`shrink-0 px-4 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-bold transition-all duration-200 active:scale-95 shadow-sm flex items-center gap-2 whitespace-nowrap ${
+                    viewMode === 'videos'
+                      ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white shadow-md'
+                      : 'bg-white text-gray-700 border border-gray-200 hover:border-purple-500 hover:bg-purple-50'
+                  }`}
+                >
+                  🎥 Videos
+                </button>
               </div>
             </div>
 

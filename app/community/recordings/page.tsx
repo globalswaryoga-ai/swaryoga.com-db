@@ -3,7 +3,7 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { ArrowLeft, ArrowRight, Play, Calendar, Lock, Video, Heart, MessageCircle, Send, X } from 'lucide-react';
+import { ArrowLeft, Play, Lock, Video, Heart, MessageCircle, Send, X } from 'lucide-react';
 import VideoPlayer from '@/components/VideoPlayer';
 
 export const dynamic = 'force-dynamic';
@@ -59,24 +59,21 @@ function RecordingsContent() {
   const communityIdParam = searchParams.get('communityId');
 
   const [recordings, setRecordings] = useState<Recording[]>([]);
-  const [communities, setCommunities] = useState<Community[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [selectedCommunity, setSelectedCommunity] = useState<string>(communityIdParam || 'all');
+  const [selectedCommunity] = useState<string>(communityIdParam || 'all');
   const [user, setUser] = useState<any>(null);
   const [playingVideo, setPlayingVideo] = useState<Recording | null>(null);
-  const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
-  const [selectedPlaylist, setSelectedPlaylist] = useState<string | null>(null);
   const [showCommentModal, setShowCommentModal] = useState(false);
   const [commentVideo, setCommentVideo] = useState<Recording | null>(null);
   const [commentText, setCommentText] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
   const [likingVideoId, setLikingVideoId] = useState<string | null>(null);
+  const [showAccessPopup, setShowAccessPopup] = useState(false);
 
   useEffect(() => {
     checkAuth();
     fetchRecordings();
-    fetchCommunities();
   }, []);
 
   const checkAuth = () => {
@@ -118,22 +115,6 @@ function RecordingsContent() {
     }
   };
 
-  const fetchCommunities = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const headers: HeadersInit = {};
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-
-      const res = await fetch('/api/community/list', { headers });
-      const data = await res.json();
-
-      if (data.success) {
-        setCommunities(data.communities || []);
-      }
-    } catch {}
-  };
 
   const getUserId = (): string => {
     if (user?._id) return user._id;
@@ -232,27 +213,30 @@ function RecordingsContent() {
     });
   };
 
-  const filteredRecordings = selectedCommunity === 'all'
-    ? recordings
-    : recordings.filter(r => r.communityId === selectedCommunity);
+  // Show ONLY recordings for this community (never cross-community)
+  const filteredRecordings = communityIdParam
+    ? recordings.filter(r =>
+        r.communityId === communityIdParam ||
+        r.communityId === selectedCommunity
+      )
+    : selectedCommunity === 'all'
+      ? recordings
+      : recordings.filter(r => r.communityId === selectedCommunity);
 
-  // Parse recordings into folder > playlist structure (same pattern as CRM)
-  const folders: Record<string, Record<string, Recording[]>> = {};
+  // Group by batch/playlist (second title part)
+  const batchGroups: Record<string, Recording[]> = {};
   filteredRecordings.forEach(rec => {
     const parts = rec.title?.split(' > ') || [];
-    const folder = parts[0] || 'General';
-    const playlist = parts.length > 1 ? parts[1] : 'Default Batch';
-
-    if (!folders[folder]) folders[folder] = {};
-    if (!folders[folder][playlist]) folders[folder][playlist] = [];
-    folders[folder][playlist].push(rec);
+    const batch = parts.length > 1 ? parts[1] : 'General';
+    if (!batchGroups[batch]) batchGroups[batch] = [];
+    batchGroups[batch].push(rec);
   });
 
-  const folderNames = Object.keys(folders);
-  const currentFolder = selectedFolder || folderNames[0] || '';
-  const playlists = folders[currentFolder] || {};
-  const playlistNames = Object.keys(playlists);
-  const totalVideos = Object.values(playlists).flat().length;
+  // For hero: use thumbnail from first video
+  const heroThumb = filteredRecordings[0]?.thumbnailUrl || null;
+  const workshopName = communityIdParam
+    ? (filteredRecordings[0]?.title?.split(' > ')[0] || communityIdParam)
+    : 'Community Recordings';
 
   return (
     <div className="min-h-screen bg-white">
@@ -275,310 +259,122 @@ function RecordingsContent() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-8">
-        {/* Community Filter */}
-        {communities.length > 0 && (
-          <div className="mb-6 flex flex-wrap gap-2">
-            <button
-              onClick={() => { setSelectedCommunity('all'); setSelectedFolder(null); setSelectedPlaylist(null); }}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                selectedCommunity === 'all'
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-50'
-              }`}
-            >
-              All Recordings
-            </button>
-            {communities.filter(c => c.recordingCount && c.recordingCount > 0).map(community => (
-              <button
-                key={community._id}
-                onClick={() => { setSelectedCommunity(community._id); setSelectedFolder(null); setSelectedPlaylist(null); }}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                  selectedCommunity === community._id
-                    ? 'bg-emerald-600 text-white'
-                    : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                {community.name} ({community.recordingCount})
-              </button>
-            ))}
-          </div>
-        )}
 
-        {/* Loading State */}
-        {loading && (
-          <div className="flex justify-center py-20">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
-          </div>
-        )}
+        {/* Loading */}
+        {loading && <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500" /></div>}
+        {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 mb-6">{error}</div>}
 
-        {/* Error State */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 mb-6">
-            {error}
-          </div>
-        )}
-
-        {/* No Recordings */}
-        {!loading && !error && filteredRecordings.length === 0 && (
-          <div className="text-center py-20">
-            <div className="text-6xl mb-4">🎬</div>
-            <h2 className="text-xl font-semibold text-slate-900 mb-2">No Recordings Yet</h2>
-            <p className="text-slate-500">
-              Workshop recordings will appear here after your sessions.
-            </p>
-          </div>
-        )}
-
-        {/* Video Player Modal */}
-        {playingVideo && (
-          <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
-            <div className="relative w-full max-w-4xl">
-              <button
-                onClick={() => setPlayingVideo(null)}
-                className="absolute -top-12 right-0 text-white hover:text-emerald-400 transition-colors text-lg"
-              >
-                ✕ Close
-              </button>
-              <div className="bg-black rounded-xl overflow-hidden" onContextMenu={(e) => e.preventDefault()}>
-                <VideoPlayer
-                  videoUrl={playingVideo.videoUrl || ''}
-                  videoId={playingVideo._id}
-                  videoSource={playingVideo.videoSource}
-                  youtubeVideoId={playingVideo.youtubeVideoId}
-                  bunnyLibraryId={playingVideo.bunnyLibraryId}
-                  bunnyVideoId={playingVideo.bunnyVideoId}
-                />
-                <div className="p-4 bg-gray-900">
-                  <h3 className="text-white font-semibold">
-                    {playingVideo.title?.split(' > ').pop() || playingVideo.title}
-                  </h3>
-                  {playingVideo.description && (
-                    <p className="text-gray-400 text-sm mt-1">{playingVideo.description}</p>
-                  )}
+        {!loading && !error && (
+          <>
+            {/* Hero banner */}
+            {heroThumb && (
+              <div className="relative rounded-2xl overflow-hidden mb-8 min-h-[220px] flex items-end">
+                <img src={heroThumb} alt={workshopName} className="absolute inset-0 w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-black/60" />
+                <div className="relative z-10 p-8 w-full">
+                  <span className="inline-block px-3 py-1 bg-emerald-500 text-white rounded-lg text-xs font-bold uppercase tracking-wider mb-3">Workshop</span>
+                  <h2 className="text-3xl font-black text-white mb-1">{workshopName}</h2>
+                  <p className="text-white/70 text-sm">{filteredRecordings.length} {filteredRecordings.length === 1 ? 'Video' : 'Videos'} &bull; {Object.keys(batchGroups).length} {Object.keys(batchGroups).length === 1 ? 'Batch' : 'Batches'}</p>
                 </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Folder / Playlist Content */}
-        {!loading && !error && folderNames.length > 0 && (
-          <div>
-            {/* Folder Tabs (if more than one folder) */}
-            {folderNames.length > 1 && (
-              <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-                {folderNames.map(folder => (
-                  <button
-                    key={folder}
-                    onClick={() => { setSelectedFolder(folder); setSelectedPlaylist(null); }}
-                    className={`px-5 py-2.5 rounded-xl text-sm font-bold whitespace-nowrap transition-all ${
-                      currentFolder === folder
-                        ? 'bg-slate-900 text-white shadow-lg'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
-                    }`}
-                  >
-                    {folder}
-                  </button>
-                ))}
               </div>
             )}
 
-            {/* Current Folder Hero Banner */}
-            {(() => {
-              const heroThumb = Object.values(playlists).flat()[0]?.thumbnailUrl || null;
-              return (
-                <div className="relative rounded-2xl overflow-hidden mb-8 min-h-[220px] flex items-end">
-                  {/* Background thumbnail or dark gradient */}
-                  {heroThumb ? (
-                    <img src={heroThumb} alt={currentFolder}
-                      className="absolute inset-0 w-full h-full object-cover" />
-                  ) : (
-                    <div className="absolute inset-0 bg-gradient-to-br from-slate-800 to-slate-900" />
-                  )}
-                  {/* Dark overlay */}
-                  <div className="absolute inset-0 bg-black/60" />
-                  {/* Content */}
-                  <div className="relative z-10 p-8 w-full">
-                    <span className="inline-block px-3 py-1 bg-emerald-500 text-white rounded-lg text-xs font-bold uppercase tracking-wider mb-3">
-                      Workshop
-                    </span>
-                    <h2 className="text-3xl font-black text-white mb-2">{currentFolder}</h2>
-                    <p className="text-white/70 text-sm font-medium">
-                      {playlistNames.length} {playlistNames.length === 1 ? 'Batch' : 'Batches'} &bull; {totalVideos} {totalVideos === 1 ? 'Video' : 'Videos'}
-                    </p>
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* Batches / Playlists Section */}
-            <h3 className="text-lg font-bold text-slate-900 mb-5 flex items-center gap-3">
-              <span className="w-1 h-5 bg-emerald-500 rounded-full"></span>
-              Batches / Playlists
-            </h3>
-
-            {!selectedPlaylist ? (
-              /* Playlist Grid */
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {playlistNames.map((playlistName, index) => {
-                  const playlistVideos = playlists[playlistName];
-                  const firstVideo = playlistVideos[0];
-
-                  return (
-                    <div
-                      key={playlistName}
-                      className="group relative rounded-2xl overflow-hidden cursor-pointer hover:scale-[1.02] transition-all duration-300 shadow-lg hover:shadow-2xl min-h-[140px]"
-                      onClick={() => setSelectedPlaylist(playlistName)}
-                    >
-                      {/* Background thumbnail */}
-                      {firstVideo?.thumbnailUrl ? (
-                        <img src={firstVideo.thumbnailUrl} alt={playlistName}
-                          className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                      ) : (
-                        <div className={`absolute inset-0 bg-gradient-to-br ${GRADIENT_COLORS[index % GRADIENT_COLORS.length]}`} />
-                      )}
-                      {/* Dark overlay */}
-                      <div className="absolute inset-0 bg-black/55 group-hover:bg-black/40 transition-all" />
-                      {/* Content */}
-                      <div className="relative z-10 p-6 h-full flex flex-col justify-between">
-                        <div>
-                          <h4 className="font-black text-white text-xl mb-1 line-clamp-2">{playlistName}</h4>
-                          <p className="text-white/60 text-sm">{playlistVideos.length} {playlistVideos.length === 1 ? 'video' : 'videos'} in this batch</p>
-                        </div>
-                        <div className="flex items-center justify-between mt-4">
-                          <div className="flex items-center gap-3 text-xs text-white/50">
-                            <span>{playlistVideos.reduce((s: number, v: Recording) => s + (v.views || 0), 0)} views</span>
-                            <span className="flex items-center gap-1"><Heart className="w-3 h-3" /> {playlistVideos.reduce((s: number, v: Recording) => s + (Array.isArray(v.likes) ? v.likes.length : 0), 0)}</span>
-                            <span className="flex items-center gap-1"><MessageCircle className="w-3 h-3" /> {playlistVideos.reduce((s: number, v: Recording) => s + (Array.isArray(v.comments) ? v.comments.length : 0), 0)}</span>
-                          </div>
-                          <span className="px-4 py-2 bg-emerald-500 group-hover:bg-emerald-400 text-white rounded-xl text-sm font-bold transition-all flex items-center gap-2">
-                            Play Now <ArrowRight className="w-4 h-4" />
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+            {filteredRecordings.length === 0 && (
+              <div className="text-center py-20">
+                <div className="text-6xl mb-4">🎬</div>
+                <h2 className="text-xl font-semibold text-slate-900 mb-2">No Recordings Yet</h2>
+                <p className="text-slate-500">Workshop recordings will appear here after your sessions.</p>
               </div>
-            ) : (
-              /* Video List View when a playlist/batch is selected */
-              <div>
-                {/* Back button */}
-                <button
-                  onClick={() => setSelectedPlaylist(null)}
-                  className="mb-6 px-4 py-2 bg-slate-100 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all flex items-center gap-2 border border-slate-200"
-                >
-                  <ArrowLeft className="w-4 h-4" /> Back to Batches
-                </button>
+            )}
 
-                {/* Playlist header */}
-                <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl p-6 mb-8 border border-emerald-200">
-                  <h3 className="text-2xl font-bold text-slate-900 mb-2">{selectedPlaylist}</h3>
-                  <p className="text-slate-500">
-                    {playlists[selectedPlaylist]?.length || 0} videos in this batch
-                  </p>
+            {/* Batch sections */}
+            {Object.entries(batchGroups).map(([batchName, batchVideos]) => (
+              <div key={batchName} className="mb-10">
+                <div className="flex items-center gap-3 mb-5">
+                  <span className="w-1 h-6 bg-emerald-500 rounded-full" />
+                  <h3 className="text-lg font-bold text-slate-900">{batchName}</h3>
+                  <span className="text-sm text-slate-400">{batchVideos.length} videos</span>
                 </div>
 
-                {/* Videos grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {(playlists[selectedPlaylist] || [])
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {[...batchVideos]
                     .sort((a, b) => {
-                      const numA = parseInt(a.title?.match(/Video (\d+)/i)?.[1] || '0');
-                      const numB = parseInt(b.title?.match(/Video (\d+)/i)?.[1] || '0');
-                      return numA - numB;
+                      const na = parseInt(a.title?.match(/Video\s+(\d+)/i)?.[1] || '0');
+                      const nb = parseInt(b.title?.match(/Video\s+(\d+)/i)?.[1] || '0');
+                      return na - nb;
                     })
-                    .map((recording, index) => {
+                    .map((recording, idx) => {
                       const canPlay = recording.isPublic || !!user;
                       return (
-                        <div
-                          key={recording._id}
-                          className="group bg-white rounded-2xl overflow-hidden border border-slate-200 hover:border-emerald-400 transition-all hover:shadow-lg"
-                        >
-                          {/* Video thumbnail */}
+                        <div key={recording._id} className="group bg-white rounded-2xl overflow-hidden border border-slate-100 hover:shadow-xl transition-all duration-300">
+                          {/* YouTube-style 16:9 thumbnail */}
                           <div
-                            className="aspect-video relative overflow-hidden cursor-pointer"
-                            onClick={() => canPlay ? handlePlayVideo(recording) : null}
+                            className="aspect-video relative overflow-hidden cursor-pointer bg-slate-900"
+                            onClick={() => canPlay ? handlePlayVideo(recording) : setShowAccessPopup(true)}
                           >
                             {recording.thumbnailUrl ? (
-                              <img
-                                src={recording.thumbnailUrl}
-                                alt={recording.title}
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                              />
+                              <img src={recording.thumbnailUrl} alt={recording.title}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                             ) : (
-                              <div className="w-full h-full bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center">
-                                <Video className="w-10 h-10 text-slate-400" />
+                              <div className={`w-full h-full bg-gradient-to-br ${GRADIENT_COLORS[idx % GRADIENT_COLORS.length]} flex items-center justify-center`}>
+                                <Video className="w-12 h-12 text-white/40" />
                               </div>
                             )}
-
                             {/* Play overlay */}
-                            {canPlay ? (
-                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center">
-                                <div className="w-14 h-14 rounded-full bg-emerald-500 flex items-center justify-center shadow-xl transform scale-75 group-hover:scale-100 transition-transform">
-                                  <Play className="w-6 h-6 text-white ml-0.5" />
+                            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center">
+                              {canPlay ? (
+                                <div className="w-14 h-14 rounded-full bg-white/90 flex items-center justify-center shadow-2xl">
+                                  <Play className="w-6 h-6 text-slate-900 ml-1" />
                                 </div>
-                              </div>
-                            ) : (
-                              <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                                <div className="text-center text-white">
-                                  <Lock className="w-8 h-8 mx-auto mb-2" />
-                                  <p className="text-sm">Members Only</p>
+                              ) : (
+                                <div className="w-14 h-14 rounded-full bg-black/70 flex items-center justify-center">
+                                  <Lock className="w-6 h-6 text-white" />
                                 </div>
-                              </div>
-                            )}
-
-                            {/* Video number badge */}
-                            <div className="absolute top-3 left-3 w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-lg">
-                              {index + 1}
+                              )}
                             </div>
-
+                            {/* Number badge */}
+                            <div className="absolute top-2 left-2 w-7 h-7 bg-emerald-500 rounded-lg flex items-center justify-center text-white font-bold text-xs shadow">
+                              {idx + 1}
+                            </div>
                             {/* Duration */}
                             {recording.duration && (
-                              <div className="absolute bottom-3 right-3 px-2 py-1 bg-black/70 rounded-lg text-white text-xs font-bold">
+                              <div className="absolute bottom-2 right-2 px-2 py-0.5 bg-black/80 rounded text-white text-xs font-bold">
                                 {formatDuration(recording.duration)}
                               </div>
                             )}
                           </div>
 
-                          {/* Video info */}
+                          {/* Info below thumbnail — YouTube style */}
                           <div className="p-4">
-                            <h4 className="font-bold text-slate-900 mb-1 line-clamp-2">
-                              {recording.title?.split(' > ').pop() || `Video ${index + 1}`}
+                            <h4 className="font-bold text-slate-900 text-sm mb-1 line-clamp-2 leading-snug">
+                              {recording.title?.split(' > ').pop() || `Video ${idx + 1}`}
                             </h4>
                             {recording.description && (
-                              <p className="text-slate-500 text-sm mb-3 line-clamp-2">{recording.description}</p>
+                              <p className="text-slate-400 text-xs mb-3 line-clamp-2">{recording.description}</p>
                             )}
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3 text-sm text-slate-400">
-                                {recording.recordedAt && (
-                                  <span className="flex items-center gap-1">
-                                    <Calendar className="w-3.5 h-3.5" />
-                                    {formatDate(recording.recordedAt)}
-                                  </span>
-                                )}
-                                <span>{recording.views || 0} views</span>
-                              </div>
+                            <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                              <span className="text-xs text-slate-400 flex items-center gap-1">
+                                <Play className="w-3 h-3" /> {recording.views || 0} views
+                              </span>
                               <div className="flex items-center gap-1">
                                 <button
-                                  onClick={(e) => { e.stopPropagation(); handleLike(recording._id); }}
-                                  disabled={!user || likingVideoId === recording._id}
-                                  className={`p-2 rounded-lg transition-all flex items-center gap-1 text-sm ${
+                                  onClick={(e) => { e.stopPropagation(); user ? handleLike(recording._id) : setShowAccessPopup(true); }}
+                                  disabled={likingVideoId === recording._id}
+                                  className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-all ${
                                     user && Array.isArray(recording.likes) && recording.likes.includes(getUserId())
-                                      ? 'text-red-500'
-                                      : 'text-slate-400 hover:text-red-500'
-                                  } ${!user ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                  title={user ? 'Like' : 'Login to like'}
+                                      ? 'text-red-500 bg-red-50'
+                                      : 'text-slate-400 hover:text-red-400 hover:bg-red-50'
+                                  }`}
                                 >
-                                  <Heart size={16} className={Array.isArray(recording.likes) && recording.likes.includes(getUserId()) ? 'fill-red-500' : ''} />
-                                  <span className="text-xs">{Array.isArray(recording.likes) ? recording.likes.length : 0}</span>
+                                  <Heart size={12} className={user && Array.isArray(recording.likes) && recording.likes.includes(getUserId()) ? 'fill-red-500' : ''} />
+                                  {Array.isArray(recording.likes) ? recording.likes.length : 0}
                                 </button>
                                 <button
                                   onClick={(e) => { e.stopPropagation(); setCommentVideo(recording); setShowCommentModal(true); }}
-                                  className="p-2 text-slate-400 hover:text-emerald-500 rounded-lg transition-all flex items-center gap-1 text-sm"
-                                  title="Comments"
+                                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 transition-all"
                                 >
-                                  <MessageCircle size={16} />
-                                  <span className="text-xs">{Array.isArray(recording.comments) ? recording.comments.length : 0}</span>
+                                  <MessageCircle size={12} />
+                                  {Array.isArray(recording.comments) ? recording.comments.length : 0}
                                 </button>
                               </div>
                             </div>
@@ -588,24 +384,57 @@ function RecordingsContent() {
                     })}
                 </div>
               </div>
-            )}
-          </div>
-        )}
-
-        {/* Join CTA for non-members */}
-        {!user && (
-          <div className="mt-12 bg-gradient-to-r from-emerald-600 to-teal-600 rounded-2xl p-8 text-center text-white">
-            <h3 className="text-2xl font-bold mb-2">Join Our Community</h3>
-            <p className="mb-4 opacity-90">Get access to all workshop recordings and exclusive content</p>
-            <Link
-              href="/community"
-              className="inline-block px-6 py-3 bg-white text-emerald-700 font-semibold rounded-lg hover:bg-emerald-50 transition-colors"
-            >
-              Join Now →
-            </Link>
-          </div>
+            ))}
+          </>
         )}
       </main>
+
+      {/* Video Player Modal */}
+      {playingVideo && (
+        <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-4">
+          <div className="relative w-full max-w-4xl">
+            <button onClick={() => setPlayingVideo(null)}
+              className="absolute -top-12 right-0 text-white hover:text-emerald-400 transition-colors text-lg font-bold">
+              ✕ Close
+            </button>
+            <div className="bg-black rounded-2xl overflow-hidden" onContextMenu={e => e.preventDefault()}>
+              <VideoPlayer
+                videoUrl={playingVideo.videoUrl || ''}
+                videoId={playingVideo._id}
+                videoSource={playingVideo.videoSource}
+                youtubeVideoId={playingVideo.youtubeVideoId}
+                bunnyLibraryId={playingVideo.bunnyLibraryId}
+                bunnyVideoId={playingVideo.bunnyVideoId}
+              />
+              <div className="p-5 bg-gray-900">
+                <h3 className="text-white font-bold text-lg">{playingVideo.title?.split(' > ').pop()}</h3>
+                {playingVideo.description && <p className="text-gray-400 text-sm mt-1">{playingVideo.description}</p>}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Access Popup for non-approved users */}
+      {showAccessPopup && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowAccessPopup(false)}>
+          <div className="bg-white rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Lock className="w-8 h-8 text-emerald-600" />
+            </div>
+            <h3 className="text-xl font-black text-slate-900 mb-2">Approved Sadhaks Only</h3>
+            <p className="text-slate-500 text-sm mb-6">This recording is available only for approved community members.</p>
+            <a
+              href="https://wa.me/919309986820?text=Hello%20Swar%20Yoga!%20I%20would%20like%20to%20access%20the%20community%20recordings."
+              target="_blank" rel="noopener noreferrer"
+              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-all mb-3"
+            >
+              WhatsApp: 9309986820
+            </a>
+            <button onClick={() => setShowAccessPopup(false)} className="text-sm text-slate-400 hover:text-slate-600">Close</button>
+          </div>
+        </div>
+      )}
 
       {/* Comment Modal */}
       {showCommentModal && commentVideo && (
