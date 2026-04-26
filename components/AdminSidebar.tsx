@@ -271,7 +271,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
     return Object.values(modulePerms).some((v: any) => v === true);
   };
 
-  // ===== CATEGORIZED SIDEBAR ITEMS =====
+  // ===== PROFESSIONAL SIDEBAR ORGANIZATION =====
   type SidebarItem = {
     icon: React.ElementType;
     label: string;
@@ -292,87 +292,102 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
   };
 
   const sidebarCategories: SidebarCategory[] = [
+    // ===== CORE DASHBOARD =====
     {
-      key: 'home',
-      label: 'Home',
-      icon: Home,
+      key: 'dashboard',
+      label: 'Dashboard',
+      icon: LayoutDashboard,
       items: [
         {
           icon: LayoutDashboard,
-          label: 'Dashboard',
+          label: 'Overview',
           href: '/admin/crm',
-          color: 'text-gray-400',
+          color: 'text-blue-400',
           module: 'dashboard',
-          description: 'Overview of your CRM activity',
+          description: 'Real-time CRM analytics & KPIs',
         },
       ],
     },
+
+    // ===== LEAD & SALES MANAGEMENT =====
     {
       key: 'sales',
-      label: 'Sales',
+      label: 'Lead & Sales',
       icon: DollarSign,
       items: [
         {
           icon: Users,
           label: 'Leads',
           href: '/admin/crm/leads',
-          color: 'text-gray-400',
+          color: 'text-purple-400',
           module: 'payments',
           planModule: 'leads',
-          description: 'Manage and track all leads',
-        },
-        {
-          icon: DollarSign,
-          label: 'Sales',
-          href: '/admin/crm/sales',
-          color: 'text-gray-400',
-          module: 'payments',
-          planModule: 'leads',
-          description: 'Track completed sales & deals',
-        },
-        {
-          icon: PieChart,
-          label: 'Sales Funnel',
-          href: '/admin/crm/funnel',
-          color: 'text-gray-400',
-          module: 'payments',
-          planModule: 'leads',
-          description: 'View sales funnel visualization',
-        },
-        {
-          icon: BarChart3,
-          label: 'Funnel Manage',
-          href: '/admin/crm/funnel/manage',
-          color: 'text-gray-400',
-          module: 'payments',
-          planModule: 'leads',
-          description: 'Manage funnel stages & settings',
+          description: 'Capture, qualify & manage leads',
         },
         {
           icon: FileText,
           label: 'Landing Pages',
           href: '/admin/landing-pages',
-          color: 'text-gray-400',
+          color: 'text-cyan-400',
           module: 'dashboard',
           planModule: 'landingPages',
-          description: 'Build lead capture pages & forms',
+          description: 'High-converting landing pages',
         },
+        {
+          icon: DollarSign,
+          label: 'Sales',
+          href: '/admin/crm/sales',
+          color: 'text-green-400',
+          module: 'payments',
+          planModule: 'leads',
+          description: 'Track & close deals',
+        },
+        {
+          icon: PieChart,
+          label: 'Sales Funnel',
+          href: '/admin/crm/funnel',
+          color: 'text-orange-400',
+          module: 'payments',
+          planModule: 'leads',
+          description: 'Visualize conversion pipeline',
+        },
+        {
+          icon: BarChart3,
+          label: 'Funnel Manager',
+          href: '/admin/crm/funnel/manage',
+          color: 'text-amber-400',
+          module: 'payments',
+          planModule: 'leads',
+          description: 'Configure sales stages',
+        },
+      ],
+    },
+
+    // ===== CUSTOMER ENGAGEMENT =====
+    {
+      key: 'engagement',
+      label: 'Engagement',
+      icon: Globe,
+      items: [
         {
           icon: Globe,
           label: 'Community',
           href: '/admin/crm/community',
-          color: 'text-gray-400',
+          color: 'text-indigo-400',
           module: 'community',
           planModule: 'community',
-          description: 'Courses, forums & community hub',
+          description: 'Forums, courses & communities',
         },
       ],
     },
+
+    // ===== DIRECT MESSAGING & CAMPAIGNS =====
     {
       key: 'messaging',
-      label: 'Messaging',
+      label: 'Messaging & Outreach',
       icon: MessageCircle,
       items: [
+        // --- Direct Messaging ---
         {
           icon: MessageCircle,
           label: 'Meta WhatsApp',
@@ -381,7 +396,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
           module: 'whatsapp',
           planModule: 'whatsapp',
           badge: unreadCount,
-          description: 'WhatsApp Business API messaging',
+          description: '1:1 WhatsApp messaging',
         },
         {
           icon: QrCode,
@@ -390,44 +405,25 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
           color: 'text-gray-400',
           module: 'whatsapp',
           planModule: 'whatsapp',
-          description: 'WhatsApp via QR code bridge',
-        },
-        {
-          icon: Users,
-          label: 'QR Leads',
-          href: '/admin/crm/qr/leads',
-          color: 'text-gray-400',
-          module: 'whatsapp',
-          planModule: 'whatsapp',
-          description: 'Leads from QR WhatsApp chats',
-        },
-        {
-          icon: UsersRound,
-          label: 'Group Contacts',
-          href: '/admin/crm/qr/group-contacts',
-          color: 'text-gray-400',
-          module: 'whatsapp',
-          planModule: 'whatsapp',
-          description: 'Collect & export WhatsApp group contacts',
-          superAdminOnly: true,
+          description: 'QR code WhatsApp bridge',
         },
         {
           icon: Send,
           label: 'Telegram',
           href: '/admin/crm/telegram',
-          color: 'text-gray-400',
+          color: 'text-blue-400',
           module: 'whatsapp',
           planModule: 'whatsapp',
-          description: 'Telegram Bot messaging & broadcasts',
+          description: 'Telegram bot messaging',
         },
         {
           icon: Mail,
           label: 'Email',
           href: '/admin/crm/email',
-          color: 'text-gray-400',
+          color: 'text-red-400',
           module: 'email',
           planModule: 'emailMarketing',
-          description: 'Email campaigns & drip sequences',
+          description: 'Email (1000/month limit)',
         },
         {
           icon: SmartphoneNfc,
@@ -436,71 +432,106 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
           color: 'text-gray-400',
           module: 'messages',
           planModule: 'whatsapp',
-          description: 'Message inbox & management',
+          description: 'Text messaging',
+        },
+        // --- Lead Capture & Campaigns ---
+        {
+          icon: Users,
+          label: 'QR Leads',
+          href: '/admin/crm/qr/leads',
+          color: 'text-emerald-400',
+          module: 'whatsapp',
+          planModule: 'whatsapp',
+          description: 'QR code lead generation',
+        },
+        {
+          icon: UsersRound,
+          label: 'Group Contacts',
+          href: '/admin/crm/qr/group-contacts',
+          color: 'text-sky-400',
+          module: 'whatsapp',
+          planModule: 'whatsapp',
+          description: 'WhatsApp group extraction',
+          superAdminOnly: true,
         },
         {
           icon: Radio,
           label: 'Broadcast',
           href: '/admin/crm/broadcast',
-          color: 'text-gray-400',
+          color: 'text-fuchsia-400',
           module: 'broadcasts',
           planModule: 'broadcasting',
-          description: 'Send bulk WhatsApp campaigns',
+          description: 'Bulk campaigns & broadcasts',
+        },
+        {
+          icon: Megaphone,
+          label: 'QR Broadcast',
+          href: '/admin/crm/qr-broadcast',
+          color: 'text-pink-400',
+          module: 'broadcasts',
+          planModule: 'broadcasting',
+          description: 'QR templates & broadcasts',
         },
       ],
     },
+
+    // ===== AUTOMATION & AI =====
     {
       key: 'automation',
-      label: 'Automation',
-      icon: Bot,
+      label: 'Automation & AI',
+      icon: Zap,
       items: [
         {
           icon: Zap,
-          label: 'Automation',
+          label: 'Workflows',
           href: '/admin/crm/automation',
-          color: 'text-gray-400',
+          color: 'text-yellow-400',
           module: 'dashboard',
-          description: 'Workflow automation',
+          description: 'Automated workflows',
         },
         {
           icon: Bot,
-          label: 'AI & Chatbot',
+          label: 'Chatbots',
           href: '/admin/crm/chatbots',
-          color: 'text-gray-400',
+          color: 'text-violet-400',
           module: 'whatsapp',
           planModule: 'chatbot',
-          description: 'Automated conversation flows',
+          description: 'AI conversation flows',
         },
         {
           icon: Phone,
           label: 'AI Calls',
           href: '/admin/crm/calls',
-          color: 'text-gray-400',
+          color: 'text-teal-400',
           module: 'calls',
           planModule: 'aiCalls',
-          description: 'AI-powered voice calling',
+          description: 'AI voice calling',
         },
       ],
     },
+
+    // ===== ANALYTICS & REPORTING =====
     {
-      key: 'reports',
-      label: 'Reports',
-      icon: PieChart,
+      key: 'analytics',
+      label: 'Analytics & Reports',
+      icon: BarChart3,
       items: [
         {
           icon: BarChart3,
           label: 'All Reports',
           href: '/admin/crm/reports',
-          color: 'text-gray-400',
+          color: 'text-blue-400',
           module: 'analytics',
           planModule: 'reports',
-          description: 'All reports, analytics & exports',
+          description: 'Unified analytics dashboard',
         },
       ],
     },
+
+    // ===== TOOLS & SETTINGS =====
     {
       key: 'tools',
-      label: 'Tools',
+      label: 'Tools & Settings',
       icon: Wrench,
       items: [
         {
@@ -509,15 +540,15 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
           href: '/admin/crm/connections',
           color: 'text-gray-400',
           module: 'dashboard' as CrmModule,
-          description: 'Configure all service credentials',
+          description: 'API & service integrations',
         },
         {
           icon: Zap,
-          label: 'Integrations',
+          label: 'Extensions',
           href: '/admin/crm/integration-hub',
           color: 'text-gray-400',
           module: 'dashboard' as CrmModule,
-          description: 'Chatbot, templates, campaigns & more',
+          description: 'Third-party integrations',
         },
         {
           icon: Languages,
@@ -525,7 +556,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
           href: '/admin/crm/translate',
           color: 'text-gray-400',
           module: 'translate',
-          description: 'Multi-language content translation',
+          description: 'Multi-language support',
         },
         {
           icon: Calculator,
@@ -533,7 +564,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
           href: '/admin/crm/account-book',
           color: 'text-gray-400',
           module: 'dashboard' as CrmModule,
-          description: 'General ledger & accounting',
+          description: 'Financial accounting',
         },
         {
           icon: Calculator,
@@ -541,7 +572,15 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
           href: '/life-planner/dashboard',
           color: 'text-gray-400',
           module: 'dashboard' as CrmModule,
-          description: 'Daily tasks, goals & routines',
+          description: 'Personal productivity',
+        },
+        {
+          icon: Settings,
+          label: 'Plan & Billing',
+          href: '/admin/crm/billing',
+          color: 'text-emerald-400',
+          module: 'dashboard' as CrmModule,
+          description: '₹499/mo | Storage: ₹50/GB',
         },
       ],
     },
