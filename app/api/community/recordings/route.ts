@@ -39,18 +39,25 @@ export async function GET(request: NextRequest) {
       videos.map(async (v: any) => {
         let videoUrl: string | null = null;
 
+        // For Bunny Stream videos, use the direct HLS/CDN URL
+        if (v.videoSource === 'bunny-stream' && v.s3Url) {
+          videoUrl = v.s3Url;
+        }
+        // For YouTube recordings, use embed proxy
+        else if (v.videoSource === 'youtube' && v.youtubeVideoId) {
+          videoUrl = `/api/community/videos/embed?v=${v._id}`;
+        }
         // Generate signed URL for S3 videos
-        if (v.s3Key) {
+        else if (v.s3Key && !v.s3Key.includes('b-cdn.net')) {
           try {
             videoUrl = await getProtectedUrl(v.s3Key, 'community', 3600);
           } catch (err) {
             console.error(`[Recordings] Failed to sign URL for ${v._id}:`, err);
+            // Fallback to s3Url if protected URL generation fails
+            if (v.s3Url) {
+              videoUrl = v.s3Url;
+            }
           }
-        }
-
-        // For YouTube recordings, use embed proxy
-        if (v.videoSource === 'youtube' && v.youtubeVideoId) {
-          videoUrl = `/api/community/videos/embed?v=${v._id}`;
         }
 
         return {
