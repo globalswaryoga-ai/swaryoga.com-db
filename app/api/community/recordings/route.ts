@@ -88,8 +88,10 @@ export async function GET(_request: NextRequest) {
         // Use custom thumbnail if it's a public URL (not a Bunny CDN URL)
         // Only fall back to proxy for Bunny CDN thumbnails (which are token-protected)
         let thumbnailUrl = v.thumbnailUrl || null;
-        const isBunnyCdnThumb = thumbnailUrl && thumbnailUrl.includes('b-cdn.net');
-        if ((!thumbnailUrl || isBunnyCdnThumb) && bunnyEmbedLibraryId && bunnyEmbedVideoId) {
+        // Only proxy Bunny Stream CDN thumbnails (vz-*.b-cdn.net) — they're token-protected
+        // Storage Zone CDN URLs (swaryogacrm.b-cdn.net) and custom URLs are public — use as-is
+        const isBunnyStreamThumb = thumbnailUrl && /vz-[^.]+\.b-cdn\.net/.test(thumbnailUrl);
+        if ((!thumbnailUrl || isBunnyStreamThumb) && bunnyEmbedLibraryId && bunnyEmbedVideoId) {
           thumbnailUrl = `/api/community/thumbnail?lib=${bunnyEmbedLibraryId}&vid=${bunnyEmbedVideoId}`;
         }
 
