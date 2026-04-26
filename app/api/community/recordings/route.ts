@@ -85,9 +85,11 @@ export async function GET(_request: NextRequest) {
           }
         }
 
-        // Build proxied thumbnail URL for Bunny Stream (CDN is token-protected)
+        // Use custom thumbnail if it's a public URL (not a Bunny CDN URL)
+        // Only fall back to proxy for Bunny CDN thumbnails (which are token-protected)
         let thumbnailUrl = v.thumbnailUrl || null;
-        if (bunnyEmbedLibraryId && bunnyEmbedVideoId) {
+        const isBunnyCdnThumb = thumbnailUrl && thumbnailUrl.includes('b-cdn.net');
+        if ((!thumbnailUrl || isBunnyCdnThumb) && bunnyEmbedLibraryId && bunnyEmbedVideoId) {
           thumbnailUrl = `/api/community/thumbnail?lib=${bunnyEmbedLibraryId}&vid=${bunnyEmbedVideoId}`;
         }
 
