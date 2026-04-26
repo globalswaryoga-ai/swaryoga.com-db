@@ -1154,7 +1154,7 @@ function CommunityPageContent() {
                     key={category.id}
                     onClick={() => {
                       // Route to dedicated pages for each category
-                      const communityParam = selectedCommunity && selectedCommunity !== 'global' ? `?communityId=${selectedCommunity}` : '';
+                      const communityParam = selectedCommunity ? `?communityId=${selectedCommunity}` : '';
                       if (category.id === 'recordings') {
                         router.push(`/community/recordings${communityParam}`);
                       } else if (category.id === 'experiences') {
