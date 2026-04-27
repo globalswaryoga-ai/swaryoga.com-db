@@ -625,7 +625,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
     {
       icon: Video,
       label: 'Sadhana Program',
-      href: '/admin/crm/sadhana-program',
+      href: '/admin/crm/sadhana-programs',
       color: 'text-purple-400',
     },
     {
