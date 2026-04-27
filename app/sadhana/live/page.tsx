@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Script from 'next/script';
 
 interface Participant {
   name: string;
@@ -75,6 +76,67 @@ function formatNextTime(iso: string, tz: string): string {
   } catch {
     return iso;
   }
+}
+
+interface HLSVideoPlayerProps {
+  url: string;
+}
+
+function HLSVideoPlayer({ url }: HLSVideoPlayerProps) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const isHLS = url.includes('.m3u8');
+
+    if (isHLS && (video as any).hls) {
+      // HLS.js already loaded
+      const hls = (video as any).hls;
+      hls.destroy();
+      (video as any).hls = null;
+    }
+
+    if (isHLS) {
+      // Load HLS.js if not already loaded
+      if (!(video as any).hls && (window as any).HLS) {
+        const hls = new (window as any).HLS();
+        hls.loadSource(url);
+        hls.attachMedia(video);
+        (video as any).hls = hls;
+      }
+      video.play().catch(() => {});
+    } else {
+      // Direct video URL - use native video player
+      video.src = url;
+      video.play().catch(() => {});
+    }
+
+    return () => {
+      if ((video as any).hls) {
+        (video as any).hls.destroy();
+        (video as any).hls = null;
+      }
+    };
+  }, [url]);
+
+  return (
+    <>
+      <Script
+        src="https://cdn.jsdelivr.net/npm/hls.js@latest"
+        strategy="afterInteractive"
+      />
+      <video
+        ref={videoRef}
+        className="w-full h-full bg-black"
+        autoPlay
+        playsInline
+        controls={false}
+        muted={false}
+      />
+    </>
+  );
 }
 
 export default function SadhanaLivePage() {
@@ -244,12 +306,7 @@ export default function SadhanaLivePage() {
     );
   } else if (session.status === 'live') {
     sessionView = playableVideoUrl ? (
-      <iframe
-        src={playableVideoUrl}
-        className="w-full h-full"
-        allow="autoplay; encrypted-media; picture-in-picture"
-        allowFullScreen
-      />
+      <HLSVideoPlayer url={playableVideoUrl} />
     ) : (
       <div className="w-full h-full flex items-center justify-center p-8">
         <p className="text-purple-200">Loading video...</p>
