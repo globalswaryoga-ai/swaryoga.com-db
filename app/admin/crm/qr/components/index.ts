@@ -9,3 +9,6 @@ export { Lightbox, GroupCreateModal } from './Lightbox';
 export { ConnectionTab } from './ConnectionTab';
 export { SettingsTab } from './SettingsTab';
 export { DetailsPanel } from './DetailsPanel';
+export { TemplatesTab } from './TemplatesTab';
+export { BroadcastTab } from './BroadcastTab';
+export { HistoryTab } from './HistoryTab';

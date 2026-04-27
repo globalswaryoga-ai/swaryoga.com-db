@@ -22,6 +22,9 @@ import {
   ConnectionTab,
   SettingsTab,
   DetailsPanel,
+  TemplatesTab,
+  BroadcastTab,
+  HistoryTab,
 } from './components';
 
 function isPlaceholderChatName(name: string | undefined | null): boolean {
@@ -332,7 +335,7 @@ export default function QRWhatsAppPage() {
   const [chatPresence, setChatPresence] = useState<{ presence: string; lastSeen: number | null } | null>(null);
   const [composerText, setComposerText] = useState('');
   const [sending, setSending] = useState(false);
-  const [tab, setTab] = useState<'connection' | 'inbox' | 'settings'>('connection');
+  const [tab, setTab] = useState<'connection' | 'inbox' | 'templates' | 'broadcast' | 'history' | 'settings'>('connection');
   const [showExtensionModal, setShowExtensionModal] = useState(false);
   const [downloadingExtension, setDownloadingExtension] = useState(false);
   const [showInstallGuide, setShowInstallGuide] = useState(false);
@@ -2262,6 +2265,9 @@ export default function QRWhatsAppPage() {
           {([
             { key: 'connection' as const, label: 'Connection', icon: <QrCode className="w-3.5 h-3.5" />, desc: 'QR & Status' },
             { key: 'inbox' as const, label: 'Inbox', icon: <MessageSquare className="w-3.5 h-3.5" />, desc: `${chats.length} chats`, badge: chats.filter(c => c.unreadCount > 0).length },
+            { key: 'templates' as const, label: 'Templates', icon: <FileText className="w-3.5 h-3.5" />, desc: 'Message templates' },
+            { key: 'broadcast' as const, label: 'Broadcast', icon: <Radio className="w-3.5 h-3.5" />, desc: 'Send to many' },
+            { key: 'history' as const, label: 'Sent Messages', icon: <Calendar className="w-3.5 h-3.5" />, desc: 'Delivery history' },
             { key: 'settings' as const, label: 'Settings', icon: <Settings className="w-3.5 h-3.5" />, desc: 'Configure' },
           ]).map(t => (
             <button
@@ -2360,6 +2366,18 @@ export default function QRWhatsAppPage() {
       {/* ═══════════════════════════════════════════════════════ */}
       {/* ═══ SETTINGS TAB ═══ */}
       {/* ═══════════════════════════════════════════════════════ */}
+      {!loading && tab === 'templates' && (
+        <TemplatesTab token={token} />
+      )}
+
+      {!loading && tab === 'broadcast' && (
+        <BroadcastTab token={token} isConnected={isConnected} />
+      )}
+
+      {!loading && tab === 'history' && (
+        <HistoryTab token={token} />
+      )}
+
       {!loading && tab === 'settings' && (
         <>
           <SettingsTab
