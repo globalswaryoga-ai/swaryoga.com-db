@@ -111,6 +111,8 @@ function HLSVideoPlayer({ url }: HLSVideoPlayerProps) {
       document.head.removeChild(style);
     };
   }, []);
+
+  useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
