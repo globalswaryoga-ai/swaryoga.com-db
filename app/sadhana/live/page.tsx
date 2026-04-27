@@ -3,6 +3,20 @@
 import { useEffect, useRef, useState } from 'react';
 import Script from 'next/script';
 
+// Global CSS to hide video controls
+const videoControlsCSS = `
+  video::-webkit-media-controls { display: none !important; }
+  video::-webkit-media-controls-panel { display: none !important; }
+  video::-webkit-media-controls-play-button { display: none !important; }
+  video::-webkit-media-controls-timeline { display: none !important; }
+  video::-webkit-media-controls-current-time-display { display: none !important; }
+  video::-webkit-media-controls-time-remaining-display { display: none !important; }
+  video::-webkit-media-controls-mute-button { display: none !important; }
+  video::-webkit-media-controls-toggle-closed-captions-button { display: none !important; }
+  video::-webkit-media-controls-fullscreen-button { display: none !important; }
+  video::-moz-media-controls { display: none !important; }
+`;
+
 interface Participant {
   name: string;
   joinedAt: string;
@@ -88,6 +102,15 @@ function HLSVideoPlayer({ url }: HLSVideoPlayerProps) {
   const [isFullscreen, setIsFullscreen] = useState(true);
 
   useEffect(() => {
+    // Inject CSS to hide video controls
+    const style = document.createElement('style');
+    style.textContent = videoControlsCSS;
+    document.head.appendChild(style);
+
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
     const video = videoRef.current;
     if (!video) return;
 
@@ -165,9 +188,11 @@ function HLSVideoPlayer({ url }: HLSVideoPlayerProps) {
               disablePictureInPicture
               onContextMenu={(e) => e.preventDefault()}
             />
+            {/* Invisible overlay to block native controls */}
+            <div className="absolute inset-0 pointer-events-none" />
             <button
               onClick={handleMinimize}
-              className="absolute top-4 right-4 bg-black/60 hover:bg-black/80 text-white p-3 rounded-lg transition z-10"
+              className="absolute top-4 right-4 bg-black/60 hover:bg-black/80 text-white p-3 rounded-lg transition z-10 pointer-events-auto"
               title="Minimize"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
