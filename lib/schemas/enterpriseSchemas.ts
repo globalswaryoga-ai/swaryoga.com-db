@@ -221,6 +221,11 @@ const LeadSchema = new mongoose.Schema(
 LeadSchema.index({ status: 1, lastMessageAt: -1 });
 LeadSchema.index({ labels: 1 });
 LeadSchema.index({ assignedToUserId: 1, lastMessageAt: -1 });
+LeadSchema.index({ assignedToUserId: 1, status: 1 }); // User's leads by status
+LeadSchema.index({ createdByUserId: 1, status: 1 }); // Creator's leads by status
+LeadSchema.index({ status: 1, createdAt: -1 }); // Recent leads by status
+LeadSchema.index({ phoneNumber: 1, createdByUserId: 1 }); // Duplicate detection per tenant
+LeadSchema.index({ source: 1, createdAt: -1 }); // Lead source analytics
 LeadSchema.index({ country: 1, funnelStage: 1 });
 LeadSchema.index({ languageCode: 1, funnelStage: 1 });
 LeadSchema.index({ region: 1, funnelStage: 1 });
@@ -351,6 +356,11 @@ WhatsAppMessageSchema.index({ phoneNumber: 1, status: 1 });
 WhatsAppMessageSchema.index({ sentBy: 1, sentAt: -1 });
 WhatsAppMessageSchema.index({ waMessageId: 1 });
 WhatsAppMessageSchema.index({ direction: 1, sentAt: -1 });
+WhatsAppMessageSchema.index({ status: 1, sentAt: -1 }); // Messages by status/time
+WhatsAppMessageSchema.index({ sentByUserId: 1, sentAt: -1 }); // Admin's messages
+WhatsAppMessageSchema.index({ senderNumber: 1, sentAt: -1 }); // Messages per number
+WhatsAppMessageSchema.index({ provider: 1, sentAt: -1 }); // Filter by provider
+WhatsAppMessageSchema.index({ leadId: 1, status: 1 }); // Lead's message status
 
 // Idempotency for inbound webhook retries: meta message IDs (waMessageId) should not create duplicate
 // rows for the same direction. Sparse so older docs without waMessageId are allowed.
@@ -391,6 +401,9 @@ const QrWhatsAppMessageSchema = new mongoose.Schema(
 );
 QrWhatsAppMessageSchema.index({ userId: 1, connectedPhone: 1, chatJid: 1, timestamp: -1 });
 QrWhatsAppMessageSchema.index({ userId: 1, connectedPhone: 1, timestamp: -1 });
+QrWhatsAppMessageSchema.index({ userId: 1, connectedPhone: 1, direction: 1, timestamp: -1 }); // Per-user chats by direction
+QrWhatsAppMessageSchema.index({ chatJid: 1, timestamp: -1 }); // Messages in a chat
+QrWhatsAppMessageSchema.index({ userId: 1, fromMe: 1, timestamp: -1 }); // User's outbound messages
 QrWhatsAppMessageSchema.index({ messageId: 1, chatJid: 1 }, { unique: true, sparse: true }); // Dedupe
 
 // ============================================================================
@@ -417,6 +430,9 @@ const QrWhatsAppChatSchema = new mongoose.Schema(
 );
 QrWhatsAppChatSchema.index({ userId: 1, connectedPhone: 1, conversationTimestamp: -1 });
 QrWhatsAppChatSchema.index({ userId: 1, connectedPhone: 1, chatJid: 1 }, { unique: true });
+QrWhatsAppChatSchema.index({ userId: 1, connectedPhone: 1, archived: 1, conversationTimestamp: -1 }); // Active chats
+QrWhatsAppChatSchema.index({ userId: 1, connectedPhone: 1, pinned: 1 }); // Pinned chats
+QrWhatsAppChatSchema.index({ userId: 1, connectedPhone: 1, unreadCount: 1 }); // Unread filtering
 
 // ============================================================================
 // 1a-SOCIAL. SOCIAL INBOX CONVERSATIONS — Messenger / Instagram DM threads
