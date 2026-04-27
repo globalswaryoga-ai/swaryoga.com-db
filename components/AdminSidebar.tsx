@@ -622,6 +622,18 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       href: '/admin/crm/admin-activity',
       color: 'text-gray-400',
     },
+    {
+      icon: Video,
+      label: 'Sadhana Program',
+      href: '/admin/crm/sadhana-program',
+      color: 'text-purple-400',
+    },
+    {
+      icon: CalendarDays,
+      label: 'Sadhana Scheduler',
+      href: '/admin/crm/sadhana-scheduler',
+      color: 'text-blue-400',
+    },
   ];
 
   const isActive = (href: string) => {
