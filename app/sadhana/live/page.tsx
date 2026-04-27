@@ -91,7 +91,9 @@ function HLSVideoPlayer({ url }: HLSVideoPlayerProps) {
     const video = videoRef.current;
     if (!video) return;
 
+    console.log('DEBUG: HLSVideoPlayer received URL:', url);
     const isHLS = url.includes('.m3u8');
+    console.log('DEBUG: isHLS:', isHLS);
 
     if (isHLS && (video as any).hls) {
       const hls = (video as any).hls;
@@ -350,6 +352,7 @@ export default function SadhanaLivePage() {
       </div>
     );
   } else if (session.status === 'live') {
+    console.log('DEBUG: playableVideoUrl:', playableVideoUrl);
     sessionView = playableVideoUrl ? (
       <HLSVideoPlayer url={playableVideoUrl} />
     ) : (

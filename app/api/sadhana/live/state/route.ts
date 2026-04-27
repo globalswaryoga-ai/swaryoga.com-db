@@ -270,10 +270,14 @@ export async function POST(request: NextRequest) {
         });
       }
       if (sessionInfo.status === 'live' && activeSchedule.videoUrl) {
+        const converted = convertToHLSUrl(activeSchedule.videoUrl);
+        console.log('DEBUG: Original URL:', activeSchedule.videoUrl);
+        console.log('DEBUG: Converted URL:', converted);
         playableVideoUrl = buildVideoUrlWithOffset(
           activeSchedule.videoUrl,
           sessionInfo.videoOffsetSeconds
         );
+        console.log('DEBUG: Final playableVideoUrl:', playableVideoUrl);
       }
     }
 
