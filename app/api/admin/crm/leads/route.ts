@@ -340,8 +340,22 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true, data: lead }, { status: 201 });
-  } catch (error) {
+  } catch (error: any) {
     logger.error('leads', 'POST /api/admin/crm/leads failed', error);
+
+    // Handle MongoDB E11000 duplicate key error
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyPattern || {})[0] || 'field';
+      return NextResponse.json(
+        {
+          error: `A lead with this ${field} already exists for your account`,
+          duplicate: true,
+          field
+        },
+        { status: 409 }
+      );
+    }
+
     const message = error instanceof Error ? error.message : 'Failed to create lead';
     return NextResponse.json({ error: message }, { status: 500 });
   }
