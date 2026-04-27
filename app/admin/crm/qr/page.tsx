@@ -2,7 +2,7 @@
 // Version: 2026-03-12 20:45 UTC — Composite deployment (useRef fix + delays + UI hides)
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import { checkIsSuperAdmin } from '@/lib/client-auth';
@@ -335,7 +335,9 @@ export default function QRWhatsAppPage() {
   const [chatPresence, setChatPresence] = useState<{ presence: string; lastSeen: number | null } | null>(null);
   const [composerText, setComposerText] = useState('');
   const [sending, setSending] = useState(false);
-  const [tab, setTab] = useState<'connection' | 'inbox' | 'templates' | 'broadcast' | 'history' | 'settings'>('connection');
+  const searchParams = useSearchParams();
+  const initialTab = (searchParams.get('tab') as any) || 'connection';
+  const [tab, setTab] = useState<'connection' | 'inbox' | 'templates' | 'broadcast' | 'history' | 'settings'>(initialTab);
   const [showExtensionModal, setShowExtensionModal] = useState(false);
   const [downloadingExtension, setDownloadingExtension] = useState(false);
   const [showInstallGuide, setShowInstallGuide] = useState(false);

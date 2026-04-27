@@ -409,6 +409,15 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
           description: 'QR code WhatsApp bridge',
         },
         {
+          icon: Radio,
+          label: 'QR Broadcast',
+          href: '/admin/crm/qr?tab=broadcast',
+          color: 'text-purple-400',
+          module: 'whatsapp',
+          planModule: 'whatsapp',
+          description: 'Send messages to many',
+        },
+        {
           icon: Send,
           label: 'Telegram',
           href: '/admin/crm/telegram',
