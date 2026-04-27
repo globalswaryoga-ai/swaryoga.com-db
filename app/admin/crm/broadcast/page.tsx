@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import { checkIsSuperAdmin } from '@/lib/client-auth';
 
 // ============================================================================
 // TYPES
@@ -139,7 +140,28 @@ function ProgressBar({ value, max, color = 'blue' }: { value: number; max: numbe
 // ============================================================================
 export default function BroadcastPage() {
   const token = useAuth();
+  const router = useRouter();
   const searchParams = useSearchParams();
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [isChecking, setIsChecking] = useState(true);
+
+  // Check superAdmin access
+  useEffect(() => {
+    const checkAccess = async () => {
+      if (!token) {
+        router.replace('/admin/login');
+        return;
+      }
+      const isAdmin = await checkIsSuperAdmin();
+      if (!isAdmin) {
+        router.replace('/admin/crm');
+        return;
+      }
+      setIsSuperAdmin(true);
+      setIsChecking(false);
+    };
+    checkAccess();
+  }, [token, router]);
 
   // Step management
   const [step, setStep] = useState<Step>(1);
@@ -867,10 +889,21 @@ export default function BroadcastPage() {
   // ============================================================================
   // RENDER
   // ============================================================================
-  if (token === null) {
+  if (token === null || isChecking) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-indigo-50 flex items-center justify-center">
         <div className="animate-spin text-4xl">⏳</div>
+      </div>
+    );
+  }
+
+  if (!isSuperAdmin) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-indigo-50 flex items-center justify-center">
+        <div className="text-center text-red-600">
+          <div className="text-4xl mb-4">🔒</div>
+          <p className="font-medium">This feature is for super admins only</p>
+        </div>
       </div>
     );
   }

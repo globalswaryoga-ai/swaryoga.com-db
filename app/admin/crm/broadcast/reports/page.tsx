@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCRM } from '@/hooks/useCRM';
 import { useAuth, getLoginPath } from '@/hooks/useAuth';
+import { checkIsSuperAdmin } from '@/lib/client-auth';
 import { AlertBox, LoadingSpinner } from '@/components/admin/crm';
 
 // Meta WhatsApp pricing (approximate INR rates as of 2024)
@@ -130,6 +131,26 @@ export default function BroadcastReportsPage() {
   const searchParams = useSearchParams();
   const token = useAuth();
   const crm = useCRM({ token });
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [isChecking, setIsChecking] = useState(true);
+
+  // Check superAdmin access
+  useEffect(() => {
+    const checkAccess = async () => {
+      if (!token) {
+        router.replace('/admin/login');
+        return;
+      }
+      const isAdmin = await checkIsSuperAdmin();
+      if (!isAdmin) {
+        router.replace('/admin/crm');
+        return;
+      }
+      setIsSuperAdmin(true);
+      setIsChecking(false);
+    };
+    checkAccess();
+  }, [token, router]);
 
   const runId = searchParams.get('runId');
   const [view, setView] = useState<'list' | 'detail'>(runId ? 'detail' : 'list');
@@ -307,6 +328,23 @@ export default function BroadcastReportsPage() {
     setSuccess('Report exported!');
     setTimeout(() => setSuccess(null), 3000);
   };
+
+  // Check authorization before showing anything
+  if (isChecking || !isSuperAdmin) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          {isChecking && <div className="animate-spin text-4xl">⏳</div>}
+          {!isChecking && !isSuperAdmin && (
+            <div className="text-red-600">
+              <div className="text-4xl mb-4">🔒</div>
+              <p className="font-medium">This feature is for super admins only</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
