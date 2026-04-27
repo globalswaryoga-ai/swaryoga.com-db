@@ -84,6 +84,8 @@ interface HLSVideoPlayerProps {
 
 function HLSVideoPlayer({ url }: HLSVideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(true);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -92,14 +94,12 @@ function HLSVideoPlayer({ url }: HLSVideoPlayerProps) {
     const isHLS = url.includes('.m3u8');
 
     if (isHLS && (video as any).hls) {
-      // HLS.js already loaded
       const hls = (video as any).hls;
       hls.destroy();
       (video as any).hls = null;
     }
 
     if (isHLS) {
-      // Load HLS.js if not already loaded
       if (!(video as any).hls && (window as any).HLS) {
         const hls = new (window as any).HLS();
         hls.loadSource(url);
@@ -108,7 +108,6 @@ function HLSVideoPlayer({ url }: HLSVideoPlayerProps) {
       }
       video.play().catch(() => {});
     } else {
-      // Direct video URL - use native video player
       video.src = url;
       video.play().catch(() => {});
     }
@@ -121,20 +120,66 @@ function HLSVideoPlayer({ url }: HLSVideoPlayerProps) {
     };
   }, [url]);
 
+  const handleMinimize = () => {
+    setIsFullscreen(false);
+  };
+
+  if (isFullscreen) {
+    return (
+      <>
+        <Script
+          src="https://cdn.jsdelivr.net/npm/hls.js@latest"
+          strategy="afterInteractive"
+        />
+        <div className="fixed inset-0 bg-black z-50 flex items-center justify-center">
+          <div ref={containerRef} className="relative w-full h-full bg-black">
+            <video
+              ref={videoRef}
+              className="w-full h-full"
+              autoPlay
+              playsInline
+              controls={false}
+            />
+            <button
+              onClick={handleMinimize}
+              className="absolute top-4 right-4 bg-black/60 hover:bg-black/80 text-white p-3 rounded-lg transition z-10"
+              title="Minimize"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // Minimized view
   return (
     <>
       <Script
         src="https://cdn.jsdelivr.net/npm/hls.js@latest"
         strategy="afterInteractive"
       />
-      <video
-        ref={videoRef}
-        className="w-full h-full bg-black"
-        autoPlay
-        playsInline
-        controls={false}
-        muted={false}
-      />
+      <div className="w-full h-full bg-black rounded-xl overflow-hidden relative group">
+        <video
+          ref={videoRef}
+          className="w-full h-full"
+          autoPlay
+          playsInline
+          controls={false}
+        />
+        <button
+          onClick={() => setIsFullscreen(true)}
+          className="absolute bottom-4 right-4 bg-black/60 hover:bg-black/80 text-white p-2 rounded-lg transition opacity-0 group-hover:opacity-100"
+          title="Fullscreen"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4m-4 0l5 5m11-5v4m0-4h-4m4 0l-5 5M4 20v-4m0 4h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
+          </svg>
+        </button>
+      </div>
     </>
   );
 }
