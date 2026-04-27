@@ -27,7 +27,7 @@ export default function CrmProgressPage() {
     const crmToken = token || localStorage.getItem('token');
     const user = localStorage.getItem('user');
 
-    if (false) {
+    if (!crmToken || !user) {
       router.replace('/admin/login');
       return;
     }

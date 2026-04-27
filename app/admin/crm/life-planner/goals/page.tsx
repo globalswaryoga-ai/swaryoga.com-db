@@ -27,12 +27,14 @@ export default function CrmGoalsPage() {
     const crmToken = token || localStorage.getItem('token');
     const user = localStorage.getItem('user');
 
-    // Set token for life planner if available, but don't require CRM auth
-    if (crmToken && user) {
-      const existingLPToken = localStorage.getItem('lifePlannerToken');
-      if (!existingLPToken) {
-        localStorage.setItem('lifePlannerToken', crmToken);
-      }
+    if (!crmToken || !user) {
+      router.replace('/admin/login');
+      return;
+    }
+
+    const existingLPToken = localStorage.getItem('lifePlannerToken');
+    if (!existingLPToken && crmToken) {
+      localStorage.setItem('lifePlannerToken', crmToken);
     }
 
     setIsReady(true);
