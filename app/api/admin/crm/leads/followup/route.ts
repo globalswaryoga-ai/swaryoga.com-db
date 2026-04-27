@@ -85,6 +85,15 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = decoded.userId || decoded.username || 'system';
+    const isSuperAdmin = decoded?.userId === 'admin' || (Array.isArray(decoded?.permissions) && decoded.permissions.includes('all'));
+
+    // TENANT ISOLATION: Verify user has access to this lead
+    if (!isSuperAdmin && String(lead.assignedToUserId || '').trim() !== userId && String(lead.createdByUserId || '').trim() !== userId) {
+      return NextResponse.json(
+        { error: 'Forbidden: You do not have access to this lead' },
+        { status: 403 }
+      );
+    }
 
     // Handle different action types
     switch (actionType) {

@@ -112,6 +112,13 @@ export async function GET(request: NextRequest) {
       if (!sale) {
         return NextResponse.json({ success: false, error: 'Sale not found' }, { status: 404 });
       }
+
+      // TENANT ISOLATION: Verify user has access to this sale
+      const isSuperAdmin = visibleUserIds === null;
+      if (!isSuperAdmin && visibleUserIds && !visibleUserIds.includes(sale.reportedByUserId)) {
+        return NextResponse.json({ success: false, error: 'Forbidden: You do not have access to this sale' }, { status: 403 });
+      }
+
       return NextResponse.json({ success: true, data: sale });
     }
 
