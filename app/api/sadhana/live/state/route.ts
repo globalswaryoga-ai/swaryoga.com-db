@@ -160,18 +160,23 @@ function zonedTimeToUtc(localIso: string, tz: string): Date {
 function convertToHLSUrl(videoUrl: string): string {
   if (!videoUrl) return videoUrl;
 
-  // Convert Bunny embed URLs to HLS stream URLs
-  if (videoUrl.includes('b-cdn.net') || videoUrl.includes('bunny.net')) {
-    // If it's a Bunny CDN URL, extract the video ID and convert to HLS
-    // Example: https://cdn.b-cdn.net/abc123 -> https://cdn.b-cdn.net/abc123/playlist.m3u8
-    if (!videoUrl.includes('.m3u8') && !videoUrl.includes('/playlist')) {
-      // Remove query params and add HLS playlist path
-      const baseUrl = videoUrl.split('?')[0];
-      if (!baseUrl.endsWith('/')) {
-        return baseUrl + '/playlist.m3u8';
-      }
+  // Always ensure Bunny URLs are HLS format
+  if (videoUrl.includes('b-cdn.net') || videoUrl.includes('bunny.net') || videoUrl.includes('bunnycdn')) {
+    // Remove query params first
+    const baseUrl = videoUrl.split('?')[0].split('#')[0];
+
+    // If already has playlist endpoint, return as-is
+    if (baseUrl.includes('/playlist') || baseUrl.endsWith('.m3u8')) {
+      return baseUrl;
+    }
+
+    // If ends with slash, add playlist.m3u8
+    if (baseUrl.endsWith('/')) {
       return baseUrl + 'playlist.m3u8';
     }
+
+    // Otherwise add /playlist.m3u8
+    return baseUrl + '/playlist.m3u8';
   }
 
   // If already HLS, return as-is
@@ -179,7 +184,12 @@ function convertToHLSUrl(videoUrl: string): string {
     return videoUrl;
   }
 
-  // For direct video URLs, return as-is (native video player will handle)
+  // For other URLs, assume HLS if from streaming services
+  if (videoUrl.includes('stream') || videoUrl.includes('hls') || videoUrl.includes('play')) {
+    return videoUrl;
+  }
+
+  // Fallback: return as-is
   return videoUrl;
 }
 

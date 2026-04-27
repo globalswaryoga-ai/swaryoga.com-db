@@ -95,6 +95,14 @@ function HLSVideoPlayer({ url }: HLSVideoPlayerProps) {
     video.removeAttribute('controls');
     video.removeAttribute('controlsList');
 
+    // Watch for any changes and remove controls immediately
+    const observer = new MutationObserver(() => {
+      if (video.hasAttribute('controls')) {
+        video.removeAttribute('controls');
+      }
+    });
+    observer.observe(video, { attributes: true });
+
     const isHLS = url.includes('.m3u8');
     console.log('[HLSVideoPlayer]', {
       url,
@@ -122,6 +130,7 @@ function HLSVideoPlayer({ url }: HLSVideoPlayerProps) {
     }
 
     return () => {
+      observer.disconnect();
       if ((video as any).hls) {
         (video as any).hls.destroy();
         (video as any).hls = null;
@@ -145,11 +154,16 @@ function HLSVideoPlayer({ url }: HLSVideoPlayerProps) {
             <video
               ref={videoRef}
               className="w-full h-full"
+              style={{
+                width: '100%',
+                height: '100%',
+              } as React.CSSProperties}
               autoPlay
               playsInline
               controls={false}
               controlsList="nodownload"
               disablePictureInPicture
+              onContextMenu={(e) => e.preventDefault()}
             />
             <button
               onClick={handleMinimize}
@@ -177,11 +191,16 @@ function HLSVideoPlayer({ url }: HLSVideoPlayerProps) {
         <video
           ref={videoRef}
           className="w-full h-full"
+          style={{
+            width: '100%',
+            height: '100%',
+          } as React.CSSProperties}
           autoPlay
           playsInline
           controls={false}
           controlsList="nodownload"
           disablePictureInPicture
+          onContextMenu={(e) => e.preventDefault()}
         />
         <button
           onClick={() => setIsFullscreen(true)}
