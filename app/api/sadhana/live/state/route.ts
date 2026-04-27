@@ -157,12 +157,48 @@ function zonedTimeToUtc(localIso: string, tz: string): Date {
   return new Date(asUtc.getTime() - offset);
 }
 
+function convertToHLSUrl(videoUrl: string): string {
+  if (!videoUrl) return videoUrl;
+
+  // Convert Bunny embed URLs to HLS stream URLs
+  if (videoUrl.includes('b-cdn.net') || videoUrl.includes('bunny.net')) {
+    // If it's a Bunny CDN URL, extract the video ID and convert to HLS
+    // Example: https://cdn.b-cdn.net/abc123 -> https://cdn.b-cdn.net/abc123/playlist.m3u8
+    if (!videoUrl.includes('.m3u8') && !videoUrl.includes('/playlist')) {
+      // Remove query params and add HLS playlist path
+      const baseUrl = videoUrl.split('?')[0];
+      if (!baseUrl.endsWith('/')) {
+        return baseUrl + '/playlist.m3u8';
+      }
+      return baseUrl + 'playlist.m3u8';
+    }
+  }
+
+  // If already HLS, return as-is
+  if (videoUrl.includes('.m3u8')) {
+    return videoUrl;
+  }
+
+  // For direct video URLs, return as-is (native video player will handle)
+  return videoUrl;
+}
+
 function buildVideoUrlWithOffset(videoUrl: string, offsetSeconds: number): string {
   if (!videoUrl) return videoUrl;
-  const sep = videoUrl.includes('?') ? '&' : '?';
-  const autoplay = videoUrl.includes('autoplay') ? '' : `${sep}autoplay=true`;
+
+  // Convert to HLS if needed
+  const hlsUrl = convertToHLSUrl(videoUrl);
+
+  // For HLS URLs, we can't add query params easily, so just return the HLS URL
+  if (hlsUrl.includes('.m3u8')) {
+    return hlsUrl;
+  }
+
+  // For non-HLS URLs, add autoplay param
+  const sep = hlsUrl.includes('?') ? '&' : '?';
+  const autoplay = hlsUrl.includes('autoplay') ? '' : `${sep}autoplay=true`;
   const start = offsetSeconds > 0 ? `${autoplay ? '&' : sep}t=${offsetSeconds}` : '';
-  return `${videoUrl}${autoplay}${start}`;
+  return `${hlsUrl}${autoplay}${start}`;
 }
 
 export async function POST(request: NextRequest) {
