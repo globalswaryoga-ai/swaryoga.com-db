@@ -91,9 +91,16 @@ function HLSVideoPlayer({ url }: HLSVideoPlayerProps) {
     const video = videoRef.current;
     if (!video) return;
 
-    console.log('DEBUG: HLSVideoPlayer received URL:', url);
+    // Ensure controls are always disabled
+    video.removeAttribute('controls');
+    video.removeAttribute('controlsList');
+
     const isHLS = url.includes('.m3u8');
-    console.log('DEBUG: isHLS:', isHLS);
+    console.log('[HLSVideoPlayer]', {
+      url,
+      isHLS,
+      videoElement: video.tagName,
+    });
 
     if (isHLS && (video as any).hls) {
       const hls = (video as any).hls;
@@ -141,6 +148,8 @@ function HLSVideoPlayer({ url }: HLSVideoPlayerProps) {
               autoPlay
               playsInline
               controls={false}
+              controlsList="nodownload"
+              disablePictureInPicture
             />
             <button
               onClick={handleMinimize}
@@ -171,6 +180,8 @@ function HLSVideoPlayer({ url }: HLSVideoPlayerProps) {
           autoPlay
           playsInline
           controls={false}
+          controlsList="nodownload"
+          disablePictureInPicture
         />
         <button
           onClick={() => setIsFullscreen(true)}
@@ -352,7 +363,11 @@ export default function SadhanaLivePage() {
       </div>
     );
   } else if (session.status === 'live') {
-    console.log('DEBUG: playableVideoUrl:', playableVideoUrl);
+    console.log('[Sadhana Live Frontend]', {
+      status: 'live',
+      playableVideoUrl,
+      isHLS: playableVideoUrl?.includes('.m3u8'),
+    });
     sessionView = playableVideoUrl ? (
       <HLSVideoPlayer url={playableVideoUrl} />
     ) : (
