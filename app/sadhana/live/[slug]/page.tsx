@@ -116,6 +116,15 @@ export default function ProgramLivePage() {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
+    // Mobile viewport optimization
+    if (typeof window !== 'undefined') {
+      document.documentElement.style.height = '100%';
+      document.body.style.height = '100%';
+      document.body.style.overflow = 'hidden';
+    }
+  }, []);
+
+  useEffect(() => {
     const onFullScreenChange = () => {
       setFullscreenMode(!!document.fullscreenElement);
     };
@@ -235,11 +244,11 @@ export default function ProgramLivePage() {
 
   if (programNotFound) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-indigo-900 to-black flex items-center justify-center p-4">
-        <div className="text-center text-white">
-          <div className="text-4xl sm:text-5xl mb-3 sm:mb-4">🤔</div>
-          <h1 className="text-xl sm:text-2xl font-bold mb-2">Program Not Found</h1>
-          <p className="text-sm sm:text-base text-purple-200">The program "{slug}" doesn't exist or has been removed.</p>
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-indigo-900 to-black flex items-center justify-center p-2 sm:p-4">
+        <div className="text-center text-white max-w-sm w-full">
+          <div className="text-5xl sm:text-6xl mb-4 sm:mb-6">🤔</div>
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold mb-3 sm:mb-4">Program Not Found</h1>
+          <p className="text-xs sm:text-sm md:text-base text-purple-200">The program "{slug}" doesn't exist or has been removed.</p>
         </div>
       </div>
     );
