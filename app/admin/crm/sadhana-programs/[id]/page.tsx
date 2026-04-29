@@ -52,6 +52,10 @@ export default function ProgramDetailPage() {
   const [liveCount, setLiveCount] = useState<number | null>(null);
   const [chatCount, setChatCount] = useState<number | null>(null);
   const [liveStatus, setLiveStatus] = useState<string>('offline');
+  const [participants, setParticipants] = useState<Array<{ name: string; joinedAt: string }>>([]);
+  const [chatMessages, setChatMessages] = useState<Array<{ id: string; name: string; message: string; createdAt: string }>>([]);
+  const [showJoinedModal, setShowJoinedModal] = useState(false);
+  const [showChatModal, setShowChatModal] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -81,6 +85,8 @@ export default function ProgramDetailPage() {
           setLiveCount(typeof data.count === 'number' ? data.count : null);
           setChatCount(Array.isArray(data.chat) ? data.chat.length : null);
           setLiveStatus(data.session?.status || 'offline');
+          setParticipants(Array.isArray(data.participants) ? data.participants : []);
+          setChatMessages(Array.isArray(data.chat) ? data.chat : []);
         }
       } catch (err) {
         console.error('Failed to fetch sadhana live stats', err);
@@ -190,33 +196,35 @@ export default function ProgramDetailPage() {
   const liveUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/sadhana/live/${program.slug}`;
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-3 sm:p-6 max-w-6xl mx-auto min-h-screen bg-gray-900">
       <div className="mb-4">
-        <Link href="/admin/crm/sadhana-programs" className="text-gray-400 hover:text-white flex items-center gap-1 text-sm w-fit">
-          <ArrowLeft size={16} /> Back to programs
+        <Link href="/admin/crm/sadhana-programs" className="text-gray-400 hover:text-white flex items-center gap-1 text-xs sm:text-sm w-fit">
+          <ArrowLeft size={14} /> Back
         </Link>
       </div>
 
-      <div className="bg-gradient-to-br from-purple-800 to-pink-800 border border-purple-400 rounded-xl p-5 mb-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between mb-3">
-          <div>
-            <h1 className="text-2xl font-bold text-white mb-1">{program.name}</h1>
-            {program.description && <p className="text-purple-50 text-sm">{program.description}</p>}
-            <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-black/40 px-3 py-1 text-xs text-gray-200 border border-white/10">
-              <span className="inline-flex items-center gap-1"><Users size={12} /> {liveStatus === 'live' ? 'Live now' : liveStatus === 'countdown' ? 'Starting soon' : liveStatus === 'waiting' ? 'Waiting' : 'Offline'}</span>
+      <div className="bg-gradient-to-br from-purple-800 to-pink-800 border border-purple-400 rounded-lg sm:rounded-xl p-3 sm:p-5 mb-4 sm:mb-6">
+        <div className="flex flex-col gap-3 sm:gap-4 mb-3">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-4">
+            <div className="flex-1">
+              <h1 className="text-lg sm:text-2xl font-bold text-white mb-1">{program.name}</h1>
+              {program.description && <p className="text-purple-50 text-xs sm:text-sm line-clamp-2">{program.description}</p>}
+              <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-black/40 px-2 sm:px-3 py-1 text-[10px] sm:text-xs text-gray-200 border border-white/10">
+                <span className="inline-flex items-center gap-1"><Users size={10} /> {liveStatus === 'live' ? 'Live now' : liveStatus === 'countdown' ? 'Starting soon' : liveStatus === 'waiting' ? 'Waiting' : 'Offline'}</span>
+              </div>
             </div>
-          </div>
-          <div className="flex gap-1">
-            <button onClick={openProgramEdit} className="text-blue-300 hover:text-blue-200 p-1">
-              <Pencil size={18} />
-            </button>
-            <button onClick={deleteProgram} className="text-red-300 hover:text-red-200 p-1">
-              <Trash2 size={18} />
-            </button>
+            <div className="flex gap-2 sm:gap-1 flex-shrink-0">
+              <button onClick={openProgramEdit} className="text-blue-300 hover:text-blue-200 p-2 sm:p-1 hover:bg-blue-900/20 rounded">
+                <Pencil size={16} />
+              </button>
+              <button onClick={deleteProgram} className="text-red-300 hover:text-red-200 p-2 sm:p-1 hover:bg-red-900/20 rounded">
+                <Trash2 size={16} />
+              </button>
+            </div>
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2 text-sm mb-4">
+        <div className="flex flex-wrap gap-1 sm:gap-2 text-xs sm:text-sm mb-3 sm:mb-4">
           {program.timeSlots.map((time, idx) => (
             <span key={idx} className="bg-black/50 text-purple-100 px-2 py-1 rounded inline-flex items-center gap-1">
               <Clock size={14} /> {time}
@@ -347,18 +355,30 @@ export default function ProgramDetailPage() {
                 )}
                 {isToday && liveStats && (
                   <div className="mt-2 space-y-1 text-[10px]">
-                    <div className="text-sky-200">👥 {liveStats.activeParticipants} joined</div>
+                    <div className="text-sky-200 flex items-center gap-1">
+                      <span>👥 {liveStats.activeParticipants} joined</span>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setShowJoinedModal(true);
+                        }}
+                        className="p-1 hover:bg-sky-500/20 rounded transition"
+                        title="View joined users"
+                      >
+                        👁️
+                      </button>
+                    </div>
                     <div className="text-emerald-200 flex items-center gap-2">
                       <span>💬 {liveStats.chatMessages24h} chat</span>
                       <button
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          // Preview chats
-                          console.log('Preview chats for', editDate);
+                          setShowChatModal(true);
                         }}
                         className="p-1 hover:bg-emerald-500/20 rounded transition"
-                        title="Preview chats"
+                        title="View chat messages"
                       >
                         👁️
                       </button>
@@ -612,6 +632,131 @@ export default function ProgramDetailPage() {
             <div className="border-t border-gray-700 p-6 flex gap-2">
               <button onClick={() => setEditingProgram(false)} className="flex-1 bg-gray-700 text-white py-2 rounded-lg">Cancel</button>
               <button onClick={updateProgram} className="flex-1 bg-gradient-to-r from-pink-500 to-violet-500 text-white py-2 rounded-lg font-semibold">Update</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Joined Users Modal */}
+      {showJoinedModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+          <div className="bg-gray-800 border border-gray-600 rounded-xl max-w-md w-full max-h-[80vh] flex flex-col">
+            <div className="p-6 flex items-center justify-between border-b border-gray-700">
+              <h3 className="text-lg font-bold text-white">👥 Joined Users ({participants.length})</h3>
+              <button onClick={() => setShowJoinedModal(false)} className="text-gray-300 hover:text-white">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 p-6">
+              {participants.length === 0 ? (
+                <p className="text-gray-400 text-center py-8">No users joined yet</p>
+              ) : (
+                <div className="space-y-4">
+                  {program?.timeSlots.map((timeSlot) => {
+                    const [slotHour, slotMin] = timeSlot.split(':');
+                    const usersInSlot = participants.filter(p => {
+                      const joinTime = new Date(p.joinedAt);
+                      const joinHour = joinTime.getHours().toString().padStart(2, '0');
+                      const joinMin = joinTime.getMinutes().toString().padStart(2, '0');
+                      return joinHour === slotHour && joinMin === slotMin;
+                    });
+
+                    if (usersInSlot.length === 0) return null;
+
+                    return (
+                      <div key={timeSlot}>
+                        <div className="text-sm font-semibold text-purple-300 mb-2">🕐 {timeSlot} AM Session</div>
+                        <div className="bg-gradient-to-r from-purple-900/30 to-purple-800/20 border border-purple-700/30 rounded-lg p-3 space-y-2">
+                          {usersInSlot.map((user, idx) => (
+                            <div key={idx} className="text-sm text-gray-200 flex items-center gap-2">
+                              <span className="w-4 h-4 rounded-full bg-purple-500 flex-shrink-0"></span>
+                              <span className="truncate">{user.name}</span>
+                              <span className="text-xs text-gray-400 ml-auto flex-shrink-0">
+                                {new Date(user.joinedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {(() => {
+                    const unlistedUsers = participants.filter(p => {
+                      const joinTime = new Date(p.joinedAt);
+                      const joinHour = joinTime.getHours().toString().padStart(2, '0');
+                      const joinMin = joinTime.getMinutes().toString().padStart(2, '0');
+                      return !program?.timeSlots.includes(`${joinHour}:${joinMin}`);
+                    });
+
+                    if (unlistedUsers.length === 0) return null;
+
+                    return (
+                      <div>
+                        <div className="text-sm font-semibold text-amber-300 mb-2">🕐 Other Join Times</div>
+                        <div className="bg-gradient-to-r from-amber-900/30 to-amber-800/20 border border-amber-700/30 rounded-lg p-3 space-y-2">
+                          {unlistedUsers.map((user, idx) => (
+                            <div key={idx} className="text-sm text-gray-200 flex items-center gap-2">
+                              <span className="w-4 h-4 rounded-full bg-amber-500 flex-shrink-0"></span>
+                              <span className="truncate">{user.name}</span>
+                              <span className="text-xs text-gray-400 ml-auto flex-shrink-0">
+                                {new Date(user.joinedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-gray-700 p-6">
+              <button onClick={() => setShowJoinedModal(false)} className="w-full bg-gray-700 text-white py-2 rounded-lg text-sm hover:bg-gray-600">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Chat Messages Modal */}
+      {showChatModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+          <div className="bg-gray-800 border border-gray-600 rounded-xl max-w-md w-full max-h-[80vh] flex flex-col">
+            <div className="p-6 flex items-center justify-between border-b border-gray-700">
+              <h3 className="text-lg font-bold text-white">💬 Chat Messages ({chatMessages.length})</h3>
+              <button onClick={() => setShowChatModal(false)} className="text-gray-300 hover:text-white">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 p-6">
+              {chatMessages.length === 0 ? (
+                <p className="text-gray-400 text-center py-8">No chat messages yet</p>
+              ) : (
+                <div className="space-y-3">
+                  {chatMessages.map((msg) => (
+                    <div key={msg.id} className="bg-gradient-to-r from-gray-700/40 to-gray-700/20 border border-gray-600/30 rounded-lg p-4">
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="text-sm font-semibold text-emerald-300">{msg.name}</div>
+                        <div className="text-xs text-gray-400 flex-shrink-0">
+                          {new Date(msg.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                        </div>
+                      </div>
+                      <p className="text-sm text-gray-100 break-words leading-relaxed">{msg.message}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-gray-700 p-6">
+              <button onClick={() => setShowChatModal(false)} className="w-full bg-gray-700 text-white py-2 rounded-lg text-sm hover:bg-gray-600">
+                Close
+              </button>
             </div>
           </div>
         </div>
