@@ -4,53 +4,86 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { ChevronDown, ChevronUp, LogOut, Maximize2, Minimize2, Play } from 'lucide-react';
 
-// Hide all player controls - ONLY show minimize/maximize buttons
+// CRITICAL: Hide all video controls - FINAL SOLUTION
 if (typeof document !== 'undefined') {
   const style = document.createElement('style');
   style.textContent = `
-    /* Hide ALL video controls */
-    video::-webkit-media-controls { display: none !important; }
-    video::-webkit-media-controls-enclosure { display: none !important; }
-    video::-webkit-media-controls-panel { display: none !important; }
-    video::-moz-media-controls { display: none !important; }
+    /* === FINAL AGGRESSIVE VIDEO CONTROL HIDING === */
 
-    /* Hide iframe/Bunny player controls */
-    .bunny-player { width: 100% !important; height: 100% !important; }
-    iframe[src*="bunny"], iframe[src*="cdn"] {
+    /* Base video element - no borders, no outline, no pointer events on controls */
+    video {
+      display: block !important;
       width: 100% !important;
       height: 100% !important;
+      outline: none !important;
+      border: none !important;
+      background: #000 !important;
     }
 
-    /* Fullscreen video container */
-    .video-container {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      z-index: 50;
+    /* WEBKIT: All media control components must be completely hidden */
+    video::-webkit-media-controls {
+      display: none !important;
+      visibility: hidden !important;
+      height: 0 !important;
+      pointer-events: none !important;
     }
+    video::-webkit-media-controls-enclosure {
+      display: none !important;
+      visibility: hidden !important;
+      height: 0 !important;
+    }
+    video::-webkit-media-controls-panel {
+      display: none !important;
+      visibility: hidden !important;
+      height: 0 !important;
+      opacity: 0 !important;
+    }
+    video::-webkit-media-controls-play-button { display: none !important; }
+    video::-webkit-media-controls-timeline-container { display: none !important; }
+    video::-webkit-media-controls-current-time-display { display: none !important; }
+    video::-webkit-media-controls-time-remaining-display { display: none !important; }
+    video::-webkit-media-controls-timeline { display: none !important; }
+    video::-webkit-media-controls-volume-slider-container { display: none !important; }
+    video::-webkit-media-controls-volume-slider { display: none !important; }
+    video::-webkit-media-controls-mute-button { display: none !important; }
+    video::-webkit-media-controls-fullscreen-button { display: none !important; }
+    video::-webkit-media-controls-download-button { display: none !important; }
+    video::-webkit-media-controls-toggle-closed-captions-button { display: none !important; }
+
+    /* FIREFOX: Hide all media controls */
+    video::-moz-media-controls {
+      display: none !important;
+      visibility: hidden !important;
+      height: 0 !important;
+    }
+    video::-moz-media-controls-panel { display: none !important; }
   `;
-  style.setAttribute('data-hide-video-controls', 'true');
+  style.setAttribute('data-final-video-control-hide', 'true');
   document.head.appendChild(style);
 
-  // Hide all video controls
-  const observer = new MutationObserver(() => {
+  /* AGGRESSIVE JAVASCRIPT ENFORCEMENT */
+  const enforceNoControls = () => {
     document.querySelectorAll('video').forEach(video => {
+      /* Remove all control-related attributes */
       video.removeAttribute('controls');
-      video.style.outline = 'none';
-    });
-    // Hide iframe controls
-    document.querySelectorAll('iframe').forEach(iframe => {
-      const src = iframe.src || '';
-      if (src.includes('bunny') || src.includes('cdn')) {
-        iframe.style.width = '100%';
-        iframe.style.height = '100%';
-      }
-    });
-  });
+      video.removeAttribute('controlsList');
 
-  observer.observe(document.body, { childList: true, subtree: true });
+      /* Force styles */
+      video.style.outline = 'none';
+      video.style.border = 'none';
+      video.style.width = '100%';
+      video.style.height = '100%';
+      video.style.display = 'block';
+    });
+  };
+
+  /* Run immediately and on every DOM change */
+  enforceNoControls();
+  const observer = new MutationObserver(enforceNoControls);
+  observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['controls', 'controlsList'] });
+
+  /* Also run every 500ms as fallback */
+  setInterval(enforceNoControls, 500);
 }
 
 interface Participant { name: string; joinedAt: string; }
@@ -364,7 +397,7 @@ export default function ProgramLivePage() {
         const sep = url.includes('?') ? '&' : '?';
         return url + sep + params.join('&');
       };
-      const playerUrlWithParams = isValidUrl ? addParams(playableUrl, 'autoplay=true') : '';
+      const playerUrlWithParams = isValidUrl ? addParams(playableUrl, 'autoplay=true', 'controls=false') : '';
       sessionView = isValidUrl ? (
         <div className="relative w-full h-full overflow-hidden bg-black">
           <iframe
