@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { ChevronDown, ChevronUp, LogOut, Maximize2, Minimize2, Play } from 'lucide-react';
+import HLSVideoPlayer from '@/app/components/HLSVideoPlayer';
 
 // CRITICAL: Hide all video controls - FINAL SOLUTION
 if (typeof document !== 'undefined') {
@@ -193,6 +194,18 @@ export default function ProgramLivePage() {
       setFullscreenMode((prev) => !prev);
     }
   };
+
+  // Auto-fullscreen on first play or after a short delay
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (containerRef.current && !document.fullscreenElement) {
+        containerRef.current.requestFullscreen().catch(err => {
+          console.warn('Auto-fullscreen failed (may be prevented by browser):', err);
+        });
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => { setName(storedName()); sidRef.current = storedSid(slug); }, [slug]);
 
@@ -779,25 +792,24 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
   }
 
   return (
-    <video
-      ref={videoRef}
+    <HLSVideoPlayer
+      src={playableUrl || ''}
+      autoPlay={true}
+      muted={true}
       className="w-full h-full bg-black"
-      autoPlay
-      muted
-      playsInline
-      crossOrigin="anonymous"
-      onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); return false; }}
-      onKeyDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
-      onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
-      onMouseUp={(e) => { if (e.button === 2) { e.preventDefault(); e.stopPropagation(); } }}
+      onError={(errorMsg) => {
+        console.error('HLS Player error:', errorMsg);
+        setError(errorMsg);
+      }}
       onLoadedMetadata={() => {
         console.log('Video metadata loaded, duration:', videoRef.current?.duration, 'offset:', offsetSeconds);
       }}
-      onError={(e) => {
-        console.error('Video error:', (e.target as HTMLVideoElement).error?.message);
-        setError('Failed to load video');
+      onPlay={() => {
+        setVideoStarted(true);
       }}
-      style={{ userSelect: 'none', WebkitUserSelect: 'none' } as React.CSSProperties}
+      onPause={() => {
+        console.log('Video paused');
+      }}
     />
   );
 }
