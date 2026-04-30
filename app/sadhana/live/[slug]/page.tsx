@@ -796,19 +796,23 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
       src={playableUrl || ''}
       autoPlay={true}
       muted={true}
+      isLiveStream={session?.status === 'live'}
       className="w-full h-full bg-black"
       onError={(errorMsg) => {
         console.error('HLS Player error:', errorMsg);
         setError(errorMsg);
       }}
       onLoadedMetadata={() => {
-        console.log('Video metadata loaded, duration:', videoRef.current?.duration, 'offset:', offsetSeconds);
+        console.log('Video metadata loaded');
       }}
       onPlay={() => {
         setVideoStarted(true);
       }}
       onPause={() => {
         console.log('Video paused');
+      }}
+      onMinimizeMaximize={(isMinimized) => {
+        console.log(isMinimized ? 'Video minimized' : 'Video maximized');
       }}
     />
   );

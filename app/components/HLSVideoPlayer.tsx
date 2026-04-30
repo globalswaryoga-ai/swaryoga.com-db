@@ -1,16 +1,19 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { Minimize2, Maximize2 } from 'lucide-react';
 
 interface HLSVideoPlayerProps {
   src: string;
   autoPlay?: boolean;
   muted?: boolean;
   className?: string;
+  isLiveStream?: boolean;
   onError?: (error: string) => void;
   onLoadedMetadata?: () => void;
   onPlay?: () => void;
   onPause?: () => void;
+  onMinimizeMaximize?: (isMinimized: boolean) => void;
 }
 
 export default function HLSVideoPlayer({
@@ -18,22 +21,26 @@ export default function HLSVideoPlayer({
   autoPlay = true,
   muted = true,
   className = 'w-full h-full',
+  isLiveStream = false,
   onError,
   onLoadedMetadata,
   onPlay,
   onPause,
+  onMinimizeMaximize,
 }: HLSVideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const playerRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isMinimized, setIsMinimized] = useState(false);
+  const [showControls, setShowControls] = useState(false);
   const hlsRef = useRef<any>(null);
+  const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Hide all video controls with aggressive CSS
   useEffect(() => {
     const style = document.createElement('style');
     style.textContent = `
-      /* === COMPREHENSIVE VIDEO CONTROL HIDING === */
-
-      /* Base video element */
+      /* === ABSOLUTE VIDEO CONTROL HIDING === */
       video {
         display: block !important;
         width: 100% !important;
@@ -44,7 +51,7 @@ export default function HLSVideoPlayer({
         cursor: none !important;
       }
 
-      /* WebKit browsers (Chrome, Safari, Edge) */
+      /* WebKit - Hide ALL media controls */
       video::-webkit-media-controls {
         display: none !important;
         visibility: hidden !important;
@@ -68,12 +75,8 @@ export default function HLSVideoPlayer({
       video::-webkit-media-controls-seek-forward-button { display: none !important; }
       video::-webkit-media-controls-media-button { display: none !important; }
 
-      /* Firefox */
-      video::-moz-media-controls {
-        display: none !important;
-        visibility: hidden !important;
-        height: 0 !important;
-      }
+      /* Firefox - Hide ALL controls */
+      video::-moz-media-controls { display: none !important; visibility: hidden !important; }
       video::-moz-media-controls-panel { display: none !important; }
       video::-moz-media-controls-play-button { display: none !important; }
       video::-moz-media-controls-timeline-container { display: none !important; }
@@ -83,12 +86,12 @@ export default function HLSVideoPlayer({
       video::-moz-media-controls-mute-button { display: none !important; }
       video::-moz-media-controls-fullscreen-button { display: none !important; }
 
-      /* Context menu */
+      /* No user select */
       video { -webkit-user-select: none; user-select: none; }
     `;
     document.head.appendChild(style);
 
-    // Enforce no controls via JavaScript
+    // Continuous enforcement
     const enforceNoControls = () => {
       const videos = document.querySelectorAll('video[data-hls-player]');
       videos.forEach((video: any) => {
@@ -96,8 +99,6 @@ export default function HLSVideoPlayer({
         video.removeAttribute('controlsList');
         video.style.outline = 'none';
         video.style.border = 'none';
-        video.style.width = '100%';
-        video.style.height = '100%';
         video.style.display = 'block';
         video.style.cursor = 'none';
       });
@@ -105,8 +106,8 @@ export default function HLSVideoPlayer({
 
     enforceNoControls();
     const observer = new MutationObserver(enforceNoControls);
-    observer.observe(document.body, { childList: true, subtree: true });
-    const interval = setInterval(enforceNoControls, 500);
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['controls', 'controlsList'] });
+    const interval = setInterval(enforceNoControls, 300);
 
     return () => {
       observer.disconnect();
@@ -114,17 +115,15 @@ export default function HLSVideoPlayer({
     };
   }, []);
 
-  // Initialize HLS.js
+  // Initialize HLS.js for live streaming
   useEffect(() => {
     if (!videoRef.current || !src) return;
 
     const setupHLS = async () => {
       try {
-        // Dynamic import for HLS.js
         const HLS = (await import('hls.js')).default;
 
         if (!HLS.isSupported()) {
-          // Fallback to native streaming
           if (videoRef.current) {
             videoRef.current.src = src;
           }
@@ -134,21 +133,20 @@ export default function HLSVideoPlayer({
         const hls = new HLS({
           debug: false,
           enableWorker: true,
-          lowLatencyMode: true,
+          lowLatencyMode: isLiveStream,
           autoStartLoad: true,
-          maxBufferLength: 30,
-          maxMaxBufferLength: 60,
+          liveBackBufferLength: isLiveStream ? 8 : undefined,
+          maxBufferLength: isLiveStream ? 15 : 30,
+          maxMaxBufferLength: isLiveStream ? 30 : 60,
           maxBufferSize: 60 * 1000 * 1000,
           maxBufferHole: 0.5,
-          loader: HLS.DefaultConfig.loader,
         });
 
         hlsRef.current = hls;
-
         hls.attachMedia(videoRef.current);
 
         hls.on(HLS.Events.MANIFEST_PARSED, () => {
-          console.log('✅ HLS manifest parsed, starting playback...');
+          console.log(`✅ HLS ${isLiveStream ? 'live stream' : 'stream'} ready`);
           if (autoPlay && videoRef.current) {
             videoRef.current.play().catch(err => {
               console.warn('Autoplay prevented:', err);
@@ -158,11 +156,11 @@ export default function HLSVideoPlayer({
 
         hls.on(HLS.Events.ERROR, (event, data) => {
           if (data.fatal) {
-            let errorMsg = `HLS fatal error: ${data.type}`;
+            let errorMsg = `Stream error: ${data.type}`;
             if (data.type === HLS.ErrorTypes.NETWORK_ERROR) {
-              errorMsg = 'Network error loading stream';
+              errorMsg = 'Network error';
             } else if (data.type === HLS.ErrorTypes.MEDIA_ERROR) {
-              errorMsg = 'Media error playing stream';
+              errorMsg = 'Media error';
             }
             setError(errorMsg);
             onError?.(errorMsg);
@@ -171,8 +169,6 @@ export default function HLSVideoPlayer({
 
         hls.loadSource(src);
       } catch (err: any) {
-        console.error('Failed to load HLS.js:', err);
-        // Fallback to native video element
         if (videoRef.current) {
           videoRef.current.src = src;
         }
@@ -187,31 +183,38 @@ export default function HLSVideoPlayer({
         hlsRef.current = null;
       }
     };
-  }, [src, autoPlay, onError]);
+  }, [src, autoPlay, isLiveStream, onError]);
 
-  // Handle video events
+  // Show/hide controls on mouse movement
+  useEffect(() => {
+    const handleMouseMove = () => {
+      if (!isMinimized) {
+        setShowControls(true);
+        if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+        controlsTimeoutRef.current = setTimeout(() => setShowControls(false), 3000);
+      }
+    };
+
+    if (playerRef.current) {
+      playerRef.current.addEventListener('mousemove', handleMouseMove);
+      return () => {
+        playerRef.current?.removeEventListener('mousemove', handleMouseMove);
+      };
+    }
+  }, [isMinimized]);
+
+  const toggleMinimize = () => {
+    const newState = !isMinimized;
+    setIsMinimized(newState);
+    onMinimizeMaximize?.(newState);
+    setShowControls(true);
+  };
+
   const handleLoadedMetadata = () => {
-    console.log('Video metadata loaded');
+    console.log('Video loaded');
     onLoadedMetadata?.();
   };
 
-  const handlePlay = () => {
-    onPlay?.();
-  };
-
-  const handlePause = () => {
-    onPause?.();
-  };
-
-  const handleError = (e: React.SyntheticEvent<HTMLVideoElement>) => {
-    const video = e.currentTarget;
-    const errorMsg = video.error?.message || 'Unknown video error';
-    setError(errorMsg);
-    onError?.(errorMsg);
-    console.error('Video error:', errorMsg);
-  };
-
-  // Prevent context menu and interactions
   const handleContextMenu = (e: React.MouseEvent<HTMLVideoElement>) => {
     e.preventDefault();
     e.stopPropagation();
@@ -222,7 +225,7 @@ export default function HLSVideoPlayer({
     return (
       <div className={`${className} flex items-center justify-center bg-black`}>
         <div className="text-center text-red-400">
-          <p className="text-lg font-semibold mb-2">Unable to play video</p>
+          <p className="font-semibold mb-2">Stream Error</p>
           <p className="text-sm">{error}</p>
         </div>
       </div>
@@ -230,39 +233,76 @@ export default function HLSVideoPlayer({
   }
 
   return (
-    <video
-      ref={videoRef}
-      data-hls-player
-      className={className}
-      autoPlay={autoPlay}
-      muted={muted}
-      playsInline
-      crossOrigin="anonymous"
-      onContextMenu={handleContextMenu}
-      onLoadedMetadata={handleLoadedMetadata}
-      onPlay={handlePlay}
-      onPause={handlePause}
-      onError={handleError}
-      onKeyDown={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-      }}
-      onDoubleClick={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-      }}
-      onMouseUp={(e) => {
-        if (e.button === 2) {
+    <div
+      ref={playerRef}
+      className={`relative bg-black overflow-hidden ${isMinimized ? 'w-64 h-36 rounded-lg shadow-2xl' : className}`}
+    >
+      {/* Live indicator */}
+      {isLiveStream && (
+        <div className="absolute top-4 left-4 z-10 flex items-center gap-2 bg-red-600/80 px-3 py-1.5 rounded-full">
+          <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+          <span className="text-xs font-bold text-white">LIVE</span>
+        </div>
+      )}
+
+      {/* Minimize/Maximize button */}
+      <div
+        className={`absolute z-20 transition-opacity duration-300 ${
+          showControls || isMinimized ? 'opacity-100' : 'opacity-0 hover:opacity-100'
+        } ${isMinimized ? 'top-2 right-2' : 'bottom-4 right-4'}`}
+      >
+        <button
+          onClick={toggleMinimize}
+          className="bg-white/20 hover:bg-white/40 backdrop-blur-sm p-2 rounded-full transition-colors"
+          title={isMinimized ? 'Maximize' : 'Minimize'}
+        >
+          {isMinimized ? (
+            <Maximize2 className="w-4 h-4 text-white" />
+          ) : (
+            <Minimize2 className="w-4 h-4 text-white" />
+          )}
+        </button>
+      </div>
+
+      {/* Video element */}
+      <video
+        ref={videoRef}
+        data-hls-player
+        className="w-full h-full bg-black"
+        autoPlay={autoPlay}
+        muted={muted}
+        playsInline
+        crossOrigin="anonymous"
+        onContextMenu={handleContextMenu}
+        onLoadedMetadata={handleLoadedMetadata}
+        onPlay={() => onPlay?.()}
+        onPause={() => onPause?.()}
+        onError={(e) => {
+          const errorMsg = (e.currentTarget.error?.message || 'Video error');
+          setError(errorMsg);
+          onError?.(errorMsg);
+        }}
+        onKeyDown={(e) => {
           e.preventDefault();
           e.stopPropagation();
-        }
-      }}
-      style={{
-        userSelect: 'none',
-        WebkitUserSelect: 'none',
-        cursor: 'none',
-        backgroundColor: '#000',
-      } as React.CSSProperties}
-    />
+        }}
+        onDoubleClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+        onMouseUp={(e) => {
+          if (e.button === 2) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        }}
+        style={{
+          userSelect: 'none',
+          WebkitUserSelect: 'none',
+          cursor: 'none',
+          backgroundColor: '#000',
+        } as React.CSSProperties}
+      />
+    </div>
   );
 }
