@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Minimize2, Maximize2 } from 'lucide-react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 
 interface HLSVideoPlayerProps {
   src: string;
