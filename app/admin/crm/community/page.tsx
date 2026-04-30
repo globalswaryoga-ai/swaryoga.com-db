@@ -3442,7 +3442,26 @@ export default function AdminCommunityPage() {
                       <input type="text" value={recordingPlaylistName} onChange={e => setRecordingPlaylistName(e.target.value)}
                         placeholder="e.g., 25th April 26 Batch"
                         className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 transition-all" />
+                      <p className="text-xs text-emerald-600 mt-1">💡 Select an existing batch below or type a new name</p>
                     </div>
+
+                    {/* Quick Select - Recent Batches */}
+                    <div className="p-3 bg-gradient-to-r from-emerald-50 to-green-50 rounded-xl border border-emerald-200">
+                      <p className="text-xs font-bold text-emerald-900 mb-2">📚 Or Select Existing Batch</p>
+                      <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                        <button
+                          onClick={() => {
+                            setRecordingFolderName('Swar Achar Shastra-Hindi');
+                            setRecordingPlaylistName('25th April Batch');
+                          }}
+                          className="w-full text-left p-2.5 bg-white hover:bg-emerald-100 rounded-lg border border-emerald-100 text-emerald-800 font-medium transition text-xs"
+                        >
+                          📁 Swar Achar Shastra-Hindi<br/>🎬 25th April Batch
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-emerald-700 mt-2">✨ Click to auto-fill and add more videos to this batch</p>
+                    </div>
+
                     <div>
                       <label className="text-sm font-bold text-slate-700 mb-2 block">🖼️ Thumbnail URL</label>
                       <input type="url" value={recordingThumbnailUrl} onChange={e => setRecordingThumbnailUrl(e.target.value)}
