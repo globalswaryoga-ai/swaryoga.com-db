@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { ChevronDown, ChevronUp, LogOut, Maximize2, Minimize2, Play } from 'lucide-react';
-import SimpleVideoPlayer from '@/components/SimpleVideoPlayer';
 
 // CRITICAL: ABSOLUTE VIDEO CONTROL HIDING - NO EXCEPTIONS
 if (typeof document !== 'undefined') {
@@ -785,9 +784,15 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
   }
 
   return (
-    <SimpleVideoPlayer
-      src={playableUrl || ''}
-      className="w-full h-full"
+    <video
+      ref={videoRef}
+      className="w-full h-full bg-black"
+      autoPlay
+      muted
+      playsInline
+      crossOrigin="anonymous"
+      onContextMenu={(e) => e.preventDefault()}
+      style={{ display: 'block', width: '100%', height: '100%', backgroundColor: '#000', outline: 'none', border: 'none', cursor: 'none' } as React.CSSProperties}
     />
   );
 }
