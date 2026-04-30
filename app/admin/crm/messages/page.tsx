@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth, getLoginPath } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import { PageHeader, LoadingSpinner, AlertBox } from '@/components/admin/crm';
-import { Phone, Video, MoreVertical, Paperclip, Smile, Send, Search } from 'lucide-react';
+import { Phone, Video, MoreVertical, Paperclip, Smile, Send, Search, ChevronLeft } from 'lucide-react';
 
 interface Message {
   _id: string;
@@ -288,6 +288,9 @@ export default function MessagesPage() {
             {/* Chat Header */}
             <div className="px-6 py-4 bg-gradient-to-r from-[#075E54] to-[#128C7E] text-white flex justify-between items-center shadow-sm">
               <div className="flex items-center gap-3">
+                <button onClick={() => setSelected(null)} className="md:hidden p-2 hover:bg-[#128C7E] rounded-full transition-colors">
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
                 <div className={`${getAvatarColor(selected.leadName || 'Unknown')} w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm`}>
                   {getInitials(selected.leadName || 'Unknown')}
                 </div>
