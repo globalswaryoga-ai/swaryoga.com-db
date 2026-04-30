@@ -4,36 +4,49 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { ChevronDown, ChevronUp, LogOut, Maximize2, Minimize2, Play } from 'lucide-react';
 
-// Hide all video player controls - AGGRESSIVE
+// Hide all player controls - ONLY show minimize/maximize buttons
 if (typeof document !== 'undefined') {
   const style = document.createElement('style');
   style.textContent = `
-    /* Hide ALL video controls - webkit browsers */
+    /* Hide ALL video controls */
     video::-webkit-media-controls { display: none !important; }
     video::-webkit-media-controls-enclosure { display: none !important; }
     video::-webkit-media-controls-panel { display: none !important; }
-    video::-webkit-media-controls-play-button { display: none !important; }
-    video::-webkit-media-controls-timeline-container { display: none !important; }
-    video::-webkit-media-controls-current-time-display { display: none !important; }
-    video::-webkit-media-controls-time-remaining-display { display: none !important; }
-    video::-webkit-media-controls-timeline { display: none !important; }
-    video::-webkit-media-controls-volume-slider-container { display: none !important; }
-    video::-webkit-media-controls-volume-slider { display: none !important; }
-    video::-webkit-media-controls-mute-button { display: none !important; }
-    video::-webkit-media-controls-fullscreen-button { display: none !important; }
-    video::-webkit-media-controls-toggle-closed-captions-button { display: none !important; }
-    video::-webkit-media-controls-download-button { display: none !important; }
-    /* Hide Firefox controls */
     video::-moz-media-controls { display: none !important; }
+
+    /* Hide iframe/Bunny player controls */
+    .bunny-player { width: 100% !important; height: 100% !important; }
+    iframe[src*="bunny"], iframe[src*="cdn"] {
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    /* Fullscreen video container */
+    .video-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 50;
+    }
   `;
   style.setAttribute('data-hide-video-controls', 'true');
   document.head.appendChild(style);
 
-  // Add inline style to hide controls on all video elements
+  // Hide all video controls
   const observer = new MutationObserver(() => {
     document.querySelectorAll('video').forEach(video => {
       video.removeAttribute('controls');
       video.style.outline = 'none';
+    });
+    // Hide iframe controls
+    document.querySelectorAll('iframe').forEach(iframe => {
+      const src = iframe.src || '';
+      if (src.includes('bunny') || src.includes('cdn')) {
+        iframe.style.width = '100%';
+        iframe.style.height = '100%';
+      }
     });
   });
 
@@ -104,7 +117,7 @@ export default function ProgramLivePage() {
   const [showParticipants, setShowParticipants] = useState(true);
   const [showChat, setShowChat] = useState(true);
   const [showSidebar, setShowSidebar] = useState(false);
-  const [fullscreenMode, setFullscreenMode] = useState(false);
+  const [fullscreenMode, setFullscreenMode] = useState(true);
   const [announcement, setAnnouncement] = useState('');
   const [playerMode, setPlayerMode] = useState<'player' | 'hls'>('player');
   const [playerUrl, setPlayerUrl] = useState<string | null>(null);
@@ -627,27 +640,13 @@ export default function ProgramLivePage() {
         <div className="w-full h-full flex flex-col">
           <div className="flex-1 relative">
             {sessionView}
-            <div className="absolute top-2 sm:top-4 right-2 sm:right-4 flex gap-1 sm:gap-2 z-50 flex-wrap justify-end">
+            <div className="absolute top-2 right-2 z-50">
               <button
                 onClick={toggleFullscreen}
-                className="bg-purple-600 hover:bg-purple-500 text-white px-2 sm:px-3 py-1.5 sm:py-2 rounded font-semibold text-xs sm:text-sm flex items-center gap-1"
-                title={fullscreenMode ? 'Exit fullscreen' : 'Enter fullscreen'}
+                className="bg-purple-600 hover:bg-purple-500 text-white p-2 rounded font-semibold text-sm"
+                title="Exit fullscreen"
               >
-                {fullscreenMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />} <span className="hidden sm:inline">{fullscreenMode ? 'Minimize' : 'Maximize'}</span>
-              </button>
-              <button
-                onClick={() => setShowSidebar(!showSidebar)}
-                className="bg-purple-600 hover:bg-purple-500 text-white px-2 sm:px-3 py-1.5 sm:py-2 rounded font-semibold text-xs sm:text-sm"
-                title={showSidebar ? 'Hide sidebar' : 'Show sidebar'}
-              >
-                {showSidebar ? '📦' : '📱'}
-              </button>
-              <button
-                onClick={handleLeave}
-                className="bg-red-600 hover:bg-red-500 text-white px-2 sm:px-3 py-1.5 sm:py-2 rounded font-semibold text-xs sm:text-sm"
-                title="Leave session"
-              >
-                Exit
+                {fullscreenMode ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
               </button>
             </div>
           </div>
@@ -695,7 +694,7 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
       });
     };
 
-    video.muted = false;
+    video.muted = true;
     video.autoplay = true;
     video.playsInline = true;
     video.preload = 'auto';
