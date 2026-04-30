@@ -308,17 +308,31 @@ export default function AaharShastraRecordingsPage() {
       <header className="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
         <div className="max-w-6xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between gap-4 mb-3">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 flex-1">
               <Link
                 href="/community"
                 className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
               >
                 <ArrowLeft className="w-5 h-5 text-slate-700" />
               </Link>
-              <div>
+              <div className="flex-1">
                 <h1 className="text-2xl font-bold text-slate-900">Aahar Shastra Recordings</h1>
                 <p className="text-slate-500 text-sm">Learn about diet & nutrition</p>
               </div>
+            </div>
+            <div className="hidden sm:flex items-center gap-6 text-sm">
+              {recordings.length > 0 && (
+                <>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-emerald-600">{playlistNames.length}</div>
+                    <div className="text-xs text-slate-500">Batches</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-blue-600">{recordings.length}</div>
+                    <div className="text-xs text-slate-500">Videos</div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
           {/* URL Copy Bar */}
@@ -373,41 +387,79 @@ export default function AaharShastraRecordingsPage() {
 
         {!loading && recordings.length > 0 && (
           <>
+            {/* Info Box */}
+            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+              <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+                📚 How Batches Work
+              </h3>
+              <p className="text-sm text-blue-800">
+                Videos are organized into <strong>Batches</strong> (like "25th April" or "Batch 1"). Click on a batch to view all its videos.
+                To add videos to an existing batch, use the admin panel and select the same batch name when uploading.
+              </p>
+            </div>
+
             {/* Folder Navigation */}
             {folderNames.length > 1 && (
-              <div className="mb-6 flex flex-wrap gap-2">
-                {folderNames.map(folder => (
-                  <button
-                    key={folder}
-                    onClick={() => { setSelectedFolder(folder); setSelectedPlaylist(null); }}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                      currentFolder === folder
-                        ? 'bg-emerald-600 text-white'
-                        : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-50'
-                    }`}
-                  >
-                    {folder}
-                  </button>
-                ))}
+              <div className="mb-6">
+                <h3 className="text-sm font-semibold text-slate-600 mb-3">📁 Workshops</h3>
+                <div className="flex flex-wrap gap-2">
+                  {folderNames.map(folder => (
+                    <button
+                      key={folder}
+                      onClick={() => { setSelectedFolder(folder); setSelectedPlaylist(null); }}
+                      className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                        currentFolder === folder
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      {folder}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 
             {/* Playlist Navigation */}
-            {playlistNames.length > 1 && (
-              <div className="mb-6 flex flex-wrap gap-2">
-                {playlistNames.map(playlist => (
-                  <button
-                    key={playlist}
-                    onClick={() => setSelectedPlaylist(playlist)}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                      selectedPlaylist === playlist
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100'
-                    }`}
-                  >
-                    {playlist} ({(playlists[playlist] || []).length})
-                  </button>
-                ))}
+            {playlistNames.length > 0 && (
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-slate-700">📚 Batches ({playlistNames.length})</h3>
+                  {selectedPlaylist && (
+                    <button
+                      onClick={() => setSelectedPlaylist(null)}
+                      className="text-xs text-blue-600 hover:text-blue-700 underline"
+                    >
+                      View All
+                    </button>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {playlistNames.map(playlist => {
+                    const videoCount = (playlists[playlist] || []).length;
+                    return (
+                      <button
+                        key={playlist}
+                        onClick={() => setSelectedPlaylist(playlist)}
+                        className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                          selectedPlaylist === playlist
+                            ? 'bg-blue-600 text-white shadow-lg'
+                            : 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100'
+                        }`}
+                        title={`${videoCount} video${videoCount !== 1 ? 's' : ''}`}
+                      >
+                        {playlist}
+                        <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-bold ${
+                          selectedPlaylist === playlist
+                            ? 'bg-blue-400 text-white'
+                            : 'bg-blue-200 text-blue-800'
+                        }`}>
+                          {videoCount}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
 

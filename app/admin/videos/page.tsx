@@ -892,6 +892,21 @@ export default function AdminVideosPage() {
       )}
 
       <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-6">
+        {/* Helpful Info Box */}
+        <div className="mb-6 bg-gradient-to-r from-blue-900/40 to-purple-900/40 border border-blue-800/50 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <div className="text-2xl flex-shrink-0">💡</div>
+            <div className="flex-1 text-sm">
+              <h3 className="font-semibold text-blue-300 mb-1">Quick Tips: Adding Videos to Batches</h3>
+              <ul className="text-blue-200/80 space-y-1 text-xs">
+                <li>✓ <strong>Add many videos to one batch:</strong> Select an existing batch from the list below, then use the "Add Video" or "Import from Bunny" buttons</li>
+                <li>✓ <strong>Same batch, different video types:</strong> Speaker playlists and Gallery playlists are created together for each batch</li>
+                <li>✓ <strong>Quick import:</strong> Click "View Videos" next to a batch, then "Import from Bunny" to add multiple videos at once</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
         {/* Tab Switcher + View Toggle */}
         <div className="flex items-center gap-3 mb-6 flex-wrap">
           <div className="flex bg-gray-900 border border-gray-800 rounded-xl p-1">
@@ -1203,8 +1218,14 @@ export default function AdminVideosPage() {
                   ) : playlistVideos.length === 0 ? (
                     <div className="p-8 text-center">
                       <Video className="w-10 h-10 mx-auto text-gray-700 mb-2" />
-                      <p className="text-gray-500 text-sm">No videos in this playlist yet</p>
-                      <p className="text-gray-600 text-xs mt-1">Use &quot;Add Video&quot; to manually add, or &quot;Browse Bunny&quot; to import from Bunny Stream</p>
+                      <p className="text-gray-500 text-sm font-semibold mb-1">Empty Batch - Add Videos Now!</p>
+                      <p className="text-gray-600 text-xs mb-4">This batch has no videos yet. You can add videos in two ways:</p>
+                      <div className="bg-gray-800/40 border border-gray-700/50 rounded-lg p-4 mb-4 text-left">
+                        <div className="space-y-2 text-xs text-gray-300">
+                          <div><strong>Option 1 - Upload from Bunny:</strong> Click "Import from Bunny" and select multiple videos at once</div>
+                          <div><strong>Option 2 - Add Manually:</strong> Click "Add Video Manually" to enter video URLs and details one by one</div>
+                        </div>
+                      </div>
                       <div className="flex items-center justify-center gap-3 mt-4">
                         <button onClick={() => openAddVideo(selectedPlaylist.videoType === 'gallery' ? 'gallery' : 'speaker')}
                           className="text-xs bg-yellow-500 hover:bg-yellow-400 text-gray-900 font-semibold px-4 py-2 rounded-lg transition flex items-center gap-1.5">
