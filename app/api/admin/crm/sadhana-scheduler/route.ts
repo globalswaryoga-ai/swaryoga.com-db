@@ -140,8 +140,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Generate programSlug from name (used by live page and bot)
+    const programSlug = body.name
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-');
+
     const newSchedule = new Model({
       name: body.name,
+      slug: programSlug,
+      programSlug: programSlug,
       botName: body.botName || 'Swar Sadhana',
       videoUrl: body.videoUrl,
       videoDuration: body.videoDuration || 40,
