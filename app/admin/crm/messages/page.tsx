@@ -313,7 +313,7 @@ export default function MessagesPage() {
             </div>
 
             {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[url('data:image/svg+xml,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100\" height=\"100\"><defs><pattern id=\"pattern\" x=\"0\" y=\"0\" width=\"100\" height=\"100\" patternUnits=\"userSpaceOnUse\"><path d=\"M0,0 Q25,25 50,0 T100,0\" fill=\"none\" stroke=\"%23d4d4d4\" stroke-width=\"0.5\" opacity=\"0.1\"/></pattern></defs><rect width=\"100\" height=\"100\" fill=\"%23ECE5DD\"/><rect width=\"100\" height=\"100\" fill=\"url(%23pattern)\"/></svg>')]">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4" style={{ backgroundColor: '#ECE5DD' }}>
               {selected.messages.length === 0 ? (
                 <div className="flex items-center justify-center h-full text-gray-400">
                   <p>No messages yet. Start the conversation!</p>
