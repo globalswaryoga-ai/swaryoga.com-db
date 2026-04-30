@@ -784,15 +784,26 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
   }
 
   return (
-    <video
-      ref={videoRef}
-      className="w-full h-full bg-black"
-      autoPlay
-      muted
-      playsInline
-      crossOrigin="anonymous"
-      onContextMenu={(e) => e.preventDefault()}
-      style={{ display: 'block', width: '100%', height: '100%', backgroundColor: '#000', outline: 'none', border: 'none', cursor: 'none' } as React.CSSProperties}
-    />
+    <div style={{ position: 'relative', width: '100%', height: '100%', backgroundColor: '#000' }}>
+      <video
+        ref={videoRef}
+        autoPlay
+        muted
+        playsInline
+        crossOrigin="anonymous"
+        style={{ display: 'block', width: '100%', height: '100%', backgroundColor: '#000', outline: 'none', border: 'none' } as React.CSSProperties}
+      />
+      {/* Transparent overlay blocks ALL mouse events — Chrome cannot show its native controls */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 0, left: 0, right: 0, bottom: 0,
+          zIndex: 10,
+          cursor: 'none',
+          backgroundColor: 'transparent',
+        }}
+        onContextMenu={(e) => e.preventDefault()}
+      />
+    </div>
   );
 }
