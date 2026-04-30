@@ -459,7 +459,7 @@ try {
                       rel="noopener noreferrer"
                       className="text-purple-400 hover:text-purple-300 text-sm break-all"
                     >
-                      {schedule.videoUrl.substring(0, 50)}...
+                      {schedule.videoUrl?.substring(0, 50) || '—'}...
                     </a>
                   </div>
                   {schedule.zoomLink && (
@@ -471,7 +471,7 @@ try {
                         rel="noopener noreferrer"
                         className="text-blue-400 hover:text-blue-300 text-sm break-all"
                       >
-                        {schedule.zoomLink.substring(0, 50)}...
+                        {schedule.zoomLink?.substring(0, 50) || '—'}...
                       </a>
                     </div>
                   )}
