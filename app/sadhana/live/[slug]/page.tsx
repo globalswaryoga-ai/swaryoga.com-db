@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { ChevronDown, ChevronUp, LogOut, Maximize2, Minimize2, Play } from 'lucide-react';
-import HLSVideoPlayer from '@/app/components/HLSVideoPlayer';
+import HLSVideoPlayer from '@/components/HLSVideoPlayer';
 
 // CRITICAL: Hide all video controls - FINAL SOLUTION
 if (typeof document !== 'undefined') {
