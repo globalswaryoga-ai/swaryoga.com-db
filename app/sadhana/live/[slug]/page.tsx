@@ -5,86 +5,79 @@ import { useParams } from 'next/navigation';
 import { ChevronDown, ChevronUp, LogOut, Maximize2, Minimize2, Play } from 'lucide-react';
 import HLSVideoPlayer from '@/components/HLSVideoPlayer';
 
-// CRITICAL: Hide all video controls - FINAL SOLUTION
+// CRITICAL: ABSOLUTE VIDEO CONTROL HIDING - NO EXCEPTIONS
 if (typeof document !== 'undefined') {
-  const style = document.createElement('style');
-  style.textContent = `
-    /* === FINAL AGGRESSIVE VIDEO CONTROL HIDING === */
+  const styleId = 'sadhana-video-no-controls';
+  if (!document.getElementById(styleId)) {
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = `
+      /* === ABSOLUTE FINAL VIDEO CONTROL HIDING - MAXIMUM PRIORITY === */
 
-    /* Base video element - no borders, no outline, no pointer events on controls */
-    video {
-      display: block !important;
-      width: 100% !important;
-      height: 100% !important;
-      outline: none !important;
-      border: none !important;
-      background: #000 !important;
-    }
+      video {
+        display: block !important;
+        width: 100% !important;
+        height: 100% !important;
+        outline: none !important;
+        border: none !important;
+        background: #000 !important;
+        cursor: none !important;
+      }
 
-    /* WEBKIT: All media control components must be completely hidden */
-    video::-webkit-media-controls {
-      display: none !important;
-      visibility: hidden !important;
-      height: 0 !important;
-      pointer-events: none !important;
-    }
-    video::-webkit-media-controls-enclosure {
-      display: none !important;
-      visibility: hidden !important;
-      height: 0 !important;
-    }
-    video::-webkit-media-controls-panel {
-      display: none !important;
-      visibility: hidden !important;
-      height: 0 !important;
-      opacity: 0 !important;
-    }
-    video::-webkit-media-controls-play-button { display: none !important; }
-    video::-webkit-media-controls-timeline-container { display: none !important; }
-    video::-webkit-media-controls-current-time-display { display: none !important; }
-    video::-webkit-media-controls-time-remaining-display { display: none !important; }
-    video::-webkit-media-controls-timeline { display: none !important; }
-    video::-webkit-media-controls-volume-slider-container { display: none !important; }
-    video::-webkit-media-controls-volume-slider { display: none !important; }
-    video::-webkit-media-controls-mute-button { display: none !important; }
-    video::-webkit-media-controls-fullscreen-button { display: none !important; }
-    video::-webkit-media-controls-download-button { display: none !important; }
-    video::-webkit-media-controls-toggle-closed-captions-button { display: none !important; }
+      /* WEBKIT BROWSERS */
+      video::-webkit-media-controls { display: none !important; visibility: hidden !important; height: 0 !important; width: 0 !important; pointer-events: none !important; }
+      video::-webkit-media-controls-enclosure { display: none !important; }
+      video::-webkit-media-controls-panel { display: none !important; }
+      video::-webkit-media-controls-play-button { display: none !important; }
+      video::-webkit-media-controls-timeline-container { display: none !important; }
+      video::-webkit-media-controls-current-time-display { display: none !important; }
+      video::-webkit-media-controls-time-remaining-display { display: none !important; }
+      video::-webkit-media-controls-timeline { display: none !important; }
+      video::-webkit-media-controls-volume-slider-container { display: none !important; }
+      video::-webkit-media-controls-volume-slider { display: none !important; }
+      video::-webkit-media-controls-mute-button { display: none !important; }
+      video::-webkit-media-controls-fullscreen-button { display: none !important; }
+      video::-webkit-media-controls-download-button { display: none !important; }
+      video::-webkit-media-controls-toggle-closed-captions-button { display: none !important; }
+      video::-webkit-media-controls-seek-backward-button { display: none !important; }
+      video::-webkit-media-controls-seek-forward-button { display: none !important; }
+      video::-webkit-media-controls-media-button { display: none !important; }
 
-    /* FIREFOX: Hide all media controls */
-    video::-moz-media-controls {
-      display: none !important;
-      visibility: hidden !important;
-      height: 0 !important;
-    }
-    video::-moz-media-controls-panel { display: none !important; }
-  `;
-  style.setAttribute('data-final-video-control-hide', 'true');
-  document.head.appendChild(style);
+      /* FIREFOX */
+      video::-moz-media-controls { display: none !important; visibility: hidden !important; height: 0 !important; }
+      video::-moz-media-controls-panel { display: none !important; }
+      video::-moz-media-controls-play-button { display: none !important; }
+      video::-moz-media-controls-timeline { display: none !important; }
+      video::-moz-media-controls-volume-slider { display: none !important; }
+      video::-moz-media-controls-mute-button { display: none !important; }
+      video::-moz-media-controls-fullscreen-button { display: none !important; }
 
-  /* AGGRESSIVE JAVASCRIPT ENFORCEMENT */
+      /* UNIVERSAL */
+      video { user-select: none !important; -webkit-user-select: none !important; }
+    `;
+    document.head.appendChild(style);
+  }
+
+  /* AGGRESSIVE JAVASCRIPT ENFORCEMENT - RUN CONTINUOUSLY */
   const enforceNoControls = () => {
-    document.querySelectorAll('video').forEach(video => {
-      /* Remove all control-related attributes */
+    document.querySelectorAll('video').forEach((video: any) => {
       video.removeAttribute('controls');
       video.removeAttribute('controlsList');
-
-      /* Force styles */
       video.style.outline = 'none';
       video.style.border = 'none';
       video.style.width = '100%';
       video.style.height = '100%';
       video.style.display = 'block';
+      video.style.cursor = 'none';
     });
   };
 
-  /* Run immediately and on every DOM change */
   enforceNoControls();
-  const observer = new MutationObserver(enforceNoControls);
-  observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['controls', 'controlsList'] });
-
-  /* Also run every 500ms as fallback */
-  setInterval(enforceNoControls, 500);
+  if (typeof window !== 'undefined') {
+    const observer = new MutationObserver(enforceNoControls);
+    observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
+    setInterval(enforceNoControls, 200);
+  }
 }
 
 interface Participant { name: string; joinedAt: string; }
