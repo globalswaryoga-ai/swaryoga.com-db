@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { ChevronDown, ChevronUp, LogOut, Maximize2, Minimize2, Play } from 'lucide-react';
-import HLSVideoPlayer from '@/components/HLSVideoPlayer';
+import SimpleVideoPlayer from '@/components/SimpleVideoPlayer';
 
 // CRITICAL: ABSOLUTE VIDEO CONTROL HIDING - NO EXCEPTIONS
 if (typeof document !== 'undefined') {
@@ -785,28 +785,9 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
   }
 
   return (
-    <HLSVideoPlayer
+    <SimpleVideoPlayer
       src={playableUrl || ''}
-      autoPlay={true}
-      muted={true}
-      isLiveStream={session?.status === 'live'}
-      className="w-full h-full bg-black"
-      onError={(errorMsg) => {
-        console.error('HLS Player error:', errorMsg);
-        setError(errorMsg);
-      }}
-      onLoadedMetadata={() => {
-        console.log('Video metadata loaded');
-      }}
-      onPlay={() => {
-        setVideoStarted(true);
-      }}
-      onPause={() => {
-        console.log('Video paused');
-      }}
-      onMinimizeMaximize={(isMinimized) => {
-        console.log(isMinimized ? 'Video minimized' : 'Video maximized');
-      }}
+      className="w-full h-full"
     />
   );
 }
