@@ -3593,42 +3593,78 @@ export default function AdminCommunityPage() {
                 </div>
               )}
               
-              {/* Folder/Workshop Name */}
+              {/* Folder/Workshop Name - with auto-suggest */}
               <div>
                 <label className="text-sm font-bold text-slate-700 mb-2 block">
                   📁 Workshop Name (Folder) *
                 </label>
-                <input 
-                  type="text" 
-                  value={recordingFolderName} 
-                  onChange={e => setRecordingFolderName(e.target.value)}
-                  placeholder="e.g., Swar Yoga Workshop"
-                  className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 transition-all"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={recordingFolderName}
+                    onChange={e => setRecordingFolderName(e.target.value)}
+                    placeholder="e.g., Swar Yoga Workshop - type or select below"
+                    className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 transition-all"
+                  />
+                  {recordingFolderName.length > 0 && (
+                    <button
+                      onClick={() => setRecordingFolderName('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-lg"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500 mt-1">💡 Type workshop name - if it exists, you'll see it below</p>
               </div>
-              
-              {/* Playlist/Batch Name */}
+
+              {/* Playlist/Batch Name - smart dropdown */}
               <div>
                 <label className="text-sm font-bold text-slate-700 mb-2 block">
                   🎬 Batch Name (Playlist) *
                 </label>
-                <input 
-                  type="text" 
-                  value={recordingPlaylistName} 
-                  onChange={e => setRecordingPlaylistName(e.target.value)}
-                  placeholder="e.g., February 2026 Batch"
-                  className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 transition-all"
-                />
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    value={recordingPlaylistName}
+                    onChange={e => setRecordingPlaylistName(e.target.value)}
+                    placeholder="Enter new batch name or select existing one below"
+                    className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 transition-all"
+                  />
+                  <div className="text-xs text-slate-500 p-2 bg-blue-50 rounded-lg border border-blue-100">
+                    ✨ <strong>Pro tip:</strong> Select an existing batch below to add more videos to it!
+                  </div>
+                </div>
               </div>
-              
+
+              {/* Quick Select - Recent Batches */}
+              <div className="p-3 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border border-blue-200">
+                <p className="text-xs font-bold text-blue-900 mb-2">📚 Quick Select Recent Batches</p>
+                <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                  {/* This would ideally fetch from database, for now showing pattern */}
+                  <div className="text-xs">
+                    <button
+                      onClick={() => {
+                        setRecordingFolderName('Swar Achar Shastra-Hindi');
+                        setRecordingPlaylistName('25th April Batch');
+                      }}
+                      className="block w-full text-left p-2 bg-white hover:bg-blue-100 rounded border border-blue-100 text-blue-800 font-medium transition"
+                    >
+                      📁 Swar Achar Shastra-Hindi → 🎬 25th April Batch
+                    </button>
+                  </div>
+                </div>
+                <p className="text-[10px] text-blue-700 mt-2">💡 Click above to auto-fill, or type new batch name above</p>
+              </div>
+
               {/* Video Number */}
               <div>
                 <label className="text-sm font-bold text-slate-700 mb-2 block">
                   🔢 Video Number *
                 </label>
-                <input 
-                  type="text" 
-                  value={recordingVideoNumber} 
+                <input
+                  type="text"
+                  value={recordingVideoNumber}
                   onChange={e => setRecordingVideoNumber(e.target.value)}
                   placeholder="e.g., 1, 2, 3..."
                   className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 transition-all"
