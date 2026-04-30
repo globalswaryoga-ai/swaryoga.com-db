@@ -55,7 +55,11 @@ export default function OBSPlayerPage() {
   // Poll session state every 5 seconds
   const fetchState = useCallback(async () => {
     try {
-      const res = await fetch(`/api/sadhana/live/${slug}/state`);
+      const res = await fetch(`/api/sadhana/live/${slug}/state`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: 'obs-bot' }),
+      });
       if (!res.ok) return;
       const data = await res.json();
       const sessionStatus = data.session?.status || 'waiting';
