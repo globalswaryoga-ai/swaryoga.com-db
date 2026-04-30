@@ -404,15 +404,18 @@ export default function ProgramLivePage() {
       };
       const playerUrlWithParams = isValidUrl ? addParams(playableUrl, 'autoplay=true', 'controls=false') : '';
       sessionView = isValidUrl ? (
-        <div className="relative w-full h-full overflow-hidden bg-black">
+        <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', backgroundColor: '#000' }}>
           <iframe
             src={playerUrlWithParams}
-            className="w-full h-full"
+            style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
             allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
             sandbox="allow-scripts allow-same-origin allow-presentation"
             loading="eager"
-            style={{ border: 'none' }}
             title="Video player"
+          />
+          {/* Overlay blocks all mouse events — prevents iframe controls from appearing */}
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10, cursor: 'none' }}
+            onContextMenu={(e) => e.preventDefault()}
           />
         </div>
       ) : (
