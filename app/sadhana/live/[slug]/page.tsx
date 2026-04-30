@@ -397,26 +397,31 @@ export default function ProgramLivePage() {
         <HLSPlayer url={playerUrl} videoRef={videoRef} offsetSeconds={session.videoOffsetSeconds} />
       );
     } else {
-      const isValidUrl = playableUrl && playableUrl.startsWith('http');
-      const addParams = (url: string, ...params: string[]) => {
-        const sep = url.includes('?') ? '&' : '?';
-        return url + sep + params.join('&');
-      };
-      const playerUrlWithParams = isValidUrl ? addParams(playableUrl, 'autoplay=true', 'controls=false') : '';
-      sessionView = isValidUrl ? (
+      // Convert Bunny player embed URL to direct HLS stream URL
+      // player.mediadelivery.net/play/{libraryId}/{videoId} → vz-{libraryId}.b-cdn.net/{videoId}/playlist.m3u8
+      let hlsUrl = '';
+      if (playableUrl) {
+        const bunnyMatch = playableUrl.match(/mediadelivery\.net\/play\/(\d+)\/([a-f0-9-]+)/i);
+        if (bunnyMatch) {
+          hlsUrl = `https://vz-${bunnyMatch[1]}.b-cdn.net/${bunnyMatch[2]}/playlist.m3u8`;
+        } else if (playableUrl.includes('.m3u8') || playableUrl.includes('playlist')) {
+          hlsUrl = playableUrl;
+        }
+      }
+
+      sessionView = hlsUrl ? (
+        <HLSPlayer url={hlsUrl} videoRef={videoRef} offsetSeconds={session.videoOffsetSeconds} />
+      ) : playableUrl ? (
         <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', backgroundColor: '#000' }}>
           <iframe
-            src={playerUrlWithParams}
+            src={playableUrl}
             style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
             allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
             sandbox="allow-scripts allow-same-origin allow-presentation"
             loading="eager"
             title="Video player"
           />
-          {/* Overlay blocks all mouse events — prevents iframe controls from appearing */}
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10, cursor: 'none' }}
-            onContextMenu={(e) => e.preventDefault()}
-          />
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10 }} />
         </div>
       ) : (
         <div className="w-full h-full flex items-center justify-center">
