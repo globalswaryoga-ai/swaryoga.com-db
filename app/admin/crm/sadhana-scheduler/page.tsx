@@ -371,7 +371,7 @@ try {
                       </span>
                     </div>
                     <p className="text-gray-400 text-sm">
-                      {frequencyLabel(schedule.schedule.repeatFrequency)} repetition
+                      {frequencyLabel(schedule.schedule?.repeatFrequency)} repetition
                     </p>
                   </div>
 
@@ -432,20 +432,20 @@ try {
                   <div>
                     <p className="text-gray-500 text-xs uppercase mb-1">Times</p>
                     <p className="text-white font-mono">
-                      {schedule.schedule.times.join(' & ')}
+                      {schedule.schedule?.times?.join(' & ') || '—'}
                     </p>
                   </div>
                   <div>
                     <p className="text-gray-500 text-xs uppercase mb-1">Days</p>
                     <p className="text-white">
-                      {schedule.schedule.days
-                        .map((d) => daysNames[d])
-                        .join(', ')}
+                      {schedule.schedule?.days
+                        ?.map((d) => daysNames[d])
+                        .join(', ') || '—'}
                     </p>
                   </div>
                   <div>
                     <p className="text-gray-500 text-xs uppercase mb-1">Timezone</p>
-                    <p className="text-white">{schedule.schedule.timezone}</p>
+                    <p className="text-white">{schedule.schedule?.timezone || '—'}</p>
                   </div>
                 </div>
 
