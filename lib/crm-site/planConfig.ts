@@ -14,11 +14,11 @@ export type PlanTier = 'free' | 'basic' | 'starter' | 'growth' | 'professional';
 export const PLAN_ORDER: PlanTier[] = ['free', 'basic', 'starter', 'growth', 'professional'];
 
 export const PLAN_NAMES: Record<PlanTier, string> = {
-  free: 'Free',
+  free: 'Free Trial',
   basic: 'Basic',
-  starter: 'Starter',
-  growth: 'Growth',
-  professional: 'Professional',
+  starter: 'Copper',
+  growth: 'Silver',
+  professional: 'Golden',
 };
 
 // ============================================================================
@@ -32,11 +32,11 @@ export const PLAN_PRICING: Record<PlanTier, {
   annual: number;
   monthlyUSD: number;
 }> = {
-  free:         { monthly: null,  quarterly: 0,       sixMonth: 0,      annual: 0,       monthlyUSD: 0 },
-  basic:        { monthly: 499,   quarterly: 1299,    sixMonth: 2400,   annual: 4500,    monthlyUSD: 8 },
-  starter:      { monthly: null,  quarterly: 2697,    sixMonth: 4800,   annual: 9990,    monthlyUSD: 14 },
-  growth:       { monthly: null,  quarterly: 5397,    sixMonth: 9600,   annual: 19990,   monthlyUSD: 28 },
-  professional: { monthly: null,  quarterly: 10797,   sixMonth: 19200,  annual: 39990,   monthlyUSD: 56 },
+  free:         { monthly: 0,    quarterly: 0,      sixMonth: 0,       annual: 0,       monthlyUSD: 0 },
+  basic:        { monthly: 499,  quarterly: 1350,   sixMonth: 2400,    annual: 4500,    monthlyUSD: 6 },
+  starter:      { monthly: 999,  quarterly: 2700,   sixMonth: 4800,    annual: 9000,    monthlyUSD: 12 },
+  growth:       { monthly: 1999, quarterly: 5400,   sixMonth: 9500,    annual: 18000,   monthlyUSD: 24 },
+  professional: { monthly: 2999, quarterly: 7999,   sixMonth: 14100,   annual: 25999,   monthlyUSD: 36 },
 };
 
 // ============================================================================
@@ -67,9 +67,9 @@ export const PLAN_LIMITS: Record<PlanTier, PlanLimits> = {
     maxCommunities: 1,
     maxAutomationWorkflows: 1,
   },
-  basic: {
-    maxLeads: 2000,
-    maxUsers: 2,
+  basic: {        // Basic ₹499 - 1 user
+    maxLeads: 1000,
+    maxUsers: 1,
     maxChatbotFlows: 5,
     storageQuotaMB: 500,
     maxBroadcastsPerDay: 5,
@@ -78,7 +78,7 @@ export const PLAN_LIMITS: Record<PlanTier, PlanLimits> = {
     maxCommunities: 2,
     maxAutomationWorkflows: 5,
   },
-  starter: {
+  starter: {      // Copper ₹999 - 3 users
     maxLeads: 5000,
     maxUsers: 3,
     maxChatbotFlows: 10,
@@ -89,10 +89,10 @@ export const PLAN_LIMITS: Record<PlanTier, PlanLimits> = {
     maxCommunities: 5,
     maxAutomationWorkflows: 15,
   },
-  growth: {
-    maxLeads: 25000,
+  growth: {       // Silver ₹1999 - 10 users
+    maxLeads: 15000,
     maxUsers: 10,
-    maxChatbotFlows: 9999,
+    maxChatbotFlows: 20,
     storageQuotaMB: 5000,
     maxBroadcastsPerDay: 100,
     maxEmailsPerMonth: 25000,
@@ -100,12 +100,12 @@ export const PLAN_LIMITS: Record<PlanTier, PlanLimits> = {
     maxCommunities: 20,
     maxAutomationWorkflows: 50,
   },
-  professional: {
-    maxLeads: 999999,
-    maxUsers: 999,
+  professional: { // Golden ₹2999 - 25 users
+    maxLeads: 50000,
+    maxUsers: 25,
     maxChatbotFlows: 9999,
-    storageQuotaMB: 50000,
-    maxBroadcastsPerDay: 999,
+    storageQuotaMB: 20000,
+    maxBroadcastsPerDay: 500,
     maxEmailsPerMonth: 100000,
     maxLandingPages: 999,
     maxCommunities: 999,

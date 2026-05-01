@@ -25,12 +25,13 @@ function getCrmBillingWebhookUrl(request: NextRequest): string {
   return `${url.origin}/api/crm-site/billing/webhook`;
 }
 
-const PLAN_PRICES: Record<string, { quarterly: number; halfyearly: number; annual: number; name: string }> = {
-  free:         { quarterly: 0,     halfyearly: 0,     annual: 0,      name: 'Free Plan' },
-  basic:        { quarterly: 2697,  halfyearly: 5094,  annual: 9590,   name: 'Basic Plan' },
-  starter:      { quarterly: 5397,  halfyearly: 10194, annual: 19190,  name: 'Starter Plan' },
-  growth:       { quarterly: 13497, halfyearly: 25494, annual: 47990,  name: 'Growth Plan' },
-  professional: { quarterly: 26997, halfyearly: 50994, annual: 95990,  name: 'Professional Plan' },
+const PLAN_PRICES: Record<string, { monthly: number; quarterly: number; halfyearly: number; annual: number; name: string }> = {
+  free:         { monthly: 0,    quarterly: 0,     halfyearly: 0,     annual: 0,      name: 'Free Trial' },
+  basic:        { monthly: 499,  quarterly: 1350,  halfyearly: 2400,  annual: 4500,   name: 'Basic' },
+  starter:      { monthly: 999,  quarterly: 2700,  halfyearly: 4800,  annual: 9000,   name: 'Copper' },
+  growth:       { monthly: 1999, quarterly: 5400,  halfyearly: 9500,  annual: 18000,  name: 'Silver' },
+  professional: { monthly: 2999, quarterly: 7999,  halfyearly: 14100, annual: 25999,  name: 'Golden' },
+  enterprise:   { monthly: 4999, quarterly: 12999, halfyearly: 25000, annual: 45000,  name: 'Diamond' },
 };
 
 // Storage pricing: Free=₹30/500MB min, Basic=₹50/1GB min, Starter+=₹35/GB

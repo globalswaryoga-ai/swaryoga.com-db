@@ -35,15 +35,15 @@ const ALL_FEATURES = [
   'API Access & Tally Integration',
 ];
 
-/* ─── Plans — only leads & users differ. Professional = unlimited ─── */
-type BillingCycle = '3mo' | '6mo' | '12mo';
+/* ─── Plans with exact pricing per billing cycle ─── */
+type BillingCycle = '1mo' | '3mo' | '6mo' | '12mo';
 
 const PLANS = [
   {
     tier: 'trial',
     name: 'Free Trial',
     desc: '15 days free • Full access • No credit card',
-    monthlyINR: 0, monthlyUSD: 0,
+    prices: { '1mo': 0, '3mo': 0, '6mo': 0, '12mo': 0 },
     leads: '500',
     users: '1',
     chatbots: '5',
@@ -54,8 +54,8 @@ const PLANS = [
   {
     tier: 'basic',
     name: 'Basic',
-    desc: 'Perfect for solo users getting started.',
-    monthlyINR: 499, monthlyUSD: 6,
+    desc: 'Perfect for solo users.',
+    prices: { '1mo': 499, '3mo': 1350, '6mo': 2400, '12mo': 4500 },
     leads: '1,000',
     users: '1',
     chatbots: '5',
@@ -64,10 +64,10 @@ const PLANS = [
     badge: '',
   },
   {
-    tier: 'copper',
+    tier: 'starter',
     name: 'Copper',
     desc: 'For small teams — 3 users.',
-    monthlyINR: 999, monthlyUSD: 12,
+    prices: { '1mo': 999, '3mo': 2700, '6mo': 4800, '12mo': 9000 },
     leads: '5,000',
     users: '3',
     chatbots: '10',
@@ -76,10 +76,10 @@ const PLANS = [
     badge: '⭐ Most Popular',
   },
   {
-    tier: 'silver',
+    tier: 'growth',
     name: 'Silver',
     desc: 'Growing teams — 10 users.',
-    monthlyINR: 1999, monthlyUSD: 24,
+    prices: { '1mo': 1999, '3mo': 5400, '6mo': 9500, '12mo': 18000 },
     leads: '15,000',
     users: '10',
     chatbots: '20',
@@ -87,10 +87,10 @@ const PLANS = [
     highlight: false,
   },
   {
-    tier: 'golden',
+    tier: 'professional',
     name: 'Golden',
     desc: 'Larger teams — 25 users.',
-    monthlyINR: 2999, monthlyUSD: 36,
+    prices: { '1mo': 2999, '3mo': 7999, '6mo': 14100, '12mo': 25999 },
     leads: '50,000',
     users: '25',
     chatbots: 'Unlimited',
@@ -98,10 +98,10 @@ const PLANS = [
     highlight: false,
   },
   {
-    tier: 'diamond',
+    tier: 'enterprise',
     name: 'Diamond',
     desc: 'Enterprise — 50 users. No limits.',
-    monthlyINR: 49999, monthlyUSD: 599,
+    prices: { '1mo': 4999, '3mo': 12999, '6mo': 25000, '12mo': 45000 },
     leads: 'Unlimited',
     users: '50',
     chatbots: 'Unlimited',
@@ -112,10 +112,11 @@ const PLANS = [
 ];
 
 /* Billing cycles */
-const CYCLES: { id: BillingCycle; label: string; months: number; discount: number }[] = [
-  { id: '3mo', label: '3 Months', months: 3, discount: 0 },
-  { id: '6mo', label: '6 Months', months: 6, discount: 10 },
-  { id: '12mo', label: '1 Year', months: 12, discount: 20 },
+const CYCLES: { id: BillingCycle; label: string }[] = [
+  { id: '1mo', label: 'Monthly' },
+  { id: '3mo', label: '3 Months' },
+  { id: '6mo', label: '6 Months' },
+  { id: '12mo', label: '1 Year' },
 ];
 
 /* Storage */
@@ -211,9 +212,8 @@ export default function PricingPage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5">
             {PLANS.map((plan) => {
-              const baseMonthly = isINR ? plan.monthlyINR : plan.monthlyUSD;
-              const discounted = Math.round(baseMonthly * (1 - activeCycle.discount / 100));
-              const totalBill = discounted * activeCycle.months;
+              const totalBill = isINR ? (plan.prices as any)[cycle] : Math.round((plan.prices as any)[cycle] / 83);
+              const monthlyEquiv = cycle === '1mo' ? totalBill : Math.round(totalBill / (cycle === '3mo' ? 3 : cycle === '6mo' ? 6 : 12));
 
               return (
                 <div
@@ -243,23 +243,19 @@ export default function PricingPage() {
                   <p className="text-sm text-gray-500 mt-1 min-h-[40px]">{plan.desc}</p>
 
                   <div className="mt-4 mb-4">
-                    {baseMonthly === 0 ? (
+                    {totalBill === 0 ? (
                       <span className="text-3xl font-bold text-gray-900">Free</span>
                     ) : (
                       <>
                         <span className="text-3xl font-bold text-gray-900">
-                          {sym}{fmt(discounted)}
+                          {sym}{fmt(cycle === '1mo' ? totalBill : monthlyEquiv)}
                         </span>
                         <span className="text-sm text-gray-500 ml-1">/mo</span>
-                        {activeCycle.discount > 0 && (
-                          <p className="text-xs text-gray-400 mt-1">
-                            <span className="line-through">{sym}{fmt(baseMonthly)}</span>
-                            <span className="text-green-600 font-semibold ml-1">Save {activeCycle.discount}%</span>
+                        {cycle !== '1mo' && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            {sym}{fmt(totalBill)} billed for {cycle === '3mo' ? '3 months' : cycle === '6mo' ? '6 months' : '1 year'}
                           </p>
                         )}
-                        <p className="text-xs text-gray-500 mt-1">
-                          {sym}{fmt(totalBill)} billed for {activeCycle.months} months
-                        </p>
                       </>
                     )}
                   </div>
