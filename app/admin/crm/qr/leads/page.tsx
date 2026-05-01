@@ -93,7 +93,7 @@ export default function QRLeadsPage() {
   const modal = useModal();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [total, setTotal] = useState(0);
-  const [limit, setLimit] = useState(20);
+  const [limit, setLimit] = useState(1000); // Batch by 1K for better performance
   const [skip, setSkip] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('');

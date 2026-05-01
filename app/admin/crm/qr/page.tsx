@@ -1180,9 +1180,8 @@ export default function QRWhatsAppPage() {
   // ── Fetch messages ──
   const fetchMessages = useCallback(async (jid: string) => {
     try {
-      console.log(`[QR] Fetching messages for JID: ${jid}`);
-      const data = await bridgeCall(`/messages/${jid}`);
-      console.log(`[QR] API Response for ${jid}:`, { hasMessages: !!data?.messages, count: data?.messages?.length || 0 });
+      // Only fetch last 100 messages to improve performance
+      const data = await bridgeCall(`/messages/${jid}?limit=100`);
       if (data?.messages) {
         // Map bridge response fields to frontend MessageItem format
         const mapped = data.messages.map((m: any) => ({
@@ -1222,11 +1221,11 @@ export default function QRWhatsAppPage() {
     }
   }, [bridgeCall, connectedPhoneNumber]);
 
-  // ── Auto-refresh messages every 8s for active conversation (paused when tab hidden) ──
+  // ── Auto-refresh messages every 12s for active conversation (paused when tab hidden) ──
   const msgPollRef = useRef<NodeJS.Timeout | null>(null);
   useEffect(() => {
     if (selectedChat && status?.connected && isPageVisible) {
-      msgPollRef.current = setInterval(() => fetchMessages(selectedChat), 8000);
+      msgPollRef.current = setInterval(() => fetchMessages(selectedChat), 12000);
     } else {
       if (msgPollRef.current) { clearInterval(msgPollRef.current); msgPollRef.current = null; }
     }
