@@ -2921,8 +2921,13 @@ export default function QRWhatsAppPage() {
                   </div>
                 </div>
 
-                {/* Messages */}
-                <div ref={messengerRef} className="flex-1 overflow-y-auto p-4 space-y-2">
+                {/* Messages - WhatsApp style background */}
+                <div ref={messengerRef} className="flex-1 overflow-y-auto p-4 space-y-2" style={{
+                  backgroundImage: `url('/qr-chat-bg.svg')`,
+                  backgroundSize: '400px 400px',
+                  backgroundRepeat: 'repeat',
+                  backgroundColor: '#f5f5f5',
+                }}>
                   {messages.length === 0 && (
                     <div className="text-center text-gray-400 text-sm py-10">No messages yet</div>
                   )}
