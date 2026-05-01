@@ -1550,9 +1550,11 @@ export async function GET(req: NextRequest) {
 
           // Apply session change filter: only show messages from current phone session
           // This prevents old chats from previous QR scans from appearing
+          // NOTE: Messages are stored with timestamp in SECONDS (Unix epoch), not milliseconds
           if (resolved.phoneChangedAt) {
             const cutoffMs = new Date(resolved.phoneChangedAt).getTime();
-            queryFilter.timestamp = { $gte: cutoffMs };
+            const cutoffSeconds = Math.floor(cutoffMs / 1000);
+            queryFilter.timestamp = { $gte: cutoffSeconds };
           }
 
           const dbMessages = await QrMsg.find(queryFilter)
