@@ -2174,6 +2174,9 @@ const crmSubscriptionSchema = new mongoose.Schema({
   orderId: { type: String }, // Razorpay order ID
   invoiceIds: [{ type: String }],
 
+  // Auto-delete tracking (30-day grace period after expiry)
+  autoDeleteNotifiedDays: [{ type: Number }], // e.g. [20, 25] after warnings sent, prevents duplicate notifications
+
   // Metadata
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },

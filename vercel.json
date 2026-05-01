@@ -29,6 +29,9 @@
     "app/api/admin/crm/chatbot-actions/run/route.ts": {
       "maxDuration": 60
     },
+    "app/api/admin/crm/inactive-cleanup/run/route.ts": {
+      "maxDuration": 60
+    },
     "app/api/whatsapp/qr/webhook/route.ts": {
       "maxDuration": 60
     }
@@ -57,6 +60,10 @@
     {
       "path": "/api/crm-site/capacity",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/admin/crm/inactive-cleanup/run",
+      "schedule": "0 2 * * *"
     }
   ],
   "headers": [
