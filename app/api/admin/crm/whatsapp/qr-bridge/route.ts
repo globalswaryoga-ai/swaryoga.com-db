@@ -1444,6 +1444,8 @@ export async function GET(req: NextRequest) {
       if (sessionFiltered.filtered) {
         console.log(`[QR Bridge Proxy GET /chats] Session filter for ${userId}: ${sessionFiltered.total} total → ${sessionFiltered.visible} current-session chats`);
         data = sessionFiltered.data;
+        // Clear the phone changed flag after the first filter pass so subsequent calls show all chats
+        await clearPhoneChangedFlag(userId);
       }
 
       if (resolved.hasOwnBridge && !resolved.storedPhone) {
