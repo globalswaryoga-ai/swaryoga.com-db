@@ -112,7 +112,17 @@ async function ingestQRPayload(payload: any) {
   const bridgeSettings = bridgeUserId
     ? await CRMUserSettings.findOne({ userId: bridgeUserId }, { qrConnectedPhoneNumber: 1 }).lean()
     : null;
-  const connectedPhone = normalizeConnectedPhone(payload.connectedPhone || (bridgeSettings as any)?.qrConnectedPhoneNumber || '');
+  // connectedPhone priority:
+  // 1. Bridge sends it explicitly (added to forwardToWebhook payload)
+  // 2. Stored in CRMUserSettings after QR scan
+  // 3. For inbound messages, bridge sets `to` = our phone number (fallback)
+  const inboundFallbackPhone = !payload.fromMe && payload.to ? normalizeConnectedPhone(String(payload.to)) : '';
+  const connectedPhone = normalizeConnectedPhone(
+    payload.connectedPhone ||
+    (bridgeSettings as any)?.qrConnectedPhoneNumber ||
+    inboundFallbackPhone ||
+    ''
+  );
 
   let created = 0;
   let skippedInvalidPhone = 0;

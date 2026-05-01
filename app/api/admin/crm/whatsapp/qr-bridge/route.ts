@@ -1005,10 +1005,13 @@ export async function POST(req: NextRequest) {
     // After a new QR scan, keep only chats whose activity is newer than the phone-change timestamp.
     // This prevents stale chats from the previously scanned number from leaking into the tenant inbox.
     if (decodedPath === '/chats') {
+      const rawBridgeData = data; // preserve unfiltered bridge data for MongoDB sync
       const sessionFiltered = applySessionChangeFilter(data, resolved.phoneChangedAt);
       if (sessionFiltered.filtered) {
         console.log(`[QR Bridge Proxy POST /chats] Session filter for ${userId}: ${sessionFiltered.total} total → ${sessionFiltered.visible} current-session chats`);
         data = sessionFiltered.data;
+        // Clear the phone changed flag after the first filter pass so subsequent calls show all chats
+        await clearPhoneChangedFlag(userId);
       }
 
       if (resolved.hasOwnBridge && !resolved.storedPhone) {
@@ -1018,12 +1021,16 @@ export async function POST(req: NextRequest) {
         }
         data = getUnverifiedOwnBridgeResponse(data);
       } else if (resolved.hasOwnBridge && resolved.storedPhone) {
-        const bridgeChats = getChatArray(data).filter(hasVisibleChatActivity);
-        if (bridgeChats.length > 0) {
-          await syncMongoSessionChats(userId, resolved.storedPhone, bridgeChats);
+        // Sync the FULL unfiltered bridge chat list to MongoDB so we don't delete real chats
+        const allBridgeChats = getChatArray(rawBridgeData).filter(hasVisibleChatActivity);
+        const filteredBridgeChats = getChatArray(data).filter(hasVisibleChatActivity);
+        if (allBridgeChats.length > 0) {
+          await syncMongoSessionChats(userId, resolved.storedPhone, allBridgeChats);
+        }
+        if (filteredBridgeChats.length > 0) {
           data = data?.chats
-            ? { ...data, chats: bridgeChats, source: data?.source || 'bridge_current_session' }
-            : { chats: bridgeChats, source: 'bridge_current_session' };
+            ? { ...data, chats: filteredBridgeChats, source: data?.source || 'bridge_current_session' }
+            : { chats: filteredBridgeChats, source: 'bridge_current_session' };
         } else {
           const mongoChats = await getMongoSessionChats(userId, resolved.storedPhone);
           if (mongoChats.length > 0) {
@@ -1098,6 +1105,58 @@ export async function POST(req: NextRequest) {
           const emptyData = data?.chats ? { ...data, chats: [] } : [];
           return NextResponse.json({ success: true, data: emptyData }, { status: res.status });
         }
+      }
+    }
+
+    // ── OUTBOUND MESSAGE SAVE (POST /send) ──
+    // Save sent message immediately to QrWhatsAppMessage + QrWhatsAppChat so it
+    // appears in the inbox right away without waiting for the bridge webhook.
+    // The bridge webhook will also save it later — the unique messageId index deduplicates.
+    if ((decodedPath === '/send' || decodedPath === '/reply') && data?.success !== false && resolved.storedPhone && body) {
+      try {
+        const toJid = String(body.to || body.chatId || body.jid || '').trim();
+        const messageText = String(body.message || body.text || body.caption || '').trim();
+        const sentMsgId = String(data?.messageId || data?.id || data?.key?.id || '').trim();
+        if (toJid && (messageText || body.media || body.hasMedia)) {
+          const QrMsg = getQrWhatsAppMessage();
+          const QrChat = getQrWhatsAppChat();
+          const chatJid = toJid.includes('@') ? toJid : `${toJid.replace(/\D/g, '')}@s.whatsapp.net`;
+          const nowSeconds = Math.floor(Date.now() / 1000);
+          const msgFilter: any = { userId, connectedPhone: resolved.storedPhone, chatJid };
+          if (sentMsgId) msgFilter.messageId = sentMsgId;
+          await QrMsg.updateOne(
+            msgFilter,
+            {
+              $set: {
+                userId, connectedPhone: resolved.storedPhone, chatJid,
+                messageId: sentMsgId || `proxy-${Date.now()}`,
+                direction: 'outbound', fromMe: true,
+                text: messageText, type: body.media ? 'media' : 'text',
+                timestamp: nowSeconds, status: 1,
+                hasMedia: !!(body.media || body.hasMedia),
+              },
+              $setOnInsert: { createdAt: new Date() },
+            },
+            { upsert: true }
+          );
+          await QrChat.updateOne(
+            { userId, connectedPhone: resolved.storedPhone, chatJid },
+            {
+              $set: {
+                userId, connectedPhone: resolved.storedPhone, chatJid,
+                lastMessage: messageText || '[media]',
+                lastMessageTime: new Date(),
+                lastMessageFromMe: true,
+                conversationTimestamp: nowSeconds,
+              },
+              $setOnInsert: { name: toJid.split('@')[0], isGroup: chatJid.endsWith('@g.us'), unreadCount: 0, pinned: false, archived: false, profilePicUrl: '', createdAt: new Date() },
+            },
+            { upsert: true }
+          );
+          console.log(`[QR Bridge Proxy POST /send] Saved outbound message to MongoDB: ${chatJid}`);
+        }
+      } catch (saveErr) {
+        console.error('[QR Bridge Proxy POST /send] Failed to save outbound message:', (saveErr as Error).message);
       }
     }
 
@@ -1440,6 +1499,7 @@ export async function GET(req: NextRequest) {
     // ── SESSION ISOLATION (GET /chats) ──
     // Keep only chats newer than the current scan timestamp so previous-number chats stay hidden.
     if (path === '/chats') {
+      const rawBridgeData = data; // preserve unfiltered bridge data for MongoDB sync
       const sessionFiltered = applySessionChangeFilter(data, resolved.phoneChangedAt);
       if (sessionFiltered.filtered) {
         console.log(`[QR Bridge Proxy GET /chats] Session filter for ${userId}: ${sessionFiltered.total} total → ${sessionFiltered.visible} current-session chats`);
@@ -1455,12 +1515,16 @@ export async function GET(req: NextRequest) {
         }
         data = getUnverifiedOwnBridgeResponse(data);
       } else if (resolved.hasOwnBridge && resolved.storedPhone) {
-        const bridgeChats = getChatArray(data).filter(hasVisibleChatActivity);
-        if (bridgeChats.length > 0) {
-          await syncMongoSessionChats(userId, resolved.storedPhone, bridgeChats);
+        // Sync the FULL unfiltered bridge chat list to MongoDB so we don't delete real chats
+        const allBridgeChats = getChatArray(rawBridgeData).filter(hasVisibleChatActivity);
+        const filteredBridgeChats = getChatArray(data).filter(hasVisibleChatActivity);
+        if (allBridgeChats.length > 0) {
+          await syncMongoSessionChats(userId, resolved.storedPhone, allBridgeChats);
+        }
+        if (filteredBridgeChats.length > 0) {
           data = data?.chats
-            ? { ...data, chats: bridgeChats, source: data?.source || 'bridge_current_session' }
-            : { chats: bridgeChats, source: 'bridge_current_session' };
+            ? { ...data, chats: filteredBridgeChats, source: data?.source || 'bridge_current_session' }
+            : { chats: filteredBridgeChats, source: 'bridge_current_session' };
         } else {
           const mongoChats = await getMongoSessionChats(userId, resolved.storedPhone);
           if (mongoChats.length > 0) {
