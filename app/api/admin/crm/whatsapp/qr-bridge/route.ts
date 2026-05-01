@@ -1538,16 +1538,28 @@ export async function GET(req: NextRequest) {
         const connectedPhone = resolved.storedPhone || '';
         if (connectedPhone && chatJid) {
           const QrMsg = getQrWhatsAppMessage();
-          const dbMessages = await QrMsg.find({
+
+          // Build query filter: filter out old messages from before phone was changed
+          const queryFilter: any = {
             userId,
             connectedPhone,
             chatJid,
-          })
+          };
+
+          // Apply session change filter: only show messages from current phone session
+          // This prevents old chats from previous QR scans from appearing
+          if (resolved.phoneChangedAt) {
+            const cutoffMs = new Date(resolved.phoneChangedAt).getTime();
+            queryFilter.timestamp = { $gte: cutoffMs };
+          }
+
+          const dbMessages = await QrMsg.find(queryFilter)
             .sort({ timestamp: 1 })
             .limit(200)
             .lean();
           
-          console.log(`[QR Bridge Proxy] MongoDB fallback query: userId=${userId}, connectedPhone=${connectedPhone}, chatJid=${chatJid} (raw was ${chatJidRaw}) → found ${dbMessages.length} messages`);
+          const filterNote = resolved.phoneChangedAt ? ` (filtered after ${resolved.phoneChangedAt.toISOString()})` : '';
+          console.log(`[QR Bridge Proxy] MongoDB fallback query: userId=${userId}, connectedPhone=${connectedPhone}, chatJid=${chatJid} (raw was ${chatJidRaw})${filterNote} → found ${dbMessages.length} messages`);
 
           if (dbMessages.length > 0) {
             console.log(`[QR Bridge Proxy] ✅ MongoDB fallback SUCCESS: ${dbMessages.length} messages for ${chatJid}`);
