@@ -1229,11 +1229,13 @@ export default function QRWhatsAppPage() {
     }
   }, [bridgeCall, connectedPhoneNumber]);
 
-  // ── Auto-refresh messages every 12s for active conversation (paused when tab hidden) ──
+  // ── Auto-refresh messages every 3s for active conversation (paused when tab hidden) ──
   const msgPollRef = useRef<NodeJS.Timeout | null>(null);
   useEffect(() => {
     if (selectedChat && status?.connected && isPageVisible) {
-      msgPollRef.current = setInterval(() => fetchMessages(selectedChat), 12000);
+      // Immediately fetch messages on selection, then poll every 3s for near-real-time updates
+      fetchMessages(selectedChat);
+      msgPollRef.current = setInterval(() => fetchMessages(selectedChat), 3000);
     } else {
       if (msgPollRef.current) { clearInterval(msgPollRef.current); msgPollRef.current = null; }
     }

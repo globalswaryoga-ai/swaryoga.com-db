@@ -142,5 +142,6 @@ export function normalizeQRIncomingMessages(payload: any): NormalizedQRMessage[]
         type: media ? media.kind : 'text',
       } as NormalizedQRMessage;
     })
-    .filter((m) => !!m.from || m.fromMe);
+    // Keep messages if they have: a valid from field, OR it's fromMe, OR it has a messageId (fallback for incoming messages without from)
+    .filter((m) => !!m.from || m.fromMe || !!m.messageId);
 }
