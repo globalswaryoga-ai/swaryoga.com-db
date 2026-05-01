@@ -9,9 +9,9 @@
 // PLAN TIERS
 // ============================================================================
 
-export type PlanTier = 'free' | 'basic' | 'starter' | 'growth' | 'professional';
+export type PlanTier = 'free' | 'basic' | 'starter' | 'growth' | 'professional' | 'enterprise';
 
-export const PLAN_ORDER: PlanTier[] = ['free', 'basic', 'starter', 'growth', 'professional'];
+export const PLAN_ORDER: PlanTier[] = ['free', 'basic', 'starter', 'growth', 'professional', 'enterprise'];
 
 export const PLAN_NAMES: Record<PlanTier, string> = {
   free: 'Free Trial',
@@ -19,6 +19,7 @@ export const PLAN_NAMES: Record<PlanTier, string> = {
   starter: 'Copper',
   growth: 'Silver',
   professional: 'Golden',
+  enterprise: 'Diamond',
 };
 
 // ============================================================================
@@ -37,6 +38,7 @@ export const PLAN_PRICING: Record<PlanTier, {
   starter:      { monthly: 999,  quarterly: 2700,   sixMonth: 4800,    annual: 9000,    monthlyUSD: 12 },
   growth:       { monthly: 1999, quarterly: 5400,   sixMonth: 9500,    annual: 18000,   monthlyUSD: 24 },
   professional: { monthly: 2999, quarterly: 7999,   sixMonth: 14100,   annual: 25999,   monthlyUSD: 36 },
+  enterprise:   { monthly: 4999, quarterly: 12999,  sixMonth: 25000,   annual: 45000,   monthlyUSD: 60 },
 };
 
 // ============================================================================
@@ -110,6 +112,17 @@ export const PLAN_LIMITS: Record<PlanTier, PlanLimits> = {
     maxLandingPages: 999,
     maxCommunities: 999,
     maxAutomationWorkflows: 999,
+  },
+  enterprise: {   // Diamond ₹4999 - 50 users
+    maxLeads: 999999,
+    maxUsers: 50,
+    maxChatbotFlows: 9999,
+    storageQuotaMB: 100000,
+    maxBroadcastsPerDay: 9999,
+    maxEmailsPerMonth: 999999,
+    maxLandingPages: 9999,
+    maxCommunities: 9999,
+    maxAutomationWorkflows: 9999,
   },
 };
 
@@ -232,6 +245,25 @@ export const PLAN_MODULES: Record<PlanTier, Record<CrmModule, boolean>> = {
     accounting: true,
     lifePlanner: true,
   },
+  enterprise: {
+    leads: true,
+    whatsapp: true,
+    broadcasting: true,
+    chatbot: true,
+    aiCalls: true,
+    reports: true,
+    community: true,
+    templates: true,
+    callRecording: true,
+    emailMarketing: true,
+    landingPages: true,
+    automation: true,
+    helpdesk: true,
+    api: true,
+    customDomain: true,
+    accounting: true,
+    lifePlanner: true,
+  },
 };
 
 // ============================================================================
@@ -336,6 +368,17 @@ export const PLAN_DISPLAY: Record<PlanTier, PlanDisplayInfo> = {
     badge: 'PRO',
     popular: false,
   },
+  enterprise: {
+    name: 'Diamond',
+    tagline: 'Maximum unlimited access',
+    color: 'bg-red-100',
+    textColor: 'text-red-700',
+    borderColor: 'border-red-200',
+    gradientFrom: 'from-red-500',
+    gradientTo: 'to-red-700',
+    badge: 'DIAMOND',
+    popular: false,
+  },
 };
 
 // ============================================================================
@@ -347,7 +390,7 @@ export const ADDON_PRICING = {
     price: 999,        // ₹999 one-time for custom domain
     currency: 'INR',
     description: 'Use your own domain for CRM',
-    availableFor: ['free', 'basic', 'starter', 'growth', 'professional'] as PlanTier[],
+    availableFor: ['free', 'basic', 'starter', 'growth', 'professional', 'enterprise'] as PlanTier[],
   },
 };
 

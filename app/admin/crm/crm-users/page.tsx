@@ -115,6 +115,7 @@ const PLAN_COLORS: Record<string, string> = {
   starter: 'bg-green-100 text-green-700',
   growth: 'bg-purple-100 text-purple-700',
   professional: 'bg-orange-100 text-orange-700',
+  enterprise: 'bg-red-100 text-red-700',
 };
 
 const PLAN_ACCESS_CHECKBOXES: Array<{
@@ -132,8 +133,8 @@ const PLAN_ACCESS_CHECKBOXES: Array<{
 ];
 
 function normalizePlanTier(value: string): PlanTier {
-  if (value === 'basic' || value === 'starter' || value === 'growth' || value === 'professional') {
-    return value;
+  if (value === 'basic' || value === 'starter' || value === 'growth' || value === 'professional' || value === 'enterprise') {
+    return value as PlanTier;
   }
   return 'free';
 }
@@ -172,7 +173,7 @@ export default function CrmUsersPage() {
   const [planError, setPlanError] = useState('');
 
   // Plans for filter
-  const plans = ['free', 'basic', 'starter', 'growth', 'professional'];
+  const plans = ['free', 'basic', 'starter', 'growth', 'professional', 'enterprise'];
 
   useEffect(() => {
     if (!checkIsSuperAdmin()) {

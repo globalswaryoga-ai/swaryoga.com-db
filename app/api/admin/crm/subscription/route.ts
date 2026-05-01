@@ -31,20 +31,20 @@ export async function GET(request: NextRequest) {
         userId,
         currentPlan: 'basic',
         trialStartedAt: new Date(),
-        trialEndsAt: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000), // 15 days from now
+        trialEndsAt: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000), // 15 days free trial for Basic only
         trialDaysRemaining: 15,
         isTrialActive: true,
         status: 'trial',
-        // Basic plan limits
-        leadsLimit: 500,
+        // Basic plan limits: 1 user, ₹499/month
+        leadsLimit: 2000,
         teamMembersLimit: 1,
-        workflowsLimit: 3,
-        emailLimitPerMonth: 1000,
+        workflowsLimit: 5,
+        emailLimitPerMonth: 2000,
         storageIncludedGB: 1, // 1GB for basic
-        apiRequestsPerMonth: 0, // No API access for basic
+        apiRequestsPerMonth: 2000,
         // Usage tracking
         leadsCount: 0,
-        teamMembersCount: 1, // Owner counts as 1
+        teamMembersCount: 1,
         workflowsCount: 0,
       };
 
@@ -133,31 +133,47 @@ export async function POST(request: NextRequest) {
     if (currentPlan) {
       updates.currentPlan = currentPlan;
 
-      // Set plan-specific limits
+      // Set plan-specific limits - 5-tier structure
       const planLimits = {
         basic: {
-          leadsLimit: 500,
+          leadsLimit: 2000,
           teamMembersLimit: 1,
-          workflowsLimit: 3,
-          emailLimitPerMonth: 1000,
-          storageIncludedGB: 1, // 1GB for basic
-          apiRequestsPerMonth: 0, // No API
+          workflowsLimit: 5,
+          emailLimitPerMonth: 2000,
+          storageIncludedGB: 1,
+          apiRequestsPerMonth: 2000,
         },
-        professional: {
+        copper: {
           leadsLimit: 5000,
           teamMembersLimit: 3,
           workflowsLimit: 10,
           emailLimitPerMonth: 5000,
-          storageIncludedGB: 25,
-          apiRequestsPerMonth: 100,
+          storageIncludedGB: 5,
+          apiRequestsPerMonth: 5000,
         },
-        enterprise: {
+        silver: {
+          leadsLimit: 15000,
+          teamMembersLimit: 10,
+          workflowsLimit: 999999,
+          emailLimitPerMonth: 10000,
+          storageIncludedGB: 20,
+          apiRequestsPerMonth: 50000,
+        },
+        golden: {
+          leadsLimit: 50000,
+          teamMembersLimit: 25,
+          workflowsLimit: 999999,
+          emailLimitPerMonth: 50000,
+          storageIncludedGB: 50,
+          apiRequestsPerMonth: 500000,
+        },
+        diamond: {
           leadsLimit: 999999,
-          teamMembersLimit: 999999,
+          teamMembersLimit: 50,
           workflowsLimit: 999999,
           emailLimitPerMonth: 999999,
-          storageIncludedGB: 1000,
-          apiRequestsPerMonth: 999999,
+          storageIncludedGB: 500,
+          apiRequestsPerMonth: 1000000,
         },
       };
 
