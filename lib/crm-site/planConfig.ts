@@ -81,7 +81,7 @@ export const PLAN_LIMITS: Record<PlanTier, PlanLimits> = {
     maxAutomationWorkflows: 5,
   },
   starter: {      // Copper ₹999 - 3 users
-    maxLeads: 5000,
+    maxLeads: 3000,
     maxUsers: 3,
     maxChatbotFlows: 10,
     storageQuotaMB: 1000,
@@ -92,7 +92,7 @@ export const PLAN_LIMITS: Record<PlanTier, PlanLimits> = {
     maxAutomationWorkflows: 15,
   },
   growth: {       // Silver ₹1999 - 10 users
-    maxLeads: 15000,
+    maxLeads: 7500,
     maxUsers: 10,
     maxChatbotFlows: 20,
     storageQuotaMB: 5000,
@@ -103,7 +103,7 @@ export const PLAN_LIMITS: Record<PlanTier, PlanLimits> = {
     maxAutomationWorkflows: 50,
   },
   professional: { // Golden ₹2999 - 25 users
-    maxLeads: 50000,
+    maxLeads: 999999,
     maxUsers: 25,
     maxChatbotFlows: 9999,
     storageQuotaMB: 20000,

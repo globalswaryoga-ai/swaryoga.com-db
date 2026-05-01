@@ -35,8 +35,8 @@ export async function GET(request: NextRequest) {
         trialDaysRemaining: 15,
         isTrialActive: true,
         status: 'trial',
-        // Basic plan limits: 1 user, ₹499/month
-        leadsLimit: 2000,
+        // Basic plan limits: 1 user, 1000 leads, ₹499/month
+        leadsLimit: 1000,
         teamMembersLimit: 1,
         workflowsLimit: 5,
         emailLimitPerMonth: 2000,
@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
       // Set plan-specific limits - 5-tier structure
       const planLimits = {
         basic: {
-          leadsLimit: 2000,
+          leadsLimit: 1000,
           teamMembersLimit: 1,
           workflowsLimit: 5,
           emailLimitPerMonth: 2000,
@@ -144,7 +144,7 @@ export async function POST(request: NextRequest) {
           apiRequestsPerMonth: 2000,
         },
         copper: {
-          leadsLimit: 5000,
+          leadsLimit: 3000,
           teamMembersLimit: 3,
           workflowsLimit: 10,
           emailLimitPerMonth: 5000,
@@ -152,7 +152,7 @@ export async function POST(request: NextRequest) {
           apiRequestsPerMonth: 5000,
         },
         silver: {
-          leadsLimit: 15000,
+          leadsLimit: 7500,
           teamMembersLimit: 10,
           workflowsLimit: 999999,
           emailLimitPerMonth: 10000,
@@ -160,7 +160,7 @@ export async function POST(request: NextRequest) {
           apiRequestsPerMonth: 50000,
         },
         golden: {
-          leadsLimit: 50000,
+          leadsLimit: 999999,
           teamMembersLimit: 25,
           workflowsLimit: 999999,
           emailLimitPerMonth: 50000,
