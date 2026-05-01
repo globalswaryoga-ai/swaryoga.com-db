@@ -9,6 +9,8 @@ interface HLSVideoPlayerProps {
   muted?: boolean;
   className?: string;
   isLiveStream?: boolean;
+  offsetSeconds?: number; // For synchronized playback - seek to this position
+  videoRef?: React.RefObject<HTMLVideoElement>;
   onError?: (error: string) => void;
   onLoadedMetadata?: () => void;
   onPlay?: () => void;
@@ -22,13 +24,16 @@ export default function HLSVideoPlayer({
   muted = true,
   className = 'w-full h-full',
   isLiveStream = false,
+  offsetSeconds = 0,
+  videoRef: externalVideoRef,
   onError,
   onLoadedMetadata,
   onPlay,
   onPause,
   onMinimizeMaximize,
 }: HLSVideoPlayerProps) {
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const internalVideoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = externalVideoRef || internalVideoRef;
   const playerRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [isMinimized, setIsMinimized] = useState(false);
@@ -147,6 +152,13 @@ export default function HLSVideoPlayer({
 
         hls.on(HLS.Events.MANIFEST_PARSED, () => {
           console.log(`✅ HLS ${isLiveStream ? 'live stream' : 'stream'} ready`);
+
+          // Synchronized playback: seek to the current session time
+          if (offsetSeconds && offsetSeconds > 0 && videoRef.current) {
+            console.log(`🎬 Seeking to ${offsetSeconds}s for synchronized playback`);
+            videoRef.current.currentTime = offsetSeconds;
+          }
+
           if (autoPlay && videoRef.current) {
             videoRef.current.play().catch(err => {
               console.warn('Autoplay prevented:', err);
