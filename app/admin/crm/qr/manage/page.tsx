@@ -104,7 +104,7 @@ export default function QRManagePage() {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [page, setPage] = useState(0);
-  const LIMIT = 50;
+  const LIMIT = 1000; // Batch by 1K for better performance
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -247,13 +247,13 @@ export default function QRManagePage() {
     if (!token) return;
     try {
       const params = new URLSearchParams();
+      // Always use pagination - never fetch all at once for performance
       if (searchQuery) {
-        params.set('all', '1');
         params.set('search', searchQuery);
       } else if (activeStage) {
         params.set('stage', activeStage);
       } else {
-        params.set('all', '1');
+        params.set('stage', 'new_lead'); // Default to new_lead stage
       }
       if (filterCountry) params.set('country', filterCountry);
       if (filterLanguage) params.set('language', filterLanguage);
