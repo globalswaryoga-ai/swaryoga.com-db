@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import { checkIsSuperAdmin } from '@/lib/client-auth';
-import { QrCode, Wifi, WifiOff, RefreshCw, LogOut, Phone, PhoneCall, Send, Image as ImageIcon, FileText, Mic, ArrowLeft, Loader2, AlertTriangle, CheckCircle2, Unplug, Funnel, Plus, Tag, CheckSquare, Square, X, Paperclip, Video, File, Pencil, Trash2, Users, Mail, MailOpen, Radio, Info, Shield, Crown, Calendar, MessageSquare, Hash, UserCircle, PhoneOff, Search, Star, Bold, Italic, Strikethrough, Smile, Zap, Type, Link2, Copy, RotateCcw, Lock, Unlock, UserMinus, ChevronUp, ChevronDown, Save, Settings, Eye, ChevronLeft, ChevronRight, Merge } from 'lucide-react';
+import { QrCode, Wifi, WifiOff, RefreshCw, LogOut, Phone, PhoneCall, Send, Image as ImageIcon, FileText, Mic, ArrowLeft, Loader2, AlertTriangle, CheckCircle2, Unplug, Funnel, Plus, Tag, CheckSquare, Square, X, Paperclip, Video, File, Pencil, Trash2, Users, Mail, MailOpen, Radio, Info, Shield, Crown, Calendar, MessageSquare, Hash, UserCircle, PhoneOff, Search, Star, Bold, Italic, Strikethrough, Smile, Zap, Type, Link2, Copy, RotateCcw, Lock, Unlock, UserMinus, ChevronUp, ChevronDown, Save, Settings, Eye, ChevronLeft, ChevronRight, Merge, ArrowDown, ArrowUp } from 'lucide-react';
 import type { ConnectionStatus, BridgeStatus, QRResponse, FunnelStage, LabelPreset, ChatItem, MessageItem, ChatFilter, GroupParticipant, GroupInfo } from './types';
 import { formatPhoneNumber, getAvatarColor, linkifyText, getInitials, formatUptime } from './utils';
 import { FUNNEL_COLORS, LABEL_COLORS, EMOJI_LIST, QUICK_REPLIES, TEMPLATES, DEFAULT_FUNNEL_STAGES, DEFAULT_LABEL_PRESETS, REACTION_EMOJIS } from './constants';
@@ -1202,7 +1202,15 @@ export default function QRWhatsAppPage() {
           reactions: m.reactions || {},
           quotedId: m.quotedId || null,
         }));
-        setMessages(mapped);
+
+        // Merge server messages with optimistic messages (those with IDs starting with 'opt-')
+        // This prevents optimistic messages from disappearing before the server confirms them
+        setMessages(prev => {
+          const optimisticMsgs = prev.filter(m => m.id?.startsWith('opt-'));
+          const serverIds = new Set(mapped.map(m => m.id));
+          const filteredOptimistic = optimisticMsgs.filter(m => !serverIds.has(m.id?.replace(/^opt-/, '') || ''));
+          return [...mapped, ...filteredOptimistic];
+        });
         setFailedInlineMediaIds(prev => {
           if (prev.size === 0) return prev;
           const next = new Set(prev);
@@ -2103,11 +2111,13 @@ export default function QRWhatsAppPage() {
       const cls = chatLabels[c.id] || [];
       if (!cls.includes(activeLabel)) return false;
     }
-    // Apply chat filter (read/unread/groups)
+    // Apply chat filter (read/unread/groups/inbound/outbound)
     switch (chatFilter) {
       case 'unread': if (c.unreadCount <= 0) return false; break;
       case 'read': if (c.unreadCount !== 0) return false; break;
       case 'groups': if (!c.isGroup) return false; break;
+      case 'inbound': if (!messages.some(m => m.from === c.id && !m.fromMe)) return false; break;
+      case 'outbound': if (!messages.some(m => m.from === c.id && m.fromMe)) return false; break;
     }
     // Apply search filter
     if (searchQuery.trim()) {
@@ -2438,6 +2448,8 @@ export default function QRWhatsAppPage() {
                 { key: 'unread' as ChatFilter, label: 'Unread', icon: <Mail className="w-2.5 h-2.5" />, count: chats.filter(c => c.unreadCount > 0 && (activeFunnel === 'all' || chatFunnels[c.id] === activeFunnel)).length },
                 { key: 'read' as ChatFilter, label: 'Read', icon: <MailOpen className="w-2.5 h-2.5" />, count: chats.filter(c => c.unreadCount === 0 && (activeFunnel === 'all' || chatFunnels[c.id] === activeFunnel)).length },
                 { key: 'groups' as ChatFilter, label: 'Groups', icon: <Users className="w-2.5 h-2.5" />, count: chats.filter(c => c.isGroup && (activeFunnel === 'all' || chatFunnels[c.id] === activeFunnel)).length },
+                { key: 'inbound' as ChatFilter, label: 'Inbound', icon: <ArrowDown className="w-2.5 h-2.5" />, count: chats.filter(c => messages.some(m => m.from === c.id && !m.fromMe) && (activeFunnel === 'all' || chatFunnels[c.id] === activeFunnel)).length },
+                { key: 'outbound' as ChatFilter, label: 'Outbound', icon: <ArrowUp className="w-2.5 h-2.5" />, count: chats.filter(c => messages.some(m => m.from === c.id && m.fromMe) && (activeFunnel === 'all' || chatFunnels[c.id] === activeFunnel)).length },
               ]).map(f => (
                 <button
                   key={f.key}
@@ -2921,12 +2933,9 @@ export default function QRWhatsAppPage() {
                   </div>
                 </div>
 
-                {/* Messages - WhatsApp style background */}
-                <div ref={messengerRef} className="flex-1 overflow-y-auto p-4 space-y-2" style={{
-                  backgroundImage: `url('/qr-chat-bg.svg')`,
-                  backgroundSize: '400px 400px',
-                  backgroundRepeat: 'repeat',
-                  backgroundColor: '#f5f5f5',
+                {/* Messages - Simple clean background */}
+                <div ref={messengerRef} className="flex-1 overflow-y-auto p-4 space-y-2 bg-gradient-to-b from-white to-gray-50" style={{
+                  backgroundColor: '#fafafa',
                 }}>
                   {messages.length === 0 && (
                     <div className="text-center text-gray-400 text-sm py-10">No messages yet</div>
