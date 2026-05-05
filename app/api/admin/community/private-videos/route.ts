@@ -6,17 +6,30 @@ import mongoose from 'mongoose';
 export const dynamic = 'force-dynamic';
 
 // Schema for private community videos
+// All videos owned by swarsakshi9@gmail.com (single owner)
+// Access control via community membership (not per-email)
 const privateVideoSchema = new mongoose.Schema({
   videoTitle: { type: String, required: true },
   videoId: { type: String, required: true, unique: true },
   videoUrl: { type: String, required: true },
-  ownerEmail: { type: String, required: true }, // Email that owns the video
-  approvedEmails: [String], // Additional emails allowed to view
+  ownerEmail: { type: String, default: 'swarsakshi9@gmail.com' }, // YouTube video owner
+  requiredRole: {
+    type: String,
+    enum: ['member', 'participant', 'instructor', 'admin'],
+    default: 'member' // Minimum role required to watch
+  },
+  videoType: { type: String, enum: ['class', 'workshop', 'tutorial', 'special'], default: 'class' },
+  duration: Number, // in seconds
+  description: String,
+  thumbnail: String, // Custom thumbnail URL
   createdAt: { type: Date, default: Date.now },
-  createdBy: String,
+  createdBy: String, // Admin who added it
+  publishedAt: Date, // When made available
   status: { type: String, enum: ['active', 'inactive'], default: 'active' },
+  monetized: { type: Boolean, default: true }, // YouTube monetization enabled
   viewedBy: [
     {
+      userId: String,
       email: String,
       viewedAt: Date,
       duration: Number, // seconds watched
@@ -27,6 +40,9 @@ const privateVideoSchema = new mongoose.Schema({
 /**
  * GET /api/admin/community/private-videos
  * Get private videos accessible to current user
+ * Videos are accessible if user is:
+ * - Admin, OR
+ * - Approved community member with required role
  */
 export async function GET(request: NextRequest) {
   try {
@@ -43,23 +59,41 @@ export async function GET(request: NextRequest) {
     const PrivateVideo =
       mongoose.models.PrivateVideo || mongoose.model('PrivateVideo', privateVideoSchema);
 
-    const userEmail = decoded.email || '';
+    // Check user role from decoded token
+    // User must be at least 'member' role to access videos
+    const userRole = decoded.role || 'member';
+    const roleHierarchy: Record<string, number> = {
+      member: 1,
+      participant: 2,
+      instructor: 3,
+      admin: 4,
+    };
 
-    // Get videos where user's email is owner or approved
+    const userRoleLevel = roleHierarchy[userRole] || 1;
+
+    // Get all active videos that user has access to
     const videos = await PrivateVideo.find({
       status: 'active',
-      $or: [
-        { ownerEmail: userEmail },
-        { approvedEmails: userEmail },
-      ],
+      $expr: {
+        $lte: [
+          { $ifNull: [{ $get: 'requiredRole' }, 'member'] },
+          userRole,
+        ],
+      },
     })
-      .select('videoTitle videoId videoUrl ownerEmail createdAt')
+      .select('videoTitle videoId videoUrl videoType duration description thumbnail createdAt')
       .lean();
+
+    // Filter by role level (user must meet minimum role requirement)
+    const accessibleVideos = videos.filter(
+      (v: any) => roleHierarchy[v.requiredRole || 'member'] <= userRoleLevel
+    );
 
     return NextResponse.json({
       success: true,
-      videos,
-      count: videos.length,
+      videos: accessibleVideos,
+      count: accessibleVideos.length,
+      userRole,
     });
   } catch (error: any) {
     console.error('[Private Videos GET]', error);
@@ -70,7 +104,17 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/admin/community/private-videos
  * Admin adds a new private video (requires admin auth)
- * Body: { videoUrl, ownerEmail, videoTitle }
+ *
+ * All videos owned by swarsakshi9@gmail.com (single owner account)
+ * Access control via community role (member/participant/instructor/admin)
+ *
+ * Body: {
+ *   videoUrl: "https://www.youtube.com/watch?v=...",
+ *   videoTitle: "Video Title",
+ *   description: "Video description",
+ *   requiredRole: "member" (default) | "participant" | "instructor" | "admin",
+ *   videoType: "class" | "workshop" | "tutorial" | "special"
+ * }
  */
 export async function POST(request: NextRequest) {
   try {
@@ -85,11 +129,11 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { videoUrl, ownerEmail, videoTitle, approvedEmails } = body;
+    const { videoUrl, videoTitle, description, requiredRole = 'member', videoType = 'class' } = body;
 
-    if (!videoUrl || !ownerEmail || !videoTitle) {
+    if (!videoUrl || !videoTitle) {
       return NextResponse.json(
-        { error: 'Missing: videoUrl, ownerEmail, videoTitle' },
+        { error: 'Missing: videoUrl, videoTitle' },
         { status: 400 }
       );
     }
@@ -119,16 +163,20 @@ export async function POST(request: NextRequest) {
       videoTitle,
       videoId,
       videoUrl,
-      ownerEmail,
-      approvedEmails: approvedEmails || [],
+      ownerEmail: 'swarsakshi9@gmail.com', // All videos owned by this account
+      requiredRole, // Minimum role to watch
+      videoType,
+      description,
       createdBy: decoded.userId || 'admin',
+      publishedAt: new Date(),
       status: 'active',
+      monetized: true, // YouTube monetization enabled
     });
 
     return NextResponse.json({
       success: true,
       data: video,
-      message: `Video added for ${ownerEmail}`,
+      message: `✅ Video added! All videos owned by swarsakshi9@gmail.com`,
     });
   } catch (error: any) {
     console.error('[Private Videos POST]', error);

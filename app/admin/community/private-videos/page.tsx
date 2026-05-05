@@ -1,14 +1,17 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Plus, Trash2, Loader2, AlertCircle, CheckCircle2, Play } from 'lucide-react';
 
 interface PrivateVideo {
   _id: string;
   videoTitle: string;
   videoId: string;
-  ownerEmail: string;
+  videoType: string;
+  requiredRole: string;
+  description?: string;
   createdAt: string;
+  views?: number;
 }
 
 export default function AdminPrivateVideosPage({ token }: { token: string | null }) {
@@ -21,7 +24,9 @@ export default function AdminPrivateVideosPage({ token }: { token: string | null
   // Form state
   const [videoUrl, setVideoUrl] = useState('');
   const [videoTitle, setVideoTitle] = useState('');
-  const [ownerEmail, setOwnerEmail] = useState('');
+  const [description, setDescription] = useState('');
+  const [requiredRole, setRequiredRole] = useState('member');
+  const [videoType, setVideoType] = useState('class');
 
   // Fetch videos
   const fetchVideos = async () => {
@@ -66,7 +71,9 @@ export default function AdminPrivateVideosPage({ token }: { token: string | null
         body: JSON.stringify({
           videoUrl,
           videoTitle,
-          ownerEmail,
+          description,
+          requiredRole,
+          videoType,
         }),
       });
 
@@ -75,10 +82,12 @@ export default function AdminPrivateVideosPage({ token }: { token: string | null
         throw new Error(data.error || 'Failed to add video');
       }
 
-      setSuccess(`✅ Video added for ${ownerEmail}`);
+      setSuccess(`✅ Video added! (Owner: swarsakshi9@gmail.com)`);
       setVideoUrl('');
       setVideoTitle('');
-      setOwnerEmail('');
+      setDescription('');
+      setRequiredRole('member');
+      setVideoType('class');
 
       // Refresh list
       await fetchVideos();
@@ -127,6 +136,11 @@ export default function AdminPrivateVideosPage({ token }: { token: string | null
               </h2>
 
               <form onSubmit={handleAddVideo} className="space-y-4">
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-800">
+                  <p className="font-medium">📺 Video Owner: swarsakshi9@gmail.com</p>
+                  <p className="text-xs mt-1">All videos added here are owned by this account</p>
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Video Title
@@ -143,19 +157,14 @@ export default function AdminPrivateVideosPage({ token }: { token: string | null
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Owner Email
+                    Description (Optional)
                   </label>
-                  <input
-                    type="email"
-                    value={ownerEmail}
-                    onChange={(e) => setOwnerEmail(e.target.value)}
-                    placeholder="swarsakshi9@gmail.com"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    required
+                  <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="What is this video about?"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none h-20"
                   />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Email that owns the private YouTube video
-                  </p>
                 </div>
 
                 <div>
@@ -170,6 +179,40 @@ export default function AdminPrivateVideosPage({ token }: { token: string | null
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     required
                   />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Video Type
+                    </label>
+                    <select
+                      value={videoType}
+                      onChange={(e) => setVideoType(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="class">Class</option>
+                      <option value="workshop">Workshop</option>
+                      <option value="tutorial">Tutorial</option>
+                      <option value="special">Special</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Minimum Role
+                    </label>
+                    <select
+                      value={requiredRole}
+                      onChange={(e) => setRequiredRole(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="member">Member</option>
+                      <option value="participant">Participant</option>
+                      <option value="instructor">Instructor</option>
+                      <option value="admin">Admin Only</option>
+                    </select>
+                  </div>
                 </div>
 
                 <button
@@ -191,16 +234,27 @@ export default function AdminPrivateVideosPage({ token }: { token: string | null
                 </button>
               </form>
 
-              <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
-                <p>
-                  <strong>ℹ️ How it works:</strong>
-                </p>
-                <ul className="mt-2 space-y-1 text-xs">
-                  <li>✓ Add video with email address</li>
-                  <li>✓ Email user must have YouTube access</li>
-                  <li>✓ Users login with their email</li>
-                  <li>✓ See videos they have access to</li>
-                </ul>
+              <div className="mt-6 space-y-3">
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+                  <p className="font-medium">💡 How it works:</p>
+                  <ul className="mt-2 space-y-1 text-xs">
+                    <li>✅ All videos owned by swarsakshi9@gmail.com</li>
+                    <li>✅ YouTube handles private video security</li>
+                    <li>✅ Your platform controls access via roles</li>
+                    <li>✅ Users see videos they have permission for</li>
+                    <li>✅ YouTube monetization enabled automatically</li>
+                  </ul>
+                </div>
+
+                <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
+                  <p className="font-medium">🚀 Benefits:</p>
+                  <ul className="mt-2 space-y-1 text-xs">
+                    <li>💰 Free (no Bunny CDN costs)</li>
+                    <li>🔒 Private (YouTube + role-based access)</li>
+                    <li>💵 Monetizable (YouTube ads, channel membership)</li>
+                    <li>📊 Analytics (YouTube Studio dashboard)</li>
+                  </ul>
+                </div>
               </div>
             </div>
           </div>
@@ -223,15 +277,26 @@ export default function AdminPrivateVideosPage({ token }: { token: string | null
                   {videos.map((video) => (
                     <div
                       key={video._id}
-                      className="border border-gray-200 rounded-lg p-4 hover:border-indigo-300 transition"
+                      className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition"
                     >
-                      <div className="flex items-start justify-between">
+                      <div className="flex items-start justify-between gap-4">
                         <div className="flex-1">
-                          <h3 className="font-bold text-gray-800">{video.videoTitle}</h3>
-                          <p className="text-sm text-gray-600 mt-1">
-                            👤 {video.ownerEmail}
-                          </p>
-                          <p className="text-xs text-gray-400 mt-1">
+                          <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                            <Play className="w-4 h-4 text-indigo-600" />
+                            {video.videoTitle}
+                          </h3>
+                          {video.description && (
+                            <p className="text-sm text-gray-600 mt-1">{video.description}</p>
+                          )}
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                              {video.videoType}
+                            </span>
+                            <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                              {video.requiredRole}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-400 mt-2">
                             Added: {new Date(video.createdAt).toLocaleDateString()}
                           </p>
                         </div>
@@ -241,7 +306,7 @@ export default function AdminPrivateVideosPage({ token }: { token: string | null
                               // TODO: Implement delete
                             }
                           }}
-                          className="text-red-500 hover:text-red-700 ml-4"
+                          className="text-red-500 hover:text-red-700 p-2"
                         >
                           <Trash2 className="w-5 h-5" />
                         </button>
