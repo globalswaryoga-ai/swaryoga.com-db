@@ -1195,6 +1195,18 @@ export default function QRWhatsAppPage() {
       const bridgeData = bridgeResult.status === 'fulfilled' ? bridgeResult.value : null;
       const dbData = dbResult.status === 'fulfilled' ? dbResult.value : null;
 
+      // Debug: Log message counts and fromMe distribution
+      if (bridgeData?.messages) {
+        const inbound = bridgeData.messages.filter((m: any) => !m.fromMe).length;
+        const outbound = bridgeData.messages.filter((m: any) => m.fromMe).length;
+        console.log(`[Bridge] ${bridgeData.messages.length} total: ${inbound} inbound, ${outbound} outbound`);
+      }
+      if (dbData?.messages) {
+        const inbound = dbData.messages.filter((m: any) => !m.fromMe).length;
+        const outbound = dbData.messages.filter((m: any) => m.fromMe).length;
+        console.log(`[MongoDB] ${dbData.messages.length} total: ${inbound} inbound, ${outbound} outbound`);
+      }
+
       // Map bridge messages
       const bridgeMessages: MessageItem[] = bridgeData?.messages
         ? bridgeData.messages.map((m: any) => ({
@@ -1262,6 +1274,13 @@ export default function QRWhatsAppPage() {
       const merged = Array.from(byId.values())
         .filter(m => m.id)
         .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+
+      // Debug: Log merged message counts
+      if (merged.length > 0) {
+        const inbound = merged.filter(m => !m.fromMe).length;
+        const outbound = merged.filter(m => m.fromMe).length;
+        console.log(`[Merged] ${merged.length} total: ${inbound} inbound, ${outbound} outbound`);
+      }
 
       if (merged.length > 0) {
         setMessages(prev => {
