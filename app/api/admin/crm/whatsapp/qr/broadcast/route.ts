@@ -89,11 +89,14 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { recipients, message, imageUrl, buttons, footerText, schedule } = body;
+    const { recipients, message, imageUrl, buttons, footerText, schedule, recipientType } = body;
 
     if (!recipients || !Array.isArray(recipients) || recipients.length === 0) {
       return NextResponse.json({ success: false, error: "Recipients array required" }, { status: 400 });
     }
+
+    // Support both 'people' and 'groups'
+    const type = recipientType || 'people'; // Default to people for backwards compatibility
 
     // ── ANTI-BAN PROTECTION: Rate limiting calculation ──
     // Import rate limiter helpers
@@ -153,10 +156,11 @@ The system has automatically created a 10-hour schedule. Click "Confirm" to proc
       }, { status: 400 });
     }
 
-    // ── Lead-Ownership Filter for Non-Super Admin ──
-    // Non-super-admin users can only broadcast to leads they own
+    // ── Lead-Ownership Filter for Non-Super Admin (only for people, not groups) ──
+    // Non-super-admin users can only broadcast to leads they own (people broadcasts)
+    // Groups don't need this check since they're already access-controlled
     let filteredRecipients = recipients;
-    if (!superAdmin) {
+    if (!superAdmin && type === 'people') {
       const viewerUserId = getViewerUserId(decoded);
       await connectDB();
       const Lead = getLead();
@@ -202,6 +206,8 @@ The system has automatically created a 10-hour schedule. Click "Confirm" to proc
         }, { status: 403 });
       }
       console.log(`[qr-broadcast] Lead filter for ${viewerUserId}: ${recipients.length} → ${filteredRecipients.length} recipients`);
+    } else if (type === 'groups') {
+      console.log(`[qr-broadcast] Group broadcast: ${recipients.length} groups (no lead check required)`);
     }
 
     // ── Apply rate limiting estimate to response ──
@@ -209,20 +215,21 @@ The system has automatically created a 10-hour schedule. Click "Confirm" to proc
 
     const response = await fetch(`${bridgeConfig.bridgeUrl}/broadcast`, {
       method: "POST",
-      headers: { 
+      headers: {
         "Content-Type": "application/json",
         "x-bridge-secret": bridgeConfig.bridgeSecret,
         "x-user-id": viewerUserId,
         "x-session-key": bridgeConfig.bridgeSessionId,
         ...(bridgeConfig.tenantId ? { "x-tenant-id": bridgeConfig.tenantId } : {}),
       },
-      body: JSON.stringify({ 
-        recipients: filteredRecipients, 
-        message, 
-        imageUrl, 
-        buttons, 
-        footerText, 
+      body: JSON.stringify({
+        recipients: filteredRecipients,
+        message,
+        imageUrl,
+        buttons,
+        footerText,
         schedule: scheduleToUse, // Use auto-schedule if created
+        recipientType: type, // 'people' or 'groups'
         // Pass rate limiting hints to bridge
         rateLimitBatches: timingInfo.batches,
         rateLimitEstimateSeconds: timingInfo.estimatedSeconds,
