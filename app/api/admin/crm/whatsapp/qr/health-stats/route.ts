@@ -114,9 +114,12 @@ export async function GET(req: NextRequest) {
     });
 
     // Get all messages in the time period
+    // NOTE: QR messages store timestamp in SECONDS, so convert date range to seconds
+    const startTimeSeconds = Math.floor(startTime / 1000);
+    const endTimeSeconds = Math.floor(endTime / 1000);
     const messages = await QrMsg.find({
       userId,
-      timestamp: { $gte: startTime, $lte: endTime },
+      timestamp: { $gte: startTimeSeconds, $lte: endTimeSeconds },
     }).lean();
 
     // Group statistics by phone
@@ -126,8 +129,13 @@ export async function GET(req: NextRequest) {
       const phoneMessages = messages.filter((m: any) => m.connectedPhone === phone);
       const phoneChats = chats.filter((c: any) => c.connectedPhone === phone);
 
-      const inboundMessages = phoneMessages.filter((m: any) => !m.fromMe).length;
-      const outboundMessages = phoneMessages.filter((m: any) => m.fromMe).length;
+      // Support both 'direction' field and 'fromMe' field for backwards compatibility
+      const inboundMessages = phoneMessages.filter((m: any) => {
+        return m.direction === 'inbound' || (!m.direction && !m.fromMe);
+      }).length;
+      const outboundMessages = phoneMessages.filter((m: any) => {
+        return m.direction === 'outbound' || (!m.direction && m.fromMe);
+      }).length;
 
       // Message types breakdown
       const messagesByType: Record<string, number> = {};
@@ -136,12 +144,16 @@ export async function GET(req: NextRequest) {
         messagesByType[type] = (messagesByType[type] || 0) + 1;
       });
 
-      // Find chats with inbound and outbound separately
+      // Find chats with inbound and outbound separately (support both 'direction' and 'fromMe' fields)
       const inboundChats = new Set<string>();
       const outboundChats = new Set<string>();
       phoneMessages.forEach((m: any) => {
-        if (!m.fromMe) inboundChats.add(m.chatJid);
-        if (m.fromMe) outboundChats.add(m.chatJid);
+        const isOutbound = m.direction === 'outbound' || (!m.direction && m.fromMe);
+        if (isOutbound) {
+          outboundChats.add(m.chatJid);
+        } else {
+          inboundChats.add(m.chatJid);
+        }
       });
 
       // Last message time
@@ -151,12 +163,13 @@ export async function GET(req: NextRequest) {
         ? Math.floor((Date.now() - lastMessage.timestamp) / (1000 * 60 * 60 * 24))
         : null;
 
-      // Daily breakdown
+      // Daily breakdown (support both 'direction' and 'fromMe' fields)
       const dailyMap: Record<string, { inbound: number; outbound: number }> = {};
       phoneMessages.forEach((m: any) => {
-        const date = new Date(m.timestamp).toLocaleDateString('en-IN');
+        const date = new Date(m.timestamp * 1000).toLocaleDateString('en-IN'); // timestamp is in seconds
         if (!dailyMap[date]) dailyMap[date] = { inbound: 0, outbound: 0 };
-        if (m.fromMe) {
+        const isOutbound = m.direction === 'outbound' || (!m.direction && m.fromMe);
+        if (isOutbound) {
           dailyMap[date].outbound++;
         } else {
           dailyMap[date].inbound++;
