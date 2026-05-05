@@ -118,3 +118,100 @@ export interface TenantAuditLog {
   timestamp: Date;
   changes?: Record<string, any>;
 }
+
+/**
+ * Build tenant + source isolation filter
+ * Ensures leads are filtered by BOTH tenant AND source (qr/meta/upload)
+ */
+export function getTenantSourceFilter(decoded: any, source?: 'qr' | 'meta' | 'upload'): Record<string, any> {
+  const tenantFilter = getTenantFilter(decoded);
+
+  if (source) {
+    return {
+      ...tenantFilter,
+      source: source,
+    };
+  }
+
+  return tenantFilter;
+}
+
+/**
+ * Get separate filters for each lead source
+ * Returns filter objects for QR, Meta, and Upload leads respectively
+ */
+export function getTenantSourceFilters(decoded: any) {
+  const tenantFilter = getTenantFilter(decoded);
+
+  return {
+    qr: { ...tenantFilter, source: 'qr' },
+    meta: { ...tenantFilter, source: 'meta' },
+    upload: { ...tenantFilter, source: 'upload' },
+  };
+}
+
+/**
+ * Enrich lead data with tenant AND source information
+ */
+export function enrichLeadData(
+  tenantId: string,
+  source: 'qr' | 'meta' | 'upload',
+  data: Record<string, any>
+): Record<string, any> {
+  return {
+    ...data,
+    createdByUserId: tenantId,
+    source: source, // CRITICAL: Track lead source
+    assignedToUserId: data.assignedToUserId || tenantId,
+  };
+}
+
+/**
+ * Verify lead belongs to tenant AND has correct source
+ */
+export function isTenantLeadWithSource(
+  record: any,
+  tenantId: string,
+  source: 'qr' | 'meta' | 'upload',
+  superAdminAllowed = true
+): boolean {
+  if (superAdminAllowed && tenantId === 'admin') return true;
+  return (
+    (record?.createdByUserId === tenantId || record?.assignedToUserId === tenantId) &&
+    record?.source === source
+  );
+}
+
+/**
+ * Build funnel filter by tenant + source
+ * Each source has its own funnel stages
+ */
+export function getTenantFunnelFilter(
+  decoded: any,
+  source?: 'qr' | 'meta' | 'upload'
+): Record<string, any> {
+  const tenantFilter = getTenantFilter(decoded);
+
+  if (source) {
+    return {
+      ...tenantFilter,
+      source: source,
+    };
+  }
+
+  return tenantFilter;
+}
+
+/**
+ * Get funnel stages for a specific source
+ * Different sources have different funnel stage progressions
+ */
+export function getFunnelStagesForSource(source: 'qr' | 'meta' | 'upload'): string[] {
+  const stages: Record<string, string[]> = {
+    qr: ['inquiry', 'interested', 'decision', 'enrolled'],
+    meta: ['lead', 'engagement', 'consideration', 'purchase'],
+    upload: ['prospect', 'contact', 'qualified', 'converted'],
+  };
+
+  return stages[source] || [];
+}

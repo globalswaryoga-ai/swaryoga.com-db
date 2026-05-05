@@ -28,6 +28,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const tenantId = decoded?.tenantId;
+    if (!tenantId) {
+      console.error('[Template Upload] Auth failed - no tenantId');
+      return NextResponse.json(
+        { error: 'Unauthorized: No tenant information' },
+        { status: 403 }
+      );
+    }
+
     // 2. Parse multipart form data
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
@@ -98,6 +107,7 @@ export async function POST(request: NextRequest) {
         mimeType: mimeType,
         fileType: fileType as 'image' | 'document' | 'video',
         templateId: templateId,
+        tenantId: tenantId,
       });
     } catch (uploadError) {
       console.error('S3 upload error:', uploadError);

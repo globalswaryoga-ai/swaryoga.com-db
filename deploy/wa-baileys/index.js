@@ -524,7 +524,12 @@ async function loadChatsFromDB(session) {
         const jid = `${phone}@s.whatsapp.net`;
         // Skip if already loaded from qr_whatsapp_messages (avoid duplicates)
         if (session.messageMap.has(jid) && session.messageMap.get(jid).length > 0) continue;
-        const isFromMe = doc.direction === 'outbound';
+        // Support both 'direction' field and legacy senderDisplayName heuristic
+        let isFromMe = doc.direction === 'outbound';
+        // If direction is missing, fall back to checking if we're the sender (based on ownerUserId match)
+        if (!doc.direction && (doc.createdByUserId === session.ownerUserId || doc.ownerId === session.ownerUserId)) {
+          isFromMe = true;
+        }
         const ts = doc.sentAt ? new Date(doc.sentAt).toISOString() : new Date().toISOString();
         if (!session.chatMap.has(jid)) {
           session.chatMap.set(jid, { id: jid, name: doc.senderDisplayName || phone, isGroup: false, unreadCount: 0, lastMessageTime: ts });

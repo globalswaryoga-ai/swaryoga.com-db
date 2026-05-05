@@ -59,7 +59,7 @@ export type MessageItem = {
   quotedId?: string;
 };
 
-export type ChatFilter = 'all' | 'unread' | 'read' | 'groups';
+export type ChatFilter = 'all' | 'unread' | 'read' | 'groups' | 'inbound' | 'outbound';
 
 export type GroupParticipant = { id: string; lid?: string; admin: 'admin' | 'superadmin' | null };
 export type GroupInfo = {

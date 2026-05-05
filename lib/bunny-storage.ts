@@ -456,8 +456,9 @@ export function validateTemplateFile(
   return { valid: true };
 }
 
-export function generateTemplateS3Key(id: string, name: string, type: string): string {
-  return `templates/${id}/${type}/${Date.now()}-${name}`;
+export function generateTemplateS3Key(id: string, name: string, type: string, tenantId?: string): string {
+  const basePath = tenantId ? `tenants/${tenantId}/templates` : `templates`;
+  return `${basePath}/${id}/${type}/${Date.now()}-${name}`;
 }
 
 export async function uploadTemplateFileToS3(options: {
@@ -466,8 +467,9 @@ export async function uploadTemplateFileToS3(options: {
   mimeType?: string;
   fileType: 'image' | 'document' | 'video';
   templateId: string;
+  tenantId?: string;
 }): Promise<string> {
-  const key = generateTemplateS3Key(options.templateId, options.fileName, options.fileType);
+  const key = generateTemplateS3Key(options.templateId, options.fileName, options.fileType, options.tenantId);
   return await uploadToPath(options.file, key, options.mimeType);
 }
 
