@@ -107,7 +107,7 @@ export function TemplatesTab({ token }: TemplatesTabProps) {
 
       if (formData.headerFormat === 'IMAGE' && formData.headerMediaUrl) {
         Object.assign(payload, {
-          headerMedia: { kind: 'IMAGE', url: formData.headerMediaUrl },
+          headerMedia: { kind: 'image', url: formData.headerMediaUrl },
         });
       } else if (formData.headerFormat === 'TEXT') {
         Object.assign(payload, {
