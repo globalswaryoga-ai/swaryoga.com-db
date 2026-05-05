@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, Plus, Pencil, Trash2, Eye, Loader2, X, ChevronDown } from 'lucide-react';
+import { Search, Plus, Pencil, Trash2, Eye, Loader2, X, ChevronDown, Upload, Image as ImageIcon } from 'lucide-react';
 
 interface Template {
   _id: string;
@@ -40,6 +40,8 @@ export function TemplatesTab({ token }: TemplatesTabProps) {
     buttons: [] as Array<{ kind: string; title: string; url?: string; phoneNumber?: string }>,
   });
   const [submitting, setSubmitting] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [headerImageFile, setHeaderImageFile] = useState<File | null>(null);
 
   const fetchTemplates = useCallback(async () => {
     if (!token) return;
@@ -161,6 +163,58 @@ export function TemplatesTab({ token }: TemplatesTabProps) {
     const newButtons = [...formData.buttons];
     newButtons[index] = { ...newButtons[index], [field]: value };
     setFormData({ ...formData, buttons: newButtons });
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file size (max 10MB)
+    const maxSizeMB = 10;
+    const maxSizeBytes = maxSizeMB * 1024 * 1024;
+    if (file.size > maxSizeBytes) {
+      setError(`Image must be less than ${maxSizeMB}MB. Current size: ${(file.size / 1024 / 1024).toFixed(2)}MB`);
+      return;
+    }
+
+    // Validate file type
+    if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)) {
+      setError('Image must be JPEG, PNG, WebP, or GIF');
+      return;
+    }
+
+    setUploading(true);
+    setError(null);
+    setHeaderImageFile(file);
+
+    try {
+      // Generate temporary ID for upload
+      const tempId = `template_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      const formDataToSend = new FormData();
+      formDataToSend.append('file', file);
+      formDataToSend.append('fileType', 'image');
+      formDataToSend.append('templateId', tempId);
+
+      const res = await fetch('/api/admin/crm/templates/upload', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formDataToSend,
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload failed');
+
+      setFormData({ ...formData, headerMediaUrl: data.data.url });
+      setError(null);
+    } catch (e: any) {
+      setError(`Upload failed: ${e.message}`);
+      setHeaderImageFile(null);
+    } finally {
+      setUploading(false);
+    }
   };
 
   if (loading) {
@@ -314,15 +368,64 @@ export function TemplatesTab({ token }: TemplatesTabProps) {
               {formData.headerFormat !== 'NONE' && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {formData.headerFormat === 'IMAGE' ? 'Image URL' : 'Header Text'}
+                    {formData.headerFormat === 'IMAGE' ? 'Image Upload' : 'Header Text'}
                   </label>
-                  <input
-                    type="text"
-                    value={formData.headerMediaUrl}
-                    onChange={(e) => setFormData({ ...formData, headerMediaUrl: e.target.value })}
-                    placeholder={formData.headerFormat === 'IMAGE' ? 'https://...' : 'Header text'}
-                    className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                  />
+                  {formData.headerFormat === 'IMAGE' ? (
+                    <div className="space-y-3">
+                      <div className="relative border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-green-500 transition cursor-pointer bg-gray-50">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageUpload}
+                          disabled={uploading}
+                          className="absolute inset-0 w-full h-full cursor-pointer opacity-0"
+                        />
+                        <div className="flex flex-col items-center gap-2">
+                          {uploading ? (
+                            <>
+                              <Loader2 className="w-5 h-5 text-green-600 animate-spin" />
+                              <p className="text-xs text-gray-600">Uploading...</p>
+                            </>
+                          ) : formData.headerMediaUrl ? (
+                            <>
+                              <ImageIcon className="w-5 h-5 text-green-600" />
+                              <p className="text-xs text-gray-600">Click to replace image</p>
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="w-5 h-5 text-gray-400" />
+                              <p className="text-xs text-gray-600">Click to upload or drag & drop</p>
+                              <p className="text-xs text-gray-500">JPEG, PNG, WebP, GIF (Max 10MB)</p>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      {formData.headerMediaUrl && (
+                        <div className="relative w-full h-40 border rounded-lg overflow-hidden bg-gray-100">
+                          <img
+                            src={formData.headerMediaUrl}
+                            alt="Header preview"
+                            className="w-full h-full object-cover"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setFormData({ ...formData, headerMediaUrl: '' })}
+                            className="absolute top-1 right-1 bg-red-600 hover:bg-red-700 text-white p-1 rounded"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
+                      value={formData.headerMediaUrl}
+                      onChange={(e) => setFormData({ ...formData, headerMediaUrl: e.target.value })}
+                      placeholder="Header text"
+                      className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    />
+                  )}
                 </div>
               )}
 
