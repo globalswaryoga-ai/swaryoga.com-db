@@ -241,8 +241,12 @@ export default function AdminCommunityPage() {
   const [showAddYouTubeRecordingModal, setShowAddYouTubeRecordingModal] = useState(false);
   const [youtubeRecordingUrl, setYoutubeRecordingUrl] = useState('');
   const [bunnyRecordingUrl, setBunnyRecordingUrl] = useState('');
-  const [recordingUrlMode, setRecordingUrlMode] = useState<'youtube' | 'bunny'>('youtube');
+  const [recordingUrlMode, setRecordingUrlMode] = useState<'youtube' | 'bunny' | 'private-youtube'>('youtube');
   const [addingYouTubeRecording, setAddingYouTubeRecording] = useState(false);
+  const [privateYoutubeVideoTitle, setPrivateYoutubeVideoTitle] = useState('');
+  const [privateYoutubeEmailVerified, setPrivateYoutubeEmailVerified] = useState(false);
+  const [checkingPrivateYoutubeEmail, setCheckingPrivateYoutubeEmail] = useState(false);
+  const PRIVATE_YOUTUBE_EMAIL = 'swarsakshi9@gmail.com';
   
   // Recording Upload Modal State (Folder > Playlist > Video structure)
   const [showUploadRecordingModal, setShowUploadRecordingModal] = useState(false);
@@ -3565,6 +3569,18 @@ export default function AdminCommunityPage() {
                   ▶ YouTube
                 </button>
                 <button
+                  onClick={() => {
+                    setRecordingUrlMode('private-youtube');
+                    setCheckingPrivateYoutubeEmail(true);
+                    fetch(`/api/admin/community/verify-youtube-email?email=${PRIVATE_YOUTUBE_EMAIL}`, {
+                      headers: { 'Authorization': `Bearer ${token}` }
+                    }).then(r => r.json()).then(d => setPrivateYoutubeEmailVerified(d.isVerified || false)).finally(() => setCheckingPrivateYoutubeEmail(false));
+                  }}
+                  className={`flex-1 py-2 px-3 rounded-xl font-semibold text-sm transition-all ${recordingUrlMode === 'private-youtube' ? 'bg-green-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                >
+                  🔒 Private YouTube
+                </button>
+                <button
                   onClick={() => setRecordingUrlMode('bunny')}
                   className={`flex-1 py-2 px-3 rounded-xl font-semibold text-sm transition-all ${recordingUrlMode === 'bunny' ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
                 >
@@ -3580,6 +3596,21 @@ export default function AdminCommunityPage() {
                 </div>
               )}
 
+              {recordingUrlMode === 'private-youtube' && (
+                <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+                  <p className="text-green-800 text-sm">
+                    <strong>🔒 Private YouTube:</strong> Uses verified swarsakshi9@gmail.com account with full privacy control.
+                  </p>
+                  {checkingPrivateYoutubeEmail ? (
+                    <p className="text-green-700 text-xs mt-2">Checking email verification...</p>
+                  ) : !privateYoutubeEmailVerified ? (
+                    <p className="text-red-600 text-xs mt-2 font-medium">⚠️ Email not verified! <a href="/admin/community/verify-youtube-email" className="underline">Verify here</a></p>
+                  ) : (
+                    <p className="text-green-700 text-xs mt-2">✅ Email verified and ready to use</p>
+                  )}
+                </div>
+              )}
+
               {recordingUrlMode === 'bunny' && (
                 <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
                   <p className="text-purple-800 text-sm">
@@ -3587,7 +3618,7 @@ export default function AdminCommunityPage() {
                   </p>
                 </div>
               )}
-              {/* URL Input - YouTube or Bunny */}
+              {/* URL Input - YouTube, Private YouTube, or Bunny */}
               {recordingUrlMode === 'youtube' ? (
                 <div>
                   <label className="text-sm font-bold text-slate-700 mb-2 block">YouTube URL or Video ID *</label>
@@ -3598,6 +3629,18 @@ export default function AdminCommunityPage() {
                     placeholder="https://www.youtube.com/watch?v=... or video ID"
                     className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 transition-all"
                   />
+                </div>
+              ) : recordingUrlMode === 'private-youtube' ? (
+                <div>
+                  <label className="text-sm font-bold text-slate-700 mb-2 block">Private YouTube URL or Video ID *</label>
+                  <input
+                    type="text"
+                    value={youtubeRecordingUrl}
+                    onChange={e => setYoutubeRecordingUrl(e.target.value)}
+                    placeholder="https://www.youtube.com/watch?v=... or video ID"
+                    className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-300 transition-all"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">Owned by: {PRIVATE_YOUTUBE_EMAIL}</p>
                 </div>
               ) : (
                 <div>
@@ -3713,9 +3756,10 @@ export default function AdminCommunityPage() {
               
               <button
                 onClick={async () => {
-                  const urlValue = recordingUrlMode === 'youtube' ? youtubeRecordingUrl : bunnyRecordingUrl;
+                  const urlValue = recordingUrlMode === 'youtube' ? youtubeRecordingUrl : recordingUrlMode === 'private-youtube' ? youtubeRecordingUrl : bunnyRecordingUrl;
                   if (!urlValue.trim()) {
-                    alert(`${recordingUrlMode === 'youtube' ? 'YouTube' : 'Bunny Stream'} URL is required`);
+                    const modeNames = { 'youtube': 'YouTube', 'private-youtube': 'Private YouTube', 'bunny': 'Bunny Stream' };
+                    alert(`${modeNames[recordingUrlMode]} URL is required`);
                     return;
                   }
                   if (!recordingFolderName.trim() || !recordingPlaylistName.trim() || !recordingVideoNumber.trim()) {
@@ -3723,7 +3767,53 @@ export default function AdminCommunityPage() {
                     return;
                   }
 
-                  if (recordingUrlMode === 'youtube') {
+                  if (recordingUrlMode === 'private-youtube') {
+                    if (!privateYoutubeEmailVerified) {
+                      alert('❌ Email not verified. Please verify swarsakshi9@gmail.com first.');
+                      return;
+                    }
+                    setAddingYouTubeRecording(true);
+                    try {
+                      const title = `${recordingFolderName} > ${recordingPlaylistName} > Video ${recordingVideoNumber}`;
+                      // Extract video ID
+                      let videoId = youtubeRecordingUrl.trim();
+                      if (videoId.includes('watch?v=')) {
+                        videoId = videoId.split('watch?v=')[1].split('&')[0];
+                      }
+
+                      const res = await fetch(`/api/community/${selectedCommunity}/add-recording`, {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          Authorization: `Bearer ${token}`,
+                        },
+                        body: JSON.stringify({
+                          title: title,
+                          description: recordingDescription.trim(),
+                          videoSource: 'youtube',
+                          youtubeVideoId: videoId,
+                          videoUrl: youtubeRecordingUrl.trim(),
+                          isPublic: true,
+                          recordingType: 'private_youtube',
+                        }),
+                      });
+                      const json = await res.json();
+                      if (!res.ok) throw new Error(json.error || 'Failed to add recording');
+                      alert('✅ Private YouTube recording added successfully!');
+                      setShowAddYouTubeRecordingModal(false);
+                      setYoutubeRecordingUrl('');
+                      setRecordingFolderName('');
+                      setRecordingPlaylistName('');
+                      setRecordingVideoNumber('');
+                      setRecordingDescription('');
+                      setRecordingUrlMode('youtube');
+                      fetchRecordings();
+                    } catch (err: any) {
+                      alert('❌ Error: ' + err.message);
+                    } finally {
+                      setAddingYouTubeRecording(false);
+                    }
+                  } else if (recordingUrlMode === 'youtube') {
                     setAddingYouTubeRecording(true);
                     try {
                       const title = `${recordingFolderName} > ${recordingPlaylistName} > Video ${recordingVideoNumber}`;
@@ -3763,8 +3853,8 @@ export default function AdminCommunityPage() {
                     await addBunnyStreamRecording();
                   }
                 }}
-                disabled={addingYouTubeRecording || !((recordingUrlMode === 'youtube' ? youtubeRecordingUrl : bunnyRecordingUrl).trim()) || !recordingFolderName.trim() || !recordingPlaylistName.trim() || !recordingVideoNumber.trim()}
-                className={`w-full h-12 text-white rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${recordingUrlMode === 'youtube' ? 'bg-red-600 hover:bg-red-700' : 'bg-purple-600 hover:bg-purple-700'}`}
+                disabled={addingYouTubeRecording || !((recordingUrlMode === 'youtube' ? youtubeRecordingUrl : recordingUrlMode === 'private-youtube' ? youtubeRecordingUrl : bunnyRecordingUrl).trim()) || !recordingFolderName.trim() || !recordingPlaylistName.trim() || !recordingVideoNumber.trim() || (recordingUrlMode === 'private-youtube' && !privateYoutubeEmailVerified)}
+                className={`w-full h-12 text-white rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${recordingUrlMode === 'youtube' ? 'bg-red-600 hover:bg-red-700' : recordingUrlMode === 'private-youtube' ? 'bg-green-600 hover:bg-green-700' : 'bg-purple-600 hover:bg-purple-700'}`}
               >
                 {addingYouTubeRecording ? (
                   <>
@@ -3772,7 +3862,7 @@ export default function AdminCommunityPage() {
                     Adding...
                   </>
                 ) : (
-                  <>{recordingUrlMode === 'youtube' ? '▶ Add YouTube Recording' : '🎥 Add Bunny Stream Recording'}</>
+                  <>{recordingUrlMode === 'youtube' ? '▶ Add YouTube Recording' : recordingUrlMode === 'private-youtube' ? '🔒 Add Private YouTube Recording' : '🎥 Add Bunny Stream Recording'}</>
                 )}
               </button>
             </div>
