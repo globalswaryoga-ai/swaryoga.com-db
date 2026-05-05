@@ -1452,6 +1452,7 @@ export default function QRWhatsAppPage() {
   const selectChat = useCallback((jid: string) => {
     console.log(`[QR] selectChat called with JID: ${jid}`);
     setSelectedChat(jid);
+    setMessages([]); // Clear immediately so we never show a previous chat's messages
     setDetailsPanel(false);
     setGroupInfo(null);
     setReplyingTo(null);
