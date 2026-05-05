@@ -710,77 +710,78 @@ interface HLSPlayerProps {
 
 function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
   const [error, setError] = useState<string | null>(null);
-
   const seekPerformed = useRef(false);
+  const hlsRef = useRef<any>(null);
 
   useEffect(() => {
     if (!videoRef.current || !url) return;
 
-    const isValidHlsUrl = url && (url.endsWith('.m3u8') || url.includes('playlist'));
-    if (!isValidHlsUrl) {
-      setError('Invalid HLS URL');
-      return;
-    }
+    const isValidHlsUrl = url.endsWith('.m3u8') || url.includes('playlist');
+    if (!isValidHlsUrl) { setError('Invalid HLS URL'); return; }
 
     const video = videoRef.current;
     seekPerformed.current = false;
 
-    const handleSeeking = (e: Event) => {
-      console.log('Seeking attempt blocked');
-      e.preventDefault();
-    };
-    const handleRateChange = (e: Event) => {
-      console.log('Speed change blocked');
-      if (video.playbackRate !== 1) video.playbackRate = 1;
-    };
-    const handleCanPlay = () => {
-      if (!video.paused) return;
-      video.play().catch((err) => {
-        console.warn('HLS autoplay attempt failed:', err);
-      });
-    };
+    const handleRateChange = () => { if (video.playbackRate !== 1) video.playbackRate = 1; };
+    const handleCanPlay = () => { if (video.paused) video.play().catch(() => {}); };
 
     video.muted = true;
     video.autoplay = true;
     video.playsInline = true;
     video.preload = 'auto';
-    video.src = url;
-    video.load();
-    video.addEventListener('seeking', handleSeeking);
     video.addEventListener('ratechange', handleRateChange);
     video.addEventListener('canplay', handleCanPlay);
 
-    console.log('Native HLS setup, url:', url, 'offset:', offsetSeconds);
+    // Destroy previous hls instance
+    if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
 
-    const playPromise = video.play();
-    if (playPromise && typeof playPromise.then === 'function') {
-      playPromise.catch((err) => {
-        console.warn('Video.play() failed on init:', err);
-      });
-    }
+    const setup = async () => {
+      const Hls = (await import('hls.js')).default;
+      if (Hls.isSupported()) {
+        const hls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: false,
+          backBufferLength: 90,
+        });
+        hlsRef.current = hls;
+        hls.loadSource(url);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          video.play().catch(() => {});
+        });
+        hls.on(Hls.Events.ERROR, (_: any, data: any) => {
+          if (data.fatal) setError('Stream error — please refresh');
+        });
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        // Safari native HLS
+        video.src = url;
+        video.load();
+        video.play().catch(() => {});
+      } else {
+        setError('Video playback not supported on this browser');
+      }
+    };
+
+    setup();
 
     return () => {
-      video.removeEventListener('seeking', handleSeeking);
       video.removeEventListener('ratechange', handleRateChange);
       video.removeEventListener('canplay', handleCanPlay);
+      if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
     };
   }, [url, videoRef]);
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !url || seekPerformed.current) return;
-    if (offsetSeconds > 0) {
-      const handleLoadedMetadata = () => {
-        if (!seekPerformed.current) {
-          video.currentTime = offsetSeconds;
-          seekPerformed.current = true;
-        }
-      };
-      video.addEventListener('loadedmetadata', handleLoadedMetadata);
-      return () => {
-        video.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      };
-    }
+    if (!video || !url || seekPerformed.current || offsetSeconds <= 0) return;
+    const handleLoadedMetadata = () => {
+      if (!seekPerformed.current) {
+        video.currentTime = offsetSeconds;
+        seekPerformed.current = true;
+      }
+    };
+    video.addEventListener('loadedmetadata', handleLoadedMetadata);
+    return () => video.removeEventListener('loadedmetadata', handleLoadedMetadata);
   }, [offsetSeconds, url, videoRef]);
 
   if (error) {
