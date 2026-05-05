@@ -21,11 +21,10 @@ export default function AddYouTubeRecordingPage({ token }: { token: string | nul
   const [videoDescription, setVideoDescription] = useState('');
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [isPublic, setIsPublic] = useState(false);
-  const [selectedEmail, setSelectedEmail] = useState('swarsakshi9@gmail.com');
 
   const [emailVerified, setEmailVerified] = useState(false);
   const [checkingEmail, setCheckingEmail] = useState(false);
-  const YOUTUBE_EMAILS = ['swarsakshi9@gmail.com', 'swarsakshi9999@gmail.com'];
+  const YOUTUBE_EMAIL = 'swarsakshi9@gmail.com';
 
   // Check email verification status
   useEffect(() => {
@@ -33,7 +32,7 @@ export default function AddYouTubeRecordingPage({ token }: { token: string | nul
       setCheckingEmail(true);
       try {
         const res = await fetch(
-          `/api/admin/community/verify-youtube-email?email=${selectedEmail}`,
+          `/api/admin/community/verify-youtube-email?email=${YOUTUBE_EMAIL}`,
           { headers: { 'Authorization': `Bearer ${token}` } }
         );
         const data = await res.json();
@@ -46,7 +45,7 @@ export default function AddYouTubeRecordingPage({ token }: { token: string | nul
     };
 
     if (token) checkEmailVerification();
-  }, [token, selectedEmail]);
+  }, [token]);
 
   // Fetch communities
   useEffect(() => {
@@ -108,7 +107,6 @@ export default function AddYouTubeRecordingPage({ token }: { token: string | nul
           videoSource: 'youtube',
           youtubeVideoId: videoId,
           videoUrl: youtubeUrl,
-          youtubeEmail: selectedEmail,
           isPublic,
           recordingType: 'private_youtube', // Mark as private YouTube
         }),
@@ -195,25 +193,6 @@ export default function AddYouTubeRecordingPage({ token }: { token: string | nul
               )}
             </div>
 
-            {/* YouTube Email Selection */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                YouTube Account Email *
-              </label>
-              <select
-                value={selectedEmail}
-                onChange={(e) => setSelectedEmail(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                {YOUTUBE_EMAILS.map(email => (
-                  <option key={email} value={email}>{email}</option>
-                ))}
-              </select>
-              <p className="text-xs text-gray-500 mt-1">
-                Select which YouTube account owns this video
-              </p>
-            </div>
-
             {/* Video Title */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -256,7 +235,7 @@ export default function AddYouTubeRecordingPage({ token }: { token: string | nul
                 required
               />
               <p className="text-xs text-gray-500 mt-1">
-                ✅ Owned by: {selectedEmail}
+                ✅ Owned by: {YOUTUBE_EMAIL}
               </p>
             </div>
 
@@ -347,11 +326,10 @@ export default function AddYouTubeRecordingPage({ token }: { token: string | nul
           <div className="bg-white rounded-lg shadow p-6">
             <h3 className="font-bold text-gray-800 mb-3">📺 How to Create Private YouTube Video</h3>
             <ol className="text-sm text-gray-600 space-y-2">
-              <li>1. Upload video to YouTube (swarsakshi9@gmail.com or swarsakshi9999@gmail.com)</li>
+              <li>1. Upload video to YouTube (swarsakshi9@gmail.com account)</li>
               <li>2. Set visibility to "Private"</li>
               <li>3. Copy the video URL</li>
-              <li>4. Select the YouTube account email above</li>
-              <li>5. Paste URL here to add to community</li>
+              <li>4. Paste here to add to community</li>
             </ol>
           </div>
 
@@ -359,7 +337,7 @@ export default function AddYouTubeRecordingPage({ token }: { token: string | nul
             <h3 className="font-bold text-gray-800 mb-3">🔒 Security & Access</h3>
             <ul className="text-sm text-gray-600 space-y-2">
               <li>✅ YouTube handles access control</li>
-              <li>✅ Supports both YouTube accounts</li>
+              <li>✅ Only swarsakshi9@gmail.com can upload</li>
               <li>✅ Community members see in recordings</li>
               <li>✅ Login required to watch</li>
             </ul>
