@@ -32,7 +32,7 @@ export function TemplatesTab({ token }: TemplatesTabProps) {
   const [formData, setFormData] = useState({
     templateName: '',
     language: 'en',
-    category: 'general',
+    category: 'MARKETING',
     headerFormat: 'NONE',
     headerMediaUrl: '',
     body: '',
@@ -100,8 +100,9 @@ export function TemplatesTab({ token }: TemplatesTabProps) {
         language: formData.language,
         category: formData.category,
         headerFormat: formData.headerFormat,
-        footer: formData.footer,
-        buttons: formData.buttons,
+        footerText: formData.footer,
+        buttons: formData.buttons.map(b => ({ ...b, type: b.kind })),
+        provider: 'qr',
       };
 
       if (formData.headerFormat === 'IMAGE' && formData.headerMediaUrl) {
@@ -131,7 +132,7 @@ export function TemplatesTab({ token }: TemplatesTabProps) {
       setFormData({
         templateName: '',
         language: 'en',
-        category: 'general',
+        category: 'MARKETING',
         headerFormat: 'NONE',
         headerMediaUrl: '',
         body: '',
@@ -335,10 +336,10 @@ export function TemplatesTab({ token }: TemplatesTabProps) {
                     onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                     className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                   >
-                    <option value="general">General</option>
-                    <option value="marketing">Marketing</option>
-                    <option value="transactional">Transactional</option>
-                    <option value="otp">OTP</option>
+                    <option value="MARKETING">Marketing</option>
+                    <option value="UTILITY">Utility</option>
+                    <option value="OTP">OTP</option>
+                    <option value="ACCOUNT_UPDATE">Account Update</option>
                   </select>
                 </div>
               </div>
