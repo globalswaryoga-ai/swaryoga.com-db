@@ -108,7 +108,7 @@ export default function VerifyYouTubeEmailPage({ token }: { token: string | null
             Verify YouTube Email
           </h1>
           <p className="text-gray-600 mt-2">
-            Verify ownership of your YouTube account email (swarsakshi9999@gmail.com)
+            Verify ownership of your YouTube account email
           </p>
         </div>
 
@@ -125,7 +125,7 @@ export default function VerifyYouTubeEmailPage({ token }: { token: string | null
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="swarsakshi9999@gmail.com"
+                  placeholder="example: swarsakshi9@gmail.com"
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   required
                   disabled={loading}
