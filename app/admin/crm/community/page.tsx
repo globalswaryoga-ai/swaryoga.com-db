@@ -5,6 +5,10 @@ import { useRouter } from 'next/navigation';
 import { useAuth, getLoginPath } from '@/hooks/useAuth';
 import { MediaPreview } from '@/components/admin/crm';
 import { MembersPanel } from './components/MembersPanel';
+import { PostsPanel } from './components/PostsPanel';
+import { RecordingsPanel } from './components/RecordingsPanel';
+import { VideosPanel } from './components/VideosPanel';
+import { SubmissionsPanel } from './components/SubmissionsPanel';
 import {
   Users, MessageSquare, MessageCircle, Send, Mail, Phone, MoreVertical, Trash2, Edit, Shield,
   Search, ChevronDown, Plus, Filter, Download, ArrowRight, CheckCircle, AlertCircle,
@@ -257,17 +261,12 @@ export default function AdminCommunityPage() {
   const [recordingThumbnailUrl, setRecordingThumbnailUrl] = useState(''); // Custom thumbnail URL
   const [uploadStep, setUploadStep] = useState<'folder' | 'video'>('folder'); // 2-step upload
   const [uploadingRecording, setUploadingRecording] = useState(false);
-  
-  // Folder/Playlist view state for recordings
-  const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
-  const [selectedPlaylist, setSelectedPlaylist] = useState<string | null>(null);
+
   const [draftPosts, setDraftPosts] = useState(0);
   const [pendingMembers, setPendingMembers] = useState(0);
   const [lastActivityTime, setLastActivityTime] = useState<string>('');
   const [postsSortBy, setPostsSortBy] = useState('createdAt');
   const [postsSortOrder, setPostsSortOrder] = useState('desc');
-  const [postsSearchQuery, setPostsSearchQuery] = useState('');
-  const [postCategoryFilter, setPostCategoryFilter] = useState<'all' | 'experiences' | 'tips' | 'transformations' | 'questions'>('all');
   const [showEditPostModal, setShowEditPostModal] = useState(false);
   const [editingPost, setEditingPost] = useState<any>(null);
   const [editPostContent, setEditPostContent] = useState('');
@@ -303,35 +302,6 @@ export default function AdminCommunityPage() {
   const [bulkInviteMessage, setBulkInviteMessage] = useState('');
   const [bulkInvitePreview, setBulkInvitePreview] = useState<any>(null);
 
-  // Filtered posts based on search and category
-  const filteredPosts = communityPosts.filter(post => {
-    // Search filter
-    const matchesSearch = postsSearchQuery === '' || 
-      post.content?.toLowerCase().includes(postsSearchQuery.toLowerCase()) ||
-      post.userId?.toLowerCase().includes(postsSearchQuery.toLowerCase());
-    
-    // Category filter - map category to post type or content keywords
-    let matchesCategory = true;
-    if (postCategoryFilter !== 'all') {
-      const content = (post.content || '').toLowerCase();
-      switch (postCategoryFilter) {
-        case 'experiences':
-          matchesCategory = post.category === 'experiences' || content.includes('experience') || content.includes('journey');
-          break;
-        case 'tips':
-          matchesCategory = post.category === 'tips' || content.includes('tip') || content.includes('trick') || content.includes('how to');
-          break;
-        case 'transformations':
-          matchesCategory = post.category === 'transformations' || content.includes('transform') || content.includes('before') || content.includes('after');
-          break;
-        case 'questions':
-          matchesCategory = post.category === 'questions' || content.includes('?') || content.includes('question') || content.includes('help');
-          break;
-      }
-    }
-    
-    return matchesSearch && matchesCategory;
-  });
 
   const renderFormattedText = (text: string) => {
     if (!text) return 'Content Preview...';
@@ -918,7 +888,6 @@ export default function AdminCommunityPage() {
         limit: String(postsLimit),
         sortBy: postsSortBy,
         sortOrder: postsSortOrder,
-        ...(postsSearchQuery && { search: postsSearchQuery }),
       });
 
       const res = await fetch(`/api/admin/crm/community/posts/list?${queryParams}`, {
@@ -2062,871 +2031,64 @@ export default function AdminCommunityPage() {
         </div>
 
         {/* Posts Tab */}
-        {activeTab === 'posts' && (
-          <div className="flex-1 overflow-auto bg-slate-50/80 p-6">
-            {/* Posts Header with Search and Category Tabs */}
-            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 mb-6">
-              {/* Search Bar */}
-              <div className="relative mb-6">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                <input 
-                  type="text" 
-                  placeholder="Search posts..." 
-                  value={postsSearchQuery} 
-                  onChange={(e) => setPostsSearchQuery(e.target.value)} 
-                  className="w-full pl-12 pr-4 h-12 bg-slate-50 text-slate-900 rounded-xl border border-slate-200 font-medium text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 transition-all" 
-                />
-              </div>
-              
-              {/* Category Tabs */}
-              <div className="flex flex-wrap gap-2">
-                {[
-                  { key: 'all', label: 'All Posts', icon: '📋' },
-                  { key: 'experiences', label: 'Experiences', icon: '✨' },
-                  { key: 'tips', label: 'Tips & Tricks', icon: '💡' },
-                  { key: 'transformations', label: 'Transformations', icon: '🦋' },
-                  { key: 'questions', label: 'Questions', icon: '❓' },
-                ].map(cat => (
-                  <button
-                    key={cat.key}
-                    onClick={() => setPostCategoryFilter(cat.key as any)}
-                    className={`px-5 py-2.5 rounded-full text-sm font-semibold transition-all flex items-center gap-2 ${
-                      postCategoryFilter === cat.key
-                        ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/25'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}
-                  >
-                    <span>{cat.icon}</span>
-                    <span>{cat.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
+        <PostsPanel
+          posts={communityPosts}
+          loading={loadingPosts}
+          activeTab={activeTab}
+          onTogglePublic={togglePostPublic}
+          onOpenComments={openCommentsModal}
+          onOpenEdit={openEditPostModal}
+          onDelete={deletePost}
+          deletingPostId={deletingPostId}
+          totalPosts={totalPosts}
+          postsPage={postsPage}
+          postsLimit={postsLimit}
+          onFetchPosts={fetchCommunityPosts}
+        />
 
-            {loadingPosts ? (
-              <div className="flex flex-col items-center justify-center h-80 space-y-4">
-                <div className="w-10 h-10 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
-              </div>
-            ) : filteredPosts.length === 0 ? (
-              <div className="bg-white rounded-[2.5rem] border border-slate-200/60 h-[400px] flex flex-col items-center justify-center text-center p-20 shadow-sm">
-                <MessageCircle size={48} className="text-slate-200 mb-6" />
-                <h3 className="text-xl font-bold text-slate-900 mb-2">No Posts Found</h3>
-                <p className="text-slate-500 text-sm">{postsSearchQuery || postCategoryFilter !== 'all' ? 'Try adjusting your search or category filter.' : 'No posts found in this community.'}</p>
-              </div>
-            ) : (
-              <div className="bg-white rounded-[2rem] shadow-xl border border-slate-200/60 overflow-hidden">
-                <table className="w-full">
-                  <thead className="bg-[#fcfdfe] border-b border-slate-100 text-left">
-                    <tr className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
-                      <th className="pl-10 px-4 py-3">Content</th>
-                      <th className="px-4 py-3">Author</th>
-                      <th className="px-4 py-3">Category</th>
-                      <th className="px-4 py-3">Status</th>
-                      <th className="px-4 py-3">Interactions</th>
-                      <th className="pr-10 px-4 py-3 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {filteredPosts.map(post => (
-                      <tr key={post._id} className="hover:bg-indigo-50/[0.15] group transition-all">
-                        <td className="pl-10 px-4 py-3">
-                          <div className="flex flex-col gap-1">
-                            <p className="text-sm font-semibold text-slate-900 truncate max-w-[300px]">{post.content?.substring(0, 100)}{(post.content?.length || 0) > 100 ? '...' : ''}</p>
-                            {post.images?.length > 0 && <span className="text-[8px] text-slate-400">📷 {post.images.length} image(s)</span>}
-                            {post.videos?.length > 0 && <span className="text-[8px] text-slate-400">🎥 {post.videos.length} video(s)</span>}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <p className="text-sm font-semibold text-slate-700">{post.userId}</p>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="px-2 py-1 rounded-full text-[9px] font-bold uppercase bg-indigo-50 text-indigo-600">
-                            {post.category || 'General'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex flex-col gap-1">
-                            <div className={`px-3 py-1 rounded-full text-[9px] font-bold uppercase inline-block w-fit ${
-                              post.status === 'published' ? 'bg-emerald-50 text-emerald-700' :
-                              post.status === 'draft' ? 'bg-amber-50 text-amber-700' :
-                              'bg-indigo-50 text-indigo-700'
-                            }`}>
-                              {post.status || 'published'}
-                            </div>
-                            {post.isPublic && (
-                              <span className="px-2 py-0.5 rounded-full text-[8px] font-bold uppercase bg-green-100 text-green-700 inline-block w-fit">
-                                🌐 Public
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex gap-4">
-                            <div className="text-center">
-                              <p className="text-xs font-bold text-slate-800">👍 {Array.isArray(post.likes) ? post.likes.length : (post.likes || 0)}</p>
-                              <p className="text-[8px] text-slate-400">Likes</p>
-                            </div>
-                            <div className="text-center">
-                              <p className="text-xs font-bold text-slate-800">💬 {Array.isArray(post.comments) ? post.comments.length : (post.comments || 0)}</p>
-                              <p className="text-[8px] text-slate-400">Comments</p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-slate-600">
-                          {new Date(post.createdAt).toLocaleDateString()}
-                        </td>
-                        <td className="pr-10 px-4 py-3 text-right opacity-0 group-hover:opacity-100 transition-all">
-                          <div className="flex justify-end gap-1.5">
-                            <button
-                              onClick={() => togglePostPublic(post._id)}
-                              className={`p-2 rounded-lg transition-all border ${
-                                post.isPublic
-                                  ? 'bg-green-500 text-white border-green-500 hover:bg-green-600'
-                                  : 'text-slate-400 border-slate-200 hover:bg-green-100 hover:text-green-600 hover:border-green-200'
-                              }`}
-                              title={post.isPublic ? 'Make Private' : 'Make Public'}
-                            >
-                              <Globe size={16} />
-                            </button>
-                            <button
-                              onClick={() => openCommentsModal(post)}
-                              className="p-2 hover:bg-emerald-600 hover:text-white rounded-lg transition-all text-emerald-500 border border-emerald-100"
-                              title={`Manage Comments (${Array.isArray(post.comments) ? post.comments.length : 0})`}
-                            >
-                              <MessageCircle size={16} />
-                            </button>
-                            <button
-                              onClick={() => openEditPostModal(post)}
-                              className="p-2 hover:bg-indigo-600 hover:text-white rounded-lg transition-all text-indigo-500 border border-indigo-100"
-                              title="Edit Post"
-                            >
-                              <Edit size={16} />
-                            </button>
-                            <button
-                              onClick={() => deletePost(post._id)}
-                              disabled={deletingPostId === post._id}
-                              className="p-2 hover:bg-red-600 hover:text-white rounded-lg transition-all text-red-500 border border-red-100 disabled:opacity-50"
-                              title="Delete Post"
-                            >
-                              {deletingPostId === post._id ? <Loader size={16} className="animate-spin" /> : <Trash2 size={16} />}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-
-                {/* Pagination */}
-                {totalPosts > postsLimit && (
-                  <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 bg-slate-50">
-                    <p className="text-sm text-slate-600">
-                      Showing {((postsPage - 1) * postsLimit) + 1} to {Math.min(postsPage * postsLimit, totalPosts)} of {totalPosts} posts
-                    </p>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => fetchCommunityPosts(postsPage - 1)}
-                        disabled={postsPage === 1}
-                        className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-bold hover:bg-slate-50 disabled:opacity-50"
-                      >
-                        Previous
-                      </button>
-                      <button
-                        onClick={() => fetchCommunityPosts(postsPage + 1)}
-                        disabled={postsPage >= Math.ceil(totalPosts / postsLimit)}
-                        className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-bold hover:bg-slate-50 disabled:opacity-50"
-                      >
-                        Next
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Recordings Tab - Hero + Playlist Cards Design */}
-        {activeTab === 'recordings' && (
-          <div className="flex-1 overflow-auto bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-            {loadingRecordings ? (
-              <div className="flex flex-col items-center justify-center h-full space-y-4">
-                <div className="w-12 h-12 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
-                <p className="text-sm text-slate-400">Loading recordings...</p>
-              </div>
-            ) : recordings.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-center p-20">
-                <div className="w-24 h-24 bg-slate-700/50 rounded-full flex items-center justify-center mb-8">
-                  <VideoIcon size={48} className="text-slate-500" />
-                </div>
-                <h3 className="text-2xl font-bold text-white mb-3">No Workshop Recordings Yet</h3>
-                <p className="text-slate-400 text-sm mb-8 max-w-md">Upload your workshop recordings organized by Workshop → Batch → Video for easy access.</p>
-                <div className="flex gap-4">
-                  <button
-                    onClick={() => setShowUploadRecordingModal(true)}
-                    className="px-8 py-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-2xl font-bold text-sm hover:from-emerald-600 hover:to-teal-600 transition-all flex items-center gap-3 shadow-xl shadow-emerald-500/20"
-                  >
-                    <Upload size={20} />
-                    Upload Recording
-                  </button>
-                  <button
-                    onClick={() => setShowAddYouTubeRecordingModal(true)}
-                    className="px-8 py-4 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-2xl font-bold text-sm hover:from-red-600 hover:to-red-700 transition-all flex items-center gap-3 shadow-xl shadow-red-500/20"
-                  >
-                    ▶ Add YouTube URL
-                  </button>
-                </div>
-              </div>
-            ) : (() => {
-              // Parse recordings into folder/playlist structure
-              const folders: Record<string, Record<string, any[]>> = {};
-              recordings.forEach(rec => {
-                const parts = rec.title?.split(' > ') || [];
-                const folder = parts[0] || 'Uncategorized';
-                const playlist = parts[1] || 'Default Batch';
-                
-                if (!folders[folder]) folders[folder] = {};
-                if (!folders[folder][playlist]) folders[folder][playlist] = [];
-                folders[folder][playlist].push(rec);
-              });
-              
-              const folderNames = Object.keys(folders);
-              const currentFolder = selectedFolder || folderNames[0];
-              const playlists = folders[currentFolder] || {};
-              const playlistNames = Object.keys(playlists);
-              
-              // Get first video thumbnail for hero
-              const firstPlaylist = playlistNames[0];
-              const heroVideo = firstPlaylist ? playlists[firstPlaylist]?.[0] : null;
-              
-              return (
-                <div className="min-h-full">
-                  {/* Hero Section with Folder Name */}
-                  <div className="relative h-[400px] overflow-hidden">
-                    {/* Background Image/Gradient */}
-                    <div className="absolute inset-0">
-                      {heroVideo?.thumbnailUrl ? (
-                        <img 
-                          src={getProxiedMediaUrl(heroVideo.thumbnailUrl, token)} 
-                          alt={currentFolder}
-                          className="w-full h-full object-cover opacity-40"
-                        />
-                      ) : (
-                        <div className="w-full h-full bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-700" />
-                      )}
-                      <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/80 to-transparent" />
-                    </div>
-                    
-                    {/* Hero Content */}
-                    <div className="relative z-10 h-full flex flex-col justify-end p-8 lg:p-12">
-                      {/* Top bar with actions */}
-                      <div className="absolute top-6 right-6 flex gap-3">
-                        <button
-                          onClick={fetchRecordings}
-                          className="px-4 py-2 bg-white/10 backdrop-blur-md text-white rounded-xl font-bold text-sm hover:bg-white/20 transition-all flex items-center gap-2 border border-white/20"
-                        >
-                          <Loader size={16} className={loadingRecordings ? 'animate-spin' : ''} />
-                          Refresh
-                        </button>
-                        <button
-                          onClick={() => setShowUploadRecordingModal(true)}
-                          className="px-4 py-2 bg-emerald-500 text-white rounded-xl font-bold text-sm hover:bg-emerald-600 transition-all flex items-center gap-2"
-                        >
-                          <Upload size={16} />
-                          Upload
-                        </button>
-                        <button
-                          onClick={() => setShowAddYouTubeRecordingModal(true)}
-                          className="px-4 py-2 bg-red-500 text-white rounded-xl font-bold text-sm hover:bg-red-600 transition-all flex items-center gap-2"
-                        >
-                          ▶ YouTube
-                        </button>
-                      </div>
-                      
-                      {/* Folder tabs */}
-                      {folderNames.length > 1 && (
-                        <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-                          {folderNames.map(folder => (
-                            <button
-                              key={folder}
-                              onClick={() => { setSelectedFolder(folder); setSelectedPlaylist(null); }}
-                              className={`px-5 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all ${
-                                currentFolder === folder
-                                  ? 'bg-white text-slate-900'
-                                  : 'bg-white/10 text-white hover:bg-white/20 border border-white/20'
-                              }`}
-                            >
-                              {folder}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                      
-                      {/* Folder title */}
-                      <div className="flex items-center gap-4 mb-2">
-                        <span className="px-3 py-1 bg-emerald-500/20 text-emerald-400 rounded-lg text-xs font-bold uppercase tracking-wider">
-                          Workshop
-                        </span>
-                      </div>
-                      <h1 className="text-4xl lg:text-5xl font-black text-white mb-3 tracking-tight">
-                        {currentFolder}
-                      </h1>
-                      <p className="text-slate-300 text-lg">
-                        {playlistNames.length} Batches • {Object.values(playlists).flat().length} Videos
-                      </p>
-                    </div>
-                  </div>
-                  
-                  {/* Playlist Cards Section */}
-                  <div className="p-8 lg:p-12 -mt-16 relative z-20">
-                    <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-3">
-                      <span className="w-1 h-6 bg-emerald-500 rounded-full"></span>
-                      Batches / Playlists
-                    </h2>
-                    
-                    {!selectedPlaylist ? (
-                      /* Playlist Grid */
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {playlistNames.map((playlistName, index) => {
-                          const playlistVideos = playlists[playlistName];
-                          const firstVideo = playlistVideos[0];
-                          const colors = [
-                            'from-purple-500 to-pink-500',
-                            'from-indigo-500 to-cyan-500',
-                            'from-orange-500 to-red-500',
-                            'from-emerald-500 to-teal-500',
-                            'from-indigo-500 to-purple-500',
-                            'from-rose-500 to-orange-500',
-                          ];
-                          
-                          return (
-                            <div 
-                              key={playlistName}
-                              className="group bg-slate-800/50 backdrop-blur-sm rounded-2xl overflow-hidden border border-slate-700/50 hover:border-emerald-500/50 transition-all hover:shadow-xl hover:shadow-emerald-500/10 cursor-pointer"
-                              onClick={() => setSelectedPlaylist(playlistName)}
-                            >
-                              {/* Thumbnail */}
-                              <div className="aspect-video relative overflow-hidden">
-                                {firstVideo?.thumbnailUrl ? (
-                                  <img 
-                                    src={getProxiedMediaUrl(firstVideo.thumbnailUrl, token)} 
-                                    alt={playlistName}
-                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                  />
-                                ) : (
-                                  <div className={`w-full h-full bg-gradient-to-br ${colors[index % colors.length]} flex items-center justify-center`}>
-                                    <VideoIcon size={48} className="text-white/50" />
-                                  </div>
-                                )}
-                                
-                                {/* Overlay with play button */}
-                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center">
-                                  <div className="w-16 h-16 rounded-full bg-white/90 flex items-center justify-center shadow-xl transform scale-75 group-hover:scale-100 transition-transform">
-                                    <ArrowRight size={28} className="text-slate-900 ml-1" />
-                                  </div>
-                                </div>
-                                
-                                {/* Video count badge */}
-                                <div className="absolute bottom-3 right-3 px-3 py-1 bg-black/70 backdrop-blur-sm rounded-lg text-white text-xs font-bold">
-                                  {playlistVideos.length} videos
-                                </div>
-                              </div>
-                              
-                              {/* Card content */}
-                              <div className="p-5">
-                                <h3 className="font-bold text-white text-lg mb-2 group-hover:text-emerald-400 transition-colors">
-                                  {playlistName}
-                                </h3>
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-3">
-                                    <span className="text-slate-400 text-sm">
-                                      {playlistVideos.length} recordings
-                                    </span>
-                                    <span className="text-xs text-slate-400">
-                                      {playlistVideos.reduce((sum: number, v: any) => sum + (v.views || 0), 0)} views
-                                    </span>
-                                    <span className="text-xs text-slate-400 flex items-center gap-1">
-                                      <Heart size={12} /> {playlistVideos.reduce((sum: number, v: any) => sum + (Array.isArray(v.likes) ? v.likes.length : 0), 0)}
-                                    </span>
-                                    <span className="text-xs text-slate-400 flex items-center gap-1">
-                                      <MessageCircle size={12} /> {playlistVideos.reduce((sum: number, v: any) => sum + (Array.isArray(v.comments) ? v.comments.length : 0), 0)}
-                                    </span>
-                                  </div>
-                                  <button className="px-4 py-2 bg-emerald-500/20 text-emerald-400 rounded-xl text-sm font-bold group-hover:bg-emerald-500 group-hover:text-white transition-all flex items-center gap-2">
-                                    Play Now <ArrowRight size={16} />
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      /* Video List View when playlist selected */
-                      <div>
-                        {/* Back button */}
-                        <button 
-                          onClick={() => setSelectedPlaylist(null)}
-                          className="mb-6 px-4 py-2 bg-slate-700/50 text-white rounded-xl font-bold text-sm hover:bg-slate-700 transition-all flex items-center gap-2"
-                        >
-                          ← Back to Batches
-                        </button>
-                        
-                        {/* Playlist header */}
-                        <div className="bg-gradient-to-r from-emerald-500/20 to-teal-500/20 rounded-2xl p-6 mb-8 border border-emerald-500/30">
-                          <h3 className="text-2xl font-bold text-white mb-2">{selectedPlaylist}</h3>
-                          <p className="text-slate-300">{playlists[selectedPlaylist]?.length || 0} videos in this batch</p>
-                        </div>
-                        
-                        {/* Videos grid */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                          {(playlists[selectedPlaylist] || []).sort((a, b) => {
-                            const numA = parseInt(a.title?.match(/Video (\d+)/)?.[1] || '0');
-                            const numB = parseInt(b.title?.match(/Video (\d+)/)?.[1] || '0');
-                            return numA - numB;
-                          }).map((recording, index) => (
-                            <div key={recording._id} className="group bg-slate-800/50 backdrop-blur-sm rounded-2xl overflow-hidden border border-slate-700/50 hover:border-emerald-500/50 transition-all">
-                              {/* Video thumbnail */}
-                              <div className="aspect-video relative overflow-hidden">
-                                {recording.thumbnailUrl ? (
-                                  <img 
-                                    src={getProxiedMediaUrl(recording.thumbnailUrl, token)} 
-                                    alt={recording.title}
-                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                  />
-                                ) : (
-                                  <div className="w-full h-full bg-gradient-to-br from-slate-700 to-slate-600 flex items-center justify-center">
-                                    <VideoIcon size={40} className="text-slate-500" />
-                                  </div>
-                                )}
-                                
-                                {/* Play overlay */}
-                                {recording.s3Url && (
-                                  <a 
-                                    href={getProxiedMediaUrl(recording.s3Url, token)}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center"
-                                  >
-                                    <div className="w-14 h-14 rounded-full bg-emerald-500 flex items-center justify-center shadow-xl transform scale-75 group-hover:scale-100 transition-transform">
-                                      <ArrowRight size={24} className="text-white ml-0.5" />
-                                    </div>
-                                  </a>
-                                )}
-                                
-                                {/* Video number badge */}
-                                <div className="absolute top-3 left-3 w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-lg">
-                                  {index + 1}
-                                </div>
-                                
-                                {/* Duration */}
-                                {recording.duration && (
-                                  <div className="absolute bottom-3 right-3 px-2 py-1 bg-black/70 rounded-lg text-white text-xs font-bold">
-                                    {Math.floor(recording.duration / 60)}:{(recording.duration % 60).toString().padStart(2, '0')}
-                                  </div>
-                                )}
-                              </div>
-                              
-                              {/* Video info */}
-                              <div className="p-4">
-                                <h4 className="font-bold text-white mb-1">
-                                  {recording.title?.split(' > ').pop() || `Video ${index + 1}`}
-                                </h4>
-                                {recording.description && (
-                                  <p className="text-slate-400 text-sm mb-3 line-clamp-2">{recording.description}</p>
-                                )}
-                                <div className="flex items-center justify-between">
-                                  <span className="text-slate-500 text-xs">
-                                    {new Date(recording.createdAt).toLocaleDateString()}
-                                  </span>
-                                  <div className="flex items-center gap-1">
-                                    <span className="px-2 py-1 text-xs font-bold text-slate-400 rounded-lg" title="Views">
-                                      {recording.views || 0}
-                                    </span>
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); }}
-                                      className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all flex items-center gap-1"
-                                      title="Likes"
-                                    >
-                                      <Heart size={14} className={Array.isArray(recording.likes) && recording.likes.length > 0 ? 'fill-red-500 text-red-500' : ''} />
-                                      <span className="text-xs">{Array.isArray(recording.likes) ? recording.likes.length : 0}</span>
-                                    </button>
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); setSelectedVideoForComments(recording); setShowVideoCommentsModal(true); }}
-                                      className="p-2 text-slate-500 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-all flex items-center gap-1"
-                                      title="Comments"
-                                    >
-                                      <MessageCircle size={14} />
-                                      <span className="text-xs">{Array.isArray(recording.comments) ? recording.comments.length : 0}</span>
-                                    </button>
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); openEditVideoModal(recording); }}
-                                      className="p-2 text-slate-500 hover:text-indigo-500 hover:bg-indigo-500/10 rounded-lg transition-all"
-                                      title="Edit"
-                                    >
-                                      <Edit size={16} />
-                                    </button>
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); deleteVideo(recording._id); }}
-                                      className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
-                                      title="Delete"
-                                    >
-                                      <Trash2 size={16} />
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-        )}
+        <RecordingsPanel
+          recordings={recordings}
+          loading={loadingRecordings}
+          activeTab={activeTab}
+          authToken={token}
+          onFetchRecordings={fetchRecordings}
+          onShowUploadModal={() => setShowUploadRecordingModal(true)}
+          onShowAddYouTubeModal={() => setShowAddYouTubeRecordingModal(true)}
+          onDeleteVideo={deleteVideo}
+          onEditVideo={openEditVideoModal}
+          onOpenComments={(recording) => { setSelectedVideoForComments(recording); setShowVideoCommentsModal(true); }}
+          getProxiedMediaUrl={getProxiedMediaUrl}
+        />
 
         {/* Videos Tab */}
-        {activeTab === 'videos' && (
-          <div className="flex-1 overflow-auto bg-slate-50/80 p-6">
-            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 mb-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="text-lg font-bold text-slate-900">📹 Community Videos</h3>
-                  <p className="text-sm text-slate-500">AWS uploads and YouTube links (non-shareable)</p>
-                </div>
-                <div className="flex gap-3">
-                  <button
-                    onClick={fetchVideos}
-                    className="px-4 py-2 bg-slate-50 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-100 transition-all flex items-center gap-2"
-                  >
-                    <Loader size={16} className={loadingVideos ? 'animate-spin' : ''} />
-                    Refresh
-                  </button>
-                  <button
-                    onClick={() => setShowAddYouTubeModal(true)}
-                    className="px-4 py-2 bg-red-600 text-white rounded-xl font-bold text-sm hover:bg-red-700 transition-all flex items-center gap-2"
-                  >
-                    ▶ Add YouTube
-                  </button>
-                  <button
-                    onClick={() => setShowUploadVideoModal(true)}
-                    className="px-4 py-2 bg-purple-600 text-white rounded-xl font-bold text-sm hover:bg-purple-700 transition-all flex items-center gap-2"
-                  >
-                    <Upload size={16} />
-                    Upload Video
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {loadingVideos ? (
-              <div className="flex flex-col items-center justify-center h-80 space-y-4">
-                <div className="w-10 h-10 border-4 border-purple-500/20 border-t-purple-500 rounded-full animate-spin" />
-                <p className="text-sm text-slate-500">Loading videos...</p>
-              </div>
-            ) : videos.length === 0 ? (
-              <div className="bg-white rounded-[2.5rem] border border-slate-200/60 h-[400px] flex flex-col items-center justify-center text-center p-20 shadow-sm">
-                <VideoIcon size={48} className="text-slate-200 mb-6" />
-                <h3 className="text-xl font-bold text-slate-900 mb-2">No Videos Yet</h3>
-                <p className="text-slate-500 text-sm mb-6">Upload videos to share exclusive content with this community.</p>
-                <button
-                  onClick={() => setShowUploadVideoModal(true)}
-                  className="px-6 py-3 bg-purple-600 text-white rounded-xl font-bold text-sm hover:bg-purple-700 transition-all flex items-center gap-2"
-                >
-                  <Upload size={18} />
-                  Upload First Video
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {videos.map(video => (
-                  <div key={video._id} className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden hover:shadow-lg transition-all group">
-                    <div className="aspect-video bg-gradient-to-br from-purple-100 to-purple-50 flex items-center justify-center relative">
-                      {video.thumbnailUrl ? (
-                        <img 
-                          src={video.source === 'youtube_import' 
-                            ? video.thumbnailUrl 
-                            : getProxiedMediaUrl(video.thumbnailUrl, token)} 
-                          alt={video.title} 
-                          className="w-full h-full object-cover" 
-                        />
-                      ) : (
-                        <VideoIcon size={48} className="text-purple-300" />
-                      )}
-                      {video.duration && video.duration > 0 && (
-                        <span className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded-lg font-bold">
-                          {Math.floor(video.duration / 60)}:{(video.duration % 60).toString().padStart(2, '0')}
-                        </span>
-                      )}
-                      {/* Source badge */}
-                      <span className={`absolute top-2 left-2 px-2 py-1 rounded text-xs font-bold ${
-                        video.source === 'youtube_import' 
-                          ? 'bg-red-600 text-white' 
-                          : 'bg-purple-600 text-white'
-                      }`}>
-                        {video.source === 'youtube_import' ? '▶ YouTube' : '☁️ AWS'}
-                      </span>
-                    </div>
-                    <div className="p-5">
-                      <h4 className="font-bold text-slate-900 mb-1 line-clamp-2">{video.title}</h4>
-                      {video.description && (
-                        <p className="text-xs text-slate-500 mb-2 line-clamp-2">{video.description}</p>
-                      )}
-                      <p className="text-xs text-slate-400 mb-3">
-                        Added {new Date(video.createdAt).toLocaleDateString()}
-                      </p>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-slate-500 px-2 py-1">
-                            {video.views || 0}
-                          </span>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); }}
-                            className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg transition-all flex items-center gap-1"
-                            title="Likes"
-                          >
-                            <Heart size={14} className={Array.isArray(video.likes) && video.likes.length > 0 ? 'fill-red-500 text-red-500' : ''} />
-                            <span className="text-xs">{Array.isArray(video.likes) ? video.likes.length : 0}</span>
-                          </button>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setSelectedVideoForComments(video); setShowVideoCommentsModal(true); }}
-                            className="p-1.5 text-slate-400 hover:text-emerald-500 rounded-lg transition-all flex items-center gap-1"
-                            title="Comments"
-                          >
-                            <MessageCircle size={14} />
-                            <span className="text-xs">{Array.isArray(video.comments) ? video.comments.length : 0}</span>
-                          </button>
-                        </div>
-                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                          {video.source === 'youtube_import' && video.youtubeVideoId && (
-                            <a 
-                              href={`https://www.youtube.com/watch?v=${video.youtubeVideoId}`} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="p-2 hover:bg-red-600 hover:text-white rounded-lg transition-all text-red-500 border border-red-100"
-                              title="Open on YouTube"
-                            >
-                              <ArrowRight size={16} />
-                            </a>
-                          )}
-                          {video.s3Url && video.source !== 'youtube_import' && (
-                            <a 
-                              href={getProxiedMediaUrl(video.s3Url, token)} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="p-2 hover:bg-purple-600 hover:text-white rounded-lg transition-all text-purple-500 border border-purple-100"
-                            >
-                              <ArrowRight size={16} />
-                            </a>
-                          )}
-                          <button
-                            onClick={() => openEditVideoModal(video)}
-                            className="p-2 hover:bg-indigo-600 hover:text-white rounded-lg transition-all text-indigo-500 border border-indigo-100"
-                            title="Edit"
-                          >
-                            <Edit size={16} />
-                          </button>
-                          <button
-                            onClick={() => deleteVideo(video._id)}
-                            className="p-2 hover:bg-red-600 hover:text-white rounded-lg transition-all text-red-500 border border-red-100"
-                            title="Delete"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+        <VideosPanel
+          videos={videos}
+          loading={loadingVideos}
+          activeTab={activeTab}
+          authToken={token}
+          onFetchVideos={fetchVideos}
+          onShowAddYouTubeModal={() => setShowAddYouTubeModal(true)}
+          onShowUploadVideoModal={() => setShowUploadVideoModal(true)}
+          onDeleteVideo={deleteVideo}
+          onEditVideo={openEditVideoModal}
+          onOpenComments={(video) => { setSelectedVideoForComments(video); setShowVideoCommentsModal(true); }}
+          getProxiedMediaUrl={getProxiedMediaUrl}
+        />
 
         {/* Submissions Tab */}
-        {activeTab === 'submissions' && (
-          <div className="flex-1 overflow-auto bg-slate-50/80 p-6">
-            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 mb-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="text-lg font-bold text-slate-900">📝 User Submissions</h3>
-                  <p className="text-sm text-slate-500">Review and approve community content from users</p>
-                </div>
-                <div className="flex gap-3">
-                  <select 
-                    value={submissionsFilter} 
-                    onChange={(e) => { setSubmissionsFilter(e.target.value as any); fetchSubmissions(e.target.value); }}
-                    className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none"
-                  >
-                    <option value="pending">⏳ Pending ({submissionsCounts.pending})</option>
-                    <option value="approved">✅ Approved ({submissionsCounts.approved})</option>
-                    <option value="rejected">❌ Rejected ({submissionsCounts.rejected})</option>
-                    <option value="posted">📤 Posted ({submissionsCounts.posted})</option>
-                    <option value="all">All</option>
-                  </select>
-                  <button
-                    onClick={() => fetchSubmissions()}
-                    className="px-4 py-2 bg-slate-50 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-100 transition-all flex items-center gap-2"
-                  >
-                    <Loader size={16} className={loadingSubmissions ? 'animate-spin' : ''} />
-                    Refresh
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {loadingSubmissions ? (
-              <div className="flex flex-col items-center justify-center h-80 space-y-4">
-                <div className="w-10 h-10 border-4 border-orange-500/20 border-t-orange-500 rounded-full animate-spin" />
-                <p className="text-sm text-slate-500">Loading submissions...</p>
-              </div>
-            ) : submissions.length === 0 ? (
-              <div className="bg-white rounded-[2.5rem] border border-slate-200/60 h-[400px] flex flex-col items-center justify-center text-center p-20 shadow-sm">
-                <MessageSquare size={48} className="text-slate-200 mb-6" />
-                <h3 className="text-xl font-bold text-slate-900 mb-2">No Submissions</h3>
-                <p className="text-slate-500 text-sm">No user submissions found for this filter.</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {submissions.map((sub: any) => (
-                  <div key={sub._id} className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
-                    <div className={`px-6 py-4 border-b flex items-center justify-between ${
-                      sub.category === 'experiences' ? 'bg-purple-50 border-purple-100' :
-                      sub.category === 'tips' ? 'bg-yellow-50 border-yellow-100' :
-                      sub.category === 'transformations' ? 'bg-emerald-50 border-emerald-100' :
-                      'bg-indigo-50 border-indigo-100'
-                    }`}>
-                      <div className="flex items-center gap-3">
-                        <span className="text-2xl">
-                          {sub.category === 'experiences' ? '✨' : sub.category === 'tips' ? '💡' : sub.category === 'transformations' ? '🦋' : '❓'}
-                        </span>
-                        <div>
-                          <h4 className="font-bold text-slate-900 capitalize">{sub.category}</h4>
-                          <p className="text-xs text-slate-500">
-                            by {sub.userName || sub.participantName} • {new Date(sub.createdAt).toLocaleString()}
-                          </p>
-                        </div>
-                      </div>
-                      <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                        sub.status === 'pending' ? 'bg-orange-100 text-orange-700' :
-                        sub.status === 'approved' ? 'bg-green-100 text-green-700' :
-                        sub.status === 'rejected' ? 'bg-red-100 text-red-700' :
-                        'bg-indigo-100 text-indigo-700'
-                      }`}>
-                        {sub.status.toUpperCase()}
-                      </span>
-                    </div>
-                    <div className="p-6">
-                      <div className="grid grid-cols-3 gap-4 mb-4 text-sm">
-                        <div><span className="text-slate-500">Name:</span> <strong>{sub.participantName}</strong></div>
-                        {sub.workshopName && <div><span className="text-slate-500">Workshop:</span> <strong>{sub.workshopName}</strong></div>}
-                        {sub.batchName && <div><span className="text-slate-500">Batch:</span> <strong>{sub.batchName}</strong></div>}
-                      </div>
-                      
-                      {/* Category-specific content */}
-                      {sub.category === 'experiences' && sub.experienceDetails && (
-                        <div className="bg-purple-50 rounded-xl p-4 mb-4">
-                          <h5 className="text-sm font-bold text-purple-700 mb-2">Experience Story</h5>
-                          <p className="text-sm text-slate-700 whitespace-pre-wrap">{sub.experienceDetails}</p>
-                        </div>
-                      )}
-                      
-                      {sub.category === 'tips' && (
-                        <div className="bg-yellow-50 rounded-xl p-4 mb-4 space-y-3">
-                          {sub.problemHeading && <h5 className="text-lg font-bold text-yellow-800">{sub.problemHeading}</h5>}
-                          {sub.problemDescription && <p className="text-sm text-slate-600">{sub.problemDescription}</p>}
-                          {sub.tipsDetails && (
-                            <div className="pt-2 border-t border-yellow-200">
-                              <h6 className="text-sm font-bold text-yellow-700 mb-1">Tips & Tricks</h6>
-                              <p className="text-sm text-slate-700 whitespace-pre-wrap">{sub.tipsDetails}</p>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                      
-                      {sub.category === 'transformations' && (
-                        <div className="grid grid-cols-2 gap-4 mb-4">
-                          <div className="bg-red-50 rounded-xl p-4">
-                            <h5 className="text-sm font-bold text-red-700 mb-2">⬅️ Before</h5>
-                            <p className="text-sm text-slate-700 whitespace-pre-wrap">{sub.beforeStory}</p>
-                          </div>
-                          <div className="bg-green-50 rounded-xl p-4">
-                            <h5 className="text-sm font-bold text-green-700 mb-2">➡️ After</h5>
-                            <p className="text-sm text-slate-700 whitespace-pre-wrap">{sub.afterStory}</p>
-                          </div>
-                        </div>
-                      )}
-                      
-                      {sub.category === 'questions' && sub.question && (
-                        <div className="bg-indigo-50 rounded-xl p-4 mb-4">
-                          <h5 className="text-sm font-bold text-indigo-700 mb-2">❓ Question</h5>
-                          <p className="text-sm text-slate-700 whitespace-pre-wrap">{sub.question}</p>
-                          {sub.answer && (
-                            <div className="mt-3 pt-3 border-t border-indigo-200">
-                              <h6 className="text-sm font-bold text-green-700 mb-1">✅ Answer</h6>
-                              <p className="text-sm text-slate-700 whitespace-pre-wrap">{sub.answer}</p>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                      
-                      {sub.imageUrl && (
-                        <div className="mb-4">
-                          <img src={sub.imageUrl} alt="Submission" className="max-h-48 rounded-xl object-cover" />
-                        </div>
-                      )}
-                      
-                      {/* Actions */}
-                      <div className="flex items-center gap-3 pt-4 border-t">
-                        {sub.status === 'pending' && (
-                          <>
-                            <button
-                              onClick={() => loadSubmissionToPost(sub)}
-                              className="px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-all flex items-center gap-2"
-                            >
-                              <Send size={16} />
-                              Create Post
-                            </button>
-                            <button
-                              onClick={() => updateSubmissionStatus(sub._id, 'approved', undefined, sub.source)}
-                              className="px-4 py-2 bg-green-100 text-green-700 rounded-xl font-bold text-sm hover:bg-green-200 transition-all"
-                            >
-                              ✅ Approve
-                            </button>
-                            <button
-                              onClick={() => updateSubmissionStatus(sub._id, 'rejected', undefined, sub.source)}
-                              className="px-4 py-2 bg-red-100 text-red-700 rounded-xl font-bold text-sm hover:bg-red-200 transition-all"
-                            >
-                              ❌ Reject
-                            </button>
-                          </>
-                        )}
-                        {sub.status === 'approved' && (
-                          <button
-                            onClick={() => loadSubmissionToPost(sub)}
-                            className="px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-all flex items-center gap-2"
-                          >
-                            <Send size={16} />
-                            Create Post
-                          </button>
-                        )}
-                        <button
-                          onClick={() => deleteSubmission(sub._id, sub.source)}
-                          className="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all ml-auto"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+        <SubmissionsPanel
+          submissions={submissions}
+          loading={loadingSubmissions}
+          activeTab={activeTab}
+          counts={submissionsCounts}
+          currentFilter={submissionsFilter}
+          onFilterChange={setSubmissionsFilter}
+          onFetchSubmissions={fetchSubmissions}
+          onCreatePost={loadSubmissionToPost}
+          onApprove={(submissionId, source) => updateSubmissionStatus(submissionId, 'approved', undefined, source)}
+          onReject={(submissionId, source) => updateSubmissionStatus(submissionId, 'rejected', undefined, source)}
+          onDelete={deleteSubmission}
+        />
       </div>
 
       {/* Upload Video Modal */}
