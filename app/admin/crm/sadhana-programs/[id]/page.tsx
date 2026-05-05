@@ -56,6 +56,9 @@ export default function ProgramDetailPage() {
   const [chatMessages, setChatMessages] = useState<Array<{ id: string; name: string; message: string; createdAt: string }>>([]);
   const [showJoinedModal, setShowJoinedModal] = useState(false);
   const [showChatModal, setShowChatModal] = useState(false);
+  const [selectedDateForParticipants, setSelectedDateForParticipants] = useState<string | null>(null);
+  const [participantsBySlot, setParticipantsBySlot] = useState<Record<string, any[]>>({});
+  const [unlistedParticipants, setUnlistedParticipants] = useState<any[]>([]);
 
   const load = async () => {
     setLoading(true);
@@ -97,6 +100,22 @@ export default function ProgramDetailPage() {
   }, [program?.slug]);
 
   const videosByDate = videos.reduce<Record<string, Video>>((acc, v) => { acc[v.date] = v; return acc; }, {});
+
+  const fetchParticipantsByDate = async (dateStr: string) => {
+    if (!program?.slug) return;
+    try {
+      const res = await fetch(`/api/sadhana/live/${program.slug}/participants-by-date?date=${dateStr}`);
+      const data = await res.json();
+      if (data.success) {
+        setSelectedDateForParticipants(dateStr);
+        setParticipantsBySlot(data.participantsBySlot || {});
+        setUnlistedParticipants(data.unlistedParticipants || []);
+        setShowJoinedModal(true);
+      }
+    } catch (err) {
+      console.error('Failed to fetch participants:', err);
+    }
+  };
 
   const openEditor = (dateStr: string) => {
     const existing = videosByDate[dateStr];
@@ -354,7 +373,7 @@ export default function ProgramDetailPage() {
                     <span className="text-yellow-300">+</span> Add video
                   </div>
                 )}
-                {isToday && liveStats && (
+                {(isToday || day === parseInt(editDate?.split('-')[2] || '')) && liveStats && (
                   <div className="mt-2 space-y-1 text-[10px]">
                     <div className="text-sky-200 flex items-center gap-1">
                       <span>👥 {liveStats.activeParticipants} joined</span>
@@ -362,10 +381,10 @@ export default function ProgramDetailPage() {
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          setShowJoinedModal(true);
+                          fetchParticipantsByDate(key);
                         }}
                         className="p-1 hover:bg-sky-500/20 rounded transition"
-                        title="View joined users"
+                        title="View joined users for this date"
                       >
                         👁️
                       </button>
@@ -643,38 +662,37 @@ export default function ProgramDetailPage() {
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
           <div className="bg-gray-800 border border-gray-600 rounded-xl max-w-md w-full max-h-[80vh] flex flex-col">
             <div className="p-6 flex items-center justify-between border-b border-gray-700">
-              <h3 className="text-lg font-bold text-white">👥 Joined Users ({participants.length})</h3>
+              <div>
+                <h3 className="text-lg font-bold text-white">👥 Joined Users</h3>
+                {selectedDateForParticipants && (
+                  <p className="text-xs text-gray-400 mt-1">{new Date(selectedDateForParticipants).toLocaleDateString('en-IN', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}</p>
+                )}
+              </div>
               <button onClick={() => setShowJoinedModal(false)} className="text-gray-300 hover:text-white">
                 <X size={20} />
               </button>
             </div>
 
             <div className="overflow-y-auto flex-1 p-6">
-              {participants.length === 0 ? (
-                <p className="text-gray-400 text-center py-8">No users joined yet</p>
+              {Object.keys(participantsBySlot).length === 0 && unlistedParticipants.length === 0 ? (
+                <p className="text-gray-400 text-center py-8">No users joined on this date</p>
               ) : (
                 <div className="space-y-4">
                   {program?.timeSlots.map((timeSlot) => {
-                    const [slotHour, slotMin] = timeSlot.split(':');
-                    const usersInSlot = participants.filter(p => {
-                      const joinTime = new Date(p.joinedAt);
-                      const joinHour = joinTime.getHours().toString().padStart(2, '0');
-                      const joinMin = joinTime.getMinutes().toString().padStart(2, '0');
-                      return joinHour === slotHour && joinMin === slotMin;
-                    });
+                    const usersInSlot = participantsBySlot[timeSlot] || [];
 
                     if (usersInSlot.length === 0) return null;
 
                     return (
                       <div key={timeSlot}>
-                        <div className="text-sm font-semibold text-purple-300 mb-2">🕐 {timeSlot} AM Session</div>
+                        <div className="text-sm font-semibold text-purple-300 mb-2">🕐 {timeSlot} AM Session ({usersInSlot.length})</div>
                         <div className="bg-gradient-to-r from-purple-900/30 to-purple-800/20 border border-purple-700/30 rounded-lg p-3 space-y-2">
                           {usersInSlot.map((user, idx) => (
                             <div key={idx} className="text-sm text-gray-200 flex items-center gap-2">
                               <span className="w-4 h-4 rounded-full bg-purple-500 flex-shrink-0"></span>
                               <span className="truncate">{user.name}</span>
                               <span className="text-xs text-gray-400 ml-auto flex-shrink-0">
-                                {new Date(user.joinedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                                {user.joinTime}
                               </span>
                             </div>
                           ))}
@@ -683,33 +701,22 @@ export default function ProgramDetailPage() {
                     );
                   })}
 
-                  {(() => {
-                    const unlistedUsers = participants.filter(p => {
-                      const joinTime = new Date(p.joinedAt);
-                      const joinHour = joinTime.getHours().toString().padStart(2, '0');
-                      const joinMin = joinTime.getMinutes().toString().padStart(2, '0');
-                      return !program?.timeSlots.includes(`${joinHour}:${joinMin}`);
-                    });
-
-                    if (unlistedUsers.length === 0) return null;
-
-                    return (
-                      <div>
-                        <div className="text-sm font-semibold text-amber-300 mb-2">🕐 Other Join Times</div>
-                        <div className="bg-gradient-to-r from-amber-900/30 to-amber-800/20 border border-amber-700/30 rounded-lg p-3 space-y-2">
-                          {unlistedUsers.map((user, idx) => (
-                            <div key={idx} className="text-sm text-gray-200 flex items-center gap-2">
-                              <span className="w-4 h-4 rounded-full bg-amber-500 flex-shrink-0"></span>
-                              <span className="truncate">{user.name}</span>
-                              <span className="text-xs text-gray-400 ml-auto flex-shrink-0">
-                                {new Date(user.joinedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
+                  {unlistedParticipants.length > 0 && (
+                    <div>
+                      <div className="text-sm font-semibold text-amber-300 mb-2">🕐 Other Join Times ({unlistedParticipants.length})</div>
+                      <div className="bg-gradient-to-r from-amber-900/30 to-amber-800/20 border border-amber-700/30 rounded-lg p-3 space-y-2">
+                        {unlistedParticipants.map((user, idx) => (
+                          <div key={idx} className="text-sm text-gray-200 flex items-center gap-2">
+                            <span className="w-4 h-4 rounded-full bg-amber-500 flex-shrink-0"></span>
+                            <span className="truncate">{user.name}</span>
+                            <span className="text-xs text-gray-400 ml-auto flex-shrink-0">
+                              {user.joinTime}
+                            </span>
+                          </div>
+                        ))}
                       </div>
-                    );
-                  })()}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
