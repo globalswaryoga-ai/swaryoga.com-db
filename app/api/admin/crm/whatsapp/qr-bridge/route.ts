@@ -759,7 +759,11 @@ export async function POST(req: NextRequest) {
     if (resolved.hasOwnBridge && resolved.storedPhone) {
       const basePath = '/' + decodedPath.split('/').filter(Boolean)[0];
 
-      if (BODY_TARGET_PATHS.has(basePath) && body && basePath !== '/send') {
+      // Fire-and-forget paths that don't return user data — safe to bypass ownership check
+      const SAFE_BYPASS_PATHS = new Set(['/read', '/presence', '/typing']);
+      const isSafeBypass = SAFE_BYPASS_PATHS.has(basePath);
+
+      if (BODY_TARGET_PATHS.has(basePath) && body && basePath !== '/send' && !isSafeBypass) {
         const targetJid = String(body.chatId || body.jid || body.to || '');
         const normalizedChatJid = targetJid.includes('@')
           ? targetJid
@@ -783,7 +787,8 @@ export async function POST(req: NextRequest) {
           const allowed = await isChatAllowedInCurrentSession(userId, resolved.storedPhone, chatJid);
           if (!allowed) {
             console.warn(`[QR Bridge Proxy] BLOCKED stale/foreign own-bridge POST path for ${userId}: ${decodedPath}`);
-            if (decodedPath.startsWith('/messages/')) {
+            // Fire-and-forget paths and messages — return success without error
+            if (decodedPath.startsWith('/messages/') || decodedPath.startsWith('/read/') || decodedPath.startsWith('/presence/') || decodedPath.startsWith('/typing/')) {
               return NextResponse.json({ success: true, data: { messages: [], blocked: true } }, { status: 200 });
             }
             return NextResponse.json(
