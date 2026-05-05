@@ -6,13 +6,13 @@ import mongoose from 'mongoose';
 export const dynamic = 'force-dynamic';
 
 // Schema for private community videos
-// All videos owned by swarsakshi9@gmail.com (single owner)
+// All videos owned by swarsakshi9999@gmail.com (single owner)
 // Access control via community membership (not per-email)
 const privateVideoSchema = new mongoose.Schema({
   videoTitle: { type: String, required: true },
   videoId: { type: String, required: true, unique: true },
   videoUrl: { type: String, required: true },
-  ownerEmail: { type: String, default: 'swarsakshi9@gmail.com' }, // YouTube video owner
+  ownerEmail: { type: String, default: 'swarsakshi9999@gmail.com' }, // YouTube video owner
   requiredRole: {
     type: String,
     enum: ['member', 'participant', 'instructor', 'admin'],
@@ -105,7 +105,7 @@ export async function GET(request: NextRequest) {
  * POST /api/admin/community/private-videos
  * Admin adds a new private video (requires admin auth)
  *
- * All videos owned by swarsakshi9@gmail.com (single owner account)
+ * All videos owned by swarsakshi9999@gmail.com (single owner account)
  * Access control via community role (member/participant/instructor/admin)
  *
  * Body: {
@@ -163,7 +163,7 @@ export async function POST(request: NextRequest) {
       videoTitle,
       videoId,
       videoUrl,
-      ownerEmail: 'swarsakshi9@gmail.com', // All videos owned by this account
+      ownerEmail: 'swarsakshi9999@gmail.com', // All videos owned by this account
       requiredRole, // Minimum role to watch
       videoType,
       description,
@@ -176,7 +176,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: video,
-      message: `✅ Video added! All videos owned by swarsakshi9@gmail.com`,
+      message: `✅ Video added! All videos owned by swarsakshi9999@gmail.com`,
     });
   } catch (error: any) {
     console.error('[Private Videos POST]', error);

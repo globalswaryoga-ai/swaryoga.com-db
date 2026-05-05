@@ -24,7 +24,7 @@ export default function AddYouTubeRecordingPage({ token }: { token: string | nul
 
   const [emailVerified, setEmailVerified] = useState(false);
   const [checkingEmail, setCheckingEmail] = useState(false);
-  const YOUTUBE_EMAIL = 'swarsakshi9@gmail.com';
+  const YOUTUBE_EMAIL = 'swarsakshi9999@gmail.com';
 
   // Check email verification status
   useEffect(() => {
@@ -144,7 +144,7 @@ export default function AddYouTubeRecordingPage({ token }: { token: string | nul
             Add Private YouTube Recording
           </h1>
           <p className="text-gray-600 mt-2">
-            Add YouTube private videos (swarsakshi9@gmail.com) to community recordings
+            Add YouTube private videos (swarsakshi9999@gmail.com) to community recordings
           </p>
         </div>
 
@@ -235,7 +235,7 @@ export default function AddYouTubeRecordingPage({ token }: { token: string | nul
                 required
               />
               <p className="text-xs text-gray-500 mt-1">
-                ✅ Owned by: swarsakshi9@gmail.com
+                ✅ Owned by: swarsakshi9999@gmail.com
               </p>
             </div>
 
@@ -326,7 +326,7 @@ export default function AddYouTubeRecordingPage({ token }: { token: string | nul
           <div className="bg-white rounded-lg shadow p-6">
             <h3 className="font-bold text-gray-800 mb-3">📺 How to Create Private YouTube Video</h3>
             <ol className="text-sm text-gray-600 space-y-2">
-              <li>1. Upload video to YouTube (swarsakshi9@gmail.com account)</li>
+              <li>1. Upload video to YouTube (swarsakshi9999@gmail.com account)</li>
               <li>2. Set visibility to "Private"</li>
               <li>3. Copy the video URL</li>
               <li>4. Paste here to add to community</li>
@@ -337,7 +337,7 @@ export default function AddYouTubeRecordingPage({ token }: { token: string | nul
             <h3 className="font-bold text-gray-800 mb-3">🔒 Security & Access</h3>
             <ul className="text-sm text-gray-600 space-y-2">
               <li>✅ YouTube handles access control</li>
-              <li>✅ Only swarsakshi9@gmail.com can upload</li>
+              <li>✅ Only swarsakshi9999@gmail.com can upload</li>
               <li>✅ Community members see in recordings</li>
               <li>✅ Login required to watch</li>
             </ul>

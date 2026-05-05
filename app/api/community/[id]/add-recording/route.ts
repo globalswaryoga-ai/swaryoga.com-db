@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 /**
  * POST /api/community/[id]/add-recording
  * Admin adds a YouTube private recording to a community
- * REQUIRES: Email verification (swarsakshi9@gmail.com must be verified)
+ * REQUIRES: Email verification (swarsakshi9999@gmail.com must be verified)
  *
  * Body: {
  *   title: "Recording Title",
@@ -16,7 +16,7 @@ export const dynamic = 'force-dynamic';
  *   videoSource: "youtube",
  *   youtubeVideoId: "ABC123...",
  *   videoUrl: "https://www.youtube.com/watch?v=ABC123...",
- *   youtubeEmail: "swarsakshi9@gmail.com", // YouTube account email
+ *   youtubeEmail: "swarsakshi9999@gmail.com", // YouTube account email
  *   isPublic: false,
  *   recordingType: "private_youtube"
  * }
@@ -43,7 +43,7 @@ export async function POST(
       videoSource,
       youtubeVideoId,
       videoUrl,
-      youtubeEmail = 'swarsakshi9@gmail.com',
+      youtubeEmail = 'swarsakshi9999@gmail.com',
       isPublic = false,
       recordingType = 'private_youtube',
     } = body;

@@ -82,7 +82,7 @@ export default function AdminPrivateVideosPage({ token }: { token: string | null
         throw new Error(data.error || 'Failed to add video');
       }
 
-      setSuccess(`✅ Video added! (Owner: swarsakshi9@gmail.com)`);
+      setSuccess(`✅ Video added! (Owner: swarsakshi9999@gmail.com)`);
       setVideoUrl('');
       setVideoTitle('');
       setDescription('');
@@ -137,7 +137,7 @@ export default function AdminPrivateVideosPage({ token }: { token: string | null
 
               <form onSubmit={handleAddVideo} className="space-y-4">
                 <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-800">
-                  <p className="font-medium">📺 Video Owner: swarsakshi9@gmail.com</p>
+                  <p className="font-medium">📺 Video Owner: swarsakshi9999@gmail.com</p>
                   <p className="text-xs mt-1">All videos added here are owned by this account</p>
                 </div>
 
@@ -238,7 +238,7 @@ export default function AdminPrivateVideosPage({ token }: { token: string | null
                 <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
                   <p className="font-medium">💡 How it works:</p>
                   <ul className="mt-2 space-y-1 text-xs">
-                    <li>✅ All videos owned by swarsakshi9@gmail.com</li>
+                    <li>✅ All videos owned by swarsakshi9999@gmail.com</li>
                     <li>✅ YouTube handles private video security</li>
                     <li>✅ Your platform controls access via roles</li>
                     <li>✅ Users see videos they have permission for</li>
