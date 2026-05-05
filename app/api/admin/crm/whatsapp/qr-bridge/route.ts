@@ -760,8 +760,8 @@ export async function POST(req: NextRequest) {
       const basePath = '/' + decodedPath.split('/').filter(Boolean)[0];
 
       // Fire-and-forget paths that don't return user data — safe to bypass ownership check
-      const SAFE_BYPASS_PATHS = new Set(['/read', '/presence', '/typing']);
-      const isSafeBypass = SAFE_BYPASS_PATHS.has(basePath);
+      const SAFE_BYPASS_PATHS = new Set(['/read', '/presence/subscribe', '/typing']);
+      const isSafeBypass = SAFE_BYPASS_PATHS.has(basePath) || SAFE_BYPASS_PATHS.has(decodedPath.split('?')[0]);
 
       if (BODY_TARGET_PATHS.has(basePath) && body && basePath !== '/send' && !isSafeBypass) {
         const targetJid = String(body.chatId || body.jid || body.to || '');
