@@ -158,9 +158,9 @@ export async function GET(req: NextRequest) {
 
       // Last message time
       const lastMessage = phoneMessages.sort((a: any, b: any) => b.timestamp - a.timestamp)[0];
-      const lastMessageTime = lastMessage ? new Date(lastMessage.timestamp).toISOString() : null;
+      const lastMessageTime = lastMessage ? new Date(lastMessage.timestamp * 1000).toISOString() : null;
       const daysSinceLastMessage = lastMessage
-        ? Math.floor((Date.now() - lastMessage.timestamp) / (1000 * 60 * 60 * 24))
+        ? Math.floor((Date.now() - (lastMessage.timestamp * 1000)) / (1000 * 60 * 60 * 24))
         : null;
 
       // Daily breakdown (support both 'direction' and 'fromMe' fields)
