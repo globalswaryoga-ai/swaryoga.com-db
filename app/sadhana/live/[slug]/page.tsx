@@ -725,7 +725,9 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
     const handleRateChange = () => { if (video.playbackRate !== 1) video.playbackRate = 1; };
     const handleCanPlay = () => { if (video.paused) video.play().catch(() => {}); };
 
-    video.muted = true;
+    // Enable audio - don't mute
+    video.muted = false;
+    video.volume = 1;
     video.autoplay = true;
     video.playsInline = true;
     video.preload = 'auto';
