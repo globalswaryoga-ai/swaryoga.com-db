@@ -513,24 +513,71 @@ export function TemplatesTab({ token }: TemplatesTabProps) {
                 </div>
               </div>
 
-              {/* Preview */}
-              <div className="p-3 bg-gray-50 rounded-lg border">
+              {/* WhatsApp-style Preview */}
+              <div className="p-3 bg-[#e5ddd5] rounded-lg border">
                 <p className="text-xs font-medium text-gray-600 mb-2">Preview</p>
-                <div className="bg-white border rounded p-3 text-sm text-gray-800">
-                  {formData.headerFormat !== 'NONE' && (
-                    <div className="mb-2 pb-2 border-b text-xs text-gray-600">
-                      [{formData.headerFormat}] {formData.headerMediaUrl || '(No content)'}
+                <div className="flex justify-end">
+                  <div className="max-w-xs w-full bg-white rounded-lg shadow-sm overflow-hidden relative">
+                    {/* Tail */}
+                    <div className="absolute top-0 right-[-8px] w-0 h-0 border-l-[8px] border-l-white border-t-[8px] border-t-transparent" />
+
+                    {/* Image Header */}
+                    {formData.headerFormat === 'IMAGE' && (
+                      formData.headerMediaUrl ? (
+                        <img
+                          src={formData.headerMediaUrl}
+                          alt="Template header"
+                          className="w-full h-40 object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-32 bg-gray-200 flex items-center justify-center">
+                          <span className="text-gray-400 text-xs">Image header</span>
+                        </div>
+                      )
+                    )}
+
+                    {/* Text Header */}
+                    {formData.headerFormat === 'TEXT' && formData.headerMediaUrl && (
+                      <div className="px-3 pt-3">
+                        <p className="font-semibold text-sm text-gray-900">{formData.headerMediaUrl}</p>
+                      </div>
+                    )}
+
+                    {/* Body */}
+                    <div className="px-3 py-2">
+                      <p className="text-sm text-gray-800 whitespace-pre-wrap">
+                        {formData.body || <span className="text-gray-400 italic">Message body...</span>}
+                      </p>
                     </div>
-                  )}
-                  <p className="whitespace-pre-wrap">{formData.body || '(Message body)'}</p>
-                  {formData.footer && <p className="mt-2 pt-2 border-t text-xs text-gray-500">{formData.footer}</p>}
-                  {formData.buttons.length > 0 && (
-                    <div className="mt-2 pt-2 border-t text-xs space-y-1">
-                      {formData.buttons.map((btn, idx) => (
-                        <div key={idx} className="text-blue-600">• {btn.title} ({btn.kind})</div>
-                      ))}
+
+                    {/* Footer */}
+                    {formData.footer && (
+                      <div className="px-3 pb-2">
+                        <p className="text-xs text-gray-400">{formData.footer}</p>
+                      </div>
+                    )}
+
+                    {/* Timestamp */}
+                    <div className="flex justify-end px-3 pb-1">
+                      <span className="text-[10px] text-gray-400">10:30 AM ✓✓</span>
                     </div>
-                  )}
+
+                    {/* Buttons */}
+                    {formData.buttons.length > 0 && (
+                      <div className="border-t border-gray-100">
+                        {formData.buttons.map((btn, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            className="w-full py-2 text-sm text-[#00a5f4] font-medium hover:bg-gray-50 border-b border-gray-100 last:border-b-0 flex items-center justify-center gap-1"
+                          >
+                            {btn.kind === 'URL' ? '🔗' : btn.kind === 'PHONE_NUMBER' ? '📞' : '↩'}
+                            {btn.title || 'Button'}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
