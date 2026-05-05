@@ -2,13 +2,15 @@
 
 import React, { useState, useEffect } from 'react';
 import { Plus, Loader2, AlertCircle, CheckCircle2, YouTube } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 
 interface Community {
   _id: string;
   name: string;
 }
 
-export default function AddYouTubeRecordingPage({ token }: { token: string | null }) {
+export default function AddYouTubeRecordingPage() {
+  const token = useAuth();
   const [communities, setCommunities] = useState<Community[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);

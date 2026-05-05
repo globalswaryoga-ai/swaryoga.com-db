@@ -2,8 +2,10 @@
 
 import React, { useState } from 'react';
 import { Mail, CheckCircle2, AlertCircle, Loader2, Copy, Check } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 
-export default function VerifyYouTubeEmailPage({ token }: { token: string | null }) {
+export default function VerifyYouTubeEmailPage() {
+  const token = useAuth();
   const [email, setEmail] = useState('');
   const [step, setStep] = useState<'request' | 'verify'>('request');
   const [verificationCode, setVerificationCode] = useState('');

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Loader2, AlertCircle, CheckCircle2, Play } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 
 interface PrivateVideo {
   _id: string;
@@ -14,7 +15,8 @@ interface PrivateVideo {
   views?: number;
 }
 
-export default function AdminPrivateVideosPage({ token }: { token: string | null }) {
+export default function AdminPrivateVideosPage() {
+  const token = useAuth();
   const [videos, setVideos] = useState<PrivateVideo[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
