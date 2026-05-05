@@ -447,53 +447,109 @@ async function loadChatsFromDB(session) {
     const client = await getMongoClient();
     if (!client) return;
     const db = client.db(AUTH_DB_NAME);
-    const col = db.collection('whatsapp_messages');
     const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
-
-    // Try to load only this user's messages if ownerId field exists
-    const filter = {
-      provider: { $in: ['whatsapp_web_bridge', 'whatsapp_qr', null] },
-      sentAt: { $gte: cutoff },
-    };
-    // Only load messages that belong to this specific user
-    // CRITICAL: Do NOT include legacy untagged messages for non-admin users
-    // as that would leak the super admin's chat data to other users.
-    if (session.ownerUserId !== 'default') {
-      filter.$or = [
-        { bridgeUserId: session.ownerUserId },
-        { ownerId: session.ownerUserId },
-      ];
-    }
-
-    const docs = await col.find(filter).sort({ sentAt: 1 }).limit(2000).toArray();
     let chatCount = 0, msgCount = 0;
 
-    for (const doc of docs) {
-      const phone = (doc.phoneNumber || '').replace(/\D/g, '');
-      if (!phone || phone.length < 10) continue;
-      const jid = `${phone}@s.whatsapp.net`;
-      const isFromMe = doc.direction === 'outbound';
-      const ts = doc.sentAt ? new Date(doc.sentAt).toISOString() : new Date().toISOString();
-      if (!session.chatMap.has(jid)) chatCount++;
-      session.chatMap.set(jid, { id: jid, name: doc.senderDisplayName || phone, isGroup: false, unreadCount: 0, lastMessageTime: ts });
-      const msgEntry = {
-        id: doc.waMessageId || String(doc._id),
-        from: phone, fromMe: isFromMe,
-        text: doc.messageContent || (doc.media?.kind ? `[${doc.media.kind}]` : ''),
-        type: doc.media?.kind || doc.messageType || 'text',
-        timestamp: doc.sentAt ? Math.floor(new Date(doc.sentAt).getTime() / 1000) : 0,
-        status: doc.status, hasMedia: doc.hasMedia || !!doc.media?.url,
-        mediaUrl: doc.media?.url || null, mediaMimetype: doc.media?.mimeType || null, mediaFileName: doc.media?.fileName || null,
-      };
-      if (!session.messageMap.has(jid)) session.messageMap.set(jid, []);
-      const arr = session.messageMap.get(jid);
-      arr.push(msgEntry);
-      if (arr.length > MAX_MSGS_PER_CHAT) arr.shift();
-      msgCount++;
+    // ── PRIMARY: Load from qr_whatsapp_messages (QR-specific, proper structure) ──
+    // This collection has userId, connectedPhone, chatJid, direction fields.
+    // CRITICAL: Always filter by userId (tenant isolation — never leak cross-user data).
+    if (session.ownerUserId && session.ownerUserId !== 'default') {
+      const qrCol = db.collection('qr_whatsapp_messages');
+      const qrDocs = await qrCol
+        .find({ userId: session.ownerUserId, timestamp: { $gte: Math.floor(cutoff.getTime() / 1000) } })
+        .sort({ timestamp: 1 })
+        .limit(3000)
+        .toArray();
+
+      for (const doc of qrDocs) {
+        const jid = doc.chatJid || '';
+        if (!jid) continue;
+        const isFromMe = doc.direction === 'outbound' || doc.fromMe === true;
+        const tsMs = (doc.timestamp || 0) * 1000; // stored in seconds
+        const tsIso = new Date(tsMs).toISOString();
+
+        // Update chatMap with latest message info
+        const existing = session.chatMap.get(jid);
+        if (!existing || tsMs > (existing._lastTs || 0)) {
+          session.chatMap.set(jid, {
+            id: jid,
+            name: doc.pushName || jid.split('@')[0],
+            isGroup: jid.endsWith('@g.us'),
+            unreadCount: 0,
+            lastMessageTime: tsIso,
+            lastMessage: doc.text || '',
+            _lastTs: tsMs,
+          });
+          if (!existing) chatCount++;
+        }
+
+        const msgEntry = {
+          id: doc.messageId || String(doc._id),
+          from: isFromMe ? (doc.connectedPhone || '') : jid.split('@')[0],
+          fromMe: isFromMe,
+          text: doc.text || '',
+          type: doc.type || 'text',
+          timestamp: doc.timestamp || 0,
+          status: doc.status || 0,
+          participant: doc.participant || '',
+          pushName: doc.pushName || '',
+          hasMedia: doc.hasMedia || false,
+          mediaUrl: doc.mediaUrl || null,
+          mediaMimetype: doc.mediaMimetype || null,
+          mediaFileName: doc.mediaFileName || null,
+        };
+        if (!session.messageMap.has(jid)) session.messageMap.set(jid, []);
+        const arr = session.messageMap.get(jid);
+        arr.push(msgEntry);
+        if (arr.length > MAX_MSGS_PER_CHAT) arr.shift();
+        msgCount++;
+      }
+      console.log(`[${session.ownerUserId}] QR hydration: ${chatCount} chats, ${msgCount} messages from qr_whatsapp_messages`);
     }
-    console.log(`[${session.userId}] Hydrated ${chatCount} chats, ${msgCount} messages from DB`);
+
+    // ── FALLBACK: Also scan whatsapp_messages for older bridged messages ──
+    // Only loads messages tagged with this user's bridgeUserId (tenant-safe).
+    if (session.ownerUserId && session.ownerUserId !== 'default') {
+      const col = db.collection('whatsapp_messages');
+      const filter = {
+        provider: { $in: ['whatsapp_web_bridge', 'whatsapp_qr'] },
+        sentAt: { $gte: cutoff },
+        $or: [{ bridgeUserId: session.ownerUserId }, { ownerId: session.ownerUserId }],
+      };
+      const docs = await col.find(filter).sort({ sentAt: 1 }).limit(1000).toArray();
+
+      for (const doc of docs) {
+        const phone = (doc.phoneNumber || '').replace(/\D/g, '');
+        if (!phone || phone.length < 10) continue;
+        const jid = `${phone}@s.whatsapp.net`;
+        // Skip if already loaded from qr_whatsapp_messages (avoid duplicates)
+        if (session.messageMap.has(jid) && session.messageMap.get(jid).length > 0) continue;
+        const isFromMe = doc.direction === 'outbound';
+        const ts = doc.sentAt ? new Date(doc.sentAt).toISOString() : new Date().toISOString();
+        if (!session.chatMap.has(jid)) {
+          session.chatMap.set(jid, { id: jid, name: doc.senderDisplayName || phone, isGroup: false, unreadCount: 0, lastMessageTime: ts });
+          chatCount++;
+        }
+        const msgEntry = {
+          id: doc.waMessageId || String(doc._id),
+          from: phone, fromMe: isFromMe,
+          text: doc.messageContent || '',
+          type: doc.messageType || 'text',
+          timestamp: doc.sentAt ? Math.floor(new Date(doc.sentAt).getTime() / 1000) : 0,
+          status: doc.status || 0, hasMedia: doc.hasMedia || false,
+          mediaUrl: doc.media?.url || null, mediaMimetype: doc.media?.mimeType || null, mediaFileName: doc.media?.fileName || null,
+        };
+        if (!session.messageMap.has(jid)) session.messageMap.set(jid, []);
+        const arr = session.messageMap.get(jid);
+        arr.push(msgEntry);
+        if (arr.length > MAX_MSGS_PER_CHAT) arr.shift();
+        msgCount++;
+      }
+    }
+
+    console.log(`[${session.userId}] DB hydration complete: ${chatCount} chats, ${msgCount} messages total`);
   } catch (err) {
-    console.error(`[${session.userId}] Failed to load chats:`, err.message);
+    console.error(`[${session.userId}] Failed to load chats from DB:`, err.message);
   }
 }
 
@@ -504,6 +560,12 @@ async function forwardToWebhook(session, payload) {
   payload.bridgeUserId = session.ownerUserId || session.userId;
   payload.bridgeSessionId = session.sessionKey || session.userId;
   payload.bridgeTenantId = session.tenantId || null;
+  // Include the connected phone so CRM can save to QrWhatsAppMessage/QrWhatsAppChat
+  // without relying on a separate DB lookup that may be empty
+  if (session.phoneInfo?.id) {
+    const rawPhone = session.phoneInfo.id.split(':')[0].split('@')[0].replace(/\D/g, '');
+    if (rawPhone) payload.connectedPhone = rawPhone;
+  }
   try {
     const res = await fetch(url, {
       method: 'POST',
@@ -738,7 +800,8 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
           session.chatMap.clear();
         }
 
-        if (ENABLE_DB_CHAT_HYDRATION && session.chatMap.size === 0) {
+        // Always hydrate from DB so message history survives bridge restarts
+        if (session.chatMap.size === 0) {
           loadChatsFromDB(session).catch(e => console.error(`[${session.ownerUserId}] DB-LOAD error:`, e.message));
         }
 
