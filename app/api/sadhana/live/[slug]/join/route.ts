@@ -11,9 +11,24 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
 
     const db = await getProgramsDb();
     const participants = db.collection('sadhana_live_participants');
+    const joinHistory = db.collection('sadhana_join_history');
     const now = new Date();
 
     await participants.updateOne(
+      { sessionId, programSlug: params.slug },
+      {
+        $set: {
+          sessionId,
+          programSlug: params.slug,
+          name: String(name).slice(0, 50),
+          lastSeen: now,
+        },
+        $setOnInsert: { joinedAt: now },
+      },
+      { upsert: true }
+    );
+
+    await joinHistory.updateOne(
       { sessionId, programSlug: params.slug },
       {
         $set: {

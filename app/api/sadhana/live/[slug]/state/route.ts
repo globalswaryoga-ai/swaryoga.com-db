@@ -142,10 +142,10 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
     const activeThreshold = new Date(now.getTime() - 15 * 1000);
 
     if (sessionId) {
-      await participants.updateOne({ sessionId }, { $set: { lastSeen: now } });
+      await participants.updateOne({ sessionId, programSlug: params.slug }, { $set: { lastSeen: now } });
     }
 
-    await participants.deleteMany({ lastSeen: { $lt: activeThreshold } });
+    await participants.deleteMany({ programSlug: params.slug, lastSeen: { $lt: activeThreshold } });
 
     const activeParticipants = await participants
       .find({ programSlug: params.slug, lastSeen: { $gte: activeThreshold } })
@@ -315,6 +315,14 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       .limit(50)
       .toArray();
 
+    // Get persistent join history for today
+    const joinHistoryCol = db.collection('sadhana_join_history');
+    const todaysJoins = await joinHistoryCol
+      .find({ programSlug: params.slug, joinedAt: { $gte: oneDayAgo } })
+      .sort({ joinedAt: 1 })
+      .limit(500)
+      .toArray();
+
     // Get todayVideo from program calendar or schedule videoUrl
     let todayVideo = null;
     let upcomingVideos: any[] = [];
@@ -412,6 +420,10 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       success: true,
       count: activeParticipants.length,
       participants: activeParticipants.map((p: any) => ({
+        name: p.name,
+        joinedAt: p.joinedAt,
+      })),
+      todaysParticipants: todaysJoins.map((p: any) => ({
         name: p.name,
         joinedAt: p.joinedAt,
       })),

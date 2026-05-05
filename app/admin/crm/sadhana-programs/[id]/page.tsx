@@ -85,7 +85,8 @@ export default function ProgramDetailPage() {
           setLiveCount(typeof data.count === 'number' ? data.count : null);
           setChatCount(Array.isArray(data.chat) ? data.chat.length : null);
           setLiveStatus(data.session?.status || 'offline');
-          setParticipants(Array.isArray(data.participants) ? data.participants : []);
+          setParticipants(Array.isArray(data.todaysParticipants) ? data.todaysParticipants :
+                         Array.isArray(data.participants) ? data.participants : []);
           setChatMessages(Array.isArray(data.chat) ? data.chat : []);
         }
       } catch (err) {
