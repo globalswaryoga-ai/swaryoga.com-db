@@ -82,7 +82,7 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
 
       if (leadsRes.ok) {
         const leadsData = await leadsRes.json();
-        setLeads(leadsData?.data ?? []);
+        setLeads(leadsData?.data?.leads ?? []);
       }
       if (templatesRes.ok) {
         const templatesData = await templatesRes.json();
