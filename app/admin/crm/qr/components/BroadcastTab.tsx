@@ -70,6 +70,7 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
   const fetchData = useCallback(async () => {
     if (!token || !isConnected) return;
     setLoading(true);
+    setError(null);
     try {
       const [leadsRes, templatesRes] = await Promise.all([
         fetch('/api/admin/crm/leads?selectAll=true&limit=5000', {
@@ -82,14 +83,25 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
 
       if (leadsRes.ok) {
         const leadsData = await leadsRes.json();
-        setLeads(leadsData?.data?.leads ?? []);
+        const leadsArray = leadsData?.data?.leads ?? [];
+        if (Array.isArray(leadsArray)) {
+          setLeads(leadsArray);
+        } else {
+          setError('Invalid leads data format');
+        }
+      } else {
+        setError(`Failed to load leads: ${leadsRes.status}`);
       }
+
       if (templatesRes.ok) {
         const templatesData = await templatesRes.json();
-        setTemplates(templatesData?.templates ?? []);
+        const templatesArray = templatesData?.templates ?? [];
+        if (Array.isArray(templatesArray)) {
+          setTemplates(templatesArray);
+        }
       }
     } catch (e: any) {
-      setError(e.message);
+      setError(`Error loading data: ${e.message}`);
     } finally {
       setLoading(false);
     }
@@ -165,20 +177,20 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
   };
 
   // Filter leads based on search and filters
-  const filteredLeads = leads.filter(lead => {
-    if (searchQuery && !lead.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
-        !lead.phoneNumber.includes(searchQuery)) {
+  const filteredLeads = Array.isArray(leads) ? leads.filter(lead => {
+    if (searchQuery && !lead?.name?.toLowerCase?.().includes(searchQuery.toLowerCase()) &&
+        !String(lead?.phoneNumber || '').includes(searchQuery)) {
       return false;
     }
-    if (filterGroup && lead.group !== filterGroup) return false;
-    if (filterWorkshop && lead.workshop !== filterWorkshop) return false;
-    if (filterLabel && !lead.labels?.includes(filterLabel)) return false;
+    if (filterGroup && lead?.group !== filterGroup) return false;
+    if (filterWorkshop && lead?.workshop !== filterWorkshop) return false;
+    if (filterLabel && !lead?.labels?.includes(filterLabel)) return false;
     return true;
-  });
+  }) : [];
 
-  const uniqueGroups = Array.from(new Set(leads.map(l => l.group).filter(Boolean)));
-  const uniqueWorkshops = Array.from(new Set(leads.map(l => l.workshop).filter(Boolean)));
-  const allLabels = Array.from(new Set(leads.flatMap(l => l.labels || [])));
+  const uniqueGroups = Array.isArray(leads) ? Array.from(new Set(leads.map(l => l?.group).filter(Boolean))) : [];
+  const uniqueWorkshops = Array.isArray(leads) ? Array.from(new Set(leads.map(l => l?.workshop).filter(Boolean))) : [];
+  const allLabels = Array.isArray(leads) ? Array.from(new Set(leads.flatMap(l => l?.labels || []))) : [];
 
   if (!isConnected) {
     return (
