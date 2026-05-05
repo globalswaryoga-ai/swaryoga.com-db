@@ -84,11 +84,55 @@ export async function POST(request: NextRequest) {
         { upsert: true }
       );
 
-      // TODO: Send email with verification code
-      console.log(`[YouTube Email Verification]`);
-      console.log(`📧 Email: ${email}`);
-      console.log(`🔐 Verification Code: ${verificationCode}`);
-      console.log(`Note: In production, send email with this code`);
+      // Send email with verification code using Resend
+      const RESEND_API_KEY = process.env.RESEND_API_KEY;
+      if (RESEND_API_KEY) {
+        try {
+          const emailResponse = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${RESEND_API_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              from: 'Mohan <mohan@swaryoga.com>',
+              to: email,
+              subject: '🔐 YouTube Email Verification Code',
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                  <h2 style="color: #1f2937;">YouTube Email Verification</h2>
+                  <p style="color: #4b5563; font-size: 16px;">
+                    Your 6-digit verification code is:
+                  </p>
+                  <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0;">
+                    <p style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #ef4444; margin: 0;">
+                      ${verificationCode}
+                    </p>
+                  </div>
+                  <p style="color: #6b7280; font-size: 14px;">
+                    This code will expire in 24 hours. Do not share this code with anyone.
+                  </p>
+                  <p style="color: #9ca3af; font-size: 12px; border-top: 1px solid #e5e7eb; padding-top: 20px;">
+                    Swar Yoga • YouTube Private Video System<br/>
+                    <a href="https://swaryoga.com" style="color: #3b82f6; text-decoration: none;">swaryoga.com</a>
+                  </p>
+                </div>
+              `,
+            }),
+          });
+
+          if (emailResponse.ok) {
+            console.log(`✅ Verification email sent to ${email}`);
+          } else {
+            const errData = await emailResponse.json();
+            console.error('⚠️ Email send failed:', errData);
+            // Don't fail the request, but log the error
+          }
+        } catch (emailError) {
+          console.error('⚠️ Email send error:', emailError);
+          // Don't fail the request if email service is unavailable
+        }
+      }
 
       return NextResponse.json({
         success: true,
