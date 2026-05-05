@@ -140,6 +140,16 @@ export async function POST(request: NextRequest) {
     const allowedStatuses = ['draft', 'pending_approval', 'approved', 'rejected', 'disabled'];
     const safeStatus = allowedStatuses.includes(status) ? status : 'draft';
 
+    // Normalize category — map lowercase/legacy values to schema enum
+    const categoryMap: Record<string, string> = {
+      general: 'MARKETING', marketing: 'MARKETING', transactional: 'UTILITY',
+      utility: 'UTILITY', otp: 'OTP', account_update: 'ACCOUNT_UPDATE',
+    };
+    const allowedCategories = ['MARKETING', 'OTP', 'UTILITY', 'ACCOUNT_UPDATE'];
+    const safeCategory = allowedCategories.includes(category)
+      ? category
+      : (categoryMap[String(category || '').toLowerCase()] || 'MARKETING');
+
     // If UI provided headerFormat+headerContent (URL), auto-derive headerMedia.
     // This is important because Cloud API template sending uses headerMedia.url,
     // while some UIs only store the URL in headerContent.
@@ -179,7 +189,7 @@ export async function POST(request: NextRequest) {
     const template = await WhatsAppTemplate.create({
       templateName,
       provider: safeProvider,
-      category,
+      category: safeCategory,
       language: language || 'en',
       templateContent: resolvedTemplateContent,
       headerFormat: headerFormat || undefined,
