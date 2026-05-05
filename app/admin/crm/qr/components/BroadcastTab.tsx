@@ -1,13 +1,18 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { MessageSquare, Send, Clock, Loader2, Zap, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { MessageSquare, Send, Clock, Loader2, Zap, AlertCircle, CheckCircle2, X } from 'lucide-react';
 
-interface Chat {
-  id: string;
+interface Lead {
+  _id: string;
   name: string;
-  isGroup?: boolean;
-  unreadCount?: number;
+  phoneNumber: string;
+  email?: string;
+  workshop?: string;
+  group?: string;
+  labels?: string[];
+  assignedToUserId?: string;
+  status?: string;
 }
 
 interface Template {
@@ -32,9 +37,9 @@ interface BroadcastTabProps {
 
 export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
   const [activeTab, setActiveTab] = useState<'compose' | 'history'>('compose');
-  const [chats, setChats] = useState<Chat[]>([]);
+  const [leads, setLeads] = useState<Lead[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
-  const [selectedChats, setSelectedChats] = useState<Set<string>>(new Set());
+  const [selectedPhones, setSelectedPhones] = useState<Set<string>>(new Set());
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
   const [customMessage, setCustomMessage] = useState('');
   const [scheduleMode, setScheduleMode] = useState<'now' | 'schedule'>('now');
@@ -45,14 +50,29 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
   const [success, setSuccess] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [runs, setRuns] = useState<BroadcastRun[]>([]);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterGroup, setFilterGroup] = useState('');
+  const [filterWorkshop, setFilterWorkshop] = useState('');
+  const [filterLabel, setFilterLabel] = useState('');
+  const [confirmedCount, setConfirmedCount] = useState(0);
 
-  // Fetch chats and templates
+  // Initialize schedule date and time on mount
+  useEffect(() => {
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    setScheduleDate(today);
+    setScheduleTime(time);
+  }, []);
+
+  // Fetch leads and templates
   const fetchData = useCallback(async () => {
     if (!token || !isConnected) return;
     setLoading(true);
     try {
-      const [chatsRes, templatesRes] = await Promise.all([
-        fetch('/api/admin/crm/whatsapp/qr-bridge?path=/chats', {
+      const [leadsRes, templatesRes] = await Promise.all([
+        fetch('/api/admin/crm/leads?selectAll=true&limit=5000', {
           headers: { 'Authorization': `Bearer ${token}` },
         }),
         fetch('/api/admin/crm/templates?provider=qr&limit=100', {
@@ -60,9 +80,9 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
         }),
       ]);
 
-      if (chatsRes.ok) {
-        const chatsData = await chatsRes.json();
-        setChats(chatsData?.chats ?? chatsData?.result ?? []);
+      if (leadsRes.ok) {
+        const leadsData = await leadsRes.json();
+        setLeads(leadsData?.data ?? []);
       }
       if (templatesRes.ok) {
         const templatesData = await templatesRes.json();
@@ -90,13 +110,23 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
     }
   }, []);
 
-  const handleSendBroadcast = async () => {
-    if (selectedChats.size === 0) {
+  const handleInitiateBroadcast = () => {
+    if (selectedPhones.size === 0) {
       setError('Select at least one recipient');
       return;
     }
     if (!selectedTemplate && !customMessage.trim()) {
       setError('Select a template or write a message');
+      return;
+    }
+    setError(null);
+    setConfirmedCount(0);
+    setShowConfirmation(true);
+  };
+
+  const handleConfirmBroadcast = async () => {
+    if (confirmedCount === 0) {
+      setError('Check the confirmation box before sending');
       return;
     }
 
@@ -108,7 +138,7 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
       const newRun: BroadcastRun = {
         id: runId,
         name: `Broadcast - ${new Date().toLocaleString()}`,
-        recipients: Array.from(selectedChats),
+        recipients: Array.from(selectedPhones),
         sent: 0,
         status: scheduleMode === 'now' ? 'sending' : 'queued',
         createdAt: new Date().toISOString(),
@@ -120,9 +150,10 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
       setRuns(updatedRuns);
 
       setSuccess(`Broadcast ${scheduleMode === 'now' ? 'started' : 'scheduled'}!`);
+      setShowConfirmation(false);
       setTimeout(() => {
         setSuccess(null);
-        setSelectedChats(new Set());
+        setSelectedPhones(new Set());
         setSelectedTemplate('');
         setCustomMessage('');
       }, 2000);
@@ -132,6 +163,22 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
       setSending(false);
     }
   };
+
+  // Filter leads based on search and filters
+  const filteredLeads = leads.filter(lead => {
+    if (searchQuery && !lead.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
+        !lead.phoneNumber.includes(searchQuery)) {
+      return false;
+    }
+    if (filterGroup && lead.group !== filterGroup) return false;
+    if (filterWorkshop && lead.workshop !== filterWorkshop) return false;
+    if (filterLabel && !lead.labels?.includes(filterLabel)) return false;
+    return true;
+  });
+
+  const uniqueGroups = Array.from(new Set(leads.map(l => l.group).filter(Boolean)));
+  const uniqueWorkshops = Array.from(new Set(leads.map(l => l.workshop).filter(Boolean)));
+  const allLabels = Array.from(new Set(leads.flatMap(l => l.labels || [])));
 
   if (!isConnected) {
     return (
@@ -182,29 +229,82 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
           <div className="max-w-2xl mx-auto space-y-4">
             {/* Recipients */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Recipients ({selectedChats.size} selected)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Recipients ({selectedPhones.size} selected)</label>
+
+              {/* Filters */}
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                <input
+                  type="text"
+                  placeholder="Search by name or phone..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+                <select
+                  value={filterGroup}
+                  onChange={(e) => setFilterGroup(e.target.value)}
+                  className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  <option value="">All Groups</option>
+                  {uniqueGroups.map(g => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
+                </select>
+                <select
+                  value={filterWorkshop}
+                  onChange={(e) => setFilterWorkshop(e.target.value)}
+                  className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  <option value="">All Workshops</option>
+                  {uniqueWorkshops.map(w => (
+                    <option key={w} value={w}>{w}</option>
+                  ))}
+                </select>
+                <select
+                  value={filterLabel}
+                  onChange={(e) => setFilterLabel(e.target.value)}
+                  className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  <option value="">All Labels</option>
+                  {allLabels.map(l => (
+                    <option key={l} value={l}>{l}</option>
+                  ))}
+                </select>
+              </div>
+
               {loading ? (
                 <div className="flex items-center justify-center py-8"><Loader2 className="w-5 h-5 animate-spin" /></div>
               ) : (
-                <div className="max-h-40 overflow-y-auto border rounded-lg p-3 bg-gray-50">
-                  {chats.length === 0 ? (
-                    <p className="text-sm text-gray-500">No chats available</p>
+                <div className="max-h-64 overflow-y-auto border rounded-lg p-3 bg-gray-50">
+                  {filteredLeads.length === 0 ? (
+                    <p className="text-sm text-gray-500">No leads match filters</p>
                   ) : (
-                    chats.map(chat => (
-                      <label key={chat.id} className="flex items-center gap-2 p-2 hover:bg-white rounded cursor-pointer">
+                    filteredLeads.map(lead => (
+                      <label key={lead._id} className="flex items-start gap-2 p-2 hover:bg-white rounded cursor-pointer">
                         <input
                           type="checkbox"
-                          checked={selectedChats.has(chat.id)}
+                          checked={selectedPhones.has(lead.phoneNumber)}
                           onChange={(e) => {
-                            const updated = new Set(selectedChats);
-                            if (e.target.checked) updated.add(chat.id);
-                            else updated.delete(chat.id);
-                            setSelectedChats(updated);
+                            const updated = new Set(selectedPhones);
+                            if (e.target.checked) updated.add(lead.phoneNumber);
+                            else updated.delete(lead.phoneNumber);
+                            setSelectedPhones(updated);
                           }}
-                          className="rounded"
+                          className="rounded mt-0.5"
                         />
-                        <span className="text-sm text-gray-700">{chat.name}</span>
-                        {chat.isGroup && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">Group</span>}
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm text-gray-700 font-medium">{lead.name}</div>
+                          <div className="text-xs text-gray-500">{lead.phoneNumber}</div>
+                          {(lead.group || lead.workshop || lead.labels?.length) && (
+                            <div className="flex gap-1 mt-1 flex-wrap">
+                              {lead.group && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">{lead.group}</span>}
+                              {lead.workshop && <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">{lead.workshop}</span>}
+                              {lead.labels?.map(l => (
+                                <span key={l} className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded">{l}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </label>
                     ))
                   )}
@@ -265,8 +365,8 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
 
             {/* Submit */}
             <button
-              onClick={handleSendBroadcast}
-              disabled={sending || selectedChats.size === 0}
+              onClick={handleInitiateBroadcast}
+              disabled={sending || selectedPhones.size === 0}
               className="w-full py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition font-medium flex items-center justify-center gap-2"
             >
               <Send className="w-4 h-4" /> {sending ? 'Sending...' : 'Send Broadcast'}
@@ -311,6 +411,70 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Confirmation Modal */}
+      {showConfirmation && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-lg max-w-md w-full">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h2 className="text-lg font-semibold text-gray-800">Confirm Broadcast</h2>
+              <button
+                onClick={() => setShowConfirmation(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                <div className="text-sm font-medium text-amber-900 mb-2">⚠️ Broadcast Details</div>
+                <div className="space-y-1 text-sm text-amber-800">
+                  <p><strong>Recipients:</strong> {selectedPhones.size} people/contacts</p>
+                  <p><strong>Message:</strong> {selectedTemplate ? 'Template' : 'Custom message'}</p>
+                  <p><strong>Send Mode:</strong> {scheduleMode === 'now' ? 'Immediately' : `Scheduled for ${scheduleDate} at ${scheduleTime}`}</p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="flex items-start gap-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={confirmedCount > 0}
+                    onChange={(e) => setConfirmedCount(e.target.checked ? 1 : 0)}
+                    className="rounded mt-1"
+                  />
+                  <span className="text-sm text-gray-700">
+                    I understand I'm sending to <strong>{selectedPhones.size} recipient{selectedPhones.size !== 1 ? 's' : ''}</strong> and confirm this broadcast
+                  </span>
+                </label>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <div className="text-xs text-blue-800">
+                  💡 <strong>Rate limiting:</strong> Large broadcasts (100+) are auto-scheduled to prevent WhatsApp bans
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-2 p-4 border-t">
+              <button
+                onClick={() => setShowConfirmation(false)}
+                className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmBroadcast}
+                disabled={confirmedCount === 0 || sending}
+                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition font-medium"
+              >
+                {sending ? 'Sending...' : 'Confirm & Send'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
