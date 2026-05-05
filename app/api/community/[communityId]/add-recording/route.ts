@@ -8,6 +8,7 @@ export const dynamic = 'force-dynamic';
 /**
  * POST /api/community/[communityId]/add-recording
  * Admin adds a YouTube private recording to a community
+ * REQUIRES: Email verification (swarsakshi9@gmail.com must be verified)
  *
  * Body: {
  *   title: "Recording Title",
@@ -15,6 +16,7 @@ export const dynamic = 'force-dynamic';
  *   videoSource: "youtube",
  *   youtubeVideoId: "ABC123...",
  *   videoUrl: "https://www.youtube.com/watch?v=ABC123...",
+ *   youtubeEmail: "swarsakshi9@gmail.com", // YouTube account email
  *   isPublic: false,
  *   recordingType: "private_youtube"
  * }
@@ -41,6 +43,7 @@ export async function POST(
       videoSource,
       youtubeVideoId,
       videoUrl,
+      youtubeEmail = 'swarsakshi9@gmail.com',
       isPublic = false,
       recordingType = 'private_youtube',
     } = body;
@@ -53,6 +56,32 @@ export async function POST(
     }
 
     await connectDB();
+
+    // CHECK EMAIL VERIFICATION
+    const youtubeEmailVerificationSchema = new mongoose.Schema({
+      email: { type: String, required: true, unique: true },
+      isVerified: { type: Boolean, default: false },
+    });
+
+    const YoutubeEmailVerification =
+      mongoose.models.YoutubeEmailVerification ||
+      mongoose.model('YoutubeEmailVerification', youtubeEmailVerificationSchema);
+
+    const emailRecord = await YoutubeEmailVerification.findOne({
+      email: youtubeEmail.toLowerCase(),
+    });
+
+    if (!emailRecord?.isVerified) {
+      return NextResponse.json(
+        {
+          error: `❌ Email not verified: ${youtubeEmail}`,
+          message: 'Please verify the YouTube email before adding videos',
+          action: 'verify-email',
+          verifyUrl: '/admin/community/verify-youtube-email',
+        },
+        { status: 403 }
+      );
+    }
 
     // Get or create Recording model
     const recordingSchema = new mongoose.Schema({
@@ -98,13 +127,14 @@ export async function POST(
       );
     }
 
-    // Create recording
+    // Create recording with verified email
     const recording = await Recording.create({
       title,
       description: description || '',
       videoSource: videoSource || 'youtube',
       youtubeVideoId,
       videoUrl,
+      youtubeEmail, // Store verified email
       recordingType,
       communityId: params.communityId,
       communityName: community.name || '',
@@ -112,12 +142,19 @@ export async function POST(
       uploadedBy: decoded.userId || 'admin',
       thumbnailUrl: `https://img.youtube.com/vi/${youtubeVideoId}/maxresdefault.jpg`,
       createdAt: new Date(),
+      verifiedAt: new Date(),
     });
 
     return NextResponse.json({
       success: true,
       data: recording,
-      message: `✅ YouTube recording added to ${community.name}`,
+      message: `✅ YouTube private video added to ${community.name}`,
+      details: {
+        video: title,
+        owner: youtubeEmail,
+        community: community.name,
+        verified: true,
+      },
     });
   } catch (error: any) {
     console.error('[Add Recording]', error);

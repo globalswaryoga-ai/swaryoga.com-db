@@ -22,6 +22,31 @@ export default function AddYouTubeRecordingPage({ token }: { token: string | nul
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [isPublic, setIsPublic] = useState(false);
 
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [checkingEmail, setCheckingEmail] = useState(false);
+  const YOUTUBE_EMAIL = 'swarsakshi9@gmail.com';
+
+  // Check email verification status
+  useEffect(() => {
+    const checkEmailVerification = async () => {
+      setCheckingEmail(true);
+      try {
+        const res = await fetch(
+          `/api/admin/community/verify-youtube-email?email=${YOUTUBE_EMAIL}`,
+          { headers: { 'Authorization': `Bearer ${token}` } }
+        );
+        const data = await res.json();
+        setEmailVerified(data.isVerified || false);
+      } catch (e) {
+        setEmailVerified(false);
+      } finally {
+        setCheckingEmail(false);
+      }
+    };
+
+    if (token) checkEmailVerification();
+  }, [token]);
+
   // Fetch communities
   useEffect(() => {
     const fetchCommunities = async () => {
@@ -228,8 +253,31 @@ export default function AddYouTubeRecordingPage({ token }: { token: string | nul
               </label>
             </div>
 
+            {/* Email Verification Status */}
+            {!emailVerified && (
+              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
+                <p className="font-medium">⚠️ Email Verification Required</p>
+                <p className="mt-2">
+                  {YOUTUBE_EMAIL} must be verified before adding videos
+                </p>
+                <a
+                  href="/admin/community/verify-youtube-email"
+                  className="inline-block mt-3 bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 transition text-xs font-medium"
+                >
+                  Verify Email
+                </a>
+              </div>
+            )}
+
+            {emailVerified && (
+              <div className="p-4 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
+                <p className="font-medium">✅ Email Verified</p>
+                <p className="mt-1">{YOUTUBE_EMAIL} is verified and ready to use</p>
+              </div>
+            )}
+
             {/* Info Box */}
-            <div className="p-4 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
               <p className="font-medium">✅ Security & Features:</p>
               <ul className="mt-2 space-y-1 text-xs">
                 <li>🔒 Private YouTube video (only community members can access)</li>
@@ -237,19 +285,31 @@ export default function AddYouTubeRecordingPage({ token }: { token: string | nul
                 <li>📊 Full YouTube analytics</li>
                 <li>👤 Requires community login</li>
                 <li>📱 Works on all devices</li>
+                <li>✔️ Email verified & owner confirmed</li>
               </ul>
             </div>
 
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={submitting || loading}
+              disabled={submitting || loading || !emailVerified || checkingEmail}
               className="w-full bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition font-medium flex items-center justify-center gap-2"
+              title={!emailVerified ? `Verify ${YOUTUBE_EMAIL} first` : ''}
             >
               {submitting ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
                   Adding to community...
+                </>
+              ) : checkingEmail ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Checking verification...
+                </>
+              ) : !emailVerified ? (
+                <>
+                  <AlertCircle className="w-5 h-5" />
+                  Verify Email First
                 </>
               ) : (
                 <>
