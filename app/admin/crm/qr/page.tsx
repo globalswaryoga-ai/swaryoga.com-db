@@ -1180,41 +1180,100 @@ export default function QRWhatsAppPage() {
   // ── Fetch messages ──
   const fetchMessages = useCallback(async (jid: string) => {
     try {
-      // Only fetch last 100 messages to improve performance
-      const data = await bridgeCall(`/messages/${jid}?limit=100`);
-      if (data?.messages) {
-        // Map bridge response fields to frontend MessageItem format
-        const mapped = data.messages.map((m: any) => ({
-          id: m.id || m.key?.id || '',
-          from: m.from || m.author || m.key?.participant || m.key?.remoteJid || '',
-          fromMe: resolveMessageFromMe(m, jid, connectedPhoneNumber || savedPhoneRef.current || ''),
-          text: m.text || m.body || '',
-          type: m.type || 'text',
-          timestamp: m.timestamp || 0,
-          status: m.status || 0,
-          participant: m.participant || m.key?.participant || '',
-          pushName: m.pushName || '',
-          hasMedia: m.hasMedia || false,
-          mediaUrl: m.mediaUrl || null,
-          mediaMimetype: m.mediaMimetype || null,
-          mediaFileName: m.mediaFileName || null,
-          quoted: m.quoted || null,
-          reactions: m.reactions || {},
-          quotedId: m.quotedId || null,
-        }));
+      const phone = connectedPhoneNumber || savedPhoneRef.current || '';
 
-        // Merge server messages with optimistic messages (those with IDs starting with 'opt-')
-        // This prevents optimistic messages from disappearing before the server confirms them
+      // Fetch from bridge and MongoDB in parallel for persistence across bridge restarts
+      const [bridgeResult, dbResult] = await Promise.allSettled([
+        bridgeCall(`/messages/${jid}?limit=100`),
+        phone && token
+          ? fetch(`/api/admin/crm/whatsapp/qr/messages?chatJid=${encodeURIComponent(jid)}&connectedPhone=${encodeURIComponent(phone)}&limit=100`, {
+              headers: { Authorization: `Bearer ${token}` },
+            }).then(r => r.ok ? r.json() : null).catch(() => null)
+          : Promise.resolve(null),
+      ]);
+
+      const bridgeData = bridgeResult.status === 'fulfilled' ? bridgeResult.value : null;
+      const dbData = dbResult.status === 'fulfilled' ? dbResult.value : null;
+
+      // Map bridge messages
+      const bridgeMessages: MessageItem[] = bridgeData?.messages
+        ? bridgeData.messages.map((m: any) => ({
+            id: m.id || m.key?.id || '',
+            from: m.from || m.author || m.key?.participant || m.key?.remoteJid || '',
+            fromMe: resolveMessageFromMe(m, jid, phone),
+            text: m.text || m.body || '',
+            type: m.type || 'text',
+            timestamp: m.timestamp || 0,
+            status: m.status || 0,
+            participant: m.participant || m.key?.participant || '',
+            pushName: m.pushName || '',
+            hasMedia: m.hasMedia || false,
+            mediaUrl: m.mediaUrl || null,
+            mediaMimetype: m.mediaMimetype || null,
+            mediaFileName: m.mediaFileName || null,
+            quoted: m.quoted || null,
+            reactions: m.reactions || {},
+            quotedId: m.quotedId || null,
+          }))
+        : [];
+
+      // Map MongoDB messages (persistent, survives bridge restarts)
+      const dbMessages: MessageItem[] = dbData?.messages
+        ? dbData.messages.map((m: any) => ({
+            id: m.id || '',
+            from: m.from || '',
+            fromMe: m.fromMe || false,
+            text: m.text || '',
+            type: m.type || 'text',
+            timestamp: m.timestamp || 0,
+            status: m.status || 0,
+            participant: m.participant || '',
+            pushName: m.pushName || '',
+            hasMedia: m.hasMedia || false,
+            mediaUrl: m.mediaUrl || null,
+            mediaMimetype: m.mediaMimetype || null,
+            mediaFileName: m.mediaFileName || null,
+            quoted: m.quoted || null,
+            reactions: {},
+            quotedId: m.quotedId || null,
+          }))
+        : [];
+
+      // Merge: DB messages as base, bridge overwrites for fresher status/media
+      const byId = new Map<string, MessageItem>();
+      for (const m of dbMessages) {
+        if (m.id) byId.set(m.id, m);
+      }
+      for (const m of bridgeMessages) {
+        if (!m.id) continue;
+        const existing = byId.get(m.id);
+        if (existing) {
+          byId.set(m.id, {
+            ...existing,
+            ...m,
+            status: Math.max(existing.status ?? 0, m.status ?? 0),
+            mediaUrl: m.mediaUrl || existing.mediaUrl || null,
+          });
+        } else {
+          byId.set(m.id, m);
+        }
+      }
+
+      const merged = Array.from(byId.values())
+        .filter(m => m.id)
+        .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+
+      if (merged.length > 0) {
         setMessages(prev => {
           const optimisticMsgs = prev.filter(m => m.id?.startsWith('opt-'));
-          const serverIds = new Set(mapped.map(m => m.id));
+          const serverIds = new Set(merged.map(m => m.id));
           const filteredOptimistic = optimisticMsgs.filter(m => !serverIds.has(m.id?.replace(/^opt-/, '') || ''));
-          return [...mapped, ...filteredOptimistic];
+          return [...merged, ...filteredOptimistic];
         });
         setFailedInlineMediaIds(prev => {
           if (prev.size === 0) return prev;
           const next = new Set(prev);
-          const validIds = new Set(mapped.map((m: MessageItem) => m.id));
+          const validIds = new Set(merged.map((m: MessageItem) => m.id));
           for (const id of next) {
             if (!validIds.has(id)) next.delete(id);
           }
@@ -1227,7 +1286,7 @@ export default function QRWhatsAppPage() {
     } catch (e) {
       console.error('Failed to fetch messages:', e);
     }
-  }, [bridgeCall, connectedPhoneNumber]);
+  }, [bridgeCall, connectedPhoneNumber, token]);
 
   // ── Auto-refresh messages every 3s for active conversation (paused when tab hidden) ──
   const msgPollRef = useRef<NodeJS.Timeout | null>(null);
