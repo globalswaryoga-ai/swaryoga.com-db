@@ -6,7 +6,7 @@ import mongoose from 'mongoose';
 export const dynamic = 'force-dynamic';
 
 /**
- * POST /api/community/[communityId]/add-recording
+ * POST /api/community/[id]/add-recording
  * Admin adds a YouTube private recording to a community
  * REQUIRES: Email verification (swarsakshi9@gmail.com must be verified)
  *
@@ -23,7 +23,7 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { communityId: string } }
+  { params }: { params: { id: string } }
 ) {
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
@@ -118,7 +118,7 @@ export async function POST(
 
     // Check if community exists
     const Community = mongoose.models.Community || mongoose.model('Community', new mongoose.Schema({}));
-    const community = await Community.findById(params.communityId).lean();
+    const community = await Community.findById(params.id).lean();
 
     if (!community) {
       return NextResponse.json(
@@ -136,7 +136,7 @@ export async function POST(
       videoUrl,
       youtubeEmail, // Store verified email
       recordingType,
-      communityId: params.communityId,
+      communityId: params.id,
       communityName: community.name || '',
       isPublic,
       uploadedBy: decoded.userId || 'admin',
