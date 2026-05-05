@@ -147,11 +147,43 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
 
     try {
       const runId = `run_${Date.now()}`;
+      const message = customMessage.trim();
+      const template = templates.find(t => t._id === selectedTemplate);
+
+      // Prepare broadcast payload
+      const broadcastPayload = {
+        recipients: Array.from(selectedPhones),
+        message: message || template?.templateContent || '',
+        schedule: scheduleMode === 'schedule' ? {
+          mode: 'scheduled',
+          date: scheduleDate,
+          time: scheduleTime,
+        } : null,
+        recipientType: 'people',
+      };
+
+      // Send broadcast via API
+      const broadcastRes = await fetch('/api/admin/crm/whatsapp/qr/broadcast', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(broadcastPayload),
+      });
+
+      const broadcastData = await broadcastRes.json();
+
+      if (!broadcastRes.ok) {
+        throw new Error(broadcastData.error || `Broadcast failed: ${broadcastRes.status}`);
+      }
+
+      // Create run record
       const newRun: BroadcastRun = {
         id: runId,
         name: `Broadcast - ${new Date().toLocaleString()}`,
         recipients: Array.from(selectedPhones),
-        sent: 0,
+        sent: broadcastData.rateLimitInfo?.totalRecipients || selectedPhones.size,
         status: scheduleMode === 'now' ? 'sending' : 'queued',
         createdAt: new Date().toISOString(),
       };
@@ -161,16 +193,18 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
       localStorage.setItem('qr_broadcast_runs', JSON.stringify(updatedRuns));
       setRuns(updatedRuns);
 
-      setSuccess(`Broadcast ${scheduleMode === 'now' ? 'started' : 'scheduled'}!`);
+      setSuccess(`✅ Broadcast ${scheduleMode === 'now' ? 'sent to ' + selectedPhones.size + ' recipients!' : 'scheduled successfully!'}`);
       setShowConfirmation(false);
       setTimeout(() => {
         setSuccess(null);
         setSelectedPhones(new Set());
         setSelectedTemplate('');
         setCustomMessage('');
-      }, 2000);
+        setScheduleDate('');
+        setScheduleTime('');
+      }, 3000);
     } catch (e: any) {
-      setError(e.message);
+      setError(e.message || 'Failed to send broadcast');
     } finally {
       setSending(false);
     }
