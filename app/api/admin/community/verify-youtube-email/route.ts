@@ -3,6 +3,7 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import mongoose from 'mongoose';
 import crypto from 'crypto';
+import nodemailer from 'nodemailer';
 
 export const dynamic = 'force-dynamic';
 
@@ -84,50 +85,54 @@ export async function POST(request: NextRequest) {
         { upsert: true }
       );
 
-      // Send email with verification code using Resend
-      const RESEND_API_KEY = process.env.RESEND_API_KEY;
-      if (RESEND_API_KEY) {
+      // Send email with verification code using SMTP
+      const SMTP_HOST = process.env.SMTP_HOST;
+      const SMTP_PORT = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : 465;
+      const SMTP_USER = process.env.SMTP_USER;
+      const SMTP_PASS = process.env.SMTP_PASS;
+      const EMAIL_FROM = process.env.EMAIL_FROM || 'Swar Yoga <mohan@swaryoga.com>';
+
+      if (SMTP_HOST && SMTP_USER && SMTP_PASS) {
         try {
-          const emailResponse = await fetch('https://api.resend.com/emails', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${RESEND_API_KEY}`,
-              'Content-Type': 'application/json',
+          const transporter = nodemailer.createTransport({
+            host: SMTP_HOST,
+            port: SMTP_PORT,
+            secure: SMTP_PORT === 465, // true for 465, false for other ports
+            auth: {
+              user: SMTP_USER,
+              pass: SMTP_PASS,
             },
-            body: JSON.stringify({
-              from: 'Mohan <mohan@swaryoga.com>',
-              to: email,
-              subject: '🔐 YouTube Email Verification Code',
-              html: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                  <h2 style="color: #1f2937;">YouTube Email Verification</h2>
-                  <p style="color: #4b5563; font-size: 16px;">
-                    Your 6-digit verification code is:
-                  </p>
-                  <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0;">
-                    <p style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #ef4444; margin: 0;">
-                      ${verificationCode}
-                    </p>
-                  </div>
-                  <p style="color: #6b7280; font-size: 14px;">
-                    This code will expire in 24 hours. Do not share this code with anyone.
-                  </p>
-                  <p style="color: #9ca3af; font-size: 12px; border-top: 1px solid #e5e7eb; padding-top: 20px;">
-                    Swar Yoga • YouTube Private Video System<br/>
-                    <a href="https://swaryoga.com" style="color: #3b82f6; text-decoration: none;">swaryoga.com</a>
-                  </p>
-                </div>
-              `,
-            }),
           });
 
-          if (emailResponse.ok) {
-            console.log(`✅ Verification email sent to ${email}`);
-          } else {
-            const errData = await emailResponse.json();
-            console.error('⚠️ Email send failed:', errData);
-            // Don't fail the request, but log the error
-          }
+          const mailOptions = {
+            from: EMAIL_FROM,
+            to: email,
+            subject: '🔐 YouTube Email Verification Code - Swar Yoga',
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #1f2937;">YouTube Email Verification</h2>
+                <p style="color: #4b5563; font-size: 16px;">
+                  Your 6-digit verification code is:
+                </p>
+                <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0;">
+                  <p style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #ef4444; margin: 0;">
+                    ${verificationCode}
+                  </p>
+                </div>
+                <p style="color: #6b7280; font-size: 14px;">
+                  This code will expire in 24 hours. Do not share this code with anyone.
+                </p>
+                <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
+                <p style="color: #9ca3af; font-size: 12px;">
+                  Swar Yoga • YouTube Private Video System<br/>
+                  <a href="https://swaryoga.com" style="color: #3b82f6; text-decoration: none;">swaryoga.com</a>
+                </p>
+              </div>
+            `,
+          };
+
+          await transporter.sendMail(mailOptions);
+          console.log(`✅ Verification email sent to ${email}`);
         } catch (emailError) {
           console.error('⚠️ Email send error:', emailError);
           // Don't fail the request if email service is unavailable
