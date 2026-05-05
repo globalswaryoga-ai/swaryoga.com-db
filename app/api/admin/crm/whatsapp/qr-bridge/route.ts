@@ -1270,17 +1270,35 @@ export async function GET(req: NextRequest) {
       if (chatJid) {
         const allowed = await isChatAllowedInCurrentSession(userId, resolved.storedPhone, chatJid);
         if (!allowed) {
-          console.warn(`[QR Bridge Proxy GET] BLOCKED stale/foreign own-bridge path for ${userId}: ${path}`);
+          // For /messages/ requests: auto-register the chat if it comes from the bridge
+          // (new chats appear in chatMap before /chats sync writes them to QrWhatsAppChat)
           if (path.startsWith('/messages/')) {
-            return NextResponse.json({ success: true, data: { messages: [], blocked: true } }, { status: 200 });
+            try {
+              const QrChat = getQrWhatsAppChat();
+              await QrChat.updateOne(
+                { userId, connectedPhone: resolved.storedPhone, chatJid },
+                {
+                  $set: { userId, connectedPhone: resolved.storedPhone, chatJid, name: chatJid.split('@')[0], isGroup: chatJid.endsWith('@g.us'), unreadCount: 0, pinned: false, archived: false, profilePicUrl: '' },
+                  $setOnInsert: { createdAt: new Date() },
+                },
+                { upsert: true }
+              );
+              console.log(`[QR Bridge Proxy GET] Auto-registered new chat for ${userId}: ${chatJid}`);
+              // fall through to fetch messages from bridge
+            } catch (regErr) {
+              console.warn(`[QR Bridge Proxy GET] Failed to auto-register chat ${chatJid}:`, (regErr as Error).message);
+              return NextResponse.json({ success: true, data: { messages: [], blocked: true } }, { status: 200 });
+            }
+          } else {
+            console.warn(`[QR Bridge Proxy GET] BLOCKED stale/foreign own-bridge path for ${userId}: ${path}`);
+            if (path.startsWith('/profile-pic/') || path.startsWith('/contact-about/') || path.startsWith('/presence/')) {
+              return NextResponse.json({ success: true, data: {} }, { status: 200 });
+            }
+            return NextResponse.json(
+              { success: false, error: 'Access denied. This chat is not in your current QR session.' },
+              { status: 403 }
+            );
           }
-          if (path.startsWith('/profile-pic/') || path.startsWith('/contact-about/') || path.startsWith('/presence/')) {
-            return NextResponse.json({ success: true, data: {} }, { status: 200 });
-          }
-          return NextResponse.json(
-            { success: false, error: 'Access denied. This chat is not in your current QR session.' },
-            { status: 403 }
-          );
         }
       }
     }
