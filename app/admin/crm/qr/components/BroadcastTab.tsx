@@ -15,6 +15,13 @@ interface Lead {
   status?: string;
 }
 
+interface WhatsAppGroup {
+  id: string;
+  subject: string;
+  participants?: number;
+  isGroup: true;
+}
+
 interface Template {
   _id: string;
   templateName: string;
@@ -38,8 +45,11 @@ interface BroadcastTabProps {
 export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
   const [activeTab, setActiveTab] = useState<'compose' | 'history'>('compose');
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [groups, setGroups] = useState<WhatsAppGroup[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [selectedPhones, setSelectedPhones] = useState<Set<string>>(new Set());
+  const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set());
+  const [recipientTab, setRecipientTab] = useState<'people' | 'groups'>('people');
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
   const [customMessage, setCustomMessage] = useState('');
   const [scheduleMode, setScheduleMode] = useState<'now' | 'schedule'>('now');
@@ -66,14 +76,17 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
     setScheduleTime(time);
   }, []);
 
-  // Fetch leads and templates
+  // Fetch leads, groups, and templates
   const fetchData = useCallback(async () => {
     if (!token || !isConnected) return;
     setLoading(true);
     setError(null);
     try {
-      const [leadsRes, templatesRes] = await Promise.all([
+      const [leadsRes, groupsRes, templatesRes] = await Promise.all([
         fetch('/api/admin/crm/leads?selectAll=true&limit=5000', {
+          headers: { 'Authorization': `Bearer ${token}` },
+        }),
+        fetch('/api/admin/crm/whatsapp/qr-bridge?path=/chats', {
           headers: { 'Authorization': `Bearer ${token}` },
         }),
         fetch('/api/admin/crm/templates?provider=qr&limit=100', {
@@ -91,6 +104,20 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
         }
       } else {
         setError(`Failed to load leads: ${leadsRes.status}`);
+      }
+
+      if (groupsRes.ok) {
+        const groupsData = await groupsRes.json();
+        const chatsArray = groupsData?.chats ?? groupsData?.result ?? [];
+        const whatsappGroups = Array.isArray(chatsArray)
+          ? chatsArray.filter((c: any) => c.isGroup === true).map((c: any) => ({
+              id: c.id,
+              subject: c.name || c.subject || 'Unknown',
+              participants: c.participants?.length || 0,
+              isGroup: true as const,
+            }))
+          : [];
+        setGroups(whatsappGroups);
       }
 
       if (templatesRes.ok) {
@@ -123,8 +150,9 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
   }, []);
 
   const handleInitiateBroadcast = () => {
-    if (selectedPhones.size === 0) {
-      setError('Select at least one recipient');
+    const totalRecipients = (recipientTab === 'people' ? selectedPhones.size : selectedGroupIds.size);
+    if (totalRecipients === 0) {
+      setError(`Select at least one ${recipientTab}`);
       return;
     }
     if (!selectedTemplate && !customMessage.trim()) {
@@ -150,16 +178,19 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
       const message = customMessage.trim();
       const template = templates.find(t => t._id === selectedTemplate);
 
+      // Determine recipients and type
+      const recipients = recipientTab === 'people' ? Array.from(selectedPhones) : Array.from(selectedGroupIds);
+
       // Prepare broadcast payload
       const broadcastPayload = {
-        recipients: Array.from(selectedPhones),
+        recipients,
         message: message || template?.templateContent || '',
         schedule: scheduleMode === 'schedule' ? {
           mode: 'scheduled',
           date: scheduleDate,
           time: scheduleTime,
         } : null,
-        recipientType: 'people',
+        recipientType: recipientTab === 'people' ? 'people' : 'groups',
       };
 
       // Send broadcast via API
@@ -178,12 +209,14 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
         throw new Error(broadcastData.error || `Broadcast failed: ${broadcastRes.status}`);
       }
 
+      const totalRecipients = recipientTab === 'people' ? selectedPhones.size : selectedGroupIds.size;
+
       // Create run record
       const newRun: BroadcastRun = {
         id: runId,
         name: `Broadcast - ${new Date().toLocaleString()}`,
-        recipients: Array.from(selectedPhones),
-        sent: broadcastData.rateLimitInfo?.totalRecipients || selectedPhones.size,
+        recipients: recipients,
+        sent: broadcastData.rateLimitInfo?.totalRecipients || totalRecipients,
         status: scheduleMode === 'now' ? 'sending' : 'queued',
         createdAt: new Date().toISOString(),
       };
@@ -193,11 +226,13 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
       localStorage.setItem('qr_broadcast_runs', JSON.stringify(updatedRuns));
       setRuns(updatedRuns);
 
-      setSuccess(`✅ Broadcast ${scheduleMode === 'now' ? 'sent to ' + selectedPhones.size + ' recipients!' : 'scheduled successfully!'}`);
+      const typeLabel = recipientTab === 'people' ? `${totalRecipients} people` : `${totalRecipients} group${totalRecipients === 1 ? '' : 's'}`;
+      setSuccess(`✅ Broadcast ${scheduleMode === 'now' ? 'sent to ' + typeLabel + '!' : 'scheduled successfully!'}`);
       setShowConfirmation(false);
       setTimeout(() => {
         setSuccess(null);
         setSelectedPhones(new Set());
+        setSelectedGroupIds(new Set());
         setSelectedTemplate('');
         setCustomMessage('');
         setScheduleDate('');
@@ -275,9 +310,27 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
           <div className="max-w-2xl mx-auto space-y-4">
             {/* Recipients */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Recipients ({selectedPhones.size} selected)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Recipients</label>
 
-              {/* Filters */}
+              {/* Recipient Type Tabs */}
+              <div className="flex gap-2 mb-3 border-b">
+                {(['people', 'groups'] as const).map(t => (
+                  <button
+                    key={t}
+                    onClick={() => setRecipientTab(t)}
+                    className={`px-3 py-2 text-sm font-medium border-b-2 transition ${
+                      recipientTab === t
+                        ? 'border-green-600 text-green-600'
+                        : 'border-transparent text-gray-600 hover:text-gray-800'
+                    }`}
+                  >
+                    {t === 'people' ? `People (${selectedPhones.size})` : `Groups (${selectedGroupIds.size})`}
+                  </button>
+                ))}
+              </div>
+
+              {/* Filters for People */}
+              {recipientTab === 'people' && (
               <div className="grid grid-cols-2 gap-2 mb-3">
                 <input
                   type="text"
@@ -317,10 +370,11 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
                   ))}
                 </select>
               </div>
+              )}
 
               {loading ? (
                 <div className="flex items-center justify-center py-8"><Loader2 className="w-5 h-5 animate-spin" /></div>
-              ) : (
+              ) : recipientTab === 'people' ? (
                 <div className="max-h-64 overflow-y-auto border rounded-lg p-3 bg-gray-50">
                   {filteredLeads.length === 0 ? (
                     <p className="text-sm text-gray-500">No leads match filters</p>
@@ -350,6 +404,32 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
                               ))}
                             </div>
                           )}
+                        </div>
+                      </label>
+                    ))
+                  )}
+                </div>
+              ) : (
+                <div className="max-h-64 overflow-y-auto border rounded-lg p-3 bg-gray-50">
+                  {groups.length === 0 ? (
+                    <p className="text-sm text-gray-500">No WhatsApp groups available</p>
+                  ) : (
+                    groups.map(group => (
+                      <label key={group.id} className="flex items-start gap-2 p-2 hover:bg-white rounded cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={selectedGroupIds.has(group.id)}
+                          onChange={(e) => {
+                            const updated = new Set(selectedGroupIds);
+                            if (e.target.checked) updated.add(group.id);
+                            else updated.delete(group.id);
+                            setSelectedGroupIds(updated);
+                          }}
+                          className="rounded mt-0.5"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm text-gray-700 font-medium">{group.subject}</div>
+                          <div className="text-xs text-gray-500">{group.participants || 0} members</div>
                         </div>
                       </label>
                     ))
@@ -478,7 +558,8 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
                 <div className="text-sm font-medium text-amber-900 mb-2">⚠️ Broadcast Details</div>
                 <div className="space-y-1 text-sm text-amber-800">
-                  <p><strong>Recipients:</strong> {selectedPhones.size} people/contacts</p>
+                  <p><strong>Type:</strong> {recipientTab === 'people' ? 'People (DMs)' : 'Groups'}</p>
+                  <p><strong>Recipients:</strong> {recipientTab === 'people' ? selectedPhones.size + ' people' : selectedGroupIds.size + ' group' + (selectedGroupIds.size === 1 ? '' : 's')}</p>
                   <p><strong>Message:</strong> {selectedTemplate ? 'Template' : 'Custom message'}</p>
                   <p><strong>Send Mode:</strong> {scheduleMode === 'now' ? 'Immediately' : `Scheduled for ${scheduleDate} at ${scheduleTime}`}</p>
                 </div>
@@ -493,7 +574,7 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
                     className="rounded mt-1"
                   />
                   <span className="text-sm text-gray-700">
-                    I understand I'm sending to <strong>{selectedPhones.size} recipient{selectedPhones.size !== 1 ? 's' : ''}</strong> and confirm this broadcast
+                    I understand I'm sending to <strong>{recipientTab === 'people' ? selectedPhones.size + ' people' : selectedGroupIds.size + ' group' + (selectedGroupIds.size === 1 ? '' : 's')}</strong> and confirm this broadcast
                   </span>
                 </label>
               </div>
