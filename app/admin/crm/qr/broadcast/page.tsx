@@ -179,15 +179,29 @@ export default function QRBroadcastPage() {
         // Load chats via bridge proxy
         const chatRes = await crmFetch('/api/admin/crm/whatsapp/qr-bridge', { params: { path: '/chats' } });
         if (!cancelled && Array.isArray(chatRes)) {
-          setChats(chatRes.map((c: any) => {
-            // Detect if group by ID format: @g.us = group, @s.whatsapp.net or @lid = personal
-            const isGroupChat = c.id.endsWith('@g.us') || c.id.endsWith('@lid') || c.isGroup === true;
+          const mappedChats = chatRes.map((c: any) => {
+            // Detect if group: @g.us = group, has groupMetadata, or isGroup flag
+            const isGroupChat = c.id.endsWith('@g.us') ||
+                               c.id.endsWith('@lid') ||
+                               c.isGroup === true ||
+                               c.isGroupChat === true ||
+                               c.groupMetadata !== undefined ||
+                               (c.name && c.name !== c.id && !c.id.includes('@s.whatsapp.net'));
+
+            console.log(`[Broadcast] Chat: ${c.id} | Name: ${c.name} | IsGroup: ${isGroupChat} | RawGroup: ${c.isGroup}`);
+
             return {
               id: c.id,
               name: c.name || c.id,
               isGroup: isGroupChat,
             };
-          }));
+          });
+
+          const groupCount = mappedChats.filter(c => c.isGroup).length;
+          const peopleCount = mappedChats.filter(c => !c.isGroup).length;
+          console.log(`[Broadcast] Loaded ${mappedChats.length} chats: ${groupCount} groups, ${peopleCount} people`);
+
+          setChats(mappedChats);
         }
       } catch (e) {
         console.warn('[Broadcast] Failed to load chats:', e);
