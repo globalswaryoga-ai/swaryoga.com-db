@@ -60,6 +60,7 @@ export default function ProgramDetailPage() {
   const [participantsBySlot, setParticipantsBySlot] = useState<Record<string, any[]>>({});
   const [unlistedParticipants, setUnlistedParticipants] = useState<any[]>([]);
   const [participantCountsByDate, setParticipantCountsByDate] = useState<Record<string, number>>({});
+  const [selectedDateForChat, setSelectedDateForChat] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -140,6 +141,21 @@ export default function ProgramDetailPage() {
       setParticipantCountsByDate(counts);
     } catch (err) {
       console.error('Failed to fetch participant counts:', err);
+    }
+  };
+
+  const fetchChatByDate = async (dateStr: string) => {
+    if (!program?.slug) return;
+    try {
+      const res = await fetch(`/api/sadhana/live/${program.slug}/chat-by-date?date=${dateStr}`);
+      const data = await res.json();
+      if (data.success) {
+        setSelectedDateForChat(dateStr);
+        setChatMessages(data.messages || []);
+        setShowChatModal(true);
+      }
+    } catch (err) {
+      console.error('Failed to fetch chat messages:', err);
     }
   };
 
@@ -422,10 +438,10 @@ export default function ProgramDetailPage() {
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            setShowChatModal(true);
+                            fetchChatByDate(key);
                           }}
                           className="p-1 hover:bg-emerald-500/20 rounded transition"
-                          title="View chat messages"
+                          title="View chat messages for this date"
                         >
                           👁️
                         </button>
@@ -769,7 +785,12 @@ export default function ProgramDetailPage() {
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
           <div className="bg-gray-800 border border-gray-600 rounded-xl max-w-md w-full max-h-[80vh] flex flex-col">
             <div className="p-6 flex items-center justify-between border-b border-gray-700">
-              <h3 className="text-lg font-bold text-white">💬 Chat Messages ({chatMessages.length})</h3>
+              <div>
+                <h3 className="text-lg font-bold text-white">💬 Chat Messages ({chatMessages.length})</h3>
+                {selectedDateForChat && (
+                  <p className="text-xs text-gray-400 mt-1">{new Date(selectedDateForChat).toLocaleDateString('en-IN', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}</p>
+                )}
+              </div>
               <button onClick={() => setShowChatModal(false)} className="text-gray-300 hover:text-white">
                 <X size={20} />
               </button>
