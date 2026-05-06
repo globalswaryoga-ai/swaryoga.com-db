@@ -728,7 +728,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
                 category.items
                   .filter((item) => {
                     if (item.superAdminOnly && !isSuperAdmin) return false;
-                    if (item.planModule && !plan.canAccess(item.planModule)) return false;
+                    if (!isSuperAdmin && item.planModule && !plan.canAccess(item.planModule)) return false;
                     return true;
                   })
                   .map((item) => {
@@ -824,8 +824,8 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
                     {category.items.filter((item) => {
                       // Hide if superAdminOnly and not a super admin
                       if (item.superAdminOnly && !isSuperAdmin) return false;
-                      // Hide if has planModule and user doesn't have access
-                      if (item.planModule && !plan.canAccess(item.planModule)) return false;
+                      // Hide if has planModule and user doesn't have access (but super admin sees everything)
+                      if (!isSuperAdmin && item.planModule && !plan.canAccess(item.planModule)) return false;
                       return true;
                     }).map((item) => {
                       const Icon = item.icon;
