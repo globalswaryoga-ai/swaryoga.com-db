@@ -432,10 +432,10 @@ export default function ProgramDetailPage() {
                     <span className="text-yellow-300">+</span> Add video
                   </div>
                 )}
-                {(participantCountsByDate[key] !== undefined || (isToday && liveStats)) && (
+                {(participantCountsByDate[key] !== undefined || liveStats) && (
                   <div className="mt-2 space-y-1 text-[10px]">
                     <div className="text-sky-200 flex items-center gap-1 cursor-pointer hover:text-sky-100">
-                      <span>👥 {participantCountsByDate[key] !== undefined ? participantCountsByDate[key] : (isToday ? (liveStats?.activeParticipants || 0) : 0)} joined</span>
+                      <span>👥 {isToday ? (liveStats?.activeParticipants || 0) : (participantCountsByDate[key] !== undefined ? participantCountsByDate[key] : 0)} joined</span>
                       <button
                         onClick={(e) => {
                           e.preventDefault();
