@@ -103,11 +103,17 @@ export async function GET(req: NextRequest) {
 
     const filteredChats = data.chats.filter((c: any) => {
       const idStr = typeof c.id === 'string' ? c.id : (c.id?._serialized || '');
+
+      // ALWAYS show groups (@g.us) - they are not filtered by lead records
+      if (idStr.endsWith('@g.us')) {
+        return true;
+      }
+
+      // For individual chats: filter by lead assignment (user compartment)
       const phone = idStr.split('@')[0];
-      
       const leadInfo = leadMap.get(phone);
       if (!leadInfo) return false; // No lead record = not visible
-      
+
       // Show if assigned to viewer OR created by viewer (user compartment)
       return leadInfo.assignedToUserId === viewerUserId || leadInfo.createdByUserId === viewerUserId;
     });
