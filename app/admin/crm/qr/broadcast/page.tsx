@@ -179,7 +179,15 @@ export default function QRBroadcastPage() {
         // Load chats via bridge proxy
         const chatRes = await crmFetch('/api/admin/crm/whatsapp/qr-bridge', { params: { path: '/chats' } });
         if (!cancelled && Array.isArray(chatRes)) {
-          setChats(chatRes.map((c: any) => ({ id: c.id, name: c.name || c.id, isGroup: c.isGroup || false })));
+          setChats(chatRes.map((c: any) => {
+            // Detect if group by ID format: @g.us = group, @s.whatsapp.net or @lid = personal
+            const isGroupChat = c.id.endsWith('@g.us') || c.id.endsWith('@lid') || c.isGroup === true;
+            return {
+              id: c.id,
+              name: c.name || c.id,
+              isGroup: isGroupChat,
+            };
+          }));
         }
       } catch (e) {
         console.warn('[Broadcast] Failed to load chats:', e);
