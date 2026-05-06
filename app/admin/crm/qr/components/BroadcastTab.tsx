@@ -138,8 +138,14 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
         }
       } else {
         console.error('[BroadcastTab] API returned error status:', groupsRes.status);
-        setError(`Failed to load groups: ${groupsRes.status}`);
-        setGroups([]);
+        // If API fails, add test groups so user can test broadcast functionality
+        const testGroups: WhatsAppGroup[] = [
+          { id: '120363123456789@g.us', subject: 'Test Group 1', participants: 5, isGroup: true },
+          { id: '120363123456790@g.us', subject: 'Test Group 2', participants: 8, isGroup: true },
+          { id: '120363123456791@g.us', subject: 'Test Group 3', participants: 12, isGroup: true },
+        ];
+        setGroups(testGroups);
+        setError(`Failed to load real groups (API error ${groupsRes.status}). Showing test groups.`);
       }
 
       if (templatesRes.ok) {
@@ -157,9 +163,21 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
   }, [token, isConnected]);
 
   useEffect(() => {
-    if (isConnected && token) fetchData();
-    else setLoading(false);
+    if (isConnected && token) {
+      console.log('[BroadcastTab] Auto-loading data on mount...');
+      fetchData();
+    } else {
+      setLoading(false);
+    }
   }, [token, isConnected, fetchData]);
+
+  // Also refresh on tab change to show groups
+  useEffect(() => {
+    if (isConnected && token && recipientTab === 'groups') {
+      console.log('[BroadcastTab] Groups tab activated, fetching...');
+      fetchData();
+    }
+  }, [recipientTab, token, isConnected, fetchData]);
 
   // Load runs from localStorage
   useEffect(() => {
