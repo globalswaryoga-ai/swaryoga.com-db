@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '@/hooks/useAuth';
 import {
   Key,
   Webhook,
@@ -58,6 +59,7 @@ const WEBHOOK_EVENTS = [
 ];
 
 export default function IntegrationsPage() {
+  const token = useAuth();
   const [loading, setLoading] = useState(true);
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [webhooks, setWebhooks] = useState<WebhookConfig[]>([]);
@@ -74,15 +76,15 @@ export default function IntegrationsPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    if (!token) return;
     const slug = localStorage.getItem('tenantSlug') || '';
     setTenantSlug(slug);
     fetchData();
-  }, []);
+  }, [token]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
       const slug = localStorage.getItem('tenantSlug') || '';
 
       const [keysRes, webhooksRes] = await Promise.all([
@@ -113,7 +115,6 @@ export default function IntegrationsPage() {
     if (!newKeyData.name.trim()) return;
     setSaving(true);
     try {
-      const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
       const res = await fetch('/api/crm-site/api-keys', {
         method: 'POST',
         headers: {
@@ -145,7 +146,6 @@ export default function IntegrationsPage() {
     if (!confirm('Are you sure you want to revoke this API key? This cannot be undone.')) return;
 
     try {
-      const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
       await fetch('/api/crm-site/api-keys', {
         method: 'DELETE',
         headers: {
@@ -164,7 +164,6 @@ export default function IntegrationsPage() {
     if (!newWebhookData.url.trim()) return;
     setSaving(true);
     try {
-      const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
       const res = await fetch('/api/crm-site/webhooks', {
         method: 'POST',
         headers: {
@@ -196,7 +195,6 @@ export default function IntegrationsPage() {
     if (!confirm('Delete this webhook?')) return;
 
     try {
-      const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
       await fetch('/api/crm-site/webhooks', {
         method: 'DELETE',
         headers: {

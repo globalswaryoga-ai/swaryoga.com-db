@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '@/hooks/useAuth';
 import {
   Mail,
   Plus,
@@ -85,6 +86,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function EmailCampaignsPage() {
+  const token = useAuth();
   const [loading, setLoading] = useState(true);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -124,16 +126,16 @@ export default function EmailCampaignsPage() {
   const [createStep, setCreateStep] = useState(1); // 1: basics, 2: content, 3: audience, 4: review
 
   useEffect(() => {
+    if (!token) return;
     const slug = localStorage.getItem('tenantSlug') || '';
     setTenantSlug(slug);
     fetchCampaigns();
     fetchTemplates();
-  }, []);
+  }, [token]);
 
   const fetchCampaigns = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
       const slug = localStorage.getItem('tenantSlug') || '';
 
       const res = await fetch(`/api/crm-site/email/campaigns?tenant=${slug}`, {
@@ -155,7 +157,6 @@ export default function EmailCampaignsPage() {
 
   const fetchTemplates = async () => {
     try {
-      const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
       const slug = localStorage.getItem('tenantSlug') || '';
 
       const res = await fetch(`/api/crm-site/email/templates?tenant=${slug}`, {
@@ -184,7 +185,6 @@ export default function EmailCampaignsPage() {
 
     setSaving(true);
     try {
-      const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
       
       // Get content from template if selected
       let content = newCampaign.htmlContent;
@@ -239,7 +239,6 @@ export default function EmailCampaignsPage() {
 
     setSaving(true);
     try {
-      const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
       const res = await fetch('/api/crm-site/email/campaigns', {
         method: 'PATCH',
         headers: {
@@ -275,7 +274,6 @@ export default function EmailCampaignsPage() {
     if (!confirm('Delete this campaign? This cannot be undone.')) return;
 
     try {
-      const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
       await fetch('/api/crm-site/email/campaigns', {
         method: 'DELETE',
         headers: {
@@ -295,7 +293,6 @@ export default function EmailCampaignsPage() {
 
     setSending(true);
     try {
-      const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
       const res = await fetch('/api/crm-site/email/send', {
         method: 'POST',
         headers: {
@@ -323,7 +320,6 @@ export default function EmailCampaignsPage() {
   const duplicateCampaign = async (campaign: Campaign) => {
     setSaving(true);
     try {
-      const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
       const res = await fetch('/api/crm-site/email/campaigns', {
         method: 'POST',
         headers: {
