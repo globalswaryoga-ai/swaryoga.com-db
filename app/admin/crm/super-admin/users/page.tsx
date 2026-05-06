@@ -109,7 +109,7 @@ export default function SuperAdminUsersPage() {
     }
   }, [token, page, limit, search, roleFilter, genderFilter, countryFilter, sortBy, sortOrder, router]);
 
-  useEffect(() => { if (token) fetchUsers(); }, [token, fetchUsers]);
+  useEffect(() => { if (token) fetchUsers(); }, [token]);
 
   const totalPages = Math.ceil(total / limit);
 

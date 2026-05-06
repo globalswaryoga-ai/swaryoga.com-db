@@ -281,9 +281,9 @@ export default function CallWorkflowPage() {
       setLoading(false);
     };
     if (token) load();
-  }, [token, fetchConfig, fetchAdminUsers, fetchCustomFilterOptions]);
+  }, [token]);
 
-  useEffect(() => { if (token) fetchLeads(); }, [token, fetchLeads]);
+  useEffect(() => { if (token) fetchLeads(); }, [token]);
   useEffect(() => { setPage(0); }, [activeStage, searchQuery, filterCountry, filterLanguage, filterAdmin, filterWorkshop, filterLabel, filterMonth]);
 
   // Fetch today's call summary (call counts + active status per lead)
@@ -303,7 +303,7 @@ export default function CallWorkflowPage() {
     if (token) fetchTodayCalls();
     const interval = setInterval(() => { if (token) fetchTodayCalls(); }, 15000);
     return () => clearInterval(interval);
-  }, [token, fetchTodayCalls]);
+  }, [token]);
 
   const moveLead = async (leadId: string, toStage: string) => {
     if (!token) return;
@@ -405,7 +405,7 @@ export default function CallWorkflowPage() {
     finally { setAllCallsLoading(false); }
   }, [token]);
 
-  useEffect(() => { if (viewMode === 'history') fetchAllCalls(); }, [viewMode, fetchAllCalls]);
+  useEffect(() => { if (viewMode === 'history') fetchAllCalls(); }, [viewMode]);
 
   const totalPipelineLeads = Object.values(stageCounts).reduce((s, c) => s + c, 0);
   const totalPages = Math.ceil(totalLeads / LIMIT);

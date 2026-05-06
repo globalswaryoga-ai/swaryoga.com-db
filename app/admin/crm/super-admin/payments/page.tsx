@@ -97,7 +97,7 @@ export default function SuperAdminPaymentsPage() {
     }
   }, [token, page, limit, search, statusFilter, methodFilter, sortBy, sortOrder, router]);
 
-  useEffect(() => { if (token) fetchPayments(); }, [token, fetchPayments]);
+  useEffect(() => { if (token) fetchPayments(); }, [token]);
 
   const totalPages = Math.ceil(total / limit);
 

@@ -72,7 +72,7 @@ export default function SuperAdminSigninsPage() {
     }
   }, [token, page, limit, search, router]);
 
-  useEffect(() => { if (token) fetchSignins(); }, [token, fetchSignins]);
+  useEffect(() => { if (token) fetchSignins(); }, [token]);
 
   const totalPages = Math.ceil(total / limit);
 
