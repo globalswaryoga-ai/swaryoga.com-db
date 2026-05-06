@@ -386,11 +386,29 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
               {loading ? (
                 <div className="flex items-center justify-center py-8"><Loader2 className="w-5 h-5 animate-spin" /></div>
               ) : recipientTab === 'people' ? (
-                <div className="max-h-64 overflow-y-auto border rounded-lg p-3 bg-gray-50">
-                  {filteredLeads.length === 0 ? (
-                    <p className="text-sm text-gray-500">No leads match filters</p>
-                  ) : (
-                    filteredLeads.map(lead => (
+                <>
+                  {/* Select All / Clear All for People */}
+                  {filteredLeads.length > 0 && (
+                    <div className="flex gap-2 mb-2">
+                      <button
+                        onClick={() => setSelectedPhones(new Set(filteredLeads.map(l => l.phoneNumber)))}
+                        className="flex-1 px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-sm rounded font-medium transition"
+                      >
+                        ✓ Select All ({filteredLeads.length})
+                      </button>
+                      <button
+                        onClick={() => setSelectedPhones(new Set())}
+                        className="flex-1 px-3 py-2 bg-gray-400 hover:bg-gray-500 text-white text-sm rounded font-medium transition"
+                      >
+                        ✕ Clear All
+                      </button>
+                    </div>
+                  )}
+                  <div className="max-h-64 overflow-y-auto border rounded-lg p-3 bg-gray-50">
+                    {filteredLeads.length === 0 ? (
+                      <p className="text-sm text-gray-500">No leads match filters</p>
+                    ) : (
+                      filteredLeads.map(lead => (
                       <label key={lead._id} className="flex items-start gap-2 p-2 hover:bg-white rounded cursor-pointer">
                         <input
                           type="checkbox"
@@ -419,13 +437,32 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
                       </label>
                     ))
                   )}
-                </div>
+                  </div>
+                </>
               ) : (
-                <div className="max-h-64 overflow-y-auto border rounded-lg p-3 bg-gray-50">
-                  {groups.length === 0 ? (
-                    <p className="text-sm text-gray-500">No WhatsApp groups available</p>
-                  ) : (
-                    groups.map(group => (
+                <>
+                  {/* Select All / Clear All for Groups */}
+                  {groups.length > 0 && (
+                    <div className="flex gap-2 mb-2">
+                      <button
+                        onClick={() => setSelectedGroupIds(new Set(groups.map(g => g.id)))}
+                        className="flex-1 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded font-medium transition"
+                      >
+                        ✓ Select All ({groups.length})
+                      </button>
+                      <button
+                        onClick={() => setSelectedGroupIds(new Set())}
+                        className="flex-1 px-3 py-2 bg-gray-400 hover:bg-gray-500 text-white text-sm rounded font-medium transition"
+                      >
+                        ✕ Clear All
+                      </button>
+                    </div>
+                  )}
+                  <div className="max-h-64 overflow-y-auto border rounded-lg p-3 bg-gray-50">
+                    {groups.length === 0 ? (
+                      <p className="text-sm text-gray-500">No WhatsApp groups available</p>
+                    ) : (
+                      groups.map(group => (
                       <label key={group.id} className="flex items-start gap-2 p-2 hover:bg-white rounded cursor-pointer">
                         <input
                           type="checkbox"
@@ -445,7 +482,8 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
                       </label>
                     ))
                   )}
-                </div>
+                  </div>
+                </>
               )}
             </div>
 
