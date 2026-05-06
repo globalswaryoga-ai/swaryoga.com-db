@@ -40,30 +40,60 @@ export async function GET(
     const timezone = program.timezone || 'Asia/Kolkata';
     const timeSlots = program.timeSlots || [];
 
-    // Calculate start and end of day in UTC based on program timezone
-    const formatter = new Intl.DateTimeFormat('en-CA', {
-      timeZone: timezone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    });
+    // Helper: convert local date string to UTC range
+    function getUtcRangeForLocalDate(localDateStr: string, tz: string) {
+      const [year, month, day] = localDateStr.split('-').map(Number);
 
-    const today = new Date();
-    const todayStr = formatter.format(today);
+      // Treat the date string as a local date (e.g., 2026-05-06 00:00:00 in program timezone)
+      // We need to convert this to UTC
 
-    // Parse the requested date
-    const [reqYear, reqMonth, reqDay] = dateStr.split('-').map(Number);
-    const reqDate = new Date(reqYear, reqMonth - 1, reqDay);
+      // Create ISO strings for start and end of day
+      const startIso = `${localDateStr}T00:00:00`;
+      const endIso = `${localDateStr}T23:59:59`;
 
-    // Get start and end timestamps for the requested date in program timezone
-    const dateStart = new Date(`${dateStr}T00:00:00`);
-    const dateEnd = new Date(`${dateStr}T23:59:59`);
+      // Use Intl to find what UTC time corresponds to midnight local time
+      const asUtc = new Date(startIso + 'Z');
+      const dtf = new Intl.DateTimeFormat('en-US', {
+        timeZone: tz,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+      });
 
-    // Convert to UTC timestamps for querying
-    const startMs = dateStart.getTime();
-    const endMs = dateEnd.getTime();
-    const startSeconds = Math.floor(startMs / 1000);
-    const endSeconds = Math.floor(endMs / 1000);
+      const parts = dtf.formatToParts(asUtc);
+      const map: Record<string, string> = {};
+      parts.forEach((p) => { map[p.type] = p.value; });
+
+      const tzLocalAsUtc = Date.UTC(
+        parseInt(map.year),
+        parseInt(map.month) - 1,
+        parseInt(map.day),
+        parseInt(map.hour),
+        parseInt(map.minute),
+        parseInt(map.second)
+      );
+
+      // The offset tells us how far UTC is from what we calculated
+      const offset = tzLocalAsUtc - asUtc.getTime();
+
+      // Actual UTC start of day in local timezone
+      const startUtc = new Date(asUtc.getTime() - offset);
+
+      // End of day: 23:59:59 local
+      const endLocalIso = endIso + 'Z';
+      const endAsUtc = new Date(endLocalIso);
+      const endUtc = new Date(endAsUtc.getTime() - offset);
+
+      return { start: startUtc, end: endUtc };
+    }
+
+    const range = getUtcRangeForLocalDate(dateStr, timezone);
+    const startMs = range.start.getTime();
+    const endMs = range.end.getTime();
 
     const joinHistoryCol = db.collection('sadhana_join_history');
     const participants = await joinHistoryCol
