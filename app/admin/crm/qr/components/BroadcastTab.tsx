@@ -86,7 +86,7 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
         fetch('/api/admin/crm/leads?selectAll=true&limit=5000', {
           headers: { 'Authorization': `Bearer ${token}` },
         }),
-        fetch('/api/admin/crm/whatsapp/qr-bridge?path=/chats', {
+        fetch('/api/admin/crm/whatsapp/qr/chats', {
           headers: { 'Authorization': `Bearer ${token}` },
         }),
         fetch('/api/admin/crm/templates?provider=qr&limit=100', {
@@ -109,15 +109,26 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
       if (groupsRes.ok) {
         const groupsData = await groupsRes.json();
         const chatsArray = groupsData?.chats ?? groupsData?.result ?? [];
+        console.log('[BroadcastTab] Groups API response:', { success: groupsData?.success, chatsCount: chatsArray?.length, chatsArray });
         const whatsappGroups = Array.isArray(chatsArray)
-          ? chatsArray.filter((c: any) => c.isGroup === true).map((c: any) => ({
-              id: c.id,
-              subject: c.name || c.subject || 'Unknown',
-              participants: c.participants?.length || 0,
-              isGroup: true as const,
-            }))
+          ? chatsArray
+              .filter((c: any) => {
+                const isGroup = c.id?.endsWith('@g.us') || c.isGroup === true || c.isGroupChat === true || c.groupMetadata !== undefined;
+                console.log(`[BroadcastTab] Chat: ${c.name || c.id} | IsGroup: ${isGroup}`);
+                return isGroup;
+              })
+              .map((c: any) => ({
+                id: c.id,
+                subject: c.name || c.subject || 'Unknown',
+                participants: c.participants?.length || 0,
+                isGroup: true as const,
+              }))
           : [];
+        console.log(`[BroadcastTab] Loaded ${whatsappGroups.length} groups from API`);
         setGroups(whatsappGroups);
+      } else {
+        console.error('[BroadcastTab] Groups fetch failed:', groupsRes.status);
+        setError(`Failed to load groups: ${groupsRes.status}`);
       }
 
       if (templatesRes.ok) {
