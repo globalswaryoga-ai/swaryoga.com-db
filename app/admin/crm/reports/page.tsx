@@ -140,6 +140,7 @@ const downloadJSON = (data: any, filename: string) => {
    ═══════════════════════════════════════════════════════════ */
 
 export default function ReportsPage() {
+  const token = useAuth();
   const [loading, setLoading] = useState(true);
   const [reports, setReports] = useState<Report[]>([]);
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
@@ -162,19 +163,21 @@ export default function ReportsPage() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  useEffect(() => { fetchReports(); fetchOverview(); }, []);
+  useEffect(() => {
+    if (!token) return;
+    fetchReports();
+    fetchOverview();
+  }, [token]);
 
   useEffect(() => {
-    if (selectedReport) fetchReportData(selectedReport.id);
-  }, [selectedReport, timeRange]);
-
-  const getToken = () => localStorage.getItem('adminToken') || localStorage.getItem('admin_token') || '';
-  const getSlug = () => localStorage.getItem('tenantSlug') || '';
+    if (selectedReport && token) fetchReportData(selectedReport.id);
+  }, [selectedReport, timeRange, token]);
 
   const fetchReports = async () => {
     try {
-      const res = await fetch(`/api/crm-site/reports?tenant=${getSlug()}`, {
-        headers: { Authorization: `Bearer ${getToken()}` },
+      const slug = localStorage.getItem('tenantSlug') || '';
+      const res = await fetch(`/api/crm-site/reports?tenant=${slug}`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) { const data = await res.json(); setReports(data.reports || []); setPlan(data.plan || 'free'); }
     } catch (err) { console.error('Failed to fetch reports:', err); }
@@ -183,8 +186,9 @@ export default function ReportsPage() {
   const fetchOverview = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/crm-site/analytics?tenant=${getSlug()}&period=${timeRange}`, {
-        headers: { Authorization: `Bearer ${getToken()}` },
+      const slug = localStorage.getItem('tenantSlug') || '';
+      const res = await fetch(`/api/crm-site/analytics?tenant=${slug}&period=${timeRange}`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) { const data = await res.json(); setOverview(data); }
     } catch (err) { console.error('Failed to fetch overview:', err); }
@@ -194,8 +198,9 @@ export default function ReportsPage() {
   const fetchReportData = async (reportId: string) => {
     setReportLoading(true);
     try {
-      const res = await fetch(`/api/crm-site/reports?tenant=${getSlug()}&id=${reportId}&timeRange=${timeRange}`, {
-        headers: { Authorization: `Bearer ${getToken()}` },
+      const slug = localStorage.getItem('tenantSlug') || '';
+      const res = await fetch(`/api/crm-site/reports?tenant=${slug}&id=${reportId}&timeRange=${timeRange}`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) { const data = await res.json(); setReportData(data.data || null); }
     } catch (err) { console.error('Failed to fetch report:', err); }
@@ -230,7 +235,7 @@ export default function ReportsPage() {
   const handleExportAll = useCallback(async () => {
     setExporting(true);
     try {
-      const res = await fetch('/api/admin/crm/export-data', { headers: { Authorization: `Bearer ${getToken()}` } });
+      const res = await fetch('/api/admin/crm/export-data', { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) {
         const blob = await res.blob();
         const url = URL.createObjectURL(blob);
