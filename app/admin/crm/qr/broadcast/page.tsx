@@ -156,6 +156,9 @@ export default function QRBroadcastPage() {
   const [scheduleDate, setScheduleDate] = useState('');
   const [scheduleTime, setScheduleTime] = useState('');
 
+  // Recipient sections state
+  const [expandedSections, setExpandedSections] = useState({ people: true, groups: true, workshops: false, contacts: false });
+
   // Runs
   const [runs, setRuns] = useState<BroadcastRun[]>([]);
   const [dailySent, setDailySentState] = useState(0);
@@ -213,6 +216,30 @@ export default function QRBroadcastPage() {
     setSelectedRecipients(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  // Categorize chats by type
+  const categorizedChats = useMemo(() => {
+    return {
+      people: chats.filter(c => !c.isGroup),
+      groups: chats.filter(c => c.isGroup),
+    };
+  }, [chats]);
+
+  // Select all in section
+  const selectAllInSection = (section: 'people' | 'groups') => {
+    const ids = categorizedChats[section].map(c => c.id);
+    setSelectedRecipients(prev => new Set([...prev, ...ids]));
+  };
+
+  // Deselect all in section
+  const deselectAllInSection = (section: 'people' | 'groups') => {
+    const ids = new Set(categorizedChats[section].map(c => c.id));
+    setSelectedRecipients(prev => {
+      const next = new Set(prev);
+      ids.forEach(id => next.delete(id));
       return next;
     });
   };
@@ -672,8 +699,10 @@ export default function QRBroadcastPage() {
                   <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
                     <Users className="w-4 h-4 text-gray-500" /> Recipients
                   </h3>
-                  <span className="text-xs text-gray-500">{selectedRecipients.size} selected</span>
+                  <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">{selectedRecipients.size} selected</span>
                 </div>
+
+                {/* Search */}
                 <div className="px-3 py-2 border-b">
                   <div className="relative">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
@@ -686,39 +715,122 @@ export default function QRBroadcastPage() {
                     />
                   </div>
                 </div>
-                {/* Quick actions */}
-                <div className="px-3 py-1.5 border-b flex items-center gap-1.5">
-                  <button onClick={() => setSelectedRecipients(new Set(chats.filter(c => !c.isGroup).map(c => c.id)))} className="text-[10px] px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full font-medium hover:bg-blue-100">All Contacts</button>
-                  <button onClick={() => setSelectedRecipients(new Set(chats.filter(c => c.isGroup).map(c => c.id)))} className="text-[10px] px-2 py-0.5 bg-purple-50 text-purple-700 rounded-full font-medium hover:bg-purple-100">All Groups</button>
-                  <button onClick={() => setSelectedRecipients(new Set())} className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full font-medium hover:bg-gray-200">Clear</button>
-                </div>
-                <div className="max-h-[400px] overflow-y-auto">
-                  {loading ? (
-                    <div className="flex items-center justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-gray-300" /></div>
-                  ) : filteredChats.length === 0 ? (
-                    <p className="text-sm text-gray-400 text-center py-10">No contacts found</p>
-                  ) : (
-                    filteredChats.map(chat => (
+
+                {/* Recipients by Section */}
+                <div className="max-h-[500px] overflow-y-auto">
+                  {/* People Section */}
+                  {categorizedChats.people.length > 0 && (
+                    <div className="border-b">
                       <button
-                        key={chat.id}
-                        onClick={() => toggleRecipient(chat.id)}
-                        className={`w-full px-3 py-2 flex items-center gap-2 text-left hover:bg-gray-50 transition border-b border-gray-50 ${selectedRecipients.has(chat.id) ? 'bg-green-50' : ''}`}
+                        onClick={() => setExpandedSections(p => ({ ...p, people: !p.people }))}
+                        className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-gray-50 font-semibold text-sm"
                       >
-                        <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${selectedRecipients.has(chat.id) ? 'bg-green-600 border-green-600' : 'border-gray-300'}`}>
-                          {selectedRecipients.has(chat.id) && <CheckCircle2 className="w-3 h-3 text-white" />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-gray-800 truncate">{chat.name}</p>
-                          {chat.isGroup && <span className="text-[10px] text-purple-500 font-medium">Group</span>}
+                        <span className="text-gray-700">👤 People ({categorizedChats.people.length})</span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={e => {
+                              e.stopPropagation();
+                              selectAllInSection('people');
+                            }}
+                            className="text-[10px] px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full font-medium hover:bg-blue-100 transition"
+                          >
+                            Select All
+                          </button>
+                          {expandedSections.people ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
                         </div>
                       </button>
-                    ))
+                      {expandedSections.people && (
+                        <div>
+                          {categorizedChats.people.map(chat => (
+                            <button
+                              key={chat.id}
+                              onClick={() => toggleRecipient(chat.id)}
+                              className={`w-full px-4 py-2 flex items-center gap-2 text-left hover:bg-blue-50 transition border-b border-gray-50 ${selectedRecipients.has(chat.id) ? 'bg-blue-50' : ''}`}
+                            >
+                              <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${selectedRecipients.has(chat.id) ? 'bg-blue-600 border-blue-600' : 'border-gray-300'}`}>
+                                {selectedRecipients.has(chat.id) && <CheckCircle2 className="w-3 h-3 text-white" />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm text-gray-800 truncate">{chat.name}</p>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Groups Section */}
+                  {categorizedChats.groups.length > 0 && (
+                    <div className="border-b">
+                      <button
+                        onClick={() => setExpandedSections(p => ({ ...p, groups: !p.groups }))}
+                        className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-gray-50 font-semibold text-sm"
+                      >
+                        <span className="text-gray-700">💬 Groups ({categorizedChats.groups.length})</span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={e => {
+                              e.stopPropagation();
+                              selectAllInSection('groups');
+                            }}
+                            className="text-[10px] px-2 py-0.5 bg-purple-50 text-purple-700 rounded-full font-medium hover:bg-purple-100 transition"
+                          >
+                            Select All
+                          </button>
+                          {expandedSections.groups ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+                        </div>
+                      </button>
+                      {expandedSections.groups && (
+                        <div>
+                          {categorizedChats.groups.map(chat => (
+                            <button
+                              key={chat.id}
+                              onClick={() => toggleRecipient(chat.id)}
+                              className={`w-full px-4 py-2 flex items-center gap-2 text-left hover:bg-purple-50 transition border-b border-gray-50 ${selectedRecipients.has(chat.id) ? 'bg-purple-50' : ''}`}
+                            >
+                              <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${selectedRecipients.has(chat.id) ? 'bg-purple-600 border-purple-600' : 'border-gray-300'}`}>
+                                {selectedRecipients.has(chat.id) && <CheckCircle2 className="w-3 h-3 text-white" />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm text-gray-800 truncate">{chat.name}</p>
+                                <span className="text-[9px] text-purple-600 font-semibold">🤖 WhatsApp Group</span>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {loading && (
+                    <div className="flex items-center justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-gray-300" /></div>
+                  )}
+                  {!loading && chats.length === 0 && (
+                    <p className="text-sm text-gray-400 text-center py-10">No contacts found</p>
                   )}
                 </div>
+
+                {/* Quick Actions Footer */}
+                <div className="px-3 py-2 border-t bg-gray-50 flex items-center gap-1.5 flex-wrap">
+                  <button
+                    onClick={() => setSelectedRecipients(new Set(chats.map(c => c.id)))}
+                    className="text-[10px] px-2 py-1 bg-green-50 text-green-700 rounded-full font-medium hover:bg-green-100 transition"
+                  >
+                    ✓ Select All
+                  </button>
+                  <button
+                    onClick={() => setSelectedRecipients(new Set())}
+                    className="text-[10px] px-2 py-1 bg-gray-200 text-gray-700 rounded-full font-medium hover:bg-gray-300 transition"
+                  >
+                    Clear All
+                  </button>
+                </div>
+
                 {/* Remaining quota */}
-                <div className="px-4 py-3 border-t bg-gray-50 text-[11px] text-gray-500 flex items-center gap-1.5">
+                <div className="px-4 py-3 border-t bg-gray-50 text-[10px] text-gray-500 flex items-center gap-1.5">
                   <Timer className="w-3.5 h-3.5" />
-                  {remainingToday} messages remaining today • {BATCH_SIZE}/batch • 1hr cooldown
+                  <span>{remainingToday} left today • {BATCH_SIZE}/batch • 1hr between batches</span>
                 </div>
               </div>
             </div>

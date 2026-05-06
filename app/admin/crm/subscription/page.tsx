@@ -86,6 +86,7 @@ export default function SubscriptionPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
+      if (!token) return;
       const res = await fetch('/api/crm-site/subscription', {
         headers: { Authorization: `Bearer ${token}` },
       });

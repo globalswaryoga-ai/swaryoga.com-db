@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
 
     const decoded = verifyToken(req.headers.get('authorization') || '');
     if (!decoded?.isAdmin && !decoded?.userId) {
-      return apiError('Unauthorized', 403);
+      return apiError('Unauthorized', 401);
     }
 
     const CRMUserSettings = getCRMUserSettings();
@@ -93,7 +93,7 @@ export async function PUT(req: NextRequest) {
 
     const decoded = verifyToken(req.headers.get('authorization') || '');
     if (!decoded?.isAdmin && !decoded?.userId) {
-      return apiError('Unauthorized', 403);
+      return apiError('Unauthorized', 401);
     }
 
     const body = await req.json();

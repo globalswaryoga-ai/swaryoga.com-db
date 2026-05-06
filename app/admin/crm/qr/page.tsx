@@ -745,6 +745,7 @@ export default function QRWhatsAppPage() {
       setError('Bridge URL must start with https:// or http:// (e.g. https://your-bridge.up.railway.app)');
       return;
     }
+    if (!token) { setError('Not authenticated'); return; }
     setSavingBridge(true);
     try {
       // Use direct fetch to avoid useCRM auto-logout on errors

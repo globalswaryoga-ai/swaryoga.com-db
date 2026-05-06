@@ -72,9 +72,54 @@ export default function SuperAdminDashboard() {
       }
       if (!res.ok) throw new Error('Failed to load stats');
       const data = await res.json();
-      setStats(data);
+
+      // Validate and normalize response structure with defaults
+      if (!data || typeof data !== 'object') {
+        throw new Error('Invalid response format');
+      }
+
+      const validated: DashboardStats = {
+        users: {
+          total: data.users?.total ?? 0,
+          signupsToday: data.users?.signupsToday ?? 0,
+          signupsWeek: data.users?.signupsWeek ?? 0,
+          signupsMonth: data.users?.signupsMonth ?? 0,
+        },
+        orders: {
+          total: data.orders?.total ?? 0,
+          completed: data.orders?.completed ?? 0,
+          pending: data.orders?.pending ?? 0,
+          failed: data.orders?.failed ?? 0,
+          revenue: data.orders?.revenue ?? 0,
+          currencyBreakdown: data.orders?.currencyBreakdown ?? {},
+        },
+        signins: {
+          total: data.signins?.total ?? 0,
+          today: data.signins?.today ?? 0,
+        },
+        contacts: {
+          total: data.contacts?.total ?? 0,
+        },
+        breakdowns: {
+          plans: Array.isArray(data.breakdowns?.plans) ? data.breakdowns.plans : [],
+          gender: Array.isArray(data.breakdowns?.gender) ? data.breakdowns.gender : [],
+          country: Array.isArray(data.breakdowns?.country) ? data.breakdowns.country : [],
+        },
+        trends: {
+          signups: Array.isArray(data.trends?.signups) ? data.trends.signups : [],
+          payments: Array.isArray(data.trends?.payments) ? data.trends.payments : [],
+        },
+        recent: {
+          signups: Array.isArray(data.recent?.signups) ? data.recent.signups : [],
+          orders: Array.isArray(data.recent?.orders) ? data.recent.orders : [],
+        },
+      };
+
+      setStats(validated);
     } catch (err: any) {
+      console.error('[SuperAdmin Error]', err);
       setError(err.message || 'Failed to load');
+      setStats(null);
     } finally {
       setLoading(false);
     }
@@ -113,12 +158,12 @@ export default function SuperAdminDashboard() {
   if (!stats) return null;
 
   const statCards = [
-    { label: 'Total Users', value: stats.users.total, icon: Users, color: 'bg-blue-500', change: `+${stats.users.signupsToday} today` },
-    { label: 'Signups This Week', value: stats.users.signupsWeek, icon: UserPlus, color: 'bg-green-500', change: `${stats.users.signupsMonth} this month` },
-    { label: 'Total Revenue', value: `₹${stats.orders.revenue.toLocaleString('en-IN')}`, icon: DollarSign, color: 'bg-purple-500', change: `${stats.orders.completed} orders` },
-    { label: 'Total Signins', value: stats.signins.total, icon: LogIn, color: 'bg-orange-500', change: `${stats.signins.today} today` },
-    { label: 'Total Orders', value: stats.orders.total, icon: CreditCard, color: 'bg-pink-500', change: `${stats.orders.pending} pending` },
-    { label: 'Contact Messages', value: stats.contacts.total, icon: MessageSquare, color: 'bg-teal-500', change: 'All time' },
+    { label: 'Total Users', value: stats?.users?.total ?? 0, icon: Users, color: 'bg-blue-500', change: `+${stats?.users?.signupsToday ?? 0} today` },
+    { label: 'Signups This Week', value: stats?.users?.signupsWeek ?? 0, icon: UserPlus, color: 'bg-green-500', change: `${stats?.users?.signupsMonth ?? 0} this month` },
+    { label: 'Total Revenue', value: `₹${(stats?.orders?.revenue ?? 0).toLocaleString('en-IN')}`, icon: DollarSign, color: 'bg-purple-500', change: `${stats?.orders?.completed ?? 0} orders` },
+    { label: 'Total Signins', value: stats?.signins?.total ?? 0, icon: LogIn, color: 'bg-orange-500', change: `${stats?.signins?.today ?? 0} today` },
+    { label: 'Total Orders', value: stats?.orders?.total ?? 0, icon: CreditCard, color: 'bg-pink-500', change: `${stats?.orders?.pending ?? 0} pending` },
+    { label: 'Contact Messages', value: stats?.contacts?.total ?? 0, icon: MessageSquare, color: 'bg-teal-500', change: 'All time' },
   ];
 
   return (
@@ -194,9 +239,9 @@ export default function SuperAdminDashboard() {
             </h3>
             <div className="flex items-end gap-1 h-32">
               {(() => {
-                const data = stats.trends.signups;
-                const maxCount = Math.max(...data.map(d => d.count), 1);
-                return data.slice(-30).map((d, i) => (
+                const data = stats?.trends?.signups ?? [];
+                const maxCount = Math.max(...(data?.map(d => d?.count ?? 0) ?? [1]), 1);
+                return (data ?? []).slice(-30).map((d, i) => (
                   <div
                     key={d._id || i}
                     className="flex-1 bg-indigo-400 hover:bg-indigo-600 rounded-t transition-all min-w-[4px] group relative"
@@ -224,8 +269,8 @@ export default function SuperAdminDashboard() {
               User Roles
             </h3>
             <div className="space-y-3">
-              {stats.breakdowns.plans.map((p) => {
-                const pct = stats.users.total > 0 ? (p.count / stats.users.total * 100) : 0;
+              {(stats?.breakdowns?.plans ?? []).map((p) => {
+                const pct = (stats?.users?.total ?? 0) > 0 ? (p.count / (stats?.users?.total ?? 1) * 100) : 0;
                 return (
                   <div key={p.plan}>
                     <div className="flex justify-between text-sm mb-1">
@@ -251,10 +296,10 @@ export default function SuperAdminDashboard() {
               Top Countries
             </h3>
             <div className="space-y-2">
-              {stats.breakdowns.country.length === 0 && (
+              {(stats?.breakdowns?.country ?? []).length === 0 && (
                 <p className="text-sm text-gray-400">No country data available</p>
               )}
-              {stats.breakdowns.country.slice(0, 8).map((c, i) => (
+              {(stats?.breakdowns?.country ?? []).slice(0, 8).map((c, i) => (
                 <div key={c.country} className="flex items-center justify-between text-sm">
                   <span className="text-gray-700 flex items-center gap-2">
                     <span className="w-5 text-center text-xs text-gray-400">{i + 1}</span>
@@ -274,27 +319,27 @@ export default function SuperAdminDashboard() {
             </h3>
             <div className="grid grid-cols-2 gap-3">
               {[
-                { label: 'Completed', value: stats.orders.completed, color: 'text-green-700 bg-green-50 border-green-200' },
-                { label: 'Pending', value: stats.orders.pending, color: 'text-yellow-700 bg-yellow-50 border-yellow-200' },
-                { label: 'Failed', value: stats.orders.failed, color: 'text-red-700 bg-red-50 border-red-200' },
-                { label: 'Total', value: stats.orders.total, color: 'text-gray-700 bg-gray-50 border-gray-200' },
+                { label: 'Completed', value: stats?.orders?.completed ?? 0, color: 'text-green-700 bg-green-50 border-green-200' },
+                { label: 'Pending', value: stats?.orders?.pending ?? 0, color: 'text-yellow-700 bg-yellow-50 border-yellow-200' },
+                { label: 'Failed', value: stats?.orders?.failed ?? 0, color: 'text-red-700 bg-red-50 border-red-200' },
+                { label: 'Total', value: stats?.orders?.total ?? 0, color: 'text-gray-700 bg-gray-50 border-gray-200' },
               ].map((s) => (
                 <div key={s.label} className={`rounded-lg border px-3 py-2.5 ${s.color}`}>
                   <p className="text-xs font-medium opacity-70">{s.label}</p>
-                  <p className="text-lg font-bold">{s.value.toLocaleString()}</p>
+                  <p className="text-lg font-bold">{(s.value ?? 0).toLocaleString()}</p>
                 </div>
               ))}
             </div>
 
             {/* Currency breakdown */}
-            {Object.keys(stats.orders.currencyBreakdown).length > 0 && (
+            {Object.keys(stats?.orders?.currencyBreakdown ?? {}).length > 0 && (
               <div className="mt-4 pt-3 border-t">
                 <p className="text-xs font-medium text-gray-500 mb-2">Revenue by Currency</p>
                 <div className="space-y-1.5">
-                  {Object.entries(stats.orders.currencyBreakdown).map(([currency, data]) => (
+                  {Object.entries(stats?.orders?.currencyBreakdown ?? {}).map(([currency, data]) => (
                     <div key={currency} className="flex justify-between text-sm">
                       <span className="text-gray-600">{currency}</span>
-                      <span className="font-medium text-gray-800">{currency === 'INR' ? '₹' : currency === 'USD' ? '$' : ''}{data.total.toLocaleString()} <span className="text-xs text-gray-400">({data.count})</span></span>
+                      <span className="font-medium text-gray-800">{currency === 'INR' ? '₹' : currency === 'USD' ? '$' : ''}{(data?.total ?? 0).toLocaleString()} <span className="text-xs text-gray-400">({data?.count ?? 0})</span></span>
                     </div>
                   ))}
                 </div>
@@ -317,7 +362,7 @@ export default function SuperAdminDashboard() {
               </Link>
             </div>
             <div className="space-y-2">
-              {stats.recent.signups.map((u: any, i: number) => (
+              {(stats?.recent?.signups ?? []).map((u: any, i: number) => (
                 <div key={u._id || i} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 text-xs font-bold flex-shrink-0">
@@ -349,7 +394,7 @@ export default function SuperAdminDashboard() {
               </Link>
             </div>
             <div className="space-y-2">
-              {stats.recent.orders.map((o: any, i: number) => (
+              {(stats?.recent?.orders ?? []).map((o: any, i: number) => (
                 <div key={o._id || i} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-gray-900 truncate">{o.userId || 'Unknown'}</p>
@@ -372,7 +417,7 @@ export default function SuperAdminDashboard() {
                   </div>
                 </div>
               ))}
-              {stats.recent.orders.length === 0 && (
+              {(stats?.recent?.orders ?? []).length === 0 && (
                 <p className="text-sm text-gray-400 text-center py-4">No orders yet</p>
               )}
             </div>
@@ -380,11 +425,11 @@ export default function SuperAdminDashboard() {
         </div>
 
         {/* Gender Breakdown */}
-        {stats.breakdowns.gender.length > 0 && (
+        {(stats?.breakdowns?.gender ?? []).length > 0 && (
           <div className="mt-6 bg-white rounded-xl shadow-sm border p-5">
             <h3 className="text-sm font-semibold text-gray-700 mb-4">Gender Distribution</h3>
             <div className="flex items-center gap-4 flex-wrap">
-              {stats.breakdowns.gender.map((g) => (
+              {(stats?.breakdowns?.gender ?? []).map((g) => (
                 <div key={g.gender} className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg">
                   <span className="text-sm text-gray-700 capitalize font-medium">{g.gender}</span>
                   <span className="text-xs text-gray-500 bg-white px-2 py-0.5 rounded">{g.count}</span>
