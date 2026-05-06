@@ -77,30 +77,32 @@ export default function RecordingManagementPage() {
         const data = await res.json();
         const communities = data.communities || [];
         setAllCommunities(communities);
-        // Set first community as default if not yet selected
-        if (!selectedCommunity && communities.length > 0) {
-          setSelectedCommunity(communities[0]);
-        }
       }
     } catch (err) {
       console.error('Failed to fetch communities:', err);
-      // Fallback to empty array
       setAllCommunities([]);
     } finally {
       setLoadingCommunities(false);
     }
-  }, [token, selectedCommunity]);
+  }, [token]);
 
   // Fetch communities on mount
   useEffect(() => {
     if (token && allCommunities.length === 0) {
       fetchCommunities();
     }
-  }, [token, allCommunities.length, fetchCommunities]);
+  }, [token]);
+
+  // Set first community as default when communities load
+  useEffect(() => {
+    if (!selectedCommunity && allCommunities.length > 0) {
+      setSelectedCommunity(allCommunities[0]);
+    }
+  }, [allCommunities, selectedCommunity]);
 
   // Fetch members for the selected community
   const fetchMembers = useCallback(async () => {
-    if (!token) return;
+    if (!token || !selectedCommunity?.id) return;
     setLoadingMembers(true);
     try {
       const res = await fetch(
