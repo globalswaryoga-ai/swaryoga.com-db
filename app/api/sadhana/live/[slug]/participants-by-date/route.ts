@@ -88,33 +88,36 @@ export async function GET(
       const joinMin = String(joinTime.getUTCMinutes()).padStart(2, '0');
       const joinTimeSlot = `${joinHour}:${joinMin}`;
 
+      // Calculate duration if left time is available
+      let duration: number | null = null;
+      if (p.leftAt) {
+        const leaveTime = new Date(p.leftAt);
+        duration = Math.round((leaveTime.getTime() - joinTime.getTime()) / (1000 * 60)); // in minutes
+      }
+
       // Check if matches any of the program's time slots
       const matchedSlot = timeSlots.find((slot: string) => {
         const [slotHour, slotMin] = slot.split(':');
         return slotHour === joinHour && slotMin === joinMin;
       });
 
+      const participantData = {
+        name: p.name,
+        joinedAt: p.joinedAt,
+        joinTime: joinTime.toLocaleTimeString('en-IN', {
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+        duration,
+      };
+
       if (matchedSlot) {
         if (!participantsBySlot[matchedSlot]) {
           participantsBySlot[matchedSlot] = [];
         }
-        participantsBySlot[matchedSlot].push({
-          name: p.name,
-          joinedAt: p.joinedAt,
-          joinTime: joinTime.toLocaleTimeString('en-IN', {
-            hour: '2-digit',
-            minute: '2-digit',
-          }),
-        });
+        participantsBySlot[matchedSlot].push(participantData);
       } else {
-        unlistedParticipants.push({
-          name: p.name,
-          joinedAt: p.joinedAt,
-          joinTime: joinTime.toLocaleTimeString('en-IN', {
-            hour: '2-digit',
-            minute: '2-digit',
-          }),
-        });
+        unlistedParticipants.push(participantData);
       }
     });
 

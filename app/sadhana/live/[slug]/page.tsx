@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { ChevronDown, ChevronUp, LogOut, Maximize2, Minimize2, Play } from 'lucide-react';
 
-// CRITICAL: ABSOLUTE VIDEO CONTROL HIDING - NO EXCEPTIONS
+// CRITICAL: ABSOLUTE VIDEO CONTROL HIDING & UNMUTE ENFORCEMENT - NO EXCEPTIONS
 if (typeof document !== 'undefined') {
   const styleId = 'sadhana-video-no-controls';
   if (!document.getElementById(styleId)) {
@@ -21,6 +21,7 @@ if (typeof document !== 'undefined') {
         border: none !important;
         background: #000 !important;
         cursor: none !important;
+        --webkit-audio-session: playback !important;
       }
 
       /* WEBKIT BROWSERS */
@@ -58,10 +59,17 @@ if (typeof document !== 'undefined') {
   }
 
   /* AGGRESSIVE JAVASCRIPT ENFORCEMENT - RUN CONTINUOUSLY */
-  const enforceNoControls = () => {
+  const enforceNoControlsAndUnmute = () => {
     document.querySelectorAll('video').forEach((video: any) => {
+      // Remove controls
       video.removeAttribute('controls');
       video.removeAttribute('controlsList');
+
+      // Enforce unmute permanently
+      video.muted = false;
+      video.volume = 1;
+
+      // Enforce styles
       video.style.outline = 'none';
       video.style.border = 'none';
       video.style.width = '100%';
@@ -71,11 +79,11 @@ if (typeof document !== 'undefined') {
     });
   };
 
-  enforceNoControls();
+  enforceNoControlsAndUnmute();
   if (typeof window !== 'undefined') {
-    const observer = new MutationObserver(enforceNoControls);
+    const observer = new MutationObserver(enforceNoControlsAndUnmute);
     observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
-    setInterval(enforceNoControls, 200);
+    setInterval(enforceNoControlsAndUnmute, 100);
   }
 }
 
@@ -724,15 +732,19 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
 
     const handleRateChange = () => { if (video.playbackRate !== 1) video.playbackRate = 1; };
     const handleCanPlay = () => { if (video.paused) video.play().catch(() => {}); };
+    const handleVolumeChange = () => { if (video.muted || video.volume !== 1) { video.muted = false; video.volume = 1; } };
 
-    // Enable audio - don't mute
+    // PERMANENT UNMUTE ENFORCEMENT - Critical
     video.muted = false;
     video.volume = 1;
     video.autoplay = true;
     video.playsInline = true;
     video.preload = 'auto';
+
     video.addEventListener('ratechange', handleRateChange);
     video.addEventListener('canplay', handleCanPlay);
+    video.addEventListener('volumechange', handleVolumeChange);
+    video.addEventListener('pause', () => video.play().catch(() => {}));
 
     // Destroy previous hls instance
     if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
@@ -742,8 +754,19 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
       if (Hls.isSupported()) {
         const hls = new Hls({
           enableWorker: true,
-          lowLatencyMode: false,
-          backBufferLength: 90,
+          lowLatencyMode: true,
+          backBufferLength: 60,
+          maxBufferLength: 30,
+          maxBufferSize: 60 * 1000 * 1000,
+          maxMaxBufferLength: 60,
+          fragLoadingTimeOut: 20000,
+          fragLoadingMaxRetry: 6,
+          levelLoadingTimeOut: 10000,
+          levelLoadingMaxRetry: 4,
+          manifestLoadingTimeOut: 10000,
+          manifestLoadingMaxRetry: 1,
+          startLevel: undefined,
+          autoStartLevel: true,
         });
         hlsRef.current = hls;
         hls.loadSource(url);
@@ -752,7 +775,10 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
           video.play().catch(() => {});
         });
         hls.on(Hls.Events.ERROR, (_: any, data: any) => {
-          if (data.fatal) setError('Stream error — please refresh');
+          if (data.fatal) {
+            console.error('[HLS] Fatal error:', data);
+            setError('Stream error — please refresh');
+          }
         });
       } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
         // Safari native HLS
@@ -799,7 +825,6 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
       <video
         ref={videoRef}
         autoPlay
-        muted
         playsInline
         crossOrigin="anonymous"
         style={{ display: 'block', width: '100%', height: '100%', backgroundColor: '#000', outline: 'none', border: 'none' } as React.CSSProperties}

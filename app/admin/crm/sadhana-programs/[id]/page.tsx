@@ -373,9 +373,9 @@ export default function ProgramDetailPage() {
                     <span className="text-yellow-300">+</span> Add video
                   </div>
                 )}
-                {(isToday || day === parseInt(editDate?.split('-')[2] || '')) && liveStats && (
+                {liveStats && (
                   <div className="mt-2 space-y-1 text-[10px]">
-                    <div className="text-sky-200 flex items-center gap-1">
+                    <div className="text-sky-200 flex items-center gap-1 cursor-pointer hover:text-sky-100">
                       <span>👥 {liveStats.activeParticipants} joined</span>
                       <button
                         onClick={(e) => {
@@ -389,33 +389,35 @@ export default function ProgramDetailPage() {
                         👁️
                       </button>
                     </div>
-                    <div className="text-emerald-200 flex items-center gap-2">
-                      <span>💬 {liveStats.chatMessages24h} chat</span>
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setShowChatModal(true);
-                        }}
-                        className="p-1 hover:bg-emerald-500/20 rounded transition"
-                        title="View chat messages"
-                      >
-                        👁️
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          if (confirm(`Delete all chats for ${editDate}?`)) {
-                            console.log('Delete chats for', editDate);
-                          }
-                        }}
-                        className="p-1 hover:bg-red-500/20 rounded transition"
-                        title="Delete chats"
-                      >
-                        🗑️
-                      </button>
-                    </div>
+                    {(isToday || day === parseInt(editDate?.split('-')[2] || '')) && (
+                      <div className="text-emerald-200 flex items-center gap-2">
+                        <span>💬 {liveStats.chatMessages24h} chat</span>
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setShowChatModal(true);
+                          }}
+                          className="p-1 hover:bg-emerald-500/20 rounded transition"
+                          title="View chat messages"
+                        >
+                          👁️
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (confirm(`Delete all chats for ${editDate}?`)) {
+                              console.log('Delete chats for', editDate);
+                            }
+                          }}
+                          className="p-1 hover:bg-red-500/20 rounded transition"
+                          title="Delete chats"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </button>
@@ -685,17 +687,20 @@ export default function ProgramDetailPage() {
 
                     return (
                       <div key={timeSlot}>
-                        <div className="text-sm font-semibold text-purple-300 mb-2">🕐 {timeSlot} AM Session ({usersInSlot.length})</div>
+                        <div className="text-sm font-semibold text-purple-300 mb-2">🕐 {timeSlot} Session ({usersInSlot.length})</div>
                         <div className="bg-gradient-to-r from-purple-900/30 to-purple-800/20 border border-purple-700/30 rounded-lg p-3 space-y-2">
-                          {usersInSlot.map((user, idx) => (
-                            <div key={idx} className="text-sm text-gray-200 flex items-center gap-2">
-                              <span className="w-4 h-4 rounded-full bg-purple-500 flex-shrink-0"></span>
-                              <span className="truncate">{user.name}</span>
-                              <span className="text-xs text-gray-400 ml-auto flex-shrink-0">
-                                {user.joinTime}
-                              </span>
-                            </div>
-                          ))}
+                          {usersInSlot.map((user, idx) => {
+                            const duration = user.duration ? `${user.duration} min` : (user.joinTime ? user.joinTime : '—');
+                            return (
+                              <div key={idx} className="text-sm text-gray-200 flex items-center gap-2">
+                                <span className="w-4 h-4 rounded-full bg-purple-500 flex-shrink-0"></span>
+                                <span className="truncate font-medium">{user.name}</span>
+                                <span className="text-xs text-emerald-400 ml-auto flex-shrink-0 font-semibold">
+                                  {duration}
+                                </span>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     );
@@ -703,17 +708,20 @@ export default function ProgramDetailPage() {
 
                   {unlistedParticipants.length > 0 && (
                     <div>
-                      <div className="text-sm font-semibold text-amber-300 mb-2">🕐 Other Join Times ({unlistedParticipants.length})</div>
+                      <div className="text-sm font-semibold text-amber-300 mb-2">🕐 Other Sessions ({unlistedParticipants.length})</div>
                       <div className="bg-gradient-to-r from-amber-900/30 to-amber-800/20 border border-amber-700/30 rounded-lg p-3 space-y-2">
-                        {unlistedParticipants.map((user, idx) => (
-                          <div key={idx} className="text-sm text-gray-200 flex items-center gap-2">
-                            <span className="w-4 h-4 rounded-full bg-amber-500 flex-shrink-0"></span>
-                            <span className="truncate">{user.name}</span>
-                            <span className="text-xs text-gray-400 ml-auto flex-shrink-0">
-                              {user.joinTime}
-                            </span>
-                          </div>
-                        ))}
+                        {unlistedParticipants.map((user, idx) => {
+                          const duration = user.duration ? `${user.duration} min` : (user.joinTime ? user.joinTime : '—');
+                          return (
+                            <div key={idx} className="text-sm text-gray-200 flex items-center gap-2">
+                              <span className="w-4 h-4 rounded-full bg-amber-500 flex-shrink-0"></span>
+                              <span className="truncate font-medium">{user.name}</span>
+                              <span className="text-xs text-emerald-400 ml-auto flex-shrink-0 font-semibold">
+                                {duration}
+                              </span>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
