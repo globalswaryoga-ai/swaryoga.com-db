@@ -91,30 +91,62 @@ export async function GET(req: NextRequest) {
     }
 
     const chatsData = await chatsRes.json();
+    console.log('[QR Chats API] ✅ Chats endpoint:', {
+      hasChats: !!chatsData?.chats,
+      chatsCount: chatsData?.chats?.length || 0
+    });
+
     let groupsData: any[] = [];
 
     if (groupsRes?.ok) {
-      const groupsJson = await groupsRes.json();
-      groupsData = Array.isArray(groupsJson) ? groupsJson : (groupsJson?.groups || []);
-      console.log('[QR Chats API] Got groups from bridge:', groupsData.length);
+      try {
+        const groupsJson = await groupsRes.json();
+        console.log('[QR Chats API] 📋 Groups endpoint response:', JSON.stringify(groupsJson).substring(0, 800));
+        groupsData = Array.isArray(groupsJson) ? groupsJson : (groupsJson?.groups || groupsJson?.data || []);
+        console.log('[QR Chats API] ✅ Got groups from bridge:', groupsData.length);
+
+        // Log each group
+        groupsData.forEach((g: any, idx: number) => {
+          console.log(`[QR Chats API] Group ${idx}:`, {
+            id: g.id || g.jid,
+            name: g.subject || g.name,
+            participants: g.participants?.length || 0
+          });
+        });
+      } catch (e) {
+        console.error('[QR Chats API] Failed to parse groups response:', e);
+      }
+    } else if (groupsRes) {
+      const errorText = await groupsRes.text();
+      console.error('[QR Chats API] ❌ Groups endpoint failed:', {
+        status: groupsRes.status,
+        error: errorText.substring(0, 200)
+      });
+    } else {
+      console.warn('[QR Chats API] ⚠️ Groups endpoint request was aborted/null');
     }
 
     // Combine chats and groups
-    const data = {
-      chats: [
-        ...(Array.isArray(chatsData?.chats) ? chatsData.chats : []),
-        ...groupsData.map((g: any) => ({
-          id: g.id || g.jid,
-          name: g.subject || g.name,
-          subject: g.subject || g.name,
-          isGroup: true,
-          isGroupChat: true,
-          participants: g.participants || []
-        }))
-      ]
-    };
+    const combinedChats = [
+      ...(Array.isArray(chatsData?.chats) ? chatsData.chats : []),
+      ...groupsData.map((g: any) => ({
+        id: g.id || g.jid,
+        name: g.subject || g.name || 'Unnamed Group',
+        subject: g.subject || g.name,
+        isGroup: true,
+        isGroupChat: true,
+        participants: g.participants || []
+      }))
+    ];
 
-    console.log('[QR Chats API] Combined total:', { chats: data.chats.length });
+    const data = { chats: combinedChats };
+
+    console.log('[QR Chats API] 📊 Combined result:', {
+      totalChats: combinedChats.length,
+      fromChatsEndpoint: chatsData?.chats?.length || 0,
+      fromGroupsEndpoint: groupsData.length,
+      groups: combinedChats.filter(c => c.isGroup).length
+    });
     console.log('[QR Chats API] Bridge response:', {
       hasChats: !!data.chats,
       chatsCount: data.chats?.length || 0,
