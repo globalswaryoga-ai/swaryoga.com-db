@@ -309,6 +309,23 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       ],
     },
 
+    // ===== WEB ADMIN =====
+    {
+      key: 'web-admin',
+      label: 'Web Admin',
+      icon: Monitor,
+      items: [
+        {
+          icon: Monitor,
+          label: 'Web Admin',
+          href: '/admin/crm/web-admin',
+          color: 'text-gray-400',
+          module: 'dashboard',
+          description: 'All admin detail pages (Users, Sales, Social, etc)',
+        },
+      ],
+    },
+
     // ===== LEAD & SALES MANAGEMENT =====
     {
       key: 'sales',
