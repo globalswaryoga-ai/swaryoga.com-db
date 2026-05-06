@@ -190,12 +190,10 @@ export default function RecordingManagementPage() {
   };
 
   useEffect(() => {
-    if (!token) {
-      router.push(getLoginPath());
-      return;
+    if (token) {
+      fetchMembers();
     }
-    fetchMembers();
-  }, [token, router, fetchMembers]);
+  }, [token, fetchMembers]);
 
   // Open edit modal
   const openEditModal = async (member: Member) => {
