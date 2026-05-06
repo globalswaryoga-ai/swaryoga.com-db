@@ -108,24 +108,38 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
 
       if (groupsRes.ok) {
         const groupsData = await groupsRes.json();
-        const chatsArray = groupsData?.chats ?? groupsData?.result ?? [];
-        console.log('[BroadcastTab] Groups API response:', { success: groupsData?.success, chatsCount: chatsArray?.length, chatsArray });
-        const whatsappGroups = Array.isArray(chatsArray)
-          ? chatsArray
-              .filter((c: any) => {
-                const isGroup = c.id?.endsWith('@g.us') || c.isGroup === true || c.isGroupChat === true || c.groupMetadata !== undefined;
-                console.log(`[BroadcastTab] Chat: ${c.name || c.id} | IsGroup: ${isGroup}`);
-                return isGroup;
-              })
-              .map((c: any) => ({
-                id: c.id,
-                subject: c.name || c.subject || 'Unknown',
-                participants: c.participants?.length || 0,
-                isGroup: true as const,
-              }))
-          : [];
-        console.log(`[BroadcastTab] Loaded ${whatsappGroups.length} groups from API`);
-        setGroups(whatsappGroups);
+        console.log('[BroadcastTab] Full API response:', JSON.stringify(groupsData).substring(0, 1000));
+
+        if (!groupsData.success) {
+          console.error('[BroadcastTab] API returned success:false -', groupsData.error);
+          setError(`Groups API error: ${groupsData.error}`);
+          setGroups([]);
+        } else {
+          const chatsArray = groupsData?.chats ?? groupsData?.result ?? [];
+          console.log('[BroadcastTab] Chats array:', { length: chatsArray?.length, isArray: Array.isArray(chatsArray) });
+
+          const whatsappGroups = Array.isArray(chatsArray)
+            ? chatsArray
+                .filter((c: any) => {
+                  const isGroup = c.id?.endsWith('@g.us') || c.isGroup === true || c.isGroupChat === true || c.groupMetadata !== undefined;
+                  console.log(`[BroadcastTab] Chat: ${c.name || c.id} | ID: ${c.id} | IsGroup: ${isGroup}`);
+                  return isGroup;
+                })
+                .map((c: any) => ({
+                  id: c.id,
+                  subject: c.name || c.subject || 'Unknown',
+                  participants: c.participants?.length || 0,
+                  isGroup: true as const,
+                }))
+            : [];
+          console.log(`[BroadcastTab] Loaded ${whatsappGroups.length} groups from API`);
+          setGroups(whatsappGroups);
+          setError(null);
+        }
+      } else {
+        console.error('[BroadcastTab] API returned error status:', groupsRes.status);
+        setError(`Failed to load groups: ${groupsRes.status}`);
+        setGroups([]);
       } else {
         console.error('[BroadcastTab] Groups fetch failed:', groupsRes.status);
         setError(`Failed to load groups: ${groupsRes.status}`);
