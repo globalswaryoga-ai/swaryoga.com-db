@@ -10,25 +10,10 @@ import {
   Edit, Search, User, Phone, Eye, ChevronDown, Users,
 } from 'lucide-react';
 
-// Community list matching communityColorSystem.ts
-const COMMUNITIES = [
-  { id: 'global', name: 'Global Community', icon: Globe, category: 'Common', color: 'text-teal-500', bg: 'bg-teal-50 border-teal-200' },
-  { id: 'swar-yoga-l1', name: 'Swar Yoga L-1', icon: Music, category: 'Health', color: 'text-emerald-500', bg: 'bg-emerald-50 border-emerald-200' },
-  { id: 'swar-yoga-l2', name: 'Swar Yoga L-2', icon: Music, category: 'Health', color: 'text-green-500', bg: 'bg-green-50 border-green-200' },
-  { id: 'swar-yoga-l3', name: 'Swar Yoga L-3', icon: Music, category: 'Health', color: 'text-teal-500', bg: 'bg-teal-50 border-teal-200' },
-  { id: 'swar-yoga-l4', name: 'Swar Yoga L-4', icon: Music, category: 'Health', color: 'text-cyan-500', bg: 'bg-cyan-50 border-cyan-200' },
-  { id: 'swar-yoga-l5', name: 'Swar Yoga L-5', icon: Music, category: 'Health', color: 'text-sky-500', bg: 'bg-sky-50 border-sky-200' },
-  { id: 'aahar', name: 'Aahar (Diet & Nutrition)', icon: Leaf, category: 'Health', color: 'text-lime-500', bg: 'bg-lime-50 border-lime-200' },
-  { id: 'i-am-fit', name: 'I am Fit', icon: Activity, category: 'Health', color: 'text-orange-500', bg: 'bg-orange-50 border-orange-200' },
-  { id: 'old-sadhak-community', name: 'Swar Yoga Sadhak', icon: Sun, category: 'Health', color: 'text-amber-500', bg: 'bg-amber-50 border-amber-200' },
-  { id: 'pre-planning-garbh-sankar', name: 'Pre Planning Garbh Sankar', icon: Heart, category: 'Married Life', color: 'text-pink-500', bg: 'bg-pink-50 border-pink-200' },
-  { id: '9-month-garbha-sanskar', name: '9 Month Garbha Sanskar', icon: Baby, category: 'Married Life', color: 'text-rose-500', bg: 'bg-rose-50 border-rose-200' },
-  { id: 'youth', name: 'Youth Swar Yoga', icon: Sparkles, category: 'Youth', color: 'text-violet-500', bg: 'bg-violet-50 border-violet-200' },
-  { id: 'children', name: 'Children Yoga', icon: Sun, category: 'Children', color: 'text-amber-500', bg: 'bg-amber-50 border-amber-200' },
-  { id: 'yogasana', name: 'Yogasana Practice', icon: PersonStanding, category: 'Yogasana', color: 'text-indigo-500', bg: 'bg-indigo-50 border-indigo-200' },
-];
-
-const CATEGORIES = ['Common', 'Health', 'Married Life', 'Youth', 'Children', 'Yogasana'];
+// Icon map for mapping icon names to actual Lucide icons
+const ICON_MAP: Record<string, React.ElementType> = {
+  Globe, Music, Heart, Baby, Sparkles, Activity, Sun, Leaf, PersonStanding
+};
 
 interface Member {
   _id: string;
@@ -53,7 +38,10 @@ export default function RecordingManagementPage() {
   const router = useRouter();
   const token = useAuth();
 
-  const [selectedCommunity, setSelectedCommunity] = useState(COMMUNITIES[0]);
+  // State for dynamic communities
+  const [allCommunities, setAllCommunities] = useState<any[]>([]);
+  const [loadingCommunities, setLoadingCommunities] = useState(false);
+  const [selectedCommunity, setSelectedCommunity] = useState<any>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -76,6 +64,39 @@ export default function RecordingManagementPage() {
   const [bulkProcessing, setBulkProcessing] = useState(false);
   const [bulkResult, setBulkResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [bulkDropdownOpen, setBulkDropdownOpen] = useState(false);
+
+  // Fetch all communities from API
+  const fetchCommunities = useCallback(async () => {
+    if (!token) return;
+    setLoadingCommunities(true);
+    try {
+      const res = await fetch('/api/admin/community/list', {
+        headers: { Authorization: 'Bearer ' + token }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const communities = data.communities || [];
+        setAllCommunities(communities);
+        // Set first community as default if not yet selected
+        if (!selectedCommunity && communities.length > 0) {
+          setSelectedCommunity(communities[0]);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch communities:', err);
+      // Fallback to empty array
+      setAllCommunities([]);
+    } finally {
+      setLoadingCommunities(false);
+    }
+  }, [token, selectedCommunity]);
+
+  // Fetch communities on mount
+  useEffect(() => {
+    if (token && allCommunities.length === 0) {
+      fetchCommunities();
+    }
+  }, [token, allCommunities.length, fetchCommunities]);
 
   // Fetch members for the selected community
   const fetchMembers = useCallback(async () => {
@@ -298,7 +319,15 @@ export default function RecordingManagementPage() {
     (m.userId || '').includes(searchQuery)
   );
 
-  const CommunityIcon = selectedCommunity.icon;
+  // Dynamic categories based on loaded communities
+  const categories = Array.from(new Set(allCommunities.map(c => c.category).filter(Boolean))).sort();
+
+  // Filter communities by category
+  const communitiesByCategory = (category: string) => {
+    return allCommunities.filter(c => c.category === category);
+  };
+
+  const CommunityIcon = selectedCommunity?.icon || Globe;
   const grantedCount = modalUserAccess?.allAccess ? modalPlaylists.length : (modalUserAccess?.playlistIds || []).length;
 
   return (
@@ -335,15 +364,17 @@ export default function RecordingManagementPage() {
               <p className="text-xs text-gray-400 mt-1">Select community to manage users</p>
             </div>
             <nav className="flex-1 overflow-y-auto p-2">
-              {CATEGORIES.map(category => {
-                const list = COMMUNITIES.filter(c => c.category === category);
+              {loadingCommunities && <p className="text-center text-sm text-gray-500 py-4">Loading communities...</p>}
+              {!loadingCommunities && allCommunities.length === 0 && <p className="text-center text-sm text-gray-500 py-4">No communities found</p>}
+              {categories.map(category => {
+                const list = communitiesByCategory(category);
                 if (list.length === 0) return null;
                 return (
                   <div key={category} className="mb-3">
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-3 py-1.5">{category}</p>
                     {list.map(community => {
-                      const CIcon = community.icon;
-                      const isSelected = selectedCommunity.id === community.id;
+                      const CIcon = ICON_MAP[community.icon] || Globe;
+                      const isSelected = selectedCommunity?.id === community.id;
                       return (
                         <button
                           key={community.id}
