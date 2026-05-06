@@ -423,7 +423,7 @@ We're excited to have you as part of the Swar Yoga family. Namaste! 🙏`);
     }
   }, [token, activeLang]);
 
-  useEffect(() => { fetchTemplates(); }, [fetchTemplates]);
+  useEffect(() => { fetchTemplates(); }, [token, activeLang]);
 
   // ── Derived ──
   const outbound = templates.filter(t => t.category === 'outbound').sort((a, b) => a.stageOrder - b.stageOrder);

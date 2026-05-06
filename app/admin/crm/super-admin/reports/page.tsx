@@ -69,7 +69,7 @@ export default function SuperAdminReportsPage() {
     }
   }, [token, router]);
 
-  useEffect(() => { if (token) fetchStats(); }, [token, fetchStats]);
+  useEffect(() => { if (token) fetchStats(); }, [token]);
 
   if (loading) {
     return (

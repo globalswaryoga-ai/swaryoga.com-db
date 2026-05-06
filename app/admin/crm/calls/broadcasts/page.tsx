@@ -99,7 +99,7 @@ export default function BroadcastsPage() {
     setLoading(false);
   }, [token, period]);
 
-  useEffect(() => { fetchBroadcasts(); }, [fetchBroadcasts]);
+  useEffect(() => { fetchBroadcasts(); }, [token, period]);
 
   // Auto-refresh for in-progress
   useEffect(() => {

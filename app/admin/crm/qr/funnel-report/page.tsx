@@ -89,8 +89,8 @@ export default function QRFunnelReportPage() {
     setLoading(false);
   }, [token, selectedStage]);
 
-  useEffect(() => { fetchConfig(); }, [fetchConfig]);
-  useEffect(() => { fetchLeads(); }, [fetchLeads]);
+  useEffect(() => { fetchConfig(); }, [token]);
+  useEffect(() => { fetchLeads(); }, [token, selectedStage]);
 
   const totalLeads = useMemo(() => Object.values(stageCounts).reduce((s, c) => s + c, 0), [stageCounts]);
 

@@ -205,7 +205,7 @@ export default function CallReportsPage() {
     setLoading(false);
   }, [token, period, language, adminFilter, mainView]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { fetchData(); }, [token, period, language, adminFilter, mainView]);
 
   // ── Action handlers ──
   const handleAction = async (action: string, callId: string, notes?: string) => {

@@ -134,7 +134,7 @@ export default function AgentsPage() {
     setLoading(false);
   }, [token, headers]);
 
-  useEffect(() => { fetchAgents(); }, [fetchAgents]);
+  useEffect(() => { fetchAgents(); }, [token]);
 
   /* ── Open create modal ── */
   const openCreateModal = () => {
