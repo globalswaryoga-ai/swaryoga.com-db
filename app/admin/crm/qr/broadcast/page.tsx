@@ -699,7 +699,16 @@ export default function QRBroadcastPage() {
                   <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
                     <Users className="w-4 h-4 text-gray-500" /> Recipients
                   </h3>
-                  <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">{selectedRecipients.size} selected</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setSelectedRecipients(new Set(chats.map(c => c.id)))}
+                      className="text-[11px] px-2 py-1 bg-green-500 hover:bg-green-600 text-white rounded font-medium transition"
+                      title="Select all contacts"
+                    >
+                      ✓ All
+                    </button>
+                    <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">{selectedRecipients.size}/{chats.length}</span>
+                  </div>
                 </div>
 
                 {/* Search */}
@@ -726,15 +735,16 @@ export default function QRBroadcastPage() {
                         className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-gray-50 font-semibold text-sm"
                       >
                         <span className="text-gray-700">👤 People ({categorizedChats.people.length})</span>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5">
                           <button
                             onClick={e => {
                               e.stopPropagation();
                               selectAllInSection('people');
                             }}
-                            className="text-[10px] px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full font-medium hover:bg-blue-100 transition"
+                            className="text-[10px] px-2.5 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded font-semibold transition"
+                            title={`Select all ${categorizedChats.people.length} people`}
                           >
-                            Select All
+                            +All
                           </button>
                           {expandedSections.people ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
                         </div>
@@ -768,15 +778,16 @@ export default function QRBroadcastPage() {
                         className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-gray-50 font-semibold text-sm"
                       >
                         <span className="text-gray-700">💬 Groups ({categorizedChats.groups.length})</span>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5">
                           <button
                             onClick={e => {
                               e.stopPropagation();
                               selectAllInSection('groups');
                             }}
-                            className="text-[10px] px-2 py-0.5 bg-purple-50 text-purple-700 rounded-full font-medium hover:bg-purple-100 transition"
+                            className="text-[10px] px-2.5 py-1 bg-purple-500 hover:bg-purple-600 text-white rounded font-semibold transition"
+                            title={`Select all ${categorizedChats.groups.length} groups`}
                           >
-                            Select All
+                            +All
                           </button>
                           {expandedSections.groups ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
                         </div>
@@ -812,18 +823,20 @@ export default function QRBroadcastPage() {
                 </div>
 
                 {/* Quick Actions Footer */}
-                <div className="px-3 py-2 border-t bg-gray-50 flex items-center gap-1.5 flex-wrap">
+                <div className="px-3 py-2.5 border-t bg-gray-50 flex items-center gap-1.5 flex-wrap">
                   <button
                     onClick={() => setSelectedRecipients(new Set(chats.map(c => c.id)))}
-                    className="text-[10px] px-2 py-1 bg-green-50 text-green-700 rounded-full font-medium hover:bg-green-100 transition"
+                    className="text-[11px] px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded font-semibold transition"
+                    title="Select all contacts"
                   >
                     ✓ Select All
                   </button>
                   <button
                     onClick={() => setSelectedRecipients(new Set())}
-                    className="text-[10px] px-2 py-1 bg-gray-200 text-gray-700 rounded-full font-medium hover:bg-gray-300 transition"
+                    className="text-[11px] px-3 py-1.5 bg-gray-400 hover:bg-gray-500 text-white rounded font-semibold transition"
+                    title="Deselect all contacts"
                   >
-                    Clear All
+                    ✕ Clear All
                   </button>
                 </div>
 
