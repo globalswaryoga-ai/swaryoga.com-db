@@ -59,6 +59,7 @@ export default function ProgramDetailPage() {
   const [selectedDateForParticipants, setSelectedDateForParticipants] = useState<string | null>(null);
   const [participantsBySlot, setParticipantsBySlot] = useState<Record<string, any[]>>({});
   const [unlistedParticipants, setUnlistedParticipants] = useState<any[]>([]);
+  const [participantCountsByDate, setParticipantCountsByDate] = useState<Record<string, number>>({});
 
   const load = async () => {
     setLoading(true);
@@ -73,6 +74,11 @@ export default function ProgramDetailPage() {
   };
 
   useEffect(() => { load(); }, [params.id]);
+
+  useEffect(() => {
+    if (!program?.slug) return;
+    fetchParticipantCountsForMonth(cursor.getFullYear(), cursor.getMonth());
+  }, [cursor, program?.slug]);
 
   useEffect(() => {
     if (!program?.slug) return;
@@ -114,6 +120,26 @@ export default function ProgramDetailPage() {
       }
     } catch (err) {
       console.error('Failed to fetch participants:', err);
+    }
+  };
+
+  const fetchParticipantCountsForMonth = async (year: number, monthIdx: number) => {
+    if (!program?.slug) return;
+    const daysInMonth = new Date(year, monthIdx + 1, 0).getDate();
+    const counts: Record<string, number> = {};
+
+    try {
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dateStr = dateKey(year, monthIdx, d);
+        const res = await fetch(`/api/sadhana/live/${program.slug}/participants-by-date?date=${dateStr}`);
+        const data = await res.json();
+        if (data.success) {
+          counts[dateStr] = data.totalParticipants || 0;
+        }
+      }
+      setParticipantCountsByDate(counts);
+    } catch (err) {
+      console.error('Failed to fetch participant counts:', err);
     }
   };
 
@@ -373,10 +399,10 @@ export default function ProgramDetailPage() {
                     <span className="text-yellow-300">+</span> Add video
                   </div>
                 )}
-                {liveStats && (
+                {participantCountsByDate[key] !== undefined && (
                   <div className="mt-2 space-y-1 text-[10px]">
                     <div className="text-sky-200 flex items-center gap-1 cursor-pointer hover:text-sky-100">
-                      <span>👥 {liveStats.activeParticipants} joined</span>
+                      <span>👥 {participantCountsByDate[key]} joined</span>
                       <button
                         onClick={(e) => {
                           e.preventDefault();
@@ -389,7 +415,7 @@ export default function ProgramDetailPage() {
                         👁️
                       </button>
                     </div>
-                    {(isToday || day === parseInt(editDate?.split('-')[2] || '')) && (
+                    {(isToday || day === parseInt(editDate?.split('-')[2] || '')) && liveStats && (
                       <div className="text-emerald-200 flex items-center gap-2">
                         <span>💬 {liveStats.chatMessages24h} chat</span>
                         <button
