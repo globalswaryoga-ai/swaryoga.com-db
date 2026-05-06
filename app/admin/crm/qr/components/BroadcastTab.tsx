@@ -335,7 +335,7 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
               <label className="block text-sm font-medium text-gray-700 mb-2">Recipients</label>
 
               {/* Recipient Type Tabs */}
-              <div className="flex gap-2 mb-3 border-b">
+              <div className="flex gap-2 mb-3 border-b items-center">
                 {(['people', 'groups'] as const).map(t => (
                   <button
                     key={t}
@@ -349,6 +349,18 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
                     {t === 'people' ? `People (${selectedPhones.size})` : `Groups (${selectedGroupIds.size})`}
                   </button>
                 ))}
+                {recipientTab === 'groups' && (
+                  <button
+                    onClick={() => {
+                      console.log('[BroadcastTab] Manual sync triggered');
+                      fetchData();
+                    }}
+                    className="ml-auto px-2 py-1 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded transition"
+                    title="Manually sync groups from WhatsApp bridge"
+                  >
+                    🔄 Sync
+                  </button>
+                )}
               </div>
 
               {/* Filters for People */}
@@ -471,7 +483,15 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
                   )}
                   <div className="max-h-64 overflow-y-auto border rounded-lg p-3 bg-gray-50">
                     {groups.length === 0 ? (
-                      <p className="text-sm text-gray-500">No WhatsApp groups available</p>
+                      <div className="text-sm text-gray-500 space-y-2">
+                        <p>⚠️ No WhatsApp groups available</p>
+                        <p className="text-xs text-gray-400">This could mean:</p>
+                        <ul className="text-xs text-gray-400 list-disc list-inside">
+                          <li>WhatsApp QR session not fully synced</li>
+                          <li>No groups in your WhatsApp account</li>
+                          <li>Try clicking "🔄 Sync" button above</li>
+                        </ul>
+                      </div>
                     ) : (
                       groups.map(group => (
                       <label key={group.id} className="flex items-start gap-2 p-2 hover:bg-white rounded cursor-pointer">
