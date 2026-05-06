@@ -90,27 +90,18 @@ export function useAuth() {
     if (typeof window === 'undefined') return;
     const sync = () => {
       const t = getStoredAdminToken();
-      setToken(t);
-      // If token was removed (e.g. by handleUnauthorized in useCRM), redirect to login.
-      if (!t && !pathname?.includes('/login') && !pathname?.includes('/signup')) {
-        router.push(getLoginPath());
+      if (t !== token) {
+        setToken(t);
+        // If token was removed (e.g. by handleUnauthorized in useCRM), redirect to login.
+        if (!t && !pathname?.includes('/login') && !pathname?.includes('/signup')) {
+          router.push(getLoginPath());
+        }
       }
     };
     window.addEventListener('storage', sync);
 
-    // Also poll localStorage periodically to detect in-tab token removal
-    // (the 'storage' event only fires for changes in OTHER tabs).
-    const poll = setInterval(() => {
-      const current = getStoredAdminToken();
-      // Only update if we had a token and it's now gone
-      if (!current && token) {
-        setToken(null);
-      }
-    }, 2000);
-
     return () => {
       window.removeEventListener('storage', sync);
-      clearInterval(poll);
     };
   }, [token, pathname, router]);
 
