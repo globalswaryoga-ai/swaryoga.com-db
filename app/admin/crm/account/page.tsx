@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/hooks/useAuth';
 import {
   ArrowLeft,
   Camera,
@@ -37,6 +38,7 @@ interface Profile {
 
 export default function AccountPage() {
   const router = useRouter();
+  const token = useAuth();
   const fileRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -44,15 +46,9 @@ export default function AccountPage() {
   const [toast, setToast] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [photoPreview, setPhotoPreview] = useState('');
 
-  const getToken = () => {
-    if (typeof window === 'undefined') return null;
-    return localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
-  };
-
   // Fetch profile
   useEffect(() => {
-    const token = getToken();
-    if (!token) { router.push('/admin/login'); return; }
+    if (!token) return;
 
     (async () => {
       try {
@@ -72,7 +68,7 @@ export default function AccountPage() {
         setLoading(false);
       }
     })();
-  }, [router]);
+  }, [token]);
 
   // Dismiss toast
   useEffect(() => {

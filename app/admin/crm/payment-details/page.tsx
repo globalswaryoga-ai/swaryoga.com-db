@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useAuth } from '@/hooks/useAuth';
 import {
   ArrowLeft,
   Landmark,
@@ -57,18 +58,15 @@ const EMPTY: BankDetails = {
 };
 
 export default function PaymentDetailsPage() {
+  const token = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [details, setDetails] = useState<BankDetails>(EMPTY);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [filled, setFilled] = useState(false); // Has user filled details before?
 
-  const getToken = () =>
-    localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
-
   // Load saved bank details
   useEffect(() => {
-    const token = getToken();
     if (!token) return;
 
     (async () => {
@@ -90,7 +88,7 @@ export default function PaymentDetailsPage() {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [token]);
 
   useEffect(() => {
     if (!toast) return;
@@ -119,7 +117,6 @@ export default function PaymentDetailsPage() {
       return;
     }
 
-    const token = getToken();
     if (!token) return;
 
     setSaving(true);

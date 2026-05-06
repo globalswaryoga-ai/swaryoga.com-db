@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useAuth } from '@/hooks/useAuth';
 import { ArrowLeft, X, Mail, MessageCircle, Globe, Save, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 
@@ -19,6 +20,7 @@ interface Integration {
 }
 
 export default function ProfileSettingsPage() {
+  useAuth();
   const [tab, setTab] = useState<'profile' | 'integrations'>('profile');
   const [showModal, setShowModal] = useState(false);
   const [selectedIntegration, setSelectedIntegration] = useState<string | null>(null);

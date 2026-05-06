@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useAuth } from '@/hooks/useAuth';
 import {
   Crown,
   CheckCircle2,
@@ -72,6 +73,7 @@ interface SubscriptionData {
 }
 
 export default function SubscriptionPage() {
+  const token = useAuth();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<SubscriptionData | null>(null);
   const [error, setError] = useState('');
@@ -79,13 +81,13 @@ export default function SubscriptionPage() {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'quarterly' | 'annual'>('monthly');
 
   useEffect(() => {
+    if (!token) return;
     fetchSubscription();
-  }, []);
+  }, [token]);
 
   const fetchSubscription = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
       if (!token) return;
       const res = await fetch('/api/crm-site/subscription', {
         headers: { Authorization: `Bearer ${token}` },

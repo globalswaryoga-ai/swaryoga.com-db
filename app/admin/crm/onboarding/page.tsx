@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/hooks/useAuth';
 import {
   Building2,
   Palette,
@@ -67,6 +68,7 @@ const COLOR_PRESETS = [
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const token = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [steps, setSteps] = useState<OnboardingStep[]>([]);
@@ -86,12 +88,12 @@ export default function OnboardingPage() {
   });
 
   useEffect(() => {
+    if (!token) return;
     fetchOnboarding();
-  }, []);
+  }, [token]);
 
   const fetchOnboarding = async () => {
     try {
-      const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
       const slug = localStorage.getItem('tenantSlug') || '';
       setTenantSlug(slug);
 

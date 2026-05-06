@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
 import {
   Users,
@@ -89,6 +90,7 @@ const SETUP_CHECKLIST = [
 ];
 
 export default function AnalyticsDashboard() {
+  const token = useAuth();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [period, setPeriod] = useState('30d');
@@ -114,8 +116,9 @@ export default function AnalyticsDashboard() {
   }, []);
 
   useEffect(() => {
+    if (!token) return;
     fetchAnalytics();
-  }, [period]);
+  }, [period, token]);
 
   const toggleStep = (key: string) => {
     const updated = completedSteps.includes(key)
@@ -125,10 +128,9 @@ export default function AnalyticsDashboard() {
     localStorage.setItem('crm_setup_completed', JSON.stringify(updated));
   };
 
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = useCallback(async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
       const tenantSlug = localStorage.getItem('tenantSlug') || '';
 
       const res = await fetch(`/api/crm-site/analytics?tenant=${tenantSlug}&period=${period}`, {
@@ -146,7 +148,7 @@ export default function AnalyticsDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
 
   if (loading) {
     return (

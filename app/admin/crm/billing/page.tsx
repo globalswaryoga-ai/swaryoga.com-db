@@ -3,19 +3,21 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Check, X, Loader } from 'lucide-react';
 import Link from 'next/link';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function BillingPage() {
+  const token = useAuth();
   const [subscription, setSubscription] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
+    if (!token) return;
     fetchSubscription();
-  }, []);
+  }, [token]);
 
   const fetchSubscription = async () => {
     try {
-      const token = localStorage.getItem('token');
       const res = await fetch('/api/admin/crm/subscription', {
         headers: { 'Authorization': `Bearer ${token}` },
       });

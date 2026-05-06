@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { useAuth } from '@/hooks/useAuth';
 
 interface Device {
   _id: string;
@@ -56,6 +57,7 @@ interface Stats {
 }
 
 export default function AdminDevicesPage() {
+  const token = useAuth();
   const [activeTab, setActiveTab] = useState<'devices' | 'violations' | 'stats'>('devices');
   const [devices, setDevices] = useState<Device[]>([]);
   const [violations, setViolations] = useState<Violation[]>([]);
@@ -67,7 +69,7 @@ export default function AdminDevicesPage() {
   const [blockReason, setBlockReason] = useState('');
 
   const fetchDevices = useCallback(async (userId?: string) => {
-    const token = localStorage.getItem('token');
+    if (!token) return;
     const url = userId 
       ? `/api/admin/devices?userId=${userId}` 
       : '/api/admin/devices';
@@ -84,7 +86,6 @@ export default function AdminDevicesPage() {
   }, []);
 
   const fetchViolations = useCallback(async (unreviewed = false) => {
-    const token = localStorage.getItem('token');
     const url = `/api/admin/devices/violations?unreviewed=${unreviewed}`;
     
     try {
@@ -99,7 +100,6 @@ export default function AdminDevicesPage() {
   }, []);
 
   const fetchStats = useCallback(async () => {
-    const token = localStorage.getItem('token');
     
     try {
       const res = await fetch('/api/admin/devices?action=stats', {
@@ -127,7 +127,6 @@ export default function AdminDevicesPage() {
       return;
     }
     
-    const token = localStorage.getItem('token');
     try {
       await fetch('/api/admin/devices', {
         method: 'POST',
@@ -150,7 +149,6 @@ export default function AdminDevicesPage() {
   };
 
   const handleUnblockDevice = async (device: Device) => {
-    const token = localStorage.getItem('token');
     try {
       await fetch('/api/admin/devices', {
         method: 'POST',
@@ -172,7 +170,6 @@ export default function AdminDevicesPage() {
   const handleRemoveAllDevices = async (userId: string) => {
     if (!confirm(`Remove ALL devices for user ${userId}?`)) return;
     
-    const token = localStorage.getItem('token');
     try {
       await fetch('/api/admin/devices', {
         method: 'POST',
@@ -193,7 +190,6 @@ export default function AdminDevicesPage() {
   };
 
   const handleMarkReviewed = async (violationId: string) => {
-    const token = localStorage.getItem('token');
     try {
       await fetch('/api/admin/devices/violations', {
         method: 'POST',
