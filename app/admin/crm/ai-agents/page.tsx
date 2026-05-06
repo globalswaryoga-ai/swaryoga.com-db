@@ -278,7 +278,7 @@ export default function AIAgentsPage() {
 
   useEffect(() => {
     if (token && showMappingPanel) fetchMappings();
-  }, [token, showMappingPanel, fetchMappings]);
+  }, [token, showMappingPanel]);
 
   const handleSaveMapping = async () => {
     if (!mappingLang || !mappingAgentId || !token) return;

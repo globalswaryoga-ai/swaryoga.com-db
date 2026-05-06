@@ -102,11 +102,9 @@ export function useAuth() {
     // (the 'storage' event only fires for changes in OTHER tabs).
     const poll = setInterval(() => {
       const current = getStoredAdminToken();
+      // Only update if we had a token and it's now gone
       if (!current && token) {
         setToken(null);
-        if (!pathname?.includes('/login') && !pathname?.includes('/signup')) {
-          router.push(getLoginPath());
-        }
       }
     }, 2000);
 
