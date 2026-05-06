@@ -17,14 +17,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Only superadmins can see all community members
-    if (!isSuperAdmin(decoded)) {
-      return NextResponse.json(
-        { error: 'Access denied: Superadmin access required for community data' },
-        { status: 403 }
-      );
-    }
-
     await connectDB();
 
     const { searchParams } = new URL(request.url);
