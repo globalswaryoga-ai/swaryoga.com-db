@@ -61,6 +61,7 @@ export default function ProgramDetailPage() {
   const [unlistedParticipants, setUnlistedParticipants] = useState<any[]>([]);
   const [participantCountsByDate, setParticipantCountsByDate] = useState<Record<string, number>>({});
   const [selectedDateForChat, setSelectedDateForChat] = useState<string | null>(null);
+  const [selectedTimeSlotForChat, setSelectedTimeSlotForChat] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -151,13 +152,18 @@ export default function ProgramDetailPage() {
     }
   };
 
-  const fetchChatByDate = async (dateStr: string) => {
+  const fetchChatByDate = async (dateStr: string, timeSlot?: string) => {
     if (!program?.slug) return;
     try {
-      const res = await fetch(`/api/sadhana/live/${program.slug}/chat-by-date?date=${dateStr}`);
+      const url = new URL(`/api/sadhana/live/${program.slug}/chat-by-date`, window.location.origin);
+      url.searchParams.set('date', dateStr);
+      if (timeSlot) url.searchParams.set('timeSlot', timeSlot);
+
+      const res = await fetch(url.toString());
       const data = await res.json();
       if (data.success) {
         setSelectedDateForChat(dateStr);
+        setSelectedTimeSlotForChat(timeSlot || null);
         setChatMessages(data.messages || []);
         setShowChatModal(true);
       }
@@ -736,7 +742,16 @@ export default function ProgramDetailPage() {
 
                     return (
                       <div key={timeSlot}>
-                        <div className="text-sm font-semibold text-purple-300 mb-2">🕐 {timeSlot} Session ({usersInSlot.length})</div>
+                        <div className="text-sm font-semibold text-purple-300 mb-2 flex items-center justify-between">
+                          <span>🕐 {timeSlot} Session ({usersInSlot.length})</span>
+                          <button
+                            onClick={() => fetchChatByDate(selectedDateForParticipants || '', timeSlot)}
+                            className="text-xs bg-purple-600 hover:bg-purple-500 px-2 py-1 rounded transition"
+                            title="View chat for this session"
+                          >
+                            💬 Chat
+                          </button>
+                        </div>
                         <div className="bg-gradient-to-r from-purple-900/30 to-purple-800/20 border border-purple-700/30 rounded-lg p-3 space-y-2">
                           {usersInSlot.map((user, idx) => {
                             const duration = user.duration ? `${user.duration} min` : (user.joinTime ? user.joinTime : '—');
@@ -795,7 +810,10 @@ export default function ProgramDetailPage() {
               <div>
                 <h3 className="text-lg font-bold text-white">💬 Chat Messages ({chatMessages.length})</h3>
                 {selectedDateForChat && (
-                  <p className="text-xs text-gray-400 mt-1">{new Date(selectedDateForChat).toLocaleDateString('en-IN', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}</p>
+                  <div className="text-xs text-gray-400 mt-1 space-y-0.5">
+                    <p>{new Date(selectedDateForChat).toLocaleDateString('en-IN', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}</p>
+                    {selectedTimeSlotForChat && <p>🕐 {selectedTimeSlotForChat} Session</p>}
+                  </div>
                 )}
               </div>
               <button onClick={() => setShowChatModal(false)} className="text-gray-300 hover:text-white">
