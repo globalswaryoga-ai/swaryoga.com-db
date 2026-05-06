@@ -59,22 +59,35 @@ export async function GET(req: NextRequest) {
     }
 
     // 1. Fetch from bridge
-    const res = await fetch(`${bridgeUrl}/chats`, {
+    const bridgeCallUrl = `${bridgeUrl}/chats`;
+    console.log('[QR Chats API] Calling bridge:', bridgeCallUrl, { userIdHeader: viewerUserId });
+
+    const res = await fetch(bridgeCallUrl, {
       method: 'GET',
-      headers: { 
+      headers: {
         'x-bridge-secret': bridgeSecret,
         'x-user-id': viewerUserId,
       }
     });
-    
+
     if (!res.ok) {
       const errorText = await res.text();
+      console.error('[QR Chats API] Bridge error:', res.status, errorText);
       return NextResponse.json({ success: false, error: 'Bridge error', details: errorText }, { status: res.status });
     }
 
     const data = await res.json();
-    
-    if (!data.chats) return NextResponse.json({ success: true, chats: [] });
+    console.log('[QR Chats API] Bridge response:', {
+      hasChats: !!data.chats,
+      chatsCount: data.chats?.length || 0,
+      keys: Object.keys(data),
+      dataSnapshot: JSON.stringify(data).substring(0, 500)
+    });
+
+    if (!data.chats) {
+      console.warn('[QR Chats API] No chats in bridge response, returning empty array');
+      return NextResponse.json({ success: true, chats: [] });
+    }
 
     // 2. If Super Admin, return everything
     if (superAdmin) {
@@ -103,19 +116,33 @@ export async function GET(req: NextRequest) {
 
     const filteredChats = data.chats.filter((c: any) => {
       const idStr = typeof c.id === 'string' ? c.id : (c.id?._serialized || '');
+      const isGroup = idStr.endsWith('@g.us');
 
       // ALWAYS show groups (@g.us) - they are not filtered by lead records
-      if (idStr.endsWith('@g.us')) {
+      if (isGroup) {
+        console.log('[QR Chats API] Passing group:', idStr, c.name || c.subject);
         return true;
       }
 
       // For individual chats: filter by lead assignment (user compartment)
       const phone = idStr.split('@')[0];
       const leadInfo = leadMap.get(phone);
-      if (!leadInfo) return false; // No lead record = not visible
+      if (!leadInfo) {
+        console.log('[QR Chats API] Filtering out (no lead):', phone);
+        return false;
+      }
 
-      // Show if assigned to viewer OR created by viewer (user compartment)
-      return leadInfo.assignedToUserId === viewerUserId || leadInfo.createdByUserId === viewerUserId;
+      const passes = leadInfo.assignedToUserId === viewerUserId || leadInfo.createdByUserId === viewerUserId;
+      if (passes) {
+        console.log('[QR Chats API] Passing people:', phone, c.name);
+      }
+      return passes;
+    });
+
+    console.log('[QR Chats API] Final result:', {
+      totalBefore: data.chats.length,
+      totalAfter: filteredChats.length,
+      groups: filteredChats.filter(c => (typeof c.id === 'string' ? c.id : c.id?._serialized)?.endsWith('@g.us')).length,
     });
 
     return NextResponse.json({ success: true, chats: filteredChats });
