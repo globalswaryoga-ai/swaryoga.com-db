@@ -1,5 +1,7 @@
 'use client';
 
+import { useAuth } from '@/hooks/useAuth';
+
 import React, { useState, useEffect } from 'react';
 import {
   Ticket,
@@ -75,6 +77,7 @@ const PRIORITY_CONFIG: Record<string, { label: string; color: string; bg: string
 };
 
 export default function HelpDeskPage() {
+  const token = useAuth();
   const [loading, setLoading] = useState(true);
   const [tickets, setTickets] = useState<TicketData[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -137,7 +140,6 @@ export default function HelpDeskPage() {
 
   const fetchTeamMembers = async () => {
     try {
-      const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
       const slug = localStorage.getItem('tenantSlug') || '';
       const res = await fetch(`/api/crm-site/team?tenant=${slug}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -154,7 +156,6 @@ export default function HelpDeskPage() {
   const fetchTickets = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
       const slug = localStorage.getItem('tenantSlug') || '';
 
       let url = `/api/crm-site/tickets?tenant=${slug}`;
@@ -187,7 +188,6 @@ export default function HelpDeskPage() {
 
     setSaving(true);
     try {
-      const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
       const res = await fetch('/api/crm-site/tickets', {
         method: 'POST',
         headers: {
@@ -224,7 +224,6 @@ export default function HelpDeskPage() {
 
   const updateTicketStatus = async (ticketId: string, status: string) => {
     try {
-      const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
       const res = await fetch('/api/crm-site/tickets', {
         method: 'PATCH',
         headers: {
@@ -248,7 +247,6 @@ export default function HelpDeskPage() {
 
   const assignTicket = async (ticketId: string, memberId: string | null, memberName?: string) => {
     try {
-      const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
       const res = await fetch('/api/crm-site/tickets', {
         method: 'PATCH',
         headers: {
@@ -281,7 +279,6 @@ export default function HelpDeskPage() {
 
     setSaving(true);
     try {
-      const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
       const res = await fetch('/api/crm-site/tickets', {
         method: 'PATCH',
         headers: {

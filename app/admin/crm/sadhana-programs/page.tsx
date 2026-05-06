@@ -1,5 +1,7 @@
 'use client';
 
+import { useAuth } from '@/hooks/useAuth';
+
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Plus, Calendar, Copy, ExternalLink, Trash2, Pencil, Clock, Video, CalendarCheck } from 'lucide-react';

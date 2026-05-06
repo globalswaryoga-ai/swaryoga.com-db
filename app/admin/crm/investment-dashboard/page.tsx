@@ -8,6 +8,8 @@
 
 'use client';
 
+import { useAuth } from '@/hooks/useAuth';
+
 import React, { useState, useEffect } from 'react';
 import { formatCurrency, formatDate } from '@/lib/investment-utils';
 import { ENTITIES, ENTITY_NAMES } from '@/lib/investment-constants';

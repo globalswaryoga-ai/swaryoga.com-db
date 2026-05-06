@@ -1,5 +1,7 @@
 'use client';
 
+import { useAuth } from '@/hooks/useAuth';
+
 import React, { useState, useEffect, useRef } from 'react';
 import {
   FileText,

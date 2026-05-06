@@ -1,5 +1,7 @@
 'use client';
 
+import { useAuth } from '@/hooks/useAuth';
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   BarChart3,
