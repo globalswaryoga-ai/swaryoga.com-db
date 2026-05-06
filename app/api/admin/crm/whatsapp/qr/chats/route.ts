@@ -58,25 +58,63 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 1. Fetch from bridge
-    const bridgeCallUrl = `${bridgeUrl}/chats`;
-    console.log('[QR Chats API] Calling bridge:', bridgeCallUrl, { userIdHeader: viewerUserId });
+    // 1. Fetch chats and groups from bridge
+    const bridgeChatsUrl = `${bridgeUrl}/chats`;
+    const bridgeGroupsUrl = `${bridgeUrl}/groups`;
+    console.log('[QR Chats API] Calling bridge chats:', bridgeChatsUrl);
+    console.log('[QR Chats API] Calling bridge groups:', bridgeGroupsUrl);
 
-    const res = await fetch(bridgeCallUrl, {
-      method: 'GET',
-      headers: {
-        'x-bridge-secret': bridgeSecret,
-        'x-user-id': viewerUserId,
-      }
-    });
+    const [chatsRes, groupsRes] = await Promise.all([
+      fetch(bridgeChatsUrl, {
+        method: 'GET',
+        headers: {
+          'x-bridge-secret': bridgeSecret,
+          'x-user-id': viewerUserId,
+        }
+      }),
+      fetch(bridgeGroupsUrl, {
+        method: 'GET',
+        headers: {
+          'x-bridge-secret': bridgeSecret,
+          'x-user-id': viewerUserId,
+        }
+      }).catch(err => {
+        console.warn('[QR Chats API] Groups endpoint failed:', err.message);
+        return null;
+      })
+    ]);
 
-    if (!res.ok) {
-      const errorText = await res.text();
-      console.error('[QR Chats API] Bridge error:', res.status, errorText);
-      return NextResponse.json({ success: false, error: 'Bridge error', details: errorText }, { status: res.status });
+    if (!chatsRes.ok) {
+      const errorText = await chatsRes.text();
+      console.error('[QR Chats API] Chats endpoint error:', chatsRes.status, errorText);
+      return NextResponse.json({ success: false, error: 'Bridge error', details: errorText }, { status: chatsRes.status });
     }
 
-    const data = await res.json();
+    const chatsData = await chatsRes.json();
+    let groupsData: any[] = [];
+
+    if (groupsRes?.ok) {
+      const groupsJson = await groupsRes.json();
+      groupsData = Array.isArray(groupsJson) ? groupsJson : (groupsJson?.groups || []);
+      console.log('[QR Chats API] Got groups from bridge:', groupsData.length);
+    }
+
+    // Combine chats and groups
+    const data = {
+      chats: [
+        ...(Array.isArray(chatsData?.chats) ? chatsData.chats : []),
+        ...groupsData.map((g: any) => ({
+          id: g.id || g.jid,
+          name: g.subject || g.name,
+          subject: g.subject || g.name,
+          isGroup: true,
+          isGroupChat: true,
+          participants: g.participants || []
+        }))
+      ]
+    };
+
+    console.log('[QR Chats API] Combined total:', { chats: data.chats.length });
     console.log('[QR Chats API] Bridge response:', {
       hasChats: !!data.chats,
       chatsCount: data.chats?.length || 0,
