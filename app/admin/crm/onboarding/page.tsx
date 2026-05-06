@@ -131,9 +131,9 @@ export default function OnboardingPage() {
   };
 
   const saveStep = async (action: 'complete' | 'skip' | 'save') => {
+    if (!token) return;
     setSaving(true);
     try {
-      const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
       const step = steps[currentStepIndex];
 
       const res = await fetch('/api/crm-site/onboarding', {

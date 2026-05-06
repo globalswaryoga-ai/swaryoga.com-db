@@ -107,9 +107,7 @@ export default function AccountPage() {
   };
 
   const saveProfile = async () => {
-    if (!profile) return;
-    const token = getToken();
-    if (!token) return;
+    if (!profile || !token) return;
 
     setSaving(true);
     setToast(null);
