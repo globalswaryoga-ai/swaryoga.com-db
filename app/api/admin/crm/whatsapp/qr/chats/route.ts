@@ -89,6 +89,21 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: true, chats: [] });
     }
 
+    // Log each chat BEFORE filtering to see what bridge returned
+    console.log('[QR Chats API] ============ ALL CHATS FROM BRIDGE ============');
+    data.chats.forEach((c: any, idx: number) => {
+      const idStr = typeof c.id === 'string' ? c.id : (c.id?._serialized || '');
+      const isGroup = idStr.endsWith('@g.us');
+      console.log(`[QR Chats API] Chat ${idx}:`, {
+        id: idStr,
+        name: c.name,
+        isGroup,
+        isGroupChat: c.isGroupChat,
+        hasGroupMetadata: !!c.groupMetadata,
+      });
+    });
+    console.log('[QR Chats API] ============ END BRIDGE CHATS ============');
+
     // 2. If Super Admin, return everything
     if (superAdmin) {
       return NextResponse.json({ success: true, chats: data.chats });
