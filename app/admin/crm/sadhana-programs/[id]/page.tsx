@@ -132,13 +132,20 @@ export default function ProgramDetailPage() {
     try {
       for (let d = 1; d <= daysInMonth; d++) {
         const dateStr = dateKey(year, monthIdx, d);
-        const res = await fetch(`/api/sadhana/live/${program.slug}/participants-by-date?date=${dateStr}`);
-        const data = await res.json();
-        if (data.success) {
-          counts[dateStr] = data.totalParticipants || 0;
+        try {
+          const res = await fetch(`/api/sadhana/live/${program.slug}/participants-by-date?date=${dateStr}`);
+          if (!res.ok) continue;
+          const data = await res.json();
+          if (data.success && typeof data.totalParticipants === 'number') {
+            counts[dateStr] = data.totalParticipants;
+          }
+        } catch (e) {
+          // Skip failed individual requests
         }
       }
-      setParticipantCountsByDate(counts);
+      if (Object.keys(counts).length > 0) {
+        setParticipantCountsByDate(counts);
+      }
     } catch (err) {
       console.error('Failed to fetch participant counts:', err);
     }
@@ -415,10 +422,10 @@ export default function ProgramDetailPage() {
                     <span className="text-yellow-300">+</span> Add video
                   </div>
                 )}
-                {participantCountsByDate[key] !== undefined && (
+                {(participantCountsByDate[key] !== undefined || liveStats) && (
                   <div className="mt-2 space-y-1 text-[10px]">
                     <div className="text-sky-200 flex items-center gap-1 cursor-pointer hover:text-sky-100">
-                      <span>👥 {participantCountsByDate[key]} joined</span>
+                      <span>👥 {participantCountsByDate[key] !== undefined ? participantCountsByDate[key] : (liveStats?.activeParticipants || 0)} joined</span>
                       <button
                         onClick={(e) => {
                           e.preventDefault();
