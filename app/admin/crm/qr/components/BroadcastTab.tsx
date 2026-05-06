@@ -140,9 +140,6 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
         console.error('[BroadcastTab] API returned error status:', groupsRes.status);
         setError(`Failed to load groups: ${groupsRes.status}`);
         setGroups([]);
-      } else {
-        console.error('[BroadcastTab] Groups fetch failed:', groupsRes.status);
-        setError(`Failed to load groups: ${groupsRes.status}`);
       }
 
       if (templatesRes.ok) {
