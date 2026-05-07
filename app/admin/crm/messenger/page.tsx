@@ -107,7 +107,10 @@ export default function MessengerInboxPage() {
   };
 
   const openFacebookSetup = () => {
-    router.push('/admin/social-media-setup?platform=facebook');
+    // Only navigate to setup if NOT connected
+    if (!facebookAccount) {
+      router.push('/admin/social-media-setup?platform=facebook');
+    }
   };
 
   const getStoredAdminToken = useCallback(() => {
