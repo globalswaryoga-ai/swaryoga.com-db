@@ -72,7 +72,9 @@ export interface IRecordedCourse extends Document {
     USD?: { price: number; originalPrice?: number; };
   };
   isFree: boolean;
-  
+  discount?: number; // Discount percentage (0-100)
+  promoCode?: string; // Promo code for discount
+
   // Gift Hours Settings
   giftHours: {
     enabled: boolean;
@@ -157,7 +159,9 @@ const RecordedCourseSchema = new Schema<IRecordedCourse>({
     USD: { price: { type: Number }, originalPrice: { type: Number } },
   },
   isFree: { type: Boolean, default: false },
-  
+  discount: { type: Number, min: 0, max: 100 },
+  promoCode: { type: String, trim: true, uppercase: true },
+
   giftHours: {
     enabled: { type: Boolean, default: true },
     hours: { type: Number, default: 2 },
