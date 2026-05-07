@@ -70,14 +70,14 @@ export async function POST(request: NextRequest) {
 
     const encryptedToken = encryptCredential(PAGE_ACCESS_TOKEN);
 
-    // Upsert account
-    await SocialMediaAccount.findOneAndUpdate(
-      {
-        platform,
-        accountScopeType: scope.scopeType,
-        accountScopeKey: scope.scopeKey,
-      },
-      {
+    // Find or create account
+    const existingAccount = await SocialMediaAccount.findOne({
+      platform,
+    });
+
+    if (existingAccount) {
+      // Update existing
+      await SocialMediaAccount.findByIdAndUpdate(existingAccount._id, {
         $set: {
           accountId,
           accountName,
@@ -87,9 +87,20 @@ export async function POST(request: NextRequest) {
           connectedAt: new Date(),
           updatedAt: new Date(),
         },
-      },
-      { upsert: true, new: true }
-    );
+      });
+    } else {
+      // Create new
+      await SocialMediaAccount.create({
+        platform,
+        accountId,
+        accountName,
+        accountHandle,
+        accessToken: encryptedToken,
+        isConnected: true,
+        connectedAt: new Date(),
+        updatedAt: new Date(),
+      });
+    }
 
     return NextResponse.json({
       success: true,
