@@ -127,25 +127,39 @@ export default function DLearningPage() {
   };
 
   const deleteCourse = async (courseId: string) => {
-    if (!token || !confirm('Delete this course? This cannot be undone.')) return;
+    if (!token) {
+      alert('❌ Not authenticated. Please log in.');
+      return;
+    }
+
+    if (!confirm('Delete this course? This cannot be undone.')) return;
 
     try {
+      console.log('🗑️ Deleting course:', courseId);
+      console.log('🔑 Token present:', !!token);
+
       const res = await fetch(`/api/admin/recorded-courses?id=${courseId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
 
+      console.log('📡 Response status:', res.status, res.statusText);
+
       const data = await res.json();
+      console.log('📋 Response data:', data);
 
       if (res.ok && data.success) {
         setCourses(prev => prev.filter(c => c._id !== courseId));
         alert('✅ Course deleted successfully!');
       } else {
-        alert('❌ Error: ' + (data.error || 'Failed to delete course'));
+        const errorMsg = data.error || `HTTP ${res.status}: ${res.statusText}`;
+        console.error('❌ Delete failed:', errorMsg);
+        alert('❌ Error: ' + errorMsg);
       }
     } catch (err) {
-      console.error('Delete error:', err);
-      alert('❌ Network error: ' + (err instanceof Error ? err.message : 'Unknown error'));
+      console.error('🔥 Delete error:', err);
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+      alert('❌ Network error:\n' + errorMsg);
     }
   };
 
