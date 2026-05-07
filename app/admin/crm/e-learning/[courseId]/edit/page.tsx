@@ -10,12 +10,19 @@ interface Course {
   _id: string;
   slug: string;
   content: {
-    en: { title: string; subtitle?: string; description?: string };
+    en: { title: string; subtitle?: string; description?: string; language?: string };
   };
+  thumbnail?: string;
   level: string;
+  totalVideos?: number;
+  totalDuration?: number;
   pricing: {
-    INR: { price: number; originalPrice?: number };
+    INR?: { price: number; originalPrice?: number };
+    NPR?: { price: number; originalPrice?: number };
+    USD?: { price: number; originalPrice?: number };
   };
+  discount?: number;
+  promoCode?: string;
   isFree: boolean;
   isPublished: boolean;
   isActive: boolean;
@@ -32,11 +39,19 @@ export default function EditCoursePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Form fields
   const [title, setTitle] = useState('');
-  const [subtitle, setSubtitle] = useState('');
   const [description, setDescription] = useState('');
   const [level, setLevel] = useState('beginner');
-  const [price, setPrice] = useState('0');
+  const [language, setLanguage] = useState('en');
+  const [totalVideos, setTotalVideos] = useState('0');
+  const [duration, setDuration] = useState('0');
+  const [thumbnail, setThumbnail] = useState('');
+  const [priceINR, setPriceINR] = useState('0');
+  const [priceNPR, setPriceNPR] = useState('0');
+  const [priceUSD, setPriceUSD] = useState('0');
+  const [discount, setDiscount] = useState('0');
+  const [promoCode, setPromoCode] = useState('');
   const [isFree, setIsFree] = useState(false);
 
   useEffect(() => {
@@ -54,10 +69,17 @@ export default function EditCoursePage() {
           const c = data.course;
           setCourse(c);
           setTitle(c.content?.en?.title || '');
-          setSubtitle(c.content?.en?.subtitle || '');
           setDescription(c.content?.en?.description || '');
+          setLanguage(c.content?.en?.language || 'en');
           setLevel(c.level || 'beginner');
-          setPrice(String(c.pricing?.INR?.price || 0));
+          setThumbnail(c.thumbnail || '');
+          setTotalVideos(String(c.totalVideos || 0));
+          setDuration(String(c.totalDuration || 0));
+          setPriceINR(String(c.pricing?.INR?.price || 0));
+          setPriceNPR(String(c.pricing?.NPR?.price || 0));
+          setPriceUSD(String(c.pricing?.USD?.price || 0));
+          setDiscount(String(c.discount || 0));
+          setPromoCode(c.promoCode || '');
           setIsFree(c.isFree || false);
         } else {
           setError('Failed to load course');
@@ -75,9 +97,14 @@ export default function EditCoursePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!token || !title) return;
+    if (!token || !title) {
+      setError('Workshop name is required');
+      return;
+    }
 
     setSaving(true);
+    setError(null);
+
     try {
       const res = await fetch('/api/admin/recorded-courses', {
         method: 'PUT',
@@ -90,29 +117,34 @@ export default function EditCoursePage() {
           content: {
             en: {
               title,
-              subtitle,
               description,
-            },
+              language
+            }
           },
           level,
+          thumbnail,
+          totalVideos: parseInt(totalVideos) || 0,
+          totalDuration: parseInt(duration) || 0,
           pricing: {
-            INR: {
-              price: isFree ? 0 : parseInt(price) || 0,
-            },
+            INR: { price: isFree ? 0 : parseInt(priceINR) || 0 },
+            NPR: { price: isFree ? 0 : parseInt(priceNPR) || 0 },
+            USD: { price: isFree ? 0 : parseInt(priceUSD) || 0 },
           },
+          discount: parseInt(discount) || 0,
+          promoCode: promoCode || null,
           isFree,
         }),
       });
 
-      if (res.ok) {
-        // Refresh server data and redirect back to courses list
+      const data = await res.json();
+      if (res.ok && data.success) {
         router.refresh();
         router.push('/admin/crm/e-learning');
       } else {
-        setError('Failed to save course');
+        setError(data.error || 'Failed to save course');
       }
     } catch (err) {
-      setError('Error saving course');
+      setError('Error saving course: ' + (err instanceof Error ? err.message : 'Unknown error'));
       console.error(err);
     } finally {
       setSaving(false);
@@ -137,7 +169,7 @@ export default function EditCoursePage() {
 
   return (
     <div className="min-h-screen bg-black p-6">
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
           <Link
@@ -146,7 +178,10 @@ export default function EditCoursePage() {
           >
             <ArrowLeft size={24} />
           </Link>
-          <h1 className="text-2xl font-bold text-white">Edit Course</h1>
+          <div>
+            <h1 className="text-2xl font-bold text-white">Edit Workshop</h1>
+            <p className="text-sm text-gray-400">{course?.content?.en?.title}</p>
+          </div>
         </div>
 
         {error && (
@@ -156,83 +191,199 @@ export default function EditCoursePage() {
         )}
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="bg-gray-900/50 rounded-2xl border border-gray-800 p-8 space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-green-400 mb-2">Course Title</label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
-              placeholder="Enter course title"
-              required
-            />
+        <form onSubmit={handleSubmit} className="bg-gray-900/50 rounded-2xl border border-gray-800 p-8 space-y-6 max-h-[80vh] overflow-y-auto">
+          {/* Row 1 */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-green-400 mb-2">Workshop Name *</label>
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
+                placeholder="Yoga Fundamentals"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-green-400 mb-2">Current Slug</label>
+              <input
+                type="text"
+                value={course?.slug || ''}
+                disabled
+                className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-gray-400 cursor-not-allowed"
+              />
+            </div>
           </div>
 
+          {/* Row 2 */}
           <div>
-            <label className="block text-sm font-medium text-green-400 mb-2">Subtitle</label>
-            <input
-              type="text"
-              value={subtitle}
-              onChange={(e) => setSubtitle(e.target.value)}
-              className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
-              placeholder="Enter course subtitle"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-green-400 mb-2">Description</label>
+            <label className="block text-sm font-medium text-green-400 mb-2">Workshop Description</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none resize-none"
-              placeholder="Enter course description"
-              rows={5}
+              placeholder="Describe your workshop..."
+              rows={3}
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-green-400 mb-2">Level</label>
-            <select
-              value={level}
-              onChange={(e) => setLevel(e.target.value)}
-              className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none"
-            >
-              <option value="beginner">Beginner</option>
-              <option value="intermediate">Intermediate</option>
-              <option value="advanced">Advanced</option>
-            </select>
+          {/* Row 3 */}
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-green-400 mb-2">Level</label>
+              <select
+                value={level}
+                onChange={(e) => setLevel(e.target.value)}
+                className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none"
+              >
+                <option value="beginner">Beginner</option>
+                <option value="intermediate">Intermediate</option>
+                <option value="advanced">Advanced</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-green-400 mb-2">Language</label>
+              <select
+                value={language}
+                onChange={(e) => setLanguage(e.target.value)}
+                className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none"
+              >
+                <option value="en">English</option>
+                <option value="hi">Hindi</option>
+                <option value="ne">Nepali</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-green-400 mb-2">Total Videos</label>
+              <input
+                type="number"
+                value={totalVideos}
+                onChange={(e) => setTotalVideos(e.target.value)}
+                className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
+                placeholder="0"
+                min="0"
+              />
+            </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            <label className="flex items-center gap-2 text-white cursor-pointer">
+          {/* Row 4 */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-green-400 mb-2">Workshop Duration (minutes)</label>
               <input
-                type="checkbox"
-                checked={isFree}
-                onChange={(e) => setIsFree(e.target.checked)}
-                className="w-5 h-5 rounded border-gray-600 bg-black text-green-500 focus:ring-green-500"
+                type="number"
+                value={duration}
+                onChange={(e) => setDuration(e.target.value)}
+                className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
+                placeholder="0"
+                min="0"
               />
-              Free Course
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-green-400 mb-2">Thumbnail URL</label>
+              <input
+                type="url"
+                value={thumbnail}
+                onChange={(e) => setThumbnail(e.target.value)}
+                className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
+                placeholder="https://example.com/thumb.jpg"
+              />
+            </div>
+          </div>
+
+          {/* Free Course Checkbox */}
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="isFree"
+              checked={isFree}
+              onChange={(e) => setIsFree(e.target.checked)}
+              className="w-5 h-5 rounded border-gray-600 bg-black text-green-500 focus:ring-green-500"
+            />
+            <label htmlFor="isFree" className="text-white cursor-pointer text-sm font-medium">
+              Make this a Free Workshop
             </label>
           </div>
 
+          {/* Pricing Section */}
           {!isFree && (
-            <div>
-              <label className="block text-sm font-medium text-green-400 mb-2">Price (₹)</label>
-              <input
-                type="number"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
-                placeholder="0"
-              />
-            </div>
+            <>
+              <div className="border-t border-gray-700 pt-4">
+                <h3 className="text-sm font-semibold text-green-400 mb-4">Pricing</h3>
+
+                {/* Row 5 - Pricing */}
+                <div className="grid grid-cols-3 gap-4 mb-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Price INR (₹)</label>
+                    <input
+                      type="number"
+                      value={priceINR}
+                      onChange={(e) => setPriceINR(e.target.value)}
+                      className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
+                      placeholder="0"
+                      min="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Price NPR (रु)</label>
+                    <input
+                      type="number"
+                      value={priceNPR}
+                      onChange={(e) => setPriceNPR(e.target.value)}
+                      className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
+                      placeholder="0"
+                      min="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Price USD ($)</label>
+                    <input
+                      type="number"
+                      value={priceUSD}
+                      onChange={(e) => setPriceUSD(e.target.value)}
+                      className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
+                      placeholder="0"
+                      min="0"
+                      step="0.01"
+                    />
+                  </div>
+                </div>
+
+                {/* Row 6 - Discount & Promo */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Discount (%)</label>
+                    <input
+                      type="number"
+                      value={discount}
+                      onChange={(e) => setDiscount(e.target.value)}
+                      className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
+                      placeholder="0"
+                      min="0"
+                      max="100"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Promo Code</label>
+                    <input
+                      type="text"
+                      value={promoCode}
+                      onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                      className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
+                      placeholder="SUMMER2024"
+                    />
+                  </div>
+                </div>
+              </div>
+            </>
           )}
 
-          <div className="flex gap-3 pt-4">
+          {/* Buttons */}
+          <div className="flex gap-3 pt-6 border-t border-gray-700">
             <Link
               href="/admin/crm/e-learning"
-              className="flex-1 px-4 py-3 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-800 transition-colors text-center"
+              className="flex-1 px-4 py-3 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-800 transition-colors text-center font-medium"
             >
               Cancel
             </Link>
