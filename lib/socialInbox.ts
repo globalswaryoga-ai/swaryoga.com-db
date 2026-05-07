@@ -81,13 +81,21 @@ export async function resolveSocialInboxAccount(decoded: TokenPayload | null | u
     return null;
   }
 
+  let accessToken: string;
+  try {
+    accessToken = decryptCredential(String(account.accessToken));
+  } catch (err) {
+    console.error('[socialInbox] Could not decrypt access token for account', account._id, err);
+    return null;
+  }
+
   return {
     platform,
     scope,
     accountId: String(account.accountId),
     accountName: String(account.accountName || account.accountHandle || account.accountId),
     accountHandle: String(account.accountHandle || ''),
-    accessToken: decryptCredential(String(account.accessToken)),
+    accessToken,
     accountDocId: String(account._id),
   };
 }

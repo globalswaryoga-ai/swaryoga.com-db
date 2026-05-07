@@ -32,7 +32,16 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
     const scope = await resolveSocialMediaScope(decoded);
-    const resolvedAccount = await resolveSocialInboxAccount(decoded, platform);
+
+    // Resolve account for response metadata — failures here must NOT crash the route
+    // (e.g. decryption mismatch after key rotation). Conversations are still queryable.
+    let resolvedAccount = null;
+    try {
+      resolvedAccount = await resolveSocialInboxAccount(decoded, platform);
+    } catch (accountErr) {
+      console.warn('[social-inbox] resolveSocialInboxAccount failed — returning conversations without account metadata:', accountErr);
+    }
+
     const Conversation = getSocialInboxConversation();
 
     const filter: any = {

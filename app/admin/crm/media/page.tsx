@@ -12,15 +12,17 @@ import { useAuth } from '@/hooks/useAuth';
  */
 function getProxiedMediaUrl(url: string, authToken: string | null): string {
   if (!url) return url;
-  
-  // Check if it's an S3 URL (our bucket)
-  const isS3Url = url.includes('.s3.') && url.includes('.amazonaws.com');
-  
-  if (isS3Url && authToken) {
-    // Proxy through our API which will generate a signed URL and fetch the content
+
+  // Proxy S3 URLs (legacy) and Bunny CDN URLs for admin/community access control
+  const needsProxy =
+    (url.includes('.s3.') && url.includes('.amazonaws.com')) ||
+    url.includes('b-cdn.net') ||
+    url.startsWith('/api/media/bunny/');
+
+  if (needsProxy && authToken) {
     return `/api/admin/crm/media/proxy?url=${encodeURIComponent(url)}&token=${encodeURIComponent(authToken)}`;
   }
-  
+
   return url;
 }
 
@@ -111,7 +113,6 @@ export default function MediaManagerPage() {
     }
 
     try {
-      const token = localStorage.getItem('token');
       const response = await fetch('/api/admin/media/upload', {
         method: 'POST',
         headers: {

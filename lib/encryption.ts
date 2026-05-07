@@ -45,8 +45,10 @@ export const decryptCredential = (encryptedData: string): string => {
     const key = getEncryptionKey();
     const parts = encryptedData.split(':');
 
+    // If not in iv:authTag:data format, the value was likely stored as plain text
+    // (before encryption was introduced). Return as-is so callers still work.
     if (parts.length !== 3) {
-      throw new Error('Invalid encrypted data format');
+      return encryptedData;
     }
 
     const iv = Buffer.from(parts[0], 'hex');
@@ -61,8 +63,10 @@ export const decryptCredential = (encryptedData: string): string => {
 
     return decrypted;
   } catch (error) {
-    console.error('Decryption error:', error);
-    throw new Error('Failed to decrypt credential');
+    // Wrong ENCRYPTION_KEY or corrupted data — return the raw value so callers
+    // can still attempt to use it (e.g. plain-text token stored before encryption).
+    console.error('Decryption error (returning raw value):', error);
+    return encryptedData;
   }
 };
 
