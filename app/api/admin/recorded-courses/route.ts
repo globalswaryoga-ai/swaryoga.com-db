@@ -84,8 +84,8 @@ export async function GET(request: NextRequest) {
       });
     }
     
-    // List all courses
-    const courses = await RecordedCourse.find({}).sort({ order: 1, createdAt: -1 }).lean();
+    // List all active courses (exclude soft-deleted)
+    const courses = await RecordedCourse.find({ isActive: true }).sort({ order: 1, createdAt: -1 }).lean();
     
     // Get enrollment counts
     const coursesWithStats = await Promise.all(

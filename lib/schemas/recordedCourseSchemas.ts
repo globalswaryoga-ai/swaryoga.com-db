@@ -105,6 +105,12 @@ export interface IRecordedCourse extends Document {
   averageRating: number;
   reviewCount: number;
 
+  // Soft Delete
+  deletedAt?: Date;
+  deletedBy?: string;
+  createdBy?: string;
+  updatedBy?: string;
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -187,6 +193,12 @@ const RecordedCourseSchema = new Schema<IRecordedCourse>({
   completionRate: { type: Number, default: 0 },
   averageRating: { type: Number, default: 0 },
   reviewCount: { type: Number, default: 0 },
+
+  // Soft Delete & Audit
+  deletedAt: { type: Date, sparse: true },
+  deletedBy: { type: String, sparse: true },
+  createdBy: { type: String, sparse: true },
+  updatedBy: { type: String, sparse: true },
 }, { timestamps: true });
 
 RecordedCourseSchema.index({ slug: 1 });
