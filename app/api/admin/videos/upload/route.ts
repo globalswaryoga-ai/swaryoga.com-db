@@ -1,21 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, VideoPlaylist, PlaylistVideo } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { generateUploadUrl, getPublicFileUrl } from '@/lib/bunny-storage';
 
 export const dynamic = 'force-dynamic';
-
-
-const s3Client = new S3Client({
-  region: process.env.AWS_REGION || 'us-east-1',
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
-  },
-});
-
-const S3_BUCKET = process.env.AWS_S3_BUCKET || 'swarygoal1hindi';
 
 // POST - Get presigned URL for video upload
 export async function POST(request: NextRequest) {
@@ -72,37 +60,29 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Generate S3 key
+    // Generate Bunny storage key
     const timestamp = Date.now();
     const cleanFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const folderPath = playlist.type === 'batch' 
+    const folderPath = playlist.type === 'batch'
       ? `videos/batches/batch-${playlist.batchNumber}`
       : `videos/posts/${playlist.year}/${String(playlist.month).padStart(2, '0')}`;
-    const s3Key = `${folderPath}/${timestamp}-${cleanFileName}`;
+    const storageKey = `${folderPath}/${timestamp}-${cleanFileName}`;
 
-    // Get extension for content type
-    const extension = fileName.split('.').pop()?.toLowerCase();
+    // Get content type
     const contentType = fileType || 'video/mp4';
 
-    // Generate presigned URL for upload
-    const command = new PutObjectCommand({
-      Bucket: S3_BUCKET,
-      Key: s3Key,
-      ContentType: contentType,
-    });
-
-    const presignedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 }); // 1 hour
+    // Generate upload URL for Bunny Storage
+    const uploadUrl = await generateUploadUrl(storageKey, contentType);
 
     // Generate the final video URL
-    const videoUrl = `https://${S3_BUCKET}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${s3Key}`;
+    const videoUrl = getPublicFileUrl(storageKey);
 
     return NextResponse.json({
       success: true,
       data: {
-        presignedUrl,
-        s3Key,
+        presignedUrl: uploadUrl,
+        s3Key: storageKey,
         videoUrl,
-        bucket: S3_BUCKET,
         expiresIn: 3600,
       },
       message: 'Upload URL generated successfully',

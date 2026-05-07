@@ -2,19 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { getWorkshopVideo } from '@/lib/schemas/workshopSchemas';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { generateUploadUrl, getPublicFileUrl } from '@/lib/bunny-storage';
 import mongoose from 'mongoose';
-
-const s3 = new S3Client({
-  region: process.env.AWS_REGION || 'us-east-1',
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  },
-});
-
-const BUCKET_NAME = 'swarygoal1hindi';
 
 /**
  * POST /api/admin/workshops/videos/upload
@@ -59,24 +48,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Generate S3 key path: workshops/{workshopSlug}/batch{batchNumber}/day{dayNumber}/{filename}
+    // Generate Bunny storage key path
     const ext = filename.split('.').pop() || 'mp4';
     const timestamp = Date.now();
     const slug = workshopSlug || 'workshop';
     const batch = batchNumber || 'general';
     const day = dayNumber || 1;
     const cleanFilename = filename.replace(/[^a-zA-Z0-9.-]/g, '_');
-    
+
     const s3Key = `workshops/${slug}/batch${batch}/day${day}/${timestamp}-${cleanFilename}`;
 
-    // Generate presigned URL for upload (valid for 1 hour)
-    const command = new PutObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: s3Key,
-      ContentType: contentType,
-    });
-
-    const presignedUrl = await getSignedUrl(s3, command, { expiresIn: 3600 });
+    // Generate upload URL for Bunny Storage
+    const presignedUrl = await generateUploadUrl(s3Key, contentType);
 
     // If title is provided, create the video record immediately
     // (will be marked as pending until upload completes)
