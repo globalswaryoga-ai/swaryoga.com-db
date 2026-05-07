@@ -128,18 +128,24 @@ export default function DLearningPage() {
 
   const deleteCourse = async (courseId: string) => {
     if (!token || !confirm('Delete this course? This cannot be undone.')) return;
-    
+
     try {
       const res = await fetch(`/api/admin/recorded-courses?id=${courseId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
-      
-      if (res.ok) {
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
         setCourses(prev => prev.filter(c => c._id !== courseId));
+        alert('✅ Course deleted successfully!');
+      } else {
+        alert('❌ Error: ' + (data.error || 'Failed to delete course'));
       }
     } catch (err) {
       console.error('Delete error:', err);
+      alert('❌ Network error: ' + (err instanceof Error ? err.message : 'Unknown error'));
     }
   };
 
