@@ -106,10 +106,30 @@ export default function MessengerInboxPage() {
     if (href) router.push(href);
   };
 
-  const openFacebookSetup = () => {
-    // Only navigate to setup if NOT connected
-    if (!facebookAccount) {
-      router.push('/admin/social-media-setup?platform=facebook');
+  const connectFacebookAccount = async () => {
+    if (facebookAccount) return; // Already connected
+
+    try {
+      const token = getStoredAdminToken();
+      const res = await fetch('/api/admin/crm/social-inbox/connect', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ platform: 'facebook' }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        // Reload page to show connected account
+        window.location.reload();
+      } else {
+        alert(`Connection failed: ${data.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Connection error:', error);
+      alert('Failed to connect Facebook account');
     }
   };
 
@@ -437,7 +457,7 @@ export default function MessengerInboxPage() {
           {!connectionRestricted && (
             <>
               <button
-                onClick={openFacebookSetup}
+                onClick={connectFacebookAccount}
                 className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border bg-white/10 text-white/80 border-white/20 hover:bg-white/20 hover:text-white text-[10px] font-bold transition-all duration-200"
               >
                 <i className={`ph-bold ${facebookAccount ? 'ph-gear-six' : 'ph-plug'} text-xs`}></i>
@@ -509,7 +529,7 @@ export default function MessengerInboxPage() {
                 {!connectionRestricted && (
                   <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
                     <button
-                      onClick={openFacebookSetup}
+                      onClick={connectFacebookAccount}
                       className="inline-flex items-center gap-2 rounded-xl bg-[#0078FF] px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#0067d9]"
                     >
                       <i className={`ph-bold ${facebookAccount ? 'ph-gear-six' : 'ph-plug'} text-sm`}></i>
@@ -655,7 +675,7 @@ export default function MessengerInboxPage() {
               {!connectionRestricted && (
                 <div className="flex flex-wrap items-center justify-center gap-2">
                   <button
-                    onClick={openFacebookSetup}
+                    onClick={connectFacebookAccount}
                     className="inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-white px-4 py-2 text-xs font-bold text-[#0078FF] shadow-sm transition hover:bg-indigo-50"
                   >
                     <i className={`ph-bold ${facebookAccount ? 'ph-gear-six' : 'ph-plug'} text-sm`}></i>

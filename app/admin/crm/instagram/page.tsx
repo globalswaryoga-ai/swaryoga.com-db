@@ -111,10 +111,30 @@ export default function InstagramInboxPage() {
     if (href) router.push(href);
   };
 
-  const openMetaSetup = () => {
-    // Only navigate to setup if NOT connected
-    if (!instagramAccount && !facebookAccount) {
-      router.push('/admin/social-media-setup?platform=facebook');
+  const connectMetaAccount = async () => {
+    if (instagramAccount || facebookAccount) return; // Already connected
+
+    try {
+      const token = getStoredAdminToken();
+      const res = await fetch('/api/admin/crm/social-inbox/connect', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ platform: 'instagram' }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        // Reload page to show connected account
+        window.location.reload();
+      } else {
+        alert(`Connection failed: ${data.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Connection error:', error);
+      alert('Failed to connect Instagram account');
     }
   };
 
@@ -446,7 +466,7 @@ export default function InstagramInboxPage() {
           )}
           {!connectionRestricted && (
             <>
-              <button onClick={openMetaSetup} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border bg-white/10 text-white/80 border-white/20 hover:bg-white/20 hover:text-white text-[10px] font-bold transition-all duration-200">
+              <button onClick={connectMetaAccount} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border bg-white/10 text-white/80 border-white/20 hover:bg-white/20 hover:text-white text-[10px] font-bold transition-all duration-200">
                 <i className={`ph-bold ${instagramAccount ? 'ph-gear-six' : 'ph-plug'} text-xs`}></i>
                 <span className="hidden lg:inline uppercase tracking-wider">{instagramAccount ? 'Manage Meta' : 'Connect Meta'}</span>
               </button>
@@ -514,7 +534,7 @@ export default function InstagramInboxPage() {
                 </p>
                 {!connectionRestricted && (
                   <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
-                    <button onClick={openMetaSetup} className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:opacity-90" style={{ background: 'linear-gradient(135deg, #833AB4 0%, #C13584 50%, #E1306C 100%)' }}>
+                    <button onClick={connectMetaAccount} className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:opacity-90" style={{ background: 'linear-gradient(135deg, #833AB4 0%, #C13584 50%, #E1306C 100%)' }}>
                       <i className={`ph-bold ${instagramAccount ? 'ph-gear-six' : 'ph-plug'} text-sm`}></i>
                       {instagramAccount ? 'Manage Meta Connection' : 'Connect Meta'}
                     </button>
@@ -674,7 +694,7 @@ export default function InstagramInboxPage() {
               </p>
               {!connectionRestricted && (
                 <div className="flex flex-wrap items-center justify-center gap-2">
-                  <button onClick={openMetaSetup} className="inline-flex items-center gap-2 rounded-xl border bg-white px-4 py-2 text-xs font-bold shadow-sm transition hover:bg-pink-50" style={{ borderColor: 'rgba(193,53,132,0.2)', color: '#C13584' }}>
+                  <button onClick={connectMetaAccount} className="inline-flex items-center gap-2 rounded-xl border bg-white px-4 py-2 text-xs font-bold shadow-sm transition hover:bg-pink-50" style={{ borderColor: 'rgba(193,53,132,0.2)', color: '#C13584' }}>
                     <i className={`ph-bold ${instagramAccount ? 'ph-gear-six' : 'ph-plug'} text-sm`}></i>
                     {instagramAccount ? 'Manage Meta Connection' : 'Connect Meta'}
                   </button>
