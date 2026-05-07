@@ -112,7 +112,10 @@ export default function InstagramInboxPage() {
   };
 
   const openMetaSetup = () => {
-    router.push('/admin/social-media-setup?platform=facebook');
+    // Only navigate to setup if NOT connected
+    if (!instagramAccount && !facebookAccount) {
+      router.push('/admin/social-media-setup?platform=facebook');
+    }
   };
 
   const getStoredAdminToken = useCallback(() => {
