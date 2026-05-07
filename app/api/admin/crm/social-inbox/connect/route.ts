@@ -3,6 +3,7 @@ import { connectDB, SocialMediaAccount } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { encryptCredential } from '@/lib/encryption';
 import { resolveSocialMediaScope } from '@/lib/socialMediaScope';
+import { getSocialInboxConversation } from '@/lib/schemas/enterpriseSchemas';
 
 export const dynamic = 'force-dynamic';
 
@@ -100,6 +101,72 @@ export async function POST(request: NextRequest) {
         connectedAt: new Date(),
         updatedAt: new Date(),
       });
+    }
+
+    // Fetch historical conversations from Graph API
+    try {
+      const Conversation = getSocialInboxConversation();
+      const conversationsUrl = platform === 'facebook'
+        ? `${FACEBOOK_GRAPH_API}/${FACEBOOK_PAGE_ID}/conversations?access_token=${PAGE_ACCESS_TOKEN}&fields=id,senders,last_message,updated_time,messages.limit(1).fields(message,created_time,from),participants&limit=100`
+        : `${FACEBOOK_GRAPH_API}/${INSTAGRAM_ACCOUNT_ID}/conversations?access_token=${PAGE_ACCESS_TOKEN}&fields=id,participants,last_message,updated_time&limit=100`;
+
+      const convRes = await fetch(conversationsUrl);
+      const convData = await convRes.json();
+
+      if (convData.data && Array.isArray(convData.data)) {
+        const now = new Date();
+        for (const conv of convData.data) {
+          if (!conv.participants || !Array.isArray(conv.participants.data) || conv.participants.data.length === 0) {
+            continue;
+          }
+
+          const participant = conv.participants.data[0];
+          const participantId = participant.id || participant.email || '';
+          const participantName = participant.name || 'User';
+
+          // Create conversation record if not exists
+          const conversationKey = `${platform}#${accountId}#${participantId}`;
+          await Conversation.updateOne(
+            {
+              conversationKey,
+              accountScopeType: scope.scopeType,
+              accountScopeKey: scope.scopeKey,
+            },
+            {
+              $setOnInsert: {
+                conversationKey,
+                platform,
+                accountId,
+                accountName,
+                accountHandle: accountHandle || '',
+                accountScopeType: scope.scopeType,
+                accountScopeKey: scope.scopeKey,
+                participantId,
+                participantName,
+                participantUsername: '',
+                participantProfilePic: '',
+                status: 'new_lead',
+                labels: [],
+                notes: '',
+                unreadCount: 0,
+                isBlocked: false,
+                createdByUserId: decoded.userId || 'admincrm',
+                assignedToUserId: decoded.userId || 'admincrm',
+                lastMessage: conv.last_message || '[Historical conversation]',
+                lastMessageAt: conv.updated_time ? new Date(conv.updated_time) : now,
+                lastMessageDirection: 'inbound',
+                createdAt: now,
+                updatedAt: now,
+              },
+            },
+            { upsert: true }
+          );
+        }
+        console.log(`[social-inbox] Created ${convData.data.length} historical ${platform} conversations`);
+      }
+    } catch (convErr) {
+      console.warn(`[social-inbox] Could not fetch historical conversations for ${platform}:`, convErr);
+      // Don't fail the connection if historical fetch fails
     }
 
     return NextResponse.json({

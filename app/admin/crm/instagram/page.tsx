@@ -112,8 +112,6 @@ export default function InstagramInboxPage() {
   };
 
   const connectMetaAccount = async () => {
-    if (instagramAccount || facebookAccount) return; // Already connected
-
     try {
       const token = getStoredAdminToken();
       const res = await fetch('/api/admin/crm/social-inbox/connect', {

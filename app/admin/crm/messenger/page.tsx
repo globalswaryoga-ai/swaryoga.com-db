@@ -107,8 +107,6 @@ export default function MessengerInboxPage() {
   };
 
   const connectFacebookAccount = async () => {
-    if (facebookAccount) return; // Already connected
-
     try {
       const token = getStoredAdminToken();
       const res = await fetch('/api/admin/crm/social-inbox/connect', {

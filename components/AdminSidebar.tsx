@@ -71,7 +71,17 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
   const [userRole, setUserRole] = useState<string>('admin');
   const [permissionsV2, setPermissionsV2] = useState<any>(null);
   const [localCollapsed, setLocalCollapsed] = useState(false);
-  
+  const [isMainAdminDomain, setIsMainAdminDomain] = useState(true);
+
+  // Check if accessed from swaryoga.com/admin/crm (not crm.swaryoga.com)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const hostname = window.location.hostname;
+    // Hide Web Admin for crm.swaryoga.com, show only for swaryoga.com
+    const isCrmSubdomain = hostname === 'crm.swaryoga.com';
+    setIsMainAdminDomain(!isCrmSubdomain);
+  }, []);
+
   // Category expansion state (persisted in localStorage)
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({
     home: true,
@@ -309,8 +319,8 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       ],
     },
 
-    // ===== WEB ADMIN =====
-    {
+    // ===== WEB ADMIN (Only show on swaryoga.com, hide on crm.swaryoga.com) =====
+    ...(isMainAdminDomain ? [{
       key: 'web-admin',
       label: 'Web Admin',
       icon: Monitor,
@@ -324,7 +334,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
           description: 'All admin detail pages (Users, Sales, Social, etc)',
         },
       ],
-    },
+    }] : []),
 
     // ===== LEAD & SALES MANAGEMENT =====
     {

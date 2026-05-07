@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { ArrowLeft, Plus, Edit2, Trash2, Video, GripVertical, Upload, Link as LinkIcon, X, Save, CloudUpload, Loader2, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Plus, Edit2, Trash2, Video, GripVertical, Upload, Link as LinkIcon, X, Save, CloudUpload, Loader2, ShieldAlert, Check } from 'lucide-react';
 
 interface VideoItem {
   _id: string;
@@ -42,6 +42,8 @@ export default function VideosPage({ params }: { params: { courseId: string } })
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingVideo, setEditingVideo] = useState<VideoItem | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
 
@@ -246,6 +248,10 @@ export default function VideosPage({ params }: { params: { courseId: string } })
                 </div>
                 <div className="flex items-center gap-1">
                   <button
+                    onClick={() => {
+                      setEditingVideo(video);
+                      setShowEditModal(true);
+                    }}
                     className="p-2 hover:bg-yellow-500/20 text-yellow-400 rounded-lg transition-colors"
                     title="Edit Video"
                   >
@@ -277,15 +283,169 @@ export default function VideosPage({ params }: { params: { courseId: string } })
           }}
         />
       )}
+
+      {/* Edit Video Modal */}
+      {showEditModal && editingVideo && (
+        <EditVideoModal
+          token={token}
+          video={editingVideo}
+          onClose={() => {
+            setShowEditModal(false);
+            setEditingVideo(null);
+          }}
+          onUpdated={() => {
+            setShowEditModal(false);
+            setEditingVideo(null);
+            fetchData();
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function AddVideoModal({ token, courseId, onClose, onAdded }: { 
-  token: string; 
-  courseId: string; 
-  onClose: () => void; 
-  onAdded: () => void 
+function EditVideoModal({ token, video, onClose, onUpdated }: {
+  token: string;
+  video: VideoItem;
+  onClose: () => void;
+  onUpdated: () => void;
+}) {
+  const [title, setTitle] = useState(video.title);
+  const [description, setDescription] = useState(video.description || '');
+  const [duration, setDuration] = useState(video.duration.toString());
+  const [isFree, setIsFree] = useState(video.isFree);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title) return;
+
+    setSaving(true);
+    setError(null);
+
+    try {
+      const res = await fetch('/api/admin/recorded-courses/videos', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          videoId: video._id,
+          title,
+          description,
+          duration: parseInt(duration) || 0,
+          isFree,
+        }),
+      });
+
+      if (res.ok) {
+        onUpdated();
+      } else {
+        const data = await res.json();
+        setError(data.error || 'Failed to update video');
+      }
+    } catch (err) {
+      setError('Error saving video');
+      console.error(err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-900 rounded-2xl border border-gray-800 w-full max-w-lg">
+        <div className="flex items-center justify-between p-6 border-b border-gray-800">
+          <h2 className="text-xl font-bold text-white">Edit Video</h2>
+          <button onClick={onClose} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400">
+            <X size={20} />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {error && (
+            <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-3 rounded-lg text-sm">
+              {error}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-green-400 mb-2">Video Title</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
+              placeholder="Enter video title"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-green-400 mb-2">Description</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={2}
+              className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none resize-none"
+              placeholder="Brief description"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-green-400 mb-2">Duration (seconds)</label>
+              <input
+                type="number"
+                value={duration}
+                onChange={(e) => setDuration(e.target.value)}
+                className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
+                placeholder="0"
+              />
+            </div>
+            <div className="flex items-end pb-1">
+              <label className="flex items-center gap-2 text-white cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isFree}
+                  onChange={(e) => setIsFree(e.target.checked)}
+                  className="w-5 h-5 rounded border-gray-600 bg-black text-green-500 focus:ring-green-500"
+                />
+                Free Preview
+              </label>
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              className="flex-1 px-4 py-3 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-green-500 hover:bg-green-600 text-black font-semibold rounded-lg transition-colors disabled:opacity-50"
+            >
+              {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+              {saving ? 'Saving...' : 'Update Video'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function AddVideoModal({ token, courseId, onClose, onAdded }: {
+  token: string;
+  courseId: string;
+  onClose: () => void;
+  onAdded: () => void
 }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');

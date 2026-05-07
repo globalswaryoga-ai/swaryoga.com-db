@@ -442,6 +442,19 @@ export interface ICourseEnrollment extends Document {
   certificateUrl?: string;
   certificateIssuedAt?: Date;
   
+  // Community Links
+  communityLinks?: {
+    whatsapp?: string;
+    community?: string;
+    discord?: string;
+    telegram?: string;
+    lastSharedAt?: Date;
+  };
+
+  // Per-user overrides
+  maxDevicesOverride?: number;
+  videoTimeGapOverride?: number;
+
   // Status
   status: 'active' | 'expired' | 'suspended' | 'completed';
   enrolledAt: Date;
@@ -479,7 +492,18 @@ const CourseEnrollmentSchema = new Schema<ICourseEnrollment>({
   certificateIssued: { type: Boolean, default: false },
   certificateUrl: { type: String },
   certificateIssuedAt: { type: Date },
-  
+
+  communityLinks: {
+    whatsapp: { type: String },
+    community: { type: String },
+    discord: { type: String },
+    telegram: { type: String },
+    lastSharedAt: { type: Date },
+  },
+
+  maxDevicesOverride: { type: Number },
+  videoTimeGapOverride: { type: Number },
+
   status: { type: String, enum: ['active', 'expired', 'suspended', 'completed'], default: 'active' },
   enrolledAt: { type: Date, default: Date.now },
   expiresAt: { type: Date },

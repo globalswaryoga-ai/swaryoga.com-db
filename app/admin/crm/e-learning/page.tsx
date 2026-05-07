@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { Plus, Edit2, Trash2, Video, Eye, EyeOff, GraduationCap, X, Upload, ShieldAlert } from 'lucide-react';
+import { Plus, Edit2, Trash2, Video, Eye, EyeOff, GraduationCap, X, Upload, ShieldAlert, Users } from 'lucide-react';
 
 interface Course {
   _id: string;
@@ -91,6 +91,15 @@ export default function DLearningPage() {
     if (token) fetchCourses();
   }, [token, fetchCourses]);
 
+  // Refetch courses when returning to this page (from edit/etc)
+  useEffect(() => {
+    const handleRouteChange = () => {
+      if (token) fetchCourses();
+    };
+    window.addEventListener('focus', handleRouteChange);
+    return () => window.removeEventListener('focus', handleRouteChange);
+  }, [token, fetchCourses]);
+
   const togglePublish = async (course: Course) => {
     if (!token) return;
     
@@ -174,13 +183,22 @@ export default function DLearningPage() {
             <p className="text-sm text-gray-400">Manage recorded video courses</p>
           </div>
         </div>
-        <button 
-          onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-5 py-2.5 bg-green-500 hover:bg-green-600 text-black font-semibold rounded-lg transition-colors"
-        >
-          <Plus size={18} />
-          Add Course
-        </button>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/admin/crm/e-learning/users"
+            className="flex items-center gap-2 px-5 py-2.5 bg-blue-500 hover:bg-blue-600 text-black font-semibold rounded-lg transition-colors"
+          >
+            <Users size={18} />
+            Manage Users
+          </Link>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-2 px-5 py-2.5 bg-green-500 hover:bg-green-600 text-black font-semibold rounded-lg transition-colors"
+          >
+            <Plus size={18} />
+            Add Course
+          </button>
+        </div>
       </div>
 
       {/* Content */}
@@ -289,12 +307,13 @@ export default function DLearningPage() {
                       >
                         <Video size={18} />
                       </Link>
-                      <button
+                      <Link
+                        href={`/admin/crm/e-learning/${course._id}/edit`}
                         className="p-2 hover:bg-yellow-500/20 text-yellow-400 rounded-lg transition-colors"
                         title="Edit Course"
                       >
                         <Edit2 size={18} />
-                      </button>
+                      </Link>
                       <button
                         onClick={() => deleteCourse(course._id)}
                         className="p-2 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors"
