@@ -375,6 +375,37 @@ export default function EditCoursePage() {
                     />
                   </div>
                 </div>
+
+                {/* Price Preview */}
+                {parseInt(priceINR) > 0 && (
+                  <div className="bg-gray-800 rounded-lg p-4 mt-6 border border-gray-700">
+                    <p className="text-gray-400 text-sm mb-3">Final Price Preview (INR):</p>
+                    <div className="flex items-center gap-4 justify-center">
+                      {parseInt(discount) > 0 ? (
+                        <>
+                          {/* Original Price - Strikethrough */}
+                          <span className="text-gray-400 line-through text-lg">
+                            ₹{parseInt(priceINR).toLocaleString()}
+                          </span>
+                          {/* Separator */}
+                          <span className="text-gray-600">→</span>
+                          {/* Final Price - Red & Bold */}
+                          <span className="text-3xl font-bold text-red-500">
+                            ₹{Math.round(parseInt(priceINR) * (1 - parseInt(discount) / 100)).toLocaleString()}
+                          </span>
+                          {/* Discount Badge */}
+                          <span className="bg-red-500/20 text-red-400 px-3 py-1 rounded text-sm font-semibold">
+                            {discount}% OFF
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-3xl font-bold text-green-500">
+                          ₹{parseInt(priceINR).toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </>
           )}
