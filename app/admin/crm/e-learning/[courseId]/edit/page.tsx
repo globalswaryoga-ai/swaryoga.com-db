@@ -269,7 +269,7 @@ export default function EditCoursePage() {
                 onClick={() => setShowLanguageDropdown(!showLanguageDropdown)}
                 className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none text-left flex justify-between items-center hover:border-green-600 transition-colors"
               >
-                <span className="flex items-center gap-2 text-white font-medium">
+                <span className="flex items-center gap-2 text-white font-medium whitespace-nowrap">
                   {languageOptions.find(l => l.code === activeLanguage)?.flag}
                   {languageOptions.find(l => l.code === activeLanguage)?.name}
                 </span>
@@ -289,7 +289,7 @@ export default function EditCoursePage() {
                         localStorage.setItem('admin_course_edit_language', lang.code);
                         setShowLanguageDropdown(false);
                       }}
-                      className={`w-full px-4 py-2.5 text-left flex items-center gap-3 text-sm font-medium transition-all border-b border-gray-800 last:border-b-0 ${
+                      className={`w-full px-4 py-2.5 text-left flex items-center gap-3 text-sm font-medium transition-all ${
                         activeLanguage === lang.code
                           ? 'bg-green-600 text-white'
                           : 'bg-gray-900 text-gray-300 hover:bg-gray-800'
@@ -391,7 +391,7 @@ export default function EditCoursePage() {
                           setVideoLanguage(lang.code);
                           setShowVideoLanguageDropdown(false);
                         }}
-                        className={`w-full px-4 py-2.5 text-left flex items-center gap-3 text-sm font-medium transition-all border-b border-gray-800 last:border-b-0 ${
+                        className={`w-full px-4 py-2.5 text-left flex items-center gap-3 text-sm font-medium transition-all ${
                           videoLanguage === lang.code
                             ? 'bg-green-600 text-white'
                             : 'bg-gray-900 text-gray-300 hover:bg-gray-800'
