@@ -579,10 +579,10 @@ export default function CoursesPage() {
                             <>
                               <div className="flex items-center gap-2">
                                 <span className="text-xs text-gray-400 line-through">
-                                  {language === 'ne' ? 'रु.' : '₹'}{Math.round((course.pricing.INR?.price || 0) / (1 - course.discount / 100)).toLocaleString()}
+                                  {language === 'ne' ? 'रु.' : '₹'}{(course.pricing.INR?.price || 0).toLocaleString()}
                                 </span>
                                 <span className="text-lg font-bold text-red-600">
-                                  {formatPrice(course)}
+                                  {language === 'ne' ? 'रु.' : '₹'}{Math.round((course.pricing.INR?.price || 0) * (1 - course.discount / 100)).toLocaleString()}
                                 </span>
                               </div>
                               <span className="text-xs font-semibold bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 px-2 py-1 rounded w-fit">

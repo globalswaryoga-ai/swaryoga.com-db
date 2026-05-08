@@ -77,8 +77,8 @@ export default function CourseDetailPage() {
   }
 
   const priceINR = course.pricing?.INR?.price || 0;
-  const originalPrice = course.discount ? Math.round(priceINR / (1 - course.discount / 100)) : priceINR;
-  const discountedPrice = priceINR;
+  const originalPrice = priceINR;
+  const discountedPrice = course.discount ? Math.round(priceINR * (1 - course.discount / 100)) : priceINR;
   const discountAmount = originalPrice - discountedPrice;
 
   return (
