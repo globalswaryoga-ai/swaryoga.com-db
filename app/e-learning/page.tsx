@@ -619,7 +619,7 @@ export default function CoursesPage() {
                       {/* Students count */}
                       <div className="flex items-center justify-end mb-3">
                         <span className="text-xs text-gray-500 dark:text-gray-400">
-                          {course.enrolledCount.toLocaleString()} {t.students}
+                          {(15 + course.enrolledCount).toLocaleString()} {t.students}
                         </span>
                       </div>
 

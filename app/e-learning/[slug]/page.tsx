@@ -253,7 +253,7 @@ export default function CourseDetailPage() {
               </div>
               <div className="flex items-center gap-2">
                 <Users size={20} />
-                <span>{course.enrolledCount || 0} students</span>
+                <span>{15 + (course.enrolledCount || 0)} students</span>
               </div>
             </div>
 
@@ -266,7 +266,7 @@ export default function CourseDetailPage() {
 
             {/* Enrolled Students Section */}
             <div className="mb-8">
-              <h2 className="text-2xl font-bold text-black mb-4">Students Currently Learning ({course.enrolledCount || 0})</h2>
+              <h2 className="text-2xl font-bold text-black mb-4">Students Currently Learning ({15 + (course.enrolledCount || 0)})</h2>
               {loadingStudents ? (
                 <div className="flex items-center justify-center py-8">
                   <div className="animate-spin w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full" />
