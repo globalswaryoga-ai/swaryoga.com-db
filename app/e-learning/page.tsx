@@ -161,6 +161,8 @@ interface Course {
     USD?: { price: number; originalPrice?: number };
     NPR?: { price: number; originalPrice?: number };
   };
+  discount?: number;
+  promoCode?: string;
   isFree: boolean;
   giftHours?: {
     enabled: boolean;
@@ -572,13 +574,24 @@ export default function CoursesPage() {
 
                       {/* Price & CTA */}
                       <div className="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-gray-700">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xl font-bold text-green-600">
-                            {formatPrice(course)}
-                          </span>
-                          {course.pricing.INR.originalPrice && !course.isFree && (
-                            <span className="text-xs text-gray-400 line-through">
-                              ₹{course.pricing.INR.originalPrice.toLocaleString()}
+                        <div className="flex flex-col gap-1">
+                          {!course.isFree && course.discount && course.discount > 0 ? (
+                            <>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-400 line-through">
+                                  {language === 'ne' ? 'रु.' : '₹'}{Math.round((course.pricing.INR?.price || 0) / (1 - course.discount / 100)).toLocaleString()}
+                                </span>
+                                <span className="text-lg font-bold text-red-600">
+                                  {formatPrice(course)}
+                                </span>
+                              </div>
+                              <span className="text-xs font-semibold bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 px-2 py-1 rounded w-fit">
+                                {course.discount}% OFF
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-xl font-bold text-green-600">
+                              {formatPrice(course)}
                             </span>
                           )}
                         </div>
