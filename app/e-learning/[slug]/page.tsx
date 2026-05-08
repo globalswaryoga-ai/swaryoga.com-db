@@ -110,10 +110,11 @@ export default function CourseDetailPage() {
         <select
           value={language}
           onChange={(e) => setLanguage(e.target.value)}
-          className="px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 flex items-center gap-2 focus:ring-2 focus:ring-green-500"
+          className="px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 text-sm font-medium focus:ring-2 focus:ring-green-500 focus:border-green-500 cursor-pointer hover:border-gray-400 transition-colors"
         >
           <option value="en">🇬🇧 English</option>
           <option value="hi">🇮🇳 Hindi</option>
+          <option value="mr">🇮🇳 Marathi</option>
           <option value="ne">🇳🇵 Nepali</option>
         </select>
       </div>

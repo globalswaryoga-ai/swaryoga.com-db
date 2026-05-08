@@ -331,19 +331,19 @@ export default function CoursesPage() {
           </button>
           
           {langDropdownOpen && (
-            <div className="absolute top-full right-0 mt-2 w-48 bg-gray-800 rounded-lg shadow-xl border border-gray-700 overflow-hidden max-h-80 overflow-y-auto">
+            <div className="absolute top-full right-0 mt-2 w-72 bg-gray-800 rounded-lg shadow-2xl border border-gray-700 overflow-hidden max-h-96 overflow-y-auto z-50">
               {languageOptions.map((lang) => (
                 <button
                   key={lang.code}
                   onClick={() => handleLanguageChange(lang.code)}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-700 transition-colors ${
+                  className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-700 transition-colors ${
                     language === lang.code ? 'bg-gray-700 font-semibold' : ''
                   }`}
                 >
-                  <span className="text-xl">{lang.flag}</span>
-                  <span className="text-gray-200">{lang.name}</span>
+                  <span className="text-2xl">{lang.flag}</span>
+                  <span className="text-gray-200 text-sm">{lang.name}</span>
                   {language === lang.code && (
-                    <svg className="w-4 h-4 text-green-500 ml-auto" fill="currentColor" viewBox="0 0 20 20">
+                    <svg className="w-4 h-4 text-green-500 ml-auto flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>
                   )}
