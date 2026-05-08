@@ -52,6 +52,14 @@ export default function CourseDetailPage() {
     const storedToken = localStorage.getItem('token') || '';
     setToken(storedToken);
 
+    // Get preferred language from localStorage
+    const savedLang = localStorage.getItem('preferred_language');
+    if (savedLang && ['en', 'hi', 'mr', 'ne'].includes(savedLang)) {
+      setLanguage(savedLang);
+    }
+  }, []);
+
+  useEffect(() => {
     const fetchCourse = async () => {
       try {
         setLoading(true);
@@ -109,7 +117,11 @@ export default function CourseDetailPage() {
         {/* Language Selector */}
         <select
           value={language}
-          onChange={(e) => setLanguage(e.target.value)}
+          onChange={(e) => {
+            const newLang = e.target.value;
+            setLanguage(newLang);
+            localStorage.setItem('preferred_language', newLang);
+          }}
           className="px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 text-sm font-medium focus:ring-2 focus:ring-green-500 focus:border-green-500 cursor-pointer hover:border-gray-400 transition-colors"
         >
           <option value="en">🇬🇧 English</option>

@@ -20,14 +20,15 @@ export const dynamic = 'force-dynamic';
 
 
 // Helper to get user-preferred language
-function getPreferredLanguage(request: NextRequest): 'en' | 'hi' | 'ne' {
+function getPreferredLanguage(request: NextRequest): 'en' | 'hi' | 'mr' | 'ne' {
   const langParam = request.nextUrl.searchParams.get('lang');
-  if (langParam && ['en', 'hi', 'ne'].includes(langParam)) {
-    return langParam as 'en' | 'hi' | 'ne';
+  if (langParam && ['en', 'hi', 'mr', 'ne'].includes(langParam)) {
+    return langParam as 'en' | 'hi' | 'mr' | 'ne';
   }
   // Check Accept-Language header
   const acceptLang = request.headers.get('accept-language') || '';
   if (acceptLang.includes('hi')) return 'hi';
+  if (acceptLang.includes('mr')) return 'mr';
   if (acceptLang.includes('ne')) return 'ne';
   return 'en';
 }
