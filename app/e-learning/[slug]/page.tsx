@@ -160,7 +160,7 @@ export default function CourseDetailPage() {
           </button>
 
           {langDropdownOpen && (
-            <div className="absolute top-full right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-300 overflow-hidden max-h-96 overflow-y-auto z-50">
+            <div className="absolute top-full right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-300 overflow-y-auto z-50" style={{ maxHeight: 'calc(100vh - 200px)' }}>
               {languageOptions.map((lang) => (
                 <button
                   key={lang.code}
@@ -169,7 +169,7 @@ export default function CourseDetailPage() {
                     localStorage.setItem('preferred_language', lang.code);
                     setLangDropdownOpen(false);
                   }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-green-50 transition-colors ${
+                  className={`w-full flex items-center gap-3 px-4 py-4 text-left hover:bg-green-50 transition-colors ${
                     language === lang.code ? 'bg-green-100 font-semibold' : ''
                   }`}
                 >
@@ -359,7 +359,6 @@ export default function CourseDetailPage() {
             discount: course.discount,
           }}
           token={token}
-          language={language}
         />
       )}
     </div>

@@ -331,12 +331,12 @@ export default function CoursesPage() {
           </button>
           
           {langDropdownOpen && (
-            <div className="absolute top-full right-0 mt-2 w-72 bg-gray-800 rounded-lg shadow-2xl border border-gray-700 overflow-hidden max-h-96 overflow-y-auto z-50">
+            <div className="absolute top-full right-0 mt-2 w-72 bg-gray-800 rounded-lg shadow-2xl border border-gray-700 overflow-y-auto z-50" style={{ maxHeight: 'calc(100vh - 200px)' }}>
               {languageOptions.map((lang) => (
                 <button
                   key={lang.code}
                   onClick={() => handleLanguageChange(lang.code)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-700 transition-colors ${
+                  className={`w-full flex items-center gap-3 px-4 py-4 text-left hover:bg-gray-700 transition-colors ${
                     language === lang.code ? 'bg-gray-700 font-semibold' : ''
                   }`}
                 >
@@ -522,7 +522,7 @@ export default function CoursesPage() {
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
-                          {formatDuration(course.totalDuration)}
+                          {formatDuration(course.totalDuration)} • {currentLangInfo.name}
                         </span>
                       </div>
 
