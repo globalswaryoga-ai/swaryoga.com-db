@@ -175,7 +175,7 @@ export default function CourseDetailPage() {
         <Link href="/e-learning" className="flex items-center gap-2 text-green-600 hover:text-green-700">
           <ArrowLeft size={20} /> Back to Courses
         </Link>
-        {/* Language Selector - All 19 Languages */}
+        {/* Language Selector - All 19 Languages Modal */}
         <div>
           <button
             onClick={() => setLangDropdownOpen(!langDropdownOpen)}
@@ -194,31 +194,58 @@ export default function CourseDetailPage() {
           </button>
 
           {langDropdownOpen && (
-            <div className="absolute top-full right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-300 overflow-y-auto z-50 max-h-[calc(100vh-200px)]">
-              {languageOptions.map((lang) => (
-                <button
-                  key={lang.code}
-                  onClick={() => {
-                    setLanguage(lang.code);
-                    localStorage.setItem('preferred_language', lang.code);
-                    setLangDropdownOpen(false);
-                  }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-green-50 transition-colors ${
-                    language === lang.code ? 'bg-green-100 border-l-4 border-green-600' : ''
-                  }`}
-                >
-                  <span className="text-2xl flex-shrink-0">{lang.flag}</span>
-                  <span className={`text-sm font-medium flex-1 ${language === lang.code ? 'text-green-700' : 'text-gray-700'}`}>
-                    {lang.name}
-                  </span>
-                  {language === lang.code && (
-                    <svg className="w-5 h-5 text-green-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+            <>
+              {/* Backdrop */}
+              <div
+                className="fixed inset-0 z-40 bg-black/30"
+                onClick={() => setLangDropdownOpen(false)}
+              />
+              {/* Modal */}
+              <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-2xl shadow-2xl p-8 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-bold text-gray-900">Select Language</h2>
+                  <button
+                    onClick={() => setLangDropdownOpen(false)}
+                    className="text-gray-500 hover:text-gray-700 transition"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
-                  )}
-                </button>
-              ))}
-            </div>
+                  </button>
+                </div>
+
+                {/* Language Grid */}
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {languageOptions.map((lang) => (
+                    <button
+                      key={lang.code}
+                      onClick={() => {
+                        setLanguage(lang.code);
+                        localStorage.setItem('preferred_language', lang.code);
+                        setLangDropdownOpen(false);
+                      }}
+                      className={`flex items-center gap-3 p-4 rounded-lg border-2 transition-all ${
+                        language === lang.code
+                          ? 'border-green-600 bg-green-50'
+                          : 'border-gray-200 hover:border-green-400 hover:bg-gray-50'
+                      }`}
+                    >
+                      <span className="text-3xl flex-shrink-0">{lang.flag}</span>
+                      <div className="text-left flex-1">
+                        <p className={`font-semibold ${language === lang.code ? 'text-green-700' : 'text-gray-900'}`}>
+                          {lang.name}
+                        </p>
+                      </div>
+                      {language === lang.code && (
+                        <svg className="w-5 h-5 text-green-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
           )}
         </div>
       </div>
