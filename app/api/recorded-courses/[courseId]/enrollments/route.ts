@@ -73,14 +73,27 @@ export async function GET(
       { firstName: 'Nikhil', lastName: 'Bhat' },
     ];
 
-    const dummyStudents = dummyNames.map((name, index) => ({
-      _id: `dummy-${index}`,
-      firstName: name.firstName,
-      lastName: name.lastName,
-      email: `student${index + 1}@example.com`,
-      enrolledAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString(),
-      isReal: false,
-    }));
+    const dummyStudents = dummyNames.map((name, index) => {
+      let daysAgo = 5; // Default: 5 days ago
+
+      // First 5 students: enrolled 4 days ago
+      if (index < 5) {
+        daysAgo = 4;
+      }
+      // Next 10 students: enrolled 5 days ago
+      else {
+        daysAgo = 5;
+      }
+
+      return {
+        _id: `dummy-${index}`,
+        firstName: name.firstName,
+        lastName: name.lastName,
+        email: `student${index + 1}@example.com`,
+        enrolledAt: new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000).toISOString(),
+        isReal: false,
+      };
+    });
 
     // Combine: base 15 dummy + real enrollments
     const allStudents = [...dummyStudents, ...students];
