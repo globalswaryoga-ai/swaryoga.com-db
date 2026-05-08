@@ -194,7 +194,7 @@ export default function CourseDetailPage() {
           </button>
 
           {langDropdownOpen && (
-            <div className="absolute top-full right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-300 overflow-y-auto z-50 max-h-96">
+            <div className="absolute top-full right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-300 overflow-y-auto z-50 max-h-[calc(100vh-200px)]">
               {languageOptions.map((lang) => (
                 <button
                   key={lang.code}

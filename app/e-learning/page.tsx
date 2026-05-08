@@ -357,7 +357,7 @@ export default function CoursesPage() {
           </button>
 
           {langDropdownOpen && (
-            <div className="absolute top-full right-0 mt-2 w-64 bg-gray-800 rounded-lg shadow-2xl border border-gray-700 overflow-y-auto z-50 max-h-96">
+            <div className="absolute top-full right-0 mt-2 w-64 bg-gray-800 rounded-lg shadow-2xl border border-gray-700 overflow-y-auto z-50 max-h-[calc(100vh-200px)]">
               {/* All Languages Option */}
               <button
                 onClick={() => {
