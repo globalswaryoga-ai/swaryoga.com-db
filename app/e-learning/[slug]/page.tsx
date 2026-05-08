@@ -142,15 +142,19 @@ export default function CourseDetailPage() {
                   <div className="text-center">
                     {course.discount && course.discount > 0 ? (
                       <>
+                        {/* Original Price - Strikethrough */}
                         <p className="text-gray-400 line-through text-lg mb-2">
                           ₹{originalPrice.toLocaleString()}
                         </p>
-                        <p className="text-4xl font-bold text-green-600 mb-2">
+                        {/* Final Price - RED & BOLD */}
+                        <p className="text-4xl font-bold text-red-600 mb-2">
                           ₹{discountedPrice.toLocaleString()}
                         </p>
+                        {/* Discount Badge */}
                         <div className="bg-red-100 text-red-700 rounded-lg py-2 px-3 text-sm font-semibold mb-4">
                           Save ₹{discountAmount.toLocaleString()} ({course.discount}% OFF)
                         </div>
+                        {/* Promo Code */}
                         {course.promoCode && (
                           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                             <p className="text-xs text-gray-600 mb-1">Promo Code</p>
