@@ -189,8 +189,8 @@ export default function CoursesPage() {
   const [langDropdownOpen, setLangDropdownOpen] = useState(false);
   const langDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Use English as fallback if translation not available
-  const t = translations[language] || translations.en;
+  // Always use English for UI - only course content translates
+  const t = translations.en;
 
   // Get current language info
   const currentLangInfo = languageOptions.find(l => l.code === language) || languageOptions[0];
