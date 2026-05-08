@@ -42,7 +42,135 @@ export interface IRecordedCourse extends Document {
       requirements?: string[];
       targetAudience?: string[];
     };
+    mr?: {
+      title: string;
+      subtitle?: string;
+      description?: string;
+      whatYouWillLearn?: string[];
+      requirements?: string[];
+      targetAudience?: string[];
+    };
     ne?: {
+      title: string;
+      subtitle?: string;
+      description?: string;
+      whatYouWillLearn?: string[];
+      requirements?: string[];
+      targetAudience?: string[];
+    };
+    zh?: {
+      title: string;
+      subtitle?: string;
+      description?: string;
+      whatYouWillLearn?: string[];
+      requirements?: string[];
+      targetAudience?: string[];
+    };
+    es?: {
+      title: string;
+      subtitle?: string;
+      description?: string;
+      whatYouWillLearn?: string[];
+      requirements?: string[];
+      targetAudience?: string[];
+    };
+    fr?: {
+      title: string;
+      subtitle?: string;
+      description?: string;
+      whatYouWillLearn?: string[];
+      requirements?: string[];
+      targetAudience?: string[];
+    };
+    ar?: {
+      title: string;
+      subtitle?: string;
+      description?: string;
+      whatYouWillLearn?: string[];
+      requirements?: string[];
+      targetAudience?: string[];
+    };
+    de?: {
+      title: string;
+      subtitle?: string;
+      description?: string;
+      whatYouWillLearn?: string[];
+      requirements?: string[];
+      targetAudience?: string[];
+    };
+    pt?: {
+      title: string;
+      subtitle?: string;
+      description?: string;
+      whatYouWillLearn?: string[];
+      requirements?: string[];
+      targetAudience?: string[];
+    };
+    ja?: {
+      title: string;
+      subtitle?: string;
+      description?: string;
+      whatYouWillLearn?: string[];
+      requirements?: string[];
+      targetAudience?: string[];
+    };
+    ko?: {
+      title: string;
+      subtitle?: string;
+      description?: string;
+      whatYouWillLearn?: string[];
+      requirements?: string[];
+      targetAudience?: string[];
+    };
+    ru?: {
+      title: string;
+      subtitle?: string;
+      description?: string;
+      whatYouWillLearn?: string[];
+      requirements?: string[];
+      targetAudience?: string[];
+    };
+    it?: {
+      title: string;
+      subtitle?: string;
+      description?: string;
+      whatYouWillLearn?: string[];
+      requirements?: string[];
+      targetAudience?: string[];
+    };
+    tr?: {
+      title: string;
+      subtitle?: string;
+      description?: string;
+      whatYouWillLearn?: string[];
+      requirements?: string[];
+      targetAudience?: string[];
+    };
+    nl?: {
+      title: string;
+      subtitle?: string;
+      description?: string;
+      whatYouWillLearn?: string[];
+      requirements?: string[];
+      targetAudience?: string[];
+    };
+    sv?: {
+      title: string;
+      subtitle?: string;
+      description?: string;
+      whatYouWillLearn?: string[];
+      requirements?: string[];
+      targetAudience?: string[];
+    };
+    th?: {
+      title: string;
+      subtitle?: string;
+      description?: string;
+      whatYouWillLearn?: string[];
+      requirements?: string[];
+      targetAudience?: string[];
+    };
+    id?: {
       title: string;
       subtitle?: string;
       description?: string;
@@ -144,7 +272,135 @@ const RecordedCourseSchema = new Schema<IRecordedCourse>({
       requirements: [{ type: String }],
       targetAudience: [{ type: String }],
     },
+    mr: {
+      title: { type: String },
+      subtitle: { type: String },
+      description: { type: String },
+      whatYouWillLearn: [{ type: String }],
+      requirements: [{ type: String }],
+      targetAudience: [{ type: String }],
+    },
     ne: {
+      title: { type: String },
+      subtitle: { type: String },
+      description: { type: String },
+      whatYouWillLearn: [{ type: String }],
+      requirements: [{ type: String }],
+      targetAudience: [{ type: String }],
+    },
+    zh: {
+      title: { type: String },
+      subtitle: { type: String },
+      description: { type: String },
+      whatYouWillLearn: [{ type: String }],
+      requirements: [{ type: String }],
+      targetAudience: [{ type: String }],
+    },
+    es: {
+      title: { type: String },
+      subtitle: { type: String },
+      description: { type: String },
+      whatYouWillLearn: [{ type: String }],
+      requirements: [{ type: String }],
+      targetAudience: [{ type: String }],
+    },
+    fr: {
+      title: { type: String },
+      subtitle: { type: String },
+      description: { type: String },
+      whatYouWillLearn: [{ type: String }],
+      requirements: [{ type: String }],
+      targetAudience: [{ type: String }],
+    },
+    ar: {
+      title: { type: String },
+      subtitle: { type: String },
+      description: { type: String },
+      whatYouWillLearn: [{ type: String }],
+      requirements: [{ type: String }],
+      targetAudience: [{ type: String }],
+    },
+    de: {
+      title: { type: String },
+      subtitle: { type: String },
+      description: { type: String },
+      whatYouWillLearn: [{ type: String }],
+      requirements: [{ type: String }],
+      targetAudience: [{ type: String }],
+    },
+    pt: {
+      title: { type: String },
+      subtitle: { type: String },
+      description: { type: String },
+      whatYouWillLearn: [{ type: String }],
+      requirements: [{ type: String }],
+      targetAudience: [{ type: String }],
+    },
+    ja: {
+      title: { type: String },
+      subtitle: { type: String },
+      description: { type: String },
+      whatYouWillLearn: [{ type: String }],
+      requirements: [{ type: String }],
+      targetAudience: [{ type: String }],
+    },
+    ko: {
+      title: { type: String },
+      subtitle: { type: String },
+      description: { type: String },
+      whatYouWillLearn: [{ type: String }],
+      requirements: [{ type: String }],
+      targetAudience: [{ type: String }],
+    },
+    ru: {
+      title: { type: String },
+      subtitle: { type: String },
+      description: { type: String },
+      whatYouWillLearn: [{ type: String }],
+      requirements: [{ type: String }],
+      targetAudience: [{ type: String }],
+    },
+    it: {
+      title: { type: String },
+      subtitle: { type: String },
+      description: { type: String },
+      whatYouWillLearn: [{ type: String }],
+      requirements: [{ type: String }],
+      targetAudience: [{ type: String }],
+    },
+    tr: {
+      title: { type: String },
+      subtitle: { type: String },
+      description: { type: String },
+      whatYouWillLearn: [{ type: String }],
+      requirements: [{ type: String }],
+      targetAudience: [{ type: String }],
+    },
+    nl: {
+      title: { type: String },
+      subtitle: { type: String },
+      description: { type: String },
+      whatYouWillLearn: [{ type: String }],
+      requirements: [{ type: String }],
+      targetAudience: [{ type: String }],
+    },
+    sv: {
+      title: { type: String },
+      subtitle: { type: String },
+      description: { type: String },
+      whatYouWillLearn: [{ type: String }],
+      requirements: [{ type: String }],
+      targetAudience: [{ type: String }],
+    },
+    th: {
+      title: { type: String },
+      subtitle: { type: String },
+      description: { type: String },
+      whatYouWillLearn: [{ type: String }],
+      requirements: [{ type: String }],
+      targetAudience: [{ type: String }],
+    },
+    id: {
       title: { type: String },
       subtitle: { type: String },
       description: { type: String },

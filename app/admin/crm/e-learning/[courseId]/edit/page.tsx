@@ -64,6 +64,8 @@ export default function EditCoursePage() {
 
   // Form fields - Multi-language (all 19 languages)
   const [activeLanguage, setActiveLanguage] = useState<string>('en');
+  const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
+  const [showVideoLanguageDropdown, setShowVideoLanguageDropdown] = useState(false);
   const [content, setContent] = useState<Record<string, { title: string; subtitle?: string; description?: string }>>({
     en: { title: '', subtitle: '', description: '' },
     hi: { title: '', subtitle: '', description: '' },
@@ -123,13 +125,17 @@ export default function EditCoursePage() {
         });
 
         const data = await res.json();
+        console.log('API Response:', data);
         if (data.success && data.course) {
           const c = data.course;
+          console.log('Course data:', c);
+          console.log('Course content:', c.content);
           setCourse(c);
           const newContent: Record<string, { title: string; subtitle?: string; description?: string }> = {};
           languageOptions.forEach(lang => {
             newContent[lang.code] = c.content?.[lang.code] || { title: '', subtitle: '', description: '' };
           });
+          console.log('Loaded content:', newContent);
           setContent(newContent);
           setLevel(c.level || 'beginner');
           setVideoLanguage(c.videoLanguage || 'en');
@@ -257,21 +263,45 @@ export default function EditCoursePage() {
           {/* Language Dropdown - All 19 Languages */}
           <div className="mb-6">
             <label className="block text-sm font-medium text-green-400 mb-2">Select Language to Edit</label>
-            <select
-              value={activeLanguage}
-              onChange={(e) => {
-                setActiveLanguage(e.target.value);
-                localStorage.setItem('admin_course_edit_language', e.target.value);
-              }}
-              size={Math.min(languageOptions.length, 10)}
-              className="w-full px-4 py-2 bg-black border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none cursor-pointer"
-            >
-              {languageOptions.map((lang) => (
-                <option key={lang.code} value={lang.code}>
-                  {lang.flag} {lang.name}
-                </option>
-              ))}
-            </select>
+            <div className="relative w-full">
+              <button
+                type="button"
+                onClick={() => setShowLanguageDropdown(!showLanguageDropdown)}
+                className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none text-left flex justify-between items-center hover:border-green-600 transition-colors"
+              >
+                <span className="flex items-center gap-2 text-white font-medium">
+                  {languageOptions.find(l => l.code === activeLanguage)?.flag}
+                  {languageOptions.find(l => l.code === activeLanguage)?.name}
+                </span>
+                <svg className={`w-5 h-5 text-green-500 flex-shrink-0 transition-transform duration-200 ${showLanguageDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {showLanguageDropdown && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-gray-900 border border-gray-700 rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto">
+                  {languageOptions.map((lang) => (
+                    <button
+                      key={lang.code}
+                      type="button"
+                      onClick={() => {
+                        setActiveLanguage(lang.code);
+                        localStorage.setItem('admin_course_edit_language', lang.code);
+                        setShowLanguageDropdown(false);
+                      }}
+                      className={`w-full px-4 py-2.5 text-left flex items-center gap-3 text-sm font-medium transition-all border-b border-gray-800 last:border-b-0 ${
+                        activeLanguage === lang.code
+                          ? 'bg-green-600 text-white'
+                          : 'bg-gray-900 text-gray-300 hover:bg-gray-800'
+                      }`}
+                    >
+                      <span className="text-lg">{lang.flag}</span>
+                      <span>{lang.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Language Content */}
@@ -336,18 +366,44 @@ export default function EditCoursePage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-green-400 mb-2">Workshop Language</label>
-              <select
-                value={videoLanguage}
-                onChange={(e) => setVideoLanguage(e.target.value)}
-                size={Math.min(languageOptions.length, 10)}
-                className="w-full px-4 py-2 bg-black border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none cursor-pointer"
-              >
-                {languageOptions.map((lang) => (
-                  <option key={lang.code} value={lang.code}>
-                    {lang.flag} {lang.name}
-                  </option>
-                ))}
-              </select>
+              <div className="relative w-full">
+                <button
+                  type="button"
+                  onClick={() => setShowVideoLanguageDropdown(!showVideoLanguageDropdown)}
+                  className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none text-left flex justify-between items-center hover:border-green-600 transition-colors"
+                >
+                  <span className="flex items-center gap-2 text-white font-medium">
+                    {languageOptions.find(l => l.code === videoLanguage)?.flag}
+                    {languageOptions.find(l => l.code === videoLanguage)?.name}
+                  </span>
+                  <svg className={`w-5 h-5 text-green-500 flex-shrink-0 transition-transform duration-200 ${showVideoLanguageDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {showVideoLanguageDropdown && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-gray-900 border border-gray-700 rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto">
+                    {languageOptions.map((lang) => (
+                      <button
+                        key={lang.code}
+                        type="button"
+                        onClick={() => {
+                          setVideoLanguage(lang.code);
+                          setShowVideoLanguageDropdown(false);
+                        }}
+                        className={`w-full px-4 py-2.5 text-left flex items-center gap-3 text-sm font-medium transition-all border-b border-gray-800 last:border-b-0 ${
+                          videoLanguage === lang.code
+                            ? 'bg-green-600 text-white'
+                            : 'bg-gray-900 text-gray-300 hover:bg-gray-800'
+                        }`}
+                      >
+                        <span className="text-lg">{lang.flag}</span>
+                        <span>{lang.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-green-400 mb-2">Current Slug</label>
