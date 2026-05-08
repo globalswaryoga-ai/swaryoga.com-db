@@ -136,6 +136,7 @@ export async function GET(request: NextRequest) {
       // Localize content
       const localizedCourse = {
         ...course,
+        videoLanguage: course.videoLanguage,
         ...getLocalizedContent(course.content, lang),
         content: undefined, // Remove raw content object
       };
@@ -209,6 +210,7 @@ export async function GET(request: NextRequest) {
         thumbnail: course.thumbnail,
         previewVideoUrl: course.previewVideoUrl,
         level: course.level,
+        videoLanguage: course.videoLanguage,
         category: course.category,
         totalDuration: course.totalDuration,
         totalVideos: course.totalVideos,

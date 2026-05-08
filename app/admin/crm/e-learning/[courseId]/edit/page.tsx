@@ -96,6 +96,7 @@ export default function EditCoursePage() {
 
   // Other fields
   const [level, setLevel] = useState('beginner');
+  const [videoLanguage, setVideoLanguage] = useState('en');
   const [totalVideos, setTotalVideos] = useState('0');
   const [duration, setDuration] = useState('0');
   const [thumbnail, setThumbnail] = useState('');
@@ -126,6 +127,7 @@ export default function EditCoursePage() {
           });
           setContent(newContent);
           setLevel(c.level || 'beginner');
+          setVideoLanguage(c.videoLanguage || 'en');
           setThumbnail(c.thumbnail || '');
           setTotalVideos(String(c.totalVideos || 0));
           setDuration(String(c.totalDuration || 0));
@@ -168,13 +170,9 @@ export default function EditCoursePage() {
         },
         body: JSON.stringify({
           courseId,
-          content: {
-            en: content.en,
-            hi: content.hi,
-            ne: content.ne,
-            mr: content.mr,
-          },
+          content,
           level,
+          videoLanguage,
           thumbnail,
           totalVideos: parseInt(totalVideos) || 0,
           totalDuration: parseInt(duration) || 0,
@@ -325,15 +323,18 @@ export default function EditCoursePage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-green-400 mb-2">Total Videos</label>
-              <input
-                type="number"
-                value={totalVideos}
-                onChange={(e) => setTotalVideos(e.target.value)}
-                className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
-                placeholder="0"
-                min="0"
-              />
+              <label className="block text-sm font-medium text-green-400 mb-2">Workshop Language</label>
+              <select
+                value={videoLanguage}
+                onChange={(e) => setVideoLanguage(e.target.value)}
+                className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none"
+              >
+                {languageOptions.map((lang) => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.flag} {lang.name}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-green-400 mb-2">Current Slug</label>

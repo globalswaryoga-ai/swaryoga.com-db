@@ -153,6 +153,7 @@ interface Course {
   description?: string;
   thumbnail?: string;
   level: string;
+  videoLanguage?: string;
   category?: string;
   totalDuration: number;
   totalVideos: number;
@@ -188,6 +189,7 @@ export default function CoursesPage() {
   const [language, setLanguage] = useState<Language>('en');
   const [langDropdownOpen, setLangDropdownOpen] = useState(false);
   const [showComingSoonPopup, setShowComingSoonPopup] = useState(false);
+  const [attemptedLanguage, setAttemptedLanguage] = useState<Language>('en');
   const langDropdownRef = useRef<HTMLDivElement>(null);
 
   // Always use English for UI - only course content translates
@@ -248,25 +250,30 @@ export default function CoursesPage() {
   }, [fetchCourses]);
 
   const handleLanguageChange = (newLang: Language) => {
-    setLanguage(newLang);
-    localStorage.setItem('preferred_language', newLang);
-    setLangDropdownOpen(false);
     // Check if any courses exist for this language
-    setTimeout(() => {
-      const hasCoursesForLanguage = courses.some(c => c.title && c.title.length > 0);
-      if (language !== 'en' && !hasCoursesForLanguage) {
-        setShowComingSoonPopup(true);
-      }
-    }, 300);
+    const hasCoursesForLanguage = courses.some(c => c.title && c.title.length > 0);
+
+    if (newLang !== 'en' && !hasCoursesForLanguage) {
+      // Show coming soon popup but DON'T change the language
+      setAttemptedLanguage(newLang);
+      setShowComingSoonPopup(true);
+      setLangDropdownOpen(false);
+    } else {
+      // Change the language only if courses exist or it's English
+      setLanguage(newLang);
+      localStorage.setItem('preferred_language', newLang);
+      setLangDropdownOpen(false);
+    }
   };
 
-  // Filter courses
+  // Filter courses by language, search, and level
   const filteredCourses = courses.filter((course) => {
-    const matchesSearch = searchQuery === '' || 
+    const matchesLanguage = course.videoLanguage === language;
+    const matchesSearch = searchQuery === '' ||
       course.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       course.description?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesLevel = selectedLevel === 'all' || course.level === selectedLevel;
-    return matchesSearch && matchesLevel;
+    return matchesLanguage && matchesSearch && matchesLevel;
   });
 
   // Format duration (in days)
@@ -535,7 +542,7 @@ export default function CoursesPage() {
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
-                          {formatDuration(course.totalDuration)} • {currentLangInfo.name}
+                          {formatDuration(course.totalDuration)} • {languageOptions.find(l => l.code === (course.videoLanguage || 'en'))?.name}
                         </span>
                       </div>
 
@@ -630,7 +637,7 @@ export default function CoursesPage() {
             </div>
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">Coming Soon!</h2>
             <p className="text-gray-600 dark:text-gray-400 mb-2">
-              We're preparing amazing workshops in <span className="font-semibold text-green-600">{currentLangInfo.name}</span>
+              We're preparing amazing workshops in <span className="font-semibold text-green-600">{languageOptions.find(l => l.code === attemptedLanguage)?.name}</span>
             </p>
             <p className="text-gray-500 dark:text-gray-500 text-sm mb-8">
               Stay tuned! We'll be adding workshops in this language very soon.
