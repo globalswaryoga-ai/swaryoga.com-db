@@ -39,11 +39,16 @@ export default function EditCoursePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Form fields
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
+  // Form fields - Multi-language
+  const [activeLanguage, setActiveLanguage] = useState<'en' | 'hi' | 'ne'>('en');
+  const [content, setContent] = useState({
+    en: { title: '', subtitle: '', description: '' },
+    hi: { title: '', subtitle: '', description: '' },
+    ne: { title: '', subtitle: '', description: '' },
+  });
+
+  // Other fields
   const [level, setLevel] = useState('beginner');
-  const [language, setLanguage] = useState('en');
   const [totalVideos, setTotalVideos] = useState('0');
   const [duration, setDuration] = useState('0');
   const [thumbnail, setThumbnail] = useState('');
@@ -68,9 +73,11 @@ export default function EditCoursePage() {
         if (data.success && data.course) {
           const c = data.course;
           setCourse(c);
-          setTitle(c.content?.en?.title || '');
-          setDescription(c.content?.en?.description || '');
-          setLanguage(c.content?.en?.language || 'en');
+          setContent({
+            en: c.content?.en || { title: '', subtitle: '', description: '' },
+            hi: c.content?.hi || { title: '', subtitle: '', description: '' },
+            ne: c.content?.ne || { title: '', subtitle: '', description: '' },
+          });
           setLevel(c.level || 'beginner');
           setThumbnail(c.thumbnail || '');
           setTotalVideos(String(c.totalVideos || 0));
@@ -97,8 +104,8 @@ export default function EditCoursePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!token || !title) {
-      setError('Workshop name is required');
+    if (!token || !content.en.title) {
+      setError('Workshop name (English) is required');
       return;
     }
 
@@ -115,11 +122,9 @@ export default function EditCoursePage() {
         body: JSON.stringify({
           courseId,
           content: {
-            en: {
-              title,
-              description,
-              language
-            }
+            en: content.en,
+            hi: content.hi,
+            ne: content.ne,
           },
           level,
           thumbnail,
@@ -192,40 +197,68 @@ export default function EditCoursePage() {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="bg-gray-900/50 rounded-2xl border border-gray-800 p-8 space-y-6 max-h-[80vh] overflow-y-auto">
-          {/* Row 1 */}
-          <div className="grid grid-cols-2 gap-4">
+          {/* Language Tabs */}
+          <div className="flex gap-2 border-b border-gray-700 mb-6">
+            {(['en', 'hi', 'ne'] as const).map((lang) => (
+              <button
+                key={lang}
+                type="button"
+                onClick={() => setActiveLanguage(lang)}
+                className={`px-4 py-2 font-semibold transition-colors ${
+                  activeLanguage === lang
+                    ? 'text-green-400 border-b-2 border-green-400'
+                    : 'text-gray-400 hover:text-gray-300'
+                }`}
+              >
+                {lang === 'en' ? '🇬🇧 English' : lang === 'hi' ? '🇮🇳 Hindi' : '🇳🇵 Nepali'}
+              </button>
+            ))}
+          </div>
+
+          {/* Language Content */}
+          <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-green-400 mb-2">Workshop Name *</label>
+              <label className="block text-sm font-medium text-green-400 mb-2">Workshop Name * ({activeLanguage.toUpperCase()})</label>
               <input
                 type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                value={content[activeLanguage].title}
+                onChange={(e) => setContent(prev => ({
+                  ...prev,
+                  [activeLanguage]: { ...prev[activeLanguage], title: e.target.value }
+                }))}
                 className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
-                placeholder="Yoga Fundamentals"
+                placeholder={activeLanguage === 'en' ? "Yoga Fundamentals" : activeLanguage === 'hi' ? "योग मौलिक" : "योग आधार"}
                 required
               />
             </div>
+
             <div>
-              <label className="block text-sm font-medium text-green-400 mb-2">Current Slug</label>
+              <label className="block text-sm font-medium text-green-400 mb-2">Workshop Subtitle ({activeLanguage.toUpperCase()})</label>
               <input
                 type="text"
-                value={course?.slug || ''}
-                disabled
-                className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-gray-400 cursor-not-allowed"
+                value={content[activeLanguage].subtitle || ''}
+                onChange={(e) => setContent(prev => ({
+                  ...prev,
+                  [activeLanguage]: { ...prev[activeLanguage], subtitle: e.target.value }
+                }))}
+                className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
+                placeholder="Brief subtitle"
               />
             </div>
-          </div>
 
-          {/* Row 2 */}
-          <div>
-            <label className="block text-sm font-medium text-green-400 mb-2">Workshop Description</label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none resize-none"
-              placeholder="Describe your workshop..."
-              rows={3}
-            />
+            <div>
+              <label className="block text-sm font-medium text-green-400 mb-2">Workshop Description ({activeLanguage.toUpperCase()})</label>
+              <textarea
+                value={content[activeLanguage].description || ''}
+                onChange={(e) => setContent(prev => ({
+                  ...prev,
+                  [activeLanguage]: { ...prev[activeLanguage], description: e.target.value }
+                }))}
+                className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none resize-none"
+                placeholder="Describe your workshop..."
+                rows={3}
+              />
+            </div>
           </div>
 
           {/* Row 3 */}
@@ -243,18 +276,6 @@ export default function EditCoursePage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-green-400 mb-2">Language</label>
-              <select
-                value={language}
-                onChange={(e) => setLanguage(e.target.value)}
-                className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none"
-              >
-                <option value="en">English</option>
-                <option value="hi">Hindi</option>
-                <option value="ne">Nepali</option>
-              </select>
-            </div>
-            <div>
               <label className="block text-sm font-medium text-green-400 mb-2">Total Videos</label>
               <input
                 type="number"
@@ -263,6 +284,15 @@ export default function EditCoursePage() {
                 className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
                 placeholder="0"
                 min="0"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-green-400 mb-2">Current Slug</label>
+              <input
+                type="text"
+                value={course?.slug || ''}
+                disabled
+                className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-gray-400 cursor-not-allowed"
               />
             </div>
           </div>
