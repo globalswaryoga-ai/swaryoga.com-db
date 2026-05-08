@@ -394,6 +394,7 @@ function CreateCourseModal({ token, onClose, onCreated }: { token: string; onClo
   const [description, setDescription] = useState('');
   const [level, setLevel] = useState('beginner');
   const [language, setLanguage] = useState('en');
+  const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
   const [totalVideos, setTotalVideos] = useState('0');
   const [duration, setDuration] = useState('0');
   const [thumbnail, setThumbnail] = useState('');
@@ -533,18 +534,40 @@ function CreateCourseModal({ token, onClose, onCreated }: { token: string; onClo
             </div>
             <div>
               <label className="block text-sm font-medium text-green-400 mb-2">Language</label>
-              <select
-                value={language}
-                onChange={(e) => setLanguage(e.target.value)}
-                size={Math.min(languageOptions.length, 10)}
-                className="w-full px-4 py-2 bg-black border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none cursor-pointer"
-              >
-                {languageOptions.map((lang) => (
-                  <option key={lang.code} value={lang.code}>
-                    {lang.name}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowLanguageDropdown(!showLanguageDropdown)}
+                  className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none text-left flex justify-between items-center"
+                >
+                  <span>{languageOptions.find(l => l.code === language)?.name || 'Select Language'}</span>
+                  <svg className={`w-5 h-5 transition-transform ${showLanguageDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {showLanguageDropdown && (
+                  <div className="absolute top-full left-0 right-0 mt-2 bg-black border border-gray-700 rounded-lg p-2 grid grid-cols-2 gap-2 max-h-64 overflow-y-auto z-10">
+                    {languageOptions.map((lang) => (
+                      <button
+                        key={lang.code}
+                        type="button"
+                        onClick={() => {
+                          setLanguage(lang.code);
+                          setShowLanguageDropdown(false);
+                        }}
+                        className={`px-3 py-2 rounded text-sm font-medium transition-all ${
+                          language === lang.code
+                            ? 'bg-green-600 text-white'
+                            : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                        }`}
+                      >
+                        {lang.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-green-400 mb-2">Total Videos</label>
