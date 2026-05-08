@@ -59,6 +59,7 @@ export interface IRecordedCourse extends Document {
   
   // Course Details
   level: 'beginner' | 'intermediate' | 'advanced' | 'all';
+  videoLanguage?: string; // Language of the workshop videos (en, hi, mr, ne, zh, es, fr, ar, de, pt, ja, ko, ru, it, tr, nl, sv, th, id)
   category: 'swar-yoga' | 'meditation' | 'pranayama' | 'general';
   tags?: string[];
   totalDuration?: number; // Total duration in minutes
@@ -153,6 +154,7 @@ const RecordedCourseSchema = new Schema<IRecordedCourse>({
   previewVideoThumbnail: { type: String },
   
   level: { type: String, enum: ['beginner', 'intermediate', 'advanced', 'all'], default: 'beginner' },
+  videoLanguage: { type: String, enum: ['en', 'hi', 'mr', 'ne', 'zh', 'es', 'fr', 'ar', 'de', 'pt', 'ja', 'ko', 'ru', 'it', 'tr', 'nl', 'sv', 'th', 'id'], default: 'en' },
   category: { type: String, enum: ['swar-yoga', 'meditation', 'pranayama', 'general'], default: 'swar-yoga' },
   tags: [{ type: String }],
   totalDuration: { type: Number, default: 0 },
