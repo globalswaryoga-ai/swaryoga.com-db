@@ -48,6 +48,14 @@ export default function EditCoursePage() {
     mr: { title: '', subtitle: '', description: '' },
   });
 
+  // Load preferred language from localStorage on mount
+  useEffect(() => {
+    const savedLang = localStorage.getItem('admin_course_edit_language');
+    if (savedLang && ['en', 'hi', 'mr', 'ne'].includes(savedLang)) {
+      setActiveLanguage(savedLang as 'en' | 'hi' | 'ne' | 'mr');
+    }
+  }, []);
+
   // Other fields
   const [level, setLevel] = useState('beginner');
   const [totalVideos, setTotalVideos] = useState('0');
@@ -206,7 +214,10 @@ export default function EditCoursePage() {
               <button
                 key={lang}
                 type="button"
-                onClick={() => setActiveLanguage(lang)}
+                onClick={() => {
+                  setActiveLanguage(lang);
+                  localStorage.setItem('admin_course_edit_language', lang);
+                }}
                 className={`px-4 py-2 font-semibold transition-colors whitespace-nowrap ${
                   activeLanguage === lang
                     ? 'text-green-400 border-b-2 border-green-400'
