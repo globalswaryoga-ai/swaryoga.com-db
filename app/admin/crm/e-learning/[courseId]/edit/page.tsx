@@ -40,11 +40,12 @@ export default function EditCoursePage() {
   const [error, setError] = useState<string | null>(null);
 
   // Form fields - Multi-language
-  const [activeLanguage, setActiveLanguage] = useState<'en' | 'hi' | 'ne'>('en');
+  const [activeLanguage, setActiveLanguage] = useState<'en' | 'hi' | 'ne' | 'mr'>('en');
   const [content, setContent] = useState({
     en: { title: '', subtitle: '', description: '' },
     hi: { title: '', subtitle: '', description: '' },
     ne: { title: '', subtitle: '', description: '' },
+    mr: { title: '', subtitle: '', description: '' },
   });
 
   // Other fields
@@ -77,6 +78,7 @@ export default function EditCoursePage() {
             en: c.content?.en || { title: '', subtitle: '', description: '' },
             hi: c.content?.hi || { title: '', subtitle: '', description: '' },
             ne: c.content?.ne || { title: '', subtitle: '', description: '' },
+            mr: c.content?.mr || { title: '', subtitle: '', description: '' },
           });
           setLevel(c.level || 'beginner');
           setThumbnail(c.thumbnail || '');
@@ -125,6 +127,7 @@ export default function EditCoursePage() {
             en: content.en,
             hi: content.hi,
             ne: content.ne,
+            mr: content.mr,
           },
           level,
           thumbnail,
@@ -198,19 +201,19 @@ export default function EditCoursePage() {
         {/* Form */}
         <form onSubmit={handleSubmit} className="bg-gray-900/50 rounded-2xl border border-gray-800 p-8 space-y-6 max-h-[80vh] overflow-y-auto">
           {/* Language Tabs */}
-          <div className="flex gap-2 border-b border-gray-700 mb-6">
-            {(['en', 'hi', 'ne'] as const).map((lang) => (
+          <div className="flex gap-2 border-b border-gray-700 mb-6 overflow-x-auto">
+            {(['en', 'hi', 'mr', 'ne'] as const).map((lang) => (
               <button
                 key={lang}
                 type="button"
                 onClick={() => setActiveLanguage(lang)}
-                className={`px-4 py-2 font-semibold transition-colors ${
+                className={`px-4 py-2 font-semibold transition-colors whitespace-nowrap ${
                   activeLanguage === lang
                     ? 'text-green-400 border-b-2 border-green-400'
                     : 'text-gray-400 hover:text-gray-300'
                 }`}
               >
-                {lang === 'en' ? '🇬🇧 English' : lang === 'hi' ? '🇮🇳 Hindi' : '🇳🇵 Nepali'}
+                {lang === 'en' ? '🇬🇧 English' : lang === 'hi' ? '🇮🇳 Hindi' : lang === 'mr' ? '🇮🇳 Marathi' : '🇳🇵 Nepali'}
               </button>
             ))}
           </div>
