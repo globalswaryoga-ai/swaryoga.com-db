@@ -6,6 +6,29 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { Plus, Edit2, Trash2, Video, Eye, EyeOff, GraduationCap, X, Upload, ShieldAlert, Users } from 'lucide-react';
 
+// All 19 language options
+const languageOptions = [
+  { code: 'en', name: 'English' },
+  { code: 'hi', name: 'Hindi' },
+  { code: 'mr', name: 'Marathi' },
+  { code: 'ne', name: 'Nepali' },
+  { code: 'zh', name: 'Mandarin' },
+  { code: 'es', name: 'Spanish' },
+  { code: 'fr', name: 'French' },
+  { code: 'ar', name: 'Arabic' },
+  { code: 'de', name: 'German' },
+  { code: 'pt', name: 'Portuguese' },
+  { code: 'ja', name: 'Japanese' },
+  { code: 'ko', name: 'Korean' },
+  { code: 'ru', name: 'Russian' },
+  { code: 'it', name: 'Italian' },
+  { code: 'tr', name: 'Turkish' },
+  { code: 'nl', name: 'Dutch' },
+  { code: 'sv', name: 'Swedish' },
+  { code: 'th', name: 'Thai' },
+  { code: 'id', name: 'Indonesian' },
+];
+
 interface Course {
   _id: string;
   slug: string;
@@ -513,11 +536,14 @@ function CreateCourseModal({ token, onClose, onCreated }: { token: string; onClo
               <select
                 value={language}
                 onChange={(e) => setLanguage(e.target.value)}
-                className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none"
+                size={Math.min(languageOptions.length, 10)}
+                className="w-full px-4 py-2 bg-black border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none cursor-pointer"
               >
-                <option value="en">English</option>
-                <option value="hi">Hindi</option>
-                <option value="ne">Nepali</option>
+                {languageOptions.map((lang) => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.name}
+                  </option>
+                ))}
               </select>
             </div>
             <div>

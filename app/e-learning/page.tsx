@@ -377,28 +377,24 @@ export default function CoursesPage() {
                   </button>
                 </div>
 
-                {/* Language Grid */}
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {/* Language List - Single Row */}
+                <div className="flex flex-wrap gap-3 justify-center">
                   {/* All Languages Option */}
                   <button
                     onClick={() => {
                       handleLanguageChange('all');
                       setLangDropdownOpen(false);
                     }}
-                    className={`flex items-center gap-3 p-4 rounded-lg border-2 transition-all ${
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-all text-sm ${
                       language === 'all'
-                        ? 'border-green-500 bg-green-900/30'
-                        : 'border-gray-700 hover:border-green-500 hover:bg-gray-800'
+                        ? 'border-green-500 bg-green-500/20 text-green-400'
+                        : 'border-gray-600 text-gray-300 hover:border-green-500 hover:bg-gray-800/50'
                     }`}
                   >
-                    <span className="text-3xl flex-shrink-0">🌍</span>
-                    <div className="text-left flex-1">
-                      <p className={`font-semibold ${language === 'all' ? 'text-green-400' : 'text-gray-200'}`}>
-                        All Languages
-                      </p>
-                    </div>
+                    <span className="text-2xl">🌍</span>
+                    <span>All</span>
                     {language === 'all' && (
-                      <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <svg className="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                       </svg>
                     )}
@@ -412,20 +408,16 @@ export default function CoursesPage() {
                         handleLanguageChange(lang.code);
                         setLangDropdownOpen(false);
                       }}
-                      className={`flex items-center gap-3 p-4 rounded-lg border-2 transition-all ${
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-all text-sm ${
                         language === lang.code
-                          ? 'border-green-500 bg-green-900/30'
-                          : 'border-gray-700 hover:border-green-500 hover:bg-gray-800'
+                          ? 'border-green-500 bg-green-500/20 text-green-400'
+                          : 'border-gray-600 text-gray-300 hover:border-green-500 hover:bg-gray-800/50'
                       }`}
                     >
-                      <span className="text-3xl flex-shrink-0">{lang.flag}</span>
-                      <div className="text-left flex-1">
-                        <p className={`font-semibold ${language === lang.code ? 'text-green-400' : 'text-gray-200'}`}>
-                          {lang.name}
-                        </p>
-                      </div>
+                      <span className="text-xl">{lang.flag}</span>
+                      <span>{lang.name}</span>
                       {language === lang.code && (
-                        <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <svg className="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                         </svg>
                       )}
