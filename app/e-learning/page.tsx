@@ -196,7 +196,9 @@ export default function CoursesPage() {
   const t = translations.en;
 
   // Get current language info
-  const currentLangInfo = languageOptions.find(l => l.code === language) || languageOptions[0];
+  const currentLangInfo = language === 'all'
+    ? { code: 'all', name: 'All Languages', flag: '🌍' }
+    : languageOptions.find(l => l.code === language) || languageOptions[0];
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -250,8 +252,16 @@ export default function CoursesPage() {
   }, [fetchCourses]);
 
   const handleLanguageChange = (newLang: Language) => {
-    // Check if any courses exist for this language
-    const hasCoursesForLanguage = courses.some(c => c.title && c.title.length > 0);
+    // "All Languages" option always works
+    if (newLang === 'all') {
+      setLanguage(newLang);
+      localStorage.setItem('preferred_language', newLang);
+      setLangDropdownOpen(false);
+      return;
+    }
+
+    // Check if any courses exist for this specific language
+    const hasCoursesForLanguage = courses.some(c => c.videoLanguage === newLang);
 
     if (newLang !== 'en' && !hasCoursesForLanguage) {
       // Show coming soon popup but DON'T change the language
@@ -268,7 +278,8 @@ export default function CoursesPage() {
 
   // Filter courses by language, search, and level
   const filteredCourses = courses.filter((course) => {
-    const matchesLanguage = course.videoLanguage === language;
+    // Show all languages if selected language is 'all', otherwise filter by videoLanguage
+    const matchesLanguage = language === 'all' || course.videoLanguage === language || !course.videoLanguage;
     const matchesSearch = searchQuery === '' ||
       course.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       course.description?.toLowerCase().includes(searchQuery.toLowerCase());
@@ -347,6 +358,28 @@ export default function CoursesPage() {
 
           {langDropdownOpen && (
             <div className="absolute top-full right-0 mt-2 w-64 bg-gray-800 rounded-lg shadow-2xl border border-gray-700 overflow-y-auto z-50 max-h-96">
+              {/* All Languages Option */}
+              <button
+                onClick={() => {
+                  handleLanguageChange('all');
+                  setLangDropdownOpen(false);
+                }}
+                className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-700 transition-colors border-b border-gray-700 ${
+                  language === 'all' ? 'bg-green-900/50 border-l-4 border-green-500' : ''
+                }`}
+              >
+                <span className="text-2xl flex-shrink-0">🌍</span>
+                <span className={`text-sm font-medium flex-1 ${language === 'all' ? 'text-green-400' : 'text-gray-200'}`}>
+                  All Languages
+                </span>
+                {language === 'all' && (
+                  <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                )}
+              </button>
+
+              {/* Individual Languages */}
               {languageOptions.map((lang) => (
                 <button
                   key={lang.code}
