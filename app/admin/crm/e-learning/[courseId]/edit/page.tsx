@@ -107,6 +107,11 @@ export default function EditCoursePage() {
   const [promoCode, setPromoCode] = useState('');
   const [isFree, setIsFree] = useState(false);
 
+  // Social/Engagement fields
+  const [defaultStudents, setDefaultStudents] = useState('15');
+  const [likes, setLikes] = useState('10');
+  const [rating, setRating] = useState('5.0');
+
   useEffect(() => {
     if (!token || !courseId) return;
 
@@ -137,6 +142,9 @@ export default function EditCoursePage() {
           setDiscount(String(c.discount || 0));
           setPromoCode(c.promoCode || '');
           setIsFree(c.isFree || false);
+          setDefaultStudents(String(c.defaultStudents || 15));
+          setLikes(String(c.likes || 10));
+          setRating(String(c.rating || 5.0));
         } else {
           setError('Failed to load course');
         }
@@ -184,6 +192,9 @@ export default function EditCoursePage() {
           discount: parseInt(discount) || 0,
           promoCode: promoCode || null,
           isFree,
+          defaultStudents: parseInt(defaultStudents) || 15,
+          likes: parseInt(likes) || 10,
+          rating: parseFloat(rating) || 5.0,
         }),
       });
 
@@ -486,6 +497,51 @@ export default function EditCoursePage() {
                     </div>
                   </div>
                 )}
+              </div>
+
+              {/* Row 7 - Social/Engagement Metrics */}
+              <div className="border-t border-gray-700 pt-6 mt-6">
+                <h3 className="text-lg font-bold text-white mb-4">Social & Engagement</h3>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Default Students</label>
+                    <input
+                      type="number"
+                      value={defaultStudents}
+                      onChange={(e) => setDefaultStudents(e.target.value)}
+                      className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
+                      placeholder="15"
+                      min="0"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Base student count (adds to real enrollments)</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Likes</label>
+                    <input
+                      type="number"
+                      value={likes}
+                      onChange={(e) => setLikes(e.target.value)}
+                      className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
+                      placeholder="10"
+                      min="0"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Course likes count</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Rating (Stars)</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={rating}
+                      onChange={(e) => setRating(e.target.value)}
+                      className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
+                      placeholder="5.0"
+                      min="0"
+                      max="5"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Course rating (0-5 stars)</p>
+                  </div>
+                </div>
               </div>
             </>
           )}

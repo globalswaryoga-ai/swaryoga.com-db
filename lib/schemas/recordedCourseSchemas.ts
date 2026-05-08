@@ -106,6 +106,11 @@ export interface IRecordedCourse extends Document {
   averageRating: number;
   reviewCount: number;
 
+  // Social/Engagement Metrics
+  defaultStudents?: number; // Base student count (default 15)
+  likes?: number; // Course likes (default 10)
+  rating?: number; // Course rating out of 5 (default 5.0)
+
   // Soft Delete
   deletedAt?: Date;
   deletedBy?: string;
@@ -195,6 +200,11 @@ const RecordedCourseSchema = new Schema<IRecordedCourse>({
   completionRate: { type: Number, default: 0 },
   averageRating: { type: Number, default: 0 },
   reviewCount: { type: Number, default: 0 },
+
+  // Social/Engagement Metrics
+  defaultStudents: { type: Number, default: 15 },
+  likes: { type: Number, default: 10 },
+  rating: { type: Number, default: 5.0 },
 
   // Soft Delete & Audit
   deletedAt: { type: Date, sparse: true },
