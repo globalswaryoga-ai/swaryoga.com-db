@@ -99,7 +99,7 @@ export default function CourseDetailPage() {
       <div className="max-w-4xl mx-auto p-6">
         {course.thumbnail && (
           <div className="mb-8 rounded-2xl overflow-hidden">
-            <img src={course.thumbnail} alt={course.content.en.title} className="w-full h-96 object-cover" />
+            <img src={course.thumbnail} alt={course.title} className="w-full h-96 object-cover" />
           </div>
         )}
 
