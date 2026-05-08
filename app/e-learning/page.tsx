@@ -261,14 +261,12 @@ export default function CoursesPage() {
     return matchesSearch && matchesLevel;
   });
 
-  // Format duration
-  const formatDuration = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    if (hours > 0) {
-      return `${hours} ${t.hours} ${minutes > 0 ? `${minutes} ${t.minutes}` : ''}`;
+  // Format duration (in days)
+  const formatDuration = (days: number) => {
+    if (days > 0) {
+      return `${days} ${days === 1 ? 'day' : 'days'}`;
     }
-    return `${minutes} ${t.minutes}`;
+    return '0 days';
   };
 
   // Format price

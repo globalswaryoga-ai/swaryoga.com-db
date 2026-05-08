@@ -8,9 +8,9 @@ import { ArrowLeft, Play, Users, Calendar, Video } from 'lucide-react';
 interface Course {
   _id: string;
   slug: string;
-  content: {
-    en: { title: string; description?: string };
-  };
+  title: string;
+  subtitle?: string;
+  description?: string;
   thumbnail?: string;
   level: string;
   totalVideos?: number;
@@ -98,8 +98,8 @@ export default function CourseDetailPage() {
 
         <div className="grid grid-cols-3 gap-8">
           <div className="col-span-2">
-            <h1 className="text-4xl font-bold text-black mb-4">{course.content.en.title}</h1>
-            
+            <h1 className="text-4xl font-bold text-black mb-4">{course.title}</h1>
+
             <span className={`inline-block px-4 py-2 rounded-full text-sm font-semibold mb-6 ${
               course.level === 'beginner' ? 'bg-green-100 text-green-800' :
               course.level === 'intermediate' ? 'bg-yellow-100 text-yellow-800' :
@@ -123,10 +123,10 @@ export default function CourseDetailPage() {
               </div>
             </div>
 
-            {course.content.en.description && (
+            {course.description && (
               <div>
                 <h2 className="text-2xl font-bold text-black mb-4">About This Course</h2>
-                <p className="text-gray-700 leading-relaxed">{course.content.en.description}</p>
+                <p className="text-gray-700 leading-relaxed">{course.description}</p>
               </div>
             )}
           </div>
