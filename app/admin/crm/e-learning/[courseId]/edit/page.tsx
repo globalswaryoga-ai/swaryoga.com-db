@@ -263,7 +263,8 @@ export default function EditCoursePage() {
                 setActiveLanguage(e.target.value);
                 localStorage.setItem('admin_course_edit_language', e.target.value);
               }}
-              className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none appearance-none cursor-pointer"
+              size={Math.min(languageOptions.length, 10)}
+              className="w-full px-4 py-2 bg-black border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none cursor-pointer"
             >
               {languageOptions.map((lang) => (
                 <option key={lang.code} value={lang.code}>
@@ -338,7 +339,8 @@ export default function EditCoursePage() {
               <select
                 value={videoLanguage}
                 onChange={(e) => setVideoLanguage(e.target.value)}
-                className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none"
+                size={Math.min(languageOptions.length, 10)}
+                className="w-full px-4 py-2 bg-black border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none cursor-pointer"
               >
                 {languageOptions.map((lang) => (
                   <option key={lang.code} value={lang.code}>
