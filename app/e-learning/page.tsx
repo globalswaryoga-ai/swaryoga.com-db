@@ -187,6 +187,7 @@ export default function CoursesPage() {
   const [selectedLevel, setSelectedLevel] = useState<string>('all');
   const [language, setLanguage] = useState<Language>('en');
   const [langDropdownOpen, setLangDropdownOpen] = useState(false);
+  const [showComingSoonPopup, setShowComingSoonPopup] = useState(false);
   const langDropdownRef = useRef<HTMLDivElement>(null);
 
   // Always use English for UI - only course content translates
@@ -250,6 +251,13 @@ export default function CoursesPage() {
     setLanguage(newLang);
     localStorage.setItem('preferred_language', newLang);
     setLangDropdownOpen(false);
+    // Check if any courses exist for this language
+    setTimeout(() => {
+      const hasCoursesForLanguage = courses.some(c => c.title && c.title.length > 0);
+      if (language !== 'en' && !hasCoursesForLanguage) {
+        setShowComingSoonPopup(true);
+      }
+    }, 300);
   };
 
   // Filter courses
@@ -627,6 +635,42 @@ export default function CoursesPage() {
           )}
         </div>
       </section>
+
+      {/* Coming Soon Popup */}
+      {showComingSoonPopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-300 dark:border-gray-700 shadow-2xl p-8 max-w-md w-full mx-4 text-center animate-fade-in">
+            <div className="mb-6">
+              <svg className="w-16 h-16 text-yellow-500 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">Coming Soon!</h2>
+            <p className="text-gray-600 dark:text-gray-400 mb-2">
+              We're preparing amazing workshops in <span className="font-semibold text-green-600">{currentLangInfo.name}</span>
+            </p>
+            <p className="text-gray-500 dark:text-gray-500 text-sm mb-8">
+              Stay tuned! We'll be adding workshops in this language very soon.
+            </p>
+            <button
+              onClick={() => {
+                setShowComingSoonPopup(false);
+                setLanguage('en');
+                localStorage.setItem('preferred_language', 'en');
+              }}
+              className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-all"
+            >
+              Back to English
+            </button>
+            <button
+              onClick={() => setShowComingSoonPopup(false)}
+              className="w-full mt-3 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-semibold py-3 px-6 rounded-lg transition-all"
+            >
+              Continue Browsing
+            </button>
+          </div>
+        </div>
+      )}
 
       <Footer />
     </div>
