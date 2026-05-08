@@ -4,6 +4,14 @@ import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import CashfreePaymentButton from './CashfreePaymentButton';
 
+interface EnrolledStudent {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  email?: string;
+  enrolledAt?: string;
+}
+
 interface CourseEnrollmentModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -16,6 +24,8 @@ interface CourseEnrollmentModalProps {
     discount?: number;
   };
   token?: string;
+  enrolledStudents?: EnrolledStudent[];
+  enrollmentCount?: number;
 }
 
 export default function CourseEnrollmentModal({
@@ -23,6 +33,8 @@ export default function CourseEnrollmentModal({
   onClose,
   course,
   token = '',
+  enrolledStudents = [],
+  enrollmentCount = 15,
 }: CourseEnrollmentModalProps) {
   const [formData, setFormData] = useState({
     firstName: '',
@@ -58,9 +70,9 @@ export default function CourseEnrollmentModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white rounded-2xl max-w-md w-full mx-4 shadow-xl">
+      <div className="bg-white rounded-2xl max-w-4xl w-full mx-4 shadow-xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
           <h2 className="text-xl font-bold text-gray-900">Enroll in Course</h2>
           <button
             onClick={onClose}
@@ -70,8 +82,10 @@ export default function CourseEnrollmentModal({
           </button>
         </div>
 
-        {/* Content */}
-        <div className="p-6 overflow-y-auto max-h-[calc(100vh-200px)]">
+        {/* Content - Two Column Layout */}
+        <div className="flex flex-1 overflow-hidden">
+          {/* Left Side - Enrollment Form */}
+          <div className="w-3/5 p-6 overflow-y-auto border-r border-gray-200">
           {/* Course Info */}
           <div className="mb-6 p-4 bg-green-50 rounded-lg">
             <p className="text-sm text-gray-600">Course</p>
@@ -220,31 +234,62 @@ export default function CourseEnrollmentModal({
             </div>
           </div>
 
-          {/* Payment Button */}
-          <div className="mt-6">
-            <CashfreePaymentButton
-              amount={finalPrice}
-              productInfo={course.title}
-              firstName={formData.firstName}
-              lastName={formData.lastName}
-              email={formData.email}
-              phone={formData.phone}
-              city={formData.city}
-              address={formData.address}
-              state={formData.state}
-              zip={formData.zip}
-              currency="INR"
-              token={token}
-              className="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-lg font-semibold disabled:opacity-50 transition-all"
-              disabled={!isFormValid || loading}
-              onSuccess={() => {
-                onClose();
-              }}
-              onError={(error) => {
-                setError(error);
-              }}
-              onLoading={setLoading}
-            />
+            {/* Payment Button */}
+            <div className="mt-6">
+              <CashfreePaymentButton
+                amount={finalPrice}
+                productInfo={course.title}
+                firstName={formData.firstName}
+                lastName={formData.lastName}
+                email={formData.email}
+                phone={formData.phone}
+                city={formData.city}
+                address={formData.address}
+                state={formData.state}
+                zip={formData.zip}
+                currency="INR"
+                token={token}
+                className="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-lg font-semibold disabled:opacity-50 transition-all"
+                disabled={!isFormValid || loading}
+                onSuccess={() => {
+                  onClose();
+                }}
+                onError={(error) => {
+                  setError(error);
+                }}
+                onLoading={setLoading}
+              />
+            </div>
+          </div>
+
+          {/* Right Side - Enrolled Students */}
+          <div className="w-2/5 p-6 overflow-y-auto bg-gray-50">
+            <div className="mb-4">
+              <h3 className="text-lg font-bold text-gray-900">{enrollmentCount} Students Joined</h3>
+              <p className="text-xs text-gray-600 mt-1">Currently learning this course</p>
+            </div>
+            {enrolledStudents && enrolledStudents.length > 0 ? (
+              <div className="space-y-3">
+                {enrolledStudents.map((student) => (
+                  <div key={student._id} className="p-3 bg-white rounded-lg border border-gray-300 hover:border-green-400 transition-colors">
+                    <p className="font-semibold text-gray-900 text-sm">{student.firstName} {student.lastName}</p>
+                    {student.email && (
+                      <p className="text-xs text-gray-600 mt-1 truncate">{student.email}</p>
+                    )}
+                    {student.enrolledAt && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        {new Date(student.enrolledAt).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-gray-600 text-sm">No students enrolled yet.</p>
+                <p className="text-gray-500 text-xs mt-2">Be the first to learn!</p>
+              </div>
+            )}
           </div>
         </div>
       </div>

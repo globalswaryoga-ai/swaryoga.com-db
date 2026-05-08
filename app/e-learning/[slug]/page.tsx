@@ -58,8 +58,18 @@ interface Course {
   averageRating?: number;
 }
 
+interface EnrolledStudent {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  enrolledAt: string;
+  progress?: number;
+}
+
 export default function CourseDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const slug = params.slug as string;
 
   const [course, setCourse] = useState<Course | null>(null);
@@ -70,6 +80,9 @@ export default function CourseDetailPage() {
   const [token, setToken] = useState<string>('');
   const [language, setLanguage] = useState<string>('en');
   const [langDropdownOpen, setLangDropdownOpen] = useState(false);
+  const [enrolledStudents, setEnrolledStudents] = useState<EnrolledStudent[]>([]);
+  const [loadingStudents, setLoadingStudents] = useState(false);
+  const [enrollmentCount, setEnrollmentCount] = useState(15);
 
   useEffect(() => {
     // Get token from localStorage
@@ -108,6 +121,27 @@ export default function CourseDetailPage() {
 
     fetchCourse();
   }, [slug, language]);
+
+  useEffect(() => {
+    const fetchEnrolledStudents = async () => {
+      if (!course?._id) return;
+      try {
+        setLoadingStudents(true);
+        const res = await fetch(`/api/recorded-courses/${course._id}/enrollments?limit=15`);
+        const data = await res.json();
+        if (data.success && data.students) {
+          setEnrolledStudents(data.students);
+          setEnrollmentCount(data.total || 15);
+        }
+      } catch (err) {
+        console.error('Error fetching enrolled students:', err);
+      } finally {
+        setLoadingStudents(false);
+      }
+    };
+
+    fetchEnrolledStudents();
+  }, [course?._id]);
 
   if (loading) {
     return (
@@ -229,6 +263,42 @@ export default function CourseDetailPage() {
                 <p className="text-gray-700 leading-relaxed">{course.description}</p>
               </div>
             )}
+
+            {/* Enrolled Students Section */}
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold text-black mb-4">Students Currently Learning ({course.enrolledCount || 0})</h2>
+              {loadingStudents ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full" />
+                </div>
+              ) : enrolledStudents.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {enrolledStudents.map((student) => (
+                    <div
+                      key={student._id}
+                      className="p-4 border border-gray-200 rounded-lg hover:border-green-400 transition-colors"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h3 className="font-semibold text-gray-900">{student.firstName} {student.lastName}</h3>
+                          <p className="text-sm text-gray-600 mt-1">{student.email}</p>
+                          <p className="text-xs text-gray-500 mt-2">
+                            Enrolled: {new Date(student.enrolledAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                        {student.progress !== undefined && (
+                          <div className="text-right">
+                            <p className="text-sm font-semibold text-green-600">{student.progress}%</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-600">No enrolled students yet. Be the first to learn!</p>
+              )}
+            </div>
 
             {/* Course Content */}
             {videos.length > 0 && (
@@ -361,6 +431,8 @@ export default function CourseDetailPage() {
             discount: course.discount,
           }}
           token={token}
+          enrolledStudents={enrolledStudents}
+          enrollmentCount={enrollmentCount}
         />
       )}
     </div>

@@ -7,7 +7,7 @@ import { workshopCatalog } from '@/lib/workshopsData';
 
 type ModeKey = 'online' | 'offline' | 'residential' | 'recorded';
 
-type LanguageKey = 'Hindi' | 'English' | 'Marathi';
+type LanguageKey = 'English' | 'Hindi' | 'Marathi' | 'Nepali' | 'Mandarin' | 'Spanish' | 'French' | 'Arabic' | 'German' | 'Portuguese' | 'Japanese' | 'Korean' | 'Russian' | 'Italian' | 'Turkish' | 'Dutch' | 'Swedish' | 'Thai' | 'Indonesian';
 
 type ScheduleStatus = 'draft' | 'published';
 
@@ -77,10 +77,28 @@ const normalizeKey = (v: unknown) => String(v ?? '').trim().toLowerCase();
 
 const normalizeLanguageLabel = (v: unknown): LanguageKey | '' => {
   const k = normalizeKey(v);
-  if (k === 'hindi') return 'Hindi';
-  if (k === 'english') return 'English';
-  if (k === 'marathi') return 'Marathi';
-  return '';
+  const languages: Record<string, LanguageKey> = {
+    'english': 'English',
+    'hindi': 'Hindi',
+    'marathi': 'Marathi',
+    'nepali': 'Nepali',
+    'mandarin': 'Mandarin',
+    'spanish': 'Spanish',
+    'french': 'French',
+    'arabic': 'Arabic',
+    'german': 'German',
+    'portuguese': 'Portuguese',
+    'japanese': 'Japanese',
+    'korean': 'Korean',
+    'russian': 'Russian',
+    'italian': 'Italian',
+    'turkish': 'Turkish',
+    'dutch': 'Dutch',
+    'swedish': 'Swedish',
+    'thai': 'Thai',
+    'indonesian': 'Indonesian',
+  };
+  return languages[k] || '';
 };
 
 const normalizeBatchKey = (v: unknown): BatchKey | '' => {
@@ -1031,9 +1049,25 @@ export default function AdminWorkshopSchedulesPage() {
                                         onChange={(e) => setCreateForm((p) => ({ ...p, language: e.target.value }))}
                                         className="w-28 rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
                                       >
-                                        <option value="Hindi">Hindi</option>
                                         <option value="English">English</option>
+                                        <option value="Hindi">Hindi</option>
                                         <option value="Marathi">Marathi</option>
+                                        <option value="Nepali">Nepali</option>
+                                        <option value="Mandarin">Mandarin</option>
+                                        <option value="Spanish">Spanish</option>
+                                        <option value="French">French</option>
+                                        <option value="Arabic">Arabic</option>
+                                        <option value="German">German</option>
+                                        <option value="Portuguese">Portuguese</option>
+                                        <option value="Japanese">Japanese</option>
+                                        <option value="Korean">Korean</option>
+                                        <option value="Russian">Russian</option>
+                                        <option value="Italian">Italian</option>
+                                        <option value="Turkish">Turkish</option>
+                                        <option value="Dutch">Dutch</option>
+                                        <option value="Swedish">Swedish</option>
+                                        <option value="Thai">Thai</option>
+                                        <option value="Indonesian">Indonesian</option>
                                       </select>
                                     </td>
                                     <td className="px-4 py-3 whitespace-nowrap">
@@ -1225,9 +1259,25 @@ export default function AdminWorkshopSchedulesPage() {
                                               onChange={(e) => setEditForm((p) => ({ ...p, language: e.target.value }))}
                                               className="w-28 rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
                                             >
-                                              <option value="Hindi">Hindi</option>
                                               <option value="English">English</option>
+                                              <option value="Hindi">Hindi</option>
                                               <option value="Marathi">Marathi</option>
+                                              <option value="Nepali">Nepali</option>
+                                              <option value="Mandarin">Mandarin</option>
+                                              <option value="Spanish">Spanish</option>
+                                              <option value="French">French</option>
+                                              <option value="Arabic">Arabic</option>
+                                              <option value="German">German</option>
+                                              <option value="Portuguese">Portuguese</option>
+                                              <option value="Japanese">Japanese</option>
+                                              <option value="Korean">Korean</option>
+                                              <option value="Russian">Russian</option>
+                                              <option value="Italian">Italian</option>
+                                              <option value="Turkish">Turkish</option>
+                                              <option value="Dutch">Dutch</option>
+                                              <option value="Swedish">Swedish</option>
+                                              <option value="Thai">Thai</option>
+                                              <option value="Indonesian">Indonesian</option>
                                             </select>
                                           ) : (
                                             s.language || '—'
