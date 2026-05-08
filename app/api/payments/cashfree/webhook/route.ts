@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, Order, WorkshopSchedule, WorkshopSeatInventory } from '@/lib/db';
+import { getCourseEnrollment } from '@/lib/schemas/recordedCourseSchemas';
 import { cashfreeGetOrder } from '@/lib/payments/cashfree';
 import { notifyPaymentConfirmation } from '@/lib/notifications';
 
@@ -82,8 +83,40 @@ export async function POST(request: NextRequest) {
 
     await order.save();
 
-    // ✅ If payment succeeded, create customer lead automatically
+    // ✅ If payment succeeded, create enrollment/lead automatically
     if (paymentStatus === 'completed') {
+      // ✅ Create course enrollment for e-learning courses
+      if ((order as any).courseId && !(order as any).enrollmentCreated) {
+        try {
+          const CourseEnrollment = getCourseEnrollment();
+          const userId = (order as any).userId;
+          const courseId = (order as any).courseId;
+
+          // Check if enrollment already exists
+          const existingEnrollment = await CourseEnrollment.findOne({ userId, courseId });
+
+          if (!existingEnrollment) {
+            const enrollment = new CourseEnrollment({
+              userId,
+              courseId,
+              status: 'active',
+              progress: 0,
+              enrolledAt: new Date(),
+              accessUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year access
+            });
+            await enrollment.save();
+            console.log(`✅ Created course enrollment for user ${userId} in course ${courseId}`);
+          }
+
+          // Mark order as enrollment created
+          (order as any).enrollmentCreated = true;
+          await order.save();
+        } catch (enrollmentError) {
+          console.error('⚠️ Failed to create course enrollment:', enrollmentError);
+          // Don't fail webhook if enrollment creation fails
+        }
+      }
+
       // ✅ Decrement slot count for each workshop schedule in the order (only once)
       if (!(order as any).seatInventoryAdjusted) {
         try {

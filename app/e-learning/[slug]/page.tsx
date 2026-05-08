@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Play, Users, Calendar, Video } from 'lucide-react';
+import CourseEnrollmentModal from '@/components/CourseEnrollmentModal';
 
 interface Course {
   _id: string;
@@ -32,8 +33,14 @@ export default function CourseDetailPage() {
   const [course, setCourse] = useState<Course | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showEnrollmentModal, setShowEnrollmentModal] = useState(false);
+  const [token, setToken] = useState<string>('');
 
   useEffect(() => {
+    // Get token from localStorage
+    const storedToken = localStorage.getItem('token') || '';
+    setToken(storedToken);
+
     const fetchCourse = async () => {
       try {
         setLoading(true);
@@ -169,7 +176,10 @@ export default function CourseDetailPage() {
                 )}
               </div>
 
-              <button className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-lg flex items-center justify-center gap-2">
+              <button
+                onClick={() => setShowEnrollmentModal(true)}
+                className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-lg flex items-center justify-center gap-2 transition-colors"
+              >
                 <Play size={20} />
                 Start Learning
               </button>
@@ -188,6 +198,21 @@ export default function CourseDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Enrollment Modal */}
+      {course && (
+        <CourseEnrollmentModal
+          isOpen={showEnrollmentModal}
+          onClose={() => setShowEnrollmentModal(false)}
+          course={{
+            _id: course._id,
+            title: course.title,
+            pricing: course.pricing,
+            discount: course.discount,
+          }}
+          token={token}
+        />
+      )}
     </div>
   );
 }
