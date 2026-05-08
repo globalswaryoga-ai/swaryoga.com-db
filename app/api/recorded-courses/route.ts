@@ -200,7 +200,7 @@ export async function GET(request: NextRequest) {
     const localizedCourses = courses.map((course: any) => {
       const isEnrolled = enrolledCourseIds.has(course._id.toString());
       const enrollment = userEnrollments.find((e: any) => e.courseId.toString() === course._id.toString());
-      
+
       return {
         _id: course._id,
         slug: course.slug,
@@ -211,6 +211,8 @@ export async function GET(request: NextRequest) {
         totalDuration: course.totalDuration,
         totalVideos: course.totalVideos,
         pricing: course.pricing,
+        discount: course.discount,
+        promoCode: course.promoCode,
         isFree: course.isFree,
         giftHours: course.giftHours,
         enrolledCount: course.enrolledCount,
