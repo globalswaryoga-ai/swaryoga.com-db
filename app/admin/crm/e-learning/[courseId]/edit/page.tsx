@@ -6,6 +6,29 @@ import { useAuth } from '@/hooks/useAuth';
 import { ArrowLeft, Save, Loader } from 'lucide-react';
 import Link from 'next/link';
 
+// All 19 language options
+const languageOptions = [
+  { code: 'en', name: 'English', flag: '🇬🇧' },
+  { code: 'hi', name: 'Hindi', flag: '🇮🇳' },
+  { code: 'mr', name: 'Marathi', flag: '🇮🇳' },
+  { code: 'ne', name: 'Nepali', flag: '🇳🇵' },
+  { code: 'zh', name: 'Mandarin', flag: '🇨🇳' },
+  { code: 'es', name: 'Spanish', flag: '🇪🇸' },
+  { code: 'fr', name: 'French', flag: '🇫🇷' },
+  { code: 'ar', name: 'Arabic', flag: '🇸🇦' },
+  { code: 'de', name: 'German', flag: '🇩🇪' },
+  { code: 'pt', name: 'Portuguese', flag: '🇧🇷' },
+  { code: 'ja', name: 'Japanese', flag: '🇯🇵' },
+  { code: 'ko', name: 'Korean', flag: '🇰🇷' },
+  { code: 'ru', name: 'Russian', flag: '🇷🇺' },
+  { code: 'it', name: 'Italian', flag: '🇮🇹' },
+  { code: 'tr', name: 'Turkish', flag: '🇹🇷' },
+  { code: 'nl', name: 'Dutch', flag: '🇳🇱' },
+  { code: 'sv', name: 'Swedish', flag: '🇸🇪' },
+  { code: 'th', name: 'Thai', flag: '🇹🇭' },
+  { code: 'id', name: 'Indonesian', flag: '🇮🇩' },
+];
+
 interface Course {
   _id: string;
   slug: string;
@@ -39,20 +62,35 @@ export default function EditCoursePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Form fields - Multi-language
-  const [activeLanguage, setActiveLanguage] = useState<'en' | 'hi' | 'ne' | 'mr'>('en');
-  const [content, setContent] = useState({
+  // Form fields - Multi-language (all 19 languages)
+  const [activeLanguage, setActiveLanguage] = useState<string>('en');
+  const [content, setContent] = useState<Record<string, { title: string; subtitle?: string; description?: string }>>({
     en: { title: '', subtitle: '', description: '' },
     hi: { title: '', subtitle: '', description: '' },
     ne: { title: '', subtitle: '', description: '' },
     mr: { title: '', subtitle: '', description: '' },
+    zh: { title: '', subtitle: '', description: '' },
+    es: { title: '', subtitle: '', description: '' },
+    fr: { title: '', subtitle: '', description: '' },
+    ar: { title: '', subtitle: '', description: '' },
+    de: { title: '', subtitle: '', description: '' },
+    pt: { title: '', subtitle: '', description: '' },
+    ja: { title: '', subtitle: '', description: '' },
+    ko: { title: '', subtitle: '', description: '' },
+    ru: { title: '', subtitle: '', description: '' },
+    it: { title: '', subtitle: '', description: '' },
+    tr: { title: '', subtitle: '', description: '' },
+    nl: { title: '', subtitle: '', description: '' },
+    sv: { title: '', subtitle: '', description: '' },
+    th: { title: '', subtitle: '', description: '' },
+    id: { title: '', subtitle: '', description: '' },
   });
 
   // Load preferred language from localStorage on mount
   useEffect(() => {
     const savedLang = localStorage.getItem('admin_course_edit_language');
-    if (savedLang && ['en', 'hi', 'mr', 'ne'].includes(savedLang)) {
-      setActiveLanguage(savedLang as 'en' | 'hi' | 'ne' | 'mr');
+    if (savedLang && languageOptions.some(l => l.code === savedLang)) {
+      setActiveLanguage(savedLang);
     }
   }, []);
 
@@ -82,12 +120,11 @@ export default function EditCoursePage() {
         if (data.success && data.course) {
           const c = data.course;
           setCourse(c);
-          setContent({
-            en: c.content?.en || { title: '', subtitle: '', description: '' },
-            hi: c.content?.hi || { title: '', subtitle: '', description: '' },
-            ne: c.content?.ne || { title: '', subtitle: '', description: '' },
-            mr: c.content?.mr || { title: '', subtitle: '', description: '' },
+          const newContent: Record<string, { title: string; subtitle?: string; description?: string }> = {};
+          languageOptions.forEach(lang => {
+            newContent[lang.code] = c.content?.[lang.code] || { title: '', subtitle: '', description: '' };
           });
+          setContent(newContent);
           setLevel(c.level || 'beginner');
           setThumbnail(c.thumbnail || '');
           setTotalVideos(String(c.totalVideos || 0));
@@ -208,23 +245,23 @@ export default function EditCoursePage() {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="bg-gray-900/50 rounded-2xl border border-gray-800 p-8 space-y-6 max-h-[80vh] overflow-y-auto">
-          {/* Language Tabs */}
-          <div className="flex gap-2 border-b border-gray-700 mb-6 overflow-x-auto">
-            {(['en', 'hi', 'mr', 'ne'] as const).map((lang) => (
+          {/* Language Tabs - All 19 Languages */}
+          <div className="flex gap-1 border-b border-gray-700 mb-6 overflow-x-auto pb-2">
+            {languageOptions.map((lang) => (
               <button
-                key={lang}
+                key={lang.code}
                 type="button"
                 onClick={() => {
-                  setActiveLanguage(lang);
-                  localStorage.setItem('admin_course_edit_language', lang);
+                  setActiveLanguage(lang.code);
+                  localStorage.setItem('admin_course_edit_language', lang.code);
                 }}
-                className={`px-4 py-2 font-semibold transition-colors whitespace-nowrap ${
-                  activeLanguage === lang
-                    ? 'text-green-400 border-b-2 border-green-400'
-                    : 'text-gray-400 hover:text-gray-300'
+                className={`px-3 py-2 text-sm font-semibold transition-colors whitespace-nowrap rounded-t-lg ${
+                  activeLanguage === lang.code
+                    ? 'bg-green-900/50 text-green-400 border-b-2 border-green-400'
+                    : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'
                 }`}
               >
-                {lang === 'en' ? '🇬🇧 English' : lang === 'hi' ? '🇮🇳 Hindi' : lang === 'mr' ? '🇮🇳 Marathi' : '🇳🇵 Nepali'}
+                <span>{lang.flag} {lang.name}</span>
               </button>
             ))}
           </div>
@@ -232,7 +269,7 @@ export default function EditCoursePage() {
           {/* Language Content */}
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-green-400 mb-2">Workshop Name * ({activeLanguage.toUpperCase()})</label>
+              <label className="block text-sm font-medium text-green-400 mb-2">Workshop Name * ({languageOptions.find(l => l.code === activeLanguage)?.name})</label>
               <input
                 type="text"
                 value={content[activeLanguage].title}
@@ -247,7 +284,7 @@ export default function EditCoursePage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-green-400 mb-2">Workshop Subtitle ({activeLanguage.toUpperCase()})</label>
+              <label className="block text-sm font-medium text-green-400 mb-2">Workshop Subtitle ({languageOptions.find(l => l.code === activeLanguage)?.name})</label>
               <input
                 type="text"
                 value={content[activeLanguage].subtitle || ''}
@@ -261,7 +298,7 @@ export default function EditCoursePage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-green-400 mb-2">Workshop Description ({activeLanguage.toUpperCase()})</label>
+              <label className="block text-sm font-medium text-green-400 mb-2">Workshop Description ({languageOptions.find(l => l.code === activeLanguage)?.name})</label>
               <textarea
                 value={content[activeLanguage].description || ''}
                 onChange={(e) => setContent(prev => ({
