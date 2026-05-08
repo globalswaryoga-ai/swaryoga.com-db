@@ -359,6 +359,7 @@ export default function CourseDetailPage() {
             discount: course.discount,
           }}
           token={token}
+          language={language}
         />
       )}
     </div>
