@@ -536,13 +536,13 @@ function CreateCourseModal({ token, onClose, onCreated }: { token: string; onClo
           {/* Row 4 */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-green-400 mb-2">Workshop Duration (minutes)</label>
+              <label className="block text-sm font-medium text-green-400 mb-2">Workshop Duration (days)</label>
               <input
                 type="number"
                 value={duration}
                 onChange={(e) => setDuration(e.target.value)}
                 className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
-                placeholder="0"
+                placeholder="7"
                 min="0"
               />
             </div>
