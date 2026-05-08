@@ -3,8 +3,17 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Play, Users, Calendar, Video } from 'lucide-react';
+import { ArrowLeft, Play, Users, Calendar, Video, Globe, Lock } from 'lucide-react';
 import CourseEnrollmentModal from '@/components/CourseEnrollmentModal';
+
+interface Video {
+  _id: string;
+  title: string;
+  description?: string;
+  thumbnail?: string;
+  duration?: number;
+  order?: number;
+}
 
 interface Course {
   _id: string;
@@ -31,10 +40,12 @@ export default function CourseDetailPage() {
   const slug = params.slug as string;
 
   const [course, setCourse] = useState<Course | null>(null);
+  const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showEnrollmentModal, setShowEnrollmentModal] = useState(false);
   const [token, setToken] = useState<string>('');
+  const [language, setLanguage] = useState<string>('en');
 
   useEffect(() => {
     // Get token from localStorage
@@ -44,11 +55,12 @@ export default function CourseDetailPage() {
     const fetchCourse = async () => {
       try {
         setLoading(true);
-        const res = await fetch(`/api/recorded-courses?slug=${slug}`);
+        const res = await fetch(`/api/recorded-courses?slug=${slug}&lang=${language}`);
         const data = await res.json();
 
         if (data.success && data.course) {
           setCourse(data.course);
+          setVideos(data.videos || []);
         } else {
           setError('Course not found');
         }
@@ -60,7 +72,7 @@ export default function CourseDetailPage() {
     };
 
     fetchCourse();
-  }, [slug]);
+  }, [slug, language]);
 
   if (loading) {
     return (
@@ -90,10 +102,20 @@ export default function CourseDetailPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <div className="bg-gray-50 border-b p-6">
+      <div className="bg-gray-50 border-b p-6 flex items-center justify-between">
         <Link href="/e-learning" className="flex items-center gap-2 text-green-600 hover:text-green-700">
           <ArrowLeft size={20} /> Back to Courses
         </Link>
+        {/* Language Selector */}
+        <select
+          value={language}
+          onChange={(e) => setLanguage(e.target.value)}
+          className="px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 flex items-center gap-2 focus:ring-2 focus:ring-green-500"
+        >
+          <option value="en">🇬🇧 English</option>
+          <option value="hi">🇮🇳 Hindi</option>
+          <option value="ne">🇳🇵 Nepali</option>
+        </select>
       </div>
 
       <div className="max-w-4xl mx-auto p-6">
@@ -131,9 +153,66 @@ export default function CourseDetailPage() {
             </div>
 
             {course.description && (
-              <div>
+              <div className="mb-8">
                 <h2 className="text-2xl font-bold text-black mb-4">About This Course</h2>
                 <p className="text-gray-700 leading-relaxed">{course.description}</p>
+              </div>
+            )}
+
+            {/* Course Content */}
+            {videos.length > 0 && (
+              <div>
+                <h2 className="text-2xl font-bold text-black mb-4">Course Content</h2>
+                <div className="space-y-3">
+                  {videos.map((video, index) => (
+                    <div
+                      key={video._id}
+                      className="flex gap-4 p-4 border border-gray-200 rounded-lg hover:border-green-400 transition-colors cursor-pointer"
+                    >
+                      {/* Video Thumbnail */}
+                      <div className="flex-shrink-0 w-32 h-20 bg-gray-300 rounded-lg overflow-hidden relative">
+                        {video.thumbnail ? (
+                          <img
+                            src={video.thumbnail}
+                            alt={video.title}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-gray-400">
+                            <Play size={24} className="text-white" />
+                          </div>
+                        )}
+                        {/* Free Badge */}
+                        {index === 0 && (
+                          <div className="absolute top-1 right-1 bg-green-500 text-white text-xs font-bold px-2 py-1 rounded">
+                            FREE
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Video Info */}
+                      <div className="flex-1">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                              {index === 0 ? (
+                                <Play size={16} className="text-green-600" />
+                              ) : (
+                                <Lock size={16} className="text-gray-400" />
+                              )}
+                              {video.title}
+                            </h3>
+                            {video.description && (
+                              <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+                                {video.description}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
