@@ -245,25 +245,23 @@ export default function EditCoursePage() {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="bg-gray-900/50 rounded-2xl border border-gray-800 p-8 space-y-6 max-h-[80vh] overflow-y-auto">
-          {/* Language Tabs - All 19 Languages */}
-          <div className="flex gap-1 border-b border-gray-700 mb-6 overflow-x-auto pb-2">
-            {languageOptions.map((lang) => (
-              <button
-                key={lang.code}
-                type="button"
-                onClick={() => {
-                  setActiveLanguage(lang.code);
-                  localStorage.setItem('admin_course_edit_language', lang.code);
-                }}
-                className={`px-3 py-2 text-sm font-semibold transition-colors whitespace-nowrap rounded-t-lg ${
-                  activeLanguage === lang.code
-                    ? 'bg-green-900/50 text-green-400 border-b-2 border-green-400'
-                    : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'
-                }`}
-              >
-                <span>{lang.flag} {lang.name}</span>
-              </button>
-            ))}
+          {/* Language Dropdown - All 19 Languages */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-green-400 mb-2">Select Language to Edit</label>
+            <select
+              value={activeLanguage}
+              onChange={(e) => {
+                setActiveLanguage(e.target.value);
+                localStorage.setItem('admin_course_edit_language', e.target.value);
+              }}
+              className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none appearance-none cursor-pointer"
+            >
+              {languageOptions.map((lang) => (
+                <option key={lang.code} value={lang.code}>
+                  {lang.flag} {lang.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Language Content */}
