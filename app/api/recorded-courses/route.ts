@@ -19,11 +19,12 @@ import {
 export const dynamic = 'force-dynamic';
 
 
-// Helper to get user-preferred language
-function getPreferredLanguage(request: NextRequest): 'en' | 'hi' | 'mr' | 'ne' {
+// Helper to get user-preferred language (supports all languages, falls back to EN for unsupported)
+function getPreferredLanguage(request: NextRequest): string {
   const langParam = request.nextUrl.searchParams.get('lang');
-  if (langParam && ['en', 'hi', 'mr', 'ne'].includes(langParam)) {
-    return langParam as 'en' | 'hi' | 'mr' | 'ne';
+  if (langParam) {
+    // Accept any language code - unsupported languages will fall back to English in getLocalizedContent
+    return langParam.toLowerCase();
   }
   // Check Accept-Language header
   const acceptLang = request.headers.get('accept-language') || '';

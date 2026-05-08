@@ -6,6 +6,29 @@ import Link from 'next/link';
 import { ArrowLeft, Play, Users, Calendar, Video, Globe, Lock } from 'lucide-react';
 import CourseEnrollmentModal from '@/components/CourseEnrollmentModal';
 
+// Language options with flags (same as main e-learning page)
+const languageOptions = [
+  { code: 'en', name: 'English', flag: '🇬🇧' },
+  { code: 'hi', name: 'Hindi', flag: '🇮🇳' },
+  { code: 'mr', name: 'Marathi', flag: '🇮🇳' },
+  { code: 'ne', name: 'Nepali', flag: '🇳🇵' },
+  { code: 'zh', name: 'Mandarin', flag: '🇨🇳' },
+  { code: 'es', name: 'Spanish', flag: '🇪🇸' },
+  { code: 'fr', name: 'French', flag: '🇫🇷' },
+  { code: 'ar', name: 'Arabic', flag: '🇸🇦' },
+  { code: 'de', name: 'German', flag: '🇩🇪' },
+  { code: 'pt', name: 'Portuguese', flag: '🇧🇷' },
+  { code: 'ja', name: 'Japanese', flag: '🇯🇵' },
+  { code: 'ko', name: 'Korean', flag: '🇰🇷' },
+  { code: 'ru', name: 'Russian', flag: '🇷🇺' },
+  { code: 'it', name: 'Italian', flag: '🇮🇹' },
+  { code: 'tr', name: 'Turkish', flag: '🇹🇷' },
+  { code: 'nl', name: 'Dutch', flag: '🇳🇱' },
+  { code: 'sv', name: 'Swedish', flag: '🇸🇪' },
+  { code: 'th', name: 'Thai', flag: '🇹🇭' },
+  { code: 'id', name: 'Indonesian', flag: '🇮🇩' },
+];
+
 interface Video {
   _id: string;
   title: string;
@@ -46,6 +69,7 @@ export default function CourseDetailPage() {
   const [showEnrollmentModal, setShowEnrollmentModal] = useState(false);
   const [token, setToken] = useState<string>('');
   const [language, setLanguage] = useState<string>('en');
+  const [langDropdownOpen, setLangDropdownOpen] = useState(false);
 
   useEffect(() => {
     // Get token from localStorage
@@ -54,10 +78,13 @@ export default function CourseDetailPage() {
 
     // Get preferred language from localStorage
     const savedLang = localStorage.getItem('preferred_language');
-    if (savedLang && ['en', 'hi', 'mr', 'ne'].includes(savedLang)) {
+    if (savedLang && languageOptions.some(l => l.code === savedLang)) {
       setLanguage(savedLang);
     }
   }, []);
+
+  // Get current language info
+  const currentLangInfo = languageOptions.find(l => l.code === language) || languageOptions[0];
 
   useEffect(() => {
     const fetchCourse = async () => {
@@ -114,21 +141,50 @@ export default function CourseDetailPage() {
         <Link href="/e-learning" className="flex items-center gap-2 text-green-600 hover:text-green-700">
           <ArrowLeft size={20} /> Back to Courses
         </Link>
-        {/* Language Selector */}
-        <select
-          value={language}
-          onChange={(e) => {
-            const newLang = e.target.value;
-            setLanguage(newLang);
-            localStorage.setItem('preferred_language', newLang);
-          }}
-          className="px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 text-sm font-medium focus:ring-2 focus:ring-green-500 focus:border-green-500 cursor-pointer hover:border-gray-400 transition-colors"
-        >
-          <option value="en">🇬🇧 English</option>
-          <option value="hi">🇮🇳 Hindi</option>
-          <option value="mr">🇮🇳 Marathi</option>
-          <option value="ne">🇳🇵 Nepali</option>
-        </select>
+        {/* Language Dropdown - 19 Languages */}
+        <div className="relative">
+          <button
+            onClick={() => setLangDropdownOpen(!langDropdownOpen)}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors hover:border-gray-400"
+          >
+            <span className="text-lg">{currentLangInfo.flag}</span>
+            <span>{currentLangInfo.name}</span>
+            <svg
+              className={`w-4 h-4 transition-transform ${langDropdownOpen ? 'rotate-180' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {langDropdownOpen && (
+            <div className="absolute top-full right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-300 overflow-hidden max-h-96 overflow-y-auto z-50">
+              {languageOptions.map((lang) => (
+                <button
+                  key={lang.code}
+                  onClick={() => {
+                    setLanguage(lang.code);
+                    localStorage.setItem('preferred_language', lang.code);
+                    setLangDropdownOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-green-50 transition-colors ${
+                    language === lang.code ? 'bg-green-100 font-semibold' : ''
+                  }`}
+                >
+                  <span className="text-2xl">{lang.flag}</span>
+                  <span className={language === lang.code ? 'text-green-700' : 'text-gray-700'}>{lang.name}</span>
+                  {language === lang.code && (
+                    <svg className="w-4 h-4 text-green-600 ml-auto flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="max-w-4xl mx-auto p-6">
