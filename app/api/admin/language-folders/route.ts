@@ -19,7 +19,8 @@ export async function GET(request: NextRequest) {
 
     const url = new URL(request.url);
     const isPublic = !url.pathname.includes('/admin/');
-    const db = (await connectDB()).connection.db;
+    const conn = await connectDB();
+    const db = conn.db;
 
     if (isPublic) {
       // Public endpoint - return only active folders
@@ -114,7 +115,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    const db = (await connectDB()).connection.db;
+    const conn = await connectDB();
+    const db = conn.db;
 
     const result = await db.collection('language_folders').insertOne({
       code,
@@ -169,7 +171,8 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const { name, thumbnail, isActive, order } = body;
 
-    const db = (await connectDB()).connection.db;
+    const conn = await connectDB();
+    const db = conn.db;
 
     const updateData: any = { updatedAt: new Date() };
     if (name) updateData.name = name;
@@ -224,7 +227,8 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Missing id' }, { status: 400 });
     }
 
-    const db = (await connectDB()).connection.db;
+    const conn = await connectDB();
+    const db = conn.db;
 
     const result = await db.collection('language_folders').deleteOne(
       { _id: new ObjectId(id) }
