@@ -214,6 +214,11 @@ export default function CourseDetailPage() {
         </div>
       </div>
 
+      {!course ? (
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="animate-spin w-10 h-10 border-4 border-green-500 border-t-transparent rounded-full" />
+        </div>
+      ) : (
       <div className="max-w-4xl mx-auto p-6">
         {course.thumbnail && (
           <div className="mb-8 rounded-2xl overflow-hidden">
@@ -410,6 +415,7 @@ export default function CourseDetailPage() {
           </div>
         </div>
       </div>
+      )}
 
       {/* Enrollment Modal */}
       {course && (
