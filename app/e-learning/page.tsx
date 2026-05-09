@@ -180,6 +180,16 @@ interface Course {
 
 type Language = string;
 
+interface LanguageFolder {
+  _id: string;
+  code: string;
+  name: string;
+  flag: string;
+  thumbnail: string;
+  isActive: boolean;
+  order: number;
+}
+
 export default function CoursesPage() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
@@ -190,6 +200,9 @@ export default function CoursesPage() {
   const [langDropdownOpen, setLangDropdownOpen] = useState(false);
   const [showComingSoonPopup, setShowComingSoonPopup] = useState(false);
   const [attemptedLanguage, setAttemptedLanguage] = useState<Language>('en');
+  const [languageFolders, setLanguageFolders] = useState<LanguageFolder[]>([]);
+  const [selectedFolder, setSelectedFolder] = useState<LanguageFolder | null>(null);
+  const [loadingFolders, setLoadingFolders] = useState(true);
   const langDropdownRef = useRef<HTMLDivElement>(null);
 
   // Always use English for UI - only course content translates
@@ -199,6 +212,26 @@ export default function CoursesPage() {
   const currentLangInfo = language === 'all'
     ? { code: 'all', name: 'All Languages', flag: '🌍' }
     : languageOptions.find(l => l.code === language) || languageOptions[0];
+
+  // Fetch language folders on mount
+  useEffect(() => {
+    const fetchFolders = async () => {
+      try {
+        setLoadingFolders(true);
+        const response = await fetch('/api/language-folders');
+        const data = await response.json();
+        if (data.success && Array.isArray(data.folders)) {
+          const sortedFolders = data.folders.sort((a: LanguageFolder, b: LanguageFolder) => a.order - b.order);
+          setLanguageFolders(sortedFolders);
+        }
+      } catch (err) {
+        console.error('Error fetching language folders:', err);
+      } finally {
+        setLoadingFolders(false);
+      }
+    };
+    fetchFolders();
+  }, []);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -233,7 +266,8 @@ export default function CoursesPage() {
         headers.Authorization = `Bearer ${token}`;
       }
 
-      const response = await fetch(`/api/recorded-courses?lang=${language}`, { headers });
+      const langParam = selectedFolder ? selectedFolder.code : language;
+      const response = await fetch(`/api/recorded-courses?lang=${langParam}`, { headers });
       const data = await response.json();
 
       if (data.success) {
@@ -245,7 +279,7 @@ export default function CoursesPage() {
     } finally {
       setLoading(false);
     }
-  }, [language]);
+  }, [language, selectedFolder]);
 
   useEffect(() => {
     fetchCourses();
@@ -333,13 +367,33 @@ export default function CoursesPage() {
       <section className="relative py-10 overflow-hidden" style={{ background: 'linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 50%, #0f0f0f 100%)' }}>
         {/* Glossy overlay */}
         <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
-        
+
         {/* Subtle glow effects */}
         <div className="absolute -top-20 -right-20 w-60 h-60 bg-green-500/10 rounded-full blur-3xl" />
         <div className="absolute -bottom-20 -left-20 w-60 h-60 bg-green-500/10 rounded-full blur-3xl" />
 
-        {/* Language Selector - Top Right */}
-        <div className="absolute top-4 right-4 z-20" ref={langDropdownRef}>
+        {/* Back Button (Phase 2 only) */}
+        {selectedFolder && (
+          <div className="absolute top-4 left-4 z-20">
+            <button
+              onClick={() => {
+                setSelectedFolder(null);
+                setSearchQuery('');
+                setSelectedLevel('all');
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-800/80 backdrop-blur-sm rounded-lg border border-gray-700 shadow-md hover:bg-gray-700 transition-all text-gray-200 font-medium text-sm"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              Languages
+            </button>
+          </div>
+        )}
+
+        {/* Language Selector - Top Right (Phase 2 only) */}
+        {selectedFolder && (
+          <div className="absolute top-4 right-4 z-20" ref={langDropdownRef}>
           <button
             onClick={() => setLangDropdownOpen(!langDropdownOpen)}
             className="flex items-center gap-2 px-3 py-1.5 bg-gray-800/80 backdrop-blur-sm rounded-lg border border-gray-700 shadow-md hover:bg-gray-700 transition-all"
@@ -407,60 +461,122 @@ export default function CoursesPage() {
             </div>
           )}
         </div>
+        )}
 
         <div className="relative max-w-7xl mx-auto px-4">
           <div className="text-center max-w-3xl mx-auto">
             <h1 className="text-3xl md:text-4xl font-bold mb-3 tracking-tight text-green-500">
-              {t.heroTitle}
+              {selectedFolder ? selectedFolder.name : t.heroTitle}
             </h1>
             <p className="text-base md:text-lg text-gray-400 mb-4 leading-relaxed">
-              {t.heroSubtitle}
+              {selectedFolder ? `Browse all ${selectedFolder.name} workshops` : t.heroSubtitle}
             </p>
 
-            {/* Search */}
-            <div className="max-w-md mx-auto relative">
-              <input
-                type="text"
-                placeholder={t.searchPlaceholder}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-5 py-3 rounded-full text-white placeholder-gray-500 bg-gray-800/80 focus:outline-none focus:ring-2 focus:ring-green-500 border border-gray-700"
-              />
-              <svg
-                className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-green-500"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
+            {/* Phase 2: Search Input */}
+            {selectedFolder && (
+              <div className="max-w-md mx-auto relative">
+                <input
+                  type="text"
+                  placeholder={t.searchPlaceholder}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full px-5 py-3 rounded-full text-white placeholder-gray-500 bg-gray-800/80 focus:outline-none focus:ring-2 focus:ring-green-500 border border-gray-700"
+                />
+                <svg
+                  className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-green-500"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+            )}
+          </div>
+
+          {/* Phase 1: Language Folder Cards Grid */}
+          {!selectedFolder && (
+            <div className="mt-12">
+              {loadingFolders ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="w-8 h-8 border-3 border-green-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : languageFolders.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-gray-400 mb-4">No language folders available yet</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {languageFolders.map((folder) => (
+                    <button
+                      key={folder._id}
+                      onClick={() => setSelectedFolder(folder)}
+                      className="group relative aspect-video rounded-xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer"
+                    >
+                      {/* Folder Thumbnail */}
+                      <div className="absolute inset-0 bg-gradient-to-br from-green-800 to-green-900">
+                        {folder.thumbnail ? (
+                          <img
+                            src={folder.thumbnail}
+                            alt={folder.name}
+                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                          />
+                        ) : (
+                          <div className="flex items-center justify-center h-full">
+                            <svg className="w-16 h-16 text-green-400/50" fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" />
+                            </svg>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Dark Overlay */}
+                      <div className="absolute inset-0 bg-black/40 group-hover:bg-black/50 transition-all duration-300" />
+
+                      {/* Content */}
+                      <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                        <span className="text-5xl mb-3">{folder.flag}</span>
+                        <h3 className="text-xl md:text-2xl font-bold text-white mb-2">
+                          {folder.name}
+                        </h3>
+                        <span className="inline-block px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                          Explore →
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Filter Section (Phase 2 only) */}
+      {selectedFolder && (
+        <section className="py-4 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-40">
+          <div className="max-w-7xl mx-auto px-4">
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              {['all', 'beginner', 'intermediate', 'advanced'].map((level) => (
+                <button
+                  key={level}
+                  onClick={() => setSelectedLevel(level)}
+                  className={`px-5 py-2 rounded-full text-sm font-semibold transition-all ${
+                    selectedLevel === level
+                      ? 'bg-green-600 text-white shadow-md'
+                      : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 dark:border-gray-700'
+                  }`}
+                >
+                  {level === 'all' ? t.allLevels : getLevelLabel(level)}
+                </button>
+              ))}
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
-      {/* Filter Section */}
-      <section className="py-4 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            {['all', 'beginner', 'intermediate', 'advanced'].map((level) => (
-              <button
-                key={level}
-                onClick={() => setSelectedLevel(level)}
-                className={`px-5 py-2 rounded-full text-sm font-semibold transition-all ${
-                  selectedLevel === level
-                    ? 'bg-green-600 text-white shadow-md'
-                    : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 dark:border-gray-700'
-                }`}
-              >
-                {level === 'all' ? t.allLevels : getLevelLabel(level)}
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Courses Grid */}
+      {/* Courses Grid (Phase 2 only) */}
+      {selectedFolder && (
       <section className="py-10 flex-grow bg-gray-50 dark:bg-gray-900">
         <div className="max-w-7xl mx-auto px-4">
           {loading ? (
@@ -660,6 +776,7 @@ export default function CoursesPage() {
           )}
         </div>
       </section>
+      )}
 
       {/* Coming Soon Popup */}
       {showComingSoonPopup && (

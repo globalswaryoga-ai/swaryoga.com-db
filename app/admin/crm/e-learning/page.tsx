@@ -515,6 +515,26 @@ function DuplicateCourseModal({ token, course, onClose, onCreated }: { token: st
   const [isFree, setIsFree] = useState(course.isFree || false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [languageFolders, setLanguageFolders] = useState<any[]>([]);
+  const [selectedFolder, setSelectedFolder] = useState('');
+  const [showFolderModal, setShowFolderModal] = useState(false);
+
+  useEffect(() => {
+    const fetchFolders = async () => {
+      try {
+        const res = await fetch('/api/admin/language-folders', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (data.success) {
+          setLanguageFolders(data.folders || []);
+        }
+      } catch (err) {
+        console.error('Error fetching folders:', err);
+      }
+    };
+    if (token) fetchFolders();
+  }, [token]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -556,6 +576,7 @@ function DuplicateCourseModal({ token, course, onClose, onCreated }: { token: st
           isFree,
           isPublished: false,
           isActive: true,
+          folderName: selectedFolder || null,
         }),
       });
 
@@ -716,6 +737,44 @@ function DuplicateCourseModal({ token, course, onClose, onCreated }: { token: st
             </div>
           </div>
 
+          {/* Folder Selection */}
+          <div>
+            <label className="block text-sm font-medium text-green-400 mb-2">Language Folder</label>
+            <div className="flex gap-2">
+              <select
+                value={selectedFolder}
+                onChange={(e) => setSelectedFolder(e.target.value)}
+                className="flex-1 px-4 py-3 bg-black border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none"
+              >
+                <option value="">-- No Folder --</option>
+                {languageFolders.map((folder) => (
+                  <option key={folder._id} value={folder._id}>
+                    {folder.flag} {folder.name}
+                  </option>
+                ))}
+              </select>
+              {languageFolders.length === 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setShowFolderModal(true)}
+                  className="px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-colors"
+                  title="Create a new folder"
+                >
+                  +
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowFolderModal(true)}
+                  className="px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-colors text-sm"
+                  title="Create a new folder"
+                >
+                  + Add
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* Free Course Checkbox */}
           <div className="flex items-center gap-2">
             <input
@@ -848,6 +907,27 @@ function DuplicateCourseModal({ token, course, onClose, onCreated }: { token: st
             </button>
           </div>
         </form>
+
+        {/* Language Folder Modal */}
+        {showFolderModal && (
+          <div className="fixed inset-0 flex items-center justify-center z-50">
+            <LanguageFolderModal
+              token={token}
+              folder={undefined}
+              onClose={() => setShowFolderModal(false)}
+              onSaved={async () => {
+                setShowFolderModal(false);
+                const res = await fetch('/api/admin/language-folders', {
+                  headers: { Authorization: `Bearer ${token}` },
+                });
+                const data = await res.json();
+                if (data.success) {
+                  setLanguageFolders(data.folders || []);
+                }
+              }}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -871,6 +951,26 @@ function CreateCourseModal({ token, onClose, onCreated }: { token: string; onClo
   const [isFree, setIsFree] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [languageFolders, setLanguageFolders] = useState<any[]>([]);
+  const [selectedFolder, setSelectedFolder] = useState('');
+  const [showFolderModal, setShowFolderModal] = useState(false);
+
+  useEffect(() => {
+    const fetchFolders = async () => {
+      try {
+        const res = await fetch('/api/admin/language-folders', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (data.success) {
+          setLanguageFolders(data.folders || []);
+        }
+      } catch (err) {
+        console.error('Error fetching folders:', err);
+      }
+    };
+    if (token) fetchFolders();
+  }, [token]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -912,6 +1012,7 @@ function CreateCourseModal({ token, onClose, onCreated }: { token: string; onClo
           isFree,
           isPublished: false,
           isActive: true,
+          folderName: selectedFolder || null,
         }),
       });
 
@@ -1072,6 +1173,44 @@ function CreateCourseModal({ token, onClose, onCreated }: { token: string; onClo
             </div>
           </div>
 
+          {/* Language Folder Selection */}
+          <div>
+            <label className="block text-sm font-medium text-green-400 mb-2">Language Folder</label>
+            <div className="flex gap-2">
+              <select
+                value={selectedFolder}
+                onChange={(e) => setSelectedFolder(e.target.value)}
+                className="flex-1 px-4 py-3 bg-black border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none"
+              >
+                <option value="">-- No Folder --</option>
+                {languageFolders.map((folder) => (
+                  <option key={folder._id} value={folder._id}>
+                    {folder.flag} {folder.name}
+                  </option>
+                ))}
+              </select>
+              {languageFolders.length === 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setShowFolderModal(true)}
+                  className="px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-colors"
+                  title="Create a new folder"
+                >
+                  +
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowFolderModal(true)}
+                  className="px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-colors text-sm"
+                  title="Create a new folder"
+                >
+                  + Add
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* Free Course Checkbox */}
           <div className="flex items-center gap-2">
             <input
@@ -1208,6 +1347,27 @@ function CreateCourseModal({ token, onClose, onCreated }: { token: string; onClo
             </button>
           </div>
         </form>
+
+        {/* Language Folder Modal */}
+        {showFolderModal && (
+          <div className="fixed inset-0 flex items-center justify-center z-50">
+            <LanguageFolderModal
+              token={token}
+              folder={undefined}
+              onClose={() => setShowFolderModal(false)}
+              onSaved={async () => {
+                setShowFolderModal(false);
+                const res = await fetch('/api/admin/language-folders', {
+                  headers: { Authorization: `Bearer ${token}` },
+                });
+                const data = await res.json();
+                if (data.success) {
+                  setLanguageFolders(data.folders || []);
+                }
+              }}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
