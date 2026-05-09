@@ -329,15 +329,13 @@ export default function DLearningPage() {
                 Create Folder
               </button>
             )}
-            {selectedFolder && (
-              <button
-                onClick={() => setShowCreateModal(true)}
-                className="flex items-center gap-2 px-5 py-2.5 bg-green-500 hover:bg-green-600 text-black font-semibold rounded-lg transition-colors"
-              >
-                <Plus size={18} />
-                Add Workshop
-              </button>
-            )}
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="flex items-center gap-2 px-5 py-2.5 bg-green-500 hover:bg-green-600 text-black font-semibold rounded-lg transition-colors"
+            >
+              <Plus size={18} />
+              Add Workshop
+            </button>
           </div>
         </div>
       </div>
