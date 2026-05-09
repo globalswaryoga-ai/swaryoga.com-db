@@ -85,6 +85,16 @@ export default function InstagramInboxPage() {
   const [composerText, setComposerText] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [messageSearchQuery, setMessageSearchQuery] = useState('');
+  const [showQuickReplies, setShowQuickReplies] = useState(false);
+
+  const quickReplies = [
+    { label: 'Thank you! 🙏', text: 'Thank you for your interest! We\'ll get back to you soon.' },
+    { label: 'Enrolled ✅', text: 'Great! You\'re successfully enrolled. Check your email for course details.' },
+    { label: 'Thanks for feedback', text: 'Thank you for the feedback! We appreciate your input.' },
+    { label: 'Welcome 👋', text: 'Welcome to Swar Yoga! We\'re excited to have you here.' },
+    { label: 'Need info? 📚', text: 'Sure! What information would you like to know about our programs?' },
+    { label: 'Bye! 👋', text: 'Thank you! See you soon. Namaste 🙏' },
+  ];
   const [showSidebar, setShowSidebar] = useState(true);
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [sidebarData, setSidebarData] = useState<any>({ labels: [], notes: '', assignedTo: '', status: 'new_lead' });
@@ -714,8 +724,35 @@ export default function InstagramInboxPage() {
               </div>
 
               {/* Composer */}
-              <div className="px-3 pt-2 pb-6 shrink-0 z-30 backdrop-blur-md" style={{ background: 'linear-gradient(0deg, rgba(255,255,255,0.98) 0%, rgba(255,240,245,0.9) 100%)', borderTop: '1px solid rgba(193,53,132,0.1)' }}>
+              <div className="px-3 pt-2 pb-6 shrink-0 z-30 backdrop-blur-md relative" style={{ background: 'linear-gradient(0deg, rgba(255,255,255,0.98) 0%, rgba(255,240,245,0.9) 100%)', borderTop: '1px solid rgba(193,53,132,0.1)' }}>
+                {/* Quick Replies Dropdown */}
+                {showQuickReplies && (
+                  <div className="absolute bottom-20 left-3 bg-white rounded-xl border shadow-lg p-2 w-80 max-h-48 overflow-y-auto z-50" style={{ borderColor: 'rgba(193,53,132,0.2)' }}>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase px-2 mb-1">Quick Replies</p>
+                    {quickReplies.map((reply, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => {
+                          setComposerText(reply.text);
+                          setShowQuickReplies(false);
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-pink-50 text-[12px] font-medium text-slate-700 transition-colors"
+                      >
+                        {reply.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
                 <div className="flex items-end gap-2 max-w-6xl mx-auto">
+                  <button
+                    onClick={() => setShowQuickReplies(!showQuickReplies)}
+                    title="Quick replies"
+                    className="text-slate-500 h-9 px-3 rounded-2xl font-bold text-sm transition-all hover:bg-slate-100 hover:text-slate-700"
+                  >
+                    <i className="ph-bold ph-lightning text-lg"></i>
+                  </button>
+
                   <div className="flex-1 rounded-2xl bg-white/80 backdrop-blur-sm transition-all relative" style={{ border: '1px solid rgba(193,53,132,0.15)', boxShadow: '0 2px 8px rgba(193,53,132,0.06)' }}>
                     <textarea
                       value={composerText}
