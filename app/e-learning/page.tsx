@@ -198,8 +198,6 @@ export default function CoursesPage() {
   const [selectedLevel, setSelectedLevel] = useState<string>('all');
   const [language, setLanguage] = useState<Language>('all');
   const [langDropdownOpen, setLangDropdownOpen] = useState(false);
-  const [showComingSoonPopup, setShowComingSoonPopup] = useState(false);
-  const [attemptedLanguage, setAttemptedLanguage] = useState<Language>('en');
   const [languageFolders, setLanguageFolders] = useState<LanguageFolder[]>([]);
   const [selectedFolder, setSelectedFolder] = useState<LanguageFolder | null>(null);
   const [loadingFolders, setLoadingFolders] = useState(true);
@@ -282,28 +280,12 @@ export default function CoursesPage() {
   }, [fetchCourses]);
 
   const handleLanguageChange = (newLang: Language) => {
-    // "All Languages" option always works
-    if (newLang === 'all') {
-      setLanguage(newLang);
-      localStorage.setItem('preferred_language', newLang);
-      setLangDropdownOpen(false);
-      return;
-    }
-
-    // Check if any courses exist for this specific language
-    const hasCoursesForLanguage = courses.some(c => c.videoLanguage === newLang);
-
-    if (newLang !== 'en' && !hasCoursesForLanguage) {
-      // Show coming soon popup but DON'T change the language
-      setAttemptedLanguage(newLang);
-      setShowComingSoonPopup(true);
-      setLangDropdownOpen(false);
-    } else {
-      // Change the language only if courses exist or it's English
-      setLanguage(newLang);
-      localStorage.setItem('preferred_language', newLang);
-      setLangDropdownOpen(false);
-    }
+    setLanguage(newLang);
+    localStorage.setItem('preferred_language', newLang);
+    setLangDropdownOpen(false);
+    setSelectedFolder(null);
+    setSearchQuery('');
+    setSelectedLevel('all');
   };
 
   // Filter courses by language, search, and level
@@ -499,9 +481,18 @@ export default function CoursesPage() {
                 (() => {
                   const filteredFolders = languageFolders.filter(folder => language === 'all' || folder.code === language);
                   if (filteredFolders.length === 0) {
-                    return (
+                    return language === 'all' ? (
                       <div className="text-center py-12">
-                        <p className="text-gray-400 mb-4">No folders available for {language === 'all' ? 'this language' : `${currentLangInfo.name}`}</p>
+                        <p className="text-gray-400 mb-4">No folders available</p>
+                      </div>
+                    ) : (
+                      <div className="text-center py-12">
+                        <svg className="w-16 h-16 text-yellow-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <p className="text-lg font-bold text-gray-900 dark:text-white mb-2">Coming Soon!</p>
+                        <p className="text-gray-600 dark:text-gray-400">We're preparing amazing workshops in {currentLangInfo.name}</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">Stay tuned for updates!</p>
                       </div>
                     );
                   }
@@ -621,14 +612,16 @@ export default function CoursesPage() {
           ) : filteredCourses.length === 0 ? (
             <div className="text-center py-20">
               <svg
-                className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4"
+                className="w-16 h-16 text-yellow-500 mx-auto mb-4"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
               >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <p className="text-lg text-gray-500 dark:text-gray-400">{t.noCoursesFound}</p>
+              <p className="text-lg font-bold text-gray-900 dark:text-white mb-2">Coming Soon!</p>
+              <p className="text-gray-600 dark:text-gray-400">We're preparing amazing workshops in {selectedFolder?.name}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">Stay tuned for updates!</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -810,42 +803,6 @@ export default function CoursesPage() {
           )}
         </div>
       </section>
-      )}
-
-      {/* Coming Soon Popup */}
-      {showComingSoonPopup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-300 dark:border-gray-700 shadow-2xl p-8 max-w-md w-full mx-4 text-center animate-fade-in">
-            <div className="mb-6">
-              <svg className="w-16 h-16 text-yellow-500 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">Coming Soon!</h2>
-            <p className="text-gray-600 dark:text-gray-400 mb-2">
-              We're preparing amazing workshops in <span className="font-semibold text-green-600">{languageOptions.find(l => l.code === attemptedLanguage)?.name}</span>
-            </p>
-            <p className="text-gray-500 dark:text-gray-500 text-sm mb-8">
-              Stay tuned! We'll be adding workshops in this language very soon.
-            </p>
-            <button
-              onClick={() => {
-                setShowComingSoonPopup(false);
-                setLanguage('en');
-                localStorage.setItem('preferred_language', 'en');
-              }}
-              className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-all"
-            >
-              Back to English
-            </button>
-            <button
-              onClick={() => setShowComingSoonPopup(false)}
-              className="w-full mt-3 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-semibold py-3 px-6 rounded-lg transition-all"
-            >
-              Continue Browsing
-            </button>
-          </div>
-        </div>
       )}
 
       <Footer />
