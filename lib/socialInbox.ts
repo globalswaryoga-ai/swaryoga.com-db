@@ -348,10 +348,19 @@ export async function sendMetaSocialMessage(args: {
   recipientId: string;
   message: string;
 }) {
-  const url = `https://graph.facebook.com/${META_GRAPH_API_VERSION}/${encodeURIComponent(args.accountId)}/messages`;
+  // Calculate appsecret_proof for security
+  const appSecret = META_INBOX_APP_SECRET;
+  const appsecretProof = appSecret
+    ? crypto.createHmac('sha256', appSecret).update(args.accessToken).digest('hex')
+    : '';
+
+  const baseUrl = `https://graph.facebook.com/${META_GRAPH_API_VERSION}/${encodeURIComponent(args.accountId)}/messages`;
+  const url = appsecretProof ? `${baseUrl}?appsecret_proof=${appsecretProof}` : baseUrl;
+
   const payload: Record<string, any> = {
     recipient: { id: args.recipientId },
     message: { text: args.message },
+    access_token: args.accessToken,
   };
 
   if (args.platform === 'messenger') {
@@ -361,7 +370,6 @@ export async function sendMetaSocialMessage(args: {
   const response = await fetch(url, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${args.accessToken}`,
       'Content-Type': 'application/json',
       Accept: 'application/json',
     },
