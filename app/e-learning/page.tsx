@@ -270,8 +270,8 @@ export default function CoursesPage() {
   // Format price
   const formatPrice = (course: Course) => {
     if (course.isFree) return t.free;
-    const symbol = language === 'ne' ? 'रु.' : '₹';
-    const price = language === 'ne' ? (course.pricing.NPR?.price || course.pricing.INR.price) : course.pricing.INR.price;
+    const symbol = selectedLanguage === 'ne' ? 'रु.' : '₹';
+    const price = selectedLanguage === 'ne' ? (course.pricing.NPR?.price || course.pricing.INR.price) : course.pricing.INR.price;
     return `${symbol}${price?.toLocaleString() || '0'}`;
   };
 
@@ -298,7 +298,7 @@ export default function CoursesPage() {
   };
 
   return (
-    <div className={`min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900 ${['hi', 'mr', 'ne'].includes(language) ? 'devanagari' : ''}`}>
+    <div className={`min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900 ${selectedLanguage && ['hi', 'mr', 'ne'].includes(selectedLanguage) ? 'devanagari' : ''}`}>
       <Navigation />
 
       {/* Hero Section - Dark Black Glossy */}
@@ -619,10 +619,10 @@ export default function CoursesPage() {
                             <>
                               <div className="flex items-center gap-2">
                                 <span className="text-xs text-gray-400 line-through">
-                                  {language === 'ne' ? 'रु.' : '₹'}{(course.pricing.INR?.price || 0).toLocaleString()}
+                                  {selectedLanguage === 'ne' ? 'रु.' : '₹'}{(course.pricing.INR?.price || 0).toLocaleString()}
                                 </span>
                                 <span className="text-lg font-bold text-red-600">
-                                  {language === 'ne' ? 'रु.' : '₹'}{Math.round((course.pricing.INR?.price || 0) * (1 - course.discount / 100)).toLocaleString()}
+                                  {selectedLanguage === 'ne' ? 'रु.' : '₹'}{Math.round((course.pricing.INR?.price || 0) * (1 - course.discount / 100)).toLocaleString()}
                                 </span>
                               </div>
                               <span className="text-xs font-semibold bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 px-2 py-1 rounded w-fit">
