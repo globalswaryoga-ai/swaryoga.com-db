@@ -1057,42 +1057,45 @@ function CommunityPageContent() {
           {/* Main Content */}
           <div className="lg:col-span-3">
             {/* Community Header */}
-            <div className={`bg-gradient-to-br ${currentCommunity?.design.color.gradient} rounded-2xl p-6 sm:p-10 mb-6 sm:mb-10 text-white shadow-xl transition-all duration-300 relative overflow-hidden`}>
+            <div className={`bg-gradient-to-br ${currentCommunity?.design.color.gradient} rounded-2xl p-6 sm:p-10 mb-6 sm:mb-10 text-white shadow-2xl transition-all duration-300 relative overflow-hidden`}>
+              {/* Dark overlay for better text contrast */}
+              <div className="absolute inset-0 bg-black/20 rounded-2xl"></div>
+
               {/* Background accent */}
               <div className="absolute top-0 right-0 w-48 sm:w-96 h-48 sm:h-96 bg-white/10 rounded-full -mr-24 sm:-mr-48 -mt-24 sm:-mt-48 blur-3xl"></div>
               <div className="absolute bottom-0 left-0 w-36 sm:w-72 h-36 sm:h-72 bg-white/5 rounded-full -ml-18 sm:-ml-36 -mb-18 sm:-mb-36 blur-3xl"></div>
-              
+
               <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 sm:gap-0">
                 <div>
-                  <div className="text-4xl sm:text-6xl mb-3 sm:mb-4 drop-shadow-lg flex items-center">
-                    {currentCommunity?.design.icon && <currentCommunity.design.icon size={48} className="sm:w-16 sm:h-16 text-white" />}
+                  <div className="text-4xl sm:text-6xl mb-3 sm:mb-4 flex items-center drop-shadow-2xl">
+                    {currentCommunity?.design.icon && <currentCommunity.design.icon size={48} className="sm:w-16 sm:h-16 text-white drop-shadow-lg" />}
                   </div>
-                  <h1 className="text-2xl sm:text-4xl lg:text-5xl font-bold mb-2 drop-shadow-lg">{currentCommunity?.name}</h1>
-                  <p className="text-sm sm:text-lg opacity-95 drop-shadow-md">{currentCommunity?.description}</p>
-                  <div className="mt-3 sm:mt-4 flex flex-wrap items-center gap-3 sm:gap-6 text-xs sm:text-sm font-semibold">
-                    <span>👥 {currentCommunity?.members} members</span>
-                    {currentCommunity?.isPublic && <span className="bg-white/30 px-3 sm:px-4 py-1 rounded-full">🌐 Public</span>}
-                    
+                  <h1 className="text-2xl sm:text-4xl lg:text-5xl font-bold mb-2 drop-shadow-2xl text-white">{currentCommunity?.name}</h1>
+                  <p className="text-sm sm:text-lg opacity-98 drop-shadow-lg text-white">{currentCommunity?.description}</p>
+                  <div className="mt-3 sm:mt-4 flex flex-wrap items-center gap-3 sm:gap-6 text-xs sm:text-sm font-semibold drop-shadow-lg">
+                    <span className="text-white">👥 {currentCommunity?.members} members</span>
+                    {currentCommunity?.isPublic && <span className="bg-white/40 px-3 sm:px-4 py-1 rounded-full text-white backdrop-blur-sm">🌐 Public</span>}
+
                     {/* Star Rating Display */}
                     {ratingStats && ratingStats.totalCount > 0 && (
-                      <button 
+                      <button
                         onClick={() => setShowRatingModal(true)}
-                        className="bg-white/30 px-3 sm:px-4 py-1 rounded-full flex items-center gap-1 hover:bg-white/40 transition-all cursor-pointer"
+                        className="bg-white/40 px-3 sm:px-4 py-1 rounded-full flex items-center gap-1 hover:bg-white/50 transition-all cursor-pointer text-white backdrop-blur-sm"
                       >
                         <span className="text-yellow-300">⭐</span>
                         <span>{ratingStats.avgRating?.toFixed(1)}</span>
-                        <span className="opacity-75">({ratingStats.totalCount})</span>
+                        <span className="opacity-90">({ratingStats.totalCount})</span>
                       </button>
                     )}
-                    
+
                     {/* Show membership status */}
                     {currentCommunity && userMemberships.includes(currentCommunity.id) && (
-                      <span className="bg-green-500/40 px-3 sm:px-4 py-1 rounded-full flex items-center gap-1">
+                      <span className="bg-green-500/50 px-3 sm:px-4 py-1 rounded-full flex items-center gap-1 text-white backdrop-blur-sm">
                         ✓ Member
                       </span>
                     )}
                     {currentCommunity && !userMemberships.includes(currentCommunity.id) && currentCommunity.id !== 'global' && (
-                      <span className="bg-orange-500/40 px-3 sm:px-4 py-1 rounded-full flex items-center gap-1">
+                      <span className="bg-orange-500/50 px-3 sm:px-4 py-1 rounded-full flex items-center gap-1 text-white backdrop-blur-sm">
                         🔒 Locked
                       </span>
                     )}
