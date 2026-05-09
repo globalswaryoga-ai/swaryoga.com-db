@@ -254,24 +254,24 @@ export async function ingestMetaSocialEvent(event: SocialInboxParsedEvent) {
     updatedAt: now,
   };
 
-  // First, upsert the conversation
-  const existing = await Conversation.findOne({
+  // Get or create conversation
+  let conversation = await Conversation.findOne({
     conversationKey,
     accountScopeType: resolvedAccount.scope.scopeType,
     accountScopeKey: resolvedAccount.scope.scopeKey,
   });
 
-  let conversation;
-  if (existing) {
-    // Update existing conversation
-    const updateData: any = { ...baseConversationUpdate };
+  if (conversation) {
+    // Update existing - manually increment unreadCount if inbound
+    const updates: any = { ...baseConversationUpdate };
     if (event.direction === 'inbound') {
-      updateData.unreadCount = (existing.unreadCount || 0) + 1;
+      updates.unreadCount = (conversation.unreadCount || 0) + 1;
     }
-    conversation = await Conversation.findByIdAndUpdate(existing._id, { $set: updateData }, { new: true });
+    Object.assign(conversation, updates);
+    await conversation.save();
   } else {
     // Create new conversation
-    conversation = await Conversation.create({
+    const conversationData: any = {
       conversationKey,
       createdByUserId: resolvedAccount.ownerUserId || resolvedAccount.scope.ownerUserId,
       assignedToUserId: resolvedAccount.ownerUserId || resolvedAccount.scope.ownerUserId,
@@ -282,7 +282,9 @@ export async function ingestMetaSocialEvent(event: SocialInboxParsedEvent) {
       isBlocked: false,
       createdAt: now,
       ...baseConversationUpdate,
-    });
+    };
+    conversation = new Conversation(conversationData);
+    await conversation.save();
   }
 
   if (event.messageId) {
