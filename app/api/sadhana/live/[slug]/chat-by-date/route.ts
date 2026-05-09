@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
+import connectDB from '@/lib/db';
 import { handleCrmError } from '@/lib/crm-handlers';
 import { getProgramsDb } from '@/lib/sadhanaPrograms';
 import mongoose from 'mongoose';
