@@ -357,75 +357,54 @@ export default function CoursesPage() {
           </button>
 
           {langDropdownOpen && (
-            <>
-              {/* Backdrop */}
-              <div
-                className="fixed inset-0 z-40 bg-black/30"
-                onClick={() => setLangDropdownOpen(false)}
-              />
-              {/* Modal */}
-              <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 bg-gray-900 rounded-2xl shadow-2xl p-8 w-full max-w-2xl max-h-[80vh] overflow-y-auto border border-gray-700">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-2xl font-bold text-white">Select Language</h2>
-                  <button
-                    onClick={() => setLangDropdownOpen(false)}
-                    className="text-gray-400 hover:text-gray-200 transition"
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            <div className="absolute top-full right-0 mt-2 w-56 bg-gray-900 border border-gray-700 rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto">
+              {/* All Languages Option */}
+              <button
+                onClick={() => {
+                  handleLanguageChange('all');
+                  setLangDropdownOpen(false);
+                }}
+                className={`w-full px-4 py-3 text-left flex items-center gap-3 text-sm font-medium transition-all border-b border-gray-800 ${
+                  language === 'all'
+                    ? 'bg-green-600 text-white'
+                    : 'bg-gray-900 text-gray-300 hover:bg-gray-800'
+                }`}
+              >
+                <span className="text-lg">🌍</span>
+                <span>All</span>
+                {language === 'all' && (
+                  <svg className="w-4 h-4 ml-auto text-green-300" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                )}
+              </button>
+
+              {/* Individual Languages */}
+              {languageOptions.map((lang, idx) => (
+                <button
+                  key={lang.code}
+                  onClick={() => {
+                    handleLanguageChange(lang.code);
+                    setLangDropdownOpen(false);
+                  }}
+                  className={`w-full px-4 py-3 text-left flex items-center gap-3 text-sm font-medium transition-all ${
+                    idx < languageOptions.length - 1 ? 'border-b border-gray-800' : ''
+                  } ${
+                    language === lang.code
+                      ? 'bg-green-600 text-white'
+                      : 'bg-gray-900 text-gray-300 hover:bg-gray-800'
+                  }`}
+                >
+                  <span className="text-lg">{lang.flag}</span>
+                  <span>{lang.name}</span>
+                  {language === lang.code && (
+                    <svg className="w-4 h-4 ml-auto text-green-300" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>
-                  </button>
-                </div>
-
-                {/* Language List - Single Column Dropdown */}
-                <div className="max-w-xs mx-auto max-h-96 overflow-y-auto">
-                  {/* All Languages Option */}
-                  <button
-                    onClick={() => {
-                      handleLanguageChange('all');
-                      setLangDropdownOpen(false);
-                    }}
-                    className={`w-full px-4 py-3 text-left flex items-center gap-3 text-sm font-medium transition-all ${
-                      language === 'all'
-                        ? 'bg-green-600 text-white'
-                        : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                    }`}
-                  >
-                    <span className="text-lg">🌍</span>
-                    <span>All</span>
-                    {language === 'all' && (
-                      <svg className="w-4 h-4 ml-auto text-green-300" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
-                    )}
-                  </button>
-
-                  {/* Individual Languages */}
-                  {languageOptions.map((lang) => (
-                    <button
-                      key={lang.code}
-                      onClick={() => {
-                        handleLanguageChange(lang.code);
-                        setLangDropdownOpen(false);
-                      }}
-                      className={`w-full px-4 py-3 text-left flex items-center gap-3 text-sm font-medium transition-all ${
-                        language === lang.code
-                          ? 'bg-green-600 text-white'
-                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                      }`}
-                    >
-                      <span className="text-lg">{lang.flag}</span>
-                      <span>{lang.name}</span>
-                      {language === lang.code && (
-                        <svg className="w-4 h-4 ml-auto text-green-300" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </>
+                  )}
+                </button>
+              ))}
+            </div>
           )}
         </div>
 
