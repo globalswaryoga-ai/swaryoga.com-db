@@ -7,6 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import mongoose from 'mongoose';
 import connectDB from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
@@ -88,8 +89,7 @@ export async function GET(request: NextRequest) {
     // List all active courses (exclude soft-deleted), optionally filtered by folder
     const filterQuery: any = { isActive: true };
     if (folderId) {
-      const { ObjectId } = require('mongodb');
-      filterQuery.folderId = new ObjectId(folderId);
+      filterQuery.folderId = new mongoose.Types.ObjectId(folderId);
     }
     const courses = await RecordedCourse.find(filterQuery).sort({ order: 1, createdAt: -1 }).lean();
     
