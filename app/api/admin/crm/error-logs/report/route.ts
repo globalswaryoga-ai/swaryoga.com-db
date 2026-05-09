@@ -15,48 +15,50 @@ import { getErrorLog } from '@/lib/schemas/recordedCourseSchemas';
  */
 export async function POST(request: NextRequest) {
   try {
-    await connectDB();
-
     const body = await request.json();
-    const ErrorLog = getErrorLog();
 
-    // Extract request info
-    const ip = request.headers.get('x-forwarded-for') ||
-               request.headers.get('x-real-ip') ||
-               'unknown';
+    // Optional: Only log if we can connect to DB
+    try {
+      await connectDB();
+      const ErrorLog = getErrorLog();
 
-    const userAgent = body.userAgent || request.headers.get('user-agent') || 'unknown';
+      // Extract request info
+      const ip = request.headers.get('x-forwarded-for') ||
+                 request.headers.get('x-real-ip') ||
+                 'unknown';
 
-    // Create error log document
-    const errorLog = await ErrorLog.create({
-      level: body.level || 'error',
-      source: body.source || 'unknown',
-      message: body.message,
-      stack: body.stack,
-      path: body.path || '/',
-      method: body.method,
-      statusCode: body.statusCode,
-      userId: body.userId,
-      userAgent,
-      ip,
-      response: body.response,
-      context: body.context,
-      timestamp: new Date(body.timestamp || Date.now()),
-      resolved: false,
-    });
+      const userAgent = body.userAgent || request.headers.get('user-agent') || 'unknown';
 
+      // Create error log document
+      await ErrorLog.create({
+        level: body.level || 'error',
+        source: body.source || 'unknown',
+        message: body.message,
+        stack: body.stack,
+        path: body.path || '/',
+        method: body.method,
+        statusCode: body.statusCode,
+        userId: body.userId,
+        userAgent,
+        ip,
+        response: body.response,
+        context: body.context,
+        timestamp: new Date(body.timestamp || Date.now()),
+        resolved: false,
+      });
+    } catch (dbError) {
+      // Log to console but don't fail the request
+      console.error('[ErrorLog DB Write Failed]:', dbError instanceof Error ? dbError.message : dbError);
+    }
+
+    // Always return success to prevent error cascades
     return NextResponse.json({
       success: true,
-      errorId: errorLog._id,
-      message: 'Error logged successfully',
+      message: 'Error logged',
     });
   } catch (error) {
-    console.error('Error logging failed:', error);
-
-    // Don't expose internal errors
-    return NextResponse.json({
-      success: false,
-      message: 'Failed to log error',
-    }, { status: 500 });
+    console.error('[ErrorLog POST Error]:', error);
+    // Fail silently for JSON parse errors
+    return NextResponse.json({ success: true }, { status: 200 });
   }
 }
