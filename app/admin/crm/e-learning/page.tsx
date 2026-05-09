@@ -312,6 +312,75 @@ export default function DLearningPage() {
         </div>
       </div>
 
+      {/* Language Folders Section */}
+      <div className="mb-12">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-xl font-bold text-white">Language Folders</h2>
+            <p className="text-sm text-gray-400">Manage language folder cards shown on frontend</p>
+          </div>
+        </div>
+
+        {languageFolders.length === 0 ? (
+          <div className="text-center py-12 bg-gray-900/50 rounded-2xl border border-gray-800">
+            <Folder className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+            <p className="text-gray-400">No language folders yet</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {languageFolders.map((folder) => (
+              <div key={folder._id} className="bg-gray-900/50 rounded-xl border border-gray-800 overflow-hidden hover:border-gray-700 transition-colors">
+                {/* Thumbnail Preview */}
+                <div className="relative h-32 bg-gradient-to-br from-green-800 to-green-900">
+                  {folder.thumbnail ? (
+                    <img src={folder.thumbnail} alt={folder.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="flex items-center justify-center h-full">
+                      <Folder className="w-8 h-8 text-green-400/50" />
+                    </div>
+                  )}
+                  {!folder.isActive && (
+                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                      <span className="text-white text-xs font-semibold bg-red-600 px-2 py-1 rounded">Inactive</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Content */}
+                <div className="p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-2xl">{folder.flag}</span>
+                    <h3 className="text-white font-bold truncate">{folder.name}</h3>
+                  </div>
+                  <p className="text-xs text-gray-500 mb-4">{folder.code} • Order: {folder.order}</p>
+
+                  {/* Actions */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setLanguageFolderToEdit(folder);
+                        setShowLanguageFolderModal(true);
+                      }}
+                      className="flex-1 px-3 py-2 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1"
+                    >
+                      <Edit2 size={14} />
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => deleteLanguageFolder(folder._id)}
+                      className="flex-1 px-3 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1"
+                    >
+                      <Trash2 size={14} />
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Content */}
       {loading ? (
         <div className="flex items-center justify-center py-20">
