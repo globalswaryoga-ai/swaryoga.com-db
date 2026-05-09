@@ -495,13 +495,19 @@ export default function CoursesPage() {
                 <div className="flex items-center justify-center py-12">
                   <div className="w-8 h-8 border-3 border-green-500 border-t-transparent rounded-full animate-spin" />
                 </div>
-              ) : languageFolders.length === 0 ? (
-                <div className="text-center py-12">
-                  <p className="text-gray-400 mb-4">No language folders available yet</p>
-                </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {languageFolders.map((folder) => (
+                (() => {
+                  const filteredFolders = languageFolders.filter(folder => language === 'all' || folder.code === language);
+                  if (filteredFolders.length === 0) {
+                    return (
+                      <div className="text-center py-12">
+                        <p className="text-gray-400 mb-4">No folders available for {language === 'all' ? 'this language' : `${currentLangInfo.name}`}</p>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {filteredFolders.map((folder) => (
                     <button
                       key={folder._id}
                       onClick={() => setSelectedFolder(folder)}
@@ -570,8 +576,10 @@ export default function CoursesPage() {
                         </div>
                       </div>
                     </button>
-                  ))}
-                </div>
+                      ))}
+                    </div>
+                  );
+                })()
               )}
             </div>
           )}
