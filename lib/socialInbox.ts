@@ -254,8 +254,24 @@ export async function ingestMetaSocialEvent(event: SocialInboxParsedEvent) {
     updatedAt: now,
   };
 
-  const updateOps: any = {
-    $setOnInsert: {
+  // First, upsert the conversation
+  const existing = await Conversation.findOne({
+    conversationKey,
+    accountScopeType: resolvedAccount.scope.scopeType,
+    accountScopeKey: resolvedAccount.scope.scopeKey,
+  });
+
+  let conversation;
+  if (existing) {
+    // Update existing conversation
+    const updateData: any = { ...baseConversationUpdate };
+    if (event.direction === 'inbound') {
+      updateData.unreadCount = (existing.unreadCount || 0) + 1;
+    }
+    conversation = await Conversation.findByIdAndUpdate(existing._id, { $set: updateData }, { new: true });
+  } else {
+    // Create new conversation
+    conversation = await Conversation.create({
       conversationKey,
       createdByUserId: resolvedAccount.ownerUserId || resolvedAccount.scope.ownerUserId,
       assignedToUserId: resolvedAccount.ownerUserId || resolvedAccount.scope.ownerUserId,
@@ -265,23 +281,9 @@ export async function ingestMetaSocialEvent(event: SocialInboxParsedEvent) {
       unreadCount: event.direction === 'inbound' ? 1 : 0,
       isBlocked: false,
       createdAt: now,
-    },
-    $set: baseConversationUpdate,
-  };
-
-  if (event.direction === 'inbound') {
-    updateOps.$inc = { unreadCount: 1 };
+      ...baseConversationUpdate,
+    });
   }
-
-  const conversation = await Conversation.findOneAndUpdate(
-    {
-      conversationKey,
-      accountScopeType: resolvedAccount.scope.scopeType,
-      accountScopeKey: resolvedAccount.scope.scopeKey,
-    },
-    updateOps,
-    { new: true, upsert: true }
-  );
 
   if (event.messageId) {
     await Message.updateOne(
