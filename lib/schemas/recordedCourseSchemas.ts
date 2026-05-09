@@ -953,3 +953,50 @@ export function getVideoWatchLog(): Model<IVideoWatchLog> {
 export function getCourseDevice(): Model<ICourseDevice> {
   return mongoose.models.CourseDevice || mongoose.model<ICourseDevice>('CourseDevice', CourseDeviceSchema);
 }
+
+// =====================================================
+// ERROR LOG (Frontend error tracking)
+// =====================================================
+export interface IErrorLog extends Document {
+  level: 'error' | 'warn' | 'info';
+  source: string;
+  message: string;
+  stack?: string;
+  path?: string;
+  method?: string;
+  statusCode?: number;
+  userId?: string;
+  userAgent?: string;
+  ip?: string;
+  response?: Record<string, any>;
+  context?: Record<string, any>;
+  timestamp: Date;
+  resolved: boolean;
+
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const ErrorLogSchema = new Schema<IErrorLog>({
+  level: { type: String, enum: ['error', 'warn', 'info'], default: 'error' },
+  source: { type: String, required: true },
+  message: { type: String, required: true },
+  stack: { type: String },
+  path: { type: String },
+  method: { type: String },
+  statusCode: { type: Number },
+  userId: { type: String },
+  userAgent: { type: String },
+  ip: { type: String },
+  response: { type: Schema.Types.Mixed },
+  context: { type: Schema.Types.Mixed },
+  timestamp: { type: Date, default: Date.now },
+  resolved: { type: Boolean, default: false },
+}, { timestamps: true });
+
+ErrorLogSchema.index({ timestamp: -1 });
+ErrorLogSchema.index({ source: 1, resolved: 1 });
+
+export function getErrorLog(): Model<IErrorLog> {
+  return mongoose.models.ErrorLog || mongoose.model<IErrorLog>('ErrorLog', ErrorLogSchema);
+}
