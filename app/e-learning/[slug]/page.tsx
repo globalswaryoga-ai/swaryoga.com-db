@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Play, Users, Calendar, Video, Globe, Lock } from 'lucide-react';
@@ -72,6 +72,20 @@ export default function CourseDetailPage() {
   const [token, setToken] = useState<string>('');
   const [language, setLanguage] = useState<string>('en');
   const [langDropdownOpen, setLangDropdownOpen] = useState(false);
+  const langDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (langDropdownRef.current && !langDropdownRef.current.contains(event.target as Node)) {
+        setLangDropdownOpen(false);
+      }
+    };
+    if (langDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [langDropdownOpen]);
 
   useEffect(() => {
     // Get token from localStorage
@@ -144,7 +158,7 @@ export default function CourseDetailPage() {
           <ArrowLeft size={20} /> Back to Courses
         </Link>
         {/* Language Selector - All 19 Languages Modal */}
-        <div>
+        <div ref={langDropdownRef}>
           <button
             onClick={() => setLangDropdownOpen(!langDropdownOpen)}
             className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors hover:border-gray-400"
