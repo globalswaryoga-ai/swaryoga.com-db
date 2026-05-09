@@ -183,10 +183,18 @@ export async function GET(request: NextRequest) {
     // ============================================
     // LIST ALL COURSES
     // ============================================
-    const courses = await RecordedCourse.find({
+    const folderId = request.nextUrl.searchParams.get('folderId');
+    const query: any = {
       isActive: true,
       isPublished: true,
-    }).sort({ order: 1, createdAt: -1 }).lean();
+    };
+
+    // Filter by folder if provided
+    if (folderId) {
+      query.folderId = folderId;
+    }
+
+    const courses = await RecordedCourse.find(query).sort({ order: 1, createdAt: -1 }).lean();
     
     // Get user enrollments
     let userEnrollments: any[] = [];

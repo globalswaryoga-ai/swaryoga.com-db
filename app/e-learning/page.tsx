@@ -260,8 +260,13 @@ export default function CoursesPage() {
         headers.Authorization = `Bearer ${token}`;
       }
 
-      const langParam = selectedFolder ? selectedFolder.code : language;
-      const response = await fetch(`/api/recorded-courses?lang=${langParam}`, { headers });
+      let url = '/api/recorded-courses';
+      if (selectedFolder) {
+        url += `?folderId=${selectedFolder._id}`;
+      } else {
+        url += `?lang=${language}`;
+      }
+      const response = await fetch(url, { headers });
       const data = await response.json();
 
       if (data.success) {
