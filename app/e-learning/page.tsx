@@ -492,7 +492,16 @@ export default function CoursesPage() {
                         </svg>
                         <p className="text-lg font-bold text-gray-900 dark:text-white mb-2">Coming Soon!</p>
                         <p className="text-gray-600 dark:text-gray-400">We're preparing amazing workshops in {currentLangInfo.name}</p>
-                        <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">Stay tuned for updates!</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-500 mt-4">Stay tuned for updates!</p>
+                        <button
+                          onClick={() => {
+                            setLanguage('all');
+                            localStorage.setItem('preferred_language', 'all');
+                          }}
+                          className="mt-6 px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-all"
+                        >
+                          ← Back to All Languages
+                        </button>
                       </div>
                     );
                   }
@@ -621,7 +630,17 @@ export default function CoursesPage() {
               </svg>
               <p className="text-lg font-bold text-gray-900 dark:text-white mb-2">Coming Soon!</p>
               <p className="text-gray-600 dark:text-gray-400">We're preparing amazing workshops in {selectedFolder?.name}</p>
-              <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">Stay tuned for updates!</p>
+              <p className="text-sm text-gray-500 dark:text-gray-500 mt-4">Stay tuned for updates!</p>
+              <button
+                onClick={() => {
+                  setSelectedFolder(null);
+                  setSearchQuery('');
+                  setSelectedLevel('all');
+                }}
+                className="mt-6 px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-all"
+              >
+                ← Back to All Languages
+              </button>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
