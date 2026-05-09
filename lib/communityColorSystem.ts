@@ -181,6 +181,22 @@ export const COMMUNITY_DESIGNS: CommunityDesign[] = [
     category: 'health'
   },
   {
+    id: '7-days-swar-yoga-hindi',
+    name: '7 days Swar Yoga Hindi',
+    icon: Music,
+    description: 'A comprehensive 7-day Swar Yoga program in Hindi',
+    color: {
+      light: 'bg-purple-50 border-purple-200',
+      main: 'text-purple-600 bg-purple-100',
+      dark: 'from-purple-600 to-purple-700',
+      gradient: 'from-purple-500 to-pink-500'
+    },
+    philosophy: 'Purple represents spiritual awakening and consciousness through 7-day transformational practice.',
+    members: 0,
+    isPublic: false,
+    category: 'health'
+  },
+  {
     id: 'old-sadhak-community',
     name: 'Swar Yoga Sadhak Community',
     icon: Sun,

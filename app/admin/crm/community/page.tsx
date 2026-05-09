@@ -98,6 +98,7 @@ const DEFAULT_COMMUNITIES: Community[] = [
   // Health — Other
   { id: 'aahar', name: 'Aahar (Diet & Nutrition)', icon: '🌿', memberCount: 0, joinLink: 'https://swaryoga.com/join/aahar' },
   { id: 'i-am-fit', name: 'I am Fit', icon: '💪', memberCount: 0, joinLink: 'https://swaryoga.com/join/i-am-fit' },
+  { id: '7-days-swar-yoga-hindi', name: '7 days Swar Yoga Hindi', icon: '🎵', memberCount: 0, joinLink: 'https://swaryoga.com/join/7-days-swar-yoga-hindi', type: 'health' },
   // Married Life
   { id: 'pre-planning-garbh-sankar', name: 'Pre Planning Garbh Sankar', icon: '💕', memberCount: 0, joinLink: 'https://swaryoga.com/join/pre-planning-garbh-sankar' },
   { id: '9-month-garbha-sanskar', name: '9 Month Garbha Sanskar Sadhana', icon: '🤰', memberCount: 0, joinLink: 'https://swaryoga.com/join/9-month-garbha-sanskar' },
@@ -122,7 +123,7 @@ export default function AdminCommunityPage() {
   const [communities, setCommunities] = useState<Community[]>(DEFAULT_COMMUNITIES);
   const [loadingCommunities, setLoadingCommunities] = useState(true);
   const [showCreateCommunityModal, setShowCreateCommunityModal] = useState(false);
-  const [newCommunityInput, setNewCommunityInput] = useState({ name: '', description: '', icon: '🌟' });
+  const [newCommunityInput, setNewCommunityInput] = useState({ name: '', description: '', icon: '🌟', type: 'health' });
   const [creatingCommunity, setCreatingCommunity] = useState(false);
   
   const [selectedCommunity, setSelectedCommunity] = useState('global');
@@ -847,6 +848,7 @@ export default function AdminCommunityPage() {
         body: JSON.stringify({
           name: newCommunityInput.name.trim(),
           description: newCommunityInput.description.trim(),
+          type: newCommunityInput.type || 'health',
         }),
       });
 
@@ -861,7 +863,7 @@ export default function AdminCommunityPage() {
 
       alert('✅ Community created successfully!');
       setShowCreateCommunityModal(false);
-      setNewCommunityInput({ name: '', description: '', icon: '🌟' });
+      setNewCommunityInput({ name: '', description: '', icon: '🌟', type: 'health' });
       
       // Refresh communities list
       await fetchCommunities();
@@ -2366,14 +2368,31 @@ export default function AdminCommunityPage() {
               
               <div>
                 <label className="text-sm font-bold text-slate-700 mb-2 block">Description (Optional)</label>
-                <textarea 
-                  value={newCommunityInput.description} 
+                <textarea
+                  value={newCommunityInput.description}
                   onChange={e => setNewCommunityInput(prev => ({ ...prev, description: e.target.value }))}
                   placeholder="Describe what this community is for..."
                   className="w-full h-24 p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 transition-all resize-none"
                 />
               </div>
-              
+
+              <div>
+                <label className="text-sm font-bold text-slate-700 mb-2 block">Category</label>
+                <select
+                  value={newCommunityInput.type || 'health'}
+                  onChange={e => setNewCommunityInput(prev => ({ ...prev, type: e.target.value }))}
+                  className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 transition-all"
+                >
+                  <option value="health">🏥 Health & Wellness</option>
+                  <option value="wealth">💰 Wealth & Prosperity</option>
+                  <option value="relationships">💑 Relationships & Family</option>
+                  <option value="youth">🚀 Youth & Growth</option>
+                  <option value="spiritual">✨ Spiritual</option>
+                  <option value="learning">📚 Learning & Development</option>
+                  <option value="other">🌟 Other</option>
+                </select>
+              </div>
+
               <div>
                 <label className="text-sm font-bold text-slate-700 mb-2 block">Icon</label>
                 <div className="flex flex-wrap gap-2">
