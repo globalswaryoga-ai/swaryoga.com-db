@@ -125,17 +125,13 @@ export default function EditCoursePage() {
         });
 
         const data = await res.json();
-        console.log('API Response:', data);
         if (data.success && data.course) {
           const c = data.course;
-          console.log('Course data:', c);
-          console.log('Course content:', c.content);
           setCourse(c);
           const newContent: Record<string, { title: string; subtitle?: string; description?: string }> = {};
           languageOptions.forEach(lang => {
             newContent[lang.code] = c.content?.[lang.code] || { title: '', subtitle: '', description: '' };
           });
-          console.log('Loaded content:', newContent);
           setContent(newContent);
           setLevel(c.level || 'beginner');
           setVideoLanguage(c.videoLanguage || 'en');
