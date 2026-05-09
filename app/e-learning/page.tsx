@@ -391,9 +391,8 @@ export default function CoursesPage() {
           </div>
         )}
 
-        {/* Language Selector - Top Right (Phase 2 only) */}
-        {selectedFolder && (
-          <div className="absolute top-4 right-4 z-20" ref={langDropdownRef}>
+        {/* Language Selector - Top Right (Phase 1 and 2) */}
+        <div className="absolute top-4 right-4 z-20" ref={langDropdownRef}>
           <button
             onClick={() => setLangDropdownOpen(!langDropdownOpen)}
             className="flex items-center gap-2 px-3 py-1.5 bg-gray-800/80 backdrop-blur-sm rounded-lg border border-gray-700 shadow-md hover:bg-gray-700 transition-all"
@@ -461,7 +460,6 @@ export default function CoursesPage() {
             </div>
           )}
         </div>
-        )}
 
         <div className="relative max-w-7xl mx-auto px-4">
           <div className="text-center max-w-3xl mx-auto">
@@ -511,10 +509,10 @@ export default function CoursesPage() {
                     <button
                       key={folder._id}
                       onClick={() => setSelectedFolder(folder)}
-                      className="group relative aspect-video rounded-xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer"
+                      className="group relative rounded-xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 h-full flex flex-col"
                     >
                       {/* Folder Thumbnail */}
-                      <div className="absolute inset-0 bg-gradient-to-br from-green-800 to-green-900">
+                      <div className="relative w-full aspect-video bg-gradient-to-br from-green-800 to-green-900 overflow-hidden">
                         {folder.thumbnail ? (
                           <img
                             src={folder.thumbnail}
@@ -528,20 +526,52 @@ export default function CoursesPage() {
                             </svg>
                           </div>
                         )}
+
+                        {/* Language Badge */}
+                        <div className="absolute top-3 right-3 bg-green-600 text-white px-3 py-1 rounded-full text-sm font-semibold flex items-center gap-1">
+                          <span className="text-lg">{folder.flag}</span>
+                          <span>{folder.code.toUpperCase()}</span>
+                        </div>
                       </div>
 
-                      {/* Dark Overlay */}
-                      <div className="absolute inset-0 bg-black/40 group-hover:bg-black/50 transition-all duration-300" />
+                      {/* Content Section */}
+                      <div className="flex-1 p-4 flex flex-col justify-between">
+                        {/* Heading */}
+                        <div className="mb-4">
+                          <h3 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white line-clamp-2">
+                            {folder.name}
+                          </h3>
+                        </div>
 
-                      {/* Content */}
-                      <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                        <span className="text-5xl mb-3">{folder.flag}</span>
-                        <h3 className="text-xl md:text-2xl font-bold text-white mb-2">
-                          {folder.name}
-                        </h3>
-                        <span className="inline-block px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                          Explore →
-                        </span>
+                        {/* Stats and Action */}
+                        <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
+                          <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400">
+                            <span className="flex items-center gap-1">
+                              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M10.894 2.553a.961.961 0 00-1.788 0l-7 140a.955.955 0 001.379 1.007L10 5.45l6.515 8.11a.956.956 0 101.379-1.007l-7-140z" />
+                              </svg>
+                              0
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
+                              </svg>
+                              0
+                            </span>
+                          </div>
+
+                          <button
+                            className="p-2 bg-green-600 hover:bg-green-700 text-white rounded-full transition-colors"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setSelectedFolder(folder);
+                            }}
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                            </svg>
+                          </button>
+                        </div>
                       </div>
                     </button>
                   ))}
