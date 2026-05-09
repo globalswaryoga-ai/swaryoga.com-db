@@ -377,24 +377,24 @@ export default function CoursesPage() {
                   </button>
                 </div>
 
-                {/* Language List - Single Row */}
-                <div className="flex flex-wrap gap-3 justify-center">
+                {/* Language List - Single Column Dropdown */}
+                <div className="max-w-xs mx-auto max-h-96 overflow-y-auto">
                   {/* All Languages Option */}
                   <button
                     onClick={() => {
                       handleLanguageChange('all');
                       setLangDropdownOpen(false);
                     }}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-all text-sm ${
+                    className={`w-full px-4 py-3 text-left flex items-center gap-3 text-sm font-medium transition-all ${
                       language === 'all'
-                        ? 'border-green-500 bg-green-500/20 text-green-400'
-                        : 'border-gray-600 text-gray-300 hover:border-green-500 hover:bg-gray-800/50'
+                        ? 'bg-green-600 text-white'
+                        : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
                     }`}
                   >
-                    <span className="text-2xl">🌍</span>
+                    <span className="text-lg">🌍</span>
                     <span>All</span>
                     {language === 'all' && (
-                      <svg className="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                      <svg className="w-4 h-4 ml-auto text-green-300" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                       </svg>
                     )}
@@ -408,16 +408,16 @@ export default function CoursesPage() {
                         handleLanguageChange(lang.code);
                         setLangDropdownOpen(false);
                       }}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-all text-sm ${
+                      className={`w-full px-4 py-3 text-left flex items-center gap-3 text-sm font-medium transition-all ${
                         language === lang.code
-                          ? 'border-green-500 bg-green-500/20 text-green-400'
-                          : 'border-gray-600 text-gray-300 hover:border-green-500 hover:bg-gray-800/50'
+                          ? 'bg-green-600 text-white'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
                       }`}
                     >
-                      <span className="text-xl">{lang.flag}</span>
+                      <span className="text-lg">{lang.flag}</span>
                       <span>{lang.name}</span>
                       {language === lang.code && (
-                        <svg className="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                        <svg className="w-4 h-4 ml-auto text-green-300" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                         </svg>
                       )}
