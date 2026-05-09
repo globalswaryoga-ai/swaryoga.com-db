@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { Plus, Edit2, Trash2, Video, Eye, EyeOff, GraduationCap, X, Upload, ShieldAlert, Users, Copy } from 'lucide-react';
+import { Plus, Edit2, Trash2, Video, Eye, EyeOff, GraduationCap, X, Upload, ShieldAlert, Users, Copy, Folder } from 'lucide-react';
 
 // All 19 language options
 const languageOptions = [
@@ -60,6 +60,10 @@ export default function DLearningPage() {
   const [courseToDuplicate, setCourseToDuplicate] = useState<Course | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
+  const [activeTab, setActiveTab] = useState<'courses' | 'languages'>('courses');
+  const [languageFolders, setLanguageFolders] = useState<any[]>([]);
+  const [showLanguageFolderModal, setShowLanguageFolderModal] = useState(false);
+  const [languageFolderToEdit, setLanguageFolderToEdit] = useState<any | null>(null);
 
   // Check superadmin status
   useEffect(() => {
@@ -112,9 +116,30 @@ export default function DLearningPage() {
     }
   }, [token]);
 
+  const fetchLanguageFolders = useCallback(async () => {
+    if (!token) return;
+
+    try {
+      const res = await fetch('/api/admin/language-folders', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        setLanguageFolders(data.folders || []);
+      }
+    } catch (err) {
+      console.error('Error fetching language folders:', err);
+    }
+  }, [token]);
+
   useEffect(() => {
-    if (token) fetchCourses();
-  }, [token, fetchCourses]);
+    if (token) {
+      fetchCourses();
+      fetchLanguageFolders();
+    }
+  }, [token, fetchCourses, fetchLanguageFolders]);
 
   // Refetch courses when returning to this page (from edit/etc)
   useEffect(() => {
@@ -193,6 +218,30 @@ export default function DLearningPage() {
     setShowDuplicateModal(true);
   };
 
+  const deleteLanguageFolder = async (folderId: string) => {
+    if (!token) return;
+    if (!confirm('Delete this language folder?')) return;
+
+    try {
+      const res = await fetch(`/api/admin/language-folders?id=${folderId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        setLanguageFolders(prev => prev.filter(f => f._id !== folderId));
+        alert('✅ Language folder deleted');
+      } else {
+        alert('❌ Error: ' + (data.error || 'Failed to delete'));
+      }
+    } catch (err) {
+      console.error('Delete error:', err);
+      alert('❌ Network error');
+    }
+  };
+
   const formatDuration = (seconds: number) => {
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
@@ -223,36 +272,80 @@ export default function DLearningPage() {
   return (
     <div className="min-h-screen bg-black p-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-green-500/20 rounded-xl flex items-center justify-center">
-            <GraduationCap className="w-6 h-6 text-green-400" />
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-green-500/20 rounded-xl flex items-center justify-center">
+              <GraduationCap className="w-6 h-6 text-green-400" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-white">E-Learning Management</h1>
+              <p className="text-sm text-gray-400">Manage courses and language folders</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold text-white">E-Learning Courses</h1>
-            <p className="text-sm text-gray-400">Manage recorded video courses</p>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/admin/crm/e-learning/users"
+              className="flex items-center gap-2 px-5 py-2.5 bg-blue-500 hover:bg-blue-600 text-black font-semibold rounded-lg transition-colors"
+            >
+              <Users size={18} />
+              Manage Users
+            </Link>
+            {activeTab === 'courses' && (
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="flex items-center gap-2 px-5 py-2.5 bg-green-500 hover:bg-green-600 text-black font-semibold rounded-lg transition-colors"
+              >
+                <Plus size={18} />
+                Add Course
+              </button>
+            )}
+            {activeTab === 'languages' && (
+              <button
+                onClick={() => {
+                  setLanguageFolderToEdit(null);
+                  setShowLanguageFolderModal(true);
+                }}
+                className="flex items-center gap-2 px-5 py-2.5 bg-purple-500 hover:bg-purple-600 text-white font-semibold rounded-lg transition-colors"
+              >
+                <Plus size={18} />
+                Add Language
+              </button>
+            )}
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <Link
-            href="/admin/crm/e-learning/users"
-            className="flex items-center gap-2 px-5 py-2.5 bg-blue-500 hover:bg-blue-600 text-black font-semibold rounded-lg transition-colors"
-          >
-            <Users size={18} />
-            Manage Users
-          </Link>
+
+        {/* Tabs */}
+        <div className="flex gap-4 border-b border-gray-700">
           <button
-            onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 px-5 py-2.5 bg-green-500 hover:bg-green-600 text-black font-semibold rounded-lg transition-colors"
+            onClick={() => setActiveTab('courses')}
+            className={`px-4 py-3 font-semibold transition-colors ${
+              activeTab === 'courses'
+                ? 'text-green-400 border-b-2 border-green-400'
+                : 'text-gray-400 hover:text-gray-300'
+            }`}
           >
-            <Plus size={18} />
-            Add Course
+            <GraduationCap className="w-5 h-5 inline mr-2" />
+            Courses
+          </button>
+          <button
+            onClick={() => setActiveTab('languages')}
+            className={`px-4 py-3 font-semibold transition-colors ${
+              activeTab === 'languages'
+                ? 'text-purple-400 border-b-2 border-purple-400'
+                : 'text-gray-400 hover:text-gray-300'
+            }`}
+          >
+            <Folder className="w-5 h-5 inline mr-2" />
+            Language Folders
           </button>
         </div>
       </div>
 
       {/* Content */}
-      {loading ? (
+      {activeTab === 'courses' ? (
+        <>
+          {loading ? (
         <div className="flex items-center justify-center py-20">
           <div className="animate-spin w-10 h-10 border-4 border-green-500 border-t-transparent rounded-full" />
           <span className="ml-3 text-gray-400">Loading courses...</span>
@@ -386,6 +479,68 @@ export default function DLearningPage() {
           </table>
         </div>
       )}
+        </>
+      ) : (
+        // Language Folders Tab
+        <div className="bg-gray-900/50 rounded-2xl border border-gray-800 overflow-hidden">
+          {languageFolders.length === 0 ? (
+            <div className="text-center py-20">
+              <Folder className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-white mb-2">No Language Folders Yet</h3>
+              <p className="text-gray-400 mb-6">Create your first language folder</p>
+              <button
+                onClick={() => {
+                  setLanguageFolderToEdit(null);
+                  setShowLanguageFolderModal(true);
+                }}
+                className="px-6 py-3 bg-purple-500 hover:bg-purple-600 text-white font-semibold rounded-lg transition-colors"
+              >
+                Create Language Folder
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 p-6">
+              {languageFolders.map((folder) => (
+                <div key={folder._id} className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+                  {folder.thumbnail && (
+                    <div className="h-32 bg-gradient-to-br from-purple-600 to-purple-800 overflow-hidden">
+                      <img src={folder.thumbnail} alt={folder.name} className="w-full h-full object-cover" />
+                    </div>
+                  )}
+                  <div className="p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-3xl">{folder.flag}</span>
+                      <div>
+                        <h3 className="font-bold text-white">{folder.name}</h3>
+                        <span className={`text-xs px-2 py-1 rounded ${folder.isActive ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                          {folder.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 mt-4">
+                      <button
+                        onClick={() => {
+                          setLanguageFolderToEdit(folder);
+                          setShowLanguageFolderModal(true);
+                        }}
+                        className="flex-1 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold rounded-lg transition-colors"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => deleteLanguageFolder(folder._id)}
+                        className="flex-1 px-3 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-colors"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Create Course Modal */}
       {showCreateModal && (
@@ -412,6 +567,23 @@ export default function DLearningPage() {
             setShowDuplicateModal(false);
             setCourseToDuplicate(null);
             fetchCourses();
+          }}
+        />
+      )}
+
+      {/* Language Folder Modal */}
+      {showLanguageFolderModal && (
+        <LanguageFolderModal
+          token={token}
+          folder={languageFolderToEdit}
+          onClose={() => {
+            setShowLanguageFolderModal(false);
+            setLanguageFolderToEdit(null);
+          }}
+          onSaved={() => {
+            setShowLanguageFolderModal(false);
+            setLanguageFolderToEdit(null);
+            fetchLanguageFolders();
           }}
         />
       )}
@@ -1127,6 +1299,182 @@ function CreateCourseModal({ token, onClose, onCreated }: { token: string; onClo
               className="flex-1 px-4 py-3 bg-green-500 hover:bg-green-600 text-black font-semibold rounded-lg transition-colors disabled:opacity-50"
             >
               {saving ? 'Creating...' : 'Create Workshop'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function LanguageFolderModal({ token, folder, onClose, onSaved }: { token: string; folder?: any; onClose: () => void; onSaved: () => void }) {
+  const [code, setCode] = useState(folder?.code || '');
+  const [name, setName] = useState(folder?.name || '');
+  const [flag, setFlag] = useState(folder?.flag || '');
+  const [thumbnail, setThumbnail] = useState(folder?.thumbnail || '');
+  const [isActive, setIsActive] = useState(folder?.isActive ?? true);
+  const [order, setOrder] = useState(folder?.order || 0);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const languageOptions = [
+    { code: 'en', name: 'English', flag: '🇬🇧' },
+    { code: 'hi', name: 'Hindi', flag: '🇮🇳' },
+    { code: 'mr', name: 'Marathi', flag: '🇮🇳' },
+    { code: 'ne', name: 'Nepali', flag: '🇳🇵' },
+    { code: 'zh', name: 'Mandarin', flag: '🇨🇳' },
+    { code: 'es', name: 'Spanish', flag: '🇪🇸' },
+    { code: 'fr', name: 'French', flag: '🇫🇷' },
+    { code: 'ar', name: 'Arabic', flag: '🇸🇦' },
+    { code: 'de', name: 'German', flag: '🇩🇪' },
+    { code: 'pt', name: 'Portuguese', flag: '🇧🇷' },
+    { code: 'ja', name: 'Japanese', flag: '🇯🇵' },
+    { code: 'ko', name: 'Korean', flag: '🇰🇷' },
+    { code: 'ru', name: 'Russian', flag: '🇷🇺' },
+    { code: 'it', name: 'Italian', flag: '🇮🇹' },
+    { code: 'tr', name: 'Turkish', flag: '🇹🇷' },
+    { code: 'nl', name: 'Dutch', flag: '🇳🇱' },
+    { code: 'sv', name: 'Swedish', flag: '🇸🇪' },
+    { code: 'th', name: 'Thai', flag: '🇹🇭' },
+    { code: 'id', name: 'Indonesian', flag: '🇮🇩' },
+  ];
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!code || !name || !flag) {
+      setError('Language, name, and flag are required');
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+
+    try {
+      const method = folder ? 'PUT' : 'POST';
+      const url = folder ? `/api/admin/language-folders?id=${folder._id}` : '/api/admin/language-folders';
+
+      const res = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          code,
+          name,
+          flag,
+          thumbnail,
+          isActive,
+          order: parseInt(order as any) || 0,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        onSaved();
+        onClose();
+      } else {
+        setError(data.error || 'Failed to save');
+      }
+    } catch (err) {
+      setError('Network error: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 overflow-y-auto">
+      <div className="bg-gray-900 rounded-2xl border border-gray-800 w-full max-w-md my-8">
+        <div className="flex items-center justify-between p-6 border-b border-gray-800 sticky top-0 bg-gray-900">
+          <h2 className="text-xl font-bold text-white">{folder ? 'Edit Language Folder' : 'Create Language Folder'}</h2>
+          <button onClick={onClose} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400">
+            <X size={20} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+          {error && (
+            <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-3 rounded-lg text-sm">
+              {error}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-green-400 mb-2">Language *</label>
+            <select
+              value={code}
+              onChange={(e) => {
+                const selected = languageOptions.find(l => l.code === e.target.value);
+                setCode(e.target.value);
+                if (selected) {
+                  setName(selected.name);
+                  setFlag(selected.flag);
+                }
+              }}
+              className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none"
+              required
+              disabled={!!folder}
+            >
+              <option value="">Select Language</option>
+              {languageOptions.map((lang) => (
+                <option key={lang.code} value={lang.code}>
+                  {lang.flag} {lang.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-green-400 mb-2">Thumbnail URL</label>
+            <input
+              type="url"
+              value={thumbnail}
+              onChange={(e) => setThumbnail(e.target.value)}
+              className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
+              placeholder="https://example.com/image.jpg"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-green-400 mb-2">Display Order</label>
+            <input
+              type="number"
+              value={order}
+              onChange={(e) => setOrder(parseInt(e.target.value) || 0)}
+              className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none"
+              min="0"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="isActive"
+              checked={isActive}
+              onChange={(e) => setIsActive(e.target.checked)}
+              className="w-5 h-5 rounded border-gray-600 bg-black text-green-500 focus:ring-green-500"
+            />
+            <label htmlFor="isActive" className="text-white cursor-pointer text-sm font-medium">
+              Active (visible on frontend)
+            </label>
+          </div>
+
+          <div className="flex gap-3 pt-6 border-t border-gray-700">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-3 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-800 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex-1 px-4 py-3 bg-purple-500 hover:bg-purple-600 text-white font-semibold rounded-lg transition-colors disabled:opacity-50"
+            >
+              {saving ? 'Saving...' : (folder ? 'Update' : 'Create')}
             </button>
           </div>
         </form>
