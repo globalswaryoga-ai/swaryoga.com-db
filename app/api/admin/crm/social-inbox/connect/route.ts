@@ -85,6 +85,8 @@ export async function POST(request: NextRequest) {
           accountHandle,
           accessToken: encryptedToken,
           isConnected: true,
+          accountScopeType: scope.scopeType,
+          accountScopeKey: scope.scopeKey,
           connectedAt: new Date(),
           updatedAt: new Date(),
         },
@@ -98,6 +100,8 @@ export async function POST(request: NextRequest) {
         accountHandle,
         accessToken: encryptedToken,
         isConnected: true,
+        accountScopeType: scope.scopeType,
+        accountScopeKey: scope.scopeKey,
         connectedAt: new Date(),
         updatedAt: new Date(),
       });
