@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
 import { connectDB, SocialMediaAccount } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { encryptCredential } from '@/lib/encryption';
@@ -8,6 +9,7 @@ export const dynamic = 'force-dynamic';
 
 
 const META_GRAPH_API_VERSION = process.env.META_GRAPH_API_VERSION || 'v24.0';
+const META_APP_SECRET = process.env.META_APP_SECRET || '';
 
 type UpsertSocialAccountInput = {
   scope: SocialMediaScope;
@@ -97,7 +99,15 @@ async function fetchFacebookConnectionInfo(pageId: string, accessToken: string):
     'picture{url}',
     'instagram_business_account{id,username,name,profile_picture_url,followers_count,media_count}',
   ].join(',');
-  const url = `https://graph.facebook.com/${META_GRAPH_API_VERSION}/${pageId}?fields=${encodeURIComponent(fields)}&access_token=${encodeURIComponent(accessToken)}`;
+
+  let url = `https://graph.facebook.com/${META_GRAPH_API_VERSION}/${pageId}?fields=${encodeURIComponent(fields)}&access_token=${encodeURIComponent(accessToken)}`;
+
+  // Add appsecret_proof for server-side API calls
+  if (META_APP_SECRET) {
+    const appsecretProof = crypto.createHmac('sha256', META_APP_SECRET).update(accessToken).digest('hex');
+    url += `&appsecret_proof=${appsecretProof}`;
+  }
+
   const response = await fetch(url, { cache: 'no-store' });
   const data = await response.json().catch(() => ({}));
 
