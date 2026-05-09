@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Play, Users, Calendar, Video, Globe, Lock } from 'lucide-react';
 import CourseEnrollmentModal from '@/components/CourseEnrollmentModal';
