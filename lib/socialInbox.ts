@@ -254,27 +254,32 @@ export async function ingestMetaSocialEvent(event: SocialInboxParsedEvent) {
     updatedAt: now,
   };
 
+  const updateOps: any = {
+    $setOnInsert: {
+      conversationKey,
+      createdByUserId: resolvedAccount.ownerUserId || resolvedAccount.scope.ownerUserId,
+      assignedToUserId: resolvedAccount.ownerUserId || resolvedAccount.scope.ownerUserId,
+      status: 'new_lead',
+      labels: [],
+      notes: '',
+      unreadCount: event.direction === 'inbound' ? 1 : 0,
+      isBlocked: false,
+      createdAt: now,
+    },
+    $set: baseConversationUpdate,
+  };
+
+  if (event.direction === 'inbound') {
+    updateOps.$inc = { unreadCount: 1 };
+  }
+
   const conversation = await Conversation.findOneAndUpdate(
     {
       conversationKey,
       accountScopeType: resolvedAccount.scope.scopeType,
       accountScopeKey: resolvedAccount.scope.scopeKey,
     },
-    {
-      $setOnInsert: {
-        conversationKey,
-        createdByUserId: resolvedAccount.ownerUserId || resolvedAccount.scope.ownerUserId,
-        assignedToUserId: resolvedAccount.ownerUserId || resolvedAccount.scope.ownerUserId,
-        status: 'new_lead',
-        labels: [],
-        notes: '',
-        unreadCount: 0,
-        isBlocked: false,
-        createdAt: now,
-      },
-      $set: baseConversationUpdate,
-      ...(event.direction === 'inbound' ? { $inc: { unreadCount: 1 } } : {}),
-    },
+    updateOps,
     { new: true, upsert: true }
   );
 
