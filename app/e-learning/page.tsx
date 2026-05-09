@@ -196,7 +196,7 @@ export default function CoursesPage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLevel, setSelectedLevel] = useState<string>('all');
-  const [language, setLanguage] = useState<Language>('en');
+  const [language, setLanguage] = useState<Language>('all');
   const [langDropdownOpen, setLangDropdownOpen] = useState(false);
   const [showComingSoonPopup, setShowComingSoonPopup] = useState(false);
   const [attemptedLanguage, setAttemptedLanguage] = useState<Language>('en');
@@ -244,17 +244,13 @@ export default function CoursesPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Get language from localStorage or browser
+  // Get language from localStorage, default to 'all'
   useEffect(() => {
     const savedLang = localStorage.getItem('preferred_language');
-    if (savedLang && languageOptions.some(l => l.code === savedLang)) {
-      setLanguage(savedLang);
-    } else {
-      const browserLang = navigator.language.toLowerCase();
-      if (browserLang.startsWith('hi')) setLanguage('hi');
-      else if (browserLang.startsWith('mr')) setLanguage('mr');
-      else if (browserLang.startsWith('ne')) setLanguage('ne');
+    if (savedLang && (savedLang === 'all' || languageOptions.some(l => l.code === savedLang))) {
+      setLanguage(savedLang as Language);
     }
+    // Default to 'all' if nothing saved
   }, []);
 
   const fetchCourses = useCallback(async () => {
