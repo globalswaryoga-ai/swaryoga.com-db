@@ -21,23 +21,21 @@ function reportError(level: 'error' | 'critical', source: string, message: strin
   if (reportedErrors.size > 100) reportedErrors.clear();
 
   try {
-    const token = localStorage.getItem('admin_token');
-    fetch('/api/admin/crm/error-logs', {
+    fetch('/api/admin/crm/error-logs/report', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         level,
         source,
         message,
         stack,
-        url: window.location.href,
-        userAgent: navigator.userAgent,
-        metadata: {
-          viewport: `${window.innerWidth}x${window.innerHeight}`,
-          online: navigator.onLine,
+        path: typeof window !== 'undefined' ? window.location.pathname : '/',
+        timestamp: new Date().toISOString(),
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
+        context: {
+          viewport: typeof window !== 'undefined' ? `${window.innerWidth}x${window.innerHeight}` : undefined,
+          online: typeof navigator !== 'undefined' ? navigator.onLine : undefined,
+          url: typeof window !== 'undefined' ? window.location.href : undefined,
         },
       }),
     }).catch(() => {});
