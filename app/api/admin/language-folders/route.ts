@@ -142,7 +142,8 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    await connectDB();
+    const conn = await connectDB();
+    const db = conn.db;
 
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
@@ -171,9 +172,6 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const { name, thumbnail, isActive, order } = body;
 
-    const conn = await connectDB();
-    const db = conn.db;
-
     const updateData: any = { updatedAt: new Date() };
     if (name) updateData.name = name;
     if (thumbnail !== undefined) updateData.thumbnail = thumbnail;
@@ -201,7 +199,8 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    await connectDB();
+    const conn = await connectDB();
+    const db = conn.db;
 
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
@@ -226,9 +225,6 @@ export async function DELETE(request: NextRequest) {
     if (!id) {
       return NextResponse.json({ error: 'Missing id' }, { status: 400 });
     }
-
-    const conn = await connectDB();
-    const db = conn.db;
 
     const result = await db.collection('language_folders').deleteOne(
       { _id: new ObjectId(id) }
