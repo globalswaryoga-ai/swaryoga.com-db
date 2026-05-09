@@ -60,10 +60,11 @@ export default function DLearningPage() {
   const [courseToDuplicate, setCourseToDuplicate] = useState<Course | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
-  const [activeTab, setActiveTab] = useState<'courses' | 'languages'>('courses');
   const [languageFolders, setLanguageFolders] = useState<any[]>([]);
+  const [selectedFolder, setSelectedFolder] = useState<any | null>(null);
   const [showLanguageFolderModal, setShowLanguageFolderModal] = useState(false);
   const [languageFolderToEdit, setLanguageFolderToEdit] = useState<any | null>(null);
+  const [loadingFolders, setLoadingFolders] = useState(false);
 
   // Check superadmin status
   useEffect(() => {
@@ -91,19 +92,24 @@ export default function DLearningPage() {
     setAuthChecked(true);
   }, [router]);
 
-  const fetchCourses = useCallback(async () => {
+  const fetchCourses = useCallback(async (folderIdFilter?: string) => {
     if (!token) return;
-    
+
     try {
       setLoading(true);
       setError(null);
-      
-      const res = await fetch('/api/admin/recorded-courses', {
+
+      const url = new URL('/api/admin/recorded-courses', typeof window !== 'undefined' ? window.location.origin : 'http://localhost');
+      if (folderIdFilter) {
+        url.searchParams.set('folderId', folderIdFilter);
+      }
+
+      const res = await fetch(url.toString(), {
         headers: { Authorization: `Bearer ${token}` },
       });
-      
+
       const data = await res.json();
-      
+
       if (data.success) {
         setCourses(data.courses || []);
       } else {
@@ -136,19 +142,24 @@ export default function DLearningPage() {
 
   useEffect(() => {
     if (token) {
-      fetchCourses();
-      fetchLanguageFolders();
+      if (selectedFolder) {
+        fetchCourses(selectedFolder._id);
+      } else {
+        fetchLanguageFolders();
+      }
     }
-  }, [token, fetchCourses, fetchLanguageFolders]);
+  }, [token, selectedFolder, fetchCourses, fetchLanguageFolders]);
 
   // Refetch courses when returning to this page (from edit/etc)
   useEffect(() => {
     const handleRouteChange = () => {
-      if (token) fetchCourses();
+      if (token && selectedFolder) {
+        fetchCourses(selectedFolder._id);
+      }
     };
     window.addEventListener('focus', handleRouteChange);
     return () => window.removeEventListener('focus', handleRouteChange);
-  }, [token, fetchCourses]);
+  }, [token, selectedFolder, fetchCourses]);
 
   const togglePublish = async (course: Course) => {
     if (!token) return;
@@ -271,7 +282,7 @@ export default function DLearningPage() {
 
   return (
     <div className="min-h-screen bg-black p-6">
-      {/* Header */}
+      {/* Header - Always visible */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
@@ -279,11 +290,26 @@ export default function DLearningPage() {
               <GraduationCap className="w-6 h-6 text-green-400" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-white">E-Learning Courses</h1>
-              <p className="text-sm text-gray-400">Manage recorded video courses</p>
+              <h1 className="text-2xl font-bold text-white">
+                {selectedFolder ? `${selectedFolder.flag} ${selectedFolder.name}` : 'E-Learning'}
+              </h1>
+              <p className="text-sm text-gray-400">
+                {selectedFolder ? 'Manage workshops in this folder' : 'Manage courses and language folders'}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {selectedFolder && (
+              <button
+                onClick={() => setSelectedFolder(null)}
+                className="flex items-center gap-2 px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-white font-semibold rounded-lg transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                Back to Folders
+              </button>
+            )}
             <Link
               href="/admin/crm/e-learning/users"
               className="flex items-center gap-2 px-5 py-2.5 bg-blue-500 hover:bg-blue-600 text-black font-semibold rounded-lg transition-colors"
@@ -291,73 +317,95 @@ export default function DLearningPage() {
               <Users size={18} />
               Manage Users
             </Link>
-            <button
-              onClick={() => {
-                setLanguageFolderToEdit(null);
-                setShowLanguageFolderModal(true);
-              }}
-              className="flex items-center gap-2 px-5 py-2.5 bg-purple-500 hover:bg-purple-600 text-white font-semibold rounded-lg transition-colors"
-            >
-              <Folder size={18} />
-              Create Folder
-            </button>
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-2 px-5 py-2.5 bg-green-500 hover:bg-green-600 text-black font-semibold rounded-lg transition-colors"
-            >
-              <Plus size={18} />
-              Add Course
-            </button>
+            {!selectedFolder && (
+              <button
+                onClick={() => {
+                  setLanguageFolderToEdit(null);
+                  setShowLanguageFolderModal(true);
+                }}
+                className="flex items-center gap-2 px-5 py-2.5 bg-purple-500 hover:bg-purple-600 text-white font-semibold rounded-lg transition-colors"
+              >
+                <Folder size={18} />
+                Create Folder
+              </button>
+            )}
+            {selectedFolder && (
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="flex items-center gap-2 px-5 py-2.5 bg-green-500 hover:bg-green-600 text-black font-semibold rounded-lg transition-colors"
+              >
+                <Plus size={18} />
+                Add Workshop
+              </button>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Language Folders Section */}
-      <div className="mb-12">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-xl font-bold text-white">Language Folders</h2>
-            <p className="text-sm text-gray-400">Manage language folder cards shown on frontend</p>
+      {/* Phase 1: Language Folders Grid */}
+      {!selectedFolder && (
+        <div className="mb-12">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-xl font-bold text-white">Language Folders</h2>
+              <p className="text-sm text-gray-400">Click a folder to manage its workshops</p>
+            </div>
           </div>
-        </div>
 
-        {languageFolders.length === 0 ? (
-          <div className="text-center py-12 bg-gray-900/50 rounded-2xl border border-gray-800">
-            <Folder className="w-12 h-12 text-gray-600 mx-auto mb-3" />
-            <p className="text-gray-400">No language folders yet</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {languageFolders.length === 0 ? (
+            <div className="text-center py-20 bg-gray-900/50 rounded-2xl border border-gray-800">
+              <Folder className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+              <p className="text-gray-400 text-lg">No language folders yet</p>
+              <p className="text-gray-500 text-sm mt-2">Create a language folder to get started</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {languageFolders.map((folder) => (
-              <div key={folder._id} className="bg-gray-900/50 rounded-xl border border-gray-800 overflow-hidden hover:border-gray-700 transition-colors">
-                {/* Thumbnail Preview */}
-                <div className="relative h-32 bg-gradient-to-br from-green-800 to-green-900">
-                  {folder.thumbnail ? (
-                    <img src={folder.thumbnail} alt={folder.name} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="flex items-center justify-center h-full">
-                      <Folder className="w-8 h-8 text-green-400/50" />
-                    </div>
-                  )}
-                  {!folder.isActive && (
-                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                      <span className="text-white text-xs font-semibold bg-red-600 px-2 py-1 rounded">Inactive</span>
-                    </div>
-                  )}
-                </div>
+              <div key={folder._id} className="group relative bg-gray-900/50 rounded-xl border border-gray-800 overflow-hidden hover:border-green-600 hover:bg-gray-900 transition-all cursor-pointer">
+                {/* Clickable Thumbnail Area */}
+                <button
+                  onClick={() => setSelectedFolder(folder)}
+                  className="w-full block"
+                >
+                  <div className="relative h-40 bg-gradient-to-br from-green-800 to-green-900">
+                    {folder.thumbnail ? (
+                      <img src={folder.thumbnail} alt={folder.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                    ) : (
+                      <div className="flex items-center justify-center h-full">
+                        <Folder className="w-12 h-12 text-green-400/50" />
+                      </div>
+                    )}
+                    {!folder.isActive && (
+                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                        <span className="text-white text-xs font-semibold bg-red-600 px-2 py-1 rounded">Inactive</span>
+                      </div>
+                    )}
+                    {folder.isActive && (
+                      <div className="absolute inset-0 bg-black/30 group-hover:bg-black/40 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100">
+                        <span className="text-white font-semibold flex items-center gap-2">
+                          Manage Workshops
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </button>
 
                 {/* Content */}
                 <div className="p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-2xl">{folder.flag}</span>
-                    <h3 className="text-white font-bold truncate">{folder.name}</h3>
+                    <h3 className="text-white font-bold truncate flex-1">{folder.name}</h3>
                   </div>
-                  <p className="text-xs text-gray-500 mb-4">{folder.code} • Order: {folder.order}</p>
+                  <p className="text-xs text-gray-500 mb-4">{folder.code}</p>
 
                   {/* Actions */}
                   <div className="flex gap-2">
                     <button
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.preventDefault();
                         setLanguageFolderToEdit(folder);
                         setShowLanguageFolderModal(true);
                       }}
@@ -367,7 +415,10 @@ export default function DLearningPage() {
                       Edit
                     </button>
                     <button
-                      onClick={() => deleteLanguageFolder(folder._id)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        deleteLanguageFolder(folder._id);
+                      }}
                       className="flex-1 px-3 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1"
                     >
                       <Trash2 size={14} />
@@ -380,8 +431,11 @@ export default function DLearningPage() {
           </div>
         )}
       </div>
+      )}
 
-      {/* Content */}
+      {/* Phase 2: Courses Table */}
+      {selectedFolder && (
+      <>
       {loading ? (
         <div className="flex items-center justify-center py-20">
           <div className="animate-spin w-10 h-10 border-4 border-green-500 border-t-transparent rounded-full" />
@@ -516,15 +570,20 @@ export default function DLearningPage() {
           </table>
         </div>
       )}
+      </>
+      )}
 
       {/* Create Course Modal */}
       {showCreateModal && (
         <CreateCourseModal
           token={token}
+          folderId={selectedFolder?._id || null}
           onClose={() => setShowCreateModal(false)}
           onCreated={() => {
             setShowCreateModal(false);
-            fetchCourses();
+            if (selectedFolder) {
+              fetchCourses(selectedFolder._id);
+            }
           }}
         />
       )}
@@ -534,6 +593,7 @@ export default function DLearningPage() {
         <DuplicateCourseModal
           token={token}
           course={courseToDuplicate}
+          folderId={selectedFolder?._id || null}
           onClose={() => {
             setShowDuplicateModal(false);
             setCourseToDuplicate(null);
@@ -541,7 +601,9 @@ export default function DLearningPage() {
           onCreated={() => {
             setShowDuplicateModal(false);
             setCourseToDuplicate(null);
-            fetchCourses();
+            if (selectedFolder) {
+              fetchCourses(selectedFolder._id);
+            }
           }}
         />
       )}
@@ -566,7 +628,7 @@ export default function DLearningPage() {
   );
 }
 
-function DuplicateCourseModal({ token, course, onClose, onCreated }: { token: string; course: Course; onClose: () => void; onCreated: () => void }) {
+function DuplicateCourseModal({ token, course, folderId, onClose, onCreated }: { token: string; course: Course; folderId: string | null; onClose: () => void; onCreated: () => void }) {
   const [title, setTitle] = useState(`${course.content?.en?.title || course.slug} (Copy)`);
   const [slug, setSlug] = useState(`${course.slug}-copy`);
   const [description, setDescription] = useState(course.content?.en?.description || '');
@@ -584,26 +646,6 @@ function DuplicateCourseModal({ token, course, onClose, onCreated }: { token: st
   const [isFree, setIsFree] = useState(course.isFree || false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [languageFolders, setLanguageFolders] = useState<any[]>([]);
-  const [selectedFolder, setSelectedFolder] = useState('');
-  const [showFolderModal, setShowFolderModal] = useState(false);
-
-  useEffect(() => {
-    const fetchFolders = async () => {
-      try {
-        const res = await fetch('/api/admin/language-folders', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = await res.json();
-        if (data.success) {
-          setLanguageFolders(data.folders || []);
-        }
-      } catch (err) {
-        console.error('Error fetching folders:', err);
-      }
-    };
-    if (token) fetchFolders();
-  }, [token]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -645,7 +687,7 @@ function DuplicateCourseModal({ token, course, onClose, onCreated }: { token: st
           isFree,
           isPublished: false,
           isActive: true,
-          folderName: selectedFolder || null,
+          folderId: folderId || null,
         }),
       });
 
@@ -806,44 +848,6 @@ function DuplicateCourseModal({ token, course, onClose, onCreated }: { token: st
             </div>
           </div>
 
-          {/* Folder Selection */}
-          <div>
-            <label className="block text-sm font-medium text-green-400 mb-2">Language Folder</label>
-            <div className="flex gap-2">
-              <select
-                value={selectedFolder}
-                onChange={(e) => setSelectedFolder(e.target.value)}
-                className="flex-1 px-4 py-3 bg-black border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none"
-              >
-                <option value="">-- No Folder --</option>
-                {languageFolders.map((folder) => (
-                  <option key={folder._id} value={folder._id}>
-                    {folder.flag} {folder.name}
-                  </option>
-                ))}
-              </select>
-              {languageFolders.length === 0 ? (
-                <button
-                  type="button"
-                  onClick={() => setShowFolderModal(true)}
-                  className="px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-colors"
-                  title="Create a new folder"
-                >
-                  +
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setShowFolderModal(true)}
-                  className="px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-colors text-sm"
-                  title="Create a new folder"
-                >
-                  + Add
-                </button>
-              )}
-            </div>
-          </div>
-
           {/* Free Course Checkbox */}
           <div className="flex items-center gap-2">
             <input
@@ -976,33 +980,12 @@ function DuplicateCourseModal({ token, course, onClose, onCreated }: { token: st
             </button>
           </div>
         </form>
-
-        {/* Language Folder Modal */}
-        {showFolderModal && (
-          <div className="fixed inset-0 flex items-center justify-center z-50">
-            <LanguageFolderModal
-              token={token}
-              folder={undefined}
-              onClose={() => setShowFolderModal(false)}
-              onSaved={async () => {
-                setShowFolderModal(false);
-                const res = await fetch('/api/admin/language-folders', {
-                  headers: { Authorization: `Bearer ${token}` },
-                });
-                const data = await res.json();
-                if (data.success) {
-                  setLanguageFolders(data.folders || []);
-                }
-              }}
-            />
-          </div>
-        )}
       </div>
     </div>
   );
 }
 
-function CreateCourseModal({ token, onClose, onCreated }: { token: string; onClose: () => void; onCreated: () => void }) {
+function CreateCourseModal({ token, folderId, onClose, onCreated }: { token: string; folderId: string | null; onClose: () => void; onCreated: () => void }) {
   const [title, setTitle] = useState('');
   const [slug, setSlug] = useState('');
   const [description, setDescription] = useState('');
@@ -1020,26 +1003,6 @@ function CreateCourseModal({ token, onClose, onCreated }: { token: string; onClo
   const [isFree, setIsFree] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [languageFolders, setLanguageFolders] = useState<any[]>([]);
-  const [selectedFolder, setSelectedFolder] = useState('');
-  const [showFolderModal, setShowFolderModal] = useState(false);
-
-  useEffect(() => {
-    const fetchFolders = async () => {
-      try {
-        const res = await fetch('/api/admin/language-folders', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = await res.json();
-        if (data.success) {
-          setLanguageFolders(data.folders || []);
-        }
-      } catch (err) {
-        console.error('Error fetching folders:', err);
-      }
-    };
-    if (token) fetchFolders();
-  }, [token]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1081,7 +1044,7 @@ function CreateCourseModal({ token, onClose, onCreated }: { token: string; onClo
           isFree,
           isPublished: false,
           isActive: true,
-          folderName: selectedFolder || null,
+          folderId: folderId || null,
         }),
       });
 
@@ -1242,44 +1205,6 @@ function CreateCourseModal({ token, onClose, onCreated }: { token: string; onClo
             </div>
           </div>
 
-          {/* Language Folder Selection */}
-          <div>
-            <label className="block text-sm font-medium text-green-400 mb-2">Language Folder</label>
-            <div className="flex gap-2">
-              <select
-                value={selectedFolder}
-                onChange={(e) => setSelectedFolder(e.target.value)}
-                className="flex-1 px-4 py-3 bg-black border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none"
-              >
-                <option value="">-- No Folder --</option>
-                {languageFolders.map((folder) => (
-                  <option key={folder._id} value={folder._id}>
-                    {folder.flag} {folder.name}
-                  </option>
-                ))}
-              </select>
-              {languageFolders.length === 0 ? (
-                <button
-                  type="button"
-                  onClick={() => setShowFolderModal(true)}
-                  className="px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-colors"
-                  title="Create a new folder"
-                >
-                  +
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setShowFolderModal(true)}
-                  className="px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-colors text-sm"
-                  title="Create a new folder"
-                >
-                  + Add
-                </button>
-              )}
-            </div>
-          </div>
-
           {/* Free Course Checkbox */}
           <div className="flex items-center gap-2">
             <input
@@ -1416,27 +1341,6 @@ function CreateCourseModal({ token, onClose, onCreated }: { token: string; onClo
             </button>
           </div>
         </form>
-
-        {/* Language Folder Modal */}
-        {showFolderModal && (
-          <div className="fixed inset-0 flex items-center justify-center z-50">
-            <LanguageFolderModal
-              token={token}
-              folder={undefined}
-              onClose={() => setShowFolderModal(false)}
-              onSaved={async () => {
-                setShowFolderModal(false);
-                const res = await fetch('/api/admin/language-folders', {
-                  headers: { Authorization: `Bearer ${token}` },
-                });
-                const data = await res.json();
-                if (data.success) {
-                  setLanguageFolders(data.folders || []);
-                }
-              }}
-            />
-          </div>
-        )}
       </div>
     </div>
   );

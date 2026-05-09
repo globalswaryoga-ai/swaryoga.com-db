@@ -53,26 +53,27 @@ export async function GET(request: NextRequest) {
     }
     
     const courseId = request.nextUrl.searchParams.get('id');
+    const folderId = request.nextUrl.searchParams.get('folderId');
     const RecordedCourse = getRecordedCourse();
     const CourseVideo = getCourseVideo();
     const CourseSection = getCourseSection();
     const CourseMaterial = getCourseMaterial();
     const CourseAssignment = getCourseAssignment();
     const CourseEnrollment = getCourseEnrollment();
-    
+
     // Get specific course with full details
     if (courseId) {
       const course = await RecordedCourse.findById(courseId).lean();
       if (!course) {
         return NextResponse.json({ error: 'Course not found' }, { status: 404 });
       }
-      
+
       const sections = await CourseSection.find({ courseId }).sort({ order: 1 }).lean();
       const videos = await CourseVideo.find({ courseId }).sort({ order: 1 }).lean();
       const materials = await CourseMaterial.find({ courseId }).sort({ order: 1 }).lean();
       const assignments = await CourseAssignment.find({ courseId }).sort({ order: 1 }).lean();
       const enrollmentCount = await CourseEnrollment.countDocuments({ courseId });
-      
+
       return NextResponse.json({
         success: true,
         course,
@@ -83,9 +84,14 @@ export async function GET(request: NextRequest) {
         enrollmentCount,
       });
     }
-    
-    // List all active courses (exclude soft-deleted)
-    const courses = await RecordedCourse.find({ isActive: true }).sort({ order: 1, createdAt: -1 }).lean();
+
+    // List all active courses (exclude soft-deleted), optionally filtered by folder
+    const filterQuery: any = { isActive: true };
+    if (folderId) {
+      const { ObjectId } = require('mongodb');
+      filterQuery.folderId = new ObjectId(folderId);
+    }
+    const courses = await RecordedCourse.find(filterQuery).sort({ order: 1, createdAt: -1 }).lean();
     
     // Get enrollment counts
     const coursesWithStats = await Promise.all(

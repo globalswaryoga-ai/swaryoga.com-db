@@ -23,7 +23,8 @@ export interface IRecordedCourse extends Document {
   isActive: boolean;
   isPublished: boolean;
   order: number; // Display order
-  
+  folderId?: mongoose.Types.ObjectId; // Language folder reference
+
   // Multi-language Content
   content: {
     en: {
@@ -254,7 +255,8 @@ const RecordedCourseSchema = new Schema<IRecordedCourse>({
   isActive: { type: Boolean, default: true },
   isPublished: { type: Boolean, default: false },
   order: { type: Number, default: 0 },
-  
+  folderId: { type: Schema.Types.ObjectId, ref: 'LanguageFolder', default: null },
+
   content: {
     en: {
       title: { type: String, required: true },
