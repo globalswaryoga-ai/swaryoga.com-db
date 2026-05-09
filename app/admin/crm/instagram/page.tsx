@@ -22,6 +22,7 @@ interface Conversation {
   source?: string;
   profilePic?: string;
   notes?: string;
+  isArchived?: boolean;
 }
 
 interface Message {
@@ -86,6 +87,7 @@ export default function InstagramInboxPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [messageSearchQuery, setMessageSearchQuery] = useState('');
   const [showQuickReplies, setShowQuickReplies] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
 
   const quickReplies = [
     { label: 'Thank you! 🙏', text: 'Thank you for your interest! We\'ll get back to you soon.' },
@@ -392,6 +394,35 @@ export default function InstagramInboxPage() {
     }
   };
 
+  const handleArchiveConversation = async () => {
+    if (!selected) return;
+    try {
+      const adminToken = getStoredAdminToken();
+      const res = await fetch(`/api/admin/crm/social-inbox/conversations/${selected._id}?platform=instagram`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({
+          isArchived: !selected.isArchived,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to archive conversation');
+      }
+      const updated = data?.data;
+      if (updated) {
+        setSelected(null);
+        setMessages([]);
+        setConversations((prev) => prev.map((item) => (item._id === updated._id ? { ...item, ...updated } : item)));
+      }
+    } catch (error) {
+      setConnectionError(error instanceof Error ? error.message : 'Failed to archive conversation');
+    }
+  };
+
   const handleSendMessage = async () => {
     if (!composerText.trim() || !selected) return;
     const messageText = composerText.trim();
@@ -436,9 +467,11 @@ export default function InstagramInboxPage() {
     }
   };
 
-  const filteredConversations = conversations.filter(c =>
-    !searchQuery || (c.name || '').toLowerCase().includes(searchQuery.toLowerCase()) || (c.username || '').toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredConversations = conversations.filter(c => {
+    const matchesSearch = !searchQuery || (c.name || '').toLowerCase().includes(searchQuery.toLowerCase()) || (c.username || '').toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesArchiveFilter = showArchived ? c.isArchived : !c.isArchived;
+    return matchesSearch && matchesArchiveFilter;
+  });
 
   const filteredMessages = messages.filter(m =>
     !messageSearchQuery || (m.messageContent || '').toLowerCase().includes(messageSearchQuery.toLowerCase())
@@ -530,7 +563,7 @@ export default function InstagramInboxPage() {
       <div className="flex-1 flex overflow-hidden">
         {/* LEFT SIDEBAR */}
         <aside className="w-[27rem] shrink-0 flex flex-col overflow-hidden border-r" style={{ background: 'linear-gradient(180deg, #FFF0F5 0%, #FFFAFC 100%)', borderColor: 'rgba(193,53,132,0.1)' }}>
-          {/* Search */}
+          {/* Search & Archive Toggle */}
           <div className="p-2.5 flex gap-2">
             <div className="relative flex-1">
               <i className="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400"></i>
@@ -543,6 +576,18 @@ export default function InstagramInboxPage() {
                 style={{ borderColor: 'rgba(193,53,132,0.15)' }}
               />
             </div>
+            <button
+              onClick={() => setShowArchived(!showArchived)}
+              title={showArchived ? 'Show active conversations' : 'Show archived conversations'}
+              className={`px-2 py-2 rounded-lg transition-all text-xs font-bold ${
+                showArchived
+                  ? 'bg-slate-200 text-slate-700'
+                  : 'bg-white/60 text-slate-500 hover:bg-slate-100'
+              }`}
+              style={showArchived ? { borderColor: 'rgba(193,53,132,0.2)' } : {}}
+            >
+              <i className="ph ph-archive text-sm"></i>
+            </button>
           </div>
 
           {/* Conversation List */}
@@ -923,6 +968,19 @@ export default function InstagramInboxPage() {
               >
                 <i className="ph-bold ph-floppy-disk text-sm"></i>
                 {savingSidebar ? 'Saving...' : 'Save Changes'}
+              </button>
+
+              <button
+                onClick={handleArchiveConversation}
+                className="w-full py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border"
+                style={{
+                  color: selected?.isArchived ? '#047857' : '#f59e0b',
+                  borderColor: selected?.isArchived ? 'rgba(4,120,87,0.3)' : 'rgba(245,158,11,0.3)',
+                  background: selected?.isArchived ? 'rgba(4,120,87,0.05)' : 'rgba(245,158,11,0.05)',
+                }}
+              >
+                <i className={`ph-bold ${selected?.isArchived ? 'ph-arrow-counter-clockwise' : 'ph-archive'} text-sm`}></i>
+                {selected?.isArchived ? 'Unarchive' : 'Archive'}
               </button>
 
               <button className="w-full py-2 rounded-xl text-xs font-bold transition-all text-red-500 hover:bg-red-50 border border-red-200 flex items-center justify-center gap-2">
