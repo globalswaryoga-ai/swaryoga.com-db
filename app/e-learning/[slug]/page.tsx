@@ -214,8 +214,8 @@ export default function CourseDetailPage() {
                   </button>
                 </div>
 
-                {/* Language Grid */}
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {/* Language List - Single Column */}
+                <div className="max-w-xs mx-auto max-h-96 overflow-y-auto bg-white rounded-lg border border-gray-200">
                   {languageOptions.map((lang) => (
                     <button
                       key={lang.code}
@@ -224,20 +224,16 @@ export default function CourseDetailPage() {
                         localStorage.setItem('preferred_language', lang.code);
                         setLangDropdownOpen(false);
                       }}
-                      className={`flex items-center gap-3 p-4 rounded-lg border-2 transition-all ${
+                      className={`w-full px-4 py-3 text-left flex items-center gap-3 text-sm font-medium transition-all border-b border-gray-100 last:border-b-0 ${
                         language === lang.code
-                          ? 'border-green-600 bg-green-50'
-                          : 'border-gray-200 hover:border-green-400 hover:bg-gray-50'
+                          ? 'bg-green-600 text-white'
+                          : 'bg-white text-gray-900 hover:bg-gray-100'
                       }`}
                     >
-                      <span className="text-3xl flex-shrink-0">{lang.flag}</span>
-                      <div className="text-left flex-1">
-                        <p className={`font-semibold ${language === lang.code ? 'text-green-700' : 'text-gray-900'}`}>
-                          {lang.name}
-                        </p>
-                      </div>
+                      <span className="text-lg">{lang.flag}</span>
+                      <span className="flex-1">{lang.name}</span>
                       {language === lang.code && (
-                        <svg className="w-5 h-5 text-green-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                         </svg>
                       )}
