@@ -423,8 +423,6 @@ export default function CourseDetailPage() {
             discount: course.discount,
           }}
           token={token}
-          enrolledStudents={enrolledStudents}
-          enrollmentCount={enrollmentCount}
         />
       )}
     </div>
