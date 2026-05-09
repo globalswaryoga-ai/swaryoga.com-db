@@ -153,7 +153,6 @@ export async function GET(
     const messages = await chatCol
       .find(messageFilter)
       .sort({ createdAt: 1 })
-      .lean()
       .toArray();
 
     return NextResponse.json({

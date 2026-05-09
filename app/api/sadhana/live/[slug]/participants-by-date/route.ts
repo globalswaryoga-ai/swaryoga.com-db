@@ -105,7 +105,6 @@ export async function GET(
         },
       })
       .sort({ joinedAt: 1 })
-      .lean()
       .toArray();
 
     // Group by time slot
