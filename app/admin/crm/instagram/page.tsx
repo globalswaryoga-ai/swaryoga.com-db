@@ -326,6 +326,20 @@ export default function InstagramInboxPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Auto-refresh conversations every 5 seconds
+  useEffect(() => {
+    if (!token || !instagramAccount) return;
+
+    const interval = setInterval(() => {
+      loadInstagramConversations();
+      if (selected?._id) {
+        loadInstagramMessages(selected._id);
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [token, instagramAccount, selected?._id, loadInstagramConversations, loadInstagramMessages]);
+
   const handleSelectConversation = async (conv: Conversation) => {
     setSelected(conv);
     syncSidebarFromConversation(conv);
@@ -371,6 +385,17 @@ export default function InstagramInboxPage() {
     if (!composerText.trim() || !selected) return;
     const messageText = composerText.trim();
     setComposerText('');
+
+    // Show message optimistically immediately
+    const optimisticMessage: Message = {
+      _id: `temp-${Date.now()}`,
+      direction: 'outbound',
+      messageContent: messageText,
+      sentAt: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+    };
+    setMessages([...messages, optimisticMessage]);
+
     try {
       const adminToken = getStoredAdminToken();
       const res = await fetch('/api/admin/crm/social-inbox/messages', {
@@ -389,10 +414,13 @@ export default function InstagramInboxPage() {
       if (!res.ok) {
         throw new Error(data?.error || 'Failed to send Instagram message');
       }
+      // Refresh to get actual message ID and confirmation
       await loadInstagramMessages(selected._id);
       await loadInstagramConversations();
     } catch (error) {
       setComposerText(messageText);
+      // Remove optimistic message on error
+      setMessages(messages.filter(m => m._id !== optimisticMessage._id));
       setConnectionError(error instanceof Error ? error.message : 'Failed to send Instagram message');
     }
   };
@@ -641,8 +669,15 @@ export default function InstagramInboxPage() {
                             </div>
                           )}
                           {msg.messageContent || ''}
-                          <div className={`text-[9px] mt-1 ${msg.direction === 'outbound' ? 'text-white/60' : 'text-slate-400'}`}>
-                            {new Date(msg.sentAt || msg.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                          <div className={`text-[9px] mt-1 flex items-center gap-1 ${msg.direction === 'outbound' ? 'text-white/60' : 'text-slate-400'}`}>
+                            <span>
+                              {new Date(msg.sentAt || msg.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                            {msg.direction === 'outbound' && (
+                              <span className="ml-1">
+                                {msg._id.startsWith('temp-') ? '⏱️' : '✓'}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>
