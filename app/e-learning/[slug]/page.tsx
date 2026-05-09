@@ -56,15 +56,7 @@ interface Course {
   isFree: boolean;
   enrolledCount?: number;
   averageRating?: number;
-}
-
-interface EnrolledStudent {
-  _id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  enrolledAt: string;
-  progress?: number;
+  defaultStudents?: number;
 }
 
 export default function CourseDetailPage() {
@@ -80,7 +72,6 @@ export default function CourseDetailPage() {
   const [token, setToken] = useState<string>('');
   const [language, setLanguage] = useState<string>('en');
   const [langDropdownOpen, setLangDropdownOpen] = useState(false);
-  const [enrollmentCount, setEnrollmentCount] = useState(15);
 
   useEffect(() => {
     // Get token from localStorage
@@ -263,6 +254,13 @@ export default function CourseDetailPage() {
                 <p className="text-gray-700 leading-relaxed">{course.description}</p>
               </div>
             )}
+
+            {/* Students Count */}
+            <div className="mb-8 p-4 bg-green-50 rounded-lg border border-green-200">
+              <p className="text-lg font-semibold text-gray-900">
+                👥 {(course.defaultStudents || 15) + (course.enrolledCount || 0)} Students Currently Learning
+              </p>
+            </div>
 
             {/* Course Content */}
             {videos.length > 0 && (
