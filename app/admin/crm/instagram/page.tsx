@@ -84,6 +84,7 @@ export default function InstagramInboxPage() {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [composerText, setComposerText] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [messageSearchQuery, setMessageSearchQuery] = useState('');
   const [showSidebar, setShowSidebar] = useState(true);
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [sidebarData, setSidebarData] = useState<any>({ labels: [], notes: '', assignedTo: '', status: 'new_lead' });
@@ -429,6 +430,10 @@ export default function InstagramInboxPage() {
     !searchQuery || (c.name || '').toLowerCase().includes(searchQuery.toLowerCase()) || (c.username || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const filteredMessages = messages.filter(m =>
+    !messageSearchQuery || (m.messageContent || '').toLowerCase().includes(messageSearchQuery.toLowerCase())
+  );
+
   const connectionBadgeLabel = instagramAccount
     ? `Connected · ${instagramAccount.accountName}`
     : facebookAccount
@@ -615,22 +620,35 @@ export default function InstagramInboxPage() {
           {selected ? (
             <>
               {/* Chat Header */}
-              <div className="px-3 py-1.5 flex gap-2 items-center sticky top-0 z-30 shrink-0 backdrop-blur-md" style={{ background: 'linear-gradient(90deg, rgba(255,255,255,0.95) 0%, rgba(255,240,245,0.4) 100%)', borderBottom: '1px solid rgba(193,53,132,0.1)' }}>
-                <div className="h-7 w-7 rounded-lg flex items-center justify-center text-white shadow-sm" style={{ background: 'linear-gradient(135deg, #833AB4, #C13584, #E1306C)' }}>
-                  <i className="ph ph-user text-sm"></i>
+              <div className="px-3 py-1.5 flex gap-2 items-center sticky top-0 z-30 shrink-0 backdrop-blur-md flex-col lg:flex-row" style={{ background: 'linear-gradient(90deg, rgba(255,255,255,0.95) 0%, rgba(255,240,245,0.4) 100%)', borderBottom: '1px solid rgba(193,53,132,0.1)' }}>
+                <div className="flex gap-2 items-center w-full lg:w-auto">
+                  <div className="h-7 w-7 rounded-lg flex items-center justify-center text-white shadow-sm shrink-0" style={{ background: 'linear-gradient(135deg, #833AB4, #C13584, #E1306C)' }}>
+                    <i className="ph ph-user text-sm"></i>
+                  </div>
+                  <div>
+                    <div className="text-[13px] font-bold text-slate-900 leading-none">{selected.name || 'Unknown'}</div>
+                    <div className="text-[10px] font-semibold mt-0.5" style={{ color: '#C13584' }}>{selected.username ? `@${selected.username}` : selected.participantId || 'Instagram'}</div>
+                  </div>
+                  <div className="ml-auto lg:ml-0">
+                    <button
+                      className={`p-1.5 rounded-md transition-colors ${showSidebar ? 'text-pink-600' : 'text-slate-500 hover:bg-slate-50'}`}
+                      style={showSidebar ? { background: 'rgba(193,53,132,0.08)' } : {}}
+                      onClick={() => setShowSidebar(!showSidebar)}
+                    >
+                      <i className={`ph ${showSidebar ? 'ph-sidebar-simple' : 'ph-sidebar'} text-sm`}></i>
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <div className="text-[13px] font-bold text-slate-900 leading-none">{selected.name || 'Unknown'}</div>
-                  <div className="text-[10px] font-semibold mt-0.5" style={{ color: '#C13584' }}>{selected.username ? `@${selected.username}` : selected.participantId || 'Instagram'}</div>
-                </div>
-                <div className="ml-auto">
-                  <button
-                    className={`p-1.5 rounded-md transition-colors ${showSidebar ? 'text-pink-600' : 'text-slate-500 hover:bg-slate-50'}`}
-                    style={showSidebar ? { background: 'rgba(193,53,132,0.08)' } : {}}
-                    onClick={() => setShowSidebar(!showSidebar)}
-                  >
-                    <i className={`ph ${showSidebar ? 'ph-sidebar-simple' : 'ph-sidebar'} text-sm`}></i>
-                  </button>
+                <div className="w-full lg:w-auto relative flex-1 lg:flex-none">
+                  <i className="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400"></i>
+                  <input
+                    type="text"
+                    value={messageSearchQuery}
+                    onChange={(e) => setMessageSearchQuery(e.target.value)}
+                    placeholder="Search messages..."
+                    className="w-full pl-9 pr-3 py-1.5 rounded-lg bg-white/80 backdrop-blur-sm shadow-sm border text-[11px] font-medium focus:ring-2 focus:ring-pink-300/30 focus:border-pink-400 outline-none transition-all"
+                    style={{ borderColor: 'rgba(193,53,132,0.15)' }}
+                  />
                 </div>
               </div>
 
@@ -646,9 +664,17 @@ export default function InstagramInboxPage() {
                     <p className="text-sm font-bold text-slate-500">No messages yet</p>
                     <p className="text-xs text-slate-400">Messages will appear here once connected.</p>
                   </div>
+                ) : filteredMessages.length === 0 ? (
+                  <div className="flex-1 flex flex-col items-center justify-center text-slate-400 gap-3">
+                    <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, rgba(193,53,132,0.08), rgba(225,48,108,0.15))' }}>
+                      <i className="ph ph-magnifying-glass text-3xl" style={{ color: 'rgba(193,53,132,0.4)' }}></i>
+                    </div>
+                    <p className="text-sm font-bold text-slate-500">No messages found</p>
+                    <p className="text-xs text-slate-400">Try searching for different words.</p>
+                  </div>
                 ) : (
                   <>
-                    {messages.map((msg) => (
+                    {filteredMessages.map((msg) => (
                       <div key={msg._id} className={`flex ${msg.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
                         <div className={`max-w-[360px] rounded-2xl text-[14px] px-3.5 py-2.5 ${
                           msg.direction === 'outbound'
