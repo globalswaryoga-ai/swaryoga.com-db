@@ -16,6 +16,33 @@ export async function getProgramVideosCollection() {
   return db.collection('sadhana_program_videos');
 }
 
+export async function getSessionsCollection() {
+  const db = await getProgramsDb();
+  const col = db.collection('sadhana_sessions');
+  // Create indexes
+  await col.createIndex({ programId: 1, date: 1, timeSlot: 1 }, { unique: true, sparse: true });
+  await col.createIndex({ programId: 1, date: 1 });
+  return col;
+}
+
+export interface SessionParticipant {
+  _id?: any;
+  name: string;
+  joinedAt: Date;
+  leftAt?: Date;
+  durationMinutes?: number;
+}
+
+export interface Session {
+  _id?: any;
+  programId: string;
+  programSlug: string;
+  date: string; // YYYY-MM-DD
+  timeSlot: string; // HH:MM
+  createdAt: Date;
+  participants: SessionParticipant[];
+}
+
 export function slugify(s: string): string {
   return String(s)
     .toLowerCase()
