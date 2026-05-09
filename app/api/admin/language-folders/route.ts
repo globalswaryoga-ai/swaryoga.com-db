@@ -15,12 +15,11 @@ import { ObjectId } from 'mongodb';
 
 export async function GET(request: NextRequest) {
   try {
-    await connectDB();
+    const conn = await connectDB();
+    const db = conn.db;
 
     const url = new URL(request.url);
     const isPublic = !url.pathname.includes('/admin/');
-    const conn = await connectDB();
-    const db = conn.db;
 
     if (isPublic) {
       // Public endpoint - return only active folders
@@ -89,8 +88,6 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    await connectDB();
-
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
