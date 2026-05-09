@@ -1333,6 +1333,18 @@ function LanguageFolderModal({ token, folder, onClose, onSaved }: { token: strin
           </div>
 
           <div>
+            <label className="block text-sm font-medium text-green-400 mb-2">Folder Name (Headline) *</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
+              placeholder="e.g., Hindi Workshops, Courses en Español"
+              required
+            />
+          </div>
+
+          <div>
             <label className="block text-sm font-medium text-green-400 mb-2">Thumbnail URL</label>
             <input
               type="url"
