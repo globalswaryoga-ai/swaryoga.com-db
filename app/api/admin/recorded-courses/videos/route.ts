@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { courseId, title, description, bunnyVideoId, duration = 0, isFree = false } = body;
+    const { courseId, title, description, bunnyVideoId, duration = 0, isFree = false, thumbnail } = body;
 
     if (!courseId || !title || !bunnyVideoId) {
       return NextResponse.json({
@@ -114,16 +114,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Course not found' }, { status: 404 });
     }
 
-    // Check for duplicate video (same title + bunnyVideoId in same course)
+    // Check for duplicate video (same bunnyVideoId in same course)
     const existingVideo = await CourseVideo.findOne({
       courseId,
-      title,
       bunnyVideoId,
+      isActive: true,
     });
 
     if (existingVideo) {
       return NextResponse.json({
-        error: 'Video with this title and video ID already exists in this course',
+        error: 'This video already exists in this course',
         existingId: existingVideo._id,
       }, { status: 409 });
     }
@@ -140,6 +140,7 @@ export async function POST(request: NextRequest) {
       isFree: isFree === true,
       isActive: true,
       order: nextOrder,
+      thumbnail: thumbnail || '',
       createdBy: decoded.email || decoded.userId || 'admin',
       content: {
         en: {
@@ -161,6 +162,7 @@ export async function POST(request: NextRequest) {
         bunnyVideoId: videoDoc.bunnyVideoId,
         duration: videoDoc.duration,
         isFree: videoDoc.isFree,
+        thumbnail: videoDoc.thumbnail,
       },
     });
   } catch (error: any) {
@@ -193,7 +195,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { videoId, title, description, duration, isFree } = body;
+    const { videoId, title, description, duration, isFree, thumbnail } = body;
 
     if (!videoId) {
       return NextResponse.json({ error: 'Video ID required' }, { status: 400 });
@@ -206,6 +208,7 @@ export async function PUT(request: NextRequest) {
     if (description !== undefined) updateData.description = description;
     if (duration !== undefined) updateData.duration = parseInt(duration) || 0;
     if (isFree !== undefined) updateData.isFree = isFree === true;
+    if (thumbnail !== undefined) updateData.thumbnail = thumbnail;
 
     const video = await CourseVideo.findByIdAndUpdate(videoId, updateData, { new: true });
 
