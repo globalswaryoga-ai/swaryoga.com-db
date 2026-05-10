@@ -202,11 +202,17 @@ export default function CourseVideosPage() {
 
                     {/* Action Button */}
                     {isFree ? (
-                      <button className="w-full mt-3 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors">
+                      <button
+                        onClick={() => router.push(`/e-learning/${slug}/learn?video=${video._id}`)}
+                        className="w-full mt-3 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                      >
                         <Play size={16} /> Play Video
                       </button>
                     ) : isLoggedIn ? (
-                      <button className="w-full mt-3 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors">
+                      <button
+                        onClick={() => router.push(`/e-learning/${slug}/learn?video=${video._id}`)}
+                        className="w-full mt-3 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                      >
                         <Play size={16} /> Play Video
                       </button>
                     ) : (
