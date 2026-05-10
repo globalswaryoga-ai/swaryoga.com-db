@@ -1,12 +1,16 @@
 /**
  * Admin API for Course Videos Management
- * Based on community recording upload system - proven working approach
+ * Simple working implementation based on community recording pattern
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
+import {
+  getRecordedCourse,
+  getCourseVideo,
+} from '@/lib/schemas/recordedCourseSchemas';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -44,9 +48,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Course ID required' }, { status: 400 });
     }
 
-    const { getCourseVideo, getRecordedCourse } = await import('@/lib/db');
     const CourseVideo = getCourseVideo();
-    const RecordedCourse = getRecordedCourse();
 
     const videos = await CourseVideo.find({ courseId }).sort({ order: 1 }).lean();
 
@@ -54,8 +56,8 @@ export async function GET(request: NextRequest) {
       success: true,
       videos: videos.map(v => ({
         _id: v._id.toString(),
-        title: v.title || v.content?.en?.title,
-        description: v.description || v.content?.en?.description,
+        title: v.title,
+        description: v.description,
         bunnyVideoId: v.bunnyVideoId,
         duration: v.duration,
         order: v.order,
@@ -66,12 +68,12 @@ export async function GET(request: NextRequest) {
 
   } catch (error: any) {
     console.error('[Admin Videos GET Error]:', error);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
   }
 }
 
 /**
- * POST - Create new video (JSON with Bunny ID)
+ * POST - Create new video
  */
 export async function POST(request: NextRequest) {
   try {
@@ -100,43 +102,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Course ID required' }, { status: 400 });
     }
 
-    if (!title) {
-      return NextResponse.json({ error: 'Title required' }, { status: 400 });
+    if (!title || !bunnyVideoId) {
+      return NextResponse.json({ error: 'Title and Bunny Video ID required' }, { status: 400 });
     }
 
-    if (!bunnyVideoId) {
-      return NextResponse.json({ error: 'Bunny Video ID required' }, { status: 400 });
-    }
-
-    const { getCourseVideo, getRecordedCourse } = await import('@/lib/db');
-    const CourseVideo = getCourseVideo();
     const RecordedCourse = getRecordedCourse();
+    const CourseVideo = getCourseVideo();
 
-    // Verify course exists
     const course = await RecordedCourse.findById(courseId);
     if (!course) {
       return NextResponse.json({ error: 'Course not found' }, { status: 404 });
     }
 
-    // Get next order number
     const lastVideo = await CourseVideo.findOne({ courseId }).sort({ order: -1 });
     const nextOrder = (lastVideo?.order || 0) + 1;
 
-    // Create video record with simple structure
     const video = await CourseVideo.create({
       courseId,
       title,
-      description,
+      description: description || '',
       bunnyVideoId,
       duration: parseInt(duration) || 0,
       isFree: isFree === true,
       isActive: true,
       order: nextOrder,
       createdBy: decoded.email || decoded.userId || 'admin',
-      createdAt: new Date(),
     });
 
-    // Update course totals
     const videoCount = await CourseVideo.countDocuments({ courseId, isActive: true });
     const allVideos = await CourseVideo.find({ courseId, isActive: true });
     const totalDuration = allVideos.reduce((sum, v) => sum + (v.duration || 0), 0);
@@ -164,7 +156,7 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * PUT - Update video metadata
+ * PUT - Update video
  */
 export async function PUT(request: NextRequest) {
   try {
@@ -193,10 +185,9 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Video ID required' }, { status: 400 });
     }
 
-    const { getCourseVideo } = await import('@/lib/db');
     const CourseVideo = getCourseVideo();
 
-    const updateData: any = { updatedAt: new Date(), updatedBy: decoded.email || decoded.userId };
+    const updateData: any = { updatedBy: decoded.email || decoded.userId };
     if (title) updateData.title = title;
     if (description !== undefined) updateData.description = description;
     if (duration !== undefined) updateData.duration = parseInt(duration) || 0;
@@ -221,12 +212,12 @@ export async function PUT(request: NextRequest) {
 
   } catch (error: any) {
     console.error('[Admin Videos PUT Error]:', error);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
   }
 }
 
 /**
- * DELETE - Delete video (soft delete)
+ * DELETE - Delete video
  */
 export async function DELETE(request: NextRequest) {
   try {
@@ -253,7 +244,6 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Video ID required' }, { status: 400 });
     }
 
-    const { getCourseVideo, getRecordedCourse } = await import('@/lib/db');
     const CourseVideo = getCourseVideo();
     const RecordedCourse = getRecordedCourse();
 
@@ -267,7 +257,6 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Video not found' }, { status: 404 });
     }
 
-    // Update course totals
     if (video.courseId) {
       const videoCount = await CourseVideo.countDocuments({ courseId: video.courseId, isActive: true });
       const allVideos = await CourseVideo.find({ courseId: video.courseId, isActive: true });
@@ -286,6 +275,6 @@ export async function DELETE(request: NextRequest) {
 
   } catch (error: any) {
     console.error('[Admin Videos DELETE Error]:', error);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
   }
 }
