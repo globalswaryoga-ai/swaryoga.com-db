@@ -480,28 +480,40 @@ RecordedCourseSchema.index({ isActive: 1, isPublished: 1, order: 1 });
 export interface ICourseVideo extends Document {
   courseId: mongoose.Types.ObjectId;
   sectionId?: mongoose.Types.ObjectId;
-  
+
   // Multi-language Content
   content: {
     en: { title: string; description?: string; };
     hi?: { title: string; description?: string; };
     ne?: { title: string; description?: string; };
   };
-  
+
+  // Legacy flat fields (for backward compatibility)
+  title?: string;
+  description?: string;
+  slug?: string;
+  isFree?: boolean;
+
   // Video Details
   bunnyVideoId?: string; // Bunny Stream video ID
   videoUrl?: string; // Direct URL (for non-Bunny)
   thumbnail?: string;
   duration: number; // In seconds
-  
+
   // Access
   accessType: 'free' | 'preview' | 'paid' | 'gift';
   order: number;
   isActive: boolean;
-  
+
   // Tracking
   viewCount: number;
   avgWatchTime: number;
+
+  // Soft Delete & Audit
+  deletedAt?: Date;
+  deletedBy?: string;
+  createdBy?: string;
+  updatedBy?: string;
 
   createdAt: Date;
   updatedAt: Date;
@@ -510,24 +522,34 @@ export interface ICourseVideo extends Document {
 const CourseVideoSchema = new Schema<ICourseVideo>({
   courseId: { type: Schema.Types.ObjectId, ref: 'RecordedCourse', required: true },
   sectionId: { type: Schema.Types.ObjectId, ref: 'CourseSection' },
-  
+
   content: {
     en: { title: { type: String, required: true }, description: { type: String } },
     hi: { title: { type: String }, description: { type: String } },
     ne: { title: { type: String }, description: { type: String } },
   },
-  
+
+  title: { type: String },
+  description: { type: String },
+  slug: { type: String },
+  isFree: { type: Boolean, default: false },
+
   bunnyVideoId: { type: String },
   videoUrl: { type: String },
   thumbnail: { type: String },
   duration: { type: Number, default: 0 },
-  
+
   accessType: { type: String, enum: ['free', 'preview', 'paid', 'gift'], default: 'paid' },
   order: { type: Number, default: 0 },
   isActive: { type: Boolean, default: true },
-  
+
   viewCount: { type: Number, default: 0 },
   avgWatchTime: { type: Number, default: 0 },
+
+  deletedAt: { type: Date, sparse: true },
+  deletedBy: { type: String, sparse: true },
+  createdBy: { type: String, sparse: true },
+  updatedBy: { type: String, sparse: true },
 }, { timestamps: true });
 
 CourseVideoSchema.index({ courseId: 1, order: 1 });
