@@ -190,6 +190,7 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const lastVideoTimeRef = useRef<number>();
 
   const t = translations[language];
 
@@ -349,6 +350,14 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
         updateProgress(false);
       }
     }, 30000); // Update every 30 seconds
+  };
+
+  const handleTimeUpdate = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    const video = e.currentTarget;
+    if (video && lastVideoTimeRef.current !== undefined && video.currentTime > lastVideoTimeRef.current + 5) {
+      video.currentTime = lastVideoTimeRef.current;
+    }
+    lastVideoTimeRef.current = video.currentTime;
   };
 
   const updateProgress = async (completed: boolean) => {
@@ -706,6 +715,7 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                       onPlay={startProgressTracking}
                       onEnded={handleVideoEnded}
                       onPause={() => updateProgress(false)}
+                      onTimeUpdate={handleTimeUpdate}
                       className="w-full h-full"
                       controlsList={videoStream.courseSettings.allowDownload ? '' : 'nodownload'}
                     />
