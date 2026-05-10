@@ -5,6 +5,7 @@ import connectDB, {
 } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
+import { findBunnyVideoByTitle } from '@/lib/bunny-stream';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -114,18 +115,41 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Course not found' }, { status: 404 });
     }
 
-    // Check for duplicate video (same bunnyVideoId in same course)
-    const existingVideo = await CourseVideo.findOne({
+    // Check for duplicate video by bunnyVideoId in same course
+    const existingByBunnyId = await CourseVideo.findOne({
       courseId,
       bunnyVideoId,
       isActive: true,
     });
 
-    if (existingVideo) {
+    if (existingByBunnyId) {
       return NextResponse.json({
         error: 'This video already exists in this course',
-        existingId: existingVideo._id,
+        existingId: existingByBunnyId._id,
       }, { status: 409 });
+    }
+
+    // Check if video exists in Bunny Stream by title (prevent duplicate uploads)
+    const bunnyVideo = await findBunnyVideoByTitle(title);
+    if (bunnyVideo && bunnyVideo.guid !== bunnyVideoId) {
+      // Video exists in Bunny with same title but different ID - use the existing one
+      return NextResponse.json({
+        error: 'A video with this title already exists in Bunny. Using existing video instead.',
+        suggestedBunnyId: bunnyVideo.guid,
+        suggestedTitle: bunnyVideo.title,
+      }, { status: 409 });
+    }
+
+    // Check if this bunnyVideoId already exists in the database under a different course
+    const videoInOtherCourse = await CourseVideo.findOne({
+      bunnyVideoId,
+      courseId: { $ne: courseId },
+      isActive: true,
+    });
+
+    if (videoInOtherCourse) {
+      // Video already used in another course, allow reuse
+      console.log(`[Video API] Reusing video from another course: ${bunnyVideoId}`);
     }
 
     const lastVideo = await CourseVideo.findOne({ courseId }).sort({ order: -1 });

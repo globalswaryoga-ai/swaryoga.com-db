@@ -167,6 +167,49 @@ export function generateBunnyTitle(
 }
 
 /**
+ * List all videos in Bunny Stream library
+ */
+export async function listBunnyVideos(): Promise<any[]> {
+  try {
+    const { apiKey, libraryId } = getBunnyConfig();
+
+    const response = await fetch(
+      `${BUNNY_API_BASE}/library/${libraryId}/videos`,
+      {
+        method: 'GET',
+        headers: {
+          'AccessKey': apiKey,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to list Bunny videos: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.items || [];
+  } catch (err: any) {
+    console.error('[Bunny Stream] Error listing videos:', err.message);
+    return [];
+  }
+}
+
+/**
+ * Find a video in Bunny by title (case-insensitive)
+ */
+export async function findBunnyVideoByTitle(title: string): Promise<any | null> {
+  try {
+    const videos = await listBunnyVideos();
+    const normalized = title.toLowerCase().trim();
+    return videos.find((v: any) => v.title?.toLowerCase().trim() === normalized) || null;
+  } catch (err: any) {
+    console.error('[Bunny Stream] Error finding video:', err.message);
+    return null;
+  }
+}
+
+/**
  * Check if Bunny Stream is configured
  */
 export function isBunnyConfigured(): boolean {
