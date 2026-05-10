@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     } else {
       const LanguageFolder = getLanguageFolderModel();
       const folders = await LanguageFolder.find({ isActive: true }).sort({ displayOrder: 1 });
-      return NextResponse.json({ success: true, data: folders });
+      return NextResponse.json({ success: true, folders });
     }
   } catch (error: any) {
     console.error('[Language Folders API Error]:', error);
@@ -69,19 +69,19 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { language, folderName, thumbnail, displayOrder } = body;
+    const { code, name, flag, thumbnail, order, isActive } = body;
 
-    if (!language || !folderName) {
-      return NextResponse.json({ error: 'Language and folder name required' }, { status: 400 });
+    if (!code || !name) {
+      return NextResponse.json({ error: 'Language code and name required' }, { status: 400 });
     }
 
     const LanguageFolder = getLanguageFolderModel();
     const folder = await LanguageFolder.create({
-      language,
-      folderName,
-      thumbnail: thumbnail || '',
-      displayOrder: displayOrder || 0,
-      isActive: true,
+      language: code,
+      folderName: name,
+      thumbnail: thumbnail || flag || '',
+      displayOrder: parseInt(order) || 0,
+      isActive: isActive !== false,
     });
 
     return NextResponse.json({ success: true, data: folder }, { status: 201 });
@@ -111,17 +111,17 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { language, folderName, thumbnail, displayOrder, isActive } = body;
+    const { code, name, flag, thumbnail, order, isActive } = body;
 
     const LanguageFolder = getLanguageFolderModel();
     const folder = await LanguageFolder.findByIdAndUpdate(
       id,
       {
-        language,
-        folderName,
-        thumbnail,
-        displayOrder,
-        isActive,
+        language: code,
+        folderName: name,
+        thumbnail: thumbnail || flag,
+        displayOrder: parseInt(order) || 0,
+        isActive: isActive !== false,
         updatedAt: new Date(),
       },
       { new: true }
