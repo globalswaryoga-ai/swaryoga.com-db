@@ -115,6 +115,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Course not found' }, { status: 404 });
     }
 
+    // Check for duplicate video by title (most important - prevents same content twice)
+    const existingByTitle = await CourseVideo.findOne({
+      courseId,
+      title: { $regex: `^${title.trim()}$`, $options: 'i' }, // case-insensitive exact match
+      isActive: true,
+    });
+
+    if (existingByTitle) {
+      return NextResponse.json({
+        error: 'A video with this title already exists in this course. Use a different title or delete the existing one.',
+        existingId: existingByTitle._id,
+        existingTitle: existingByTitle.title,
+      }, { status: 409 });
+    }
+
     // Check for duplicate video by bunnyVideoId in same course
     const existingByBunnyId = await CourseVideo.findOne({
       courseId,
