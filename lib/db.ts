@@ -2196,5 +2196,26 @@ export function getLandingPage() {
   return mongoose.models.LandingPage || mongoose.model('LandingPage', landingPageSchema);
 }
 
+// Import and export CourseVideo and RecordedCourse schemas
+export function getCourseVideo() {
+  const { getCourseVideo: getter } = require('./schemas/recordedCourseSchemas');
+  return getter();
+}
+
+export function getRecordedCourse() {
+  const { getRecordedCourse: getter } = require('./schemas/recordedCourseSchemas');
+  return getter();
+}
+
+export function getCourseSection() {
+  const { getCourseSection: getter } = require('./schemas/recordedCourseSchemas');
+  return getter();
+}
+
+export function getCourseEnrollment() {
+  const { getCourseEnrollment: getter } = require('./schemas/recordedCourseSchemas');
+  return getter();
+}
+
 // Default export for backward compatibility
 export default connectDB;

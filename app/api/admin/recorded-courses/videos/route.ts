@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import connectDB from '@/lib/db';
+import connectDB, {
+  getCourseVideo,
+  getRecordedCourse,
+} from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
-import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -10,22 +12,6 @@ export const maxDuration = 300;
 function checkSuperAdminAccess(decoded: any | null): boolean {
   if (!decoded) return false;
   return isSuperAdmin(decoded);
-}
-
-function getCourseVideo() {
-  if (!mongoose.models.CourseVideo) {
-    const { getCourseVideo: getter } = require('@/lib/schemas/recordedCourseSchemas');
-    return getter();
-  }
-  return mongoose.models.CourseVideo;
-}
-
-function getRecordedCourse() {
-  if (!mongoose.models.RecordedCourse) {
-    const { getRecordedCourse: getter } = require('@/lib/schemas/recordedCourseSchemas');
-    return getter();
-  }
-  return mongoose.models.RecordedCourse;
 }
 
 /**
