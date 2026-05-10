@@ -240,15 +240,19 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
             setCurrentVideo(lastVideo);
           }
         } else if (data.videos?.length > 0) {
-          // Find first watchable video
+          // Find first watchable video (free videos are always watchable)
           const firstWatchable = data.videos.find((v: Video) => v.canWatch);
           if (firstWatchable) {
             setCurrentVideo(firstWatchable);
           }
         }
       } else if (!data.enrollment && !data.canAccessPaidContent) {
-        // Not enrolled
-        router.push(`/e-learning/${slug}`);
+        // Check if there are free videos - if yes, allow access
+        const hasFreeVideos = data.videos?.some((v: Video) => v.canWatch);
+        if (!hasFreeVideos) {
+          // No free videos and not enrolled - redirect
+          router.push(`/e-learning/${slug}`);
+        }
       }
     } catch (err) {
       console.error('Error fetching course:', err);
