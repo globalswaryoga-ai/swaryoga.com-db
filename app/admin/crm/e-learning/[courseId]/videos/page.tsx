@@ -312,6 +312,7 @@ function EditVideoModal({ token, video, onClose, onUpdated }: {
 }) {
   const [title, setTitle] = useState(video.title);
   const [description, setDescription] = useState(video.description || '');
+  const [thumbnail, setThumbnail] = useState(video.thumbnail || '');
   const [duration, setDuration] = useState(video.duration.toString());
   const [isFree, setIsFree] = useState(video.isFree);
   const [saving, setSaving] = useState(false);
@@ -335,6 +336,7 @@ function EditVideoModal({ token, video, onClose, onUpdated }: {
           videoId: video._id,
           title,
           description,
+          thumbnail: thumbnail || undefined,
           duration: parseInt(duration) || 0,
           isFree,
         }),
@@ -391,6 +393,18 @@ function EditVideoModal({ token, video, onClose, onUpdated }: {
               className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none resize-none"
               placeholder="Brief description"
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-green-400 mb-2">Thumbnail URL (Optional)</label>
+            <input
+              type="url"
+              value={thumbnail}
+              onChange={(e) => setThumbnail(e.target.value)}
+              className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
+              placeholder="https://example.com/thumbnail.jpg"
+            />
+            <p className="text-xs text-gray-500 mt-1">Image URL for video thumbnail (recommended: 16:9 aspect ratio, min 320x180px)</p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -452,6 +466,7 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
   const [description, setDescription] = useState('');
   const [bunnyVideoId, setBunnyVideoId] = useState('');
   const [duration, setDuration] = useState('0');
+  const [thumbnail, setThumbnail] = useState('');
   const [isFree, setIsFree] = useState(false);
   const [saving, setSaving] = useState(false);
   
@@ -609,6 +624,7 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
           description,
           bunnyVideoId: finalBunnyId || undefined,
           videoUrl: finalVideoUrl || undefined,
+          thumbnail: thumbnail || undefined,
           duration: parseInt(duration) || 0,
           isFree,
           isActive: true,
@@ -807,6 +823,18 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
               className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none resize-none"
               placeholder="Brief description"
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-green-400 mb-2">Thumbnail URL (Optional)</label>
+            <input
+              type="url"
+              value={thumbnail}
+              onChange={(e) => setThumbnail(e.target.value)}
+              className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
+              placeholder="https://example.com/thumbnail.jpg"
+            />
+            <p className="text-xs text-gray-500 mt-1">Image URL for video thumbnail (recommended: 16:9 aspect ratio, min 320x180px)</p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
