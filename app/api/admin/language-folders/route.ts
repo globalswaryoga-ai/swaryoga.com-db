@@ -1,242 +1,172 @@
-/**
- * Language Folders API
- * Manage language folder cards for E-Learning frontend
- * GET /api/admin/language-folders - List all folders (admin)
- * GET /api/language-folders - List active folders (public)
- * POST /api/admin/language-folders - Create folder (admin)
- * PUT /api/admin/language-folders/:id - Update folder (admin)
- * DELETE /api/admin/language-folders/:id - Delete folder (admin)
- */
-
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
-import { verifyToken, TokenPayload } from '@/lib/auth';
-import { ObjectId } from 'mongodb';
+import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
+import mongoose from 'mongoose';
+
+export const dynamic = 'force-dynamic';
+
+const languageFolderSchema = new mongoose.Schema({
+  language: String,
+  folderName: String,
+  thumbnail: String,
+  displayOrder: Number,
+  isActive: { type: Boolean, default: true },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
+});
+
+function getLanguageFolderModel() {
+  return mongoose.models.LanguageFolder || mongoose.model('LanguageFolder', languageFolderSchema);
+}
 
 export async function GET(request: NextRequest) {
   try {
-    const conn = await connectDB();
-    const db = conn.db;
+    await connectDB();
 
-    const url = new URL(request.url);
-    const isPublic = !url.pathname.includes('/admin/');
-
-    if (isPublic) {
-      // Public endpoint - return only active folders
-      const folders = await db.collection('language_folders')
-        .find({ isActive: true })
-        .sort({ order: 1 })
-        .toArray();
-
-      return NextResponse.json({
-        success: true,
-        folders: folders.map(f => ({
-          _id: f._id.toString(),
-          code: f.code,
-          name: f.name,
-          flag: f.flag,
-          thumbnail: f.thumbnail,
-          order: f.order,
-        })),
-      });
-    }
-
-    // Admin endpoint - check auth
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    let decoded: TokenPayload | null = null;
-    try {
-      decoded = verifyToken(authHeader.split(' ')[1]);
-    } catch {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    const decoded = verifyToken(authHeader.split(' ')[1]);
+    if (!decoded || !isSuperAdmin(decoded)) {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
-    // Check superadmin
-    const isSuperAdmin = decoded.role === 'superadmin' || decoded.permissions?.includes('all');
-    if (!isSuperAdmin) {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    const id = request.nextUrl.searchParams.get('id');
+
+    if (id) {
+      const LanguageFolder = getLanguageFolderModel();
+      const folder = await LanguageFolder.findById(id);
+      if (!folder) {
+        return NextResponse.json({ error: 'Folder not found' }, { status: 404 });
+      }
+      return NextResponse.json({ success: true, data: folder });
+    } else {
+      const LanguageFolder = getLanguageFolderModel();
+      const folders = await LanguageFolder.find({ isActive: true }).sort({ displayOrder: 1 });
+      return NextResponse.json({ success: true, data: folders });
     }
-
-    // List all folders
-    const folders = await db.collection('language_folders')
-      .find({})
-      .sort({ order: 1 })
-      .toArray();
-
-    return NextResponse.json({
-      success: true,
-      folders: folders.map(f => ({
-        _id: f._id.toString(),
-        code: f.code,
-        name: f.name,
-        flag: f.flag,
-        thumbnail: f.thumbnail,
-        isActive: f.isActive,
-        order: f.order,
-        createdAt: f.createdAt,
-        updatedAt: f.updatedAt,
-      })),
-    });
-  } catch (error) {
+  } catch (error: any) {
     console.error('[Language Folders API Error]:', error);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
+    await connectDB();
+
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    let decoded: TokenPayload | null = null;
-    try {
-      decoded = verifyToken(authHeader.split(' ')[1]);
-    } catch {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
-    const isSuperAdmin = decoded.role === 'superadmin' || decoded.permissions?.includes('all');
-    if (!isSuperAdmin) {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    const decoded = verifyToken(authHeader.split(' ')[1]);
+    if (!decoded || !isSuperAdmin(decoded)) {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
     const body = await request.json();
-    const { code, name, flag, thumbnail, isActive = true, order = 0 } = body;
+    const { language, folderName, thumbnail, displayOrder } = body;
 
-    if (!code || !name || !flag) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    if (!language || !folderName) {
+      return NextResponse.json({ error: 'Language and folder name required' }, { status: 400 });
     }
 
-    const conn = await connectDB();
-    const db = conn.db;
-
-    const result = await db.collection('language_folders').insertOne({
-      code,
-      name,
-      flag,
-      thumbnail,
-      isActive,
-      order,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+    const LanguageFolder = getLanguageFolderModel();
+    const folder = await LanguageFolder.create({
+      language,
+      folderName,
+      thumbnail: thumbnail || '',
+      displayOrder: displayOrder || 0,
+      isActive: true,
     });
 
-    return NextResponse.json({
-      success: true,
-      _id: result.insertedId.toString(),
-      message: 'Language folder created',
-    });
-  } catch (error) {
-    console.error('[Language Folders API Error]:', error);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+    return NextResponse.json({ success: true, data: folder }, { status: 201 });
+  } catch (error: any) {
+    console.error('[Language Folders POST Error]:', error);
+    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
   }
 }
 
 export async function PUT(request: NextRequest) {
   try {
-    const conn = await connectDB();
-    const db = conn.db;
+    await connectDB();
 
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    let decoded: TokenPayload | null = null;
-    try {
-      decoded = verifyToken(authHeader.split(' ')[1]);
-    } catch {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    const decoded = verifyToken(authHeader.split(' ')[1]);
+    if (!decoded || !isSuperAdmin(decoded)) {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
-    const isSuperAdmin = decoded.role === 'superadmin' || decoded.permissions?.includes('all');
-    if (!isSuperAdmin) {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-    }
-
-    const url = new URL(request.url);
-    const id = url.searchParams.get('id');
-
+    const id = request.nextUrl.searchParams.get('id');
     if (!id) {
-      return NextResponse.json({ error: 'Missing id' }, { status: 400 });
+      return NextResponse.json({ error: 'ID required' }, { status: 400 });
     }
 
     const body = await request.json();
-    const { name, thumbnail, isActive, order } = body;
+    const { language, folderName, thumbnail, displayOrder, isActive } = body;
 
-    const updateData: any = { updatedAt: new Date() };
-    if (name) updateData.name = name;
-    if (thumbnail !== undefined) updateData.thumbnail = thumbnail;
-    if (isActive !== undefined) updateData.isActive = isActive;
-    if (order !== undefined) updateData.order = order;
-
-    const result = await db.collection('language_folders').updateOne(
-      { _id: new ObjectId(id) },
-      { $set: updateData }
+    const LanguageFolder = getLanguageFolderModel();
+    const folder = await LanguageFolder.findByIdAndUpdate(
+      id,
+      {
+        language,
+        folderName,
+        thumbnail,
+        displayOrder,
+        isActive,
+        updatedAt: new Date(),
+      },
+      { new: true }
     );
 
-    if (result.matchedCount === 0) {
-      return NextResponse.json({ error: 'Language folder not found' }, { status: 404 });
+    if (!folder) {
+      return NextResponse.json({ error: 'Folder not found' }, { status: 404 });
     }
 
-    return NextResponse.json({
-      success: true,
-      message: 'Language folder updated',
-    });
-  } catch (error) {
-    console.error('[Language Folders API Error]:', error);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+    return NextResponse.json({ success: true, data: folder });
+  } catch (error: any) {
+    console.error('[Language Folders PUT Error]:', error);
+    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
   }
 }
 
 export async function DELETE(request: NextRequest) {
   try {
-    const conn = await connectDB();
-    const db = conn.db;
+    await connectDB();
 
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    let decoded: TokenPayload | null = null;
-    try {
-      decoded = verifyToken(authHeader.split(' ')[1]);
-    } catch {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    const decoded = verifyToken(authHeader.split(' ')[1]);
+    if (!decoded || !isSuperAdmin(decoded)) {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
-    const isSuperAdmin = decoded.role === 'superadmin' || decoded.permissions?.includes('all');
-    if (!isSuperAdmin) {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-    }
-
-    const url = new URL(request.url);
-    const id = url.searchParams.get('id');
-
+    const id = request.nextUrl.searchParams.get('id');
     if (!id) {
-      return NextResponse.json({ error: 'Missing id' }, { status: 400 });
+      return NextResponse.json({ error: 'ID required' }, { status: 400 });
     }
 
-    const result = await db.collection('language_folders').deleteOne(
-      { _id: new ObjectId(id) }
-    );
+    const LanguageFolder = getLanguageFolderModel();
+    const folder = await LanguageFolder.findByIdAndUpdate(id, { isActive: false }, { new: true });
 
-    if (result.deletedCount === 0) {
-      return NextResponse.json({ error: 'Language folder not found' }, { status: 404 });
+    if (!folder) {
+      return NextResponse.json({ error: 'Folder not found' }, { status: 404 });
     }
 
-    return NextResponse.json({
-      success: true,
-      message: 'Language folder deleted',
-    });
-  } catch (error) {
-    console.error('[Language Folders API Error]:', error);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+    return NextResponse.json({ success: true, message: 'Folder deleted' });
+  } catch (error: any) {
+    console.error('[Language Folders DELETE Error]:', error);
+    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
   }
 }
