@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { ArrowLeft, Plus, Edit2, Trash2, Video, GripVertical, Upload, Link as LinkIcon, X, Save, CloudUpload, Loader2, ShieldAlert, Check } from 'lucide-react';
+import { ArrowLeft, Plus, Edit2, Trash2, Video, GripVertical, Upload, Link as LinkIcon, X, Save, CloudUpload, Loader2, ShieldAlert, Check, Play } from 'lucide-react';
 
 interface VideoItem {
   _id: string;
