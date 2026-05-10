@@ -456,8 +456,9 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
   const [saving, setSaving] = useState(false);
   
   // Upload state
-  const [uploadMode, setUploadMode] = useState<'bunny' | 'pc'>('bunny');
+  const [uploadMode, setUploadMode] = useState<'bunny' | 'pc' | 'youtube'>('bunny');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [youtubeUrl, setYoutubeUrl] = useState('');
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -576,6 +577,7 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
 
     try {
       let finalBunnyId = bunnyVideoId;
+      let finalVideoUrl = '';
 
       // Upload from PC if in PC mode and file selected
       if (uploadMode === 'pc' && selectedFile) {
@@ -588,6 +590,10 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
       } else if (uploadMode === 'bunny') {
         // Extract video ID from HLS URL if a full URL was pasted
         finalBunnyId = extractVideoIdFromUrl(bunnyVideoId);
+      } else if (uploadMode === 'youtube') {
+        // Store YouTube URL directly
+        finalVideoUrl = youtubeUrl;
+        finalBunnyId = ''; // Clear bunny ID for YouTube videos
       }
 
       // Create video record
@@ -601,7 +607,8 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
           courseId,
           title,
           description,
-          bunnyVideoId: finalBunnyId,
+          bunnyVideoId: finalBunnyId || undefined,
+          videoUrl: finalVideoUrl || undefined,
           duration: parseInt(duration) || 0,
           isFree,
           isActive: true,
@@ -635,30 +642,42 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
           {/* Video Source Toggle */}
           <div>
             <label className="block text-sm font-medium text-green-400 mb-3">Video Source</label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
-                onClick={() => setUploadMode('bunny')}
-                className={`flex items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all ${
+                onClick={() => { setUploadMode('bunny'); setYoutubeUrl(''); }}
+                className={`flex items-center justify-center gap-1 p-3 rounded-xl border-2 transition-all text-xs sm:text-sm ${
                   uploadMode === 'bunny'
                     ? 'bg-green-500/20 border-green-500 text-green-400'
                     : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'
                 }`}
               >
-                <LinkIcon size={20} />
-                <span className="font-medium">Bunny HLS URL</span>
+                <LinkIcon size={18} />
+                <span className="font-medium">Bunny HLS</span>
               </button>
               <button
                 type="button"
                 onClick={() => setUploadMode('pc')}
-                className={`flex items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all ${
+                className={`flex items-center justify-center gap-1 p-3 rounded-xl border-2 transition-all text-xs sm:text-sm ${
                   uploadMode === 'pc'
                     ? 'bg-yellow-500/20 border-yellow-500 text-yellow-400'
                     : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'
                 }`}
               >
-                <Upload size={20} />
-                <span className="font-medium">Upload from PC</span>
+                <Upload size={18} />
+                <span className="font-medium">Upload</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => { setUploadMode('youtube'); setSelectedFile(null); setBunnyVideoId(''); }}
+                className={`flex items-center justify-center gap-1 p-3 rounded-xl border-2 transition-all text-xs sm:text-sm ${
+                  uploadMode === 'youtube'
+                    ? 'bg-red-500/20 border-red-500 text-red-400'
+                    : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'
+                }`}
+              >
+                <LinkIcon size={18} />
+                <span className="font-medium">YouTube</span>
               </button>
             </div>
           </div>
@@ -675,6 +694,21 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
                 placeholder="https://vz-xxx.b-cdn.net/videoId/playlist.m3u8 or just videoId"
               />
               <p className="text-xs text-gray-500 mt-1">Paste HLS URL from Bunny dashboard or just the video ID</p>
+            </div>
+          )}
+
+          {/* YouTube URL Input */}
+          {uploadMode === 'youtube' && (
+            <div>
+              <label className="block text-sm font-medium text-red-400 mb-2">YouTube Video URL (Private)</label>
+              <input
+                type="text"
+                value={youtubeUrl}
+                onChange={(e) => setYoutubeUrl(e.target.value)}
+                className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-red-500 focus:outline-none font-mono"
+                placeholder="https://www.youtube.com/watch?v=VIDEO_ID or https://youtu.be/VIDEO_ID"
+              />
+              <p className="text-xs text-gray-500 mt-1">Enter private YouTube video URL. Make sure it's set to private in YouTube settings.</p>
             </div>
           )}
 
@@ -811,7 +845,7 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
             </button>
             <button
               type="submit"
-              disabled={uploading || saving || (uploadMode === 'bunny' && !bunnyVideoId) || (uploadMode === 'pc' && !selectedFile)}
+              disabled={uploading || saving || (uploadMode === 'bunny' && !bunnyVideoId) || (uploadMode === 'pc' && !selectedFile) || (uploadMode === 'youtube' && !youtubeUrl)}
               className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-green-500 hover:bg-green-600 text-black font-semibold rounded-lg transition-colors disabled:opacity-50"
             >
               {(saving || uploading) && <Loader2 size={18} className="animate-spin" />}

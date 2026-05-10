@@ -706,7 +706,17 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                     <div className="w-full h-full flex items-center justify-center bg-gray-900">
                       <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
                     </div>
+                  ) : videoStream.streaming.directUrl?.includes('youtube.com') || videoStream.streaming.directUrl?.includes('youtu.be') ? (
+                    // YouTube Video
+                    <iframe
+                      className="w-full h-full rounded-lg"
+                      src={videoStream.streaming.directUrl.replace('youtu.be/', 'youtube.com/embed/').replace('watch?v=', 'embed/')}
+                      title={videoStream.video.title}
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
                   ) : (
+                    // HTML5 Video
                     <video
                       ref={videoRef}
                       src={videoStream.streaming.directUrl}
