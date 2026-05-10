@@ -395,14 +395,15 @@ function EditVideoModal({ token, video, onClose, onUpdated }: {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-green-400 mb-2">Duration (seconds)</label>
+              <label className="block text-sm font-medium text-green-400 mb-2">Video Duration (minutes)</label>
               <input
                 type="number"
                 value={duration}
                 onChange={(e) => setDuration(e.target.value)}
                 className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
-                placeholder="0"
+                placeholder="Enter video length in minutes (e.g., 15)"
               />
+              <p className="text-xs text-gray-500 mt-1">Total length of the video in minutes</p>
             </div>
             <div className="flex items-end pb-1">
               <label className="flex items-center gap-2 text-white cursor-pointer">
@@ -462,6 +463,23 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const extractVideoIdFromUrl = (input: string): string => {
+    // If it's already just a video ID, return as-is
+    if (!input.includes('/')) return input;
+
+    // Extract videoId from HLS URL: https://vz-xxx.b-cdn.net/videoId/playlist.m3u8
+    try {
+      const url = new URL(input);
+      const pathParts = url.pathname.split('/').filter(p => p);
+      if (pathParts.length >= 2) {
+        return pathParts[pathParts.length - 2]; // videoId is before /playlist.m3u8
+      }
+    } catch (e) {
+      // If URL parsing fails, assume it's a video ID
+    }
+    return input;
+  };
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -477,7 +495,7 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
       }
       setSelectedFile(file);
       setUploadError(null);
-      
+
       // Auto-fill title from filename if empty
       if (!title) {
         const name = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
@@ -553,12 +571,12 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title) return;
-    
+
     setSaving(true);
-    
+
     try {
       let finalBunnyId = bunnyVideoId;
-      
+
       // Upload from PC if in PC mode and file selected
       if (uploadMode === 'pc' && selectedFile) {
         const uploadedId = await uploadToBunny();
@@ -567,8 +585,11 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
           return; // Upload error already set
         }
         finalBunnyId = uploadedId;
+      } else if (uploadMode === 'bunny') {
+        // Extract video ID from HLS URL if a full URL was pasted
+        finalBunnyId = extractVideoIdFromUrl(bunnyVideoId);
       }
-      
+
       // Create video record
       const res = await fetch('/api/admin/recorded-courses/videos', {
         method: 'POST',
@@ -625,7 +646,7 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
                 }`}
               >
                 <LinkIcon size={20} />
-                <span className="font-medium">Bunny Video ID</span>
+                <span className="font-medium">Bunny HLS URL</span>
               </button>
               <button
                 type="button"
@@ -642,18 +663,18 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
             </div>
           </div>
 
-          {/* Bunny Video ID Input */}
+          {/* Bunny HLS URL Input */}
           {uploadMode === 'bunny' && (
             <div>
-              <label className="block text-sm font-medium text-green-400 mb-2">Bunny Video ID</label>
+              <label className="block text-sm font-medium text-green-400 mb-2">Bunny HLS URL or Video ID</label>
               <input
                 type="text"
                 value={bunnyVideoId}
                 onChange={(e) => setBunnyVideoId(e.target.value)}
                 className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none font-mono"
-                placeholder="Enter Bunny.net video ID"
+                placeholder="https://vz-xxx.b-cdn.net/videoId/playlist.m3u8 or just videoId"
               />
-              <p className="text-xs text-gray-500 mt-1">Get the video ID from your Bunny.net dashboard</p>
+              <p className="text-xs text-gray-500 mt-1">Paste HLS URL from Bunny dashboard or just the video ID</p>
             </div>
           )}
 
