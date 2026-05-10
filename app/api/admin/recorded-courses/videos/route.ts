@@ -45,9 +45,18 @@ export async function GET(request: NextRequest) {
     const CourseVideo = getCourseVideo();
     const videos = await CourseVideo.find({ courseId }).sort({ order: 1 }).lean();
 
+    // Deduplicate videos by _id to prevent duplicates
+    const seenIds = new Set<string>();
+    const uniqueVideos = videos.filter((v: any) => {
+      const id = v._id?.toString() || v._id;
+      if (seenIds.has(id)) return false;
+      seenIds.add(id);
+      return true;
+    });
+
     return NextResponse.json({
       success: true,
-      videos: videos.map((v: any) => ({
+      videos: uniqueVideos.map((v: any) => ({
         _id: v._id?.toString() || v._id,
         title: v.title,
         description: v.description,
@@ -56,6 +65,7 @@ export async function GET(request: NextRequest) {
         order: v.order,
         isFree: v.isFree,
         isActive: v.isActive,
+        thumbnail: v.thumbnail,
       })),
     });
   } catch (error: any) {
@@ -102,6 +112,20 @@ export async function POST(request: NextRequest) {
     const course = await RecordedCourse.findById(courseId);
     if (!course) {
       return NextResponse.json({ error: 'Course not found' }, { status: 404 });
+    }
+
+    // Check for duplicate video (same title + bunnyVideoId in same course)
+    const existingVideo = await CourseVideo.findOne({
+      courseId,
+      title,
+      bunnyVideoId,
+    });
+
+    if (existingVideo) {
+      return NextResponse.json({
+        error: 'Video with this title and video ID already exists in this course',
+        existingId: existingVideo._id,
+      }, { status: 409 });
     }
 
     const lastVideo = await CourseVideo.findOne({ courseId }).sort({ order: -1 });

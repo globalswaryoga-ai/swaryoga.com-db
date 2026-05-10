@@ -69,8 +69,6 @@ export default function CourseDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showEnrollmentModal, setShowEnrollmentModal] = useState(false);
-  const [showVideoPreviewModal, setShowVideoPreviewModal] = useState(false);
-  const [selectedVideoIndex, setSelectedVideoIndex] = useState(0);
   const [token, setToken] = useState<string>('');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [language, setLanguage] = useState<string>('en');
@@ -284,63 +282,6 @@ export default function CourseDetailPage() {
                 👥 {(course.defaultStudents || 15) + (course.enrolledCount || 0)} Students Currently Learning
               </p>
             </div>
-
-            {/* Course Content */}
-            {videos.length > 0 && (
-              <div>
-                <h2 className="text-2xl font-bold text-black mb-4">Course Content</h2>
-                <div className="space-y-3">
-                  {videos.map((video, index) => (
-                    <div
-                      key={video._id}
-                      className="flex gap-4 p-4 border border-gray-200 rounded-lg hover:border-green-400 transition-colors cursor-pointer"
-                    >
-                      {/* Video Thumbnail */}
-                      <div className="flex-shrink-0 w-32 h-20 bg-gray-300 rounded-lg overflow-hidden relative">
-                        {video.thumbnail ? (
-                          <img
-                            src={video.thumbnail}
-                            alt={video.title}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center bg-gray-400">
-                            <Play size={24} className="text-white" />
-                          </div>
-                        )}
-                        {/* Free Badge */}
-                        {index === 0 && (
-                          <div className="absolute top-1 right-1 bg-green-500 text-white text-xs font-bold px-2 py-1 rounded">
-                            FREE
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Video Info */}
-                      <div className="flex-1">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                              {index === 0 ? (
-                                <Play size={16} className="text-green-600" />
-                              ) : (
-                                <Lock size={16} className="text-gray-400" />
-                              )}
-                              {video.title}
-                            </h3>
-                            {video.description && (
-                              <p className="text-sm text-gray-600 mt-1 line-clamp-2">
-                                {video.description}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
 
           <div className="col-span-1">
@@ -412,13 +353,13 @@ export default function CourseDetailPage() {
               </div>
 
               {/* See Videos Button */}
-              <button
-                onClick={() => setShowVideoPreviewModal(true)}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-lg flex items-center justify-center gap-2 transition-colors mb-3"
+              <Link
+                href={`/e-learning/${slug}/videos`}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-lg flex items-center justify-center gap-2 transition-colors mb-3 inline-flex"
               >
                 <Video size={20} />
                 See All Videos
-              </button>
+              </Link>
 
               <button
                 onClick={() => setShowEnrollmentModal(true)}
