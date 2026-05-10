@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import HLS from 'hls.js';
 
 // Multi-language translations
 const translations = {
@@ -293,6 +294,42 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
 
     loadVideoStream();
   }, [currentVideo, t]);
+
+  // Initialize HLS.js for streaming
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !videoStream?.streaming.hlsUrl) return;
+
+    let hls: HLS | null = null;
+
+    const initializeHLS = () => {
+      // Check if HLS.js is supported
+      if (HLS.isSupported()) {
+        hls = new HLS({
+          debug: false,
+          enableWorker: true,
+        });
+        hls.loadSource(videoStream.streaming.hlsUrl!);
+        hls.attachMedia(video);
+        hls.on(HLS.Events.MANIFEST_PARSED, () => {
+          video.play().catch(() => {
+            // Auto-play prevented, user interaction required
+          });
+        });
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        // Safari native HLS support
+        video.src = videoStream.streaming.hlsUrl;
+      }
+    };
+
+    initializeHLS();
+
+    return () => {
+      if (hls) {
+        hls.destroy();
+      }
+    };
+  }, [videoStream]);
 
   // Update progress periodically
   useEffect(() => {
@@ -663,7 +700,7 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                   ) : (
                     <video
                       ref={videoRef}
-                      src={videoStream.streaming.directUrl || videoStream.streaming.hlsUrl}
+                      src={videoStream.streaming.directUrl}
                       controls
                       autoPlay
                       onPlay={startProgressTracking}

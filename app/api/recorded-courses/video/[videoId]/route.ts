@@ -144,14 +144,17 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     
     // Get video streaming URL
     let streamingData: any = {};
-    
+
     if (video.videoUrl) {
       streamingData = { directUrl: video.videoUrl };
     } else if (video.bunnyVideoId) {
-      // Use environment variable for Bunny library ID
-      streamingData = { 
+      const libraryId = process.env.BUNNY_STREAM_LIBRARY_ID || process.env.BUNNY_LIBRARY_ID || '';
+      // Generate HLS URL for Bunny Stream
+      const hlsUrl = `https://vz-${libraryId}.b-cdn.net/${video.bunnyVideoId}/playlist.m3u8`;
+      streamingData = {
+        hlsUrl,
         bunnyVideoId: video.bunnyVideoId,
-        bunnyLibraryId: process.env.BUNNY_LIBRARY_ID || '',
+        bunnyLibraryId: libraryId,
       };
     }
     

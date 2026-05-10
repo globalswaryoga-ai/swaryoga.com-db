@@ -117,6 +117,12 @@ export async function POST(request: NextRequest) {
       isActive: true,
       order: nextOrder,
       createdBy: decoded.email || decoded.userId || 'admin',
+      content: {
+        en: {
+          title: title,
+          description: description || '',
+        },
+      },
     });
 
     await RecordedCourse.findByIdAndUpdate(courseId, {
