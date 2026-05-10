@@ -1,25 +1,16 @@
 /**
  * Admin API for Course Videos Management
- * GET /api/admin/recorded-courses/videos - List videos for a course
- * POST /api/admin/recorded-courses/videos - Create new video
- * PUT /api/admin/recorded-courses/videos - Update video
- * DELETE /api/admin/recorded-courses/videos - Delete video
+ * Based on community recording upload system - proven working approach
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import connectDB from '@/lib/db';
+import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
-import {
-  getRecordedCourse,
-  getCourseVideo,
-  getCourseSection,
-} from '@/lib/schemas/recordedCourseSchemas';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 300;
 
-
-// Check superadmin access - E-Learning management is superadmin only
 function checkSuperAdminAccess(decoded: any | null): boolean {
   if (!decoded) return false;
   return isSuperAdmin(decoded);
@@ -31,40 +22,48 @@ function checkSuperAdminAccess(decoded: any | null): boolean {
 export async function GET(request: NextRequest) {
   try {
     await connectDB();
-    
+
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
+
     let decoded: any;
     try {
       decoded = verifyToken(authHeader.split(' ')[1]);
     } catch {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
-    
+
     if (!checkSuperAdminAccess(decoded)) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
-    
+
     const courseId = request.nextUrl.searchParams.get('courseId');
     if (!courseId) {
       return NextResponse.json({ error: 'Course ID required' }, { status: 400 });
     }
-    
+
+    const { getCourseVideo, getRecordedCourse } = await import('@/lib/db');
     const CourseVideo = getCourseVideo();
-    const CourseSection = getCourseSection();
-    
+    const RecordedCourse = getRecordedCourse();
+
     const videos = await CourseVideo.find({ courseId }).sort({ order: 1 }).lean();
-    const sections = await CourseSection.find({ courseId }).sort({ order: 1 }).lean();
-    
+
     return NextResponse.json({
       success: true,
-      videos,
-      sections,
+      videos: videos.map(v => ({
+        _id: v._id.toString(),
+        title: v.title || v.content?.en?.title,
+        description: v.description || v.content?.en?.description,
+        bunnyVideoId: v.bunnyVideoId,
+        duration: v.duration,
+        order: v.order,
+        isFree: v.isFree,
+        isActive: v.isActive,
+      })),
     });
-    
+
   } catch (error: any) {
     console.error('[Admin Videos GET Error]:', error);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
@@ -72,144 +71,154 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST - Create new video
+ * POST - Create new video (JSON with Bunny ID)
  */
 export async function POST(request: NextRequest) {
   try {
     await connectDB();
-    
+
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
+
     let decoded: any;
     try {
       decoded = verifyToken(authHeader.split(' ')[1]);
     } catch {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
-    
+
     if (!checkSuperAdminAccess(decoded)) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
-    
+
     const body = await request.json();
-    const { courseId, ...videoData } = body;
-    
+    const { courseId, title, description, bunnyVideoId, duration = 0, isFree = false } = body;
+
     if (!courseId) {
       return NextResponse.json({ error: 'Course ID required' }, { status: 400 });
     }
-    
-    const RecordedCourse = getRecordedCourse();
+
+    if (!title) {
+      return NextResponse.json({ error: 'Title required' }, { status: 400 });
+    }
+
+    if (!bunnyVideoId) {
+      return NextResponse.json({ error: 'Bunny Video ID required' }, { status: 400 });
+    }
+
+    const { getCourseVideo, getRecordedCourse } = await import('@/lib/db');
     const CourseVideo = getCourseVideo();
-    
+    const RecordedCourse = getRecordedCourse();
+
     // Verify course exists
     const course = await RecordedCourse.findById(courseId);
     if (!course) {
       return NextResponse.json({ error: 'Course not found' }, { status: 404 });
     }
-    
+
     // Get next order number
     const lastVideo = await CourseVideo.findOne({ courseId }).sort({ order: -1 });
     const nextOrder = (lastVideo?.order || 0) + 1;
-    
-    // Generate slug if not provided
-    let slug = videoData.slug;
-    if (!slug && videoData.content?.en?.title) {
-      slug = videoData.content.en.title
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-|-$/g, '');
-    }
-    
+
+    // Create video record with simple structure
     const video = await CourseVideo.create({
-      ...videoData,
       courseId,
-      slug: slug || `video-${nextOrder}`,
-      order: videoData.order || nextOrder,
-      createdBy: decoded.id,
+      title,
+      description,
+      bunnyVideoId,
+      duration: parseInt(duration) || 0,
+      isFree: isFree === true,
+      isActive: true,
+      order: nextOrder,
+      createdBy: decoded.email || decoded.userId || 'admin',
+      createdAt: new Date(),
     });
-    
+
     // Update course totals
-    const videoCount = await CourseVideo.countDocuments({ courseId });
-    const allVideos = await CourseVideo.find({ courseId });
+    const videoCount = await CourseVideo.countDocuments({ courseId, isActive: true });
+    const allVideos = await CourseVideo.find({ courseId, isActive: true });
     const totalDuration = allVideos.reduce((sum, v) => sum + (v.duration || 0), 0);
-    
+
     await RecordedCourse.findByIdAndUpdate(courseId, {
       totalVideos: videoCount,
       totalDuration,
     });
-    
+
     return NextResponse.json({
       success: true,
-      video,
+      video: {
+        _id: video._id,
+        title: video.title,
+        bunnyVideoId: video.bunnyVideoId,
+        duration: video.duration,
+        isFree: video.isFree,
+      },
     });
-    
+
   } catch (error: any) {
     console.error('[Admin Videos POST Error]:', error);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
   }
 }
 
 /**
- * PUT - Update video
+ * PUT - Update video metadata
  */
 export async function PUT(request: NextRequest) {
   try {
     await connectDB();
-    
+
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
+
     let decoded: any;
     try {
       decoded = verifyToken(authHeader.split(' ')[1]);
     } catch {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
-    
+
     if (!checkSuperAdminAccess(decoded)) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
-    
+
     const body = await request.json();
-    const { videoId, courseId, ...updateData } = body;
-    
+    const { videoId, title, description, duration, isFree } = body;
+
     if (!videoId) {
       return NextResponse.json({ error: 'Video ID required' }, { status: 400 });
     }
-    
+
+    const { getCourseVideo } = await import('@/lib/db');
     const CourseVideo = getCourseVideo();
-    const RecordedCourse = getRecordedCourse();
-    
-    const video = await CourseVideo.findByIdAndUpdate(
-      videoId,
-      { ...updateData, updatedBy: decoded.id },
-      { new: true }
-    );
-    
+
+    const updateData: any = { updatedAt: new Date(), updatedBy: decoded.email || decoded.userId };
+    if (title) updateData.title = title;
+    if (description !== undefined) updateData.description = description;
+    if (duration !== undefined) updateData.duration = parseInt(duration) || 0;
+    if (isFree !== undefined) updateData.isFree = isFree === true;
+
+    const video = await CourseVideo.findByIdAndUpdate(videoId, updateData, { new: true });
+
     if (!video) {
       return NextResponse.json({ error: 'Video not found' }, { status: 404 });
     }
-    
-    // Update course totals
-    if (video.courseId) {
-      const allVideos = await CourseVideo.find({ courseId: video.courseId });
-      const totalDuration = allVideos.reduce((sum, v) => sum + (v.duration || 0), 0);
-      await RecordedCourse.findByIdAndUpdate(video.courseId, {
-        totalVideos: allVideos.length,
-        totalDuration,
-      });
-    }
-    
+
     return NextResponse.json({
       success: true,
-      video,
+      video: {
+        _id: video._id,
+        title: video.title,
+        description: video.description,
+        duration: video.duration,
+        isFree: video.isFree,
+      },
     });
-    
+
   } catch (error: any) {
     console.error('[Admin Videos PUT Error]:', error);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
@@ -222,58 +231,59 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     await connectDB();
-    
+
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
+
     let decoded: any;
     try {
       decoded = verifyToken(authHeader.split(' ')[1]);
     } catch {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
-    
+
     if (!checkSuperAdminAccess(decoded)) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
-    
+
     const videoId = request.nextUrl.searchParams.get('id');
     if (!videoId) {
       return NextResponse.json({ error: 'Video ID required' }, { status: 400 });
     }
-    
+
+    const { getCourseVideo, getRecordedCourse } = await import('@/lib/db');
     const CourseVideo = getCourseVideo();
     const RecordedCourse = getRecordedCourse();
-    
+
     const video = await CourseVideo.findByIdAndUpdate(
       videoId,
-      { isActive: false, deletedAt: new Date(), deletedBy: decoded.id },
+      { isActive: false, deletedAt: new Date(), deletedBy: decoded.email || decoded.userId },
       { new: true }
     );
-    
+
     if (!video) {
       return NextResponse.json({ error: 'Video not found' }, { status: 404 });
     }
-    
+
     // Update course totals
     if (video.courseId) {
       const videoCount = await CourseVideo.countDocuments({ courseId: video.courseId, isActive: true });
       const allVideos = await CourseVideo.find({ courseId: video.courseId, isActive: true });
       const totalDuration = allVideos.reduce((sum, v) => sum + (v.duration || 0), 0);
-      
+
       await RecordedCourse.findByIdAndUpdate(video.courseId, {
         totalVideos: videoCount,
         totalDuration,
       });
     }
-    
+
     return NextResponse.json({
       success: true,
       message: 'Video deleted',
     });
-    
+
   } catch (error: any) {
     console.error('[Admin Videos DELETE Error]:', error);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
