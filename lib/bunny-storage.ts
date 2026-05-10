@@ -289,6 +289,69 @@ export async function listFiles(
 }
 
 // ============================================
+// DUPLICATE PREVENTION (for images & files)
+// ============================================
+
+/**
+ * Check if a file exists in Bunny Storage by path
+ */
+export async function fileExists(storageKey: string): Promise<boolean> {
+  try {
+    const result = await fetchFromStorage(storageKey);
+    return !!result.buffer;
+  } catch (err) {
+    return false;
+  }
+}
+
+/**
+ * Find a file by name (case-insensitive) in a prefix/category
+ * Used to prevent duplicate image/thumbnail uploads
+ */
+export async function findFileByName(
+  fileName: string,
+  prefix: string = 'uploads'
+): Promise<string | null> {
+  try {
+    const files = await listFiles(prefix);
+    const normalized = fileName.toLowerCase().trim();
+
+    const found = files.find(
+      (f: any) => f.key?.split('/').pop()?.toLowerCase().trim() === normalized
+    );
+
+    if (found) {
+      return found.key;
+    }
+
+    return null;
+  } catch (err) {
+    console.error('[Bunny Storage] Error finding file:', err);
+    return null;
+  }
+}
+
+/**
+ * Check if a file with the same size exists (for deduplication)
+ * Helps identify potentially identical files
+ */
+export async function findFilesBySize(
+  fileSize: number,
+  prefix: string = 'uploads'
+): Promise<string[]> {
+  try {
+    const files = await listFiles(prefix);
+
+    return files
+      .filter((f: any) => f.size === fileSize)
+      .map((f: any) => f.key);
+  } catch (err) {
+    console.error('[Bunny Storage] Error finding files by size:', err);
+    return [];
+  }
+}
+
+// ============================================
 // URL GENERATION (replaces S3 presigned URLs)
 // ============================================
 

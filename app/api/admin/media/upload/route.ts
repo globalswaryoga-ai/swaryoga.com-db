@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import {
-  uploadPublicFile, 
-  uploadAdminFile, 
+  uploadPublicFile,
+  uploadAdminFile,
   uploadCommunityFile,
-  uploadCommunityVideo 
+  uploadCommunityVideo,
+  findFileByName,
+  findFilesBySize,
 } from '@/lib/bunny-storage';
 
 export const dynamic = 'force-dynamic';
@@ -90,6 +92,34 @@ export async function POST(request: NextRequest) {
     // Convert file to buffer
     const buffer = Buffer.from(await file.arrayBuffer());
     const fileName = file.name;
+
+    // Check for duplicate files (prevent redundant uploads)
+    const prefix = `${accessLevel}/${fileType}`;
+    const existingByName = await findFileByName(fileName, prefix);
+
+    if (existingByName) {
+      // File with same name already exists - suggest reusing it
+      return NextResponse.json({
+        success: true,
+        isDuplicate: true,
+        message: `File "${fileName}" already exists. Reusing existing file.`,
+        url: existingByName,
+        suggestion: 'This file has already been uploaded and stored.',
+      });
+    }
+
+    // Check for potential duplicate by file size
+    const existingBySize = await findFilesBySize(file.size, prefix);
+    if (existingBySize.length > 0) {
+      // Potential pixel-identical or content-identical files
+      return NextResponse.json({
+        success: false,
+        isDuplicate: true,
+        message: `File with same size (${Math.round(file.size / 1024)}KB) already exists. Possible duplicate.`,
+        existingFiles: existingBySize,
+        suggestion: 'Please rename your file or confirm it\'s different from the existing file.',
+      }, { status: 409 });
+    }
 
     let url: string;
 
