@@ -62,9 +62,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Course not found' }, { status: 404 });
     }
     
-    // Check if video is free/preview
-    const isFreeAccess = video.accessType === 'free' || video.accessType === 'preview';
-    
+    // Check if video is free (isFree flag takes precedence)
+    const isFreeAccess = video.isFree === true;
+
     if (!isFreeAccess) {
       // Check enrollment
       const enrollment = await CourseEnrollment.findOne({
