@@ -742,7 +742,7 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
               />
             </div>
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-green-400 mb-2">Description (Optional)</label>
             <textarea
@@ -753,17 +753,18 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
               placeholder="Brief description"
             />
           </div>
-          
+
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-green-400 mb-2">Duration (seconds)</label>
+              <label className="block text-sm font-medium text-green-400 mb-2">Video Duration (minutes)</label>
               <input
                 type="number"
                 value={duration}
                 onChange={(e) => setDuration(e.target.value)}
                 className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
-                placeholder="0"
+                placeholder="Enter video length in minutes (e.g., 15)"
               />
+              <p className="text-xs text-gray-500 mt-1">Total length of the video in minutes</p>
             </div>
             <div className="flex items-end pb-1">
               <label className="flex items-center gap-2 text-white cursor-pointer">
