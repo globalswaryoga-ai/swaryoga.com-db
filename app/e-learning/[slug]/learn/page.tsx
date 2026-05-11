@@ -701,8 +701,36 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                   <div className="w-full h-full flex items-center justify-center bg-gray-900">
                     <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
                   </div>
+                ) : videoStream.streaming.playerUrl ? (
+                  // Bunny mediadelivery player (iframe) - avoids CORS issues
+                  <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', backgroundColor: '#000' }}>
+                    <iframe
+                      src={videoStream.streaming.playerUrl}
+                      style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+                      allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+                      sandbox="allow-scripts allow-same-origin allow-presentation"
+                      loading="eager"
+                      title="Video player"
+                    />
+                    {/* Transparent overlay blocks controls and context menu */}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        zIndex: 10,
+                        backgroundColor: 'transparent',
+                      }}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        return false;
+                      }}
+                    />
+                  </div>
                 ) : videoStream.streaming.hlsUrl ? (
-                  // HLS Video Player
+                  // HLS Video Player (fallback if available)
                   <HLSVideoPlayer
                     src={videoStream.streaming.hlsUrl}
                     autoPlay={autoplay}

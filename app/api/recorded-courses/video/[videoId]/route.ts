@@ -101,10 +101,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             error: 'Video streaming not configured'
           }, { status: 500 });
         }
-        // Generate HLS URL for Bunny Stream
-        const hlsUrl = `https://vz-${libraryId}.b-cdn.net/${video.bunnyVideoId}/playlist.m3u8`;
+        // Use Bunny mediadelivery player (iframe) to avoid CORS issues
+        // This is the same approach Sadhana uses
+        const playerUrl = `https://player.mediadelivery.net/play/${libraryId}/${video.bunnyVideoId}`;
         streamingData = {
-          hlsUrl,
+          playerUrl,
           bunnyVideoId: video.bunnyVideoId,
           bunnyLibraryId: libraryId,
         };
