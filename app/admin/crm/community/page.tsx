@@ -2916,7 +2916,7 @@ export default function AdminCommunityPage() {
                     {/* 1. Header & Footer */}
                     <section className="bg-white p-8 rounded-[2rem] border shadow-sm space-y-6">
                        <h3 className="text-sm font-bold uppercase tracking-widest text-slate-400">1. Styling (Header/Footer)</h3>
-                       <div className="grid grid-cols-2 gap-6">
+                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                           <div className="relative">
                              <input type="text" value={editPostHeader} onChange={e => setEditPostHeader(e.target.value)} placeholder="Headline (Optional)" className="w-full h-14 px-6 bg-slate-50 border rounded-xl font-semibold outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 transition-all" />
                              <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">Header</div>
@@ -3364,7 +3364,7 @@ export default function AdminCommunityPage() {
                        <h3 className="text-sm font-bold uppercase tracking-widest">3. Content</h3>
                        
                        {/* Common Header/Footer for all categories */}
-                       <div className="grid grid-cols-2 gap-6">
+                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                           <div className="relative">
                              <input type="text" value={postHeader} onChange={e => setPostHeader(e.target.value)} placeholder="Headline (Optional)" className="w-full h-14 px-6 bg-slate-50 border rounded-xl font-semibold outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 transition-all" />
                              <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">Header</div>
@@ -3460,7 +3460,7 @@ export default function AdminCommunityPage() {
                                 <span className="text-2xl">✨</span>
                                 <span className="text-sm font-bold text-indigo-700 uppercase tracking-wider">Experience Story</span>
                              </div>
-                             <div className="grid grid-cols-3 gap-4">
+                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                 <input type="text" value={postParticipantName} onChange={e => setPostParticipantName(e.target.value)} placeholder="Participant Name *" className="h-12 px-4 bg-white border border-indigo-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/20" spellCheck={true} />
                                 <input type="text" value={postWorkshopName} onChange={e => setPostWorkshopName(e.target.value)} placeholder="Workshop Name" className="h-12 px-4 bg-white border border-indigo-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/20" spellCheck={true} />
                                 <input type="text" value={postBatchName} onChange={e => setPostBatchName(e.target.value)} placeholder="Batch Name/Number" className="h-12 px-4 bg-white border border-indigo-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/20" spellCheck={true} />
@@ -3573,12 +3573,12 @@ export default function AdminCommunityPage() {
                                 <span className="text-2xl">🦋</span>
                                 <span className="text-sm font-bold text-emerald-700 uppercase tracking-wider">Transformation Story</span>
                              </div>
-                             <div className="grid grid-cols-3 gap-4">
+                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                 <input type="text" value={postParticipantName} onChange={e => setPostParticipantName(e.target.value)} placeholder="Participant Name *" className="h-12 px-4 bg-white border border-emerald-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500/20" spellCheck={true} />
                                 <input type="text" value={postWorkshopName} onChange={e => setPostWorkshopName(e.target.value)} placeholder="Workshop Name" className="h-12 px-4 bg-white border border-emerald-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500/20" spellCheck={true} />
                                 <input type="text" value={postBatchName} onChange={e => setPostBatchName(e.target.value)} placeholder="Batch Name/Number" className="h-12 px-4 bg-white border border-emerald-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500/20" spellCheck={true} />
                              </div>
-                             <div className="grid grid-cols-2 gap-4">
+                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                    <label className="text-xs font-bold text-red-600 uppercase tracking-wider flex items-center gap-1">
                                       <span>⬅️</span> Before
@@ -3643,7 +3643,7 @@ export default function AdminCommunityPage() {
                                 <span className="text-2xl">❓</span>
                                 <span className="text-sm font-bold text-indigo-700 uppercase tracking-wider">Q&A Post</span>
                              </div>
-                             <div className="grid grid-cols-3 gap-4">
+                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                 <input type="text" value={postParticipantName} onChange={e => setPostParticipantName(e.target.value)} placeholder="Participant Name" className="h-12 px-4 bg-white border border-indigo-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/20" spellCheck={true} />
                                 <input type="text" value={postWorkshopName} onChange={e => setPostWorkshopName(e.target.value)} placeholder="Workshop Name" className="h-12 px-4 bg-white border border-indigo-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/20" spellCheck={true} />
                                 <input type="text" value={postBatchName} onChange={e => setPostBatchName(e.target.value)} placeholder="Batch Name/Number" className="h-12 px-4 bg-white border border-indigo-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/20" spellCheck={true} />

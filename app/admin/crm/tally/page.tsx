@@ -1732,7 +1732,7 @@ export default function TallyPage() {
           </div>
           {/* Bank Received vs Bank Expense row */}
           {(summary.totalBankReceived || summary.totalBankExpense) ? (
-            <div className="grid grid-cols-2 gap-4 mt-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
               <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-center">
                 <div className="text-xs text-gray-500 mb-1">Total Bank Received</div>
                 <div className="text-lg font-bold font-mono text-emerald-400">{fmt(summary.totalBankReceived || 0)}</div>
@@ -4360,7 +4360,7 @@ ${contentHtml}
           {/* 4. Input Tax Credit */}
           <div className="bg-gray-900 rounded-lg border border-gray-800 p-4">
             <h3 className="text-white font-semibold mb-3">4. Input Tax Credit</h3>
-            <div className="grid grid-cols-4 gap-4 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
               <div><p className="text-gray-500">CGST</p><p className="text-blue-400 font-bold">{fmt(gstReport.inputTaxCredit?.cgst || 0)}</p></div>
               <div><p className="text-gray-500">SGST</p><p className="text-green-400 font-bold">{fmt(gstReport.inputTaxCredit?.sgst || 0)}</p></div>
               <div><p className="text-gray-500">IGST</p><p className="text-orange-400 font-bold">{fmt(gstReport.inputTaxCredit?.igst || 0)}</p></div>
@@ -4840,7 +4840,7 @@ ${contentHtml}
         {caAudit.trialBalance && (
           <div className="bg-gray-900 rounded-xl border border-gray-800 p-5">
             <h4 className="text-sm font-semibold text-gray-400 mb-3 flex items-center gap-2"><Scale className="w-4 h-4" /> Trial Balance</h4>
-            <div className="grid grid-cols-3 gap-4 text-center">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
               <div>
                 <div className="text-xs text-gray-500">Total Debit</div>
                 <div className="text-lg font-mono font-bold text-blue-400">{fmt(caAudit.trialBalance.totalDebit)}</div>
@@ -4863,7 +4863,7 @@ ${contentHtml}
         {caAudit.cashFlowSummary && (
           <div className="bg-gray-900 rounded-xl border border-gray-800 p-5">
             <h4 className="text-sm font-semibold text-gray-400 mb-3 flex items-center gap-2"><Wallet className="w-4 h-4" /> Cash Flow Summary</h4>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="p-3 bg-green-500/10 rounded-lg text-center">
                 <div className="text-xs text-gray-500">Total Receipts</div>
                 <div className="text-lg font-mono font-bold text-green-400">{fmt(caAudit.cashFlowSummary.totalReceipts)}</div>
@@ -6071,7 +6071,7 @@ ${contentHtml}
           <p><strong>How it works:</strong> Closing balances of Balance Sheet ledgers (Assets, Liabilities, Capital) are carried forward as opening balances to the next FY. Income/Expense ledgers start fresh at zero. Net Profit/Loss is transferred to Reserves &amp; Surplus.</p>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="text-xs text-gray-400 mb-1 block">Source Financial Year</label>
             <select value={yearEndFrom} onChange={e => setYearEndFrom(e.target.value)}

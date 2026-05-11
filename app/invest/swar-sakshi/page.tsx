@@ -564,7 +564,7 @@ export default function SwarSakshiPage() {
                   <>
                     <hr className="my-4" />
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <p className="text-xs text-gray-500 uppercase font-semibold">Duration</p>
                         <p className="text-lg font-semibold text-gray-800">

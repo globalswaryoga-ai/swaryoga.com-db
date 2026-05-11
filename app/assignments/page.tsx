@@ -341,7 +341,7 @@ export default function AssignmentsPage() {
               {/* Graded Results */}
               {selectedAssignment.submissionStatus === 'graded' && (
                 <div className="bg-green-900/20 border border-green-500 p-6 rounded-lg mb-6">
-                  <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                     <div>
                       <p className="text-green-400">Your Score</p>
                       <p className="text-3xl font-bold text-yellow-400">

@@ -250,7 +250,7 @@ export default function UnifiedProfilePage() {
       {profile && (
         <div className="mx-auto max-w-7xl px-4 pb-8">
           {/* Summary Cards */}
-          <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-7">
+          <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-7">
             <div className={`rounded-lg p-4 shadow ${profile.summary.hasAccount ? 'bg-green-50' : 'bg-gray-50'}`}>
               <p className="text-2xl">{profile.summary.hasAccount ? '✅' : '❌'}</p>
               <p className="text-sm text-gray-600">Account</p>

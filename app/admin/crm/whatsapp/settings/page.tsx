@@ -254,7 +254,7 @@ function SettingsContent() {
               {editingId ? 'Edit Account' : 'Create New Account'}
             </h2>
 
-            <div className="grid grid-cols-2 gap-6 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
               <div>
                 <label className="block text-sm font-semibold text-gray-900 mb-2">
                   Account Name *
@@ -293,7 +293,7 @@ function SettingsContent() {
               <div className="space-y-6 mb-6 p-6 bg-blue-50 rounded-lg border border-blue-200">
                 <h3 className="font-semibold text-gray-900 mb-4">📞 Common Gateway Configuration</h3>
 
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-semibold text-gray-900 mb-2">
                       Provider *
@@ -329,7 +329,7 @@ function SettingsContent() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-semibold text-gray-900 mb-2">
                       Provider Account ID
@@ -381,7 +381,7 @@ function SettingsContent() {
               <div className="space-y-6 mb-6 p-6 bg-green-50 rounded-lg border border-green-200">
                 <h3 className="font-semibold text-gray-900 mb-4">💬 Meta WhatsApp Business API</h3>
 
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-semibold text-gray-900 mb-2">
                       Phone Number *
@@ -413,7 +413,7 @@ function SettingsContent() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-semibold text-gray-900 mb-2">
                       Business Account ID
@@ -463,7 +463,7 @@ function SettingsContent() {
             )}
 
             {/* Common Options */}
-            <div className="grid grid-cols-2 gap-6 mb-6 p-4 bg-gray-100 rounded-lg">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6 p-4 bg-gray-100 rounded-lg">
               <label className="flex items-center gap-3 cursor-pointer">
                 <input
                   type="checkbox"
@@ -549,7 +549,7 @@ function SettingsContent() {
                   </div>
 
                   {/* Phone Number & Status */}
-                  <div className="grid grid-cols-2 gap-4 mb-4 p-4 bg-gray-50 rounded-lg">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4 p-4 bg-gray-50 rounded-lg">
                     <div>
                       <p className="text-xs text-gray-600 font-semibold uppercase mb-1">Phone</p>
                       <p className="text-sm font-mono text-gray-900">

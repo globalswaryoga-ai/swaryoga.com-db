@@ -639,7 +639,7 @@ export default function CustomFieldsPage() {
 
               {/* Validation (if plan supports) */}
               {limits?.hasValidation && (formData.type === 'number' || formData.type === 'currency') && (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium mb-1">Min Value</label>
                     <input
@@ -662,7 +662,7 @@ export default function CustomFieldsPage() {
               )}
 
               {limits?.hasValidation && (formData.type === 'text' || formData.type === 'textarea') && (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium mb-1">Min Length</label>
                     <input

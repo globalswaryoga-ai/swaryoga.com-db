@@ -1722,7 +1722,7 @@ export default function BroadcastPage() {
                 <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
                   📊 Summary
                 </h3>
-                <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                   <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-xl p-4 text-center">
                     <div className="text-3xl font-bold text-indigo-600">{selectedLeads.size}</div>
                     <div className="text-sm text-indigo-700">Recipients</div>

@@ -238,7 +238,7 @@ export default function CapacityDashboard() {
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="text-center p-4 bg-gray-50 rounded-xl">
             <div className="flex items-center justify-center gap-1 mb-1">
               <Calendar className="w-4 h-4 text-gray-400" />

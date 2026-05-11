@@ -245,7 +245,7 @@ export default function AdminDevicesPage() {
       {/* Stats Cards */}
       {stats && (
         <div className="mx-auto max-w-7xl px-4 py-6">
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:grid-cols-5">
             <div className="rounded-lg bg-white p-4 shadow">
               <p className="text-2xl font-bold text-indigo-600">{stats.totalDevices}</p>
               <p className="text-sm text-gray-500">Total Devices</p>

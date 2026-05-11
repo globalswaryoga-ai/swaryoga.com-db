@@ -1330,7 +1330,7 @@ export default function LandingPage() {
                     </div>
                   </div>
                   {(story.beforeStats || story.afterStats) && (
-                    <div className="grid grid-cols-2 gap-4 mb-4 p-3 rounded-lg" style={{ backgroundColor: isDark ? '#0f0f23' : theme.secondaryColor + '08' }}>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4 p-3 rounded-lg" style={{ backgroundColor: isDark ? '#0f0f23' : theme.secondaryColor + '08' }}>
                       {story.beforeStats && (
                         <div className="text-center">
                           <div className="text-xs mb-1" style={{ color: theme.secondaryColor }}>BEFORE</div>

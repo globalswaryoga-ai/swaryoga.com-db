@@ -766,7 +766,7 @@ export default function CRMInvestmentPage() {
 
             <div className="p-6 space-y-6">
               {/* Basic Info */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-semibold text-gray-500 uppercase">Name</label>
                   <p className="text-lg font-semibold text-gray-900">{selectedInvestment.name}</p>
@@ -788,7 +788,7 @@ export default function CRMInvestmentPage() {
               </div>
 
               {/* Financial Details */}
-              <div className="grid grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg">
                 <div>
                   <label className="text-xs font-semibold text-gray-500 uppercase">Investment Amount</label>
                   <p className="text-xl font-bold text-indigo-600">{formatCurrency(selectedInvestment.amount)}</p>
@@ -808,7 +808,7 @@ export default function CRMInvestmentPage() {
               {/* Dividend Status */}
               <div className="border border-gray-200 rounded-lg p-4">
                 <h3 className="font-bold text-gray-900 mb-4">Dividend Status</h3>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-semibold text-gray-500 uppercase">Paid Dividend</label>
                     <p className="text-xl font-bold text-green-600">
@@ -846,7 +846,7 @@ export default function CRMInvestmentPage() {
               </div>
 
               {/* Dates */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-semibold text-gray-500 uppercase">Start Date</label>
                   <p className="text-lg font-semibold text-gray-900">{formatDate(selectedInvestment.startDate)}</p>

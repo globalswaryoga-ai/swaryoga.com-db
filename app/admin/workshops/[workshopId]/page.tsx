@@ -889,7 +889,7 @@ export default function WorkshopDetailPage() {
             <h2 className="text-xl font-bold text-gray-900 mb-4">Create New Batch</h2>
             <form onSubmit={handleCreateBatch}>
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Batch Number *
@@ -917,7 +917,7 @@ export default function WorkshopDetailPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
                     <input
@@ -1084,7 +1084,7 @@ export default function WorkshopDetailPage() {
                   </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Day Number</label>
                     <input

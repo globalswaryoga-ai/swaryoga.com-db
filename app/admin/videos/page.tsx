@@ -1885,7 +1885,7 @@ export default function AdminVideosPage() {
 
                 {/* Year/Month for post tab */}
                 {activeTab === 'post' && (
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-semibold text-gray-400 mb-1">Year *</label>
                       <input type="number" value={playlistForm.year}
@@ -1924,7 +1924,7 @@ export default function AdminVideosPage() {
 
                 {playlistForm.source === 'zoom' && (
                   <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-xs font-semibold text-gray-400 mb-1">Zoom Meeting ID</label>
                         <input value={playlistForm.zoomMeetingId}
@@ -2129,7 +2129,7 @@ export default function AdminVideosPage() {
                   ))}
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-gray-400 mb-1">Day / Session #</label>
                   <input type="number" min={1} value={videoForm.sessionNumber}

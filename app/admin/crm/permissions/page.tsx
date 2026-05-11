@@ -329,7 +329,7 @@ export default function ConsentPage() {
                     <div className="text-white">{new Date(selectedConsent.blockedUntil).toLocaleString()}</div>
                   </div>
                 )}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-purple-300 text-sm mb-1">Created</label>
                     <div className="text-white text-sm">{new Date(selectedConsent.createdAt).toLocaleString()}</div>

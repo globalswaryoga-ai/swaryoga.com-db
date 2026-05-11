@@ -716,7 +716,7 @@ export default function BroadcastDashboardPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-bold text-slate-500 uppercase">Sent At</label>
                     <div className="text-sm text-slate-700 mt-1">

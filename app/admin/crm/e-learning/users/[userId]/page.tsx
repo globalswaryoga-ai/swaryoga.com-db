@@ -319,7 +319,7 @@ export default function UserDetailPage() {
                 <p className="text-white font-medium">{enrollment.courseId.content.en.title}</p>
                 <p className="text-sm text-gray-500">{enrollment.courseId.slug}</p>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-gray-400 mb-1">Level</p>
                   <p className="text-white capitalize">{enrollment.courseId.level}</p>

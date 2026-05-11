@@ -331,7 +331,7 @@ export default function InvestmentDashboard() {
                 <h3 className="text-lg font-bold">Swar Sakshi</h3>
                 <p className="text-green-100 text-sm">12% Fixed Dividend Investment</p>
               </div>
-              <div className="p-6 grid grid-cols-2 gap-4">
+              <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs text-gray-500 uppercase font-semibold">Total Investment</p>
                   <p className="text-2xl font-bold text-green-600 mt-1">{formatCurrency(stats.swarsakhiTotal)}</p>
@@ -353,7 +353,7 @@ export default function InvestmentDashboard() {
                 <h3 className="text-lg font-bold">Upamanyu</h3>
                 <p className="text-purple-100 text-sm">Equity & Preference Shares</p>
               </div>
-              <div className="p-6 grid grid-cols-2 gap-4">
+              <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs text-gray-500 uppercase font-semibold">Total Investment</p>
                   <p className="text-2xl font-bold text-purple-600 mt-1">{formatCurrency(stats.upamanyuTotal)}</p>
@@ -604,7 +604,7 @@ export default function InvestmentDashboard() {
               )}
 
               {/* Investor Name & Phone */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Investor Name" value={form.name} onChange={(v) => setField('name', v)} placeholder="Full name" />
                 <Field label="Phone" value={form.phone} onChange={(v) => setField('phone', v)} placeholder="+91 XXXXX XXXXX" />
               </div>
@@ -619,14 +619,14 @@ export default function InvestmentDashboard() {
               />
 
               {/* Dates */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Start Date *" value={form.startDate} onChange={(v) => setField('startDate', v)} type="date" />
                 <Field label="End Date (Maturity) *" value={form.endDate} onChange={(v) => setField('endDate', v)} type="date" />
               </div>
 
               {/* Swar Sakshi fields */}
               {form.entity === ENTITIES.SWAR_SAKSHI && (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Field
                     label="Interest Rate (%)"
                     value={form.interestRate}
@@ -646,7 +646,7 @@ export default function InvestmentDashboard() {
 
               {/* Upamanyu fields */}
               {form.entity === ENTITIES.UPAMANYU && (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Field
                     label="Number of Shares"
                     value={form.numberOfShares}

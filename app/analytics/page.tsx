@@ -268,7 +268,7 @@ export default function AnalyticsPage() {
               </div>
 
               {/* Main Stats */}
-              <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
                 <div className="bg-green-900/30 border border-green-500 p-4 rounded">
                   <p className="text-green-400 text-sm">Total Watch Time</p>
                   <p className="text-2xl font-bold text-yellow-400">

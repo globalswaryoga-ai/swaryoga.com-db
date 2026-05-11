@@ -240,7 +240,7 @@ export default function KnowledgeBasePage() {
               {editingArticle ? '✏️ Edit Article' : '➕ New Article'}
             </h2>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="col-span-2">
                 <label className="block text-sm font-bold text-emerald-100 mb-1">Title *</label>
                 <input

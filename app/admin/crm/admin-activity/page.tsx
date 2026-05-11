@@ -414,7 +414,7 @@ export default function AdminActivityPage() {
                 {/* Message Stats */}
                 <div className="bg-slate-900/50 border-2 border-orange-500/30 rounded-2xl p-6 hover:border-orange-500/50 transition-all">
                   <h3 className="text-sm font-bold text-slate-400 mb-4">Message Breakdown</h3>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="bg-slate-800/50 rounded-xl p-4 text-center">
                       <div className="text-3xl font-black text-green-400">{activity.summary.messagesSent}</div>
                       <div className="text-xs text-slate-500 mt-1">Total Sent</div>
@@ -474,7 +474,7 @@ export default function AdminActivityPage() {
                 {/* Sales Summary */}
                 <div className="bg-slate-900/50 border-2 border-orange-500/30 rounded-2xl p-6 hover:border-orange-500/50 transition-all">
                   <h3 className="text-sm font-bold text-slate-400 mb-4">Sales Performance</h3>
-                  <div className="grid grid-cols-2 gap-4 mb-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
                     <div className="bg-gradient-to-br from-green-600/20 to-green-800/20 rounded-xl p-4 border border-green-500/30">
                       <div className="text-3xl font-black text-green-400">{activity.summary.salesRecorded}</div>
                       <div className="text-xs text-slate-400 mt-1">Sales Recorded</div>

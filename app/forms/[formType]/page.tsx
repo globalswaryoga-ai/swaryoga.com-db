@@ -848,7 +848,7 @@ function DynamicFormPage() {
               
               {/* Country & State */}
               {config.fields.includes('country') && (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-2">
                       <Globe size={14} className="inline mr-2" />
@@ -921,7 +921,7 @@ function DynamicFormPage() {
               {/* Signup specific fields */}
               {formType === 'signup' && (
                 <>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-sm font-bold text-gray-700 mb-2">Gender *</label>
                       <select
@@ -989,7 +989,7 @@ function DynamicFormPage() {
                     </select>
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-bold text-gray-700 mb-2">Language *</label>
                       <select

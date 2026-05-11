@@ -255,7 +255,7 @@ export default function WorkshopPage() {
             {/* Video Info & Progress */}
             <div className="border-2 border-green-500 rounded-lg p-6 bg-gray-900/50">
               <h2 className="text-2xl font-bold text-yellow-400 mb-4">{selectedCourse.course.title}</h2>
-              <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
                 <div className="border-l-4 border-green-500 pl-4">
                   <p className="text-gray-400 text-sm">Progress</p>
                   <p className="text-2xl font-bold text-green-400">{selectedCourse.progress.completionPercentage}%</p>

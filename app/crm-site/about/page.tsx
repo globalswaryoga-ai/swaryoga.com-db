@@ -75,7 +75,7 @@ export default function AboutPage() {
             <div className="bg-gradient-to-br from-swar-primary/5 to-green-50 rounded-2xl p-8 text-center">
               <p className="text-5xl font-bold text-swar-primary mb-2">2024</p>
               <p className="text-gray-600 text-sm">Founded in India</p>
-              <div className="mt-6 grid grid-cols-2 gap-4 text-center">
+              <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4 text-center">
                 <div>
                   <p className="text-2xl font-bold text-gray-900">19</p>
                   <p className="text-xs text-gray-500">AI Languages</p>

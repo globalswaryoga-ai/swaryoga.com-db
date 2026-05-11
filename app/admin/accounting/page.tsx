@@ -969,7 +969,7 @@ export default function Accounting() {
                       <label className="block text-sm font-medium text-swar-text mb-1">Amount</label>
                       <input type="number" value={investmentForm.amount} onChange={(e) => setInvestmentForm({ ...investmentForm, amount: parseFloat(e.target.value) || 0 })} className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Enter amount" />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-swar-text mb-1">Interest Rate (%)</label>
                         <input type="number" value={investmentForm.interest_rate} onChange={(e) => setInvestmentForm({ ...investmentForm, interest_rate: parseFloat(e.target.value) || 0 })} className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="0.00" step="0.01" />

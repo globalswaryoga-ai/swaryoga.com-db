@@ -689,7 +689,7 @@ export default function CrmUsersPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t">
                 <div>
                   <p className="text-xs text-gray-400 uppercase">Business</p>
                   <p className="text-sm font-medium text-gray-900">{viewUser.businessName || '-'}</p>

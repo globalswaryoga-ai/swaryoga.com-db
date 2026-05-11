@@ -588,7 +588,7 @@ function WordModal({
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-semibold text-swar-text mb-2">Start Date *</label>
             <input
@@ -609,7 +609,7 @@ function WordModal({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-semibold text-swar-text mb-2">Start Time</label>
             <input
@@ -641,7 +641,7 @@ function WordModal({
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-semibold text-swar-text mb-2">Priority</label>
             <select

@@ -147,7 +147,7 @@ export default function WhatsAppSetupPage() {
                   </code>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 mt-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
                   <div className="p-3 bg-white border border-slate-100 rounded-lg shadow-sm">
                     <p className="text-xs text-slate-500 mb-1">Last Server Hit</p>
                     <p className="text-sm font-semibold">{webhooks?.lastHit ? new Date(webhooks.lastHit).toLocaleTimeString() : 'Never'}</p>

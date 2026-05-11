@@ -1108,7 +1108,7 @@ export default function FunnelDashboardPage() {
                   <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
                     <MapPin className="h-4 w-4 text-amber-500" /> India: North vs South
                   </h3>
-                  <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                     {analytics.regionBreakdown.filter((r: any) => r.region !== 'Unknown').map((r: any) => {
                       const isNorth = r.region === 'North India';
                       const color = isNorth ? COLORS.northIndia : COLORS.southIndia;

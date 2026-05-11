@@ -158,7 +158,7 @@ export default function VideoPlayerPage({
         {/* Video Info */}
         <div className="bg-gray-900 rounded-lg p-6 border border-gray-800">
           <h2 className="text-white font-bold text-lg mb-4">Video Information</h2>
-          <div className="grid grid-cols-2 gap-4 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div>
               <p className="text-gray-400">Owner Email</p>
               <p className="text-white font-medium">{video.ownerEmail}</p>

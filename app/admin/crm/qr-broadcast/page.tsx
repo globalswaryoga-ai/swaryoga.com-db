@@ -136,7 +136,7 @@ export default function QRBroadcastPage() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div className="bg-gray-50 rounded-lg p-3">
                       <p className="text-xs text-gray-600 mb-1">Created</p>
                       <p className="font-medium text-gray-900">{template.createdAt}</p>

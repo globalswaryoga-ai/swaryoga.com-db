@@ -339,7 +339,7 @@ export default function AdminRecordingsVideosPage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           <div className="bg-white rounded-xl p-4 border border-gray-100">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-purple-100 rounded-lg">

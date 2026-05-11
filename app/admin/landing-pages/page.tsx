@@ -1203,7 +1203,7 @@ export default function AdminLandingPagesPage() {
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-orange-500 focus:outline-none"
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">CTA Button Text</label>
                 <input
@@ -1251,7 +1251,7 @@ export default function AdminLandingPagesPage() {
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-orange-500 focus:outline-none"
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
                 <input
@@ -1271,7 +1271,7 @@ export default function AdminLandingPagesPage() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Time</label>
                 <input
@@ -1292,7 +1292,7 @@ export default function AdminLandingPagesPage() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
                 <input
@@ -1699,7 +1699,7 @@ export default function AdminLandingPagesPage() {
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-orange-500 focus:outline-none"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
                     <input
@@ -1730,7 +1730,7 @@ export default function AdminLandingPagesPage() {
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-orange-500 focus:outline-none"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Zoom ID</label>
                     <input
@@ -2123,7 +2123,7 @@ export default function AdminLandingPagesPage() {
         return (
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">Social Proof Numbers</h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Students Count</label>
                 <input
@@ -2309,7 +2309,7 @@ export default function AdminLandingPagesPage() {
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-orange-500 focus:outline-none"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Image URL</label>
                     <input
@@ -2706,7 +2706,7 @@ export default function AdminLandingPagesPage() {
                   <span className="text-sm">Show Limited Seats</span>
                 </label>
                 {form.urgency?.limitedSeats && (
-                  <div className="grid grid-cols-2 gap-4 ml-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 ml-6">
                     <div>
                       <label className="block text-sm text-gray-600 mb-1">Total Seats</label>
                       <input
@@ -2782,7 +2782,7 @@ export default function AdminLandingPagesPage() {
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-orange-500 focus:outline-none"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="block text-sm font-medium text-gray-700">Before (Pain Points)</label>
                     <input
@@ -3047,7 +3047,7 @@ export default function AdminLandingPagesPage() {
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-orange-500 focus:outline-none"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Image URL</label>
                     <input
@@ -3314,7 +3314,7 @@ export default function AdminLandingPagesPage() {
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-orange-500 focus:outline-none"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Demo Type</label>
                     <select
@@ -3384,7 +3384,7 @@ export default function AdminLandingPagesPage() {
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-orange-500 focus:outline-none"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Button Text</label>
                     <input
@@ -3552,7 +3552,7 @@ export default function AdminLandingPagesPage() {
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-orange-500 focus:outline-none"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">CTA Text</label>
                     <input
@@ -3610,7 +3610,7 @@ export default function AdminLandingPagesPage() {
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-orange-500 focus:outline-none"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">CTA Text</label>
                     <input
@@ -3677,7 +3677,7 @@ export default function AdminLandingPagesPage() {
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-orange-500 focus:outline-none"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Background Color</label>
                     <div className="flex gap-2">
@@ -3838,7 +3838,7 @@ export default function AdminLandingPagesPage() {
                     )}
                   </div>
                 ))}
-                <div className="grid grid-cols-2 gap-4 pt-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Submit Button Text</label>
                     <input

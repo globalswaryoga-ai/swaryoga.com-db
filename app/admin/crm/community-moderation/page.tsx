@@ -407,7 +407,7 @@ export default function CommunityModerationPage() {
                         <p className="text-gray-700 whitespace-pre-wrap">{selectedItem.story}</p>
                       </div>
                       {(selectedItem.beforePhoto || selectedItem.afterPhoto) && (
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           {selectedItem.beforePhoto && (
                             <div>
                               <div className="text-sm text-gray-500 mb-1">Before</div>

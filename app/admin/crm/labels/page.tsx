@@ -367,7 +367,7 @@ export default function LabelsPage() {
 
         {/* Stats */}
         {labels.length > 0 && (
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
               <p className="text-slate-600 text-sm font-semibold mb-1">Total Labels</p>
               <p className="text-3xl font-bold text-slate-900">{labels.length}</p>
