@@ -23,6 +23,15 @@ interface Course {
   title: string;
   level: string;
   totalVideos?: number;
+  isFree?: boolean;
+  pricing?: {
+    INR?: { price: number; originalPrice?: number };
+    USD?: { price: number; originalPrice?: number };
+  };
+  discount?: number;
+  giftHours?: { enabled: boolean; hours: number };
+  enrolledCount?: number;
+  thumbnail?: string;
 }
 
 export default function CourseVideosPage() {
