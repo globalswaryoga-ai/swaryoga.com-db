@@ -912,7 +912,7 @@ function CommunityPageContent() {
             {/* Stats Card - Mobile */}
             <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-4 shadow-sm">
               <h3 className="text-sm font-bold text-gray-900 mb-3">📊 Stats</h3>
-              <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="grid grid-cols-3 sm:grid-cols-3 gap-2 text-center">
                 <div className="bg-white rounded-xl p-2">
                   <p className="text-lg font-bold text-green-600">{posts.length}</p>
                   <p className="text-[10px] text-gray-500">Posts</p>
@@ -933,12 +933,12 @@ function CommunityPageContent() {
 
       {/* Main Content */}
       <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-10">
-        <div className="grid lg:grid-cols-4 gap-6 lg:gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
           {/* Desktop Sidebar - Hidden on mobile */}
           <div className="hidden lg:block lg:col-span-1">
             {/* User Profile Card */}
             {user ? (
-              <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-6 mb-8 shadow-sm hover:shadow-md transition-all duration-300">
+              <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-4 sm:p-6 mb-8 shadow-sm hover:shadow-md transition-all duration-300">
                 <div className="flex items-center gap-4 mb-4">
                   <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center text-white font-bold text-lg shadow-md">
                     {user.name.charAt(0).toUpperCase()}
@@ -951,14 +951,14 @@ function CommunityPageContent() {
                 <p className="text-gray-600 text-xs">{user.email}</p>
               </div>
             ) : (
-              <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-300 rounded-2xl p-6 mb-8 shadow-sm hover:shadow-md transition-all duration-300">
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-300 rounded-2xl p-4 sm:p-6 mb-8 shadow-sm hover:shadow-md transition-all duration-300">
                 <p className="text-blue-900 text-sm font-bold mb-3">👋 Join the Community</p>
                 <p className="text-blue-800 text-xs leading-relaxed">Connect with fellow yoga practitioners and share your journey</p>
               </div>
             )}
 
             {/* Communities Section - Desktop Grouped */}
-            <div className="bg-white border border-green-200 rounded-2xl p-6 mb-8 shadow-sm hover:shadow-md transition-all duration-300">
+            <div className="bg-white border border-green-200 rounded-2xl p-4 sm:p-6 mb-8 shadow-sm hover:shadow-md transition-all duration-300">
               <h3 className="text-lg font-bold text-gray-900 mb-5 flex items-center gap-3">
                 <Users size={20} className="text-green-600" />
                 Communities
@@ -1201,7 +1201,7 @@ function CommunityPageContent() {
             {viewMode === 'videos' ? (
               <div className="space-y-6">
                 {!user ? (
-                  <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-2xl p-8 text-center">
+                  <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-2xl p-4 sm:p-6 md:p-8 text-center">
                     <div className="text-5xl mb-4">🔒</div>
                     <h3 className="text-xl font-bold text-purple-900 mb-2">Members Only</h3>
                     <p className="text-purple-700 mb-4">Join this community to access exclusive videos</p>
@@ -1230,7 +1230,7 @@ function CommunityPageContent() {
                     </div>
                   </div>
                 ) : videosError ? (
-                  <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-2xl p-8 text-center">
+                  <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-2xl p-4 sm:p-6 md:p-8 text-center">
                     <div className="text-5xl mb-4">🎬</div>
                     <p className="text-purple-700">{videosError}</p>
                   </div>
@@ -1296,7 +1296,7 @@ function CommunityPageContent() {
                     ))}
                   </div>
                 ) : (
-                  <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-2xl p-8 text-center">
+                  <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-2xl p-4 sm:p-6 md:p-8 text-center">
                     <div className="text-5xl mb-4">🎥</div>
                     <h3 className="text-xl font-bold text-purple-900 mb-2">No Videos Yet</h3>
                     <p className="text-purple-700">Videos will be added by community admins</p>
@@ -1521,7 +1521,7 @@ function CommunityPageContent() {
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowRatingModal(false)}>
           <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden" onClick={e => e.stopPropagation()}>
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-amber-500 to-yellow-500 p-6 text-white text-center">
+            <div className="bg-gradient-to-r from-amber-500 to-yellow-500 p-4 sm:p-6 text-white text-center">
               <div className="text-5xl mb-2">⭐</div>
               <h2 className="text-3xl font-bold">{ratingStats.avgRating?.toFixed(1)}</h2>
               <p className="text-sm opacity-90">{ratingStats.totalCount} total ratings</p>
@@ -1570,7 +1570,7 @@ function CommunityPageContent() {
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-gradient-to-br from-green-900 to-emerald-900 border border-green-500/40 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-green-600 to-emerald-600 p-6 text-white text-left">
+            <div className="bg-gradient-to-r from-green-600 to-emerald-600 p-4 sm:p-6 text-white text-left">
               <div className="flex items-center gap-4">
                 <div className="bg-white/20 p-4 rounded-2xl shadow-inner text-3xl">
                   ✨
@@ -1583,7 +1583,7 @@ function CommunityPageContent() {
             </div>
 
             {/* Modal Content */}
-            <div className="p-8 space-y-4">
+            <div className="p-4 sm:p-6 md:p-8 space-y-4">
               <div>
                 <label className="block text-sm font-bold text-white mb-2">👤 Full Name</label>
                 <input
@@ -1672,7 +1672,7 @@ function CommunityPageContent() {
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white border-2 border-orange-400 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95">
             {/* Modal Header */}
-            <div className={`bg-gradient-to-r ${pendingCommunity.design.color.gradient} p-6 text-white text-left`}>
+            <div className={`bg-gradient-to-r ${pendingCommunity.design.color.gradient} p-4 sm:p-6 text-white text-left`}>
               <div className="flex items-center gap-4">
                 <div className="bg-white/20 p-4 rounded-2xl shadow-inner">
                   <pendingCommunity.design.icon size={32} className="text-white" />
@@ -1685,7 +1685,7 @@ function CommunityPageContent() {
             </div>
             
             {/* Modal Body */}
-            <div className="p-6 space-y-5">
+            <div className="p-4 sm:p-6 space-y-5">
               <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
                 <div className="flex items-start gap-3">
                   <span className="text-2xl">🎯</span>
@@ -1747,7 +1747,7 @@ function CommunityPageContent() {
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white border-2 border-green-400 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-orange-500 to-red-500 p-6 text-white text-left">
+            <div className="bg-gradient-to-r from-orange-500 to-red-500 p-4 sm:p-6 text-white text-left">
               <div className="flex items-center gap-4">
                 <div className="bg-white/20 p-4 rounded-2xl shadow-inner text-3xl">
                   📋
@@ -1760,7 +1760,7 @@ function CommunityPageContent() {
             </div>
 
             {/* Modal Content */}
-            <div className="p-8 space-y-4 max-h-[80vh] overflow-y-auto">
+            <div className="p-4 sm:p-6 md:p-8 space-y-4 max-h-[80vh] overflow-y-auto">
               {/* Info Box */}
               <div className="bg-orange-100 border-2 border-orange-400 rounded-lg p-4 mb-4">
                 <p className="text-orange-800 text-sm">

@@ -84,7 +84,7 @@ export default function CreateCommunityPostPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-lg p-8 space-y-6">
+          <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-lg p-4 sm:p-6 md:p-8 space-y-6">
             {/* Title */}
             <div>
               <label className="block text-sm font-semibold text-swar-text mb-2">
@@ -172,7 +172,7 @@ export default function CreateCommunityPostPage() {
           </form>
 
           {/* Info Box */}
-          <div className="bg-swar-primary-light rounded-lg p-6 mt-8">
+          <div className="bg-swar-primary-light rounded-lg p-4 sm:p-6 mt-8">
             <h3 className="font-semibold text-swar-text mb-3">Community Guidelines</h3>
             <ul className="space-y-2 text-sm text-swar-text-secondary">
               <li>• Be respectful and supportive of other community members</li>
