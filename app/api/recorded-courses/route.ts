@@ -152,10 +152,10 @@ export async function GET(request: NextRequest) {
         ...getLocalizedContent(v.content, lang),
         content: undefined,
         // Don't expose video URL for paid content if not enrolled
-        videoUrl: (v.accessType === 'free' || v.accessType === 'preview' || canAccessPaidContent) ? v.videoUrl : undefined,
-        bunnyVideoId: (v.accessType === 'free' || v.accessType === 'preview' || canAccessPaidContent) ? v.bunnyVideoId : undefined,
-        canWatch: v.accessType === 'free' || v.accessType === 'preview' || canAccessPaidContent,
-        isLocked: v.accessType === 'paid' && !canAccessPaidContent,
+        videoUrl: (v.isFree === true || canAccessPaidContent) ? v.videoUrl : undefined,
+        bunnyVideoId: (v.isFree === true || canAccessPaidContent) ? v.bunnyVideoId : undefined,
+        canWatch: v.isFree === true || canAccessPaidContent,
+        isLocked: !v.isFree && !canAccessPaidContent,
       }));
       
       const localizedMaterials = materials.map((m: any) => ({
