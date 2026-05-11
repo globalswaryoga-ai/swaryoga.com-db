@@ -20,7 +20,7 @@ interface HLSVideoPlayerProps {
 
 export default function HLSVideoPlayer({
   src,
-  autoPlay = true,
+  autoPlay = false,
   muted = true,
   className = 'w-full h-full',
   isLiveStream = false,
@@ -136,9 +136,21 @@ export default function HLSVideoPlayer({
 
     // Prevent user from controlling playback
     const handleRateChange = () => { if (video.playbackRate !== 1) video.playbackRate = 1; };
-    const handleCanPlay = () => { if (video.paused && autoPlay) video.play().catch(() => {}); };
+    const handleCanPlay = () => {
+      if (video.paused && autoPlay) {
+        video.play().catch((err) => {
+          if (err.name !== 'NotAllowedError') console.error('Play error:', err);
+        });
+      }
+    };
     const handleVolumeChange = () => { if (video.muted || video.volume !== 1) { video.muted = false; video.volume = 1; } };
-    const handlePause = () => { if (autoPlay) video.play().catch(() => {}); };
+    const handlePause = () => {
+      if (autoPlay) {
+        video.play().catch((err) => {
+          if (err.name !== 'NotAllowedError') console.error('Play error:', err);
+        });
+      }
+    };
 
     video.addEventListener('ratechange', handleRateChange);
     video.addEventListener('canplay', handleCanPlay);
@@ -147,6 +159,12 @@ export default function HLSVideoPlayer({
 
     const setupHLS = async () => {
       try {
+        // Only attempt autoplay if muted (browser policy: autoplay with sound requires user interaction)
+        if (autoPlay && !video.muted) {
+          video.muted = true;
+          console.warn('Autoplay requires muted video - enforcing muted mode for browser autoplay policy');
+        }
+
         const HLS = (await import('hls.js')).default;
 
         if (!HLS.isSupported()) {

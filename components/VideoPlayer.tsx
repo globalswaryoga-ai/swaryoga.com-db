@@ -54,20 +54,28 @@ export default function VideoPlayer({
         const hls = new Hls({ debug: false, enableWorker: true });
         hls.loadSource(videoUrl);
         hls.attachMedia(video);
-        hls.on(Hls.Events.MANIFEST_PARSED, () => { video.play().catch(() => {}); });
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          video.play().catch((err) => {
+            if (err.name !== 'NotAllowedError') console.error('Autoplay error:', err);
+          });
+        });
         hls.on(Hls.Events.ERROR, (_e, data) => {
           if (data.fatal) setError('Video failed to load. Please try again.');
         });
         return () => hls.destroy();
       } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
         video.src = videoUrl;
-        video.play().catch(() => {});
+        video.play().catch((err) => {
+          if (err.name !== 'NotAllowedError') console.error('Play error:', err);
+        });
       } else {
         setError('Your browser does not support HLS video.');
       }
     } else {
       video.src = videoUrl;
-      video.play().catch(() => {});
+      video.play().catch((err) => {
+        if (err.name !== 'NotAllowedError') console.error('Play error:', err);
+      });
     }
   }, [videoUrl, mode]);
 
@@ -87,9 +95,9 @@ export default function VideoPlayer({
     return () => document.removeEventListener('fullscreenchange', handler);
   }, []);
 
-  // Bunny embed player URL
+  // Bunny embed player URL (autoplay disabled - browsers require user interaction)
   const bunnyEmbedUrl = bunnyVideoId && bunnyLibraryId
-    ? `https://iframe.mediadelivery.net/embed/${bunnyLibraryId}/${bunnyVideoId}?autoplay=true&preload=true&responsive=true`
+    ? `https://iframe.mediadelivery.net/embed/${bunnyLibraryId}/${bunnyVideoId}?preload=true&responsive=true`
     : null;
 
   // YouTube proxy embed
@@ -148,7 +156,6 @@ export default function VideoPlayer({
               ref={videoRef}
               className="w-full h-full"
               controls
-              autoPlay
               playsInline
               controlsList="nodownload noremoteplayback"
               disablePictureInPicture
