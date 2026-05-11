@@ -470,7 +470,9 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
     );
   }
 
-  if (!canAccessPaidContent && !enrollment) {
+  // Only show "Not Enrolled" if there are NO free videos to watch
+  const hasFreeVideos = videos.some((v: Video) => v.canWatch);
+  if (!canAccessPaidContent && !enrollment && !hasFreeVideos) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-center">
