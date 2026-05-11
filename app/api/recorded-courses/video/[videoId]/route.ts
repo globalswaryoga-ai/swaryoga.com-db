@@ -190,8 +190,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     });
     
   } catch (error: any) {
-    console.error('[Video Streaming Error]:', error);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+    console.error('[Video Streaming Error]:', {
+      message: error?.message,
+      stack: error?.stack,
+      videoId,
+    });
+    return NextResponse.json({
+      error: 'Server error',
+      details: error?.message || 'Unknown error'
+    }, { status: 500 });
   }
 }
 
