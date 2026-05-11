@@ -44,9 +44,25 @@ export async function GET(request: NextRequest) {
       }
       return NextResponse.json({ success: true, data: folder });
     } else {
-      const LanguageFolder = getLanguageFolderModel();
-      const folders = await LanguageFolder.find({ isActive: true }).sort({ displayOrder: 1 });
-      return NextResponse.json({ success: true, folders });
+      // Use direct MongoDB connection to get actual language_folders data
+      const db = (await connectDB()).db;
+      const folders = await db.collection('language_folders')
+        .find({ isActive: true })
+        .sort({ order: 1 })
+        .toArray();
+
+      // Map to proper structure
+      const mappedFolders = folders.map(f => ({
+        _id: f._id?.toString() || f._id,
+        code: f.code,
+        name: f.name,
+        flag: f.flag,
+        thumbnail: f.thumbnail,
+        isActive: f.isActive,
+        order: f.order
+      }));
+
+      return NextResponse.json({ success: true, folders: mappedFolders });
     }
   } catch (error: any) {
     console.error('[Language Folders API Error]:', error);
