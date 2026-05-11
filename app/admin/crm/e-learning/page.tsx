@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { Plus, Edit2, Trash2, Video, Eye, EyeOff, GraduationCap, X, Upload, ShieldAlert, Users, Copy, Folder } from 'lucide-react';
+import { Plus, Edit2, Trash2, Video, Eye, EyeOff, GraduationCap, X, Upload, ShieldAlert, Users, Copy, Folder, BarChart3 } from 'lucide-react';
 
 // All 19 language options
 const languageOptions = [
@@ -310,6 +310,14 @@ export default function DLearningPage() {
                 Back to Folders
               </button>
             )}
+            <Link
+              href="/admin/crm/e-learning/dashboard"
+              className="flex items-center gap-2 px-5 py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white font-semibold rounded-lg transition-colors"
+              title="View analytics dashboard"
+            >
+              <BarChart3 size={18} />
+              Dashboard
+            </Link>
             <Link
               href="/admin/crm/e-learning/users"
               className="flex items-center gap-2 px-5 py-2.5 bg-blue-500 hover:bg-blue-600 text-black font-semibold rounded-lg transition-colors"
