@@ -209,16 +209,16 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      if (!token) {
-        router.push(`/login?redirect=/e-learning/${slug}/learn`);
-        return;
+
+      const headers: any = {
+        'Content-Type': 'application/json',
+      };
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
       }
 
       const response = await fetch(`/api/recorded-courses?slug=${slug}&lang=${language}`, {
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers,
       });
       const data = await response.json();
 
@@ -258,8 +258,13 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
         // Check if there are free videos - if yes, allow access
         const hasFreeVideos = data.videos?.some((v: Video) => v.canWatch);
         if (!hasFreeVideos) {
-          // No free videos and not enrolled - redirect
-          router.push(`/e-learning/${slug}`);
+          // No free videos and not enrolled - redirect to login
+          if (!token) {
+            router.push(`/login?redirect=/e-learning/${slug}/learn`);
+          } else {
+            // Logged in but no paid content - redirect to course page
+            router.push(`/e-learning/${slug}`);
+          }
         }
       }
     } catch (err) {
