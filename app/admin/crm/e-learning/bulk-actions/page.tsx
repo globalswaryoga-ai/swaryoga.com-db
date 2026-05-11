@@ -218,7 +218,7 @@ export default function BulkActionsPage() {
       )}
 
       {/* Enrollments Table */}
-      <div className="bg-gray-900/50 border border-gray-800 rounded-xl overflow-hidden">
+      <div className="bg-gray-900/50 border border-gray-800 rounded-xl overflow-x-auto">
         <table className="w-full">
           <thead className="bg-gray-900/80 border-b border-gray-800">
             <tr>

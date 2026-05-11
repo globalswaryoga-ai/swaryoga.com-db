@@ -315,7 +315,7 @@ export default function ELearningUsersPage() {
           <p className="text-gray-400">No users match your search criteria</p>
         </div>
       ) : (
-        <div className="bg-gray-900/50 rounded-2xl border border-gray-800 overflow-hidden">
+        <div className="bg-gray-900/50 rounded-2xl border border-gray-800 overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-900/80 border-b border-gray-800">
               <tr>

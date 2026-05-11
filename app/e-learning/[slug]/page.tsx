@@ -238,13 +238,13 @@ export default function CourseDetailPage() {
       <div className="max-w-4xl mx-auto p-6">
         {course.thumbnail && (
           <div className="mb-8 rounded-2xl overflow-hidden">
-            <img src={course.thumbnail} alt={course.title} className="w-full h-96 object-cover" />
+            <img src={course.thumbnail} alt={course.title} className="w-full h-48 sm:h-64 md:h-96 object-cover" />
           </div>
         )}
 
-        <div className="grid grid-cols-3 gap-8">
-          <div className="col-span-2">
-            <h1 className="text-4xl font-bold text-black mb-4">{course.title}</h1>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+          <div className="lg:col-span-2">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-black mb-4">{course.title}</h1>
 
             <span className={`inline-block px-4 py-2 rounded-full text-sm font-semibold mb-6 ${
               course.level === 'beginner' ? 'bg-green-100 text-green-800' :
@@ -254,7 +254,7 @@ export default function CourseDetailPage() {
               {course.level.charAt(0).toUpperCase() + course.level.slice(1)}
             </span>
 
-            <div className="flex gap-6 text-gray-600 mb-8">
+            <div className="flex flex-wrap gap-3 sm:gap-6 text-gray-600 mb-8">
               <div className="flex items-center gap-2">
                 <Video size={20} />
                 <span>{course.totalVideos || 0} videos</span>
@@ -284,8 +284,8 @@ export default function CourseDetailPage() {
             </div>
           </div>
 
-          <div className="col-span-1">
-            <div className="bg-white border-2 border-gray-200 rounded-2xl p-6 sticky top-6">
+          <div className="lg:col-span-1">
+            <div className="bg-white border-2 border-gray-200 rounded-2xl p-6 lg:sticky lg:top-6">
               <div className="mb-6 pb-6 border-b-2 border-gray-200">
                 {course.isFree ? (
                   <div className="text-center">
@@ -355,7 +355,7 @@ export default function CourseDetailPage() {
               {/* See Videos Button */}
               <Link
                 href={`/e-learning/${slug}/videos`}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-lg flex items-center justify-center gap-2 transition-colors mb-3 inline-flex"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-lg flex items-center justify-center gap-2 transition-colors mb-3"
               >
                 <Video size={20} />
                 See All Videos

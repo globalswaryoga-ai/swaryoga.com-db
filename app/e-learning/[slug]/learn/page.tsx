@@ -209,7 +209,7 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
   const [language, setLanguage] = useState<Language>('en');
   const [autoplay, setAutoplay] = useState(true);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastVideoTimeRef = useRef<number>();
@@ -222,6 +222,16 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
     if (savedLang && ['en', 'hi', 'ne'].includes(savedLang)) {
       setLanguage(savedLang);
     }
+  }, []);
+
+  // Initialize sidebar state based on window width (desktop=open, mobile=closed)
+  useEffect(() => {
+    const handleResize = () => {
+      setSidebarOpen(window.innerWidth >= 1024);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const fetchCourse = useCallback(async () => {
@@ -492,11 +502,19 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
 
   return (
     <div className="min-h-screen bg-gray-900 flex">
+      {/* Mobile Backdrop */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 z-40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
       <div
         className={`${
           sidebarOpen ? 'w-80' : 'w-0'
-        } bg-gray-800 border-r border-gray-700 flex flex-col transition-all duration-300 overflow-hidden`}
+        } fixed inset-y-0 left-0 z-50 lg:relative lg:z-auto bg-gray-800 border-r border-gray-700 flex flex-col transition-all duration-300 overflow-hidden`}
       >
         {/* Course Header */}
         <div className="p-4 border-b border-gray-700">
@@ -664,7 +682,7 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
         <div className="h-14 bg-gray-800 border-b border-gray-700 flex items-center px-4 gap-4">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="text-gray-400 hover:text-white transition-colors"
+            className="p-2 -m-2 text-gray-400 hover:text-white transition-colors"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
@@ -780,7 +798,7 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
               </div>
 
               {/* Bottom Controls */}
-              <div className="h-16 bg-gray-800 border-t border-gray-700 flex items-center justify-between px-6">
+              <div className="h-16 bg-gray-800 border-t border-gray-700 flex items-center justify-between px-3 sm:px-6">
                 <button
                   onClick={() => {
                     const currentIndex = videos.findIndex((v) => v._id === currentVideo._id);
@@ -793,7 +811,7 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                   </svg>
-                  {t.previousVideo}
+                  <span className="hidden sm:inline">{t.previousVideo}</span>
                 </button>
 
                 <button
@@ -817,7 +835,7 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                   disabled={!videos.slice(videos.findIndex((v) => v._id === currentVideo._id) + 1).some((v) => v.canWatch)}
                   className="flex items-center gap-2 text-gray-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  {t.nextVideo}
+                  <span className="hidden sm:inline">{t.nextVideo}</span>
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>

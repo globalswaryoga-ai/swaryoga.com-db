@@ -284,7 +284,7 @@ export default function DLearningPage() {
     <div className="min-h-screen bg-black p-6">
       {/* Header - Always visible */}
       <div className="mb-8">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-0 mb-6">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-green-500/20 rounded-xl flex items-center justify-center">
               <GraduationCap className="w-6 h-6 text-green-400" />
@@ -298,11 +298,11 @@ export default function DLearningPage() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             {selectedFolder && (
               <button
                 onClick={() => setSelectedFolder(null)}
-                className="flex items-center gap-2 px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-white font-semibold rounded-lg transition-colors"
+                className="flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-2.5 bg-gray-700 hover:bg-gray-600 text-white font-semibold rounded-lg transition-colors text-sm"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -465,7 +465,7 @@ export default function DLearningPage() {
           </button>
         </div>
       ) : (
-        <div className="bg-gray-900/50 rounded-2xl border border-gray-800 overflow-hidden">
+        <div className="bg-gray-900/50 rounded-2xl border border-gray-800 overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-900/80 border-b border-gray-800">
               <tr>
