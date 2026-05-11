@@ -69,23 +69,23 @@ export default function CourseEnrollmentModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white rounded-2xl max-w-4xl w-full mx-4 shadow-xl max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-white rounded-2xl w-full max-w-4xl shadow-xl max-h-[95vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
-          <h2 className="text-xl font-bold text-gray-900">Enroll in Course</h2>
+        <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200 flex-shrink-0">
+          <h2 className="text-lg sm:text-xl font-bold text-gray-900">Enroll in Course</h2>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 transition"
+            className="text-gray-500 hover:text-gray-700 transition p-1"
           >
             <X size={24} />
           </button>
         </div>
 
-        {/* Content - Two Column Layout */}
-        <div className="flex flex-1 overflow-hidden">
+        {/* Content - Two Column Layout (Stacked on Mobile) */}
+        <div className="flex flex-col lg:flex-row flex-1 overflow-hidden">
           {/* Left Side - Enrollment Form */}
-          <div className="w-3/5 p-6 overflow-y-auto border-r border-gray-200">
+          <div className="w-full lg:w-3/5 p-4 sm:p-6 overflow-y-auto lg:border-r border-gray-200">
           {/* Course Info */}
           <div className="mb-6 p-4 bg-green-50 rounded-lg">
             <p className="text-sm text-gray-600">Course</p>
@@ -119,7 +119,7 @@ export default function CourseEnrollmentModal({
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   First Name *
@@ -129,7 +129,7 @@ export default function CourseEnrollmentModal({
                   name="firstName"
                   value={formData.firstName}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  className="w-full px-3 py-2 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   placeholder="John"
                 />
               </div>
@@ -142,7 +142,7 @@ export default function CourseEnrollmentModal({
                   name="lastName"
                   value={formData.lastName}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  className="w-full px-3 py-2 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   placeholder="Doe"
                 />
               </div>
@@ -157,7 +157,7 @@ export default function CourseEnrollmentModal({
                 name="email"
                 value={formData.email}
                 onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                className="w-full px-3 py-2 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 placeholder="john@example.com"
               />
             </div>
@@ -171,7 +171,7 @@ export default function CourseEnrollmentModal({
                 name="phone"
                 value={formData.phone}
                 onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                className="w-full px-3 py-2 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 placeholder="+91 9876543210"
               />
             </div>
@@ -185,7 +185,7 @@ export default function CourseEnrollmentModal({
                 name="city"
                 value={formData.city}
                 onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                className="w-full px-3 py-2 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 placeholder="Pune"
               />
             </div>
@@ -199,12 +199,12 @@ export default function CourseEnrollmentModal({
                 name="address"
                 value={formData.address}
                 onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                className="w-full px-3 py-2 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 placeholder="123 Main Street"
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   State
@@ -214,7 +214,7 @@ export default function CourseEnrollmentModal({
                   name="state"
                   value={formData.state}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  className="w-full px-3 py-2 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   placeholder="Maharashtra"
                 />
               </div>
@@ -227,7 +227,7 @@ export default function CourseEnrollmentModal({
                   name="zip"
                   value={formData.zip}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  className="w-full px-3 py-2 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   placeholder="411001"
                 />
               </div>
@@ -262,10 +262,10 @@ export default function CourseEnrollmentModal({
             </div>
           </div>
 
-          {/* Right Side - Enrolled Students */}
-          <div className="w-2/5 p-6 overflow-y-auto bg-gray-50">
+          {/* Right Side - Enrolled Students (Hidden on Mobile) */}
+          <div className="hidden lg:flex lg:w-2/5 p-4 sm:p-6 overflow-y-auto bg-gray-50 flex-col">
             <div className="mb-4">
-              <h3 className="text-lg font-bold text-gray-900">{enrollmentCount} Students Joined</h3>
+              <h3 className="text-base lg:text-lg font-bold text-gray-900">{enrollmentCount} Students Joined</h3>
               <p className="text-xs text-gray-600 mt-1">Currently learning this course</p>
             </div>
             {enrolledStudents && enrolledStudents.length > 0 ? (
