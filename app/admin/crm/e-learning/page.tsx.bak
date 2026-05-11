@@ -720,7 +720,7 @@ function DuplicateCourseModal({ token, course, folderId, onClose, onCreated }: {
             <X size={20} />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
           {error && (
             <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-3 rounded-lg text-sm">
               {error}
@@ -728,7 +728,7 @@ function DuplicateCourseModal({ token, course, folderId, onClose, onCreated }: {
           )}
 
           {/* Row 1 */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-green-400 mb-2">Workshop Name *</label>
               <input
@@ -766,7 +766,7 @@ function DuplicateCourseModal({ token, course, folderId, onClose, onCreated }: {
           </div>
 
           {/* Row 3 */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-green-400 mb-2">Level</label>
               <select
@@ -794,7 +794,7 @@ function DuplicateCourseModal({ token, course, folderId, onClose, onCreated }: {
                 </button>
 
                 {showLanguageDropdown && (
-                  <div className="absolute top-full left-0 right-0 mt-2 bg-black border border-gray-700 rounded-lg p-2 grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto z-10">
+                  <div className="absolute top-full left-0 right-0 mt-2 bg-black border border-gray-700 rounded-lg p-2 grid grid-cols-2 gap-2 max-h-64 overflow-y-auto z-10">
                     {languageOptions.map((lang) => (
                       <button
                         key={lang.code}
@@ -830,7 +830,7 @@ function DuplicateCourseModal({ token, course, folderId, onClose, onCreated }: {
           </div>
 
           {/* Row 4 */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-green-400 mb-2">Workshop Duration (seconds)</label>
               <input
@@ -875,7 +875,7 @@ function DuplicateCourseModal({ token, course, folderId, onClose, onCreated }: {
                 <h3 className="text-sm font-semibold text-green-400 mb-4">Pricing</h3>
 
                 {/* Row 5 - Pricing */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                <div className="grid grid-cols-3 gap-4 mb-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Price INR (₹)</label>
                     <input
@@ -913,7 +913,7 @@ function DuplicateCourseModal({ token, course, folderId, onClose, onCreated }: {
                 </div>
 
                 {/* Row 6 - Discount & Promo */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Discount (%)</label>
                     <input
@@ -1077,7 +1077,7 @@ function CreateCourseModal({ token, folderId, onClose, onCreated }: { token: str
             <X size={20} />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
           {error && (
             <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-3 rounded-lg text-sm">
               {error}
@@ -1085,7 +1085,7 @@ function CreateCourseModal({ token, folderId, onClose, onCreated }: { token: str
           )}
 
           {/* Row 1 */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-green-400 mb-2">Workshop Name *</label>
               <input
@@ -1123,7 +1123,7 @@ function CreateCourseModal({ token, folderId, onClose, onCreated }: { token: str
           </div>
 
           {/* Row 3 */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-green-400 mb-2">Level</label>
               <select
@@ -1151,7 +1151,7 @@ function CreateCourseModal({ token, folderId, onClose, onCreated }: { token: str
                 </button>
 
                 {showLanguageDropdown && (
-                  <div className="absolute top-full left-0 right-0 mt-2 bg-black border border-gray-700 rounded-lg p-2 grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto z-10">
+                  <div className="absolute top-full left-0 right-0 mt-2 bg-black border border-gray-700 rounded-lg p-2 grid grid-cols-2 gap-2 max-h-64 overflow-y-auto z-10">
                     {languageOptions.map((lang) => (
                       <button
                         key={lang.code}
@@ -1187,7 +1187,7 @@ function CreateCourseModal({ token, folderId, onClose, onCreated }: { token: str
           </div>
 
           {/* Row 4 */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-green-400 mb-2">Workshop Duration (days)</label>
               <input
@@ -1232,7 +1232,7 @@ function CreateCourseModal({ token, folderId, onClose, onCreated }: { token: str
                 <h3 className="text-sm font-semibold text-green-400 mb-4">Pricing</h3>
 
                 {/* Row 5 - Pricing */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                <div className="grid grid-cols-3 gap-4 mb-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Price INR (₹)</label>
                     <input
@@ -1270,7 +1270,7 @@ function CreateCourseModal({ token, folderId, onClose, onCreated }: { token: str
                 </div>
 
                 {/* Row 6 - Discount & Promo */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Discount (%)</label>
                     <input
