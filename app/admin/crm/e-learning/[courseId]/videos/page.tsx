@@ -117,18 +117,23 @@ export default function VideosPage({ params }: { params: { courseId: string } })
 
   const deleteVideo = async (videoId: string) => {
     if (!token || !confirm('Delete this video?')) return;
-    
+
     try {
       const res = await fetch(`/api/admin/recorded-courses/videos?id=${videoId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
-      
-      if (res.ok) {
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
         setVideos(prev => prev.filter(v => v._id !== videoId));
+      } else {
+        alert('Failed to delete video: ' + (data.error || 'Unknown error'));
       }
     } catch (err) {
       console.error('Delete error:', err);
+      alert('Error deleting video: ' + (err instanceof Error ? err.message : 'Unknown error'));
     }
   };
 

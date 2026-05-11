@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
     }
 
     const CourseVideo = getCourseVideo();
-    const videos = await CourseVideo.find({ courseId }).sort({ order: 1 }).lean();
+    const videos = await CourseVideo.find({ courseId, isActive: true }).sort({ order: 1 }).lean();
 
     // Deduplicate videos by _id to prevent duplicates
     const seenIds = new Set<string>();
