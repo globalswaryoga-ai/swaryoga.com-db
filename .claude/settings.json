@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(MONGODB_URI_MAIN=\"mongodb+srv://swarsakshi9_db_user:hZnGhuVUNoew0Gje@swaryogadb.dheqmu1.mongodb.net/swaryogaDB?retryWrites=true&w=majority\" node scripts/check-elearning-duplicates.js)",
+      "Bash(MONGODB_URI_MAIN=\"mongodb+srv://swarsakshi9_db_user:hZnGhuVUNoew0Gje@swaryogadb.dheqmu1.mongodb.net/swaryogaDB?retryWrites=true&w=majority\" MONGODB_MAIN_DB_NAME=\"swaryogaDB\" node scripts/check-elearning-duplicates.js)",
+      "Bash(node /Users/mohankalburgi/swaryoga.com-db/scripts/list-collections.js)"
+    ]
+  }
+}
