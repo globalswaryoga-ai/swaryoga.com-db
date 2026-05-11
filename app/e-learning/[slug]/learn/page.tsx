@@ -5,33 +5,21 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import HLSVideoPlayer from '@/components/HLSVideoPlayer';
 
-// Global video control hiding - apply to all videos
+// Global video control hiding - only for direct HTML5 videos, not iframes
 if (typeof document !== 'undefined') {
   const styleId = 'elearning-video-no-controls';
   if (!document.getElementById(styleId)) {
     const style = document.createElement('style');
     style.id = styleId;
     style.textContent = `
-      video {
+      /* Only hide controls for direct HTML5 video elements */
+      div.video-player-direct video {
         display: block !important;
         width: 100% !important;
         height: 100% !important;
-        outline: none !important;
-        border: none !important;
-        background: #000 !important;
       }
-      video::-webkit-media-controls { display: none !important; visibility: hidden !important; height: 0 !important; }
-      video::-webkit-media-controls-enclosure { display: none !important; }
-      video::-webkit-media-controls-panel { display: none !important; }
-      video::-webkit-media-controls-play-button { display: none !important; }
-      video::-webkit-media-controls-mute-button { display: none !important; }
-      video::-webkit-media-controls-timeline { display: none !important; }
-      video::-webkit-media-controls-current-time-display { display: none !important; }
-      video::-webkit-media-controls-time-remaining-display { display: none !important; }
-      video::-webkit-media-controls-volume-slider-container { display: none !important; }
-      video::-webkit-media-controls-fullscreen-button { display: none !important; }
-      video::-moz-media-controls { display: none !important; visibility: hidden !important; }
-      video { user-select: none !important; -webkit-user-select: none !important; }
+      div.video-player-direct video::-webkit-media-controls { display: none !important; visibility: hidden !important; }
+      div.video-player-direct video::-moz-media-controls { display: none !important; visibility: hidden !important; }
     `;
     document.head.appendChild(style);
   }
@@ -751,7 +739,7 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                   />
                 ) : videoStream.streaming.directUrl ? (
                   // Direct Video (protected)
-                  <div className="relative w-full h-full bg-black">
+                  <div className="video-player-direct relative w-full h-full bg-black">
                     <video
                       ref={videoRef}
                       src={videoStream.streaming.directUrl}
@@ -766,7 +754,7 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                       style={{ display: 'block' }}
                       crossOrigin="anonymous"
                     />
-                    {/* Transparent overlay blocks controls */}
+                    {/* Transparent overlay blocks context menu */}
                     <div
                       style={{
                         position: 'absolute',
