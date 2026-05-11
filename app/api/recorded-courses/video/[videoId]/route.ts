@@ -50,144 +50,109 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const VideoWatchLog = getVideoWatchLog();
     const CourseDevice = getCourseDevice();
     
-    // Get video
-    const video = await CourseVideo.findById(videoId);
-    if (!video || !video.isActive) {
-      return NextResponse.json({ error: 'Video not found' }, { status: 404 });
-    }
-    
-    // Get course
-    const course = await RecordedCourse.findById(video.courseId);
-    if (!course || !course.isActive) {
-      return NextResponse.json({ error: 'Course not found' }, { status: 404 });
-    }
-    
-    // Check if video is free (isFree flag takes precedence)
-    const isFreeAccess = video.isFree === true;
+    try {
+      // Get video
+      const video = await CourseVideo.findById(videoId);
+      if (!video || !video.isActive) {
+        return NextResponse.json({ error: 'Video not found' }, { status: 404 });
+      }
 
-    if (!isFreeAccess) {
-      // Check enrollment
-      const enrollment = await CourseEnrollment.findOne({
-        userId: userId,
-        courseId: course._id,
-        status: { $in: ['active', 'completed'] },
-      });
-      
-      if (!enrollment) {
-        return NextResponse.json({ 
-          error: 'Not enrolled in this course',
+      // Get course
+      const course = await RecordedCourse.findById(video.courseId);
+      if (!course || !course.isActive) {
+        return NextResponse.json({ error: 'Course not found' }, { status: 404 });
+      }
+
+      // Check if video is free (isFree flag takes precedence)
+      const isFreeAccess = video.isFree === true;
+
+      if (!isFreeAccess && userId) {
+        // Only check enrollment for paid videos if user is logged in
+        const enrollment = await CourseEnrollment.findOne({
+          userId: userId,
+          courseId: course._id,
+          status: { $in: ['active', 'completed'] },
+        });
+
+        if (!enrollment) {
+          return NextResponse.json({
+            error: 'Not enrolled in this course',
+            requiresEnrollment: true,
+          }, { status: 403 });
+        }
+      } else if (!isFreeAccess && !userId) {
+        // Paid video without enrollment
+        return NextResponse.json({
+          error: 'Enrollment required',
           requiresEnrollment: true,
         }, { status: 403 });
       }
-      
-      // Check if using gift hours and they're exhausted
-      if (enrollment.giftHoursRemaining !== undefined && enrollment.giftHoursRemaining <= 0 && enrollment.purchaseType === 'gift') {
-        return NextResponse.json({ 
-          error: 'Gift hours exhausted',
-          giftHoursExhausted: true,
-          requiresPayment: true,
-          usedHours: enrollment.giftHoursUsed,
-          totalHours: enrollment.giftHoursUsed + enrollment.giftHoursRemaining,
-        }, { status: 403 });
-      }
-      
-      // Check access expiration
-      if (enrollment.expiresAt && new Date(enrollment.expiresAt) < new Date()) {
-        return NextResponse.json({ 
-          error: 'Course access expired',
-          accessExpired: true,
-        }, { status: 403 });
-      }
-      
-      // Check device limits
-      if (course.accessSettings?.maxDevices) {
-        const userAgent = request.headers.get('user-agent') || 'unknown';
-        const fingerprint = request.nextUrl.searchParams.get('deviceId') || 
-          Buffer.from(userAgent).toString('base64').slice(0, 32);
-        
-        // Check existing devices
-        const existingDevices = await CourseDevice.find({
-          userId: userId,
-          courseId: course._id,
-          isActive: true,
-        }).sort({ lastUsedAt: -1 });
-        
-        const currentDevice = existingDevices.find((d: any) => d.fingerprint === fingerprint);
-        
-        if (!currentDevice && existingDevices.length >= course.accessSettings.maxDevices) {
-          return NextResponse.json({ 
-            error: 'Device limit reached',
-            maxDevices: course.accessSettings.maxDevices,
-            currentDevices: existingDevices.length,
-          }, { status: 403 });
+
+      // Get video streaming URL
+      let streamingData: any = {};
+
+      if (video.videoUrl) {
+        streamingData = { directUrl: video.videoUrl };
+      } else if (video.bunnyVideoId) {
+        const libraryId = process.env.BUNNY_STREAM_LIBRARY_ID || process.env.BUNNY_LIBRARY_ID || '';
+        if (!libraryId) {
+          console.warn('[Video API] BUNNY_STREAM_LIBRARY_ID not configured');
+          return NextResponse.json({
+            error: 'Video streaming not configured'
+          }, { status: 500 });
         }
-        
-        // Register or update device
-        if (!currentDevice) {
-          await CourseDevice.create({
+        // Generate HLS URL for Bunny Stream
+        const hlsUrl = `https://vz-${libraryId}.b-cdn.net/${video.bunnyVideoId}/playlist.m3u8`;
+        streamingData = {
+          hlsUrl,
+          bunnyVideoId: video.bunnyVideoId,
+          bunnyLibraryId: libraryId,
+        };
+      }
+
+      // Create watch log entry (only if user is authenticated)
+      let watchLogId: any = null;
+      if (userId) {
+        try {
+          const watchLog = await VideoWatchLog.create({
             userId: userId,
             courseId: course._id,
-            fingerprint,
-            deviceName: parseDeviceName(userAgent),
-            deviceInfo: userAgent,
+            videoId: video._id,
+            startTime: new Date(),
             ipAddress: request.headers.get('x-forwarded-for')?.split(',')[0] || 'unknown',
-            lastUsedAt: new Date(),
-            registeredAt: new Date(),
+            userAgent: request.headers.get('user-agent') || 'unknown',
           });
-        } else {
-          await CourseDevice.findByIdAndUpdate(currentDevice._id, {
-            lastUsedAt: new Date(),
-          });
+          watchLogId = watchLog._id;
+        } catch (logErr) {
+          console.warn('[Video API] Failed to create watch log:', logErr);
+          // Don't fail the request if watch log creation fails
         }
       }
-    }
-    
-    // Get video streaming URL
-    let streamingData: any = {};
 
-    if (video.videoUrl) {
-      streamingData = { directUrl: video.videoUrl };
-    } else if (video.bunnyVideoId) {
-      const libraryId = process.env.BUNNY_STREAM_LIBRARY_ID || process.env.BUNNY_LIBRARY_ID || '';
-      // Generate HLS URL for Bunny Stream
-      const hlsUrl = `https://vz-${libraryId}.b-cdn.net/${video.bunnyVideoId}/playlist.m3u8`;
-      streamingData = {
-        hlsUrl,
-        bunnyVideoId: video.bunnyVideoId,
-        bunnyLibraryId: libraryId,
-      };
-    }
-    
-    // Create watch log entry (only if user is authenticated)
-    let watchLogId: any = null;
-    if (userId) {
-      const watchLog = await VideoWatchLog.create({
-        userId: userId,
-        courseId: course._id,
-        videoId: video._id,
-        startTime: new Date(),
-        ipAddress: request.headers.get('x-forwarded-for')?.split(',')[0] || 'unknown',
-        userAgent: request.headers.get('user-agent') || 'unknown',
+      return NextResponse.json({
+        success: true,
+        video: {
+          _id: video._id,
+          title: video.content?.en?.title || '',
+          duration: video.duration,
+          order: video.order,
+          sectionId: video.sectionId,
+        },
+        streaming: streamingData,
+        watchLogId: watchLogId,
+        courseSettings: {
+          allowDownload: course.accessSettings?.allowDownload || false,
+          allowScreenRecording: course.accessSettings?.allowScreenRecording || false,
+        },
       });
-      watchLogId = watchLog._id;
+    } catch (innerError: any) {
+      console.error('[Video Streaming Inner Error]:', {
+        message: innerError?.message,
+        stack: innerError?.stack,
+        videoId,
+      });
+      throw innerError;
     }
-    
-    return NextResponse.json({
-      success: true,
-      video: {
-        _id: video._id,
-        title: video.content?.en?.title || '',
-        duration: video.duration,
-        order: video.order,
-        sectionId: video.sectionId,
-      },
-      streaming: streamingData,
-      watchLogId: watchLogId,
-      courseSettings: {
-        allowDownload: course.accessSettings?.allowDownload || false,
-        allowScreenRecording: course.accessSettings?.allowScreenRecording || false,
-      },
-    });
     
   } catch (error: any) {
     console.error('[Video Streaming Error]:', {
