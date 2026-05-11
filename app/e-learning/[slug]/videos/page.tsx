@@ -13,7 +13,8 @@ interface Video {
   thumbnail?: string;
   duration?: number;
   order?: number;
-  accessType?: string;
+  isFree?: boolean;
+  canWatch?: boolean;
 }
 
 interface Course {
@@ -85,8 +86,8 @@ export default function CourseVideosPage() {
     );
   }
 
-  const handleVideoClick = (index: number) => {
-    if (index === 0 || isLoggedIn) {
+  const handleVideoClick = (video: Video, index: number) => {
+    if (video.isFree === true || isLoggedIn) {
       // Free video or user is logged in
       return;
     } else {
@@ -118,13 +119,13 @@ export default function CourseVideosPage() {
         {videos.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {videos.map((video, index) => {
-              const isFree = index === 0;
+              const isFree = video.isFree === true;
               const isLocked = !isFree && !isLoggedIn;
 
               return (
                 <div
                   key={video._id}
-                  onClick={() => handleVideoClick(index)}
+                  onClick={() => handleVideoClick(video, index)}
                   className={`rounded-xl overflow-hidden border-2 transition-all ${
                     isLocked
                       ? 'border-gray-300 cursor-not-allowed'

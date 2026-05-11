@@ -115,7 +115,7 @@ interface Video {
   title: string;
   description?: string;
   duration: number;
-  accessType: 'free' | 'preview' | 'paid';
+  isFree: boolean;
   sectionId?: string;
   order: number;
   canWatch: boolean;
@@ -584,7 +584,7 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                           </p>
                           <p className="text-xs text-gray-500 mt-0.5">{formatDuration(video.duration)}</p>
                         </div>
-                        {(video.accessType === 'free' || video.accessType === 'preview') && (
+                        {video.isFree && (
                           <span className="text-xs bg-green-600/20 text-green-400 px-2 py-0.5 rounded">
                             {t.free}
                           </span>
