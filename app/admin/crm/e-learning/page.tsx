@@ -351,7 +351,7 @@ export default function DLearningPage() {
       {/* Phase 1: Language Folders Grid */}
       {!selectedFolder && (
         <div className="mb-12">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-0 mb-6">
             <div>
               <h2 className="text-xl font-bold text-white">Language Folders</h2>
               <p className="text-sm text-gray-400">Click a folder to manage its workshops</p>

@@ -155,7 +155,7 @@ export default function MaterialsPage({ params }: { params: { courseId: string }
   return (
     <div className="min-h-screen bg-black p-6">
       {/* Header */}
-      <div className="flex items-center gap-4 mb-8">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 mb-8">
         <Link href={`/admin/crm/e-learning`} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400">
           <ArrowLeft size={24} />
         </Link>
@@ -201,7 +201,7 @@ export default function MaterialsPage({ params }: { params: { courseId: string }
               rows={2}
               className="w-full px-4 py-2 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none resize-none"
             />
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <select
                 value={type}
                 onChange={(e) => setType(e.target.value as any)}

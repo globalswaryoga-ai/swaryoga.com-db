@@ -255,7 +255,7 @@ export default function EditCoursePage() {
         )}
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="bg-gray-900/50 rounded-2xl border border-gray-800 p-8 space-y-6 max-h-[80vh] overflow-y-auto">
+        <form onSubmit={handleSubmit} className="bg-gray-900/50 rounded-2xl border border-gray-800 p-4 sm:p-8 space-y-6 max-h-[80vh] overflow-y-auto">
           {/* Language Dropdown - All 19 Languages */}
           <div className="mb-6">
             <label className="block text-sm font-medium text-green-400 mb-2">Select Language to Edit</label>
@@ -347,7 +347,7 @@ export default function EditCoursePage() {
           </div>
 
           {/* Row 3 */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-green-400 mb-2">Level</label>
               <select
@@ -413,7 +413,7 @@ export default function EditCoursePage() {
           </div>
 
           {/* Row 4 */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-green-400 mb-2">Workshop Duration (days)</label>
               <input
@@ -458,7 +458,7 @@ export default function EditCoursePage() {
                 <h3 className="text-sm font-semibold text-green-400 mb-4">Pricing</h3>
 
                 {/* Row 5 - Pricing */}
-                <div className="grid grid-cols-3 gap-4 mb-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Price INR (₹)</label>
                     <input
@@ -496,7 +496,7 @@ export default function EditCoursePage() {
                 </div>
 
                 {/* Row 6 - Discount & Promo */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Discount (%)</label>
                     <input
@@ -556,7 +556,7 @@ export default function EditCoursePage() {
               {/* Row 7 - Social/Engagement Metrics */}
               <div className="border-t border-gray-700 pt-6 mt-6">
                 <h3 className="text-lg font-bold text-white mb-4">Social & Engagement</h3>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Default Students</label>
                     <input

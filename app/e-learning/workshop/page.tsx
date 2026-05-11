@@ -180,19 +180,19 @@ export default function WorkshopPage() {
   return (
     <div className="min-h-screen bg-black text-white">
       {/* Header */}
-      <div className="bg-gray-900 border-b-2 border-green-500 p-6">
+      <div className="bg-gray-900 border-b-2 border-green-500 p-4 sm:p-6">
         <Link href="/e-learning" className="flex items-center gap-2 text-green-400 hover:text-green-300 mb-4">
           <ArrowLeft size={20} /> Back to Courses
         </Link>
-        <h1 className="text-3xl font-bold text-yellow-400">My Learning Dashboard</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-yellow-400">My Learning Dashboard</h1>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 p-6 max-w-7xl mx-auto">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 p-3 sm:p-6 max-w-7xl mx-auto">
         {/* Course List Sidebar */}
         <div className="lg:col-span-1 space-y-4">
           <div className="border-2 border-green-500 rounded-lg p-4 bg-gray-900/50">
             <h2 className="text-xl font-bold text-yellow-400 mb-4">My Courses</h2>
-            <div className="space-y-2 max-h-[600px] overflow-y-auto">
+            <div className="space-y-2 max-h-[200px] lg:max-h-[600px] overflow-y-auto">
               {courses.map((enrolledCourse) => (
                 <button
                   key={enrolledCourse.enrollment._id}
@@ -374,15 +374,15 @@ export default function WorkshopPage() {
             )}
 
             {/* Chat & Community */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="border-2 border-green-500 rounded-lg p-6 bg-gray-900/50 flex flex-col items-center justify-center">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="border-2 border-green-500 rounded-lg p-4 sm:p-6 bg-gray-900/50 flex flex-col items-center justify-center">
                 <MessageCircle size={32} className="text-green-400 mb-2" />
                 <p className="text-white font-bold mb-2">Chat Support</p>
-                <button className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded transition">
+                <button className="px-4 sm:px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded transition text-sm">
                   Start Chat
                 </button>
               </div>
-              <div className="border-2 border-green-500 rounded-lg p-6 bg-gray-900/50 flex flex-col items-center justify-center">
+              <div className="border-2 border-green-500 rounded-lg p-4 sm:p-6 bg-gray-900/50 flex flex-col items-center justify-center">
                 <MessageCircle size={32} className="text-yellow-400 mb-2" />
                 <p className="text-white font-bold mb-2">WhatsApp Community</p>
                 <a

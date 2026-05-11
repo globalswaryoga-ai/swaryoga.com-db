@@ -572,7 +572,7 @@ export default function UserDetailPage() {
               ) : (
                 devices.map((device: any) => (
                   <div key={device._id} className="bg-black/50 rounded-lg p-3 text-sm">
-                    <div className="flex items-start justify-between">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
                       <div className="flex-1">
                         <p className="text-white font-medium">{device.deviceName || 'Unknown Device'}</p>
                         <p className="text-gray-500 text-xs mt-1">{device.fingerprint.slice(0, 12)}...</p>

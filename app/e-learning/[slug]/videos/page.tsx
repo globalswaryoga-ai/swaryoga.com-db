@@ -99,19 +99,19 @@ export default function CourseVideosPage() {
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
-      <div className="bg-gray-50 border-b p-6 flex items-center justify-between">
-        <Link href={`/e-learning/${slug}`} className="flex items-center gap-2 text-green-600 hover:text-green-700">
+      <div className="bg-gray-50 border-b p-4 sm:p-6 flex items-center justify-between">
+        <Link href={`/e-learning/${slug}`} className="flex items-center gap-2 text-green-600 hover:text-green-700 text-sm sm:text-base">
           <ArrowLeft size={20} /> Back to Course
         </Link>
-        <h1 className="text-2xl font-bold text-gray-900">Course Videos</h1>
+        <h1 className="text-lg sm:text-2xl font-bold text-gray-900">Course Videos</h1>
         <div className="w-6" /> {/* Spacer */}
       </div>
 
       {/* Main Content */}
-      <div className="max-w-6xl mx-auto p-8">
+      <div className="max-w-6xl mx-auto p-4 sm:p-6 md:p-8">
         {/* Course Info */}
         <div className="mb-12">
-          <h2 className="text-4xl font-bold text-gray-900 mb-2">{course.title}</h2>
+          <h2 className="text-2xl sm:text-4xl font-bold text-gray-900 mb-2">{course.title}</h2>
           <p className="text-gray-600 text-lg">{videos.length} videos</p>
         </div>
 
@@ -237,8 +237,8 @@ export default function CourseVideosPage() {
         )}
 
         {/* Call to Action */}
-        <div className="mt-12 p-8 bg-green-50 rounded-2xl border-2 border-green-200 text-center">
-          <h3 className="text-2xl font-bold text-gray-900 mb-2">Ready to Learn?</h3>
+        <div className="mt-12 p-4 sm:p-8 bg-green-50 rounded-2xl border-2 border-green-200 text-center">
+          <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Ready to Learn?</h3>
           <p className="text-gray-600 mb-6">Enroll now to access all course videos and start your learning journey</p>
           <button
             onClick={() => setShowEnrollmentModal(true)}

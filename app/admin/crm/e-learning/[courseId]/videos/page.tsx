@@ -414,7 +414,7 @@ export default function VideosPage({ params }: { params: { courseId: string } })
               )}
 
               {/* Content Row */}
-              <div className="bg-gray-900/50 border border-gray-800 rounded-lg p-4 flex items-center gap-4 group">
+              <div className="bg-gray-900/50 border border-gray-800 rounded-lg p-4 flex flex-wrap sm:flex-nowrap items-start sm:items-center gap-2 sm:gap-4 group">
                 {/* Position Badge */}
                 <div className="w-10 h-10 bg-gray-800 rounded-lg flex items-center justify-center font-bold text-white flex-shrink-0">
                   {idx + 1}
@@ -821,7 +821,7 @@ function AddMaterialModal({ token, courseId, order, onClose, onAdded }: {
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-green-400 mb-2">Type</label>
               <select
@@ -971,7 +971,7 @@ function AddAssignmentModal({ token, courseId, subType, order, onClose, onAdded 
 
           {!isSimpleType && (
             <>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-green-400 mb-2">Total Points</label>
                   <input
@@ -1135,7 +1135,7 @@ function EditVideoModal({ token, video, onClose, onUpdated }: {
             <p className="text-xs text-gray-500 mt-1">Image URL for video thumbnail</p>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-green-400 mb-2">Video Duration (minutes)</label>
               <input
@@ -1542,7 +1542,7 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-green-400 mb-2">Video Duration (minutes)</label>
               <input

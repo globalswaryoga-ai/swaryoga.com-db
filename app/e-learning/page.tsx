@@ -378,7 +378,7 @@ export default function CoursesPage() {
         <div className="absolute top-4 right-4 z-20" ref={langDropdownRef}>
           <button
             onClick={() => setLangDropdownOpen(!langDropdownOpen)}
-            className="flex items-center gap-2 px-3 py-1.5 bg-gray-800/80 backdrop-blur-sm rounded-lg border border-gray-700 shadow-md hover:bg-gray-700 transition-all"
+            className="flex items-center gap-2 px-3 py-2.5 sm:py-1.5 bg-gray-800/80 backdrop-blur-sm rounded-lg border border-gray-700 shadow-md hover:bg-gray-700 transition-all"
           >
             <span className="text-lg">{currentLangInfo.flag}</span>
             <span className="font-medium text-gray-200 text-sm">{currentLangInfo.name}</span>
@@ -393,7 +393,7 @@ export default function CoursesPage() {
           </button>
 
           {langDropdownOpen && (
-            <div className="absolute top-full right-0 mt-2 w-56 bg-gray-900 border border-gray-700 rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto">
+            <div className="absolute top-full right-0 mt-2 w-56 max-w-[calc(100vw-2rem)] bg-gray-900 border border-gray-700 rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto">
               {/* All Languages Option */}
               <button
                 onClick={() => {

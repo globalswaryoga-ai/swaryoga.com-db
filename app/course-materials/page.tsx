@@ -116,7 +116,7 @@ export default function CourseMaterialsPage() {
             <p className="text-xl text-white mb-4">Please log in to view course materials</p>
             <Link
               href="/signin"
-              className="bg-green-600 hover:bg-yellow-400 hover:text-black text-white px-6 py-2 rounded-lg font-semibold border-2 border-green-500 transition-all duration-300"
+              className="bg-green-600 hover:bg-yellow-400 hover:text-black text-white px-6 py-3 rounded-lg font-semibold border-2 border-green-500 transition-all duration-300"
             >
               Go to Sign In
             </Link>
@@ -132,9 +132,9 @@ export default function CourseMaterialsPage() {
       <Navigation />
 
       {/* Hero */}
-      <div className="bg-black border-b-2 border-green-500 text-white py-12">
+      <div className="bg-black border-b-2 border-green-500 text-white py-8 sm:py-12">
         <div className="max-w-7xl mx-auto px-4">
-          <h1 className="text-5xl font-bold mb-2 text-yellow-400">📚 Course Materials & Notes</h1>
+          <h1 className="text-2xl sm:text-3xl lg:text-5xl font-bold mb-2 text-yellow-400">📚 Course Materials & Notes</h1>
           <p className="text-green-400">Access and organize your learning resources</p>
         </div>
       </div>
@@ -154,7 +154,7 @@ export default function CourseMaterialsPage() {
             <p className="text-green-400 mb-6">Materials from your courses will appear here</p>
             <Link
               href="/my-sessions"
-              className="bg-green-600 hover:bg-yellow-400 hover:text-black text-white px-6 py-2 rounded-lg font-semibold border-2 border-green-500 transition-all duration-300"
+              className="bg-green-600 hover:bg-yellow-400 hover:text-black text-white px-6 py-3 rounded-lg font-semibold border-2 border-green-500 transition-all duration-300"
             >
               View My Courses
             </Link>
@@ -170,12 +170,12 @@ export default function CourseMaterialsPage() {
                   placeholder="Search materials..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="bg-black border-2 border-green-500 text-white placeholder-green-600 px-4 py-2 rounded-lg focus:outline-none focus:border-yellow-400"
+                  className="bg-black border-2 border-green-500 text-white placeholder-green-600 px-4 py-3 rounded-lg focus:outline-none focus:border-yellow-400"
                 />
                 <select
                   value={filterType}
                   onChange={(e) => setFilterType(e.target.value)}
-                  className="bg-black border-2 border-green-500 text-white px-4 py-2 rounded-lg focus:outline-none focus:border-yellow-400"
+                  className="bg-black border-2 border-green-500 text-white px-4 py-3 rounded-lg focus:outline-none focus:border-yellow-400"
                 >
                   <option value="all">All Types</option>
                   <option value="pdf">PDFs</option>
@@ -186,7 +186,7 @@ export default function CourseMaterialsPage() {
               </div>
               <button
                 onClick={() => setShowNoteForm(!showNoteForm)}
-                className="bg-green-600 hover:bg-yellow-400 hover:text-black text-white px-4 py-2 rounded font-semibold border-2 border-green-500 transition-all"
+                className="bg-green-600 hover:bg-yellow-400 hover:text-black text-white px-4 py-3 rounded font-semibold border-2 border-green-500 transition-all"
               >
                 ✏️ Add Note
               </button>
@@ -205,7 +205,7 @@ export default function CourseMaterialsPage() {
                 <div className="flex gap-3 mt-4">
                   <button
                     onClick={addNote}
-                    className="flex-1 bg-green-600 hover:bg-yellow-400 hover:text-black text-white px-4 py-2 rounded font-semibold border-2 border-green-500 transition-all"
+                    className="flex-1 bg-green-600 hover:bg-yellow-400 hover:text-black text-white px-4 py-3 rounded font-semibold border-2 border-green-500 transition-all"
                   >
                     Save Note
                   </button>
@@ -214,7 +214,7 @@ export default function CourseMaterialsPage() {
                       setShowNoteForm(false);
                       setNewNote('');
                     }}
-                    className="flex-1 bg-transparent hover:bg-green-900 text-green-400 px-4 py-2 rounded font-semibold border-2 border-green-500 transition-all"
+                    className="flex-1 bg-transparent hover:bg-green-900 text-green-400 px-4 py-3 rounded font-semibold border-2 border-green-500 transition-all"
                   >
                     Cancel
                   </button>
@@ -276,13 +276,13 @@ export default function CourseMaterialsPage() {
                       <a
                         href={material.fileUrl}
                         download
-                        className="w-full block text-center bg-green-600 hover:bg-yellow-400 hover:text-black text-white px-4 py-2 rounded font-semibold border-2 border-green-500 transition-all"
+                        className="w-full block text-center bg-green-600 hover:bg-yellow-400 hover:text-black text-white px-4 py-3 rounded font-semibold border-2 border-green-500 transition-all"
                       >
                         📥 Download
                       </a>
                     ) : (
                       <button
-                        className="w-full bg-green-600 hover:bg-yellow-400 hover:text-black text-white px-4 py-2 rounded font-semibold border-2 border-green-500 transition-all"
+                        className="w-full bg-green-600 hover:bg-yellow-400 hover:text-black text-white px-4 py-3 rounded font-semibold border-2 border-green-500 transition-all"
                       >
                         👁️ View
                       </button>
@@ -311,7 +311,7 @@ export default function CourseMaterialsPage() {
                 <h2 className="text-2xl font-bold text-yellow-400">{selectedMaterial.title}</h2>
                 <button
                   onClick={() => setSelectedMaterial(null)}
-                  className="text-green-400 hover:text-yellow-400 text-2xl font-bold"
+                  className="p-2 -mr-2 text-green-400 hover:text-yellow-400 text-2xl font-bold"
                 >
                   ✕
                 </button>
@@ -341,14 +341,14 @@ export default function CourseMaterialsPage() {
                   <a
                     href={selectedMaterial.fileUrl}
                     download
-                    className="flex-1 text-center bg-green-600 hover:bg-yellow-400 hover:text-black text-white px-4 py-2 rounded font-semibold border-2 border-green-500 transition-all"
+                    className="flex-1 text-center bg-green-600 hover:bg-yellow-400 hover:text-black text-white px-4 py-3 rounded font-semibold border-2 border-green-500 transition-all"
                   >
                     📥 Download
                   </a>
                 )}
                 <button
                   onClick={() => setSelectedMaterial(null)}
-                  className="flex-1 bg-transparent hover:bg-green-900 text-green-400 px-4 py-2 rounded font-semibold border-2 border-green-500 transition-all"
+                  className="flex-1 bg-transparent hover:bg-green-900 text-green-400 px-4 py-3 rounded font-semibold border-2 border-green-500 transition-all"
                 >
                   Close
                 </button>
