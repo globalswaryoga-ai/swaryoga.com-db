@@ -210,7 +210,7 @@ export default function Contact() {
         </section>
 
         <div className="container mx-auto max-w-6xl px-4 sm:px-6 py-12 sm:py-16">
-          <div className="grid lg:grid-cols-3 gap-8 sm:gap-12">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 lg:gap-12">
             {/* Contact Information */}
             <div className="lg:col-span-1">
               <h2 className="text-xl sm:text-2xl font-bold text-swar-text mb-6 sm:mb-8">Contact Information</h2>
@@ -344,12 +344,12 @@ export default function Contact() {
                     <label htmlFor="phone" className="block text-sm font-medium text-swar-text mb-1 sm:mb-2">
                       Phone Number *
                     </label>
-                    <div className="flex space-x-2">
+                    <div className="flex gap-2 sm:gap-3">
                       <select
                         name="countryCode"
                         value={formData.countryCode}
                         onChange={handleInputChange}
-                        className="w-24 px-2 py-2 sm:py-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-transparent"
+                        className="w-20 sm:w-24 px-1.5 sm:px-2 py-2 sm:py-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-transparent text-sm"
                         autoComplete="tel-country-code"
                       >
                         {countryCodes.map((country) => (
