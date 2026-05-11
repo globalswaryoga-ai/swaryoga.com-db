@@ -259,12 +259,17 @@ export default function CourseVideosPage() {
       </div>
 
       {/* Enrollment Modal */}
-      {showEnrollmentModal && (
+      {showEnrollmentModal && course && (
         <CourseEnrollmentModal
           isOpen={showEnrollmentModal}
           onClose={() => setShowEnrollmentModal(false)}
-          courseId={course._id}
-          courseName={course.title}
+          course={{
+            _id: course._id,
+            title: course.title,
+            pricing: course.pricing,
+            discount: course.discount,
+          }}
+          token={token}
         />
       )}
     </div>
