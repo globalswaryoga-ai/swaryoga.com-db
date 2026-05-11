@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import HLS from 'hls.js';
 
@@ -172,6 +172,8 @@ interface VideoStreamData {
 
 export default function CourseLearnPage({ params }: { params: { slug: string } }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const videoIdParam = searchParams.get('video');
   const [slug, setSlug] = useState<string>(params.slug);
   const [course, setCourse] = useState<Course | null>(null);
   const [sections, setSections] = useState<Section[]>([]);
@@ -233,8 +235,14 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
           setExpandedSections(new Set(data.sections.map((s: Section) => s._id)));
         }
 
-        // Auto-select first video or last watched
-        if (data.enrollment?.lastVideoId) {
+        // Auto-select video from URL param, last watched, or first watchable
+        if (videoIdParam) {
+          // URL parameter takes priority
+          const selectedVideo = data.videos?.find((v: Video) => v._id === videoIdParam);
+          if (selectedVideo && selectedVideo.canWatch) {
+            setCurrentVideo(selectedVideo);
+          }
+        } else if (data.enrollment?.lastVideoId) {
           const lastVideo = data.videos?.find((v: Video) => v._id === data.enrollment.lastVideoId);
           if (lastVideo) {
             setCurrentVideo(lastVideo);
@@ -259,7 +267,7 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
     } finally {
       setLoading(false);
     }
-  }, [slug, language, router]);
+  }, [slug, language, router, videoIdParam]);
 
   useEffect(() => {
     fetchCourse();
@@ -726,6 +734,8 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                       src={videoStream.streaming.directUrl}
                       controls
                       autoPlay
+                      muted={currentVideo.isFree}
+                      playsInline
                       onPlay={startProgressTracking}
                       onEnded={handleVideoEnded}
                       onPause={() => updateProgress(false)}

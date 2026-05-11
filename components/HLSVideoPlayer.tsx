@@ -160,9 +160,11 @@ export default function HLSVideoPlayer({
           }
 
           if (autoPlay && videoRef.current) {
-            videoRef.current.play().catch(err => {
-              console.warn('Autoplay prevented:', err);
-            });
+            setTimeout(() => {
+              videoRef.current?.play().catch(err => {
+                console.warn('Autoplay prevented (may need user interaction):', err.message);
+              });
+            }, 100);
           }
         });
 
