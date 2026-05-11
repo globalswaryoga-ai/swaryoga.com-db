@@ -153,7 +153,7 @@ export default function BulkActionsPage() {
       {/* Action Bar */}
       {selected.size > 0 && (
         <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-6 mb-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <CheckCircle className="text-green-400" size={24} />
               <div>
@@ -163,7 +163,7 @@ export default function BulkActionsPage() {
             </div>
 
             {bulkAction === '' && (
-              <div className="flex gap-3">
+              <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() => setBulkAction('status')}
                   className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-lg"
@@ -187,7 +187,7 @@ export default function BulkActionsPage() {
             )}
 
             {bulkAction === 'status' && (
-              <div className="flex gap-3 items-center">
+              <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
                 <select
                   value={bulkStatus}
                   onChange={(e) => setBulkStatus(e.target.value as any)}
