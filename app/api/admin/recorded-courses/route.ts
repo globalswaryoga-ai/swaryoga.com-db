@@ -206,7 +206,15 @@ export async function PUT(request: NextRequest) {
     }
     
     const RecordedCourse = getRecordedCourse();
-    
+
+    // Safe merge for accessSettings - convert to dot notation to avoid clobbering other settings
+    if (updateData.accessSettings) {
+      for (const [key, value] of Object.entries(updateData.accessSettings)) {
+        updateData[`accessSettings.${key}`] = value;
+      }
+      delete updateData.accessSettings;
+    }
+
     const course = await RecordedCourse.findByIdAndUpdate(
       courseId,
       { ...updateData, updatedBy: decoded.id },

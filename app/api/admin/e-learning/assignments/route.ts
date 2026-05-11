@@ -179,6 +179,59 @@ export async function PUT(request: NextRequest) {
 }
 
 /**
+ * PATCH - Update assignment order only
+ */
+export async function PATCH(request: NextRequest) {
+  try {
+    await connectDB();
+
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    let decoded: any;
+    try {
+      decoded = verifyToken(authHeader.split(' ')[1]);
+    } catch {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
+
+    if (!checkSuperAdminAccess(decoded)) {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const { assignmentId, order } = body;
+
+    if (!assignmentId || order === undefined) {
+      return NextResponse.json({ error: 'Assignment ID and order required' }, { status: 400 });
+    }
+
+    const CourseAssignment = getCourseAssignment();
+
+    const assignment = await CourseAssignment.findByIdAndUpdate(
+      assignmentId,
+      { order, updatedBy: decoded.id },
+      { new: true }
+    );
+
+    if (!assignment) {
+      return NextResponse.json({ error: 'Assignment not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      assignmentId: assignment._id,
+      order: assignment.order,
+    });
+  } catch (error: any) {
+    console.error('[Assignments PATCH Error]:', error);
+    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+  }
+}
+
+/**
  * DELETE - Delete assignment (soft delete)
  */
 export async function DELETE(request: NextRequest) {

@@ -4,7 +4,30 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { ArrowLeft, Plus, Edit2, Trash2, Video, GripVertical, Upload, Link as LinkIcon, X, Save, CloudUpload, Loader2, ShieldAlert, Check, Play } from 'lucide-react';
+import {
+  ArrowLeft, Plus, Edit2, Trash2, Video, Upload, Link as LinkIcon, X, Save, CloudUpload, Loader2,
+  ArrowUp, ArrowDown, ChevronDown, MessageCircle, FileText, CheckSquare, HelpCircle, ClipboardList, Camera
+} from 'lucide-react';
+
+type ContentType = 'video' | 'material' | 'assignment' | 'task' | 'question';
+
+interface UnifiedItem {
+  _id: string;
+  type: ContentType;
+  title: string;
+  order: number;
+  bunnyVideoId?: string;
+  duration?: number;
+  thumbnail?: string;
+  isFree?: boolean;
+  fileUrl?: string;
+  materialType?: string;
+  downloadable?: boolean;
+  subType?: string;
+  totalPoints?: number;
+  isRequired?: boolean;
+  description?: string;
+}
 
 interface VideoItem {
   _id: string;
@@ -19,35 +42,43 @@ interface VideoItem {
   isActive: boolean;
 }
 
-interface Section {
-  _id: string;
-  title: string;
-  order: number;
-}
-
-interface Course {
+interface CourseWithCommunity {
   _id: string;
   slug: string;
   content: { en: { title: string } };
+  accessSettings?: {
+    communityWhatsapp?: string;
+    communityLink?: string;
+  };
 }
 
 export default function VideosPage({ params }: { params: { courseId: string } }) {
   const router = useRouter();
   const token = useAuth();
   const { courseId } = params;
-  
-  const [course, setCourse] = useState<Course | null>(null);
-  const [videos, setVideos] = useState<VideoItem[]>([]);
-  const [sections, setSections] = useState<Section[]>([]);
+
+  const [course, setCourse] = useState<CourseWithCommunity | null>(null);
+  const [unifiedList, setUnifiedList] = useState<UnifiedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
   const [showAddModal, setShowAddModal] = useState(false);
+  const [addModalType, setAddModalType] = useState<ContentType | null>(null);
+  const [insertAfterOrder, setInsertAfterOrder] = useState<number>(0);
+
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editingVideo, setEditingVideo] = useState<VideoItem | null>(null);
+  const [editingItem, setEditingItem] = useState<UnifiedItem | null>(null);
+
+  const [reordering, setReordering] = useState<string | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
 
-  // Check superadmin status
+  const [communityWhatsapp, setCommunityWhatsapp] = useState('');
+  const [communityLink, setCommunityLink] = useState('');
+  const [communityExpanded, setCommunityExpanded] = useState(false);
+  const [savingCommunity, setSavingCommunity] = useState(false);
+
+  // Auth check
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const userStr = localStorage.getItem('admin_user');
@@ -73,271 +104,810 @@ export default function VideosPage({ params }: { params: { courseId: string } })
     setAuthChecked(true);
   }, [router]);
 
+  // Fetch all content - videos, materials, assignments
   const fetchData = useCallback(async () => {
     if (!token || !courseId) return;
-    
+
     try {
       setLoading(true);
       setError(null);
-      
-      const [coursesRes, videosRes, sectionsRes] = await Promise.all([
+
+      const [coursesRes, videosRes, materialsRes, assignmentsRes] = await Promise.all([
         fetch('/api/admin/recorded-courses', { headers: { Authorization: `Bearer ${token}` } }),
         fetch(`/api/admin/recorded-courses/videos?courseId=${courseId}`, { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`/api/admin/recorded-courses/sections?courseId=${courseId}`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`/api/admin/e-learning/materials?courseId=${courseId}`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`/api/admin/e-learning/assignments?courseId=${courseId}`, { headers: { Authorization: `Bearer ${token}` } }),
       ]);
-      
-      const [coursesData, videosData, sectionsData] = await Promise.all([
+
+      const [coursesData, videosData, materialsData, assignmentsData] = await Promise.all([
         coursesRes.json(),
         videosRes.json(),
-        sectionsRes.json(),
+        materialsRes.json(),
+        assignmentsRes.json(),
       ]);
-      
+
+      // Build unified list
+      const items: UnifiedItem[] = [];
+
+      if (videosData.success && videosData.videos) {
+        videosData.videos.forEach((v: any) => {
+          items.push({
+            _id: v._id,
+            type: 'video',
+            title: v.title,
+            order: v.order,
+            bunnyVideoId: v.bunnyVideoId,
+            duration: v.duration,
+            thumbnail: v.thumbnail,
+            isFree: v.isFree,
+            description: v.description,
+          });
+        });
+      }
+
+      if (materialsData.success && materialsData.materials) {
+        materialsData.materials.forEach((m: any) => {
+          items.push({
+            _id: m._id,
+            type: 'material',
+            title: m.content?.en?.title || 'Untitled Material',
+            order: m.order,
+            fileUrl: m.fileUrl,
+            materialType: m.type,
+            downloadable: m.downloadable,
+            description: m.content?.en?.description,
+          });
+        });
+      }
+
+      if (assignmentsData.success && assignmentsData.assignments) {
+        assignmentsData.assignments.forEach((a: any) => {
+          const subType = a.subType || 'assignment';
+          const mappedType: ContentType = subType === 'task' ? 'task'
+            : subType === 'question' ? 'question'
+            : 'assignment';
+
+          items.push({
+            _id: a._id,
+            type: mappedType,
+            title: a.content?.en?.title || 'Untitled',
+            order: a.order,
+            subType,
+            totalPoints: a.totalPoints,
+            isRequired: a.isRequired,
+            description: a.content?.en?.description,
+          });
+        });
+      }
+
+      items.sort((a, b) => a.order - b.order);
+      setUnifiedList(items);
+
+      // Get course data
       if (coursesData.success) {
-        const found = coursesData.courses?.find((c: Course) => c._id === courseId);
-        setCourse(found || null);
+        const found = coursesData.courses?.find((c: any) => c._id === courseId);
+        if (found) {
+          setCourse(found);
+          setCommunityWhatsapp(found.accessSettings?.communityWhatsapp || '');
+          setCommunityLink(found.accessSettings?.communityLink || '');
+        }
       }
-      
-      if (videosData.success) {
-        setVideos(videosData.videos || []);
-      }
-      
-      if (sectionsData.success) {
-        setSections(sectionsData.sections || []);
-      }
+
+      setLoading(false);
     } catch (err) {
-      setError('Failed to load data');
-    } finally {
+      console.error('Fetch error:', err);
+      setError('Failed to load content');
       setLoading(false);
     }
   }, [token, courseId]);
 
   useEffect(() => {
-    if (token) fetchData();
-  }, [token, fetchData]);
+    if (token && courseId) {
+      fetchData();
+    }
+  }, [token, courseId, fetchData]);
 
-  const deleteVideo = async (videoId: string) => {
-    if (!token || !confirm('Delete this video?')) return;
+  // Move item up/down
+  const moveItem = async (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= unifiedList.length) return;
+
+    const itemA = unifiedList[index];
+    const itemB = unifiedList[targetIndex];
+
+    // Optimistic update
+    const newList = [...unifiedList];
+    newList[index] = { ...itemA, order: itemB.order };
+    newList[targetIndex] = { ...itemB, order: itemA.order };
+    setUnifiedList(newList.sort((a, b) => a.order - b.order));
+
+    setReordering(itemA._id);
 
     try {
-      const res = await fetch(`/api/admin/recorded-courses/videos?id=${videoId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      const data = await res.json();
-
-      if (res.ok && data.success) {
-        setVideos(prev => prev.filter(v => v._id !== videoId));
-      } else {
-        alert('Failed to delete video: ' + (data.error || 'Unknown error'));
-      }
+      await Promise.all([patchOrder(itemA, itemB.order), patchOrder(itemB, itemA.order)]);
     } catch (err) {
-      console.error('Delete error:', err);
-      alert('Error deleting video: ' + (err instanceof Error ? err.message : 'Unknown error'));
+      console.error('Reorder error:', err);
+      setError('Failed to reorder');
+      fetchData();
+    } finally {
+      setReordering(null);
     }
   };
 
-  const formatDuration = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m}:${s.toString().padStart(2, '0')}`;
+  const patchOrder = async (item: UnifiedItem, newOrder: number) => {
+    const url = item.type === 'video' ? '/api/admin/recorded-courses/videos'
+      : item.type === 'material' ? '/api/admin/e-learning/materials'
+      : '/api/admin/e-learning/assignments';
+
+    const key = item.type === 'video' ? 'videoId'
+      : item.type === 'material' ? 'materialId'
+      : 'assignmentId';
+
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ [key]: item._id, order: newOrder }),
+    });
+
+    if (!res.ok) throw new Error('Reorder failed');
   };
 
-  if (!token || !authChecked) {
+  // Delete item
+  const deleteItem = async (item: UnifiedItem) => {
+    if (!confirm('Delete this item?')) return;
+
+    try {
+      const url = item.type === 'video' ? `/api/admin/recorded-courses/videos?id=${item._id}`
+        : item.type === 'material' ? `/api/admin/e-learning/materials?id=${item._id}`
+        : `/api/admin/e-learning/assignments?id=${item._id}`;
+
+      const res = await fetch(url, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        setUnifiedList(prev => prev.filter(i => i._id !== item._id));
+      }
+    } catch (err) {
+      setError('Failed to delete item');
+    }
+  };
+
+  // Save community links
+  const saveCommunityLinks = async () => {
+    setSavingCommunity(true);
+    try {
+      const res = await fetch('/api/admin/recorded-courses', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          courseId,
+          accessSettings: { communityWhatsapp, communityLink },
+        }),
+      });
+
+      if (res.ok) {
+        setError(null);
+      } else {
+        setError('Failed to save community links');
+      }
+    } catch (err) {
+      setError('Failed to save');
+    } finally {
+      setSavingCommunity(false);
+    }
+  };
+
+  if (!authChecked || loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="animate-spin w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full" />
+        <Loader2 className="w-8 h-8 animate-spin text-green-500" />
       </div>
     );
   }
 
-  // Non-superadmin - show access denied while redirecting
-  if (!isSuperAdmin) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-center">
-          <ShieldAlert className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <h1 className="text-xl font-bold text-white mb-2">Access Denied</h1>
-          <p className="text-gray-400">E-Learning management requires super admin access.</p>
-        </div>
-      </div>
-    );
-  }
+  const videoCount = unifiedList.filter(i => i.type === 'video').length;
+  const materialCount = unifiedList.filter(i => i.type === 'material').length;
+  const taskCount = unifiedList.filter(i => i.type === 'task' || i.type === 'question' || i.type === 'assignment').length;
 
   return (
     <div className="min-h-screen bg-black p-6">
       {/* Header */}
       <div className="flex items-center gap-4 mb-8">
-        <Link 
-          href="/admin/crm/e-learning"
-          className="p-2 hover:bg-gray-800 rounded-lg text-gray-400 transition-colors"
-        >
+        <Link href={`/admin/crm/e-learning`} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400">
           <ArrowLeft size={24} />
         </Link>
         <div className="flex-1">
-          <h1 className="text-2xl font-bold text-white">
-            {course?.content?.en?.title || 'Course Videos'}
-          </h1>
+          <h1 className="text-2xl font-bold text-white">Course Content</h1>
           <p className="text-sm text-gray-400">
-            Manage videos for this course • {videos.length} videos
+            {unifiedList.length} items — {videoCount} videos, {materialCount} PDFs, {taskCount} tasks/assignments
           </p>
         </div>
-        <button 
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 px-5 py-2.5 bg-green-500 hover:bg-green-600 text-black font-semibold rounded-lg transition-colors"
+        <button
+          onClick={() => {
+            setAddModalType(null);
+            setInsertAfterOrder((unifiedList[unifiedList.length - 1]?.order || 0) + 10);
+            setShowAddModal(true);
+          }}
+          className="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-black font-semibold rounded-lg"
         >
-          <Plus size={18} />
-          Add Video
+          <Plus size={18} /> Add Content
         </button>
       </div>
 
-      {/* Content */}
-      {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <div className="animate-spin w-10 h-10 border-4 border-green-500 border-t-transparent rounded-full" />
-          <span className="ml-3 text-gray-400">Loading videos...</span>
-        </div>
-      ) : error ? (
-        <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-4 rounded-lg">
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-4 rounded-lg mb-6">
           {error}
-          <button onClick={fetchData} className="ml-4 text-yellow-400 underline hover:no-underline">Retry</button>
         </div>
-      ) : videos.length === 0 ? (
-        <div className="text-center py-20 bg-gray-900/50 rounded-2xl border border-gray-800">
-          <Video className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-white mb-2">No Videos Yet</h3>
-          <p className="text-gray-400 mb-6">Add your first video to this course</p>
-          <button 
-            onClick={() => setShowAddModal(true)}
-            className="px-6 py-3 bg-green-500 hover:bg-green-600 text-black font-semibold rounded-lg transition-colors"
-          >
-            Add Video
-          </button>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {videos
-            .sort((a, b) => a.order - b.order)
-            .map((video, idx) => (
-            <div
-              key={video._id}
-              className="bg-gray-900/50 rounded-xl border border-gray-800 overflow-hidden hover:border-green-500/50 transition-all hover:shadow-lg hover:shadow-green-500/10"
-            >
-              {/* Thumbnail */}
-              <div className="relative h-40 bg-gray-800 overflow-hidden group">
-                {video.thumbnail ? (
-                  <img src={video.thumbnail} alt={video.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900">
-                    <Video className="w-12 h-12 text-gray-600" />
-                  </div>
-                )}
+      )}
 
-                {/* Order Badge */}
-                <div className="absolute top-2 left-2 w-8 h-8 bg-yellow-400 text-black rounded-full flex items-center justify-center font-bold text-sm">
+      {/* Community Links Panel */}
+      <div className="bg-gray-900/50 border border-gray-800 rounded-xl mb-6 overflow-hidden">
+        <button
+          onClick={() => setCommunityExpanded(!communityExpanded)}
+          className="w-full flex items-center justify-between p-4 hover:bg-gray-800/50 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <MessageCircle size={20} className="text-green-400" />
+            <span className="text-white font-medium">Community Links</span>
+            {(communityWhatsapp || communityLink) && (
+              <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full">Set</span>
+            )}
+          </div>
+          <ChevronDown
+            size={20}
+            className={`text-gray-400 transition-transform ${communityExpanded ? 'rotate-180' : ''}`}
+          />
+        </button>
+
+        {communityExpanded && (
+          <div className="px-4 pb-4 space-y-3 border-t border-gray-800 pt-4">
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">WhatsApp Group Link</label>
+              <input
+                type="url"
+                value={communityWhatsapp}
+                onChange={(e) => setCommunityWhatsapp(e.target.value)}
+                placeholder="https://chat.whatsapp.com/..."
+                className="w-full px-4 py-2 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">Community Platform Link</label>
+              <input
+                type="url"
+                value={communityLink}
+                onChange={(e) => setCommunityLink(e.target.value)}
+                placeholder="Discord, Telegram, or other community link"
+                className="w-full px-4 py-2 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
+              />
+            </div>
+            <button
+              onClick={saveCommunityLinks}
+              disabled={savingCommunity}
+              className="w-full px-4 py-2 bg-green-500 hover:bg-green-600 text-black font-semibold rounded-lg disabled:opacity-50"
+            >
+              {savingCommunity ? 'Saving...' : 'Save Links'}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Content List */}
+      <div className="space-y-2">
+        {unifiedList.length === 0 ? (
+          <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-8 text-center">
+            <p className="text-gray-400">No content yet. Click "Add Content" to get started.</p>
+          </div>
+        ) : (
+          unifiedList.map((item, idx) => (
+            <div key={`${item.type}-${item._id}`}>
+              {/* Insert zone before item */}
+              {idx > 0 && (
+                <button
+                  onClick={() => {
+                    setAddModalType(null);
+                    setInsertAfterOrder(unifiedList[idx - 1].order + 0.5);
+                    setShowAddModal(true);
+                  }}
+                  className="w-full border-dashed border border-gray-700 text-gray-600 py-1 rounded text-sm hover:border-gray-500 hover:text-gray-400 mb-2"
+                >
+                  + Add content here
+                </button>
+              )}
+
+              {/* Content Row */}
+              <div className="bg-gray-900/50 border border-gray-800 rounded-lg p-4 flex items-center gap-4 group">
+                {/* Position Badge */}
+                <div className="w-10 h-10 bg-gray-800 rounded-lg flex items-center justify-center font-bold text-white flex-shrink-0">
                   {idx + 1}
                 </div>
 
-                {/* Free Badge */}
-                {video.isFree && (
-                  <div className="absolute top-2 right-2 px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded-full border border-green-500/30 font-semibold">
-                    Free
-                  </div>
-                )}
-              </div>
+                {/* Type Badge */}
+                <div className={`px-3 py-1 rounded-lg text-xs font-semibold flex-shrink-0 ${
+                  item.type === 'video' ? 'bg-blue-500/20 text-blue-400'
+                  : item.type === 'material' ? 'bg-orange-500/20 text-orange-400'
+                  : item.type === 'task' ? 'bg-yellow-500/20 text-yellow-400'
+                  : item.type === 'question' ? 'bg-teal-500/20 text-teal-400'
+                  : 'bg-purple-500/20 text-purple-400'
+                }`}>
+                  {item.type === 'video' && <Camera size={12} className="inline mr-1" />}
+                  {item.type === 'material' && <FileText size={12} className="inline mr-1" />}
+                  {item.type === 'task' && <CheckSquare size={12} className="inline mr-1" />}
+                  {item.type === 'question' && <HelpCircle size={12} className="inline mr-1" />}
+                  {item.type === 'assignment' && <ClipboardList size={12} className="inline mr-1" />}
+                  {item.type.charAt(0).toUpperCase() + item.type.slice(1)}
+                </div>
 
-              {/* Content */}
-              <div className="p-4">
-                <h3 className="font-semibold text-white mb-2 line-clamp-2 text-sm">{video.title}</h3>
-
-                {/* Meta Info */}
-                <div className="space-y-1 mb-4 text-xs text-gray-400">
-                  <div>Duration: {formatDuration(video.duration || 0)}</div>
-                  {video.bunnyVideoId && (
-                    <div className="truncate">ID: {video.bunnyVideoId.slice(0, 12)}...</div>
-                  )}
+                {/* Content Info */}
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-white font-medium truncate">{item.title}</h3>
+                  <p className="text-xs text-gray-500">
+                    {item.type === 'video' && item.duration ? `${Math.round(item.duration / 60)}min`
+                      : item.type === 'material' ? `${item.materialType || 'file'}${item.downloadable ? ' • Downloadable' : ''}`
+                      : item.type === 'assignment' ? `${item.totalPoints || 0} pts`
+                      : ''}
+                  </p>
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2 flex-shrink-0">
                   <button
-                    onClick={() => {
-                      // View/Preview action
-                      window.open(`/e-learning/workshop?videoId=${video._id}`, '_blank');
-                    }}
-                    className="flex-1 px-3 py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 text-xs font-semibold rounded-lg transition-colors"
-                    title="View Video"
+                    onClick={() => moveItem(idx, 'up')}
+                    disabled={idx === 0 || reordering === item._id}
+                    className="p-2 hover:bg-gray-800 rounded-lg text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed"
                   >
-                    👁️ View
+                    {reordering === item._id ? <Loader2 size={18} className="animate-spin" /> : <ArrowUp size={18} />}
                   </button>
                   <button
-                    onClick={() => {
-                      setEditingVideo(video);
-                      setShowEditModal(true);
-                    }}
-                    className="flex-1 px-3 py-2 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1"
-                    title="Edit Video"
+                    onClick={() => moveItem(idx, 'down')}
+                    disabled={idx === unifiedList.length - 1 || reordering === item._id}
+                    className="p-2 hover:bg-gray-800 rounded-lg text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed"
                   >
-                    <Edit2 size={14} /> Edit
+                    {reordering === item._id ? <Loader2 size={18} className="animate-spin" /> : <ArrowDown size={18} />}
                   </button>
                   <button
-                    onClick={() => deleteVideo(video._id)}
-                    className="flex-1 px-3 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 text-xs font-semibold rounded-lg transition-colors"
-                    title="Delete Video"
+                    onClick={() => { setEditingItem(item); setShowEditModal(true); }}
+                    className="p-2 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-white"
                   >
-                    🗑️ Delete
+                    <Edit2 size={18} />
+                  </button>
+                  <button
+                    onClick={() => deleteItem(item)}
+                    className="p-2 hover:bg-red-500/20 rounded-lg text-red-400 hover:text-red-300"
+                  >
+                    <Trash2 size={18} />
                   </button>
                 </div>
-
-                {/* Play Button (Secondary) */}
-                <button
-                  onClick={() => {
-                    // Play action
-                    window.open(`/e-learning/workshop?videoId=${video._id}&play=true`, '_blank');
-                  }}
-                  className="w-full mt-2 px-3 py-2 bg-green-500 hover:bg-green-600 text-black font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 text-sm"
-                  title="Play Video"
-                >
-                  <Play size={16} className="fill-current" /> Play
-                </button>
               </div>
             </div>
-          ))}
-        </div>
-      )}
+          ))
+        )}
 
-      {/* Add Video Modal */}
-      {showAddModal && (
-        <AddVideoModal
+        {/* Insert zone after last item */}
+        {unifiedList.length > 0 && (
+          <button
+            onClick={() => {
+              setAddModalType(null);
+              setInsertAfterOrder((unifiedList[unifiedList.length - 1]?.order || 0) + 0.5);
+              setShowAddModal(true);
+            }}
+            className="w-full border-dashed border border-gray-700 text-gray-600 py-2 rounded text-sm hover:border-gray-500 hover:text-gray-400 mt-4"
+          >
+            + Add content at end
+          </button>
+        )}
+      </div>
+
+      {/* Modals - keep existing ones */}
+      {showEditModal && editingItem?.type === 'video' && (
+        <EditVideoModal
           token={token}
-          courseId={courseId}
-          onClose={() => setShowAddModal(false)}
-          onAdded={() => {
-            setShowAddModal(false);
-            fetchData();
-          }}
+          video={editingItem as VideoItem}
+          onClose={() => { setShowEditModal(false); setEditingItem(null); }}
+          onUpdated={() => { setShowEditModal(false); fetchData(); }}
         />
       )}
 
-      {/* Edit Video Modal */}
-      {showEditModal && editingVideo && (
-        <EditVideoModal
+      {showAddModal && !addModalType && (
+        <TypeSelectorModal
+          onSelect={(type) => setAddModalType(type)}
+          onClose={() => setShowAddModal(false)}
+        />
+      )}
+
+      {showAddModal && addModalType === 'video' && (
+        <AddVideoModal
           token={token}
-          video={editingVideo}
-          onClose={() => {
-            setShowEditModal(false);
-            setEditingVideo(null);
-          }}
-          onUpdated={() => {
-            setShowEditModal(false);
-            setEditingVideo(null);
-            fetchData();
-          }}
+          courseId={courseId}
+          onClose={() => { setShowAddModal(false); setAddModalType(null); }}
+          onAdded={() => { setShowAddModal(false); setAddModalType(null); fetchData(); }}
+        />
+      )}
+
+      {showAddModal && addModalType === 'material' && (
+        <AddMaterialModal
+          token={token}
+          courseId={courseId}
+          order={insertAfterOrder}
+          onClose={() => { setShowAddModal(false); setAddModalType(null); }}
+          onAdded={() => { setShowAddModal(false); setAddModalType(null); fetchData(); }}
+        />
+      )}
+
+      {showAddModal && (addModalType === 'assignment' || addModalType === 'task' || addModalType === 'question') && (
+        <AddAssignmentModal
+          token={token}
+          courseId={courseId}
+          subType={addModalType as 'assignment' | 'task' | 'question'}
+          order={insertAfterOrder}
+          onClose={() => { setShowAddModal(false); setAddModalType(null); }}
+          onAdded={() => { setShowAddModal(false); setAddModalType(null); fetchData(); }}
         />
       )}
     </div>
   );
 }
+
+// Type Selector Modal
+function TypeSelectorModal({ onSelect, onClose }: { onSelect: (type: ContentType) => void; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-900 rounded-2xl border border-gray-800 w-full max-w-md">
+        <div className="flex items-center justify-between p-6 border-b border-gray-800">
+          <h2 className="text-xl font-bold text-white">Add Content Type</h2>
+          <button onClick={onClose} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400">
+            <X size={20} />
+          </button>
+        </div>
+        <div className="p-6 space-y-3">
+          {[
+            { type: 'video' as ContentType, label: 'Video', icon: Camera, color: 'blue' },
+            { type: 'material' as ContentType, label: 'PDF / Material', icon: FileText, color: 'orange' },
+            { type: 'assignment' as ContentType, label: 'Assignment', icon: ClipboardList, color: 'purple' },
+            { type: 'task' as ContentType, label: 'Task', icon: CheckSquare, color: 'yellow' },
+            { type: 'question' as ContentType, label: 'Question', icon: HelpCircle, color: 'teal' },
+          ].map(({ type, label, icon: Icon, color }) => (
+            <button
+              key={type}
+              onClick={() => onSelect(type)}
+              className={`w-full flex items-center gap-3 p-4 rounded-lg border-2 transition-all ${
+                color === 'blue' ? 'bg-blue-500/10 border-blue-500/50 hover:border-blue-500'
+                : color === 'orange' ? 'bg-orange-500/10 border-orange-500/50 hover:border-orange-500'
+                : color === 'purple' ? 'bg-purple-500/10 border-purple-500/50 hover:border-purple-500'
+                : color === 'yellow' ? 'bg-yellow-500/10 border-yellow-500/50 hover:border-yellow-500'
+                : 'bg-teal-500/10 border-teal-500/50 hover:border-teal-500'
+              }`}
+            >
+              <Icon size={24} className={
+                color === 'blue' ? 'text-blue-400'
+                : color === 'orange' ? 'text-orange-400'
+                : color === 'purple' ? 'text-purple-400'
+                : color === 'yellow' ? 'text-yellow-400'
+                : 'text-teal-400'
+              } />
+              <span className="text-white font-medium">{label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Add Material Modal
+function AddMaterialModal({ token, courseId, order, onClose, onAdded }: {
+  token: string;
+  courseId: string;
+  order: number;
+  onClose: () => void;
+  onAdded: () => void;
+}) {
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [fileUrl, setFileUrl] = useState('');
+  const [type, setType] = useState<'pdf' | 'notes' | 'other'>('pdf');
+  const [downloadable, setDownloadable] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title || !fileUrl) return;
+
+    setSaving(true);
+    setError(null);
+
+    try {
+      const res = await fetch('/api/admin/e-learning/materials', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          courseId,
+          content: { en: { title, description } },
+          type,
+          fileUrl,
+          downloadable,
+          order,
+        }),
+      });
+
+      if (res.ok) {
+        onAdded();
+      } else {
+        const data = await res.json();
+        setError(data.error || 'Failed to add material');
+      }
+    } catch (err) {
+      setError('Error saving material');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-900 rounded-2xl border border-gray-800 w-full max-w-lg">
+        <div className="flex items-center justify-between p-6 border-b border-gray-800">
+          <h2 className="text-xl font-bold text-white">Add Material / PDF</h2>
+          <button onClick={onClose} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400">
+            <X size={20} />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {error && (
+            <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-3 rounded-lg text-sm">
+              {error}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-green-400 mb-2">Title</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
+              placeholder="Material title"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-green-400 mb-2">Description (Optional)</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={2}
+              className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none resize-none"
+              placeholder="Brief description"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-green-400 mb-2">File URL</label>
+            <input
+              type="url"
+              value={fileUrl}
+              onChange={(e) => setFileUrl(e.target.value)}
+              className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
+              placeholder="https://example.com/file.pdf"
+              required
+            />
+            <p className="text-xs text-gray-500 mt-1">Link to Bunny CDN or Google Drive file</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-green-400 mb-2">Type</label>
+              <select
+                value={type}
+                onChange={(e) => setType(e.target.value as 'pdf' | 'notes' | 'other')}
+                className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none"
+              >
+                <option value="pdf">PDF</option>
+                <option value="notes">Notes</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div className="flex items-end pb-1">
+              <label className="flex items-center gap-2 text-white cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={downloadable}
+                  onChange={(e) => setDownloadable(e.target.checked)}
+                  className="w-5 h-5 rounded border-gray-600 bg-black text-green-500 focus:ring-green-500"
+                />
+                <span className="text-sm">Downloadable</span>
+              </label>
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              className="flex-1 px-4 py-3 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-green-500 hover:bg-green-600 text-black font-semibold rounded-lg transition-colors disabled:opacity-50"
+            >
+              {saving ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />}
+              {saving ? 'Adding...' : 'Add Material'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// Add Assignment Modal
+function AddAssignmentModal({ token, courseId, subType, order, onClose, onAdded }: {
+  token: string;
+  courseId: string;
+  subType: 'assignment' | 'task' | 'question';
+  order: number;
+  onClose: () => void;
+  onAdded: () => void;
+}) {
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [totalPoints, setTotalPoints] = useState('100');
+  const [passingPoints, setPassingPoints] = useState('60');
+  const [isRequired, setIsRequired] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title) return;
+
+    setSaving(true);
+    setError(null);
+
+    try {
+      const res = await fetch('/api/admin/e-learning/assignments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          courseId,
+          subType,
+          content: { en: { title, description } },
+          totalPoints: parseInt(totalPoints) || 100,
+          passingPoints: parseInt(passingPoints) || 60,
+          isRequired,
+          order,
+        }),
+      });
+
+      if (res.ok) {
+        onAdded();
+      } else {
+        const data = await res.json();
+        setError(data.error || 'Failed to add assignment');
+      }
+    } catch (err) {
+      setError('Error saving assignment');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const isSimpleType = subType === 'task' || subType === 'question';
+
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-900 rounded-2xl border border-gray-800 w-full max-w-lg">
+        <div className="flex items-center justify-between p-6 border-b border-gray-800">
+          <h2 className="text-xl font-bold text-white">
+            {subType === 'task' ? 'Add Task' : subType === 'question' ? 'Add Question' : 'Add Assignment'}
+          </h2>
+          <button onClick={onClose} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400">
+            <X size={20} />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {error && (
+            <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-3 rounded-lg text-sm">
+              {error}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-green-400 mb-2">Title</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
+              placeholder={subType === 'task' ? 'Task title' : subType === 'question' ? 'Question text' : 'Assignment title'}
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-green-400 mb-2">Description / Instructions</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+              className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none resize-none"
+              placeholder={subType === 'task' ? 'Task instructions' : 'Description'}
+            />
+          </div>
+
+          {!isSimpleType && (
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-green-400 mb-2">Total Points</label>
+                  <input
+                    type="number"
+                    value={totalPoints}
+                    onChange={(e) => setTotalPoints(e.target.value)}
+                    className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-green-400 mb-2">Passing Points</label>
+                  <input
+                    type="number"
+                    value={passingPoints}
+                    onChange={(e) => setPassingPoints(e.target.value)}
+                    className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white focus:border-green-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="required"
+                  checked={isRequired}
+                  onChange={(e) => setIsRequired(e.target.checked)}
+                  className="w-5 h-5 rounded border-gray-600 bg-black text-green-500 focus:ring-green-500"
+                />
+                <label htmlFor="required" className="text-white cursor-pointer">
+                  Required to complete course
+                </label>
+              </div>
+            </>
+          )}
+
+          <div className="flex gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              className="flex-1 px-4 py-3 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-green-500 hover:bg-green-600 text-black font-semibold rounded-lg transition-colors disabled:opacity-50"
+            >
+              {saving ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />}
+              {saving ? 'Adding...' : `Add ${subType.charAt(0).toUpperCase() + subType.slice(1)}`}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// EXISTING MODALS - Keep unchanged
 
 function EditVideoModal({ token, video, onClose, onUpdated }: {
   token: string;
@@ -385,7 +955,6 @@ function EditVideoModal({ token, video, onClose, onUpdated }: {
       }
     } catch (err) {
       setError('Error saving video');
-      console.error(err);
     } finally {
       setSaving(false);
     }
@@ -439,7 +1008,7 @@ function EditVideoModal({ token, video, onClose, onUpdated }: {
               className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
               placeholder="https://example.com/thumbnail.jpg"
             />
-            <p className="text-xs text-gray-500 mt-1">Image URL for video thumbnail (recommended: 16:9 aspect ratio, min 320x180px)</p>
+            <p className="text-xs text-gray-500 mt-1">Image URL for video thumbnail</p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -450,9 +1019,8 @@ function EditVideoModal({ token, video, onClose, onUpdated }: {
                 value={duration}
                 onChange={(e) => setDuration(e.target.value)}
                 className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
-                placeholder="Enter video length in minutes (e.g., 15)"
+                placeholder="15"
               />
-              <p className="text-xs text-gray-500 mt-1">Total length of the video in minutes</p>
             </div>
             <div className="flex items-end pb-1">
               <label className="flex items-center gap-2 text-white cursor-pointer">
@@ -495,7 +1063,7 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
   token: string;
   courseId: string;
   onClose: () => void;
-  onAdded: () => void
+  onAdded: () => void;
 }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -504,8 +1072,6 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
   const [thumbnail, setThumbnail] = useState('');
   const [isFree, setIsFree] = useState(false);
   const [saving, setSaving] = useState(false);
-  
-  // Upload state
   const [uploadMode, setUploadMode] = useState<'bunny' | 'pc' | 'youtube'>('bunny');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState('');
@@ -515,18 +1081,15 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const extractVideoIdFromUrl = (input: string): string => {
-    // If it's already just a video ID, return as-is
     if (!input.includes('/')) return input;
-
-    // Extract videoId from HLS URL: https://vz-xxx.b-cdn.net/videoId/playlist.m3u8
     try {
       const url = new URL(input);
       const pathParts = url.pathname.split('/').filter(p => p);
       if (pathParts.length >= 2) {
-        return pathParts[pathParts.length - 2]; // videoId is before /playlist.m3u8
+        return pathParts[pathParts.length - 2];
       }
     } catch (e) {
-      // If URL parsing fails, assume it's a video ID
+      // ignore
     }
     return input;
   };
@@ -534,12 +1097,10 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Validate file type
       if (!file.type.startsWith('video/')) {
         setUploadError('Please select a video file');
         return;
       }
-      // Validate file size (max 2GB)
       if (file.size > 2 * 1024 * 1024 * 1024) {
         setUploadError('File size must be less than 2GB');
         return;
@@ -547,7 +1108,6 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
       setSelectedFile(file);
       setUploadError(null);
 
-      // Auto-fill title from filename if empty
       if (!title) {
         const name = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
         setTitle(name.charAt(0).toUpperCase() + name.slice(1));
@@ -557,13 +1117,12 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
 
   const uploadToBunny = async (): Promise<string | null> => {
     if (!selectedFile) return null;
-    
+
     setUploading(true);
     setUploadProgress(0);
     setUploadError(null);
-    
+
     try {
-      // Step 1: Get upload URL from our API
       const initRes = await fetch('/api/admin/bunny/upload', {
         method: 'POST',
         headers: {
@@ -575,24 +1134,23 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
           title: title || selectedFile.name,
         }),
       });
-      
+
       if (!initRes.ok) {
         const errData = await initRes.json();
         throw new Error(errData.error || 'Failed to initialize upload');
       }
-      
+
       const { videoId, uploadUrl, accessKey } = await initRes.json();
-      
-      // Step 2: Upload file directly to Bunny
+
       const xhr = new XMLHttpRequest();
-      
+
       await new Promise<void>((resolve, reject) => {
         xhr.upload.addEventListener('progress', (e) => {
           if (e.lengthComputable) {
             setUploadProgress(Math.round((e.loaded / e.total) * 100));
           }
         });
-        
+
         xhr.addEventListener('load', () => {
           if (xhr.status >= 200 && xhr.status < 300) {
             resolve();
@@ -600,15 +1158,15 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
             reject(new Error(`Upload failed: ${xhr.status}`));
           }
         });
-        
+
         xhr.addEventListener('error', () => reject(new Error('Upload failed')));
-        
+
         xhr.open('PUT', uploadUrl);
         xhr.setRequestHeader('AccessKey', accessKey);
         xhr.setRequestHeader('Content-Type', 'application/octet-stream');
         xhr.send(selectedFile);
       });
-      
+
       setUploadProgress(100);
       return videoId;
     } catch (err: any) {
@@ -629,24 +1187,20 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
       let finalBunnyId = bunnyVideoId;
       let finalVideoUrl = '';
 
-      // Upload from PC if in PC mode and file selected
       if (uploadMode === 'pc' && selectedFile) {
         const uploadedId = await uploadToBunny();
         if (!uploadedId) {
           setSaving(false);
-          return; // Upload error already set
+          return;
         }
         finalBunnyId = uploadedId;
       } else if (uploadMode === 'bunny') {
-        // Extract video ID from HLS URL if a full URL was pasted
         finalBunnyId = extractVideoIdFromUrl(bunnyVideoId);
       } else if (uploadMode === 'youtube') {
-        // Store YouTube URL directly
         finalVideoUrl = youtubeUrl;
-        finalBunnyId = ''; // Clear bunny ID for YouTube videos
+        finalBunnyId = '';
       }
 
-      // Create video record
       const res = await fetch('/api/admin/recorded-courses/videos', {
         method: 'POST',
         headers: {
@@ -673,7 +1227,6 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
         setUploadError(errData.error || 'Failed to save video');
       }
     } catch (err) {
-      console.error('Save error:', err);
       setUploadError('Failed to save video');
     } finally {
       setSaving(false);
@@ -690,7 +1243,6 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
           </button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          {/* Video Source Toggle */}
           <div>
             <label className="block text-sm font-medium text-green-400 mb-3">Video Source</label>
             <div className="grid grid-cols-3 gap-2">
@@ -733,7 +1285,6 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
             </div>
           </div>
 
-          {/* Bunny HLS URL Input */}
           {uploadMode === 'bunny' && (
             <div>
               <label className="block text-sm font-medium text-green-400 mb-2">Bunny HLS URL or Video ID</label>
@@ -748,22 +1299,19 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
             </div>
           )}
 
-          {/* YouTube URL Input */}
           {uploadMode === 'youtube' && (
             <div>
-              <label className="block text-sm font-medium text-red-400 mb-2">YouTube Video URL (Private)</label>
+              <label className="block text-sm font-medium text-red-400 mb-2">YouTube Video URL</label>
               <input
                 type="text"
                 value={youtubeUrl}
                 onChange={(e) => setYoutubeUrl(e.target.value)}
                 className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-red-500 focus:outline-none font-mono"
-                placeholder="https://www.youtube.com/watch?v=VIDEO_ID or https://youtu.be/VIDEO_ID"
+                placeholder="https://youtu.be/VIDEO_ID"
               />
-              <p className="text-xs text-gray-500 mt-1">Enter private YouTube video URL. Make sure it's set to private in YouTube settings.</p>
             </div>
           )}
 
-          {/* PC Upload */}
           {uploadMode === 'pc' && (
             <div>
               <label className="block text-sm font-medium text-yellow-400 mb-2">Upload Video File</label>
@@ -774,7 +1322,7 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
                 onChange={handleFileSelect}
                 className="hidden"
               />
-              
+
               {selectedFile ? (
                 <div className="bg-black border border-gray-700 rounded-lg p-4">
                   <div className="flex items-center gap-3">
@@ -798,7 +1346,7 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
                       <X size={18} />
                     </button>
                   </div>
-                  
+
                   {uploading && (
                     <div className="mt-3">
                       <div className="flex items-center justify-between text-sm mb-1">
@@ -806,7 +1354,7 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
                         <span className="text-white">{uploadProgress}%</span>
                       </div>
                       <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
-                        <div 
+                        <div
                           className="h-full bg-yellow-500 transition-all duration-300"
                           style={{ width: `${uploadProgress}%` }}
                         />
@@ -828,7 +1376,6 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
             </div>
           )}
 
-          {/* Error Message */}
           {uploadError && (
             <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-3 rounded-lg text-sm">
               {uploadError}
@@ -869,7 +1416,6 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
               className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
               placeholder="https://example.com/thumbnail.jpg"
             />
-            <p className="text-xs text-gray-500 mt-1">Image URL for video thumbnail (recommended: 16:9 aspect ratio, min 320x180px)</p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -880,9 +1426,8 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
                 value={duration}
                 onChange={(e) => setDuration(e.target.value)}
                 className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
-                placeholder="Enter video length in minutes (e.g., 15)"
+                placeholder="15"
               />
-              <p className="text-xs text-gray-500 mt-1">Total length of the video in minutes</p>
             </div>
             <div className="flex items-end pb-1">
               <label className="flex items-center gap-2 text-white cursor-pointer">

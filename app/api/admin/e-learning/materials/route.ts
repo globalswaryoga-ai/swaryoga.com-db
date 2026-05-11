@@ -179,6 +179,59 @@ export async function PUT(request: NextRequest) {
 }
 
 /**
+ * PATCH - Update material order only
+ */
+export async function PATCH(request: NextRequest) {
+  try {
+    await connectDB();
+
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    let decoded: any;
+    try {
+      decoded = verifyToken(authHeader.split(' ')[1]);
+    } catch {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
+
+    if (!checkSuperAdminAccess(decoded)) {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const { materialId, order } = body;
+
+    if (!materialId || order === undefined) {
+      return NextResponse.json({ error: 'Material ID and order required' }, { status: 400 });
+    }
+
+    const CourseMaterial = getCourseMaterial();
+
+    const material = await CourseMaterial.findByIdAndUpdate(
+      materialId,
+      { order, updatedBy: decoded.id },
+      { new: true }
+    );
+
+    if (!material) {
+      return NextResponse.json({ error: 'Material not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      materialId: material._id,
+      order: material.order,
+    });
+  } catch (error: any) {
+    console.error('[Materials PATCH Error]:', error);
+    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+  }
+}
+
+/**
  * DELETE - Delete material (soft delete)
  */
 export async function DELETE(request: NextRequest) {

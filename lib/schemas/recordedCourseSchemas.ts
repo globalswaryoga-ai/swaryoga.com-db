@@ -221,6 +221,8 @@ export interface IRecordedCourse extends Document {
     videoTimeGap: number; // Gap between videos in seconds (e.g., 60 = 1 min)
     requireAssignmentCompletion: boolean;
     certificateOnCompletion: boolean;
+    communityWhatsapp?: string; // Course-level WhatsApp group invite link
+    communityLink?: string; // Course-level community platform link (Discord, etc.)
   };
   
   // Instructor
@@ -447,6 +449,8 @@ const RecordedCourseSchema = new Schema<IRecordedCourse>({
     videoTimeGap: { type: Number, default: 60 },
     requireAssignmentCompletion: { type: Boolean, default: false },
     certificateOnCompletion: { type: Boolean, default: true },
+    communityWhatsapp: { type: String },
+    communityLink: { type: String },
   },
   
   instructorId: { type: Schema.Types.ObjectId, ref: 'User' },
@@ -633,7 +637,9 @@ CourseMaterialSchema.index({ courseId: 1, order: 1 });
 export interface ICourseAssignment extends Document {
   courseId: mongoose.Types.ObjectId;
   videoId?: mongoose.Types.ObjectId; // After which video
-  
+
+  subType?: 'assignment' | 'task' | 'question'; // Distinguish between full assignment, simple task, and single question
+
   content: {
     en: {
       title: string;
@@ -675,7 +681,9 @@ export interface ICourseAssignment extends Document {
 const CourseAssignmentSchema = new Schema<ICourseAssignment>({
   courseId: { type: Schema.Types.ObjectId, ref: 'RecordedCourse', required: true },
   videoId: { type: Schema.Types.ObjectId, ref: 'CourseVideo' },
-  
+
+  subType: { type: String, enum: ['assignment', 'task', 'question'], default: 'assignment' },
+
   content: {
     en: {
       title: { type: String, required: true },
