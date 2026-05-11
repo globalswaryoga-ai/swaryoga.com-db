@@ -420,6 +420,18 @@ export default function VideosPage({ params }: { params: { courseId: string } })
                   {idx + 1}
                 </div>
 
+                {/* Thumbnail */}
+                {item.type === 'video' && item.thumbnail && (
+                  <div className="w-16 h-12 bg-gray-800 rounded-lg flex-shrink-0 overflow-hidden">
+                    <img
+                      src={item.thumbnail}
+                      alt={item.title}
+                      className="w-full h-full object-cover"
+                      onError={(e) => (e.currentTarget.style.display = 'none')}
+                    />
+                  </div>
+                )}
+
                 {/* Type Badge */}
                 <div className={`px-3 py-1 rounded-lg text-xs font-semibold flex-shrink-0 ${
                   item.type === 'video' ? 'bg-blue-500/20 text-blue-400'
