@@ -28,21 +28,21 @@ interface RouteParams {
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     await connectDB();
-    
+
     const { videoId } = await params;
-    
-    // Auth required
+
+    // Auth optional (required for paid videos, optional for free)
+    let decoded: any = null;
+    let userId: string | null = null;
     const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (authHeader?.startsWith('Bearer ')) {
+      try {
+        decoded = verifyToken(authHeader.split(' ')[1]);
+        userId = decoded?.id || decoded?._id || decoded?.userId || null;
+      } catch (err) {
+        // Invalid token, continue as guest
+      }
     }
-    
-    const decoded = verifyToken(authHeader.split(' ')[1]);
-    if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-    
-    const userId = decoded.id || decoded._id || decoded.userId;
     
     const CourseVideo = getCourseVideo();
     const RecordedCourse = getRecordedCourse();
@@ -158,15 +158,19 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       };
     }
     
-    // Create watch log entry
-    const watchLog = await VideoWatchLog.create({
-      userId: userId,
-      courseId: course._id,
-      videoId: video._id,
-      startTime: new Date(),
-      ipAddress: request.headers.get('x-forwarded-for')?.split(',')[0] || 'unknown',
-      userAgent: request.headers.get('user-agent') || 'unknown',
-    });
+    // Create watch log entry (only if user is authenticated)
+    let watchLogId: any = null;
+    if (userId) {
+      const watchLog = await VideoWatchLog.create({
+        userId: userId,
+        courseId: course._id,
+        videoId: video._id,
+        startTime: new Date(),
+        ipAddress: request.headers.get('x-forwarded-for')?.split(',')[0] || 'unknown',
+        userAgent: request.headers.get('user-agent') || 'unknown',
+      });
+      watchLogId = watchLog._id;
+    }
     
     return NextResponse.json({
       success: true,
@@ -178,7 +182,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         sectionId: video.sectionId,
       },
       streaming: streamingData,
-      watchLogId: watchLog._id,
+      watchLogId: watchLogId,
       courseSettings: {
         allowDownload: course.accessSettings?.allowDownload || false,
         allowScreenRecording: course.accessSettings?.allowScreenRecording || false,
