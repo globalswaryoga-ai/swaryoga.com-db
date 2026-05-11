@@ -3,7 +3,39 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import HLS from 'hls.js';
+import HLSVideoPlayer from '@/components/HLSVideoPlayer';
+
+// Global video control hiding - apply to all videos
+if (typeof document !== 'undefined') {
+  const styleId = 'elearning-video-no-controls';
+  if (!document.getElementById(styleId)) {
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = `
+      video {
+        display: block !important;
+        width: 100% !important;
+        height: 100% !important;
+        outline: none !important;
+        border: none !important;
+        background: #000 !important;
+      }
+      video::-webkit-media-controls { display: none !important; visibility: hidden !important; height: 0 !important; }
+      video::-webkit-media-controls-enclosure { display: none !important; }
+      video::-webkit-media-controls-panel { display: none !important; }
+      video::-webkit-media-controls-play-button { display: none !important; }
+      video::-webkit-media-controls-mute-button { display: none !important; }
+      video::-webkit-media-controls-timeline { display: none !important; }
+      video::-webkit-media-controls-current-time-display { display: none !important; }
+      video::-webkit-media-controls-time-remaining-display { display: none !important; }
+      video::-webkit-media-controls-volume-slider-container { display: none !important; }
+      video::-webkit-media-controls-fullscreen-button { display: none !important; }
+      video::-moz-media-controls { display: none !important; visibility: hidden !important; }
+      video { user-select: none !important; -webkit-user-select: none !important; }
+    `;
+    document.head.appendChild(style);
+  }
+}
 
 // Multi-language translations
 const translations = {
@@ -313,41 +345,21 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
     loadVideoStream();
   }, [currentVideo, t]);
 
-  // Initialize HLS.js for streaming
+  // Attach event listeners to video ref for progress tracking
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !videoStream?.streaming.hlsUrl) return;
+    if (!video) return;
 
-    let hls: HLS | null = null;
-
-    const initializeHLS = () => {
-      // Check if HLS.js is supported
-      if (HLS.isSupported()) {
-        hls = new HLS({
-          debug: false,
-          enableWorker: true,
-        });
-        hls.loadSource(videoStream.streaming.hlsUrl!);
-        hls.attachMedia(video);
-        hls.on(HLS.Events.MANIFEST_PARSED, () => {
-          video.play().catch(() => {
-            // Auto-play prevented, user interaction required
-          });
-        });
-      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        // Safari native HLS support
-        video.src = videoStream.streaming.hlsUrl;
-      }
-    };
-
-    initializeHLS();
+    video.addEventListener('ended', handleVideoEnded);
+    video.addEventListener('timeupdate', handleTimeUpdate as any);
+    video.addEventListener('pause', () => updateProgress(false));
 
     return () => {
-      if (hls) {
-        hls.destroy();
-      }
+      video.removeEventListener('ended', handleVideoEnded);
+      video.removeEventListener('timeupdate', handleTimeUpdate as any);
+      video.removeEventListener('pause', () => updateProgress(false));
     };
-  }, [videoStream]);
+  }, [currentVideo, autoplay]);
 
   // Update progress periodically
   useEffect(() => {
@@ -677,41 +689,6 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
             )}
           </div>
 
-          {/* Controls */}
-          <div className="flex items-center gap-4">
-            {/* Autoplay Toggle */}
-            <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={autoplay}
-                onChange={(e) => setAutoplay(e.target.checked)}
-                className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-orange-500 focus:ring-orange-500"
-              />
-              {t.autoplay}
-            </label>
-
-            {/* Playback Speed */}
-            {videoStream?.courseSettings.allowPlaybackSpeedChange && (
-              <select
-                value={playbackSpeed}
-                onChange={(e) => {
-                  const speed = parseFloat(e.target.value);
-                  setPlaybackSpeed(speed);
-                  if (videoRef.current) {
-                    videoRef.current.playbackRate = speed;
-                  }
-                }}
-                className="bg-gray-700 text-gray-300 text-sm rounded px-2 py-1 border-gray-600 focus:ring-orange-500"
-              >
-                <option value={0.5}>0.5x</option>
-                <option value={0.75}>0.75x</option>
-                <option value={1}>1x</option>
-                <option value={1.25}>1.25x</option>
-                <option value={1.5}>1.5x</option>
-                <option value={2}>2x</option>
-              </select>
-            )}
-          </div>
         </div>
 
         {/* Video Player Area */}
@@ -720,27 +697,37 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
             <>
               {/* Video */}
               <div className="flex-1 flex items-center justify-center">
-                <div className="w-full max-w-6xl aspect-video">
-                  {videoLoading ? (
-                    <div className="w-full h-full flex items-center justify-center bg-gray-900">
-                      <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
-                    </div>
-                  ) : videoStream.streaming.directUrl?.includes('youtube.com') || videoStream.streaming.directUrl?.includes('youtu.be') ? (
-                    // YouTube Video
-                    <iframe
-                      className="w-full h-full rounded-lg"
-                      src={videoStream.streaming.directUrl.replace('youtu.be/', 'youtube.com/embed/').replace('watch?v=', 'embed/')}
-                      title={videoStream.video.title}
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
-                    />
-                  ) : (
-                    // HTML5 Video
+                {videoLoading ? (
+                  <div className="w-full h-full flex items-center justify-center bg-gray-900">
+                    <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : videoStream.streaming.hlsUrl ? (
+                  // HLS Video Player
+                  <HLSVideoPlayer
+                    src={videoStream.streaming.hlsUrl}
+                    autoPlay={autoplay}
+                    muted={currentVideo.isFree}
+                    className="w-full h-full"
+                    videoRef={videoRef}
+                    onPlay={startProgressTracking}
+                    onError={(err) => console.error('Video error:', err)}
+                  />
+                ) : videoStream.streaming.directUrl?.includes('youtube.com') || videoStream.streaming.directUrl?.includes('youtu.be') ? (
+                  // YouTube Video
+                  <iframe
+                    className="w-full h-full rounded-lg"
+                    src={videoStream.streaming.directUrl.replace('youtu.be/', 'youtube.com/embed/').replace('watch?v=', 'embed/')}
+                    title={videoStream.video.title}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                ) : videoStream.streaming.directUrl ? (
+                  // Direct Video (protected)
+                  <div className="relative w-full h-full bg-black">
                     <video
                       ref={videoRef}
                       src={videoStream.streaming.directUrl}
-                      controls
-                      autoPlay
+                      autoPlay={autoplay}
                       muted={currentVideo.isFree}
                       playsInline
                       onPlay={startProgressTracking}
@@ -748,10 +735,32 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                       onPause={() => updateProgress(false)}
                       onTimeUpdate={handleTimeUpdate}
                       className="w-full h-full"
-                      controlsList={videoStream.courseSettings.allowDownload ? '' : 'nodownload'}
+                      style={{ display: 'block' }}
+                      crossOrigin="anonymous"
                     />
-                  )}
-                </div>
+                    {/* Transparent overlay blocks controls */}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        zIndex: 10,
+                        cursor: 'none',
+                        backgroundColor: 'transparent',
+                      }}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        return false;
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-gray-400">
+                    Unable to load video
+                  </div>
+                )}
               </div>
 
               {/* Bottom Controls */}

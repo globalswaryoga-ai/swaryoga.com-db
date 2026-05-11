@@ -120,51 +120,73 @@ export default function HLSVideoPlayer({
     };
   }, []);
 
-  // Initialize HLS.js for live streaming
+  // Initialize HLS.js with permanent unmute enforcement
   useEffect(() => {
     if (!videoRef.current || !src) return;
+
+    const video = videoRef.current;
+    let seekPerformed = false;
+
+    // Permanent unmute enforcement (critical for free videos)
+    video.muted = false;
+    video.volume = 1;
+    video.autoplay = autoPlay;
+    video.playsInline = true;
+    video.preload = 'auto';
+
+    // Prevent user from controlling playback
+    const handleRateChange = () => { if (video.playbackRate !== 1) video.playbackRate = 1; };
+    const handleCanPlay = () => { if (video.paused && autoPlay) video.play().catch(() => {}); };
+    const handleVolumeChange = () => { if (video.muted || video.volume !== 1) { video.muted = false; video.volume = 1; } };
+    const handlePause = () => { if (autoPlay) video.play().catch(() => {}); };
+
+    video.addEventListener('ratechange', handleRateChange);
+    video.addEventListener('canplay', handleCanPlay);
+    video.addEventListener('volumechange', handleVolumeChange);
+    video.addEventListener('pause', handlePause);
 
     const setupHLS = async () => {
       try {
         const HLS = (await import('hls.js')).default;
 
         if (!HLS.isSupported()) {
-          if (videoRef.current) {
-            videoRef.current.src = src;
-          }
+          video.src = src;
           return;
         }
 
         const hls = new HLS({
-          debug: false,
           enableWorker: true,
           lowLatencyMode: isLiveStream,
-          autoStartLoad: true,
-          liveBackBufferLength: isLiveStream ? 8 : undefined,
+          backBufferLength: isLiveStream ? 8 : 30,
           maxBufferLength: isLiveStream ? 15 : 30,
-          maxMaxBufferLength: isLiveStream ? 30 : 60,
           maxBufferSize: 60 * 1000 * 1000,
-          maxBufferHole: 0.5,
+          maxMaxBufferLength: isLiveStream ? 30 : 60,
+          fragLoadingTimeOut: 20000,
+          fragLoadingMaxRetry: 6,
+          levelLoadingTimeOut: 10000,
+          levelLoadingMaxRetry: 4,
+          manifestLoadingTimeOut: 10000,
+          manifestLoadingMaxRetry: 1,
         });
 
         hlsRef.current = hls;
-        hls.attachMedia(videoRef.current);
+        hls.loadSource(src);
+        hls.attachMedia(video);
 
         hls.on(HLS.Events.MANIFEST_PARSED, () => {
           console.log(`✅ HLS ${isLiveStream ? 'live stream' : 'stream'} ready`);
 
           // Synchronized playback: seek to the current session time
-          if (offsetSeconds && offsetSeconds > 0 && videoRef.current) {
+          if (offsetSeconds && offsetSeconds > 0 && !seekPerformed) {
             console.log(`🎬 Seeking to ${offsetSeconds}s for synchronized playback`);
-            videoRef.current.currentTime = offsetSeconds;
+            video.currentTime = offsetSeconds;
+            seekPerformed = true;
           }
 
-          if (autoPlay && videoRef.current) {
-            setTimeout(() => {
-              videoRef.current?.play().catch(err => {
-                console.warn('Autoplay prevented (may need user interaction):', err.message);
-              });
-            }, 100);
+          if (autoPlay) {
+            video.play().catch(err => {
+              console.warn('Autoplay prevented:', err.message);
+            });
           }
         });
 
@@ -180,24 +202,24 @@ export default function HLSVideoPlayer({
             onError?.(errorMsg);
           }
         });
-
-        hls.loadSource(src);
       } catch (err: any) {
-        if (videoRef.current) {
-          videoRef.current.src = src;
-        }
+        video.src = src;
       }
     };
 
     setupHLS();
 
     return () => {
+      video.removeEventListener('ratechange', handleRateChange);
+      video.removeEventListener('canplay', handleCanPlay);
+      video.removeEventListener('volumechange', handleVolumeChange);
+      video.removeEventListener('pause', handlePause);
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
       }
     };
-  }, [src, autoPlay, isLiveStream, onError]);
+  }, [src, autoPlay, isLiveStream, offsetSeconds, onError]);
 
   // Show/hide controls on mouse movement
   useEffect(() => {
@@ -316,6 +338,25 @@ export default function HLSVideoPlayer({
           cursor: 'none',
           backgroundColor: '#000',
         } as React.CSSProperties}
+      />
+
+      {/* Transparent overlay blocks ALL mouse events and context menu */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 10,
+          cursor: 'none',
+          backgroundColor: 'transparent',
+        }}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+        }}
       />
     </div>
   );
