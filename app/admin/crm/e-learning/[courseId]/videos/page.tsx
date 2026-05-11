@@ -619,6 +619,42 @@ function AddMaterialModal({ token, courseId, order, onClose, onAdded }: {
   const [downloadable, setDownloadable] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [inputMode, setInputMode] = useState<'url' | 'upload'>('url');
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleFileUpload = async () => {
+    if (!uploadFile) return;
+
+    setUploading(true);
+    setError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', uploadFile);
+
+      const res = await fetch('/api/bunny/upload-material', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setFileUrl(data.url);
+        setUploadFile(null);
+      } else {
+        const data = await res.json();
+        setError(data.error || 'Failed to upload file');
+      }
+    } catch (err) {
+      setError('Error uploading file to Bunny');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -697,16 +733,92 @@ function AddMaterialModal({ token, courseId, order, onClose, onAdded }: {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-green-400 mb-2">File URL</label>
-            <input
-              type="url"
-              value={fileUrl}
-              onChange={(e) => setFileUrl(e.target.value)}
-              className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
-              placeholder="https://example.com/file.pdf"
-              required
-            />
-            <p className="text-xs text-gray-500 mt-1">Link to Bunny CDN or Google Drive file</p>
+            <label className="block text-sm font-medium text-green-400 mb-3">File Source</label>
+            <div className="flex gap-2 mb-4">
+              <button
+                type="button"
+                onClick={() => { setInputMode('url'); setUploadFile(null); }}
+                className={`flex-1 py-2 px-3 rounded-lg font-medium transition-colors ${
+                  inputMode === 'url'
+                    ? 'bg-green-600 text-white'
+                    : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                }`}
+              >
+                Paste URL
+              </button>
+              <button
+                type="button"
+                onClick={() => { setInputMode('upload'); setFileUrl(''); }}
+                className={`flex-1 py-2 px-3 rounded-lg font-medium transition-colors ${
+                  inputMode === 'upload'
+                    ? 'bg-green-600 text-white'
+                    : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                }`}
+              >
+                Upload File
+              </button>
+            </div>
+
+            {inputMode === 'url' ? (
+              <div>
+                <input
+                  type="url"
+                  value={fileUrl}
+                  onChange={(e) => setFileUrl(e.target.value)}
+                  className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
+                  placeholder="https://example.com/file.pdf"
+                  required={inputMode === 'url'}
+                />
+                <p className="text-xs text-gray-500 mt-2">Link to Bunny CDN, Google Drive, or external file</p>
+              </div>
+            ) : (
+              <div>
+                <div className="border-2 border-dashed border-gray-700 rounded-lg p-4 text-center">
+                  <input
+                    type="file"
+                    id="file-input"
+                    onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                    className="hidden"
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip"
+                  />
+                  <label htmlFor="file-input" className="cursor-pointer block">
+                    <CloudUpload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                    <p className="text-white font-medium">
+                      {uploadFile ? uploadFile.name : 'Click to select file or drag & drop'}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">PDF, Word, Excel, PowerPoint, or ZIP</p>
+                  </label>
+                </div>
+
+                {uploadFile && (
+                  <div className="mt-3">
+                    <button
+                      type="button"
+                      onClick={handleFileUpload}
+                      disabled={uploading || !uploadFile}
+                      className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg flex items-center justify-center gap-2 disabled:opacity-50 transition-colors"
+                    >
+                      {uploading ? (
+                        <>
+                          <Loader2 size={18} className="animate-spin" />
+                          Uploading...
+                        </>
+                      ) : (
+                        <>
+                          <CloudUpload size={18} />
+                          Upload to Bunny
+                        </>
+                      )}
+                    </button>
+                    {fileUrl && (
+                      <p className="text-xs text-green-400 mt-2 flex items-center gap-1">
+                        ✓ Upload complete! Ready to save.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
