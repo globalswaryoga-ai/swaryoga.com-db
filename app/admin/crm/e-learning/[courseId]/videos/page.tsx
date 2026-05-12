@@ -40,6 +40,7 @@ interface VideoItem {
   sectionId?: string;
   isFree: boolean;
   isActive: boolean;
+  hoursGap?: number;
 }
 
 interface CourseWithCommunity {
@@ -1043,6 +1044,7 @@ function EditVideoModal({ token, video, onClose, onUpdated }: {
   const [description, setDescription] = useState(video.description || '');
   const [thumbnail, setThumbnail] = useState(video.thumbnail || '');
   const [duration, setDuration] = useState(video.duration.toString());
+  const [hoursGap, setHoursGap] = useState((video.hoursGap || 0).toString());
   const [isFree, setIsFree] = useState(video.isFree);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1067,6 +1069,7 @@ function EditVideoModal({ token, video, onClose, onUpdated }: {
           description,
           thumbnail: thumbnail || undefined,
           duration: parseInt(duration) || 0,
+          hoursGap: parseInt(hoursGap) || 0,
           isFree,
         }),
       });
@@ -1146,17 +1149,29 @@ function EditVideoModal({ token, video, onClose, onUpdated }: {
                 placeholder="15"
               />
             </div>
-            <div className="flex items-end pb-1">
-              <label className="flex items-center gap-2 text-white cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={isFree}
-                  onChange={(e) => setIsFree(e.target.checked)}
-                  className="w-5 h-5 rounded border-gray-600 bg-black text-green-500 focus:ring-green-500"
-                />
-                Free Preview
-              </label>
+            <div>
+              <label className="block text-sm font-medium text-green-400 mb-2">Hours Gap Before Next Video</label>
+              <input
+                type="number"
+                value={hoursGap}
+                onChange={(e) => setHoursGap(e.target.value)}
+                className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
+                placeholder="0"
+                min="0"
+              />
             </div>
+          </div>
+
+          <div className="flex items-start pt-2">
+            <label className="flex items-center gap-2 text-white cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isFree}
+                onChange={(e) => setIsFree(e.target.checked)}
+                className="w-5 h-5 rounded border-gray-600 bg-black text-green-500 focus:ring-green-500"
+              />
+              Free Preview
+            </label>
           </div>
 
           <div className="flex gap-3 pt-4">
@@ -1193,6 +1208,7 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
   const [description, setDescription] = useState('');
   const [bunnyVideoId, setBunnyVideoId] = useState('');
   const [duration, setDuration] = useState('0');
+  const [hoursGap, setHoursGap] = useState('0');
   const [thumbnail, setThumbnail] = useState('');
   const [isFree, setIsFree] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -1339,6 +1355,7 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
           videoUrl: finalVideoUrl || undefined,
           thumbnail: thumbnail || undefined,
           duration: parseInt(duration) || 0,
+          hoursGap: parseInt(hoursGap) || 0,
           isFree,
           isActive: true,
         }),
@@ -1553,17 +1570,29 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
                 placeholder="15"
               />
             </div>
-            <div className="flex items-end pb-1">
-              <label className="flex items-center gap-2 text-white cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={isFree}
-                  onChange={(e) => setIsFree(e.target.checked)}
-                  className="w-5 h-5 rounded border-gray-600 bg-black text-green-500 focus:ring-green-500"
-                />
-                Free Preview Video
-              </label>
+            <div>
+              <label className="block text-sm font-medium text-green-400 mb-2">Hours Gap Before Next Video</label>
+              <input
+                type="number"
+                value={hoursGap}
+                onChange={(e) => setHoursGap(e.target.value)}
+                className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
+                placeholder="0"
+                min="0"
+              />
             </div>
+          </div>
+
+          <div className="flex items-start pt-2">
+            <label className="flex items-center gap-2 text-white cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isFree}
+                onChange={(e) => setIsFree(e.target.checked)}
+                className="w-5 h-5 rounded border-gray-600 bg-black text-green-500 focus:ring-green-500"
+              />
+              Free Preview Video
+            </label>
           </div>
 
           <div className="flex gap-3 pt-4">
