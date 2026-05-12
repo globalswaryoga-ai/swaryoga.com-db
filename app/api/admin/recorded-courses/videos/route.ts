@@ -63,6 +63,7 @@ export async function GET(request: NextRequest) {
         description: v.description,
         bunnyVideoId: v.bunnyVideoId,
         duration: v.duration,
+        hoursGap: v.hoursGap || 0,
         order: v.order,
         isFree: v.isFree,
         isActive: v.isActive,
@@ -99,7 +100,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { courseId, title, description, bunnyVideoId, duration = 0, isFree = false, thumbnail } = body;
+    const { courseId, title, description, bunnyVideoId, duration = 0, hoursGap = 0, isFree = false, thumbnail } = body;
 
     if (!courseId || !title || !bunnyVideoId) {
       return NextResponse.json({
@@ -176,6 +177,7 @@ export async function POST(request: NextRequest) {
       description: description || '',
       bunnyVideoId,
       duration: parseInt(duration) || 0,
+      hoursGap: parseInt(hoursGap) || 0,
       isFree: isFree === true,
       isActive: true,
       order: nextOrder,
@@ -200,6 +202,7 @@ export async function POST(request: NextRequest) {
         title: videoDoc.title,
         bunnyVideoId: videoDoc.bunnyVideoId,
         duration: videoDoc.duration,
+        hoursGap: videoDoc.hoursGap,
         isFree: videoDoc.isFree,
         thumbnail: videoDoc.thumbnail,
       },
@@ -234,7 +237,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { videoId, title, description, duration, isFree, thumbnail } = body;
+    const { videoId, title, description, duration, hoursGap, isFree, thumbnail } = body;
 
     if (!videoId) {
       return NextResponse.json({ error: 'Video ID required' }, { status: 400 });
@@ -246,6 +249,7 @@ export async function PUT(request: NextRequest) {
     if (title) updateData.title = title;
     if (description !== undefined) updateData.description = description;
     if (duration !== undefined) updateData.duration = parseInt(duration) || 0;
+    if (hoursGap !== undefined) updateData.hoursGap = parseInt(hoursGap) || 0;
     if (isFree !== undefined) updateData.isFree = isFree === true;
     if (thumbnail !== undefined) updateData.thumbnail = thumbnail;
 
@@ -262,6 +266,7 @@ export async function PUT(request: NextRequest) {
         title: video.title,
         description: video.description,
         duration: video.duration,
+        hoursGap: video.hoursGap,
         isFree: video.isFree,
       },
     });
