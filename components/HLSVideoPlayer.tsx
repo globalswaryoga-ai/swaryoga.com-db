@@ -41,83 +41,46 @@ export default function HLSVideoPlayer({
   const hlsRef = useRef<any>(null);
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Hide all video controls with aggressive CSS
+  // Enable video controls with proper styling
   useEffect(() => {
     const style = document.createElement('style');
     style.textContent = `
-      /* === ABSOLUTE VIDEO CONTROL HIDING === */
+      /* Video player styling */
       video {
         display: block !important;
         width: 100% !important;
         height: 100% !important;
-        outline: none !important;
-        border: none !important;
         background: #000 !important;
-        cursor: none !important;
       }
 
-      /* WebKit - Hide ALL media controls */
+      /* Show and style WebKit media controls */
       video::-webkit-media-controls {
-        display: none !important;
-        visibility: hidden !important;
-        height: 0 !important;
-        pointer-events: none !important;
+        display: flex !important;
+        visibility: visible !important;
+        pointer-events: auto !important;
       }
-      video::-webkit-media-controls-enclosure { display: none !important; }
-      video::-webkit-media-controls-panel { display: none !important; }
-      video::-webkit-media-controls-play-button { display: none !important; }
-      video::-webkit-media-controls-timeline-container { display: none !important; }
-      video::-webkit-media-controls-current-time-display { display: none !important; }
-      video::-webkit-media-controls-time-remaining-display { display: none !important; }
-      video::-webkit-media-controls-timeline { display: none !important; }
-      video::-webkit-media-controls-volume-slider-container { display: none !important; }
-      video::-webkit-media-controls-volume-slider { display: none !important; }
-      video::-webkit-media-controls-mute-button { display: none !important; }
-      video::-webkit-media-controls-fullscreen-button { display: none !important; }
-      video::-webkit-media-controls-download-button { display: none !important; }
-      video::-webkit-media-controls-toggle-closed-captions-button { display: none !important; }
-      video::-webkit-media-controls-seek-backward-button { display: none !important; }
-      video::-webkit-media-controls-seek-forward-button { display: none !important; }
-      video::-webkit-media-controls-media-button { display: none !important; }
 
-      /* Firefox - Hide ALL controls */
-      video::-moz-media-controls { display: none !important; visibility: hidden !important; }
-      video::-moz-media-controls-panel { display: none !important; }
-      video::-moz-media-controls-play-button { display: none !important; }
-      video::-moz-media-controls-timeline-container { display: none !important; }
-      video::-moz-media-controls-timeline { display: none !important; }
-      video::-moz-media-controls-volume-slider-container { display: none !important; }
-      video::-moz-media-controls-volume-slider { display: none !important; }
-      video::-moz-media-controls-mute-button { display: none !important; }
-      video::-moz-media-controls-fullscreen-button { display: none !important; }
+      video::-webkit-media-controls-panel {
+        display: flex !important;
+        visibility: visible !important;
+      }
 
-      /* No user select */
-      video { -webkit-user-select: none; user-select: none; }
+      /* Show all control buttons */
+      video::-webkit-media-controls-play-button { display: block !important; }
+      video::-webkit-media-controls-timeline-container { display: block !important; }
+      video::-webkit-media-controls-current-time-display { display: inline !important; }
+      video::-webkit-media-controls-time-remaining-display { display: inline !important; }
+      video::-webkit-media-controls-timeline { display: block !important; }
+      video::-webkit-media-controls-volume-slider-container { display: flex !important; }
+      video::-webkit-media-controls-volume-slider { display: block !important; }
+      video::-webkit-media-controls-mute-button { display: block !important; }
+      video::-webkit-media-controls-fullscreen-button { display: block !important; }
+      video::-webkit-media-controls-download-button { display: block !important; }
+      video::-webkit-media-controls-seek-backward-button { display: block !important; }
+      video::-webkit-media-controls-seek-forward-button { display: block !important; }
     `;
     document.head.appendChild(style);
-
-    // Continuous enforcement
-    const enforceNoControls = () => {
-      const videos = document.querySelectorAll('video[data-hls-player]');
-      videos.forEach((video: any) => {
-        video.removeAttribute('controls');
-        video.removeAttribute('controlsList');
-        video.style.outline = 'none';
-        video.style.border = 'none';
-        video.style.display = 'block';
-        video.style.cursor = 'none';
-      });
-    };
-
-    enforceNoControls();
-    const observer = new MutationObserver(enforceNoControls);
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['controls', 'controlsList'] });
-    const interval = setInterval(enforceNoControls, 300);
-
-    return () => {
-      observer.disconnect();
-      clearInterval(interval);
-    };
+    return () => style.remove();
   }, []);
 
   // Initialize HLS.js with permanent unmute enforcement
@@ -323,6 +286,7 @@ export default function HLSVideoPlayer({
         ref={videoRef}
         data-hls-player
         className="w-full h-full bg-black"
+        controls
         autoPlay={autoPlay}
         muted={muted}
         playsInline
@@ -336,46 +300,13 @@ export default function HLSVideoPlayer({
           setError(errorMsg);
           onError?.(errorMsg);
         }}
-        onKeyDown={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-        }}
-        onDoubleClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-        }}
-        onMouseUp={(e) => {
-          if (e.button === 2) {
-            e.preventDefault();
-            e.stopPropagation();
-          }
-        }}
         style={{
           userSelect: 'none',
           WebkitUserSelect: 'none',
-          cursor: 'none',
           backgroundColor: '#000',
         } as React.CSSProperties}
       />
 
-      {/* Transparent overlay blocks ALL mouse events and context menu */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          zIndex: 10,
-          cursor: 'none',
-          backgroundColor: 'transparent',
-        }}
-        onContextMenu={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          return false;
-        }}
-      />
     </div>
   );
 }

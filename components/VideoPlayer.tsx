@@ -157,8 +157,6 @@ export default function VideoPlayer({
               className="w-full h-full"
               controls
               playsInline
-              controlsList="nodownload noremoteplayback"
-              disablePictureInPicture
               onContextMenu={(e) => e.preventDefault()}
             />
           )}
