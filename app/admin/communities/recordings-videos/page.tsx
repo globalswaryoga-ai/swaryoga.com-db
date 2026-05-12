@@ -71,8 +71,12 @@ export default function AdminRecordingsVideosPage() {
     isCommon: false,
     tags: '',
     contentType: 'video' as 'video' | 'recording',
+    workshopName: '',
+    batchName: '',
   });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [workshops, setWorkshops] = useState<{ name: string }[]>([]);
+  const [batches, setBatches] = useState<{ name: string }[]>([]);
 
   // Stats
   const [stats, setStats] = useState({
@@ -83,7 +87,37 @@ export default function AdminRecordingsVideosPage() {
 
   useEffect(() => {
     fetchContent();
+    fetchWorkshopsAndBatches();
   }, [filterType, filterCommunity]);
+
+  async function fetchWorkshopsAndBatches() {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/community/recordings?getWorkshops=true', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        const uniqueWorkshops = Array.from(new Set(
+          (data.recordings || [])
+            .map((r: any) => r.title?.split(' > ')[0])
+            .filter(Boolean)
+        )).map(name => ({ name: name as string }));
+
+        const uniqueBatches = Array.from(new Set(
+          (data.recordings || [])
+            .map((r: any) => r.title?.split(' > ')[1])
+            .filter(Boolean)
+        )).map(name => ({ name: name as string }));
+
+        setWorkshops(uniqueWorkshops);
+        setBatches(uniqueBatches);
+      }
+    } catch (err) {
+      console.error('Failed to fetch workshops/batches:', err);
+    }
+  }
 
   async function fetchContent() {
     try {
@@ -121,6 +155,8 @@ export default function AdminRecordingsVideosPage() {
       isCommon: false,
       tags: '',
       contentType: 'video',
+      workshopName: '',
+      batchName: '',
     });
     setSelectedFile(null);
     setUploadProgress(0);
@@ -129,13 +165,20 @@ export default function AdminRecordingsVideosPage() {
 
   function openEditModal(item: ContentItem) {
     setEditingContent(item);
+    const parts = item.title.split(' > ');
+    const workshopName = parts.length > 0 ? parts[0] : '';
+    const batchName = parts.length > 1 ? parts[1] : '';
+    const videoTitle = parts.length > 2 ? parts.slice(2).join(' > ') : item.title;
+
     setForm({
-      title: item.title,
+      title: videoTitle,
       description: item.description || '',
       communityId: item.communityId,
       isCommon: item.isCommon,
       tags: item.tags.join(', '),
       contentType: item.source === 'zoom' ? 'recording' : 'video',
+      workshopName,
+      batchName,
     });
     setSelectedFile(null);
     setShowModal(true);
@@ -163,8 +206,16 @@ export default function AdminRecordingsVideosPage() {
   }
 
   async function handleSave() {
+    if (!form.workshopName.trim()) {
+      alert('Please enter a workshop name');
+      return;
+    }
+    if (!form.batchName.trim()) {
+      alert('Please enter a batch name');
+      return;
+    }
     if (!form.title.trim()) {
-      alert('Please enter a title');
+      alert('Please enter a video title');
       return;
     }
     if (!form.communityId) {
@@ -181,6 +232,8 @@ export default function AdminRecordingsVideosPage() {
 
     try {
       const token = localStorage.getItem('token');
+      // Construct full title with workshop > batch > video title
+      const fullTitle = `${form.workshopName} > ${form.batchName} > ${form.title}`;
 
       if (editingContent) {
         // Update existing content
@@ -192,7 +245,7 @@ export default function AdminRecordingsVideosPage() {
           },
           body: JSON.stringify({
             contentId: editingContent._id,
-            title: form.title,
+            title: fullTitle,
             description: form.description,
             communityId: form.communityId,
             isCommon: form.isCommon,
@@ -204,6 +257,7 @@ export default function AdminRecordingsVideosPage() {
         if (data.success) {
           setShowModal(false);
           fetchContent();
+          fetchWorkshopsAndBatches();
         } else {
           alert(data.error || 'Failed to update content');
         }
@@ -211,7 +265,7 @@ export default function AdminRecordingsVideosPage() {
         // Upload new content
         const formData = new FormData();
         formData.append('video', selectedFile!);
-        formData.append('title', form.title);
+        formData.append('title', fullTitle);
         formData.append('description', form.description);
         formData.append('communityId', form.communityId);
         formData.append('isCommon', form.isCommon.toString());
@@ -244,6 +298,7 @@ export default function AdminRecordingsVideosPage() {
         if (data.success) {
           setShowModal(false);
           fetchContent();
+          fetchWorkshopsAndBatches();
         } else {
           alert(data.error || 'Failed to upload content');
         }
@@ -639,9 +694,61 @@ export default function AdminRecordingsVideosPage() {
                 </div>
               )}
 
+              {/* Workshop Name */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Title *
+                  Workshop Name *
+                </label>
+                <div className="flex gap-2">
+                  <select
+                    value={form.workshopName}
+                    onChange={(e) => setForm({ ...form, workshopName: e.target.value })}
+                    className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white"
+                  >
+                    <option value="">Select or type...</option>
+                    {workshops.map((w) => (
+                      <option key={w.name} value={w.name}>{w.name}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    value={form.workshopName}
+                    onChange={(e) => setForm({ ...form, workshopName: e.target.value })}
+                    placeholder="Type new workshop..."
+                    className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  />
+                </div>
+              </div>
+
+              {/* Batch Name */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Batch Name *
+                </label>
+                <div className="flex gap-2">
+                  <select
+                    value={form.batchName}
+                    onChange={(e) => setForm({ ...form, batchName: e.target.value })}
+                    className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white"
+                  >
+                    <option value="">Select or type...</option>
+                    {batches.map((b) => (
+                      <option key={b.name} value={b.name}>{b.name}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    value={form.batchName}
+                    onChange={(e) => setForm({ ...form, batchName: e.target.value })}
+                    placeholder="Type new batch..."
+                    className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Video Title *
                 </label>
                 <input
                   type="text"

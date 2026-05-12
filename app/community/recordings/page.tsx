@@ -226,13 +226,45 @@ function RecordingsContent() {
       ? recordings
       : recordings.filter(r => r.communityId === selectedCommunity);
 
-  // Group by batch/playlist (second title part)
+  // Helper to parse date from batch name (e.g., "10 May 2026 Batch" or "10th May 2026 Batch")
+  const parseDate = (batchName: string): Date => {
+    try {
+      // Match date patterns like "10 May 2026" or "10th May 2026"
+      const match = batchName.match(/(\d+)(?:st|nd|rd|th)?\s+(\w+)\s+(\d{4})/);
+      if (match) {
+        const [, day, month, year] = match;
+        return new Date(`${day} ${month} ${year}`);
+      }
+    } catch {}
+    return new Date(0); // Invalid dates go to top
+  };
+
+  // Helper to normalize batch name (removes ordinal suffixes so same dates are grouped)
+  const normalizeBatchName = (batchName: string): string => {
+    try {
+      // Match and normalize: "10 May 2026 Batch" and "10th May 2026 Batch" both become "10 May 2026 Batch"
+      const match = batchName.match(/(\d+)(?:st|nd|rd|th)?\s+(\w+)\s+(\d{4})/);
+      if (match) {
+        const [, day, month, year] = match;
+        return `${day} ${month} ${year} Batch`;
+      }
+    } catch {}
+    return batchName; // Return original if no date found
+  };
+
+  // Group by batch/playlist with normalized names (same dates = same group)
   const batchGroups: Record<string, Recording[]> = {};
   filteredRecordings.forEach(rec => {
     const parts = rec.title?.split(' > ') || [];
-    const batch = parts.length > 1 ? parts[1] : 'General';
+    let batch = parts.length > 1 ? parts[1] : 'General';
+    batch = normalizeBatchName(batch); // Normalize to combine "10 May" and "10th May"
     if (!batchGroups[batch]) batchGroups[batch] = [];
     batchGroups[batch].push(rec);
+  });
+
+  // Sort batch groups by date (oldest first, newest at bottom)
+  const sortedBatchEntries = Object.entries(batchGroups).sort((a, b) => {
+    return parseDate(a[0]).getTime() - parseDate(b[0]).getTime();
   });
 
   // For hero: use thumbnail from first video
@@ -277,7 +309,7 @@ function RecordingsContent() {
                 <div className="relative z-10 p-8 w-full">
                   <span className="inline-block px-3 py-1 bg-emerald-500 text-white rounded-lg text-xs font-bold uppercase tracking-wider mb-3">Workshop</span>
                   <h2 className="text-3xl font-black text-white mb-1">{workshopName}</h2>
-                  <p className="text-white/70 text-sm">{filteredRecordings.length} {filteredRecordings.length === 1 ? 'Video' : 'Videos'} &bull; {Object.keys(batchGroups).length} {Object.keys(batchGroups).length === 1 ? 'Batch' : 'Batches'}</p>
+                  <p className="text-white/70 text-sm">{filteredRecordings.length} {filteredRecordings.length === 1 ? 'Video' : 'Videos'} &bull; {sortedBatchEntries.length} {sortedBatchEntries.length === 1 ? 'Batch' : 'Batches'}</p>
                 </div>
               </div>
             )}
@@ -291,7 +323,7 @@ function RecordingsContent() {
             )}
 
             {/* Batch sections */}
-            {Object.entries(batchGroups).map(([batchName, batchVideos]) => (
+            {sortedBatchEntries.map(([batchName, batchVideos]) => (
               <div key={batchName} className="mb-10">
                 <div className="flex items-center gap-3 mb-5">
                   <span className="w-1 h-6 bg-emerald-500 rounded-full" />
