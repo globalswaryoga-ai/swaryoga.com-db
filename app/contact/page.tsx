@@ -270,8 +270,8 @@ export default function Contact() {
 
             {/* Contact Form */}
             <div className="lg:col-span-2">
-              <div className="bg-white rounded-xl shadow-lg p-6 sm:p-8">
-                <h2 className="text-xl sm:text-2xl font-bold text-swar-text mb-6">Send us a Message</h2>
+              <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 lg:p-8">
+                <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-swar-text mb-4 sm:mb-6">Send us a Message</h2>
 
                 {/* Status Messages */}
                 {submitStatus === 'success' && (
@@ -298,10 +298,10 @@ export default function Contact() {
                   </div>
                 )}
 
-                <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
+                <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4 lg:space-y-6">
                   {/* Name */}
                   <div>
-                    <label htmlFor="name" className="block text-sm font-medium text-swar-text mb-1 sm:mb-2">
+                    <label htmlFor="name" className="block text-xs sm:text-sm font-medium text-swar-text mb-2 sm:mb-2">
                       Full Name *
                     </label>
                     <input
@@ -310,13 +310,13 @@ export default function Contact() {
                       name="name"
                       value={formData.name}
                       onChange={handleInputChange}
-                      className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-transparent transition-colors ${
+                      className={`w-full px-2.5 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-transparent transition-colors ${
                         errors.name ? 'border-red-400 bg-red-50' : 'border-swar-border'
                       }`}
                       placeholder="Enter your full name"
                       autoComplete="name"
                     />
-                    {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
+                    {errors.name && <p className="mt-1 text-xs sm:text-sm text-red-600">{errors.name}</p>}
                   </div>
 
                   {/* Email */}
@@ -330,7 +330,7 @@ export default function Contact() {
                       name="email"
                       value={formData.email}
                       onChange={handleInputChange}
-                      className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-transparent transition-colors ${
+                      className={`w-full px-2.5 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-transparent transition-colors ${
                         errors.email ? 'border-red-400 bg-red-50' : 'border-swar-border'
                       }`}
                       placeholder="Enter your email address"
@@ -364,10 +364,10 @@ export default function Contact() {
                         name="phone"
                         value={formData.phone}
                         onChange={handleInputChange}
-                        className={`flex-1 px-3 sm:px-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-transparent transition-colors ${
+                        className={`flex-1 px-2.5 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-transparent transition-colors text-sm ${
                           errors.phone ? 'border-red-400 bg-red-50' : 'border-swar-border'
                         }`}
-                        placeholder="Enter your phone number"
+                        placeholder="Phone"
                         autoComplete="tel"
                       />
                     </div>
@@ -384,7 +384,7 @@ export default function Contact() {
                       name="subject"
                       value={formData.subject}
                       onChange={handleInputChange}
-                      className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-transparent transition-colors ${
+                      className={`w-full px-2.5 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-transparent transition-colors ${
                         errors.subject ? 'border-red-400 bg-red-50' : 'border-swar-border'
                       }`}
                     >
@@ -407,11 +407,11 @@ export default function Contact() {
                       name="message"
                       value={formData.message}
                       onChange={handleInputChange}
-                      rows={4}
-                      className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-transparent transition-colors resize-none ${
+                      rows={3}
+                      className={`w-full px-2.5 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-transparent transition-colors resize-none text-sm ${
                         errors.message ? 'border-red-400 bg-red-50' : 'border-swar-border'
                       }`}
-                      placeholder="Please describe your inquiry in detail..."
+                      placeholder="Describe your inquiry..."
                     />
                     {errors.message && <p className="mt-1 text-sm text-red-600">{errors.message}</p>}
                   </div>
@@ -420,16 +420,17 @@ export default function Contact() {
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="w-full bg-gradient-to-r from-swar-primary to-green-700 text-white py-3 sm:py-4 px-6 rounded-lg font-semibold hover:from-green-700 hover:to-green-800 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                    className="w-full bg-gradient-to-r from-swar-primary to-green-700 text-white py-2.5 sm:py-3 lg:py-4 px-4 sm:px-6 rounded-lg font-semibold text-sm sm:text-base hover:from-green-700 hover:to-green-800 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
                     {isSubmitting ? (
                       <>
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                        <span>Sending...</span>
+                        <div className="animate-spin rounded-full h-4 sm:h-5 w-4 sm:w-5 border-b-2 border-white"></div>
+                        <span className="hidden sm:inline">Sending...</span>
+                        <span className="sm:hidden">Sending</span>
                       </>
                     ) : (
                       <>
-                        <Send className="h-5 w-5" />
+                        <Send className="h-4 sm:h-5 w-4 sm:w-5" />
                         <span>Send Message</span>
                       </>
                     )}
