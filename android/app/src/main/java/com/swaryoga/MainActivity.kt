@@ -188,10 +188,9 @@ class MainActivity : AppCompatActivity() {
         val data: Uri? = intent.data
         if (data != null && (data.host?.contains("swaryoga.com") == true)) {
             val deepLinkUrl = data.toString()
-            // If domain is bare swaryoga.com, redirect to app.swaryoga.com
+            // Normalize www subdomain to main domain
             val correctedUrl = deepLinkUrl
-                .replace("https://swaryoga.com", "https://app.swaryoga.com")
-                .replace("https://www.swaryoga.com", "https://app.swaryoga.com")
+                .replace("https://www.swaryoga.com", "https://swaryoga.com")
             Log.d(TAG, "Deep link: $correctedUrl")
             webView.loadUrl(correctedUrl)
         }

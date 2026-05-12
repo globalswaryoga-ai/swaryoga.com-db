@@ -34,7 +34,6 @@ class SwarYogaWebViewClient(
     // All Swar Yoga domains
     private val allowedDomains = listOf(
         "swaryoga.com",
-        "app.swaryoga.com",
         "www.swaryoga.com",
         "crm.swaryoga.com"
     )
