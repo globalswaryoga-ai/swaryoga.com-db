@@ -71,17 +71,20 @@ export default function LifePlannerSidebar({ isOpen, onClose }: LifePlannerSideb
     { href: isCrm ? '/admin/crm' : '/', label: 'Home', icon: Home },
     // Keep a dedicated link to open the Life Planner dashboard
     { href: '/life-planner/dashboard', label: 'Life Planner', icon: LayoutDashboard },
-    { href: '/life-planner/dashboard/vision', label: 'Vision Plan', icon: Target },
+
+    // Main Life Planner Hierarchy
+    { href: '/life-planner/dashboard/vision', label: 'Vision', icon: Target },
     { href: '/life-planner/dashboard/action-plan', label: 'Action Plan', icon: Flag },
-
+    { href: '/life-planner/dashboard/goals', label: 'Goals', icon: Target },
     { href: '/life-planner/dashboard/tasks', label: 'Tasks', icon: ListTodo },
-
-
+    { href: '/life-planner/dashboard/todos', label: 'Todos', icon: ListTodo },
     { href: '/life-planner/dashboard/reminders', label: 'Reminders', icon: Bell },
     { href: '/life-planner/dashboard/words', label: 'Words', icon: NotebookPen },
-    { href: '/life-planner/dashboard/notes', label: 'Journal', icon: NotebookPen },
-    { href: '/life-planner/dashboard/vision-download', label: 'Vision Download', icon: Download },
 
+    // Actions
+    { href: '/life-planner/dashboard/vision-download', label: 'Download', icon: Download },
+
+    { href: '/life-planner/dashboard/notes', label: 'Journal', icon: NotebookPen },
     { href: '/life-planner/dashboard/accounting', label: 'Accounting', icon: Calculator },
     { href: '/life-planner/dashboard/events', label: 'Events', icon: Calendar },
     { href: '/life-planner/dashboard/ritucharya', label: 'Ritucharya', icon: Leaf },
@@ -166,8 +169,8 @@ export default function LifePlannerSidebar({ isOpen, onClose }: LifePlannerSideb
         {/* Footer */}
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-white/10 bg-gradient-to-t from-emerald-900/50 to-transparent">
           <div className="text-xs text-emerald-200 mb-3 px-2">
-            <p className="font-semibold text-white">Planner v1</p>
-            <p className="mt-1 opacity-75">Vision → Action → Tasks</p>
+            <p className="font-semibold text-white">Planner v2</p>
+            <p className="mt-1 opacity-75">Vision → Action → Goals → Tasks → Todos</p>
           </div>
 
           <button
