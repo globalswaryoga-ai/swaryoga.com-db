@@ -25,87 +25,94 @@ export default function LifePlannerDashboardLayout({ children }: { children: Rea
       return;
     }
 
-    // Detect if accessed from CRM domain — hide main site navbar
-    const host = window.location.hostname;
-    if (host === 'crm.swaryoga.com' || host.startsWith('crm.')) {
-      setIsCrmAccess(true);
-    }
+    try {
+      // Detect if accessed from CRM domain — hide main site navbar
+      const host = window.location.hostname;
+      if (host === 'crm.swaryoga.com' || host.startsWith('crm.')) {
+        setIsCrmAccess(true);
+      }
 
-    // Life Planner historically used its own keys, but the rest of the app uses the unified session manager
-    // (token/user). Support both so the dashboard reliably opens.
-    const plannerSessionRaw = localStorage.getItem('lifePlannerUser');
-    const plannerToken = localStorage.getItem('lifePlannerToken');
+      // Life Planner historically used its own keys, but the rest of the app uses the unified session manager
+      // (token/user). Support both so the dashboard reliably opens.
+      const plannerSessionRaw = localStorage.getItem('lifePlannerUser');
+      const plannerToken = localStorage.getItem('lifePlannerToken');
 
-    const appToken = localStorage.getItem('token');
-    const appUserRaw = localStorage.getItem('user');
+      const appToken = localStorage.getItem('token');
+      const appUserRaw = localStorage.getItem('user');
 
-    const effectiveToken = plannerToken || appToken;
+      const effectiveToken = plannerToken || appToken;
 
-    // Mirror sessions BOTH ways so website-profile and life-planner profile are always the same.
-    // 1) App -> Life Planner (existing behavior)
+      // Mirror sessions BOTH ways so website-profile and life-planner profile are always the same.
+      // 1) App -> Life Planner (existing behavior)
 
-    // If user has a normal app session, mirror it into Life Planner keys for backward compatibility.
-    // This allows existing life-planner storage code (which reads lifePlannerToken/lifePlannerUser) to work.
-    if (!plannerToken && appToken) {
-      localStorage.setItem('lifePlannerToken', appToken);
-    }
+      // If user has a normal app session, mirror it into Life Planner keys for backward compatibility.
+      // This allows existing life-planner storage code (which reads lifePlannerToken/lifePlannerUser) to work.
+      if (!plannerToken && appToken) {
+        localStorage.setItem('lifePlannerToken', appToken);
+      }
 
-    if (!plannerSessionRaw && appUserRaw) {
-      try {
-        const appUser = JSON.parse(appUserRaw);
-        const email = typeof appUser?.email === 'string' ? appUser.email : '';
-        if (email) {
-          localStorage.setItem('lifePlannerUser', JSON.stringify({ email, createdAt: Date.now() }));
+      if (!plannerSessionRaw && appUserRaw) {
+        try {
+          const appUser = JSON.parse(appUserRaw);
+          const email = typeof appUser?.email === 'string' ? appUser.email : '';
+          if (email) {
+            localStorage.setItem('lifePlannerUser', JSON.stringify({ email, createdAt: Date.now() }));
+          }
+        } catch {
+          // ignore
         }
-      } catch {
-        // ignore
       }
-    }
 
-    // 2) Life Planner -> App (helps "without login" open LP and keeps header/profile consistent)
-    if (!appToken && plannerToken) {
-      localStorage.setItem('token', plannerToken);
-    }
+      // 2) Life Planner -> App (helps "without login" open LP and keeps header/profile consistent)
+      if (!appToken && plannerToken) {
+        localStorage.setItem('token', plannerToken);
+      }
 
-    if (!appUserRaw && plannerSessionRaw) {
-      try {
-        const plannerUser = JSON.parse(plannerSessionRaw);
-        const email = typeof plannerUser?.email === 'string' ? plannerUser.email : '';
-        if (email) {
-          localStorage.setItem('user', JSON.stringify({ email, name: email.split('@')[0] || 'User' }));
+      if (!appUserRaw && plannerSessionRaw) {
+        try {
+          const plannerUser = JSON.parse(plannerSessionRaw);
+          const email = typeof plannerUser?.email === 'string' ? plannerUser.email : '';
+          if (email) {
+            localStorage.setItem('user', JSON.stringify({ email, name: email.split('@')[0] || 'User' }));
+          }
+        } catch {
+          // ignore
         }
-      } catch {
-        // ignore
       }
-    }
 
-    // If the user object is missing (common after migrations or manual clears), rebuild it from
-    // legacy keys so the Life Planner keeps working across refresh.
-    if (!plannerSessionRaw && !appUserRaw) {
-      const legacyEmail = localStorage.getItem('userEmail') || localStorage.getItem('savedEmail') || '';
-      if (legacyEmail && !localStorage.getItem('lifePlannerUser')) {
-        localStorage.setItem('lifePlannerUser', JSON.stringify({ email: legacyEmail, createdAt: Date.now() }));
+      // If the user object is missing (common after migrations or manual clears), rebuild it from
+      // legacy keys so the Life Planner keeps working across refresh.
+      if (!plannerSessionRaw && !appUserRaw) {
+        const legacyEmail = localStorage.getItem('userEmail') || localStorage.getItem('savedEmail') || '';
+        if (legacyEmail && !localStorage.getItem('lifePlannerUser')) {
+          localStorage.setItem('lifePlannerUser', JSON.stringify({ email: legacyEmail, createdAt: Date.now() }));
+        }
+        if (legacyEmail && !localStorage.getItem('user')) {
+          localStorage.setItem('user', JSON.stringify({ email: legacyEmail, name: legacyEmail.split('@')[0] || 'User' }));
+        }
       }
-      if (legacyEmail && !localStorage.getItem('user')) {
-        localStorage.setItem('user', JSON.stringify({ email: legacyEmail, name: legacyEmail.split('@')[0] || 'User' }));
-      }
-    }
 
-    // If no token, redirect to login (token is required for Mongo-backed persistence).
-    // We do NOT require a user object here because the token is the real source of truth.
-    if (!effectiveToken) {
+      // If no token, redirect to login (token is required for Mongo-backed persistence).
+      // We do NOT require a user object here because the token is the real source of truth.
+      if (!effectiveToken) {
+        setIsAuthenticated(false);
+        setIsCheckingAuth(false);
+        // Use replace instead of push to avoid back button issues
+        router.replace('/life-planner/login');
+        return;
+      }
+
+      // Ensure the unified session has an expiry and refresh it on activity.
+      ensureSessionExpiry();
+      extendSession();
+
+      setIsAuthenticated(true);
+      setIsCheckingAuth(false);
+    } catch (error) {
+      console.error('Auth check failed:', error);
       setIsAuthenticated(false);
       setIsCheckingAuth(false);
-      router.push('/life-planner/login');
-      return;
     }
-
-    // Ensure the unified session has an expiry and refresh it on activity.
-    ensureSessionExpiry();
-    extendSession();
-
-    setIsAuthenticated(true);
-    setIsCheckingAuth(false);
   }, [router]);
 
   // Show loading state only while checking auth; don't redirect away immediately
