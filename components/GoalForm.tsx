@@ -312,79 +312,85 @@ const GoalForm: React.FC<GoalFormProps> = ({
           />
 
           {/* Vision Selector - Dropdown if multiple, Auto if single */}
-          {formData.selectedVisionHead && (
-            visionsUnderHead.length === 1 ? (
-              <div className="rounded-lg bg-purple-50 border-2 border-purple-200 p-4">
-                <label className="block text-sm font-semibold text-swar-text mb-3">💡 Vision</label>
-                <div className="px-4 py-3 bg-white border border-swar-border rounded-lg text-swar-text">
-                  {visionsUnderHead[0].title} (Auto - only option)
+          {formData.selectedVisionHead && visionsUnderHead.length > 0 && (
+            <>
+              {visionsUnderHead.length === 1 ? (
+                <div className="rounded-lg bg-purple-50 border-2 border-purple-200 p-4">
+                  <label className="block text-sm font-semibold text-swar-text mb-3">💡 Vision</label>
+                  <div className="px-4 py-3 bg-white border border-swar-border rounded-lg text-swar-text">
+                    {visionsUnderHead[0].title} (Auto - only option)
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <CollapsibleSelect
-                label="💡 Vision"
-                value={formData.visionId}
-                onChange={(value) => {
-                  setFormData(prev => ({
-                    ...prev,
-                    visionId: value,
-                    actionPlanId: '',
-                    milestoneId: '',
-                  }));
-                }}
-                options={visionsUnderHead.map(vision => ({ id: vision.id, title: vision.title }))}
-                placeholder="Choose vision..."
-              />
-            )
+              ) : (
+                <CollapsibleSelect
+                  label="💡 Vision"
+                  value={formData.visionId}
+                  onChange={(value) => {
+                    setFormData(prev => ({
+                      ...prev,
+                      visionId: value,
+                      actionPlanId: '',
+                      milestoneId: '',
+                    }));
+                  }}
+                  options={visionsUnderHead.map(vision => ({ id: vision.id, title: vision.title }))}
+                  placeholder="Choose vision..."
+                />
+              )}
+            </>
           )}
 
           {/* Action Plan Selector - Dropdown if multiple, Auto if single */}
-          {formData.visionId && actionPlans.length > 0 && (
-            actionPlansUnderVision.length === 1 ? (
-              <div className="rounded-lg bg-indigo-50 border-2 border-indigo-200 p-4">
-                <label className="block text-sm font-semibold text-swar-text mb-3">📋 Action Plan (Optional)</label>
-                <div className="px-4 py-3 bg-white border border-swar-border rounded-lg text-swar-text">
-                  {actionPlansUnderVision[0].title} (Auto - only option)
+          {formData.visionId && actionPlans.length > 0 && actionPlansUnderVision.length > 0 && (
+            <>
+              {actionPlansUnderVision.length === 1 ? (
+                <div className="rounded-lg bg-indigo-50 border-2 border-indigo-200 p-4">
+                  <label className="block text-sm font-semibold text-swar-text mb-3">📋 Action Plan (Optional)</label>
+                  <div className="px-4 py-3 bg-white border border-swar-border rounded-lg text-swar-text">
+                    {actionPlansUnderVision[0].title} (Auto - only option)
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <CollapsibleSelect
-                label="📋 Action Plan (Optional)"
-                value={formData.actionPlanId}
-                onChange={(value) => {
-                  setFormData(prev => ({
-                    ...prev,
-                    actionPlanId: value,
-                    milestoneId: '',
-                  }));
-                }}
-                options={actionPlansUnderVision.map(ap => ({ id: ap.id, title: ap.title }))}
-                placeholder="Choose action plan..."
-              />
-            )
+              ) : (
+                <CollapsibleSelect
+                  label="📋 Action Plan (Optional)"
+                  value={formData.actionPlanId}
+                  onChange={(value) => {
+                    setFormData(prev => ({
+                      ...prev,
+                      actionPlanId: value,
+                      milestoneId: '',
+                    }));
+                  }}
+                  options={actionPlansUnderVision.map(ap => ({ id: ap.id, title: ap.title }))}
+                  placeholder="Choose action plan..."
+                />
+              )}
+            </>
           )}
 
           {/* Milestone Selector - Dropdown if multiple, Auto if single */}
           {formData.actionPlanId && milestonesUnderPlan.length > 0 && (
-            milestonesUnderPlan.length === 1 ? (
-              <div className="rounded-lg bg-indigo-50 border-2 border-indigo-200 p-4">
-                <label className="block text-sm font-semibold text-swar-text mb-3">🏁 Milestone (Optional)</label>
-                <div className="px-4 py-3 bg-white border border-swar-border rounded-lg text-swar-text">
-                  Milestone 1: {milestonesUnderPlan[0].title} (Auto)
+            <>
+              {milestonesUnderPlan.length === 1 ? (
+                <div className="rounded-lg bg-indigo-50 border-2 border-indigo-200 p-4">
+                  <label className="block text-sm font-semibold text-swar-text mb-3">🏁 Milestone (Optional)</label>
+                  <div className="px-4 py-3 bg-white border border-swar-border rounded-lg text-swar-text">
+                    Milestone 1: {milestonesUnderPlan[0].title} (Auto)
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <CollapsibleSelect
-                label="🏁 Milestone (Optional)"
-                value={formData.milestoneId}
-                onChange={(value) => setFormData(prev => ({ ...prev, milestoneId: value }))}
-                options={milestonesUnderPlan.map((milestone, index) => ({
-                  id: milestone.id,
-                  title: `Milestone ${index + 1}: ${milestone.title}`
-                }))}
-                placeholder="Choose milestone..."
-              />
-            )
+              ) : (
+                <CollapsibleSelect
+                  label="🏁 Milestone (Optional)"
+                  value={formData.milestoneId}
+                  onChange={(value) => setFormData(prev => ({ ...prev, milestoneId: value }))}
+                  options={milestonesUnderPlan.map((milestone, index) => ({
+                    id: milestone.id,
+                    title: `Milestone ${index + 1}: ${milestone.title}`
+                  }))}
+                  placeholder="Choose milestone..."
+                />
+              )}
+            </>
           )}
         </>
       )}
