@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Trash2, Edit2, Check } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Todo, Task } from '@/lib/types/lifePlanner';
+import { Todo, Task, Vision, ActionPlan, Goal, VISION_CATEGORIES } from '@/lib/types/lifePlanner';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 
 const STATUS_COLORS: Record<string, { text: string; bg: string }> = {
@@ -26,6 +26,9 @@ export default function TodosPage() {
 
   const [todos, setTodos] = useState<Todo[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [visions, setVisions] = useState<Vision[]>([]);
+  const [actionPlans, setActionPlans] = useState<ActionPlan[]>([]);
+  const [goals, setGoals] = useState<Goal[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -39,6 +42,10 @@ export default function TodosPage() {
 
   // Form state
   const [formData, setFormData] = useState({
+    visionHead: '',
+    visionId: '',
+    actionPlanId: '',
+    goalId: '',
     taskId: '',
     title: '',
     description: '',
@@ -54,13 +61,19 @@ export default function TodosPage() {
   useEffect(() => {
     setMounted(true);
     (async () => {
-      const [savedTodos, savedTasks] = await Promise.all([
+      const [savedTodos, savedTasks, savedVisions, savedActionPlans, savedGoals] = await Promise.all([
         lifePlannerStorage.getTodos(),
         lifePlannerStorage.getTasks(),
+        lifePlannerStorage.getVisions(),
+        lifePlannerStorage.getActionPlans(),
+        lifePlannerStorage.getGoals(),
       ]);
 
       setTodos(Array.isArray(savedTodos) ? savedTodos : []);
       setTasks(Array.isArray(savedTasks) ? savedTasks : []);
+      setVisions(Array.isArray(savedVisions) ? savedVisions : []);
+      setActionPlans(Array.isArray(savedActionPlans) ? savedActionPlans : []);
+      setGoals(Array.isArray(savedGoals) ? savedGoals : []);
       setHasLoaded(true);
     })();
   }, []);
@@ -87,6 +100,10 @@ export default function TodosPage() {
   const handleAddTodo = () => {
     setEditingTodo(null);
     setFormData({
+      visionHead: '',
+      visionId: '',
+      actionPlanId: '',
+      goalId: '',
       taskId: '',
       title: '',
       description: '',
@@ -302,19 +319,123 @@ export default function TodosPage() {
               </button>
             </div>
             <div className="p-6 space-y-4">
+              {/* Vision Head Selector */}
+              <div className="rounded-lg bg-blue-50 border-2 border-blue-200 p-3">
+                <label className="block text-sm font-semibold text-swar-text mb-2">📂 Vision Head</label>
+                <select
+                  value={formData.visionHead}
+                  onChange={(e) => setFormData(prev => ({
+                    ...prev,
+                    visionHead: e.target.value,
+                    visionId: '',
+                    actionPlanId: '',
+                    goalId: '',
+                    taskId: '',
+                  }))}
+                  className="w-full px-4 py-2 border border-swar-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Choose a vision head...</option>
+                  {VISION_CATEGORIES.map(head => (
+                    <option key={head} value={head}>{head}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Vision Selector (filtered by head) */}
+              {formData.visionHead && (
+                <div className="rounded-lg bg-purple-50 border-2 border-purple-200 p-3">
+                  <label className="block text-sm font-semibold text-swar-text mb-2">💡 Vision</label>
+                  <select
+                    value={formData.visionId}
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
+                      visionId: e.target.value,
+                      actionPlanId: '',
+                      goalId: '',
+                      taskId: '',
+                    }))}
+                    className="w-full px-4 py-2 border border-swar-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option value="">Choose a vision...</option>
+                    {visions
+                      .filter(v => v.category === formData.visionHead)
+                      .map(v => (
+                        <option key={v.id} value={v.id}>{v.title}</option>
+                      ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Action Plan Selector (filtered by vision) */}
+              {formData.visionId && (
+                <div className="rounded-lg bg-indigo-50 border-2 border-indigo-200 p-3">
+                  <label className="block text-sm font-semibold text-swar-text mb-2">📋 Action Plan</label>
+                  <select
+                    value={formData.actionPlanId}
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
+                      actionPlanId: e.target.value,
+                      goalId: '',
+                      taskId: '',
+                    }))}
+                    className="w-full px-4 py-2 border border-swar-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="">Choose an action plan...</option>
+                    {actionPlans
+                      .filter(ap => ap.visionId === formData.visionId)
+                      .map(ap => (
+                        <option key={ap.id} value={ap.id}>{ap.title}</option>
+                      ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Goal Selector (filtered by action plan) */}
+              {formData.actionPlanId && (
+                <div className="rounded-lg bg-indigo-50 border-2 border-indigo-200 p-3">
+                  <label className="block text-sm font-semibold text-swar-text mb-2">🎯 Goal</label>
+                  <select
+                    value={formData.goalId}
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
+                      goalId: e.target.value,
+                      taskId: '',
+                    }))}
+                    className="w-full px-4 py-2 border border-swar-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="">Choose a goal...</option>
+                    {goals
+                      .filter(g => g.actionPlanId === formData.actionPlanId)
+                      .map(g => (
+                        <option key={g.id} value={g.id}>{g.title}</option>
+                      ))}
+                  </select>
+                </div>
+              )}
+
               {/* Task Selector */}
-              <div>
-                <label className="block text-sm font-semibold text-swar-text mb-2">Task *</label>
+              <div className="rounded-lg bg-green-50 border-2 border-green-200 p-3">
+                <label className="block text-sm font-semibold text-swar-text mb-2">✓ Task *</label>
                 <select
                   name="taskId"
                   value={formData.taskId}
-                  onChange={handleFormChange}
-                  className="w-full px-4 py-2 border border-swar-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={(e) => setFormData(prev => ({
+                    ...prev,
+                    taskId: e.target.value,
+                  }))}
+                  className="w-full px-4 py-2 border border-swar-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                 >
                   <option value="">Select a task...</option>
-                  {tasks.map(t => (
-                    <option key={t.id} value={t.id}>{t.title}</option>
-                  ))}
+                  {formData.goalId
+                    ? tasks
+                        .filter(t => t.goalId === formData.goalId)
+                        .map(t => (
+                          <option key={t.id} value={t.id}>{t.title}</option>
+                        ))
+                    : tasks.map(t => (
+                        <option key={t.id} value={t.id}>{t.title}</option>
+                      ))
+                  }
                 </select>
               </div>
 
