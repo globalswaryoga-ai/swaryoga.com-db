@@ -757,84 +757,228 @@ export default function DailyViewPage() {
         </a>
       </div>
 
-      {/* Health Metrics Summary */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 bg-gradient-to-br from-cyan-50 to-blue-50 rounded-2xl p-4 sm:p-6 border border-cyan-200">
-        {/* Water Intake */}
-        <div className="bg-white rounded-xl p-4 shadow-sm border border-cyan-200">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm font-semibold text-swar-text">💧 Water Intake</p>
-            <span className="text-xs bg-cyan-100 text-cyan-800 rounded-full px-2 py-1 font-bold">
-              {Math.round((sadhanaState.diet.waterLiters / 3) * 100)}%
-            </span>
-          </div>
-          <div className="mb-2">
-            <p className="text-2xl font-bold text-cyan-600">{sadhanaState.diet.waterLiters}</p>
-            <p className="text-xs text-swar-text-secondary">of 3 liters</p>
-          </div>
-          <div className="bg-gray-200 rounded-full h-2 overflow-hidden">
-            <div
-              className="bg-gradient-to-r from-cyan-400 to-blue-500 h-2 rounded-full transition-all"
-              style={{ width: `${Math.min((sadhanaState.diet.waterLiters / 3) * 100, 100)}%` }}
-            />
+      {/* Daily Dashboard Grid */}
+      <div className="grid gap-3 sm:gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+
+        {/* 💧 Water Intake Card */}
+        <div className="bg-white rounded-xl p-4 border border-cyan-200 shadow-sm hover:shadow-md transition">
+          <p className="text-xs font-bold text-cyan-600 mb-3">💧 WATER</p>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-cyan-600 mb-2">{sadhanaState.diet.waterLiters}</div>
+            <p className="text-xs text-swar-text-secondary mb-3">of 3 liters</p>
+            <div className="bg-gray-200 rounded-full h-1.5 mb-3 overflow-hidden">
+              <div
+                className="bg-cyan-500 h-1.5 rounded-full transition-all"
+                style={{ width: `${Math.min((sadhanaState.diet.waterLiters / 3) * 100, 100)}%` }}
+              />
+            </div>
+            <div className="flex gap-2 justify-center">
+              <button
+                onClick={() => setWaterLiters(Math.max(0, sadhanaState.diet.waterLiters - 0.5))}
+                className="px-2 py-1 text-xs rounded bg-gray-100 hover:bg-gray-200 font-bold text-swar-text"
+              >
+                −
+              </button>
+              <button
+                onClick={() => setWaterLiters(sadhanaState.diet.waterLiters + 0.5)}
+                className="px-2 py-1 text-xs rounded bg-cyan-100 hover:bg-cyan-200 font-bold text-cyan-700"
+              >
+                +
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Pranayam */}
-        <div className="bg-white rounded-xl p-4 shadow-sm border border-amber-200">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm font-semibold text-swar-text">🌬️ Pranayam</p>
-            {sadhanaState.morning.find(p => p.name.toLowerCase().includes('pranayama'))?.completed ? (
-              <span className="text-xs bg-green-100 text-green-800 rounded-full px-2 py-1 font-bold">✓ Done</span>
-            ) : (
-              <span className="text-xs bg-amber-100 text-amber-800 rounded-full px-2 py-1 font-bold">Pending</span>
-            )}
-          </div>
-          <p className="text-2xl font-bold text-amber-600">
-            {sadhanaState.morning.find(p => p.name.toLowerCase().includes('pranayama'))?.duration || '-'}
-          </p>
-          <p className="text-xs text-swar-text-secondary">
-            {sadhanaState.morning.find(p => p.name.toLowerCase().includes('pranayama'))?.frequency || 'daily'}
-          </p>
-        </div>
-
-        {/* Meditation */}
-        <div className="bg-white rounded-xl p-4 shadow-sm border border-purple-200">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm font-semibold text-swar-text">🧘 Meditation</p>
-            {sadhanaState.morning.find(p => p.name.toLowerCase().includes('meditation'))?.completed ? (
-              <span className="text-xs bg-green-100 text-green-800 rounded-full px-2 py-1 font-bold">✓ Done</span>
-            ) : (
-              <span className="text-xs bg-purple-100 text-purple-800 rounded-full px-2 py-1 font-bold">Pending</span>
-            )}
-          </div>
-          <p className="text-2xl font-bold text-purple-600">
-            {sadhanaState.morning.find(p => p.name.toLowerCase().includes('meditation'))?.duration || '-'}
-          </p>
-          <p className="text-xs text-swar-text-secondary">
-            {sadhanaState.morning.find(p => p.name.toLowerCase().includes('meditation'))?.frequency || 'daily'}
-          </p>
-        </div>
-
-        {/* Daily Streaks */}
-        <div className="bg-white rounded-xl p-4 shadow-sm border border-rose-200">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm font-semibold text-swar-text">🔥 Daily Stats</p>
-          </div>
-          <div className="flex items-baseline gap-1 mb-2">
-            <p className="text-2xl font-bold text-rose-600">
-              {healthRoutines.filter(r => (Array.isArray((r as any).completedDates) ? (r as any).completedDates : []).includes(today)).length}
+        {/* 🌬️ Pranayam Card */}
+        <div className="bg-white rounded-xl p-4 border border-amber-200 shadow-sm hover:shadow-md transition">
+          <p className="text-xs font-bold text-amber-600 mb-3">🌬️ PRANAYAM</p>
+          <div className="text-center">
+            <div className="text-sm font-bold text-swar-text mb-1">
+              {sadhanaState.morning.find(p => p.name.toLowerCase().includes(‘pranayama’))?.duration || ‘—‘}
+            </div>
+            <p className="text-xs text-swar-text-secondary mb-3">
+              {sadhanaState.morning.find(p => p.name.toLowerCase().includes(‘pranayama’))?.frequency || ‘daily’}
             </p>
-            <span className="text-xs text-swar-text-secondary">routines done</span>
+            <button
+              onClick={() => toggleSadhanaPractice(‘morning’, sadhanaState.morning.find(p => p.name.toLowerCase().includes(‘pranayama’))?.id || ‘’)}
+              className={`w-full px-3 py-2 rounded-lg text-xs font-bold transition ${
+                sadhanaState.morning.find(p => p.name.toLowerCase().includes(‘pranayama’))?.completed
+                  ? ‘bg-green-100 text-green-700’
+                  : ‘bg-amber-100 text-amber-700 hover:bg-amber-200’
+              }`}
+            >
+              {sadhanaState.morning.find(p => p.name.toLowerCase().includes(‘pranayama’))?.completed ? ‘✓ Done’ : ‘Mark Done’}
+            </button>
           </div>
-          <p className="text-xs text-swar-text-secondary">Today's habits completed</p>
+        </div>
+
+        {/* 🧘 Meditation Card */}
+        <div className="bg-white rounded-xl p-4 border border-purple-200 shadow-sm hover:shadow-md transition">
+          <p className="text-xs font-bold text-purple-600 mb-3">🧘 MEDITATION</p>
+          <div className="text-center">
+            <div className="text-sm font-bold text-swar-text mb-1">
+              {sadhanaState.morning.find(p => p.name.toLowerCase().includes(‘meditation’))?.duration || ‘—‘}
+            </div>
+            <p className="text-xs text-swar-text-secondary mb-3">
+              {sadhanaState.morning.find(p => p.name.toLowerCase().includes(‘meditation’))?.frequency || ‘daily’}
+            </p>
+            <button
+              onClick={() => toggleSadhanaPractice(‘morning’, sadhanaState.morning.find(p => p.name.toLowerCase().includes(‘meditation’))?.id || ‘’)}
+              className={`w-full px-3 py-2 rounded-lg text-xs font-bold transition ${
+                sadhanaState.morning.find(p => p.name.toLowerCase().includes(‘meditation’))?.completed
+                  ? ‘bg-green-100 text-green-700’
+                  : ‘bg-purple-100 text-purple-700 hover:bg-purple-200’
+              }`}
+            >
+              {sadhanaState.morning.find(p => p.name.toLowerCase().includes(‘meditation’))?.completed ? ‘✓ Done’ : ‘Mark Done’}
+            </button>
+          </div>
+        </div>
+
+        {/* 🍎 Dryfruits Card */}
+        <div className="bg-white rounded-xl p-4 border border-green-200 shadow-sm hover:shadow-md transition">
+          <p className="text-xs font-bold text-green-600 mb-3">🍎 DRYFRUITS</p>
+          <div className="text-center">
+            <div className="mb-3">
+              <p className={`text-sm font-bold ${
+                sadhanaState.diet.dryFruitsBreakfast === true
+                  ? ‘text-green-700’
+                  : sadhanaState.diet.dryFruitsBreakfast === false
+                  ? ‘text-red-700’
+                  : ‘text-swar-text-secondary’
+              }`}>
+                {sadhanaState.diet.dryFruitsBreakfast === true ? ‘✓ Yes’ : sadhanaState.diet.dryFruitsBreakfast === false ? ‘✗ No’ : ‘—‘}
+              </p>
+            </div>
+            <div className="flex gap-1">
+              <button
+                onClick={() => setDryFruits(true)}
+                className={`flex-1 px-2 py-2 rounded-lg text-xs font-bold transition ${
+                  sadhanaState.diet.dryFruitsBreakfast === true
+                    ? ‘bg-green-600 text-white’
+                    : ‘bg-gray-100 text-swar-text hover:bg-gray-200’
+                }`}
+              >
+                Yes
+              </button>
+              <button
+                onClick={() => setDryFruits(false)}
+                className={`flex-1 px-2 py-2 rounded-lg text-xs font-bold transition ${
+                  sadhanaState.diet.dryFruitsBreakfast === false
+                    ? ‘bg-red-600 text-white’
+                    : ‘bg-gray-100 text-swar-text hover:bg-gray-200’
+                }`}
+              >
+                No
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* 🔥 Daily Stats Card */}
+        <div className="bg-white rounded-xl p-4 border border-rose-200 shadow-sm hover:shadow-md transition">
+          <p className="text-xs font-bold text-rose-600 mb-3">🔥 TODAY</p>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-rose-600 mb-1">
+              {healthRoutines.filter(r => (Array.isArray((r as any).completedDates) ? (r as any).completedDates : []).includes(today)).length}
+            </div>
+            <p className="text-xs text-swar-text-secondary">routines done</p>
+          </div>
+        </div>
+
+        {/* 📋 Workshop Tasks Summary */}
+        <div className="bg-white rounded-xl p-4 border border-blue-200 shadow-sm hover:shadow-md transition">
+          <p className="text-xs font-bold text-blue-600 mb-3">📋 WORKS</p>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-blue-600 mb-1">{workshopTasks.length}</div>
+            <p className="text-xs text-swar-text-secondary mb-3">of {workshopTotalLimit}</p>
+            <a
+              href="#workshop-section"
+              className="text-xs font-bold text-blue-600 hover:text-blue-700"
+            >
+              View
+            </a>
+          </div>
+        </div>
+
+        {/* 🌙 Health Routines Summary */}
+        <div className="bg-white rounded-xl p-4 border border-emerald-200 shadow-sm hover:shadow-md transition">
+          <p className="text-xs font-bold text-emerald-600 mb-3">💪 ROUTINES</p>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-emerald-600 mb-1">{healthRoutines.length}</div>
+            <p className="text-xs text-swar-text-secondary mb-3">total</p>
+            <a
+              href="/life-planner/dashboard/health"
+              className="text-xs font-bold text-emerald-600 hover:text-emerald-700"
+            >
+              Manage
+            </a>
+          </div>
+        </div>
+
+        {/* ☕ Herbal Drinks */}
+        <div className="bg-white rounded-xl p-4 border border-orange-200 shadow-sm hover:shadow-md transition">
+          <p className="text-xs font-bold text-orange-600 mb-3">☕ DRINKS</p>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-orange-600 mb-1">{sadhanaState.diet.herbalDrinks.length}</div>
+            <p className="text-xs text-swar-text-secondary mb-3">added</p>
+            <button
+              onClick={() => {
+                const modal = document.createElement(‘div’);
+                modal.className = ‘fixed inset-0 bg-black/50 flex items-center justify-center z-50’;
+                modal.innerHTML = `
+                  <div class="bg-white rounded-xl p-6 max-w-sm w-full mx-4">
+                    <h3 class="text-lg font-bold mb-4 text-swar-text">Add Herbal Drink</h3>
+                    <input type="text" id="drink-input" placeholder="e.g., Tulsi tea" class="w-full px-4 py-2 border border-swar-border rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                    <div class="flex gap-2">
+                      <button onclick="document.getElementById(‘drink-input’).value=’’; this.closest(‘.fixed’).remove();" class="flex-1 px-4 py-2 rounded-lg bg-gray-100 text-swar-text font-bold hover:bg-gray-200">Cancel</button>
+                      <button id="drink-add-btn" class="flex-1 px-4 py-2 rounded-lg bg-orange-600 text-white font-bold hover:bg-orange-700">Add</button>
+                    </div>
+                  </div>
+                `;
+                document.body.appendChild(modal);
+                const input = modal.querySelector(‘#drink-input’) as HTMLInputElement;
+                const addBtn = modal.querySelector(‘#drink-add-btn’) as HTMLButtonElement;
+                addBtn.onclick = () => {
+                  if (input.value.trim()) {
+                    window.location.reload();
+                  }
+                };
+                modal.onclick = (e) => {
+                  if (e.target === modal) modal.remove();
+                };
+              }}
+              className="text-xs font-bold text-orange-600 hover:text-orange-700"
+            >
+              Add
+            </button>
+          </div>
+        </div>
+
+        {/* 🧘 Morning Sadhana Summary */}
+        <div className="bg-white rounded-xl p-4 border border-purple-200 shadow-sm hover:shadow-md transition">
+          <p className="text-xs font-bold text-purple-600 mb-3">🌅 MORNING</p>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-purple-600 mb-1">{sadhanaState.morning.length}</div>
+            <p className="text-xs text-swar-text-secondary">practices</p>
+          </div>
+        </div>
+
+        {/* 🌙 Evening Sadhana Summary */}
+        <div className="bg-white rounded-xl p-4 border border-indigo-200 shadow-sm hover:shadow-md transition">
+          <p className="text-xs font-bold text-indigo-600 mb-3">🌙 EVENING</p>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-indigo-600 mb-1">{sadhanaState.evening.length}</div>
+            <p className="text-xs text-swar-text-secondary">practices</p>
+          </div>
         </div>
       </div>
 
-      {/* Top 3 Cards with Professional Headers */}
-      <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
-        
+      {/* Full Details Section */}
+      <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3 mt-8">
+
         {/* Card 1: Daily Workshop Planner */}
-        <div className="rounded-2xl sm:rounded-3xl border border-swar-border bg-white overflow-hidden hover:shadow-md transition flex flex-col">
+        <div className="rounded-2xl sm:rounded-3xl border border-swar-border bg-white overflow-hidden hover:shadow-md transition flex flex-col" id="workshop-section">
           <CardHeroHeader
             cardId="workshop"
             badge="PROFESSIONAL"
