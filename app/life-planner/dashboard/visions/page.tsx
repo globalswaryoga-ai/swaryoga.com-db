@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
-import { Plus, X, Edit2, Trash2, Target, CheckSquare, Bell, Calendar, DollarSign } from 'lucide-react';
+import { Plus, X, Edit2, Trash2, Target, CheckSquare, Bell, Calendar, DollarSign, LayoutDashboard } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import VisionForm, { Vision } from '@/components/VisionForm';
 import GoalForm, { Goal } from '@/components/GoalForm';
 
@@ -13,6 +14,7 @@ interface RelatedWork {
 }
 
 export default function VisionPage() {
+  const router = useRouter();
   const [visions, setVisions] = useState<Vision[]>([
     {
       id: '1',
@@ -142,16 +144,25 @@ export default function VisionPage() {
           <h1 className="text-4xl font-bold text-swar-text">🎯 Visions</h1>
           <p className="text-swar-text-secondary mt-2">Define your long-term aspirations and track progress</p>
         </div>
-        <button
-          onClick={() => {
-            setEditingVision(null);
-            setShowVisionForm(true);
-          }}
-          className="flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-semibold"
-        >
-          <Plus size={20} />
-          Add Vision
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => router.push('/life-planner/dashboard/vision-dashboard')}
+            className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
+          >
+            <LayoutDashboard size={20} />
+            Dashboard
+          </button>
+          <button
+            onClick={() => {
+              setEditingVision(null);
+              setShowVisionForm(true);
+            }}
+            className="flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-semibold"
+          >
+            <Plus size={20} />
+            Add Vision
+          </button>
+        </div>
       </div>
 
       {/* Vision Form Modal */}

@@ -31,16 +31,39 @@ interface GoalFormProps {
   initialData?: Goal;
   visions: Vision[];
   actionPlans?: ActionPlan[];
+  parentVisionId?: string; // Auto-populate from parent Vision
+  parentActionPlanId?: string; // Auto-populate from parent Action Plan
+  parentMilestoneId?: string; // Auto-populate from parent Milestone
 }
 
-const GoalForm: React.FC<GoalFormProps> = ({ onSubmit, onCancel, initialData, visions, actionPlans = [] }) => {
+const GoalForm: React.FC<GoalFormProps> = ({
+  onSubmit,
+  onCancel,
+  initialData,
+  visions,
+  actionPlans = [],
+  parentVisionId,
+  parentActionPlanId,
+  parentMilestoneId,
+}) => {
+  // Determine initial state based on parent context or existing data
+  const getInitialVisionHead = () => {
+    if (initialData?.visionId) {
+      return visions.find(v => v.id === initialData.visionId)?.category || '';
+    }
+    if (parentVisionId) {
+      return visions.find(v => v.id === parentVisionId)?.category || '';
+    }
+    return '';
+  };
+
   const [formData, setFormData] = useState({
     title: initialData?.title || '',
     description: initialData?.description || '',
-    selectedVisionHead: initialData?.visionId ? visions.find(v => v.id === initialData.visionId)?.category || '' : '',
-    visionId: initialData?.visionId || '',
-    actionPlanId: initialData?.actionPlanId || '',
-    milestoneId: initialData?.milestoneId || '',
+    selectedVisionHead: getInitialVisionHead(),
+    visionId: initialData?.visionId || parentVisionId || '',
+    actionPlanId: initialData?.actionPlanId || parentActionPlanId || '',
+    milestoneId: initialData?.milestoneId || parentMilestoneId || '',
     startDate: initialData?.startDate || '',
     endDate: initialData?.endDate || '',
     amount: initialData?.amount || '',
@@ -51,6 +74,39 @@ const GoalForm: React.FC<GoalFormProps> = ({ onSubmit, onCancel, initialData, vi
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Auto-select single vision when only one option exists
+  React.useEffect(() => {
+    if (formData.selectedVisionHead && visionsUnderHead.length === 1 && !formData.visionId) {
+      setFormData(prev => ({
+        ...prev,
+        visionId: visionsUnderHead[0].id,
+        actionPlanId: '',
+        milestoneId: '',
+      }));
+    }
+  }, [formData.selectedVisionHead, visionsUnderHead]);
+
+  // Auto-select single action plan when only one option exists
+  React.useEffect(() => {
+    if (formData.visionId && actionPlansUnderVision.length === 1 && !formData.actionPlanId) {
+      setFormData(prev => ({
+        ...prev,
+        actionPlanId: actionPlansUnderVision[0].id,
+        milestoneId: '',
+      }));
+    }
+  }, [formData.visionId, actionPlansUnderVision]);
+
+  // Auto-select single milestone when only one option exists
+  React.useEffect(() => {
+    if (formData.actionPlanId && milestonesUnderPlan.length === 1 && !formData.milestoneId) {
+      setFormData(prev => ({
+        ...prev,
+        milestoneId: milestonesUnderPlan[0].id,
+      }));
+    }
+  }, [formData.actionPlanId, milestonesUnderPlan]);
 
   // Filtered lists
   const visionsUnderHead = formData.selectedVisionHead
@@ -126,106 +182,193 @@ const GoalForm: React.FC<GoalFormProps> = ({ onSubmit, onCancel, initialData, vi
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      {/* Vision Head Selector - First (replaces Category) */}
-      <div className="rounded-lg bg-purple-50 border-2 border-purple-200 p-4">
-        <label className="block text-sm font-semibold text-swar-text mb-3 flex items-center gap-2">
-          🎯 Select Vision Head
-        </label>
-        <select
-          value={formData.selectedVisionHead}
-          onChange={(e) => {
-            setFormData(prev => ({
-              ...prev,
-              selectedVisionHead: e.target.value,
-              visionId: '', // Reset vision when head changes
-              actionPlanId: '',
-              milestoneId: '',
-            }));
-          }}
-          className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
-        >
-          <option value="">Choose a vision head...</option>
-          {VISION_CATEGORIES.map(head => (
-            <option key={head} value={head}>{head}</option>
-          ))}
-        </select>
-      </div>
+      {/* If parent context provided, show auto-filled hierarchy */}
+      {(parentVisionId || parentActionPlanId) && (
+        <>
+          {/* Category (Auto from Vision) */}
+          <div className="rounded-lg bg-blue-50 border-2 border-blue-200 p-3">
+            <label className="block text-sm font-semibold text-swar-text mb-2">📂 Category</label>
+            <div className="px-4 py-2 bg-white border border-swar-border rounded-lg text-swar-text text-sm">
+              {formData.selectedVisionHead} (Auto)
+            </div>
+          </div>
 
-      {/* Vision Selector - Third (filtered by head) */}
-      {formData.selectedVisionHead && (
-        <div className="rounded-lg bg-purple-50 border-2 border-purple-200 p-4">
-          <label className="block text-sm font-semibold text-swar-text mb-3 flex items-center gap-2">
-            💡 Link to Vision
-          </label>
-          <select
-            value={formData.visionId}
-            onChange={(e) => {
-              setFormData(prev => ({
-                ...prev,
-                visionId: e.target.value,
-                actionPlanId: '',
-                milestoneId: '',
-              }));
-            }}
-            className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
-          >
-            <option value="">Choose a vision...</option>
-            {visionsUnderHead.map(vision => (
-              <option key={vision.id} value={vision.id}>{vision.title}</option>
-            ))}
-          </select>
+          {/* Vision (Auto from Context) */}
           {formData.visionId && (
-            <p className="text-sm text-purple-700 mt-2 font-medium">
-              ✓ Linked to: <span className="font-bold">{selectedVision?.title}</span>
-            </p>
+            <div className="rounded-lg bg-purple-50 border-2 border-purple-200 p-3">
+              <label className="block text-sm font-semibold text-swar-text mb-2">💡 Vision</label>
+              <div className="px-4 py-2 bg-white border border-swar-border rounded-lg text-swar-text text-sm">
+                {selectedVision?.title} (Auto)
+              </div>
+            </div>
           )}
-        </div>
+
+          {/* Action Plan (Auto from Context or Dropdown if multiple) */}
+          {formData.visionId && actionPlansUnderVision.length > 0 && (
+            <div className="rounded-lg bg-indigo-50 border-2 border-indigo-200 p-3">
+              <label className="block text-sm font-semibold text-swar-text mb-2">📋 Action Plan</label>
+              {actionPlansUnderVision.length === 1 ? (
+                <div className="px-4 py-2 bg-white border border-swar-border rounded-lg text-swar-text text-sm">
+                  {actionPlansUnderVision[0].title} (Auto - only option)
+                </div>
+              ) : (
+                <select
+                  value={formData.actionPlanId}
+                  onChange={(e) => {
+                    setFormData(prev => ({
+                      ...prev,
+                      actionPlanId: e.target.value,
+                      milestoneId: '',
+                    }));
+                  }}
+                  className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
+                >
+                  <option value="">Choose action plan...</option>
+                  {actionPlansUnderVision.map(ap => (
+                    <option key={ap.id} value={ap.id}>{ap.title}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+
+          {/* Milestone (Dropdown if multiple, Auto if single) */}
+          {formData.actionPlanId && milestonesUnderPlan.length > 0 && (
+            <div className="rounded-lg bg-indigo-50 border-2 border-indigo-200 p-3">
+              <label className="block text-sm font-semibold text-swar-text mb-2">🏁 Milestone</label>
+              {milestonesUnderPlan.length === 1 ? (
+                <div className="px-4 py-2 bg-white border border-swar-border rounded-lg text-swar-text text-sm">
+                  Milestone 1: {milestonesUnderPlan[0].title} (Auto)
+                </div>
+              ) : (
+                <select
+                  value={formData.milestoneId}
+                  onChange={(e) => setFormData(prev => ({ ...prev, milestoneId: e.target.value }))}
+                  className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
+                >
+                  <option value="">Choose milestone...</option>
+                  {milestonesUnderPlan.map((milestone, index) => (
+                    <option key={milestone.id} value={milestone.id}>
+                      Milestone {index + 1}: {milestone.title}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+        </>
       )}
 
-      {/* Action Plan Selector - Fourth (filtered by vision) */}
-      {formData.visionId && actionPlans.length > 0 && (
-        <div className="rounded-lg bg-indigo-50 border-2 border-indigo-200 p-4">
-          <label className="block text-sm font-semibold text-swar-text mb-3 flex items-center gap-2">
-            📋 Link to Action Plan (Optional)
-          </label>
-          <select
-            value={formData.actionPlanId}
-            onChange={(e) => {
-              setFormData(prev => ({
-                ...prev,
-                actionPlanId: e.target.value,
-                milestoneId: '',
-              }));
-            }}
-            className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
-          >
-            <option value="">Choose an action plan...</option>
-            {actionPlansUnderVision.map(ap => (
-              <option key={ap.id} value={ap.id}>{ap.title}</option>
-            ))}
-          </select>
-        </div>
-      )}
+      {/* Manual selection (no parent context) */}
+      {!parentVisionId && !parentActionPlanId && (
+        <>
+          {/* Vision Head Selector */}
+          <div className="rounded-lg bg-blue-50 border-2 border-blue-200 p-4">
+            <label className="block text-sm font-semibold text-swar-text mb-3">🎯 Select Vision Head</label>
+            <select
+              value={formData.selectedVisionHead}
+              onChange={(e) => {
+                setFormData(prev => ({
+                  ...prev,
+                  selectedVisionHead: e.target.value,
+                  visionId: '',
+                  actionPlanId: '',
+                  milestoneId: '',
+                }));
+              }}
+              className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+            >
+              <option value="">Choose vision head...</option>
+              {VISION_CATEGORIES.map(head => (
+                <option key={head} value={head}>{head}</option>
+              ))}
+            </select>
+          </div>
 
-      {/* Milestone Selector - Fifth (filtered by action plan) */}
-      {formData.actionPlanId && milestonesUnderPlan.length > 0 && (
-        <div className="rounded-lg bg-indigo-50 border-2 border-indigo-200 p-4">
-          <label className="block text-sm font-semibold text-swar-text mb-3 flex items-center gap-2">
-            🏁 Link to Milestone (Optional)
-          </label>
-          <select
-            value={formData.milestoneId}
-            onChange={(e) => setFormData(prev => ({ ...prev, milestoneId: e.target.value }))}
-            className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
-          >
-            <option value="">Choose a milestone...</option>
-            {milestonesUnderPlan.map((milestone, index) => (
-              <option key={milestone.id} value={milestone.id}>
-                Milestone {index + 1}: {milestone.title}
-              </option>
-            ))}
-          </select>
-        </div>
+          {/* Vision Selector - Dropdown if multiple, Auto if single */}
+          {formData.selectedVisionHead && (
+            <div className="rounded-lg bg-purple-50 border-2 border-purple-200 p-4">
+              <label className="block text-sm font-semibold text-swar-text mb-3">💡 Link to Vision</label>
+              {visionsUnderHead.length === 1 ? (
+                <div className="px-4 py-2 bg-white border border-swar-border rounded-lg text-swar-text">
+                  {visionsUnderHead[0].title} (Auto - only option)
+                </div>
+              ) : (
+                <select
+                  value={formData.visionId}
+                  onChange={(e) => {
+                    setFormData(prev => ({
+                      ...prev,
+                      visionId: e.target.value,
+                      actionPlanId: '',
+                      milestoneId: '',
+                    }));
+                  }}
+                  className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
+                >
+                  <option value="">Choose vision...</option>
+                  {visionsUnderHead.map(vision => (
+                    <option key={vision.id} value={vision.id}>{vision.title}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+
+          {/* Action Plan Selector - Dropdown if multiple, Auto if single */}
+          {formData.visionId && actionPlans.length > 0 && (
+            <div className="rounded-lg bg-indigo-50 border-2 border-indigo-200 p-4">
+              <label className="block text-sm font-semibold text-swar-text mb-3">📋 Link to Action Plan (Optional)</label>
+              {actionPlansUnderVision.length === 1 ? (
+                <div className="px-4 py-2 bg-white border border-swar-border rounded-lg text-swar-text">
+                  {actionPlansUnderVision[0].title} (Auto - only option)
+                </div>
+              ) : (
+                <select
+                  value={formData.actionPlanId}
+                  onChange={(e) => {
+                    setFormData(prev => ({
+                      ...prev,
+                      actionPlanId: e.target.value,
+                      milestoneId: '',
+                    }));
+                  }}
+                  className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
+                >
+                  <option value="">Choose action plan...</option>
+                  {actionPlansUnderVision.map(ap => (
+                    <option key={ap.id} value={ap.id}>{ap.title}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+
+          {/* Milestone Selector - Dropdown if multiple, Auto if single */}
+          {formData.actionPlanId && milestonesUnderPlan.length > 0 && (
+            <div className="rounded-lg bg-indigo-50 border-2 border-indigo-200 p-4">
+              <label className="block text-sm font-semibold text-swar-text mb-3">🏁 Link to Milestone (Optional)</label>
+              {milestonesUnderPlan.length === 1 ? (
+                <div className="px-4 py-2 bg-white border border-swar-border rounded-lg text-swar-text">
+                  Milestone 1: {milestonesUnderPlan[0].title} (Auto)
+                </div>
+              ) : (
+                <select
+                  value={formData.milestoneId}
+                  onChange={(e) => setFormData(prev => ({ ...prev, milestoneId: e.target.value }))}
+                  className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
+                >
+                  <option value="">Choose milestone...</option>
+                  {milestonesUnderPlan.map((milestone, index) => (
+                    <option key={milestone.id} value={milestone.id}>
+                      Milestone {index + 1}: {milestone.title}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+        </>
       )}
 
       {/* Goal Title */}

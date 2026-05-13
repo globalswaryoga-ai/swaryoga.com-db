@@ -42,6 +42,8 @@ interface TaskModalProps {
   setFormState?: React.Dispatch<React.SetStateAction<TaskFormState>>;
   visionOptionsForHead?: (head: string) => Vision[];
   goalOptionsForVision?: (visionId: string) => GoalOption[];
+  parentVisionId?: string; // Auto-populate from parent Vision
+  parentGoalId?: string; // Auto-populate from parent Goal
 }
 
 const TaskModal: React.FC<TaskModalProps> = ({
@@ -55,6 +57,8 @@ const TaskModal: React.FC<TaskModalProps> = ({
   setFormState: externalSetFormState,
   visionOptionsForHead: externalVisionOptionsForHead,
   goalOptionsForVision: externalGoalOptionsForVision,
+  parentVisionId,
+  parentGoalId,
 }) => {
   const [showImageEditor, setShowImageEditor] = useState(false);
   const [showTodosEditor, setShowTodosEditor] = useState(false);
@@ -63,27 +67,68 @@ const TaskModal: React.FC<TaskModalProps> = ({
   const [newTodoDueDate, setNewTodoDueDate] = useState('');
   const [newTodoDueTime, setNewTodoDueTime] = useState('11:00');
 
+  // Get initial vision head from parent context
+  const getInitialVisionHead = () => {
+    if (editingTask?.visionHead) return editingTask.visionHead;
+    if (parentVisionId) {
+      const vision = visions.find(v => v.id === parentVisionId);
+      return vision?.category ? String(vision.category) : '';
+    }
+    return '';
+  };
+
   // Initialize local form state if not provided
   const [localFormState, setLocalFormState] = useState<TaskFormState>({
-    visionHead: '',
-    visionId: '',
-    goalId: '',
-    title: '',
-    description: '',
-    startDate: '',
-    dueDate: '',
-    timeStart: '',
-    timeEnd: '',
-    place: '',
-    imageUrl: '',
-    status: 'not-started',
-    priority: 'medium',
-    completed: false,
-    todos: [],
+    visionHead: getInitialVisionHead(),
+    visionId: editingTask?.visionId || parentVisionId || '',
+    goalId: editingTask?.goalId || parentGoalId || '',
+    title: editingTask?.title || '',
+    description: editingTask?.description || '',
+    startDate: editingTask?.startDate || '',
+    dueDate: editingTask?.dueDate || '',
+    timeStart: editingTask?.timeStart || '',
+    timeEnd: editingTask?.timeEnd || '',
+    place: editingTask?.place || '',
+    imageUrl: editingTask?.imageUrl || '',
+    status: editingTask?.status || 'not-started',
+    priority: editingTask?.priority || 'medium',
+    completed: editingTask?.completed || false,
+    todos: editingTask?.todos || [],
   });
 
   const formState = externalFormState || localFormState;
   const setFormState = externalSetFormState || setLocalFormState;
+
+  // Auto-select single vision when only one option exists
+  React.useEffect(() => {
+    if (formState.visionHead && !parentVisionId) {
+      const visionsForThisHead = visions.filter((v) =>
+        String(v.category || '').toLowerCase() === formState.visionHead.toLowerCase()
+      );
+      if (visionsForThisHead.length === 1 && !formState.visionId) {
+        setFormState(prev => ({
+          ...prev,
+          visionId: visionsForThisHead[0].id,
+          goalId: '',
+        }));
+      }
+    }
+  }, [formState.visionHead, formState.visionId, parentVisionId, visions, setFormState]);
+
+  // Auto-select single goal when only one option exists
+  React.useEffect(() => {
+    if (formState.visionId && !parentGoalId) {
+      const goalsForVision = goals.filter(g =>
+        g.visionId === formState.visionId
+      );
+      if (goalsForVision.length === 1 && !formState.goalId) {
+        setFormState(prev => ({
+          ...prev,
+          goalId: goalsForVision[0].id,
+        }));
+      }
+    }
+  }, [formState.visionId, formState.goalId, parentGoalId, goals, setFormState]);
 
   const normalizeHead = useCallback((value: unknown): string => {
     const raw = String(value ?? '').trim();
@@ -311,7 +356,32 @@ const TaskModal: React.FC<TaskModalProps> = ({
             </div>
           ) : null}
 
-          {/* Head Selection */}
+          {/* Parent Context Display (if provided) */}
+          {(parentVisionId || parentGoalId) && (
+            <>
+              {parentVisionId && selectedVision && (
+                <div className="rounded-lg bg-purple-50 border-2 border-purple-200 p-3">
+                  <label className="block text-sm font-semibold text-swar-text mb-2">💡 Vision</label>
+                  <div className="px-4 py-2 bg-white border border-swar-border rounded-lg text-swar-text text-sm">
+                    {selectedVision.title} (Auto)
+                  </div>
+                </div>
+              )}
+              {parentGoalId && selectedGoal && (
+                <div className="rounded-lg bg-indigo-50 border-2 border-indigo-200 p-3">
+                  <label className="block text-sm font-semibold text-swar-text mb-2">🎯 Goal</label>
+                  <div className="px-4 py-2 bg-white border border-swar-border rounded-lg text-swar-text text-sm">
+                    {selectedGoal.title} (Auto)
+                  </div>
+                </div>
+              )}
+              <hr className="my-4" />
+            </>
+          )}
+
+          {/* Head Selection (only show if no parent context) */}
+          {!parentVisionId && !parentGoalId && (
+          <>
           <div>
             <label className="block text-sm font-semibold text-swar-text mb-2">
               Head / Category <span className="text-red-500">*</span>
@@ -338,6 +408,10 @@ const TaskModal: React.FC<TaskModalProps> = ({
             {!formState.visionHead ? (
               <div className="px-4 py-2 border border-swar-border rounded-lg bg-swar-bg text-swar-text-secondary">
                 Choose a heading first
+              </div>
+            ) : visionsForHead.length === 1 ? (
+              <div className="px-4 py-2 border border-swar-border rounded-lg bg-blue-50 text-swar-text">
+                {visionsForHead[0].title} (Auto - only option)
               </div>
             ) : (
               <select
@@ -368,6 +442,10 @@ const TaskModal: React.FC<TaskModalProps> = ({
               <div className="px-4 py-2 border border-swar-border rounded-lg bg-swar-bg text-swar-text-secondary">
                 No goals found for this vision
               </div>
+            ) : goalsForVision.length === 1 ? (
+              <div className="px-4 py-2 border border-swar-border rounded-lg bg-blue-50 text-swar-text">
+                {goalsForVision[0].title} (Auto - only option)
+              </div>
             ) : (
               <select
                 value={formState.goalId}
@@ -394,6 +472,8 @@ const TaskModal: React.FC<TaskModalProps> = ({
               </div>
             )}
           </div>
+          </>
+          )}
 
           <hr className="my-4" />
 

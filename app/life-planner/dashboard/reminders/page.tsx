@@ -136,6 +136,39 @@ export default function RemindersPage() {
     save();
   }, [reminders, mounted, hasLoaded]);
 
+  // Auto-select single vision when only one option exists
+  useEffect(() => {
+    if (formData.visionHead && !formData.visionId) {
+      const visionsForHead = visions.filter(v => v.category === formData.visionHead);
+      if (visionsForHead.length === 1) {
+        setFormData(prev => ({
+          ...prev,
+          visionId: visionsForHead[0].id,
+          actionPlanId: '',
+          goalId: '',
+          taskId: '',
+          todoId: '',
+        }));
+      }
+    }
+  }, [formData.visionHead, formData.visionId, visions]);
+
+  // Auto-select single action plan when only one option exists
+  useEffect(() => {
+    if (formData.visionId && !formData.actionPlanId) {
+      const plansForVision = actionPlans.filter(p => p.visionId === formData.visionId);
+      if (plansForVision.length === 1) {
+        setFormData(prev => ({
+          ...prev,
+          actionPlanId: plansForVision[0].id,
+          goalId: '',
+          taskId: '',
+          todoId: '',
+        }));
+      }
+    }
+  }, [formData.visionId, formData.actionPlanId, actionPlans]);
+
   const openCreate = useCallback(() => {
     setShowForm(true);
     setError(null);
@@ -378,14 +411,20 @@ export default function RemindersPage() {
                 return visionsForHead.length > 0 ? (
                   <div>
                     <label className="block text-sm font-medium text-swar-text mb-2">Vision</label>
-                    <select
-                      value={formData.visionId}
-                      onChange={(e) => setFormData({ ...formData, visionId: e.target.value, goalId: '', taskId: '', todoId: '' })}
-                      className="w-full rounded-lg border border-swar-border px-4 py-3 text-swar-text outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200 bg-white"
-                    >
-                      <option value="">Select Vision (optional)</option>
-                      {visionsForHead.map(v => <option key={v.id} value={v.id}>{v.title}</option>)}
-                    </select>
+                    {visionsForHead.length === 1 ? (
+                      <div className="px-4 py-3 bg-blue-50 border border-swar-border rounded-lg text-swar-text">
+                        {visionsForHead[0].title} (Auto - only option)
+                      </div>
+                    ) : (
+                      <select
+                        value={formData.visionId}
+                        onChange={(e) => setFormData({ ...formData, visionId: e.target.value, goalId: '', taskId: '', todoId: '' })}
+                        className="w-full rounded-lg border border-swar-border px-4 py-3 text-swar-text outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200 bg-white"
+                      >
+                        <option value="">Select Vision (optional)</option>
+                        {visionsForHead.map(v => <option key={v.id} value={v.id}>{v.title}</option>)}
+                      </select>
+                    )}
                   </div>
                 ) : null;
               })()}
@@ -396,14 +435,20 @@ export default function RemindersPage() {
                 return plansForVision.length > 0 ? (
                   <div>
                     <label className="block text-sm font-medium text-swar-text mb-2">Action Plan</label>
-                    <select
-                      value={formData.actionPlanId || ''}
-                      onChange={(e) => setFormData({ ...formData, actionPlanId: e.target.value || undefined, goalId: '', taskId: '', todoId: '' })}
-                      className="w-full rounded-lg border border-swar-border px-4 py-3 text-swar-text outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200 bg-white"
-                    >
-                      <option value="">Select Action Plan (optional)</option>
-                      {plansForVision.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
-                    </select>
+                    {plansForVision.length === 1 ? (
+                      <div className="px-4 py-3 bg-blue-50 border border-swar-border rounded-lg text-swar-text">
+                        {plansForVision[0].title} (Auto - only option)
+                      </div>
+                    ) : (
+                      <select
+                        value={formData.actionPlanId || ''}
+                        onChange={(e) => setFormData({ ...formData, actionPlanId: e.target.value || undefined, goalId: '', taskId: '', todoId: '' })}
+                        className="w-full rounded-lg border border-swar-border px-4 py-3 text-swar-text outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200 bg-white"
+                      >
+                        <option value="">Select Action Plan (optional)</option>
+                        {plansForVision.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
+                      </select>
+                    )}
                   </div>
                 ) : null;
               })()}

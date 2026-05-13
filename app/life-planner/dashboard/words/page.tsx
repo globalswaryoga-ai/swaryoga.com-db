@@ -527,6 +527,48 @@ function WordModal({
   const [newTodoDueDate, setNewTodoDueDate] = useState('');
   const [newTodoDueTime, setNewTodoDueTime] = useState('11:00');
 
+  // Auto-select single vision when only one option exists
+  useEffect(() => {
+    if (form.selectedCategory && !form.visionId) {
+      const visionsForCategory = visions.filter(v => v.category === form.selectedCategory);
+      if (visionsForCategory.length === 1) {
+        setForm(prev => ({
+          ...prev,
+          visionId: visionsForCategory[0].id,
+          actionPlanId: '',
+          milestoneId: '',
+        }));
+      }
+    }
+  }, [form.selectedCategory, form.visionId, visions, setForm]);
+
+  // Auto-select single action plan when only one option exists
+  useEffect(() => {
+    if (form.visionId && !form.actionPlanId) {
+      const plansForVision = actionPlans.filter(ap => ap.visionId === form.visionId);
+      if (plansForVision.length === 1) {
+        setForm(prev => ({
+          ...prev,
+          actionPlanId: plansForVision[0].id,
+          milestoneId: '',
+        }));
+      }
+    }
+  }, [form.visionId, form.actionPlanId, actionPlans, setForm]);
+
+  // Auto-select single milestone when only one option exists
+  useEffect(() => {
+    if (form.actionPlanId && !form.milestoneId) {
+      const milestonesForPlan = actionPlans.find(ap => ap.id === form.actionPlanId)?.milestones || [];
+      if (milestonesForPlan.length === 1) {
+        setForm(prev => ({
+          ...prev,
+          milestoneId: milestonesForPlan[0].id,
+        }));
+      }
+    }
+  }, [form.actionPlanId, form.milestoneId, actionPlans, setForm]);
+
   const computedDefaultImageUrl = useMemo(() => {
     if (form.imageUrl?.trim()) return form.imageUrl.trim();
     if (form.selectedCategory?.trim()) return getDefaultCategoryImage(String(form.selectedCategory));
@@ -611,75 +653,96 @@ function WordModal({
         </div>
 
         {/* Vision Selector (filtered by selectedCategory) */}
-        {form.selectedCategory && (
-          <div className="rounded-lg bg-purple-50 border-2 border-purple-200 p-3">
-            <label className="block text-sm font-semibold text-swar-text mb-2">💡 Vision</label>
-            <select
-              value={form.visionId}
-              onChange={(e) => setForm(prev => ({
-                ...prev,
-                visionId: e.target.value,
-                actionPlanId: '',
-                milestoneId: '',
-              }))}
-              className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-            >
-              <option value="">Choose a vision...</option>
-              {visions
-                .filter(v => v.category === form.selectedCategory)
-                .map(v => (
-                  <option key={v.id} value={v.id}>{v.title}</option>
-                ))}
-            </select>
-          </div>
-        )}
+        {form.selectedCategory && (() => {
+          const visionsForCategory = visions.filter(v => v.category === form.selectedCategory);
+          return (
+            <div className="rounded-lg bg-purple-50 border-2 border-purple-200 p-3">
+              <label className="block text-sm font-semibold text-swar-text mb-2">💡 Vision</label>
+              {visionsForCategory.length === 1 ? (
+                <div className="px-4 py-2 bg-white border border-swar-border rounded-lg text-swar-text">
+                  {visionsForCategory[0].title} (Auto - only option)
+                </div>
+              ) : (
+                <select
+                  value={form.visionId}
+                  onChange={(e) => setForm(prev => ({
+                    ...prev,
+                    visionId: e.target.value,
+                    actionPlanId: '',
+                    milestoneId: '',
+                  }))}
+                  className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                >
+                  <option value="">Choose a vision...</option>
+                  {visionsForCategory.map(v => (
+                    <option key={v.id} value={v.id}>{v.title}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Action Plan Selector (filtered by vision) */}
-        {form.visionId && (
-          <div className="rounded-lg bg-indigo-50 border-2 border-indigo-200 p-3">
-            <label className="block text-sm font-semibold text-swar-text mb-2">📋 Action Plan</label>
-            <select
-              value={form.actionPlanId}
-              onChange={(e) => setForm(prev => ({
-                ...prev,
-                actionPlanId: e.target.value,
-                milestoneId: '',
-              }))}
-              className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            >
-              <option value="">Choose an action plan...</option>
-              {actionPlans
-                .filter(ap => ap.visionId === form.visionId)
-                .map(ap => (
-                  <option key={ap.id} value={ap.id}>{ap.title}</option>
-                ))}
-            </select>
-          </div>
-        )}
+        {form.visionId && (() => {
+          const plansForVision = actionPlans.filter(ap => ap.visionId === form.visionId);
+          return (
+            <div className="rounded-lg bg-indigo-50 border-2 border-indigo-200 p-3">
+              <label className="block text-sm font-semibold text-swar-text mb-2">📋 Action Plan</label>
+              {plansForVision.length === 1 ? (
+                <div className="px-4 py-2 bg-white border border-swar-border rounded-lg text-swar-text">
+                  {plansForVision[0].title} (Auto - only option)
+                </div>
+              ) : (
+                <select
+                  value={form.actionPlanId}
+                  onChange={(e) => setForm(prev => ({
+                    ...prev,
+                    actionPlanId: e.target.value,
+                    milestoneId: '',
+                  }))}
+                  className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                >
+                  <option value="">Choose an action plan...</option>
+                  {plansForVision.map(ap => (
+                    <option key={ap.id} value={ap.id}>{ap.title}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Milestone Selector (filtered by action plan) */}
-        {form.actionPlanId && (
-          <div className="rounded-lg bg-indigo-50 border-2 border-indigo-200 p-3">
-            <label className="block text-sm font-semibold text-swar-text mb-2">🏁 Milestone</label>
-            <select
-              value={form.milestoneId}
-              onChange={(e) => setForm(prev => ({
-                ...prev,
-                milestoneId: e.target.value,
-              }))}
-              className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            >
-              <option value="">Choose a milestone...</option>
-              {actionPlans
-                .find(ap => ap.id === form.actionPlanId)
-                ?.milestones?.map((milestone, index) => (
-                  <option key={milestone.id} value={milestone.id}>
-                    Milestone {index + 1}: {milestone.title}
-                  </option>
-                ))}
-            </select>
-          </div>
-        )}
+        {form.actionPlanId && (() => {
+          const milestonesForPlan = actionPlans.find(ap => ap.id === form.actionPlanId)?.milestones || [];
+          return (
+            <div className="rounded-lg bg-indigo-50 border-2 border-indigo-200 p-3">
+              <label className="block text-sm font-semibold text-swar-text mb-2">🏁 Milestone</label>
+              {milestonesForPlan.length === 1 ? (
+                <div className="px-4 py-2 bg-white border border-swar-border rounded-lg text-swar-text">
+                  Milestone 1: {milestonesForPlan[0].title} (Auto - only option)
+                </div>
+              ) : (
+                <select
+                  value={form.milestoneId}
+                  onChange={(e) => setForm(prev => ({
+                    ...prev,
+                    milestoneId: e.target.value,
+                  }))}
+                  className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                >
+                  <option value="">Choose a milestone...</option>
+                  {milestonesForPlan.map((milestone, index) => (
+                    <option key={milestone.id} value={milestone.id}>
+                      Milestone {index + 1}: {milestone.title}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          );
+        })()}
 
         <div>
           <label className="block text-sm font-semibold text-swar-text mb-2">Word Title *</label>

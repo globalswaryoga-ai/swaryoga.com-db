@@ -87,6 +87,64 @@ export default function TodosPage() {
     })();
   }, [todos, mounted, hasLoaded]);
 
+  // Auto-select single vision when only one option exists
+  useEffect(() => {
+    if (formData.visionHead && !formData.visionId) {
+      const visionsForHead = visions.filter(v => v.category === formData.visionHead);
+      if (visionsForHead.length === 1) {
+        setFormData(prev => ({
+          ...prev,
+          visionId: visionsForHead[0].id,
+          actionPlanId: '',
+          goalId: '',
+          taskId: '',
+        }));
+      }
+    }
+  }, [formData.visionHead, formData.visionId, visions]);
+
+  // Auto-select single action plan when only one option exists
+  useEffect(() => {
+    if (formData.visionId && !formData.actionPlanId) {
+      const plansForVision = actionPlans.filter(ap => ap.visionId === formData.visionId);
+      if (plansForVision.length === 1) {
+        setFormData(prev => ({
+          ...prev,
+          actionPlanId: plansForVision[0].id,
+          goalId: '',
+          taskId: '',
+        }));
+      }
+    }
+  }, [formData.visionId, formData.actionPlanId, actionPlans]);
+
+  // Auto-select single goal when only one option exists
+  useEffect(() => {
+    if (formData.actionPlanId && !formData.goalId) {
+      const goalsForPlan = goals.filter(g => g.actionPlanId === formData.actionPlanId);
+      if (goalsForPlan.length === 1) {
+        setFormData(prev => ({
+          ...prev,
+          goalId: goalsForPlan[0].id,
+          taskId: '',
+        }));
+      }
+    }
+  }, [formData.actionPlanId, formData.goalId, goals]);
+
+  // Auto-select single task when only one option exists
+  useEffect(() => {
+    if (formData.goalId && !formData.taskId) {
+      const tasksForGoal = tasks.filter(t => t.goalId === formData.goalId);
+      if (tasksForGoal.length === 1) {
+        setFormData(prev => ({
+          ...prev,
+          taskId: tasksForGoal[0].id,
+        }));
+      }
+    }
+  }, [formData.goalId, formData.taskId, tasks]);
+
   useEffect(() => {
     if (!mounted) return;
     if (didAutoOpen.current) return;
@@ -345,24 +403,31 @@ export default function TodosPage() {
               {formData.visionHead && (
                 <div className="rounded-lg bg-purple-50 border-2 border-purple-200 p-3">
                   <label className="block text-sm font-semibold text-swar-text mb-2">💡 Vision</label>
-                  <select
-                    value={formData.visionId}
-                    onChange={(e) => setFormData(prev => ({
-                      ...prev,
-                      visionId: e.target.value,
-                      actionPlanId: '',
-                      goalId: '',
-                      taskId: '',
-                    }))}
-                    className="w-full px-4 py-2 border border-swar-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  >
-                    <option value="">Choose a vision...</option>
-                    {visions
-                      .filter(v => v.category === formData.visionHead)
-                      .map(v => (
-                        <option key={v.id} value={v.id}>{v.title}</option>
-                      ))}
-                  </select>
+                  {(() => {
+                    const visionsForHead = visions.filter(v => v.category === formData.visionHead);
+                    return visionsForHead.length === 1 ? (
+                      <div className="px-4 py-2 bg-white border border-swar-border rounded-lg text-sm text-swar-text">
+                        {visionsForHead[0].title} (Auto - only option)
+                      </div>
+                    ) : (
+                      <select
+                        value={formData.visionId}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          visionId: e.target.value,
+                          actionPlanId: '',
+                          goalId: '',
+                          taskId: '',
+                        }))}
+                        className="w-full px-4 py-2 border border-swar-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      >
+                        <option value="">Choose a vision...</option>
+                        {visionsForHead.map(v => (
+                          <option key={v.id} value={v.id}>{v.title}</option>
+                        ))}
+                      </select>
+                    );
+                  })()}
                 </div>
               )}
 
@@ -370,23 +435,30 @@ export default function TodosPage() {
               {formData.visionId && (
                 <div className="rounded-lg bg-indigo-50 border-2 border-indigo-200 p-3">
                   <label className="block text-sm font-semibold text-swar-text mb-2">📋 Action Plan</label>
-                  <select
-                    value={formData.actionPlanId}
-                    onChange={(e) => setFormData(prev => ({
-                      ...prev,
-                      actionPlanId: e.target.value,
-                      goalId: '',
-                      taskId: '',
-                    }))}
-                    className="w-full px-4 py-2 border border-swar-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  >
-                    <option value="">Choose an action plan...</option>
-                    {actionPlans
-                      .filter(ap => ap.visionId === formData.visionId)
-                      .map(ap => (
-                        <option key={ap.id} value={ap.id}>{ap.title}</option>
-                      ))}
-                  </select>
+                  {(() => {
+                    const plansForVision = actionPlans.filter(ap => ap.visionId === formData.visionId);
+                    return plansForVision.length === 1 ? (
+                      <div className="px-4 py-2 bg-white border border-swar-border rounded-lg text-sm text-swar-text">
+                        {plansForVision[0].title} (Auto - only option)
+                      </div>
+                    ) : (
+                      <select
+                        value={formData.actionPlanId}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          actionPlanId: e.target.value,
+                          goalId: '',
+                          taskId: '',
+                        }))}
+                        className="w-full px-4 py-2 border border-swar-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      >
+                        <option value="">Choose an action plan...</option>
+                        {plansForVision.map(ap => (
+                          <option key={ap.id} value={ap.id}>{ap.title}</option>
+                        ))}
+                      </select>
+                    );
+                  })()}
                 </div>
               )}
 
@@ -394,49 +466,61 @@ export default function TodosPage() {
               {formData.actionPlanId && (
                 <div className="rounded-lg bg-indigo-50 border-2 border-indigo-200 p-3">
                   <label className="block text-sm font-semibold text-swar-text mb-2">🎯 Goal</label>
-                  <select
-                    value={formData.goalId}
-                    onChange={(e) => setFormData(prev => ({
-                      ...prev,
-                      goalId: e.target.value,
-                      taskId: '',
-                    }))}
-                    className="w-full px-4 py-2 border border-swar-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  >
-                    <option value="">Choose a goal...</option>
-                    {goals
-                      .filter(g => g.actionPlanId === formData.actionPlanId)
-                      .map(g => (
-                        <option key={g.id} value={g.id}>{g.title}</option>
-                      ))}
-                  </select>
+                  {(() => {
+                    const goalsForPlan = goals.filter(g => g.actionPlanId === formData.actionPlanId);
+                    return goalsForPlan.length === 1 ? (
+                      <div className="px-4 py-2 bg-white border border-swar-border rounded-lg text-sm text-swar-text">
+                        {goalsForPlan[0].title} (Auto - only option)
+                      </div>
+                    ) : (
+                      <select
+                        value={formData.goalId}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          goalId: e.target.value,
+                          taskId: '',
+                        }))}
+                        className="w-full px-4 py-2 border border-swar-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      >
+                        <option value="">Choose a goal...</option>
+                        {goalsForPlan.map(g => (
+                          <option key={g.id} value={g.id}>{g.title}</option>
+                        ))}
+                      </select>
+                    );
+                  })()}
                 </div>
               )}
 
               {/* Task Selector */}
               <div className="rounded-lg bg-green-50 border-2 border-green-200 p-3">
                 <label className="block text-sm font-semibold text-swar-text mb-2">✓ Task *</label>
-                <select
-                  name="taskId"
-                  value={formData.taskId}
-                  onChange={(e) => setFormData(prev => ({
-                    ...prev,
-                    taskId: e.target.value,
-                  }))}
-                  className="w-full px-4 py-2 border border-swar-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                >
-                  <option value="">Select a task...</option>
-                  {formData.goalId
-                    ? tasks
-                        .filter(t => t.goalId === formData.goalId)
-                        .map(t => (
-                          <option key={t.id} value={t.id}>{t.title}</option>
-                        ))
-                    : tasks.map(t => (
+                {(() => {
+                  const tasksToShow = formData.goalId
+                    ? tasks.filter(t => t.goalId === formData.goalId)
+                    : tasks;
+
+                  return tasksToShow.length === 1 ? (
+                    <div className="px-4 py-2 bg-white border border-swar-border rounded-lg text-sm text-swar-text">
+                      {tasksToShow[0].title} (Auto - only option)
+                    </div>
+                  ) : (
+                    <select
+                      name="taskId"
+                      value={formData.taskId}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        taskId: e.target.value,
+                      }))}
+                      className="w-full px-4 py-2 border border-swar-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    >
+                      <option value="">Select a task...</option>
+                      {tasksToShow.map(t => (
                         <option key={t.id} value={t.id}>{t.title}</option>
-                      ))
-                  }
-                </select>
+                      ))}
+                    </select>
+                  );
+                })()}
               </div>
 
               {/* Title */}
