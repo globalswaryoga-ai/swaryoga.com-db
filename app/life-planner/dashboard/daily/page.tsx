@@ -794,21 +794,15 @@ export default function DailyViewPage() {
           <p className="text-xs font-bold text-amber-600 mb-3">🌬️ PRANAYAM</p>
           <div className="text-center">
             <div className="text-sm font-bold text-swar-text mb-1">
-              {sadhanaState.morning.find(p => p.name.toLowerCase().includes(‘pranayama’))?.duration || ‘—‘}
+              {sadhanaState.morning.find(p => p.name.toLowerCase().includes(‘pranayama’))?.duration || ‘-’}
             </div>
-            <p className="text-xs text-swar-text-secondary mb-3">
-              {sadhanaState.morning.find(p => p.name.toLowerCase().includes(‘pranayama’))?.frequency || ‘daily’}
-            </p>
-            <button
-              onClick={() => toggleSadhanaPractice(‘morning’, sadhanaState.morning.find(p => p.name.toLowerCase().includes(‘pranayama’))?.id || ‘’)}
-              className={`w-full px-3 py-2 rounded-lg text-xs font-bold transition ${
-                sadhanaState.morning.find(p => p.name.toLowerCase().includes(‘pranayama’))?.completed
-                  ? ‘bg-green-100 text-green-700’
-                  : ‘bg-amber-100 text-amber-700 hover:bg-amber-200’
-              }`}
+            <p className="text-xs text-swar-text-secondary mb-3">daily</p>
+            <a
+              href="/life-planner/dashboard/daily"
+              className="text-xs font-bold text-amber-600 hover:text-amber-700"
             >
-              {sadhanaState.morning.find(p => p.name.toLowerCase().includes(‘pranayama’))?.completed ? ‘✓ Done’ : ‘Mark Done’}
-            </button>
+              View Details
+            </a>
           </div>
         </div>
 
@@ -817,21 +811,15 @@ export default function DailyViewPage() {
           <p className="text-xs font-bold text-purple-600 mb-3">🧘 MEDITATION</p>
           <div className="text-center">
             <div className="text-sm font-bold text-swar-text mb-1">
-              {sadhanaState.morning.find(p => p.name.toLowerCase().includes(‘meditation’))?.duration || ‘—‘}
+              {sadhanaState.morning.find(p => p.name.toLowerCase().includes(‘meditation’))?.duration || ‘-’}
             </div>
-            <p className="text-xs text-swar-text-secondary mb-3">
-              {sadhanaState.morning.find(p => p.name.toLowerCase().includes(‘meditation’))?.frequency || ‘daily’}
-            </p>
-            <button
-              onClick={() => toggleSadhanaPractice(‘morning’, sadhanaState.morning.find(p => p.name.toLowerCase().includes(‘meditation’))?.id || ‘’)}
-              className={`w-full px-3 py-2 rounded-lg text-xs font-bold transition ${
-                sadhanaState.morning.find(p => p.name.toLowerCase().includes(‘meditation’))?.completed
-                  ? ‘bg-green-100 text-green-700’
-                  : ‘bg-purple-100 text-purple-700 hover:bg-purple-200’
-              }`}
+            <p className="text-xs text-swar-text-secondary mb-3">daily</p>
+            <a
+              href="/life-planner/dashboard/daily"
+              className="text-xs font-bold text-purple-600 hover:text-purple-700"
             >
-              {sadhanaState.morning.find(p => p.name.toLowerCase().includes(‘meditation’))?.completed ? ‘✓ Done’ : ‘Mark Done’}
-            </button>
+              View Details
+            </a>
           </div>
         </div>
 
@@ -839,39 +827,15 @@ export default function DailyViewPage() {
         <div className="bg-white rounded-xl p-4 border border-green-200 shadow-sm hover:shadow-md transition">
           <p className="text-xs font-bold text-green-600 mb-3">🍎 DRYFRUITS</p>
           <div className="text-center">
-            <div className="mb-3">
-              <p className={`text-sm font-bold ${
-                sadhanaState.diet.dryFruitsBreakfast === true
-                  ? ‘text-green-700’
-                  : sadhanaState.diet.dryFruitsBreakfast === false
-                  ? ‘text-red-700’
-                  : ‘text-swar-text-secondary’
-              }`}>
-                {sadhanaState.diet.dryFruitsBreakfast === true ? ‘✓ Yes’ : sadhanaState.diet.dryFruitsBreakfast === false ? ‘✗ No’ : ‘—‘}
-              </p>
-            </div>
-            <div className="flex gap-1">
-              <button
-                onClick={() => setDryFruits(true)}
-                className={`flex-1 px-2 py-2 rounded-lg text-xs font-bold transition ${
-                  sadhanaState.diet.dryFruitsBreakfast === true
-                    ? ‘bg-green-600 text-white’
-                    : ‘bg-gray-100 text-swar-text hover:bg-gray-200’
-                }`}
-              >
-                Yes
-              </button>
-              <button
-                onClick={() => setDryFruits(false)}
-                className={`flex-1 px-2 py-2 rounded-lg text-xs font-bold transition ${
-                  sadhanaState.diet.dryFruitsBreakfast === false
-                    ? ‘bg-red-600 text-white’
-                    : ‘bg-gray-100 text-swar-text hover:bg-gray-200’
-                }`}
-              >
-                No
-              </button>
-            </div>
+            <p className="text-sm font-bold text-swar-text mb-3">
+              {sadhanaState.diet.dryFruitsBreakfast === true ? ‘Yes’ : sadhanaState.diet.dryFruitsBreakfast === false ? ‘No’ : ‘-’}
+            </p>
+            <a
+              href="/life-planner/dashboard/daily"
+              className="text-xs font-bold text-green-600 hover:text-green-700"
+            >
+              Edit
+            </a>
           </div>
         </div>
 
