@@ -44,7 +44,6 @@ const GoalForm: React.FC<GoalFormProps> = ({ onSubmit, onCancel, initialData, vi
     startDate: initialData?.startDate || '',
     endDate: initialData?.endDate || '',
     amount: initialData?.amount || '',
-    category: initialData?.category || 'health' as const,
     imageUrl: initialData?.imageUrl || '',
     priority: initialData?.priority || 'medium' as const,
     status: initialData?.status || 'not-started' as const,
@@ -114,7 +113,7 @@ const GoalForm: React.FC<GoalFormProps> = ({ onSubmit, onCancel, initialData, vi
       startDate: formData.startDate,
       endDate: formData.endDate,
       amount: formData.amount,
-      category: formData.category,
+      category: (formData.selectedVisionHead?.toLowerCase().replace(/\s+/g, '-') || 'life') as any,
       imageUrl: formData.imageUrl,
       priority: formData.priority,
       status: formData.status,
@@ -127,26 +126,7 @@ const GoalForm: React.FC<GoalFormProps> = ({ onSubmit, onCancel, initialData, vi
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      {/* Category Selector - First */}
-      <div className="rounded-lg bg-blue-50 border-2 border-blue-200 p-4">
-        <label className="block text-sm font-semibold text-swar-text mb-3 flex items-center gap-2">
-          📂 Select Category *
-        </label>
-        <select
-          name="category"
-          value={formData.category}
-          onChange={handleChange}
-          className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
-        >
-          {VISION_CATEGORIES.map(cat => (
-            <option key={cat} value={cat.toLowerCase().replace(/\s+/g, '-')}>
-              {cat}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Vision Head - Second */}
+      {/* Vision Head Selector - First (replaces Category) */}
       <div className="rounded-lg bg-purple-50 border-2 border-purple-200 p-4">
         <label className="block text-sm font-semibold text-swar-text mb-3 flex items-center gap-2">
           🎯 Select Vision Head
