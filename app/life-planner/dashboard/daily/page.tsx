@@ -129,16 +129,14 @@ export default function DailyViewPage() {
   const [healthHasLoaded, setHealthHasLoaded] = useState(false);
   const [healthError, setHealthError] = useState<string>('');
 
-  const workshopCategories: Array<{ id: WorkshopCategory; label: string; quota: number }> = [
-    { id: 'self', label: 'Self', quota: 1 },
-    { id: 'family', label: 'Family', quota: 1 },
-    { id: 'workStudy', label: 'Work / Study', quota: 6 },
-    { id: 'parents', label: 'Parents', quota: 1 },
-    { id: 'friendsRelatives', label: 'Friends & Relatives', quota: 1 },
-    { id: 'social', label: 'Social', quota: 1 },
+  const workshopCategories: Array<{ id: WorkshopCategory; label: string }> = [
+    { id: 'self', label: 'Self' },
+    { id: 'family', label: 'Family' },
+    { id: 'workStudy', label: 'Work / Study' },
+    { id: 'parents', label: 'Parents' },
+    { id: 'friendsRelatives', label: 'Friends & Relatives' },
+    { id: 'social', label: 'Social' },
   ];
-
-  const workshopTotalLimit = 10;
 
   useEffect(() => {
     setHealthMounted(true);
@@ -450,18 +448,6 @@ export default function DailyViewPage() {
 
     setWorkshopError('');
 
-    if (workshopTasks.length >= workshopTotalLimit) {
-      setWorkshopError(`Daily task limit reached (${workshopTotalLimit}).`);
-      return;
-    }
-
-    const categoryQuota = workshopCategories.find(c => c.id === selectedWorkshopCategory)?.quota ?? 999;
-    const categoryCount = workshopTasks.filter(t => t.category === selectedWorkshopCategory).length;
-    if (categoryCount >= categoryQuota) {
-      setWorkshopError(`Limit reached for ${workshopCategories.find(c => c.id === selectedWorkshopCategory)?.label ?? 'this category'}.`);
-      return;
-    }
-
     const task: WorkshopTask = {
       id: Date.now().toString(),
       category: selectedWorkshopCategory,
@@ -759,12 +745,25 @@ export default function DailyViewPage() {
             cardId="workshop"
             badge="PROFESSIONAL"
             title="Daily Workshop Planner"
-            subtitle={`Total Daily Works: ${workshopTotalLimit} • You’ve added ${workshopTasks.length}/${workshopTotalLimit}`}
+            subtitle={`${workshopTasks.length} tasks added today`}
           />
 
           <div className="p-4 sm:p-6 flex flex-col flex-grow">
             {/* Add Task */}
             <div className="space-y-2">
+              <select
+                value={selectedWorkshopCategory}
+                onChange={(e) => {
+                  setWorkshopError('');
+                  setSelectedWorkshopCategory(e.target.value as WorkshopCategory);
+                }}
+                className="w-full px-3 py-2 rounded-lg border border-swar-border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {workshopCategories.map(cat => (
+                  <option key={cat.id} value={cat.id}>{cat.label}</option>
+                ))}
+              </select>
+
               <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
                 <input
                   type="text"
@@ -787,31 +786,13 @@ export default function DailyViewPage() {
                 </button>
               </div>
 
-              <div className="grid gap-2 sm:grid-cols-[1fr_auto] items-center">
-                <select
-                  value={selectedWorkshopCategory}
-                  onChange={(e) => {
-                    setWorkshopError('');
-                    setSelectedWorkshopCategory(e.target.value as WorkshopCategory);
-                  }}
-                  className="w-full px-3 py-2 rounded-lg border border-swar-border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  {workshopCategories.map(cat => (
-                    <option key={cat.id} value={cat.id}>{cat.label}</option>
-                  ))}
-                </select>
-                <p className="text-xs text-swar-text-secondary text-right">
-                  Max {workshopTotalLimit} / day
-                </p>
-              </div>
-
               {workshopError ? (
                 <p className="text-xs text-red-600">{workshopError}</p>
               ) : null}
             </div>
 
             {/* Category sections */}
-            <div className="mt-4 space-y-4 flex-grow max-h-80 sm:max-h-96 overflow-y-auto">
+            <div className="mt-4 space-y-4 flex-grow overflow-y-auto">
               {workshopCategories.map(cat => {
                 const catTasks = workshopTasks.filter(t => t.category === cat.id);
                 return (
@@ -823,7 +804,7 @@ export default function DailyViewPage() {
                     className="border-l-4 border-blue-400 pl-3"
                   >
                     <h3 className="text-xs font-semibold text-swar-text mb-2">
-                      {cat.label} ({catTasks.length}/{cat.quota})
+                      {cat.label} ({catTasks.length})
                     </h3>
                     {catTasks.length === 0 ? (
                       <p className="text-xs text-swar-text-secondary italic">No tasks added</p>
