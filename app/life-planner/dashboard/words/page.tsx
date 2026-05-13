@@ -4,7 +4,7 @@ import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Plus } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { VISION_CATEGORIES } from '@/lib/types/lifePlanner';
-import type { Word, VisionCategory, MiniTodo } from '@/lib/types/lifePlanner';
+import type { Word, VisionCategory, MiniTodo, Vision, ActionPlan } from '@/lib/types/lifePlanner';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 import { getDefaultCategoryImage } from '@/lib/visionCategoryImages';
 import LifePlannerImageUpload from '@/components/LifePlannerImageUpload';
@@ -30,6 +30,9 @@ type WordFormState = {
   title: string;
   description: string;
   category: VisionCategory | '';
+  visionId: string;
+  actionPlanId: string;
+  milestoneId: string;
   imageUrl: string;
   startDate: string;
   endDate: string;
@@ -48,6 +51,9 @@ const emptyWordForm = (): WordFormState => ({
   title: '',
   description: '',
   category: '',
+  visionId: '',
+  actionPlanId: '',
+  milestoneId: '',
   imageUrl: '',
   startDate: todayIso(),
   endDate: '',
@@ -104,6 +110,8 @@ export default function WordsPage() {
   const didAutoOpen = useRef(false);
 
   const [words, setWords] = useState<Word[]>([]);
+  const [visions, setVisions] = useState<Vision[]>([]);
+  const [actionPlans, setActionPlans] = useState<ActionPlan[]>([]);
   const [mounted, setMounted] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -122,8 +130,14 @@ export default function WordsPage() {
     setMounted(true);
     (async () => {
       try {
-        const saved = await lifePlannerStorage.getWords();
+        const [saved, savedVisions, savedActionPlans] = await Promise.all([
+          lifePlannerStorage.getWords(),
+          lifePlannerStorage.getVisions(),
+          lifePlannerStorage.getActionPlans(),
+        ]);
         setWords(Array.isArray(saved) ? saved : []);
+        setVisions(Array.isArray(savedVisions) ? savedVisions : []);
+        setActionPlans(Array.isArray(savedActionPlans) ? savedActionPlans : []);
         setHasLoaded(true);
       } catch (error) {
         console.error('Error loading words:', error);
@@ -475,6 +489,8 @@ export default function WordsPage() {
             setForm={setForm}
             onSave={handleSave}
             onClose={closeForm}
+            visions={visions}
+            actionPlans={actionPlans}
           />
         </div>
       )}
@@ -488,12 +504,16 @@ function WordModal({
   setForm,
   onSave,
   onClose,
+  visions,
+  actionPlans,
 }: {
   editingId: string | null;
   form: WordFormState;
   setForm: React.Dispatch<React.SetStateAction<WordFormState>>;
   onSave: () => void;
   onClose: () => void;
+  visions: Vision[];
+  actionPlans: ActionPlan[];
 }) {
   const [showImageEditor, setShowImageEditor] = useState(false);
   const [showTodosEditor, setShowTodosEditor] = useState(false);
@@ -562,11 +582,17 @@ function WordModal({
       </div>
 
       <div className="p-6 space-y-5">
-        <div>
-          <label className="block text-sm font-semibold text-swar-text mb-2">Head / Category *</label>
+        <div className="rounded-lg bg-blue-50 border-2 border-blue-200 p-3">
+          <label className="block text-sm font-semibold text-swar-text mb-2">📂 Head / Category *</label>
           <select
             value={form.category}
-            onChange={(e) => setForm(prev => ({ ...prev, category: e.target.value as any }))}
+            onChange={(e) => setForm(prev => ({
+              ...prev,
+              category: e.target.value as any,
+              visionId: '',
+              actionPlanId: '',
+              milestoneId: '',
+            }))}
             className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="">Select a head...</option>
@@ -577,6 +603,77 @@ function WordModal({
             ))}
           </select>
         </div>
+
+        {/* Vision Selector (filtered by category) */}
+        {form.category && (
+          <div className="rounded-lg bg-purple-50 border-2 border-purple-200 p-3">
+            <label className="block text-sm font-semibold text-swar-text mb-2">💡 Vision</label>
+            <select
+              value={form.visionId}
+              onChange={(e) => setForm(prev => ({
+                ...prev,
+                visionId: e.target.value,
+                actionPlanId: '',
+                milestoneId: '',
+              }))}
+              className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            >
+              <option value="">Choose a vision...</option>
+              {visions
+                .filter(v => v.category === form.category)
+                .map(v => (
+                  <option key={v.id} value={v.id}>{v.title}</option>
+                ))}
+            </select>
+          </div>
+        )}
+
+        {/* Action Plan Selector (filtered by vision) */}
+        {form.visionId && (
+          <div className="rounded-lg bg-indigo-50 border-2 border-indigo-200 p-3">
+            <label className="block text-sm font-semibold text-swar-text mb-2">📋 Action Plan</label>
+            <select
+              value={form.actionPlanId}
+              onChange={(e) => setForm(prev => ({
+                ...prev,
+                actionPlanId: e.target.value,
+                milestoneId: '',
+              }))}
+              className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            >
+              <option value="">Choose an action plan...</option>
+              {actionPlans
+                .filter(ap => ap.visionId === form.visionId)
+                .map(ap => (
+                  <option key={ap.id} value={ap.id}>{ap.title}</option>
+                ))}
+            </select>
+          </div>
+        )}
+
+        {/* Milestone Selector (filtered by action plan) */}
+        {form.actionPlanId && (
+          <div className="rounded-lg bg-indigo-50 border-2 border-indigo-200 p-3">
+            <label className="block text-sm font-semibold text-swar-text mb-2">🏁 Milestone</label>
+            <select
+              value={form.milestoneId}
+              onChange={(e) => setForm(prev => ({
+                ...prev,
+                milestoneId: e.target.value,
+              }))}
+              className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            >
+              <option value="">Choose a milestone...</option>
+              {actionPlans
+                .find(ap => ap.id === form.actionPlanId)
+                ?.milestones?.map((milestone, index) => (
+                  <option key={milestone.id} value={milestone.id}>
+                    Milestone {index + 1}: {milestone.title}
+                  </option>
+                ))}
+            </select>
+          </div>
+        )}
 
         <div>
           <label className="block text-sm font-semibold text-swar-text mb-2">Word Title *</label>
