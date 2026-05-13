@@ -886,7 +886,7 @@ export default function HealthPage() {
         {/* Header (Diamond-style) */}
         <div className="flex items-center justify-between mb-8 gap-4 flex-wrap">
           <div>
-            <h1 className="text-3xl sm:text-4xl font-bold text-swar-text mb-2">Health Planner</h1>
+            <h1 className="text-3xl sm:text-4xl font-bold text-swar-text mb-2">💪 Health Planner</h1>
             <p className="text-swar-text-secondary">Daily routine + food plan checklist. Track progress month-wise using the watch icon.</p>
           </div>
           <div className="flex items-center gap-2">
@@ -923,6 +923,40 @@ export default function HealthPage() {
             >
               Routines
             </button>
+          </div>
+        </div>
+
+        {/* Health Summary Dashboard */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <div className="rounded-2xl border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 to-emerald-100 p-5">
+            <p className="text-sm font-bold text-swar-text-secondary mb-2">TODAY'S COMPLETION</p>
+            <div className="text-3xl font-black text-emerald-700 mb-2">
+              {routines.filter(r => {
+                const completed = Array.isArray(r.completedDates) ? r.completedDates : [];
+                return completed.includes(iso(new Date()));
+              }).length}
+            </div>
+            <p className="text-xs text-swar-text-secondary">of {routines.length} routines done</p>
+          </div>
+
+          <div className="rounded-2xl border-2 border-orange-200 bg-gradient-to-br from-orange-50 to-orange-100 p-5">
+            <p className="text-sm font-bold text-swar-text-secondary mb-2">BEST STREAK</p>
+            <div className="text-3xl font-black text-orange-700 mb-2">
+              {Math.max(...routines.map((r: any) => Number(r?.streak) || 0), 0)}
+            </div>
+            <p className="text-xs text-swar-text-secondary">consecutive days</p>
+          </div>
+
+          <div className="rounded-2xl border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100 p-5">
+            <p className="text-sm font-bold text-swar-text-secondary mb-2">TOTAL ROUTINES</p>
+            <div className="text-3xl font-black text-blue-700 mb-2">{routines.length}</div>
+            <p className="text-xs text-swar-text-secondary">active habits</p>
+          </div>
+
+          <div className="rounded-2xl border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-purple-100 p-5">
+            <p className="text-sm font-bold text-swar-text-secondary mb-2">CATEGORIES</p>
+            <div className="text-3xl font-black text-purple-700 mb-2">{categories.length}</div>
+            <p className="text-xs text-swar-text-secondary">habit types</p>
           </div>
         </div>
 
