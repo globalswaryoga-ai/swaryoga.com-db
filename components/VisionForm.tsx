@@ -29,7 +29,11 @@ const VisionForm: React.FC<VisionFormProps> = ({ onSubmit, onCancel, initialData
     targetDate: initialData?.targetDate || '',
     amount: initialData?.amount || '',
     category: initialData?.category || 'life' as const,
-    imageUrl: initialData?.imageUrl || ''
+    imageUrl: initialData?.imageUrl || '',
+    date: initialData?.date || '',
+    time: initialData?.time || '',
+    place: initialData?.place || '',
+    completed: initialData?.completed || false
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -51,20 +55,21 @@ const VisionForm: React.FC<VisionFormProps> = ({ onSubmit, onCancel, initialData
   }, []);
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    
+    const { name, value, type } = e.target;
+    const targetValue = type === 'checkbox' ? (e.target as HTMLInputElement).checked : value;
+
     // Auto-populate imageUrl when category changes
     if (name === 'category') {
       const category = value as 'life' | 'health' | 'wealth' | 'success' | 'respect' | 'pleasure' | 'prosperity' | 'luxuries' | 'good-habits' | 'self-sadhana';
-      setFormData(prev => ({ 
-        ...prev, 
+      setFormData(prev => ({
+        ...prev,
         category,
         imageUrl: getCategoryImageUrl(category) // Auto-set image URL based on category
       }));
     } else {
-      setFormData(prev => ({ ...prev, [name]: value }));
+      setFormData(prev => ({ ...prev, [name]: targetValue }));
     }
-    
+
     // Clear error for this field when user starts typing
     if (errors[name]) {
       setErrors(prev => {
@@ -100,8 +105,11 @@ const VisionForm: React.FC<VisionFormProps> = ({ onSubmit, onCancel, initialData
       amount: formData.amount,
       category: formData.category,
       imageUrl: formData.imageUrl,
+      date: formData.date,
+      time: formData.time,
+      place: formData.place,
       createdAt: initialData?.createdAt || new Date().toISOString(),
-      completed: initialData?.completed || false
+      completed: formData.completed
     };
 
     onSubmit(visionData);
@@ -217,6 +225,44 @@ const VisionForm: React.FC<VisionFormProps> = ({ onSubmit, onCancel, initialData
         </div>
       </div>
 
+      {/* Date, Time & Place */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div>
+          <label className="block text-sm font-semibold text-swar-text mb-2 flex items-center gap-2">
+            <Calendar size={18} className="text-blue-600" />
+            Date
+          </label>
+          <input
+            type="date"
+            name="date"
+            value={formData.date}
+            onChange={handleChange}
+            className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-swar-text mb-2">Time</label>
+          <input
+            type="time"
+            name="time"
+            value={formData.time}
+            onChange={handleChange}
+            className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-swar-text mb-2">Place</label>
+          <input
+            type="text"
+            name="place"
+            value={formData.place}
+            onChange={handleChange}
+            className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
+            placeholder="e.g., Home, Office, Gym"
+          />
+        </div>
+      </div>
+
       {/* Target Date & Amount Grid */}
       <div className="grid grid-cols-2 gap-4">
         <div>
@@ -283,6 +329,21 @@ const VisionForm: React.FC<VisionFormProps> = ({ onSubmit, onCancel, initialData
             />
           </div>
         )}
+      </div>
+
+      {/* Completed Checkbox */}
+      <div className="flex items-center gap-3 px-4 py-3 bg-swar-bg rounded-lg">
+        <input
+          type="checkbox"
+          id="completed"
+          name="completed"
+          checked={formData.completed}
+          onChange={handleChange}
+          className="w-5 h-5 rounded border-2 border-swar-border cursor-pointer"
+        />
+        <label htmlFor="completed" className="text-sm font-medium text-swar-text cursor-pointer">
+          Mark as Completed
+        </label>
       </div>
 
       {/* Form Actions */}

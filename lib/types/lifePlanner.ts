@@ -21,9 +21,11 @@ export interface Vision {
   progress?: number;
   startDate?: string;
   endDate?: string;
+  date?: string;
   time?: string;
   place?: string;
   budget?: number;
+  completed: boolean;
   milestones?: Milestone[];
   reminders?: Reminder[];
   goals?: Goal[];
@@ -126,6 +128,8 @@ export interface Goal {
   id: string;
   title: string;
   visionId: string;
+  actionPlanId?: string;
+  milestoneId?: string;
   description?: string;
   priority: 'low' | 'medium' | 'high';
   status: 'not-started' | 'in-progress' | 'completed' | 'on-hold';
@@ -134,6 +138,7 @@ export interface Goal {
   budget?: number;
   progress?: number;
   imageUrl?: string;
+  completed: boolean;
   milestones?: Array<{
     id: string;
     title: string;
@@ -150,6 +155,7 @@ export interface Reminder {
   description?: string;
   // Linkage (optional)
   visionId?: string;
+  actionPlanId?: string;
   goalId?: string;
   taskId?: string;
   todoId?: string;
@@ -180,6 +186,7 @@ export interface Reminder {
 export interface Word {
   id: string;
   title: string;
+  visionId?: string;
   description?: string;
   // Legacy/alternate field name used in some dashboards
   content?: string;
@@ -200,6 +207,7 @@ export interface Word {
   // Repeat / Frequency (expanded)
   frequency?: 'once' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
   customDays?: number;
+  completed: boolean;
   todos?: MiniTodo[];
   createdAt: string;
   updatedAt: string;

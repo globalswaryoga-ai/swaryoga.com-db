@@ -33,6 +33,7 @@ export default function ActionPlanModal({
   const [workingHoursEnd, setWorkingHoursEnd] = useState('11:00');
   const [place, setPlace] = useState('');
   const [expectedAmount, setExpectedAmount] = useState(0);
+  const [completed, setCompleted] = useState(false);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [goals, setGoals] = useState<ActionPlanGoal[]>([]);
   const [todos, setTodos] = useState<MiniTodo[]>([]);
@@ -61,6 +62,7 @@ export default function ActionPlanModal({
       setWorkingHoursEnd(editingPlan.workingHoursEnd || '11:00');
       setPlace(editingPlan.place || '');
       setExpectedAmount(editingPlan.expectedAmount || 0);
+      setCompleted(editingPlan.completed || false);
       setMilestones(editingPlan.milestones || []);
       setGoals(editingPlan.goals || []);
       setTodos(editingPlan.todos || []);
@@ -82,6 +84,7 @@ export default function ActionPlanModal({
     setWorkingHoursEnd('11:00');
     setPlace('');
     setExpectedAmount(0);
+    setCompleted(false);
     setMilestones([]);
     setGoals([]);
     setTodos([]);
@@ -214,6 +217,7 @@ export default function ActionPlanModal({
       todos,
       status: editingPlan?.status || 'not-started',
       progress: editingPlan?.progress || 0,
+      completed: completed,
       createdAt: editingPlan?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -233,6 +237,7 @@ export default function ActionPlanModal({
     setWorkingHoursEnd('11:00');
     setPlace('');
     setExpectedAmount(0);
+    setCompleted(false);
     setMilestones([]);
     setGoals([]);
     setTodos([]);
@@ -448,6 +453,20 @@ export default function ActionPlanModal({
 
 
 
+
+          {/* Completed Checkbox */}
+          <div className="flex items-center gap-3 px-4 py-3 bg-swar-bg rounded-lg">
+            <input
+              type="checkbox"
+              id="completed"
+              checked={completed}
+              onChange={e => setCompleted(e.target.checked)}
+              className="w-5 h-5 rounded border-2 border-swar-border cursor-pointer"
+            />
+            <label htmlFor="completed" className="text-sm font-medium text-swar-text cursor-pointer">
+              Mark as Completed
+            </label>
+          </div>
 
           {/* Action Buttons */}
           <div className="flex gap-4 border-t-2 pt-6">
