@@ -3,6 +3,8 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { Calendar, DollarSign, Image, Flag } from 'lucide-react';
 import LifePlannerImageUpload from '@/components/LifePlannerImageUpload';
+import { VISION_CATEGORIES } from '@/lib/types/lifePlanner';
+import type { Vision, ActionPlan, Milestone } from '@/lib/types/lifePlanner';
 
 export interface Goal {
   id: string;
@@ -10,6 +12,8 @@ export interface Goal {
   description: string;
   visionId?: string; // Link to parent vision
   visionTitle?: string; // Display vision title
+  actionPlanId?: string; // Link to action plan
+  milestoneId?: string; // Link to milestone
   startDate: string;
   endDate: string;
   amount: string;
@@ -25,14 +29,18 @@ interface GoalFormProps {
   onSubmit: (goalData: Goal) => void;
   onCancel: () => void;
   initialData?: Goal;
-  visions: Array<{ id: string; title: string }>;
+  visions: Vision[];
+  actionPlans?: ActionPlan[];
 }
 
-const GoalForm: React.FC<GoalFormProps> = ({ onSubmit, onCancel, initialData, visions }) => {
+const GoalForm: React.FC<GoalFormProps> = ({ onSubmit, onCancel, initialData, visions, actionPlans = [] }) => {
   const [formData, setFormData] = useState({
     title: initialData?.title || '',
     description: initialData?.description || '',
+    selectedVisionHead: initialData?.visionId ? visions.find(v => v.id === initialData.visionId)?.category || '' : '',
     visionId: initialData?.visionId || '',
+    actionPlanId: initialData?.actionPlanId || '',
+    milestoneId: initialData?.milestoneId || '',
     startDate: initialData?.startDate || '',
     endDate: initialData?.endDate || '',
     amount: initialData?.amount || '',
@@ -44,6 +52,21 @@ const GoalForm: React.FC<GoalFormProps> = ({ onSubmit, onCancel, initialData, vi
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Filtered lists
+  const visionsUnderHead = formData.selectedVisionHead
+    ? visions.filter(v => v.category === formData.selectedVisionHead)
+    : [];
+
+  const actionPlansUnderVision = formData.visionId
+    ? actionPlans.filter(ap => ap.visionId === formData.visionId)
+    : [];
+
+  const milestonesUnderPlan = formData.actionPlanId
+    ? actionPlans.find(ap => ap.id === formData.actionPlanId)?.milestones || []
+    : [];
+
+  const selectedVision = visions.find(v => v.id === formData.visionId);
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -67,26 +90,27 @@ const GoalForm: React.FC<GoalFormProps> = ({ onSubmit, onCancel, initialData, vi
 
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const newErrors: Record<string, string> = {};
     if (!formData.title.trim()) newErrors.title = 'Goal title is required';
     if (!formData.description.trim()) newErrors.description = 'Description is required';
     if (!formData.startDate) newErrors.startDate = 'Start date is required';
     if (!formData.endDate) newErrors.endDate = 'End date is required';
     if (formData.startDate > formData.endDate) newErrors.dates = 'End date must be after start date';
-    
+
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       return;
     }
 
-    const selectedVision = visions.find(v => v.id === formData.visionId);
     const goalData: Goal = {
       id: initialData?.id || Date.now().toString(),
       title: formData.title.trim(),
       description: formData.description.trim(),
       visionId: formData.visionId || undefined,
       visionTitle: selectedVision?.title || undefined,
+      actionPlanId: formData.actionPlanId || undefined,
+      milestoneId: formData.milestoneId || undefined,
       startDate: formData.startDate,
       endDate: formData.endDate,
       amount: formData.amount,
@@ -99,32 +123,128 @@ const GoalForm: React.FC<GoalFormProps> = ({ onSubmit, onCancel, initialData, vi
     };
 
     onSubmit(goalData);
-  }, [formData, initialData, onSubmit, visions]);
+  }, [formData, initialData, onSubmit, selectedVision]);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      {/* Parent Vision */}
-      {visions.length > 0 && (
-        <div className="rounded-lg bg-purple-50 border-2 border-purple-200 p-3">
-          <label className="block text-sm font-semibold text-swar-text mb-2 flex items-center gap-2">
-            🎯 Link to Vision (Optional)
+      {/* Category Selector - First */}
+      <div className="rounded-lg bg-blue-50 border-2 border-blue-200 p-4">
+        <label className="block text-sm font-semibold text-swar-text mb-3 flex items-center gap-2">
+          📂 Select Category *
+        </label>
+        <select
+          name="category"
+          value={formData.category}
+          onChange={handleChange}
+          className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+        >
+          {VISION_CATEGORIES.map(cat => (
+            <option key={cat} value={cat.toLowerCase().replace(/\s+/g, '-')}>
+              {cat}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Vision Head - Second */}
+      <div className="rounded-lg bg-purple-50 border-2 border-purple-200 p-4">
+        <label className="block text-sm font-semibold text-swar-text mb-3 flex items-center gap-2">
+          🎯 Select Vision Head
+        </label>
+        <select
+          value={formData.selectedVisionHead}
+          onChange={(e) => {
+            setFormData(prev => ({
+              ...prev,
+              selectedVisionHead: e.target.value,
+              visionId: '', // Reset vision when head changes
+              actionPlanId: '',
+              milestoneId: '',
+            }));
+          }}
+          className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
+        >
+          <option value="">Choose a vision head...</option>
+          {VISION_CATEGORIES.map(head => (
+            <option key={head} value={head}>{head}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Vision Selector - Third (filtered by head) */}
+      {formData.selectedVisionHead && (
+        <div className="rounded-lg bg-purple-50 border-2 border-purple-200 p-4">
+          <label className="block text-sm font-semibold text-swar-text mb-3 flex items-center gap-2">
+            💡 Link to Vision
           </label>
           <select
-            name="visionId"
             value={formData.visionId}
-            onChange={handleChange}
+            onChange={(e) => {
+              setFormData(prev => ({
+                ...prev,
+                visionId: e.target.value,
+                actionPlanId: '',
+                milestoneId: '',
+              }));
+            }}
             className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
           >
-            <option value="">-- No parent vision --</option>
-            {visions.map(vision => (
+            <option value="">Choose a vision...</option>
+            {visionsUnderHead.map(vision => (
               <option key={vision.id} value={vision.id}>{vision.title}</option>
             ))}
           </select>
           {formData.visionId && (
             <p className="text-sm text-purple-700 mt-2 font-medium">
-              ✓ Goal linked to: <span className="font-bold">{visions.find(v => v.id === formData.visionId)?.title}</span>
+              ✓ Linked to: <span className="font-bold">{selectedVision?.title}</span>
             </p>
           )}
+        </div>
+      )}
+
+      {/* Action Plan Selector - Fourth (filtered by vision) */}
+      {formData.visionId && actionPlans.length > 0 && (
+        <div className="rounded-lg bg-indigo-50 border-2 border-indigo-200 p-4">
+          <label className="block text-sm font-semibold text-swar-text mb-3 flex items-center gap-2">
+            📋 Link to Action Plan (Optional)
+          </label>
+          <select
+            value={formData.actionPlanId}
+            onChange={(e) => {
+              setFormData(prev => ({
+                ...prev,
+                actionPlanId: e.target.value,
+                milestoneId: '',
+              }));
+            }}
+            className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
+          >
+            <option value="">Choose an action plan...</option>
+            {actionPlansUnderVision.map(ap => (
+              <option key={ap.id} value={ap.id}>{ap.title}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* Milestone Selector - Fifth (filtered by action plan) */}
+      {formData.actionPlanId && milestonesUnderPlan.length > 0 && (
+        <div className="rounded-lg bg-indigo-50 border-2 border-indigo-200 p-4">
+          <label className="block text-sm font-semibold text-swar-text mb-3 flex items-center gap-2">
+            🏁 Link to Milestone (Optional)
+          </label>
+          <select
+            value={formData.milestoneId}
+            onChange={(e) => setFormData(prev => ({ ...prev, milestoneId: e.target.value }))}
+            className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
+          >
+            <option value="">Choose a milestone...</option>
+            {milestonesUnderPlan.map((milestone, index) => (
+              <option key={milestone.id} value={milestone.id}>
+                Milestone {index + 1}: {milestone.title}
+              </option>
+            ))}
+          </select>
         </div>
       )}
 
@@ -166,32 +286,8 @@ const GoalForm: React.FC<GoalFormProps> = ({ onSubmit, onCancel, initialData, vi
         {errors.description && <p className="text-red-600 text-xs mt-1">{errors.description}</p>}
       </div>
 
-      {/* Category & Priority Grid */}
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-semibold text-swar-text mb-2 flex items-center gap-2">
-            <Flag size={18} className="text-blue-600" />
-            Category
-          </label>
-          <select
-            name="category"
-            value={formData.category}
-            onChange={handleChange}
-            className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
-          >
-            <option value="life">🌍 Life</option>
-            <option value="health">💪 Health</option>
-            <option value="wealth">💰 Wealth</option>
-            <option value="success">🏆 Success</option>
-            <option value="respect">👑 Respect</option>
-            <option value="pleasure">� Pleasure</option>
-            <option value="prosperity">✨ Prosperity</option>
-            <option value="luxuries">💎 Luxuries</option>
-            <option value="good-habits">🌟 Good Habits</option>
-            <option value="self-sadhana">🧘 Self Sadhana</option>
-          </select>
-        </div>
-
+      {/* Status Grid */}
+      <div className="grid grid-cols-1 gap-4">
         <div>
           <label className="block text-sm font-semibold text-swar-text mb-2">
             Status

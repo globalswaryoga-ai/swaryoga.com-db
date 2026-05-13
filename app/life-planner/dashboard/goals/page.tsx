@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Trash2, Edit2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Goal, Vision } from '@/lib/types/lifePlanner';
+import { Goal, Vision, ActionPlan } from '@/lib/types/lifePlanner';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 import GoalForm from '@/components/GoalForm';
 import { CATEGORY_COLORS, MONTHS } from '@/lib/lifePlannerConstants';
@@ -22,6 +22,7 @@ export default function GoalsPage() {
 
   const [goals, setGoals] = useState<Goal[]>([]);
   const [visions, setVisions] = useState<Vision[]>([]);
+  const [actionPlans, setActionPlans] = useState<ActionPlan[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -36,13 +37,15 @@ export default function GoalsPage() {
   useEffect(() => {
     setMounted(true);
     (async () => {
-      const [savedGoals, savedVisions] = await Promise.all([
+      const [savedGoals, savedVisions, savedActionPlans] = await Promise.all([
         lifePlannerStorage.getGoals(),
         lifePlannerStorage.getVisions(),
+        lifePlannerStorage.getActionPlans(),
       ]);
 
       setGoals(Array.isArray(savedGoals) ? savedGoals : []);
       setVisions(Array.isArray(savedVisions) ? savedVisions : []);
+      setActionPlans(Array.isArray(savedActionPlans) ? savedActionPlans : []);
       setHasLoaded(true);
     })();
   }, []);
@@ -217,6 +220,7 @@ export default function GoalsPage() {
                 onCancel={() => setIsModalOpen(false)}
                 initialData={editingGoal || undefined}
                 visions={visions}
+                actionPlans={actionPlans}
               />
             </div>
           </div>
