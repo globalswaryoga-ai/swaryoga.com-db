@@ -11,6 +11,7 @@ interface ActionPlanModalProps {
   onSave: (actionPlan: ActionPlan) => void;
   visions: Vision[];
   editingPlan?: ActionPlan;
+  parentVisionId?: string; // Auto-populate from parent Vision
 }
 
 export default function ActionPlanModal({
@@ -19,6 +20,7 @@ export default function ActionPlanModal({
   onSave,
   visions,
   editingPlan,
+  parentVisionId,
 }: ActionPlanModalProps) {
   const today = useMemo(() => new Date().toISOString().split('T')[0], []);
 
@@ -62,7 +64,28 @@ export default function ActionPlanModal({
       return;
     }
 
-    // Create mode defaults
+    // Create mode - check if parentVisionId provided (auto-populate from parent)
+    if (parentVisionId) {
+      const parentVision = visions.find(v => v.id === parentVisionId);
+      if (parentVision) {
+        setSelectedVisionId(parentVisionId);
+        setSelectedVisionHead(String(parentVision.category) || '');
+        setTitle('');
+        setDescription('');
+        setStartDate(today);
+        setEndDate(today);
+        setWorkingHoursStart('11:00');
+        setWorkingHoursEnd('11:00');
+        setPlace('');
+        setExpectedAmount(0);
+        setImageUrl('');
+        setCompleted(false);
+        setMilestones([]);
+        return;
+      }
+    }
+
+    // Create mode defaults (no parent context)
     setSelectedVisionHead('');
     setSelectedVisionId('');
     setTitle('');
@@ -76,12 +99,19 @@ export default function ActionPlanModal({
     setImageUrl('');
     setCompleted(false);
     setMilestones([]);
-  }, [isOpen, editingPlan, visions, today]);
+  }, [isOpen, editingPlan, visions, today, parentVisionId]);
   
   // Filter visions by selected head
   const visionsUnderHead = selectedVisionHead
     ? visions.filter(v => v.category === selectedVisionHead)
     : [];
+
+  // Auto-select vision if only one exists under selected head
+  useEffect(() => {
+    if (visionsUnderHead.length === 1 && !selectedVisionId && !parentVisionId) {
+      setSelectedVisionId(visionsUnderHead[0].id);
+    }
+  }, [visionsUnderHead, selectedVisionId, parentVisionId]);
 
   const handleAddMilestone = () => {
     const newMilestone: Milestone = {
@@ -172,50 +202,83 @@ export default function ActionPlanModal({
         </div>
 
         <div className="p-6 space-y-6">
-          {/* Vision Head Selection - First Level */}
-          <div>
-            <label className="block text-sm font-semibold text-swar-text mb-2">
-              Select Vision Plan Head *
-            </label>
-            <select
-              value={selectedVisionHead}
-              onChange={e => {
-                setSelectedVisionHead(e.target.value);
-                setSelectedVisionId(''); // Reset vision when head changes
-              }}
-              className="w-full px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-blue-500"
-            >
-              <option value="">Choose a vision head...</option>
-              {VISION_CATEGORIES.map(head => (
-                <option key={head} value={head}>
-                  {head}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* If parentVisionId provided, show auto-filled info */}
+          {parentVisionId && selectedVision ? (
+            <>
+              {/* Category (Auto-filled) */}
+              <div className="rounded-lg bg-blue-50 border-2 border-blue-200 p-4">
+                <label className="block text-sm font-semibold text-swar-text mb-2">📂 Category</label>
+                <div className="px-4 py-2 bg-white border border-swar-border rounded-lg text-swar-text">
+                  {selectedVisionHead} (Auto - linked to Vision)
+                </div>
+              </div>
 
-          {/* Vision Selection - Second Level */}
-          <div>
-            <label className="block text-sm font-semibold text-swar-text mb-2">
-              Select Vision Plan *
-            </label>
-            {selectedVisionHead ? (
-              <select
-                value={selectedVisionId}
-                onChange={e => setSelectedVisionId(e.target.value)}
-                className="w-full px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-blue-500"
-              >
-                <option value="">Choose a vision...</option>
-                {visionsUnderHead.map(vision => (
-                  <option key={vision.id} value={vision.id}>
-                    {vision.title}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <p className="text-sm text-swar-text-secondary italic">Please select a vision head first</p>
-            )}
-          </div>
+              {/* Vision (Auto-filled) */}
+              <div className="rounded-lg bg-purple-50 border-2 border-purple-200 p-4">
+                <label className="block text-sm font-semibold text-swar-text mb-2">💡 Vision</label>
+                <div className="px-4 py-2 bg-white border border-swar-border rounded-lg text-swar-text">
+                  {selectedVision.title} (Auto - parent context)
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Vision Head Selection - Manual (when no parent) */}
+              <div>
+                <label className="block text-sm font-semibold text-swar-text mb-2">
+                  Select Vision Plan Head *
+                </label>
+                <select
+                  value={selectedVisionHead}
+                  onChange={e => {
+                    setSelectedVisionHead(e.target.value);
+                    setSelectedVisionId(''); // Reset vision when head changes
+                  }}
+                  className="w-full px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-blue-500"
+                >
+                  <option value="">Choose a vision head...</option>
+                  {VISION_CATEGORIES.map(head => (
+                    <option key={head} value={head}>
+                      {head}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Vision Selection - Show dropdown if multiple visions, text if single */}
+              <div>
+                <label className="block text-sm font-semibold text-swar-text mb-2">
+                  Select Vision Plan *
+                </label>
+                {selectedVisionHead ? (
+                  visionsUnderHead.length === 1 ? (
+                    // If only 1 vision, show as auto-filled text
+                    <div className="px-4 py-2 bg-swar-bg border border-swar-border rounded-lg text-swar-text">
+                      {visionsUnderHead[0].title} (Auto - only option)
+                    </div>
+                  ) : visionsUnderHead.length > 1 ? (
+                    // If multiple visions, show dropdown
+                    <select
+                      value={selectedVisionId}
+                      onChange={e => setSelectedVisionId(e.target.value)}
+                      className="w-full px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="">Choose a vision...</option>
+                      {visionsUnderHead.map(vision => (
+                        <option key={vision.id} value={vision.id}>
+                          {vision.title}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <p className="text-sm text-swar-text-secondary italic">No visions found under this category</p>
+                  )
+                ) : (
+                  <p className="text-sm text-swar-text-secondary italic">Please select a vision head first</p>
+                )}
+              </div>
+            </>
+          )}
 
           {/* Vision Image Preview */}
           {selectedVision && (
