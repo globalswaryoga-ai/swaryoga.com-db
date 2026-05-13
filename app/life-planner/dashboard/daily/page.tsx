@@ -922,36 +922,12 @@ export default function DailyViewPage() {
           <div className="text-center">
             <div className="text-2xl font-bold text-orange-600 mb-1">{sadhanaState.diet.herbalDrinks.length}</div>
             <p className="text-xs text-swar-text-secondary mb-3">added</p>
-            <button
-              onClick={() => {
-                const modal = document.createElement(‘div’);
-                modal.className = ‘fixed inset-0 bg-black/50 flex items-center justify-center z-50’;
-                modal.innerHTML = `
-                  <div class="bg-white rounded-xl p-6 max-w-sm w-full mx-4">
-                    <h3 class="text-lg font-bold mb-4 text-swar-text">Add Herbal Drink</h3>
-                    <input type="text" id="drink-input" placeholder="e.g., Tulsi tea" class="w-full px-4 py-2 border border-swar-border rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-orange-500" />
-                    <div class="flex gap-2">
-                      <button onclick="document.getElementById(‘drink-input’).value=’’; this.closest(‘.fixed’).remove();" class="flex-1 px-4 py-2 rounded-lg bg-gray-100 text-swar-text font-bold hover:bg-gray-200">Cancel</button>
-                      <button id="drink-add-btn" class="flex-1 px-4 py-2 rounded-lg bg-orange-600 text-white font-bold hover:bg-orange-700">Add</button>
-                    </div>
-                  </div>
-                `;
-                document.body.appendChild(modal);
-                const input = modal.querySelector(‘#drink-input’) as HTMLInputElement;
-                const addBtn = modal.querySelector(‘#drink-add-btn’) as HTMLButtonElement;
-                addBtn.onclick = () => {
-                  if (input.value.trim()) {
-                    window.location.reload();
-                  }
-                };
-                modal.onclick = (e) => {
-                  if (e.target === modal) modal.remove();
-                };
-              }}
+            <a
+              href="/life-planner/dashboard/daily"
               className="text-xs font-bold text-orange-600 hover:text-orange-700"
             >
-              Add
-            </button>
+              View Details
+            </a>
           </div>
         </div>
 
