@@ -395,6 +395,7 @@ interface ExpandedVisionDetailsProps {
 
 function ExpandedVisionDetails({ data }: ExpandedVisionDetailsProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['actionPlans']));
+  const [completedItems, setCompletedItems] = useState<Set<string>>(new Set());
 
   const toggleSection = (section: string) => {
     const newSet = new Set(expandedSections);
@@ -406,13 +407,48 @@ function ExpandedVisionDetails({ data }: ExpandedVisionDetailsProps) {
     setExpandedSections(newSet);
   };
 
+  const toggleItemCompletion = async (itemType: string, itemId: string, item: any) => {
+    const key = `${itemType}-${itemId}`;
+    const isCompleted = completedItems.has(key);
+    const newCompletedSet = new Set(completedItems);
+
+    if (isCompleted) {
+      newCompletedSet.delete(key);
+    } else {
+      newCompletedSet.add(key);
+    }
+
+    setCompletedItems(newCompletedSet);
+
+    // Save to database
+    try {
+      const updatedItem = { ...item, completed: !isCompleted, updatedAt: new Date().toISOString() };
+
+      if (itemType === 'actionPlans') {
+        await lifePlannerStorage.saveActionPlans(data.actionPlans.map(ap => ap.id === itemId ? updatedItem : ap));
+      } else if (itemType === 'goals') {
+        await lifePlannerStorage.saveGoals(data.goals.map(g => g.id === itemId ? updatedItem : g));
+      } else if (itemType === 'tasks') {
+        await lifePlannerStorage.saveTasks(data.tasks.map(t => t.id === itemId ? updatedItem : t));
+      } else if (itemType === 'todos') {
+        await lifePlannerStorage.saveTodos(data.todos.map(t => t.id === itemId ? updatedItem : t));
+      } else if (itemType === 'reminders') {
+        await lifePlannerStorage.saveReminders(data.reminders.map(r => r.id === itemId ? updatedItem : r));
+      } else if (itemType === 'words') {
+        await lifePlannerStorage.saveWords(data.words.map(w => w.id === itemId ? updatedItem : w));
+      }
+    } catch (error) {
+      console.error('Error updating item completion:', error);
+    }
+  };
+
   const sections = [
-    { id: 'actionPlans', label: '📋 Action Plans', items: data.actionPlans, property: 'title' },
-    { id: 'goals', label: '🎯 Goals', items: data.goals, property: 'title' },
-    { id: 'tasks', label: '✓ Tasks', items: data.tasks, property: 'title' },
-    { id: 'todos', label: '☐ Todos', items: data.todos, property: 'title' },
-    { id: 'reminders', label: '🔔 Reminders', items: data.reminders, property: 'title' },
-    { id: 'words', label: '✨ Words', items: data.words, property: 'title' },
+    { id: 'actionPlans', label: '📋 Action Plans', items: data.actionPlans, type: 'actionPlans', property: 'title' },
+    { id: 'goals', label: '🎯 Goals', items: data.goals, type: 'goals', property: 'title' },
+    { id: 'tasks', label: '✓ Tasks', items: data.tasks, type: 'tasks', property: 'title' },
+    { id: 'todos', label: '☐ Todos', items: data.todos, type: 'todos', property: 'title' },
+    { id: 'reminders', label: '🔔 Reminders', items: data.reminders, type: 'reminders', property: 'title' },
+    { id: 'words', label: '✨ Words', items: data.words, type: 'words', property: 'title' },
   ];
 
   return (
@@ -437,12 +473,29 @@ function ExpandedVisionDetails({ data }: ExpandedVisionDetailsProps) {
 
             {expandedSections.has(section.id) && section.items.length > 0 && (
               <div className="mt-1 pl-4 space-y-1">
-                {section.items.slice(0, 5).map((item: any) => (
-                  <div key={item.id} className="flex items-center gap-2 text-xs py-1" style={{ color: '#CCCCCC' }}>
-                    <span>•</span>
-                    <span>{item[section.property] || item.name || 'Untitled'}</span>
-                  </div>
-                ))}
+                {section.items.slice(0, 5).map((item: any) => {
+                  const itemKey = `${section.type}-${item.id}`;
+                  const isCompleted = completedItems.has(itemKey) || item.completed;
+                  const itemName = item[section.property] || item.name || 'Untitled';
+
+                  return (
+                    <div key={item.id} className="flex items-center gap-2 text-xs py-1" style={{ color: '#CCCCCC' }}>
+                      <button
+                        onClick={() => toggleItemCompletion(section.type, item.id, item)}
+                        className="flex-shrink-0 transition-all"
+                      >
+                        {isCompleted ? (
+                          <CheckCircle2 size={16} style={{ color: '#00FF00' }} />
+                        ) : (
+                          <Circle size={16} style={{ color: '#FFFFFF' }} />
+                        )}
+                      </button>
+                      <span style={{ textDecoration: isCompleted ? 'line-through' : 'none', opacity: isCompleted ? 0.6 : 1 }}>
+                        {itemName}
+                      </span>
+                    </div>
+                  );
+                })}
                 {section.items.length > 5 && (
                   <p className="text-xs" style={{ color: '#999999' }}>
                     +{section.items.length - 5} more
