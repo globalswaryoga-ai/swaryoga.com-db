@@ -814,7 +814,10 @@ export default function DailyViewPage() {
 
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-semibold text-swar-text-secondary">Health Routines</p>
-              <a href="/life-planner/dashboard/health-routines" className="text-xs font-semibold text-green-700 hover:text-green-800">Open</a>
+              <a href="/life-planner/dashboard/health-routines" className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 transition text-xs font-semibold">
+                <Plus size={14} />
+                Add
+              </a>
             </div>
 
             {healthError ? (
@@ -1143,127 +1146,6 @@ export default function DailyViewPage() {
                     })}
                   </div>
                 )}
-              </div>
-
-              {/* Diet */}
-              <div className="pt-1">
-                <h3 className="text-sm font-bold text-swar-text mb-2">My Diet</h3>
-
-                <div className="rounded-xl border border-swar-border p-3 space-y-3">
-                  {/* Water */}
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-swar-text">Water</p>
-                      <p className="text-xs text-swar-text-secondary">Add in liters</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setWaterLiters(Math.max(0, (sadhanaState.diet.waterLiters || 0) - 0.5))}
-                        className="h-9 w-9 rounded-lg border border-swar-border hover:bg-gray-50 text-swar-text-secondary"
-                        title="Minus 0.5L"
-                      >
-                        −
-                      </button>
-                      <div className="min-w-[84px] text-center">
-                        <div className="text-sm font-bold text-swar-text">{(sadhanaState.diet.waterLiters || 0).toFixed(1)} L</div>
-                        <div className="text-[11px] text-swar-text-secondary">today</div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setWaterLiters((sadhanaState.diet.waterLiters || 0) + 0.5)}
-                        className="h-9 w-9 rounded-lg border border-swar-border hover:bg-gray-50 text-swar-text-secondary"
-                        title="Add 0.5L"
-                      >
-                        +
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Dryfruits */}
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-swar-text">Dryfruits Breakfast</p>
-                      <p className="text-xs text-swar-text-secondary">Yes / No</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setDryFruits(true)}
-                        className={`px-4 py-2 rounded-lg text-sm font-semibold border transition ${
-                          sadhanaState.diet.dryFruitsBreakfast === true
-                            ? 'bg-emerald-600 text-white border-emerald-600'
-                            : 'bg-white text-swar-text border-swar-border hover:bg-gray-50'
-                        }`}
-                      >
-                        Yes
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDryFruits(false)}
-                        className={`px-4 py-2 rounded-lg text-sm font-semibold border transition ${
-                          sadhanaState.diet.dryFruitsBreakfast === false
-                            ? 'bg-red-600 text-white border-red-600'
-                            : 'bg-white text-swar-text border-swar-border hover:bg-gray-50'
-                        }`}
-                      >
-                        No
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Herbal Drink */}
-                  <div>
-                    <div className="flex items-center justify-between gap-3 mb-2">
-                      <div>
-                        <p className="text-sm font-semibold text-swar-text">Today’s Herbal Drink</p>
-                        <p className="text-xs text-swar-text-secondary">Add and track</p>
-                      </div>
-                    </div>
-                    <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
-                      <input
-                        value={herbalInput}
-                        onChange={(e) => setHerbalInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            addHerbalDrink();
-                          }
-                        }}
-                        placeholder="Example: Tulsi tea"
-                        className="w-full px-3 py-2 rounded-lg border border-swar-border text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                      />
-                      <button
-                        type="button"
-                        onClick={addHerbalDrink}
-                        className="rounded-lg bg-purple-600 text-white px-4 py-2 hover:bg-purple-700 transition text-sm font-semibold inline-flex items-center justify-center gap-2"
-                      >
-                        <Plus size={16} />
-                        Add
-                      </button>
-                    </div>
-
-                    {sadhanaState.diet.herbalDrinks.length === 0 ? (
-                      <p className="text-xs text-swar-text-secondary italic mt-2">No herbal drink added today.</p>
-                    ) : (
-                      <ul className="mt-2 space-y-1.5">
-                        {sadhanaState.diet.herbalDrinks.map((drink, idx) => (
-                          <li key={`${drink}-${idx}`} className="flex items-center justify-between gap-2 rounded-lg border border-swar-border px-3 py-2">
-                            <span className="text-sm text-swar-text truncate">{drink}</span>
-                            <button
-                              type="button"
-                              onClick={() => deleteHerbalDrink(idx)}
-                              className="p-1.5 rounded hover:bg-red-50 text-red-600"
-                              title="Delete"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                </div>
               </div>
             </div>
           </div>
