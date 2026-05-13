@@ -3,27 +3,8 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { Calendar, DollarSign, Image, Flag } from 'lucide-react';
 import LifePlannerImageUpload from '@/components/LifePlannerImageUpload';
-import { VISION_CATEGORIES } from '@/lib/types/lifePlanner';
+import { VISION_CATEGORIES, Goal } from '@/lib/types/lifePlanner';
 import type { Vision, ActionPlan, Milestone } from '@/lib/types/lifePlanner';
-
-export interface Goal {
-  id: string;
-  title: string;
-  description: string;
-  visionId?: string; // Link to parent vision
-  visionTitle?: string; // Display vision title
-  actionPlanId?: string; // Link to action plan
-  milestoneId?: string; // Link to milestone
-  startDate: string;
-  endDate: string;
-  amount: string;
-  category: 'life' | 'health' | 'wealth' | 'success' | 'respect' | 'pleasure' | 'prosperity' | 'luxuries' | 'good-habits' | 'self-sadhana';
-  imageUrl: string;
-  createdAt: string;
-  completed: boolean;
-  priority: 'high' | 'medium' | 'low';
-  status?: 'not-started' | 'in-progress' | 'completed' | 'on-hold' | 'cancelled';
-}
 
 interface GoalFormProps {
   onSubmit: (goalData: Goal) => void;
@@ -31,9 +12,9 @@ interface GoalFormProps {
   initialData?: Goal;
   visions: Vision[];
   actionPlans?: ActionPlan[];
-  parentVisionId?: string; // Auto-populate from parent Vision
-  parentActionPlanId?: string; // Auto-populate from parent Action Plan
-  parentMilestoneId?: string; // Auto-populate from parent Milestone
+  parentVisionId?: string;
+  parentActionPlanId?: string;
+  parentMilestoneId?: string;
 }
 
 const GoalForm: React.FC<GoalFormProps> = ({
@@ -65,12 +46,12 @@ const GoalForm: React.FC<GoalFormProps> = ({
     actionPlanId: initialData?.actionPlanId || parentActionPlanId || '',
     milestoneId: initialData?.milestoneId || parentMilestoneId || '',
     startDate: initialData?.startDate || '',
-    endDate: initialData?.endDate || '',
-    amount: initialData?.amount || '',
+    targetDate: initialData?.targetDate || '',
+    budget: initialData?.budget?.toString() || '',
     imageUrl: initialData?.imageUrl || '',
     priority: initialData?.priority || 'medium' as const,
     status: initialData?.status || 'not-started' as const,
-    completed: initialData?.completed || false
+    completed: initialData?.completed || false,
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -137,10 +118,10 @@ const GoalForm: React.FC<GoalFormProps> = ({
   }, [errors]);
 
   const isFormValid = useMemo(() => {
-    return formData.title.trim().length > 0 && 
+    return formData.title.trim().length > 0 &&
            formData.description.trim().length > 0 &&
            formData.startDate &&
-           formData.endDate;
+           formData.targetDate;
   }, [formData]);
 
   const handleSubmit = useCallback((e: React.FormEvent) => {
@@ -150,8 +131,8 @@ const GoalForm: React.FC<GoalFormProps> = ({
     if (!formData.title.trim()) newErrors.title = 'Goal title is required';
     if (!formData.description.trim()) newErrors.description = 'Description is required';
     if (!formData.startDate) newErrors.startDate = 'Start date is required';
-    if (!formData.endDate) newErrors.endDate = 'End date is required';
-    if (formData.startDate > formData.endDate) newErrors.dates = 'End date must be after start date';
+    if (!formData.targetDate) newErrors.targetDate = 'Target date is required';
+    if (formData.startDate > formData.targetDate) newErrors.dates = 'Target date must be after start date';
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -162,19 +143,18 @@ const GoalForm: React.FC<GoalFormProps> = ({
       id: initialData?.id || Date.now().toString(),
       title: formData.title.trim(),
       description: formData.description.trim(),
-      visionId: formData.visionId || undefined,
-      visionTitle: selectedVision?.title || undefined,
+      visionId: formData.visionId || '',
       actionPlanId: formData.actionPlanId || undefined,
       milestoneId: formData.milestoneId || undefined,
       startDate: formData.startDate,
-      endDate: formData.endDate,
-      amount: formData.amount,
-      category: (formData.selectedVisionHead?.toLowerCase().replace(/\s+/g, '-') || 'life') as any,
+      targetDate: formData.targetDate,
+      budget: formData.budget ? Number(formData.budget) : undefined,
       imageUrl: formData.imageUrl,
       priority: formData.priority,
       status: formData.status,
+      completed: formData.completed,
       createdAt: initialData?.createdAt || new Date().toISOString(),
-      completed: formData.completed
+      updatedAt: new Date().toISOString(),
     };
 
     onSubmit(goalData);
@@ -472,33 +452,33 @@ const GoalForm: React.FC<GoalFormProps> = ({
         <div>
           <label className="block text-sm font-semibold text-swar-text mb-2 flex items-center gap-2">
             <Calendar size={18} className="text-blue-600" />
-            End Date *
+            Target Date *
           </label>
           <input
             type="date"
-            name="endDate"
-            value={formData.endDate}
+            name="targetDate"
+            value={formData.targetDate}
             onChange={handleChange}
             className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition ${
-              errors.endDate ? 'border-red-500' : 'border-swar-border'
+              errors.targetDate ? 'border-red-500' : 'border-swar-border'
             }`}
             required
           />
-          {errors.endDate && <p className="text-red-600 text-xs mt-1">{errors.endDate}</p>}
+          {errors.targetDate && <p className="text-red-600 text-xs mt-1">{errors.targetDate}</p>}
         </div>
       </div>
       {errors.dates && <p className="text-red-600 text-xs">{errors.dates}</p>}
 
-      {/* Amount */}
+      {/* Budget */}
       <div>
         <label className="block text-sm font-semibold text-swar-text mb-2 flex items-center gap-2">
           <DollarSign size={18} className="text-swar-primary" />
-          Budget/Amount (₹)
+          Budget (₹)
         </label>
         <input
           type="number"
-          name="amount"
-          value={formData.amount}
+          name="budget"
+          value={formData.budget}
           onChange={handleChange}
           className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
           placeholder="0.00"
