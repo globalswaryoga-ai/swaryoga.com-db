@@ -7,6 +7,7 @@ import { VISION_CATEGORIES } from '@/lib/types/lifePlanner';
 import type { Word, VisionCategory, MiniTodo } from '@/lib/types/lifePlanner';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 import { getDefaultCategoryImage } from '@/lib/visionCategoryImages';
+import LifePlannerImageUpload from '@/components/LifePlannerImageUpload';
 
 const DEFAULT_IMAGE = 'https://i.postimg.cc/Y0zjsTd2/image.jpg';
 
@@ -724,27 +725,20 @@ function WordModal({
           </div>
 
           {showImageEditor && (
-            <div className="mt-3 rounded-lg border-2 border-emerald-200 bg-emerald-50 p-4">
-              <label className="block text-sm font-semibold text-emerald-900 mb-2">
-                Custom Image URL (optional)
-              </label>
-              <input
-                type="url"
-                value={form.imageUrl}
-                onChange={(e) => setForm(prev => ({ ...prev, imageUrl: e.target.value }))}
-                className="w-full px-4 py-2 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-white"
-                placeholder="https://..."
+            <div className="mt-3">
+              <LifePlannerImageUpload
+                label="Custom Word Image (optional)"
+                onImageUrlChange={(url) => setForm(prev => ({ ...prev, imageUrl: url }))}
+                currentImageUrl={form.imageUrl}
+                maxSizeMB={5}
               />
-              <div className="flex items-center gap-2 mt-3">
-                <button
-                  type="button"
-                  onClick={() => setForm(prev => ({ ...prev, imageUrl: '' }))}
-                  className="px-4 py-2 rounded-lg border border-emerald-300 bg-white text-emerald-800 hover:bg-emerald-100 transition"
-                >
-                  Use default
-                </button>
-                <p className="text-xs text-emerald-800">Default comes from the selected Head image.</p>
-              </div>
+              <button
+                type="button"
+                onClick={() => setForm(prev => ({ ...prev, imageUrl: '' }))}
+                className="mt-2 px-4 py-2 rounded-lg border border-emerald-300 bg-white text-emerald-800 hover:bg-emerald-100 transition"
+              >
+                Use default
+              </button>
             </div>
           )}
         </div>

@@ -5,6 +5,7 @@ import { AlertCircle, Plus } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 import { VISION_CATEGORIES, type Reminder as DbReminder, type VisionCategory, type Vision, type ActionPlan, type Task as DbTask } from '@/lib/types/lifePlanner';
+import LifePlannerImageUpload from '@/components/LifePlannerImageUpload';
 
 const DEFAULT_IMAGE = 'https://i.postimg.cc/Y0zjsTd2/image.jpg';
 
@@ -15,6 +16,7 @@ type UiReminder = {
   time: string;
   visionHead?: VisionCategory;
   visionId?: string;
+  actionPlanId?: string;
   goalId?: string;
   taskId?: string;
   todoId?: string;
@@ -32,6 +34,7 @@ function dbToUiReminder(r: DbReminder): UiReminder {
     time: r.dueTime || '11:00',
     visionHead: (r.visionHead || (r.category as any)) as VisionCategory | undefined,
     visionId: r.visionId,
+    actionPlanId: r.actionPlanId,
     goalId: r.goalId,
     taskId: r.taskId,
     todoId: r.todoId,
@@ -49,6 +52,7 @@ function uiToDbReminder(r: UiReminder): DbReminder {
     visionHead: r.visionHead,
     category: r.visionHead,
     visionId: r.visionId,
+    actionPlanId: r.actionPlanId,
     goalId: r.goalId,
     taskId: r.taskId,
     todoId: r.todoId,
@@ -83,6 +87,7 @@ export default function RemindersPage() {
     time: '11:00',
     visionHead: '' as '' | VisionCategory,
     visionId: '',
+    actionPlanId: '',
     goalId: '',
     taskId: '',
     todoId: '',
@@ -184,6 +189,7 @@ export default function RemindersPage() {
       time: '11:00',
       visionHead: '',
       visionId: '',
+      actionPlanId: '',
       goalId: '',
       taskId: '',
       todoId: '',
@@ -356,7 +362,7 @@ export default function RemindersPage() {
                 <label className="block text-sm font-medium text-swar-text mb-2">Vision Head *</label>
                 <select
                   value={formData.visionHead}
-                  onChange={(e) => setFormData({ ...formData, visionHead: e.target.value as any, visionId: '', goalId: '', taskId: '', todoId: '' })}
+                  onChange={(e) => setFormData({ ...formData, visionHead: e.target.value as any, visionId: '', actionPlanId: '', goalId: '', taskId: '', todoId: '' })}
                   className="w-full rounded-lg border border-swar-border px-4 py-3 text-swar-text outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200 bg-white"
                 >
                   <option value="">Select Vision Head</option>
@@ -379,6 +385,24 @@ export default function RemindersPage() {
                     >
                       <option value="">Select Vision (optional)</option>
                       {visionsForHead.map(v => <option key={v.id} value={v.id}>{v.title}</option>)}
+                    </select>
+                  </div>
+                ) : null;
+              })()}
+
+              {/* Action Plan selector */}
+              {formData.visionId && (() => {
+                const plansForVision = actionPlans.filter(p => p.visionId === formData.visionId);
+                return plansForVision.length > 0 ? (
+                  <div>
+                    <label className="block text-sm font-medium text-swar-text mb-2">Action Plan</label>
+                    <select
+                      value={formData.actionPlanId || ''}
+                      onChange={(e) => setFormData({ ...formData, actionPlanId: e.target.value || undefined, goalId: '', taskId: '', todoId: '' })}
+                      className="w-full rounded-lg border border-swar-border px-4 py-3 text-swar-text outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200 bg-white"
+                    >
+                      <option value="">Select Action Plan (optional)</option>
+                      {plansForVision.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
                     </select>
                   </div>
                 ) : null;
@@ -462,21 +486,12 @@ export default function RemindersPage() {
                 ) : null;
               })()}
 
-              <div>
-                <label className="block text-sm font-medium text-swar-text mb-2">Image URL</label>
-                <input
-                  type="text"
-                  value={formData.imageUrl}
-                  onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
-                  placeholder="https://example.com/image.jpg"
-                  className="w-full rounded-lg border border-swar-border px-4 py-3 text-swar-text outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200"
-                />
-                {formData.imageUrl && (
-                  <div className="mt-2 rounded-lg overflow-hidden border border-swar-border">
-                    <img src={formData.imageUrl} alt="Preview" className="w-full h-40 object-cover" onError={(e) => (e.currentTarget.src = DEFAULT_IMAGE)} />
-                  </div>
-                )}
-              </div>
+              <LifePlannerImageUpload
+                label="Reminder Image (Optional)"
+                onImageUrlChange={(url) => setFormData({ ...formData, imageUrl: url })}
+                currentImageUrl={formData.imageUrl}
+                maxSizeMB={5}
+              />
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>

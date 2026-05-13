@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { VISION_CATEGORIES } from '@/lib/types/lifePlanner';
 import type { ActionPlan, ActionPlanGoal, Milestone, Vision, MiniTodo, MiniReminder } from '@/lib/types/lifePlanner';
 import GoalSection from '@/components/GoalSection';
+import LifePlannerImageUpload from '@/components/LifePlannerImageUpload';
 import type { ActionPlanGoal } from '@/lib/types/lifePlanner';
 
 interface ActionPlanModalProps {
@@ -33,6 +34,7 @@ export default function ActionPlanModal({
   const [workingHoursEnd, setWorkingHoursEnd] = useState('11:00');
   const [place, setPlace] = useState('');
   const [expectedAmount, setExpectedAmount] = useState(0);
+  const [imageUrl, setImageUrl] = useState('');
   const [completed, setCompleted] = useState(false);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [goals, setGoals] = useState<ActionPlanGoal[]>([]);
@@ -62,6 +64,7 @@ export default function ActionPlanModal({
       setWorkingHoursEnd(editingPlan.workingHoursEnd || '11:00');
       setPlace(editingPlan.place || '');
       setExpectedAmount(editingPlan.expectedAmount || 0);
+      setImageUrl(editingPlan.imageUrl || '');
       setCompleted(editingPlan.completed || false);
       setMilestones(editingPlan.milestones || []);
       setGoals(editingPlan.goals || []);
@@ -84,6 +87,7 @@ export default function ActionPlanModal({
     setWorkingHoursEnd('11:00');
     setPlace('');
     setExpectedAmount(0);
+    setImageUrl('');
     setCompleted(false);
     setMilestones([]);
     setGoals([]);
@@ -205,7 +209,7 @@ export default function ActionPlanModal({
       visionId: selectedVisionId,
       title,
       description,
-      imageUrl: selectedVision?.imageUrl || selectedVision?.categoryImageUrl,
+      imageUrl: imageUrl || selectedVision?.imageUrl || selectedVision?.categoryImageUrl,
       startDate,
       endDate,
       workingHoursStart,
@@ -237,6 +241,7 @@ export default function ActionPlanModal({
     setWorkingHoursEnd('11:00');
     setPlace('');
     setExpectedAmount(0);
+    setImageUrl('');
     setCompleted(false);
     setMilestones([]);
     setGoals([]);
@@ -424,6 +429,14 @@ export default function ActionPlanModal({
               className="w-full px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-blue-500"
             />
           </div>
+
+          {/* Action Plan Image Upload */}
+          <LifePlannerImageUpload
+            label="Action Plan Image (Optional)"
+            onImageUrlChange={setImageUrl}
+            currentImageUrl={imageUrl}
+            maxSizeMB={5}
+          />
 
           {/* Milestones Section */}
           <div className="border-t-2 pt-6">

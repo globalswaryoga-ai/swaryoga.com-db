@@ -119,6 +119,7 @@ export interface ActionPlan {
   todos?: MiniTodo[];
   status?: 'not-started' | 'in-progress' | 'completed' | 'on-hold';
   progress?: number;
+  completed: boolean;
   actionItems?: Array<{ id: string; title: string; completed: boolean }>;
   createdAt: string;
   updatedAt: string;

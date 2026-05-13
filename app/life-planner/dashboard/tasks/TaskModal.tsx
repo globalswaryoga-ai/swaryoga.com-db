@@ -4,6 +4,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { Eye, Trash2, Plus } from 'lucide-react';
 import { Task, Vision, VisionCategory, VISION_CATEGORIES, MiniReminder } from '@/lib/types/lifePlanner';
 import { getDefaultCategoryImage } from '@/lib/visionCategoryImages';
+import LifePlannerImageUpload from '@/components/LifePlannerImageUpload';
 
 type GoalOption = {
   id: string;
@@ -533,31 +534,20 @@ const TaskModal: React.FC<TaskModalProps> = ({
             </div>
 
             {showImageEditor && (
-              <div className="mt-3 rounded-lg border-2 border-emerald-200 bg-emerald-50 p-4">
-                <label className="block text-sm font-semibold text-emerald-900 mb-2">
-                  Custom Image URL (optional)
-                </label>
-                <input
-                  type="url"
-                  value={formState.imageUrl}
-                  onChange={(e) =>
-                    setFormState(prev => ({ ...prev, imageUrl: e.target.value }))
-                  }
-                  className="w-full px-4 py-2 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-white"
-                  placeholder="https://..."
+              <div className="mt-3">
+                <LifePlannerImageUpload
+                  label="Custom Task Image (optional)"
+                  onImageUrlChange={(url) => setFormState(prev => ({ ...prev, imageUrl: url }))}
+                  currentImageUrl={formState.imageUrl}
+                  maxSizeMB={5}
                 />
-                <div className="flex items-center gap-2 mt-3">
-                  <button
-                    type="button"
-                    onClick={() => setFormState(prev => ({ ...prev, imageUrl: '' }))}
-                    className="px-4 py-2 rounded-lg border border-emerald-300 bg-white text-emerald-800 hover:bg-emerald-100 transition"
-                  >
-                    Use default
-                  </button>
-                  <p className="text-xs text-emerald-800">
-                    Default comes from the selected Vision (or Head image).
-                  </p>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setFormState(prev => ({ ...prev, imageUrl: '' }))}
+                  className="mt-2 px-4 py-2 rounded-lg border border-emerald-300 bg-white text-emerald-800 hover:bg-emerald-100 transition"
+                >
+                  Use default
+                </button>
               </div>
             )}
           </div>
@@ -643,6 +633,20 @@ const TaskModal: React.FC<TaskModalProps> = ({
                 )}
               </div>
             )}
+          </div>
+
+          {/* Completed Checkbox */}
+          <div className="flex items-center gap-3 px-4 py-3 bg-swar-bg rounded-lg">
+            <input
+              type="checkbox"
+              id="taskCompleted"
+              checked={formState.completed}
+              onChange={(e) => setFormState(prev => ({ ...prev, completed: e.target.checked }))}
+              className="w-5 h-5 rounded border-2 border-swar-border cursor-pointer"
+            />
+            <label htmlFor="taskCompleted" className="text-sm font-medium text-swar-text cursor-pointer">
+              Mark as Completed
+            </label>
           </div>
 
           {/* Submit Buttons */}
