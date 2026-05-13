@@ -2,6 +2,7 @@
 
 import React, { useState, useCallback, useMemo } from 'react';
 import { Calendar, DollarSign, Image, Flag } from 'lucide-react';
+import LifePlannerImageUpload from '@/components/LifePlannerImageUpload';
 
 export interface Goal {
   id: string;
@@ -38,14 +39,16 @@ const GoalForm: React.FC<GoalFormProps> = ({ onSubmit, onCancel, initialData, vi
     category: initialData?.category || 'health' as const,
     imageUrl: initialData?.imageUrl || '',
     priority: initialData?.priority || 'medium' as const,
-    status: initialData?.status || 'not-started' as const
+    status: initialData?.status || 'not-started' as const,
+    completed: initialData?.completed || false
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    const { name, value, type } = e.target;
+    const targetValue = type === 'checkbox' ? (e.target as HTMLInputElement).checked : value;
+    setFormData(prev => ({ ...prev, [name]: targetValue }));
     if (errors[name]) {
       setErrors(prev => {
         const newErrors = { ...prev };
@@ -92,7 +95,7 @@ const GoalForm: React.FC<GoalFormProps> = ({ onSubmit, onCancel, initialData, vi
       priority: formData.priority,
       status: formData.status,
       createdAt: initialData?.createdAt || new Date().toISOString(),
-      completed: initialData?.completed || false
+      completed: formData.completed
     };
 
     onSubmit(goalData);
@@ -284,32 +287,27 @@ const GoalForm: React.FC<GoalFormProps> = ({ onSubmit, onCancel, initialData, vi
         />
       </div>
 
-      {/* Image URL */}
-      <div>
-        <label className="block text-sm font-semibold text-swar-text mb-2 flex items-center gap-2">
-          <Image size={18} className="text-orange-600" />
-          Goal Image URL (Optional)
-        </label>
+      {/* Goal Image Upload */}
+      <LifePlannerImageUpload
+        label="Goal Image (Optional)"
+        onImageUrlChange={(url) => setFormData(prev => ({ ...prev, imageUrl: url }))}
+        currentImageUrl={formData.imageUrl}
+        maxSizeMB={5}
+      />
+
+      {/* Completed Checkbox */}
+      <div className="flex items-center gap-3 px-4 py-3 bg-swar-bg rounded-lg">
         <input
-          type="url"
-          name="imageUrl"
-          value={formData.imageUrl}
+          type="checkbox"
+          id="completed"
+          name="completed"
+          checked={formData.completed}
           onChange={handleChange}
-          className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
-          placeholder="https://example.com/image.jpg"
+          className="w-5 h-5 rounded border-2 border-swar-border cursor-pointer"
         />
-        {formData.imageUrl && (
-          <div className="mt-3 relative h-40 rounded-xl overflow-hidden border-2 border-swar-border shadow-sm">
-            <img 
-              src={formData.imageUrl} 
-              alt="Goal preview" 
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                e.currentTarget.src = 'https://via.placeholder.com/400x200?text=Image+Not+Found';
-              }}
-            />
-          </div>
-        )}
+        <label htmlFor="completed" className="text-sm font-medium text-swar-text cursor-pointer">
+          Mark as Completed
+        </label>
       </div>
 
       {/* Form Actions */}

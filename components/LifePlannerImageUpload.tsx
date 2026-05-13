@@ -65,11 +65,11 @@ export default function LifePlannerImageUpload({
         return;
       }
 
-      // Create FormData
+      // Create FormData with file
       const formData = new FormData();
       formData.append('file', file);
 
-      // Upload to Life Planner endpoint
+      // Upload to Life Planner Bunny endpoint
       const response = await fetch('/api/life-planner/upload-image', {
         method: 'POST',
         body: formData,
