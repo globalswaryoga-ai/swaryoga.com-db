@@ -109,7 +109,7 @@ export default function LifePlannerSidebar({ isOpen, onClose }: LifePlannerSideb
       )}
 
       <aside
-        className={`fixed md:static inset-y-0 left-0 z-50 w-72 md:w-64 bg-gradient-to-b from-swar-primary to-emerald-800 text-white transform transition-all duration-300 ease-out shadow-2xl md:shadow-none ${
+        className={`fixed md:static inset-y-0 left-0 z-50 w-64 md:w-72 bg-gradient-to-b from-swar-primary to-emerald-800 text-white transform transition-all duration-300 ease-out shadow-2xl md:shadow-none ${
           isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
       >
@@ -136,7 +136,7 @@ export default function LifePlannerSidebar({ isOpen, onClose }: LifePlannerSideb
         </div>
 
         {/* Navigation */}
-        <nav className="p-3 md:p-4 space-y-1 overflow-y-auto max-h-[calc(100vh-200px)] scrollbar-thin">
+        <nav className="p-3 md:p-4 space-y-1 overflow-y-auto max-h-[calc(100vh-180px)] md:max-h-[calc(100vh-200px)] scrollbar-thin">
           {items.map((item) => {
             const Icon = item.icon;
             const active = isActive(item.href);

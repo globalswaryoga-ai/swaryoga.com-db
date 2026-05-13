@@ -493,7 +493,7 @@ export default function LifePlannerAccountingPage() {
         {/* Tab Navigation */}
         <div className="bg-white rounded-lg shadow-md mb-6 overflow-x-auto">
           <div className="border-b border-swar-border">
-            <nav className="flex space-x-8 px-6 min-w-max">
+            <nav className="flex space-x-2 sm:space-x-4 md:space-x-8 px-2 sm:px-4 md:px-6 min-w-max">
               {[
                 { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
                 { id: 'accounts', label: 'Accounts', icon: Building },
@@ -700,14 +700,14 @@ export default function LifePlannerAccountingPage() {
                   <tbody className="bg-white divide-y divide-gray-200">
                     {transactions.map((transaction) => (
                       <tr key={transaction.id}>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-2 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 whitespace-nowrap">
                           <div className="flex items-center">
                             {getTransactionIcon(transaction.type)} <span className="ml-2 capitalize">{transaction.type}</span>
                           </div>
                         </td>
                         <td className="px-6 py-4 text-sm text-swar-text">{transaction.description}</td>
                         <td className="px-6 py-4 text-sm text-swar-text-secondary">{transaction.category}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-2 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 whitespace-nowrap">
                           <span className={`font-semibold ${transaction.type === 'income' ? 'text-swar-primary' : 'text-red-600'}`}>
                             {transaction.type === 'income' ? '+' : '-'}₹{transaction.amount.toLocaleString()}
                           </span>
