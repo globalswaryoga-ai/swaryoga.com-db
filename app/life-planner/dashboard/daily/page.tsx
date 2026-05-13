@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Plus, Check, Trash2, CheckCircle2, Circle, Camera, Pencil } from 'lucide-react';
+import { Plus, Check, Trash2, CheckCircle2, Circle, Pencil } from 'lucide-react';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 import type { Goal, HealthRoutine, Task, Vision } from '@/lib/types/lifePlanner';
 
@@ -48,21 +48,6 @@ const DEFAULT_SADHANA: DailySadhanaState = {
   },
 };
 
-type DailyHeroCard = 'workshop' | 'routine' | 'sadhana' | 'vision' | 'goals' | 'tasks';
-
-const HERO_STORAGE_LEGACY_KEY = 'lifePlannerDailyHeroImage';
-const HERO_STORAGE_PREFIX = 'lifePlannerDailyHeroImage:';
-const DAILY_HERO_CARDS: DailyHeroCard[] = ['workshop', 'routine', 'sadhana', 'vision', 'goals', 'tasks'];
-
-const HERO_DEFAULT_BY_CARD: Record<DailyHeroCard, string> = {
-  workshop: '/images/life-planner/hero-workshop.svg',
-  routine: '/images/life-planner/hero-routine.svg',
-  sadhana: '/images/life-planner/hero-sadhana.svg',
-  vision: '/images/life-planner/hero-vision.svg',
-  goals: '/images/life-planner/hero-goals.svg',
-  tasks: '/images/life-planner/hero-tasks.svg',
-};
-
 export default function DailyViewPage() {
   // IMPORTANT: Use local date for "today". Using `toISOString()` is UTC and can shift the date,
   // causing items scheduled for "today" to disappear for users in non-UTC timezones.
@@ -74,22 +59,25 @@ export default function DailyViewPage() {
   };
 
   const [today] = useState(() => getLocalDayKey(new Date()));
+  const [selectedDate, setSelectedDate] = useState(() => getLocalDayKey(new Date()));
+  const isToday = selectedDate === today;
+
+  const goPrevDay = () => {
+    const d = new Date(selectedDate + 'T00:00:00');
+    d.setDate(d.getDate() - 1);
+    setSelectedDate(getLocalDayKey(d));
+  };
+
+  const goNextDay = () => {
+    const d = new Date(selectedDate + 'T00:00:00');
+    d.setDate(d.getDate() + 1);
+    setSelectedDate(getLocalDayKey(d));
+  };
 
   const [workshopTasks, setWorkshopTasks] = useState<WorkshopTask[]>([]);
   const [newWorkshopTask, setNewWorkshopTask] = useState('');
   const [selectedWorkshopCategory, setSelectedWorkshopCategory] = useState<WorkshopCategory>('workStudy');
   const [workshopError, setWorkshopError] = useState<string>('');
-
-  const heroFileInputRef = useRef<HTMLInputElement | null>(null);
-  const [activeHeroCard, setActiveHeroCard] = useState<DailyHeroCard>('workshop');
-  const [heroImgByCard, setHeroImgByCard] = useState<Record<DailyHeroCard, string>>(() => ({
-    workshop: HERO_DEFAULT_BY_CARD.workshop,
-    routine: HERO_DEFAULT_BY_CARD.routine,
-    sadhana: HERO_DEFAULT_BY_CARD.sadhana,
-    vision: HERO_DEFAULT_BY_CARD.vision,
-    goals: HERO_DEFAULT_BY_CARD.goals,
-    tasks: HERO_DEFAULT_BY_CARD.tasks,
-  }));
 
   const workshopCategoryRefs = useRef<Record<WorkshopCategory, HTMLDivElement | null>>({
     self: null,
@@ -100,7 +88,7 @@ export default function DailyViewPage() {
     social: null,
   });
 
-  const sadhanaStorageKey = `dailySadhanaV2:${today}`;
+  const sadhanaStorageKey = `dailySadhanaV2:${selectedDate}`;
   const [sadhanaState, setSadhanaState] = useState<DailySadhanaState>(DEFAULT_SADHANA);
   const [sadhanaHasLoaded, setSadhanaHasLoaded] = useState(false);
 
@@ -375,10 +363,10 @@ export default function DailyViewPage() {
         if (r.id !== id) return r;
 
         const completedDates = Array.isArray((r as any).completedDates) ? (r as any).completedDates : [];
-        const completedToday = completedDates.includes(today);
+        const completedToday = completedDates.includes(selectedDate);
         const nextCompletedDates = completedToday
-          ? completedDates.filter((d: string) => d !== today)
-          : [...completedDates, today];
+          ? completedDates.filter((d: string) => d !== selectedDate)
+          : [...completedDates, selectedDate];
 
         return {
           ...r,
@@ -391,40 +379,33 @@ export default function DailyViewPage() {
     );
   };
 
-  const getWorkshopStorageKey = () => `dailyWorkshopPlannerTasks:${today}`;
+  const getWorkshopStorageKey = () => `dailyWorkshopPlannerTasks:${selectedDate}`;
 
   const loadWorkshopTasks = () => {
     const stored = localStorage.getItem(getWorkshopStorageKey());
     if (stored) {
       setWorkshopTasks(JSON.parse(stored));
+    } else {
+      setWorkshopTasks([]);
     }
   };
 
-  const onPickHeroImage = (cardId: DailyHeroCard) => {
-    setActiveHeroCard(cardId);
-    heroFileInputRef.current?.click();
-  };
+  // Reload workshop tasks and sadhana state when selectedDate changes
+  useEffect(() => {
+    loadWorkshopTasks();
 
-  const onHeroImageFileChange = (file: File | null) => {
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      setWorkshopError('Please select an image file.');
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = typeof reader.result === 'string' ? reader.result : '';
-      if (!result) return;
-      setHeroImgByCard((prev) => ({ ...prev, [activeHeroCard]: result }));
+    // Load sadhana state for selected date
+    const storedSadhana = localStorage.getItem(sadhanaStorageKey);
+    if (storedSadhana) {
       try {
-        localStorage.setItem(`${HERO_STORAGE_PREFIX}${activeHeroCard}`, result);
+        setSadhanaState(JSON.parse(storedSadhana));
       } catch {
-        // If storage quota is exceeded, still show it for this session.
+        setSadhanaState(DEFAULT_SADHANA);
       }
-    };
-    reader.readAsDataURL(file);
-  };
+    } else {
+      setSadhanaState(DEFAULT_SADHANA);
+    }
+  }, [selectedDate, sadhanaStorageKey]);
 
   const persistWorkshopTasks = (updated: WorkshopTask[]) => {
     setWorkshopTasks(updated);
@@ -618,17 +599,17 @@ export default function DailyViewPage() {
 
   const isOnDate = (dateStr?: string) => {
     const key = toDayKey(dateStr);
-    return key === today;
+    return key === selectedDate;
   };
 
   const isWithinRange = (start?: string, end?: string) => {
     const s = toDayKey(start);
     const e = toDayKey(end);
     // If only one side exists, treat as exact match.
-    if (s && !e) return s === today;
-    if (!s && e) return e === today;
+    if (s && !e) return s === selectedDate;
+    if (!s && e) return e === selectedDate;
     if (!s && !e) return false;
-    return s! <= today && today <= e!;
+    return s! <= selectedDate && selectedDate <= e!;
   };
 
   const todaysVisions = vision.filter((v) => {
@@ -653,86 +634,41 @@ export default function DailyViewPage() {
     return isWithinRange(t.startDate, t.dueDate);
   });
 
-  const CardHeroHeader = ({
-    cardId,
-    badge,
-    title,
-    subtitle,
-  }: {
-    cardId: DailyHeroCard;
-    badge: string;
-    title: string;
-    subtitle?: string;
-  }) => {
-    const src = heroImgByCard[cardId] || HERO_DEFAULT_BY_CARD[cardId];
-    return (
-      <div className="relative">
-        <img
-          src={src}
-          alt="Life Planner"
-          className="w-full h-40 sm:h-44 object-cover"
-          onError={() => {
-            if (src !== HERO_DEFAULT_BY_CARD[cardId]) {
-              setHeroImgByCard((prev) => ({ ...prev, [cardId]: HERO_DEFAULT_BY_CARD[cardId] }));
-              try {
-                localStorage.removeItem(`${HERO_STORAGE_PREFIX}${cardId}`);
-              } catch {
-                // ignore
-              }
-            }
-          }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/25 to-transparent" />
-
-        {/* Badge like the screenshot (top-right) */}
-        <div className="absolute top-3 right-3">
-          <span className="inline-flex items-center rounded-full bg-emerald-600/95 px-4 py-1 text-xs font-bold tracking-wide text-white shadow">
-            {badge}
-          </span>
-        </div>
-
-        {/* Change image button (small icon) */}
-        <button
-          type="button"
-          onClick={() => onPickHeroImage(cardId)}
-          className="absolute top-3 left-3 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-swar-text shadow hover:bg-white transition"
-          title="Change hero image"
-          aria-label="Change hero image"
-        >
-          <Camera size={18} />
-        </button>
-
-        <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-5">
-          <p className="text-xs uppercase tracking-[0.3em] text-white/80 font-bold">{title}</p>
-          {subtitle ? <p className="text-xs text-white/85 mt-1">{subtitle}</p> : null}
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="space-y-4 sm:space-y-6 pb-6">
-      {/* Hidden file input for hero image picker */}
-      <input
-        ref={heroFileInputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={(e) => {
-          const file = e.target.files?.[0] ?? null;
-          onHeroImageFileChange(file);
-          // allow selecting the same file again
-          e.currentTarget.value = '';
-        }}
-      />
 
-      {/* Main Header */}
-      <div className="flex flex-col gap-3 sm:gap-4 md:flex-row md:items-end md:justify-between">
-        <div className="flex-1">
-          <h1 className="text-2xl sm:text-3xl font-bold text-swar-text">Daily Planner</h1>
-          <p className="text-sm sm:text-base text-swar-text-secondary mt-1">
-            {new Date(today).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-          </p>
+      {/* Main Header with Date Navigation */}
+      <div className="flex flex-col gap-3 sm:gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-2xl font-bold text-swar-text">Daily Planner</h1>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={goPrevDay}
+            className="p-2 border border-swar-border rounded-lg hover:bg-gray-50 text-swar-text transition"
+            title="Previous day"
+          >
+            ‹
+          </button>
+          {!isToday && (
+            <button
+              onClick={() => setSelectedDate(today)}
+              className="px-3 py-1.5 text-xs bg-blue-100 text-blue-700 rounded-lg font-semibold hover:bg-blue-200 transition"
+            >
+              Today
+            </button>
+          )}
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="px-3 py-1.5 text-sm border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <button
+            onClick={goNextDay}
+            className="p-2 border border-swar-border rounded-lg hover:bg-gray-50 text-swar-text transition"
+            title="Next day"
+          >
+            ›
+          </button>
         </div>
       </div>
 
@@ -740,15 +676,16 @@ export default function DailyViewPage() {
       <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
         
         {/* Card 1: Daily Workshop Planner */}
-        <div className="rounded-2xl sm:rounded-3xl border border-swar-border bg-white overflow-hidden hover:shadow-md transition flex flex-col">
-          <CardHeroHeader
-            cardId="workshop"
-            badge="PROFESSIONAL"
-            title="Daily Workshop Planner"
-            subtitle={`${workshopTasks.length} tasks added today`}
-          />
+        <div className="rounded-lg border border-swar-border bg-white overflow-hidden hover:shadow-md transition flex flex-col">
+          <div className="px-4 py-3 flex items-center gap-3 border-b border-swar-border bg-blue-50">
+            <span className="text-2xl">🏗️</span>
+            <div>
+              <h2 className="text-sm font-bold text-swar-text">Daily Workshop</h2>
+              <p className="text-xs text-swar-text-secondary">{workshopTasks.length} tasks added</p>
+            </div>
+          </div>
 
-          <div className="p-4 sm:p-6 flex flex-col flex-grow">
+          <div className="p-3 flex flex-col flex-grow">
             {/* Add Task */}
             <div className="space-y-2">
               <select
@@ -791,10 +728,22 @@ export default function DailyViewPage() {
               ) : null}
             </div>
 
+            {/* Category summary chips */}
+            <div className="mt-3 flex gap-2 flex-wrap">
+              {workshopCategories
+                .filter(cat => workshopTasks.filter(t => t.category === cat.id).length > 0)
+                .map(cat => (
+                  <span key={cat.id} className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full text-xs font-medium whitespace-nowrap">
+                    {cat.label.split(' ')[0]} ({workshopTasks.filter(t => t.category === cat.id).length})
+                  </span>
+                ))}
+            </div>
+
             {/* Category sections */}
-            <div className="mt-4 space-y-4 flex-grow overflow-y-auto">
+            <div className="mt-3 space-y-3 flex-grow overflow-y-auto">
               {workshopCategories.map(cat => {
                 const catTasks = workshopTasks.filter(t => t.category === cat.id);
+                if (catTasks.length === 0) return null;
                 return (
                   <div
                     key={cat.id}
@@ -846,47 +795,25 @@ export default function DailyViewPage() {
         </div>
 
         {/* Card 2: My Routine */}
-        <div className="rounded-2xl sm:rounded-3xl border border-swar-border bg-white overflow-hidden hover:shadow-md transition flex flex-col">
-          <CardHeroHeader
-            cardId="routine"
-            badge="WELLNESS"
-            title="My Routine"
-            subtitle="Your health routines summary & today’s checklist"
-          />
-          
-          <div className="p-4 sm:p-6 flex flex-col flex-grow">
-            <div className="mb-4 flex items-center justify-end">
-              <a
-                href="/life-planner/dashboard/health"
-                className="rounded-full bg-emerald-600 text-white px-4 py-2 hover:bg-emerald-700 transition text-xs font-semibold inline-flex items-center gap-2 shadow"
-                title="Open Health"
-              >
-                <Plus size={16} />
-                Open
-              </a>
+        <div className="rounded-lg border border-swar-border bg-white overflow-hidden hover:shadow-md transition flex flex-col">
+          <div className="px-4 py-3 flex items-center gap-3 border-b border-swar-border bg-emerald-50">
+            <span className="text-2xl">🏃</span>
+            <div>
+              <h2 className="text-sm font-bold text-swar-text">My Routine</h2>
+              <p className="text-xs text-swar-text-secondary">Health routines & checklist</p>
             </div>
-            {/* Health dashboard summary (from Health page) */}
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              <div className="bg-white rounded-xl p-4 shadow-sm border border-swar-border">
-                <div className="text-xl font-bold text-emerald-600 mb-0.5">{healthRoutines.length}</div>
-                <div className="text-swar-text-secondary text-xs">Total Routines</div>
-              </div>
-              <div className="bg-white rounded-xl p-4 shadow-sm border border-swar-border">
-                <div className="text-xl font-bold text-red-600 mb-0.5">{Math.max(...healthRoutines.map(r => (r as any).streak || 0), 0)}</div>
-                <div className="text-swar-text-secondary text-xs">Best Streak</div>
-              </div>
-              <div className="bg-white rounded-xl p-4 shadow-sm border border-swar-border">
-                <div className="text-xl font-bold text-purple-600 mb-0.5">{healthRoutines.reduce((sum, r) => sum + (Array.isArray((r as any).completedDates) ? (r as any).completedDates.length : 0), 0)}</div>
-                <div className="text-swar-text-secondary text-xs">Total Completions</div>
-              </div>
-              <div className="bg-white rounded-xl p-4 shadow-sm border border-swar-border">
-                <div className="text-xl font-bold text-green-600 mb-0.5">{healthRoutines.filter(r => (Array.isArray((r as any).completedDates) ? (r as any).completedDates : []).includes(today)).length}</div>
-                <div className="text-swar-text-secondary text-xs">Done Today</div>
-              </div>
+          </div>
+
+          <div className="p-3 flex flex-col flex-grow">
+            {/* Compact stats bar */}
+            <div className="flex gap-4 px-2 py-2 border-b border-swar-border text-xs text-swar-text-secondary mb-3 overflow-x-auto">
+              <span className="whitespace-nowrap">📋 {healthRoutines.length} routines</span>
+              <span className="whitespace-nowrap text-green-700 font-semibold">✅ {healthRoutines.filter(r => (Array.isArray((r as any).completedDates) ? (r as any).completedDates : []).includes(selectedDate)).length} done</span>
+              <span className="whitespace-nowrap">🔥 {Math.max(...healthRoutines.map(r => (r as any).streak || 0), 0)} streak</span>
             </div>
 
             <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-semibold text-swar-text-secondary">Today’s Health Routines</p>
+              <p className="text-xs font-semibold text-swar-text-secondary">Health Routines</p>
               <a href="/life-planner/dashboard/health-routines" className="text-xs font-semibold text-green-700 hover:text-green-800">Open</a>
             </div>
 
@@ -899,9 +826,9 @@ export default function DailyViewPage() {
             ) : healthRoutines.length === 0 ? (
               <p className="text-xs text-swar-text-secondary italic">No health routines yet. Add some in the Health page.</p>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 {healthRoutines.map((r) => {
-                  const completedToday = (Array.isArray((r as any).completedDates) ? (r as any).completedDates : []).includes(today);
+                  const completedToday = (Array.isArray((r as any).completedDates) ? (r as any).completedDates : []).includes(selectedDate);
                   const category = ((r as any).category || (r as any).type || 'other') as string;
                   const categoryEmoji: Record<string, string> = {
                     exercise: '💪',
@@ -911,34 +838,24 @@ export default function DailyViewPage() {
                     other: '✨',
                   };
                   return (
-                    <div key={r.id} className="bg-white rounded-xl p-3 border border-swar-border hover:shadow-sm transition">
-                      <div className="flex items-center gap-3">
-                        <button
-                          onClick={() => toggleHealthRoutineComplete(r.id)}
-                          className="text-emerald-600 hover:text-emerald-700 flex-shrink-0"
-                          title={completedToday ? 'Mark as not done' : 'Mark as done'}
-                        >
-                          {completedToday ? <CheckCircle2 className="h-5 w-5" /> : <Circle className="h-5 w-5" />}
-                        </button>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-swar-text truncate">
-                            {(categoryEmoji[category] || '✨')} {r.title}
-                          </p>
-                          {r.description ? (
-                            <p className="text-xs text-swar-text-secondary line-clamp-1 mt-0.5">{r.description}</p>
-                          ) : null}
-                          <div className="flex flex-nowrap gap-2 mt-2 overflow-x-auto">
-                            <span className="px-2 py-1 bg-emerald-100 text-emerald-800 rounded text-xs font-medium whitespace-nowrap">🔥 {(r as any).streak || 0} streak</span>
-                            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs whitespace-nowrap">{(r.frequency || 'daily') as any}</span>
-                            <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs whitespace-nowrap">{(Array.isArray((r as any).completedDates) ? (r as any).completedDates.length : 0)} completions</span>
-                          </div>
-                        </div>
-                        {completedToday ? (
-                          <span className="text-xs font-semibold text-green-700">Done</span>
-                        ) : (
-                          <span className="text-xs font-semibold text-swar-text-secondary">Pending</span>
-                        )}
+                    <div key={r.id} className="rounded-lg p-2 border border-swar-border hover:shadow-sm transition flex items-center gap-3">
+                      <button
+                        onClick={() => toggleHealthRoutineComplete(r.id)}
+                        className="text-emerald-600 hover:text-emerald-700 flex-shrink-0"
+                        title={completedToday ? 'Mark as not done' : 'Mark as done'}
+                      >
+                        {completedToday ? <CheckCircle2 className="h-4 w-4" /> : <Circle className="h-4 w-4" />}
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-swar-text truncate">
+                          {(categoryEmoji[category] || '✨')} {r.title}
+                        </p>
                       </div>
+                      {completedToday ? (
+                        <span className="text-xs font-semibold text-green-700 whitespace-nowrap">Done</span>
+                      ) : (
+                        <span className="text-xs font-semibold text-swar-text-secondary whitespace-nowrap">Pending</span>
+                      )}
                     </div>
                   );
                 })}
@@ -949,11 +866,17 @@ export default function DailyViewPage() {
         </div>
 
         {/* Card 3: My Sadhana */}
-        <div className="rounded-2xl sm:rounded-3xl border border-swar-border bg-white overflow-hidden hover:shadow-md transition flex flex-col">
-          <CardHeroHeader cardId="sadhana" badge="SPIRITUAL" title="My Sadhana" subtitle="Daily spiritual practices" />
-          
-          <div className="p-4 sm:p-6 flex flex-col flex-grow">
-            <div className="space-y-5">
+        <div className="rounded-lg border border-swar-border bg-white overflow-hidden hover:shadow-md transition flex flex-col">
+          <div className="px-4 py-3 flex items-center gap-3 border-b border-swar-border bg-purple-50">
+            <span className="text-2xl">🧘</span>
+            <div>
+              <h2 className="text-sm font-bold text-swar-text">My Sadhana</h2>
+              <p className="text-xs text-swar-text-secondary">Daily spiritual practices</p>
+            </div>
+          </div>
+
+          <div className="p-3 flex flex-col flex-grow">
+            <div className="space-y-3 overflow-y-auto">
               {/* Morning */}
               <div>
                 <div className="flex items-center justify-between mb-2">
@@ -965,19 +888,19 @@ export default function DailyViewPage() {
                     value={addMorningName}
                     onChange={(e) => setAddMorningName(e.target.value)}
                     placeholder="Practice title (e.g., Pranayama)"
-                    className="w-full px-3 py-2 rounded-lg border border-swar-border text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 sm:col-span-2"
+                    className="w-full px-3 py-1.5 rounded-lg border border-swar-border text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 sm:col-span-2"
                   />
                   <input
                     value={addMorningFrequency}
                     onChange={(e) => setAddMorningFrequency(e.target.value)}
                     placeholder="2 times"
-                    className="w-full px-3 py-2 rounded-lg border border-swar-border text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    className="w-full px-3 py-1.5 rounded-lg border border-swar-border text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
                   <input
                     value={addMorningDuration}
                     onChange={(e) => setAddMorningDuration(e.target.value)}
                     placeholder="5 minutes"
-                    className="w-full px-3 py-2 rounded-lg border border-swar-border text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    className="w-full px-3 py-1.5 rounded-lg border border-swar-border text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
                   <button
                     type="button"
