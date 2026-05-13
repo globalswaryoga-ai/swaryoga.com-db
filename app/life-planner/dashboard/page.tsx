@@ -36,6 +36,13 @@ export default function LifePlannerDashboardHome() {
 
               <div className="flex flex-col sm:flex-row flex-wrap gap-2 sm:gap-3">
                 <Link
+                  href="/life-planner/dashboard/comprehensive-dashboard"
+                  className="rounded-2xl bg-white px-4 py-2.5 text-sm font-semibold text-[#0b3d2e] hover:bg-white/90 transition shadow-md touch-target text-center active:scale-95 min-h-10 inline-flex items-center justify-center gap-2"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  Dashboard
+                </Link>
+                <Link
                   href="/life-planner/dashboard/daily"
                   className="rounded-2xl bg-white px-4 py-2.5 text-sm font-semibold text-[#0b3d2e] hover:bg-white/90 transition shadow-md touch-target text-center active:scale-95 min-h-10 inline-flex items-center justify-center gap-2"
                 >
