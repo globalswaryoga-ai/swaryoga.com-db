@@ -29,7 +29,7 @@ const MONTHS = [
 type WordFormState = {
   title: string;
   description: string;
-  category: VisionCategory | '';
+  selectedCategory: VisionCategory | '';
   visionId: string;
   actionPlanId: string;
   milestoneId: string;
@@ -50,7 +50,7 @@ const todayIso = () => new Date().toISOString().split('T')[0];
 const emptyWordForm = (): WordFormState => ({
   title: '',
   description: '',
-  category: '',
+  selectedCategory: '',
   visionId: '',
   actionPlanId: '',
   milestoneId: '',
@@ -214,7 +214,10 @@ export default function WordsPage() {
     setForm({
       title: word.title || '',
       description: word.description || '',
-      category: ((word.category as any) || '') as any,
+      selectedCategory: ((word.category as any) || '') as any,
+      visionId: (word as any).visionId || '',
+      actionPlanId: (word as any).actionPlanId || '',
+      milestoneId: (word as any).milestoneId || '',
       imageUrl: (word as any).imageUrl || '',
       startDate: (word as any).startDate || todayIso(),
       endDate: (word as any).endDate || '',
@@ -240,7 +243,7 @@ export default function WordsPage() {
       alert('Please enter a word title');
       return;
     }
-    if (!form.category) {
+    if (!form.selectedCategory) {
       alert('Please choose a head (category)');
       return;
     }
@@ -260,7 +263,10 @@ export default function WordsPage() {
       type: (editingId
         ? (words.find(w => w.id === editingId)?.type || 'affirmation')
         : 'affirmation') as any,
-      category: form.category as any,
+      category: form.selectedCategory as any,
+      visionId: form.visionId || undefined,
+      actionPlanId: form.actionPlanId || undefined,
+      milestoneId: form.milestoneId || undefined,
       frequency: form.repeat as any,
       status: form.status as any,
       createdAt: editingId
@@ -523,9 +529,9 @@ function WordModal({
 
   const computedDefaultImageUrl = useMemo(() => {
     if (form.imageUrl?.trim()) return form.imageUrl.trim();
-    if (form.category?.trim()) return getDefaultCategoryImage(String(form.category));
+    if (form.selectedCategory?.trim()) return getDefaultCategoryImage(String(form.selectedCategory));
     return getDefaultCategoryImage('Life');
-  }, [form.imageUrl, form.category]);
+  }, [form.imageUrl, form.selectedCategory]);
 
   const addTodo = () => {
     const title = newTodoTitle.trim();
@@ -583,12 +589,12 @@ function WordModal({
 
       <div className="p-6 space-y-5">
         <div className="rounded-lg bg-blue-50 border-2 border-blue-200 p-3">
-          <label className="block text-sm font-semibold text-swar-text mb-2">📂 Head / Category *</label>
+          <label className="block text-sm font-semibold text-swar-text mb-2">📂 Category Head *</label>
           <select
-            value={form.category}
+            value={form.selectedCategory}
             onChange={(e) => setForm(prev => ({
               ...prev,
-              category: e.target.value as any,
+              selectedCategory: e.target.value as any,
               visionId: '',
               actionPlanId: '',
               milestoneId: '',
@@ -604,8 +610,8 @@ function WordModal({
           </select>
         </div>
 
-        {/* Vision Selector (filtered by category) */}
-        {form.category && (
+        {/* Vision Selector (filtered by selectedCategory) */}
+        {form.selectedCategory && (
           <div className="rounded-lg bg-purple-50 border-2 border-purple-200 p-3">
             <label className="block text-sm font-semibold text-swar-text mb-2">💡 Vision</label>
             <select
@@ -620,7 +626,7 @@ function WordModal({
             >
               <option value="">Choose a vision...</option>
               {visions
-                .filter(v => v.category === form.category)
+                .filter(v => v.category === form.selectedCategory)
                 .map(v => (
                   <option key={v.id} value={v.id}>{v.title}</option>
                 ))}
