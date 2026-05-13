@@ -748,6 +748,86 @@ export default function DailyViewPage() {
             {new Date(today).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
         </div>
+        <a
+          href="/life-planner/dashboard/daily/add-screen"
+          className="px-6 py-3 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold hover:shadow-lg transition flex items-center justify-center gap-2"
+        >
+          <Plus size={20} />
+          Manage Todos
+        </a>
+      </div>
+
+      {/* Health Metrics Summary */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 bg-gradient-to-br from-cyan-50 to-blue-50 rounded-2xl p-4 sm:p-6 border border-cyan-200">
+        {/* Water Intake */}
+        <div className="bg-white rounded-xl p-4 shadow-sm border border-cyan-200">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm font-semibold text-swar-text">💧 Water Intake</p>
+            <span className="text-xs bg-cyan-100 text-cyan-800 rounded-full px-2 py-1 font-bold">
+              {Math.round((sadhanaState.diet.waterLiters / 3) * 100)}%
+            </span>
+          </div>
+          <div className="mb-2">
+            <p className="text-2xl font-bold text-cyan-600">{sadhanaState.diet.waterLiters}</p>
+            <p className="text-xs text-swar-text-secondary">of 3 liters</p>
+          </div>
+          <div className="bg-gray-200 rounded-full h-2 overflow-hidden">
+            <div
+              className="bg-gradient-to-r from-cyan-400 to-blue-500 h-2 rounded-full transition-all"
+              style={{ width: `${Math.min((sadhanaState.diet.waterLiters / 3) * 100, 100)}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Pranayam */}
+        <div className="bg-white rounded-xl p-4 shadow-sm border border-amber-200">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm font-semibold text-swar-text">🌬️ Pranayam</p>
+            {sadhanaState.morning.find(p => p.name.toLowerCase().includes('pranayama'))?.completed ? (
+              <span className="text-xs bg-green-100 text-green-800 rounded-full px-2 py-1 font-bold">✓ Done</span>
+            ) : (
+              <span className="text-xs bg-amber-100 text-amber-800 rounded-full px-2 py-1 font-bold">Pending</span>
+            )}
+          </div>
+          <p className="text-2xl font-bold text-amber-600">
+            {sadhanaState.morning.find(p => p.name.toLowerCase().includes('pranayama'))?.duration || '-'}
+          </p>
+          <p className="text-xs text-swar-text-secondary">
+            {sadhanaState.morning.find(p => p.name.toLowerCase().includes('pranayama'))?.frequency || 'daily'}
+          </p>
+        </div>
+
+        {/* Meditation */}
+        <div className="bg-white rounded-xl p-4 shadow-sm border border-purple-200">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm font-semibold text-swar-text">🧘 Meditation</p>
+            {sadhanaState.morning.find(p => p.name.toLowerCase().includes('meditation'))?.completed ? (
+              <span className="text-xs bg-green-100 text-green-800 rounded-full px-2 py-1 font-bold">✓ Done</span>
+            ) : (
+              <span className="text-xs bg-purple-100 text-purple-800 rounded-full px-2 py-1 font-bold">Pending</span>
+            )}
+          </div>
+          <p className="text-2xl font-bold text-purple-600">
+            {sadhanaState.morning.find(p => p.name.toLowerCase().includes('meditation'))?.duration || '-'}
+          </p>
+          <p className="text-xs text-swar-text-secondary">
+            {sadhanaState.morning.find(p => p.name.toLowerCase().includes('meditation'))?.frequency || 'daily'}
+          </p>
+        </div>
+
+        {/* Daily Streaks */}
+        <div className="bg-white rounded-xl p-4 shadow-sm border border-rose-200">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm font-semibold text-swar-text">🔥 Daily Stats</p>
+          </div>
+          <div className="flex items-baseline gap-1 mb-2">
+            <p className="text-2xl font-bold text-rose-600">
+              {healthRoutines.filter(r => (Array.isArray((r as any).completedDates) ? (r as any).completedDates : []).includes(today)).length}
+            </p>
+            <span className="text-xs text-swar-text-secondary">routines done</span>
+          </div>
+          <p className="text-xs text-swar-text-secondary">Today's habits completed</p>
+        </div>
       </div>
 
       {/* Top 3 Cards with Professional Headers */}
