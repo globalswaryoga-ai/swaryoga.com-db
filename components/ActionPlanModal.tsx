@@ -37,12 +37,6 @@ export default function ActionPlanModal({
   const [imageUrl, setImageUrl] = useState('');
   const [completed, setCompleted] = useState(false);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
-  const [goals, setGoals] = useState<ActionPlanGoal[]>([]);
-  const [todos, setTodos] = useState<MiniTodo[]>([]);
-  const [showTodosEditor, setShowTodosEditor] = useState(false);
-  const [newTodoTitle, setNewTodoTitle] = useState('');
-  const [newTodoDueDate, setNewTodoDueDate] = useState('');
-  const [newTodoDueTime, setNewTodoDueTime] = useState('11:00');
 
   const selectedVision = visions.find(v => v.id === selectedVisionId);
 
@@ -67,12 +61,6 @@ export default function ActionPlanModal({
       setImageUrl(editingPlan.imageUrl || '');
       setCompleted(editingPlan.completed || false);
       setMilestones(editingPlan.milestones || []);
-      setGoals(editingPlan.goals || []);
-      setTodos(editingPlan.todos || []);
-      setShowTodosEditor(false);
-      setNewTodoTitle('');
-      setNewTodoDueDate('');
-      setNewTodoDueTime('11:00');
       return;
     }
 
@@ -90,12 +78,6 @@ export default function ActionPlanModal({
     setImageUrl('');
     setCompleted(false);
     setMilestones([]);
-    setGoals([]);
-    setTodos([]);
-    setShowTodosEditor(false);
-    setNewTodoTitle('');
-    setNewTodoDueDate('');
-    setNewTodoDueTime('11:00');
   }, [isOpen, editingPlan, visions, today]);
   
   // Filter visions by selected head
@@ -128,76 +110,6 @@ export default function ActionPlanModal({
     setMilestones(milestones.filter(m => m.id !== id));
   };
 
-  const handleAddGoal = () => {
-    const newGoal: ActionPlanGoal = {
-      id: Date.now().toString(),
-      title: '',
-      description: '',
-      startDate: startDate || today,
-      endDate: endDate || today,
-      workingTimeStart: '11:00',
-      workingTimeEnd: '11:00',
-      place: '',
-      expectedAmount: 0,
-      status: 'not-started',
-      priority: 'medium',
-      progress: 0,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    setGoals([...goals, newGoal]);
-  };
-
-  const handleUpdateGoal = (id: string, updatedGoal: ActionPlanGoal) => {
-    setGoals(goals.map(g => (g.id === id ? updatedGoal : g)));
-  };
-
-  const handleDeleteGoal = (id: string) => {
-    setGoals(goals.filter(g => g.id !== id));
-  };
-
-  const addTodo = () => {
-    const titleTrimmed = newTodoTitle.trim();
-    if (!titleTrimmed) return;
-    const fallbackDate = endDate || startDate || new Date().toISOString().split('T')[0];
-    const dueDate = (newTodoDueDate || fallbackDate).trim();
-    const dueTime = (newTodoDueTime || '11:00').trim();
-    setTodos(prev => [
-      ...prev,
-      { id: `todo-${Date.now()}`, title: titleTrimmed, dueDate, dueTime, completed: false },
-    ]);
-    setNewTodoTitle('');
-    setNewTodoDueDate('');
-    setNewTodoDueTime('11:00');
-  };
-
-  const toggleTodo = (id: string) => {
-    setTodos(prev => prev.map(t => (t.id === id ? { ...t, completed: !t.completed } : t)));
-  };
-
-  const updateTodo = (id: string, patch: Partial<MiniTodo>) => {
-    setTodos(prev => prev.map(t => (t.id === id ? { ...t, ...patch } : t)));
-  };
-
-  const addReminderToActionTodo = (todoId: string, title: string) => {
-    setTodos(prev => prev.map(t => {
-      if (t.id !== todoId) return t;
-      const newRem: MiniReminder = { id: `rem-${Date.now()}`, title, date: t.dueDate, time: t.dueTime || '11:00', completed: false };
-      return { ...t, reminders: [...(t.reminders || []), newRem] };
-    }));
-  };
-
-  const deleteReminderFromActionTodo = (todoId: string, remId: string) => {
-    setTodos(prev => prev.map(t => {
-      if (t.id !== todoId) return t;
-      return { ...t, reminders: (t.reminders || []).filter(r => r.id !== remId) };
-    }));
-  };
-
-  const deleteTodo = (id: string) => {
-    setTodos(prev => prev.filter(t => t.id !== id));
-  };
-
   const handleSave = () => {
     if (!selectedVisionId || !title || !place || !startDate || !endDate) {
       alert('Please fill in all required fields');
@@ -217,8 +129,6 @@ export default function ActionPlanModal({
       place,
       expectedAmount: expectedAmount || undefined,
       milestones,
-      goals,
-      todos,
       status: editingPlan?.status || 'not-started',
       progress: editingPlan?.progress || 0,
       completed: completed,
@@ -244,12 +154,6 @@ export default function ActionPlanModal({
     setImageUrl('');
     setCompleted(false);
     setMilestones([]);
-    setGoals([]);
-    setTodos([]);
-    setShowTodosEditor(false);
-    setNewTodoTitle('');
-    setNewTodoDueDate('');
-    setNewTodoDueTime('11:00');
   };
 
   if (!isOpen) return null;
