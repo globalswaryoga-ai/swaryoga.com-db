@@ -10,11 +10,11 @@ import { clearSession } from '@/lib/sessionManager';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 
 const topTabs = [
-  { href: '/life-planner/dashboard/daily', label: 'Daily', icon: CheckSquare },
-  { href: '/life-planner/dashboard/calendar', label: 'Calendar', icon: Calendar },
-  { href: '/life-planner/dashboard/health', label: 'Health', icon: HeartPulse },
-  { href: '/life-planner/dashboard/diamond-people', label: 'Diamond', icon: Gem },
-  { href: '/life-planner/dashboard/progress', label: 'Progress', icon: BarChart3 },
+  { href: '/admin/crm/planner?section=daily', label: 'Daily', icon: CheckSquare },
+  { href: '/admin/crm/planner?section=calendar', label: 'Calendar', icon: Calendar },
+  { href: '/admin/crm/planner?section=health', label: 'Health', icon: HeartPulse },
+  { href: '/admin/crm/planner?section=diamond', label: 'Diamond', icon: Gem },
+  { href: '/admin/crm/planner?section=progress', label: 'Progress', icon: BarChart3 },
 ];
 
 export default function LifePlannerTopNav({

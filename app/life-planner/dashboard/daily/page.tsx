@@ -777,7 +777,7 @@ export default function DailyViewPage() {
 
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-semibold text-swar-text-secondary">Health Routines</p>
-              <a href="/life-planner/dashboard/health-routines" className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 transition text-xs font-semibold">
+              <a href="/admin/crm/planner?section=health" className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 transition text-xs font-semibold">
                 <Plus size={14} />
                 Add
               </a>

@@ -280,8 +280,8 @@ export default function Footer() {
                 <TrendingUp className="h-5 w-5 group-hover:scale-110 transition-transform duration-300" />
                 <span className="font-semibold">Invest Now</span>
               </Link>
-              <Link 
-                href="/life-planner" 
+              <Link
+                href="/admin/crm/planner"
                 className="flex items-center space-x-2 hover:text-green-400 transition-colors group"
               >
                 <LayoutDashboard className="h-5 w-5 text-green-400 group-hover:rotate-12 transition-transform duration-300" />

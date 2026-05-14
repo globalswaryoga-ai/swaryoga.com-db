@@ -179,7 +179,7 @@ export default function HeaderReminders({ reminders = [], onReminderComplete }: 
           {localReminders.length > 0 && (
             <div className="border-t border-orange-100 p-3 bg-swar-bg flex justify-center">
               <a
-                href="/life-planner/dashboard/reminders"
+                href="/admin/crm/planner?section=reminders"
                 className="text-sm font-medium text-orange-600 hover:text-orange-700 flex items-center gap-1"
               >
                 View All Reminders

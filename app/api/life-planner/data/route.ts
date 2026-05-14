@@ -5,6 +5,7 @@ import { Types } from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
+const TENANT_HEADER = 'x-tenant-id';
 
 function getAuthedIdentity(request: NextRequest): { userId?: string; email?: string } | null {
   const authHeader = request.headers.get('authorization');
@@ -19,6 +20,10 @@ function getAuthedIdentity(request: NextRequest): { userId?: string; email?: str
   };
 }
 
+function getTenantId(request: NextRequest): string | null {
+  return request.headers.get(TENANT_HEADER);
+}
+
 // GET Life Planner data for a user
 export async function GET(request: NextRequest) {
   try {
@@ -26,12 +31,14 @@ export async function GET(request: NextRequest) {
 
     // Auth: accept either userId or email in JWT
     const identity = getAuthedIdentity(request);
+    const tenantId = getTenantId(request);
     const searchParams = request.nextUrl.searchParams;
     const dataType = searchParams.get('type'); // vision, goals, tasks, etc.
 
     console.log(`[GET] Fetching ${dataType || 'all'} for user`, {
       hasUserId: !!identity?.userId,
       hasEmail: !!identity?.email,
+      tenantId,
     });
 
     if (!identity?.userId && !identity?.email) {
@@ -42,20 +49,29 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    if (!tenantId) {
+      console.warn('[GET] Tenant not provided');
+      return NextResponse.json(
+        { error: 'Tenant information missing' },
+        { status: 400 }
+      );
+    }
+
     const userId = identity.userId;
     const email = identity.email;
 
-    // Find user (prefer userId when available)
+    // Find user (prefer userId when available) with tenant filtering
     const user = userId && Types.ObjectId.isValid(userId)
-      ? await User.findById(userId)
+      ? await User.findOne({ _id: userId, tenantId })
       : email
-        ? await User.findOne({ email: email.trim().toLowerCase() })
+        ? await User.findOne({ email: email.trim().toLowerCase(), tenantId })
         : null;
 
     if (!user) {
       console.error(`[GET] User not found`, {
         userId: userId && Types.ObjectId.isValid(userId) ? userId : undefined,
         email: email ? email.trim().toLowerCase() : undefined,
+        tenantId,
       });
       return NextResponse.json(
         { error: 'User not found' },
@@ -103,10 +119,12 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const { type, data } = body;
     const identity = getAuthedIdentity(request);
+    const tenantId = getTenantId(request);
 
     console.log(`[PUT] Updating ${type} for user`, {
       hasUserId: !!identity?.userId,
       hasEmail: !!identity?.email,
+      tenantId,
     });
 
     if (!identity?.userId && !identity?.email) {
@@ -114,6 +132,14 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
+      );
+    }
+
+    if (!tenantId) {
+      console.warn('[PUT] Tenant not provided');
+      return NextResponse.json(
+        { error: 'Tenant information missing' },
+        { status: 400 }
       );
     }
 
@@ -129,11 +155,11 @@ export async function PUT(request: NextRequest) {
     const userId = identity.userId;
     const email = identity.email;
 
-    // Update user with new Life Planner data
+    // Update user with new Life Planner data (with tenant filtering)
     const query = userId && Types.ObjectId.isValid(userId)
-      ? { _id: userId }
+      ? { _id: userId, tenantId }
       : email
-        ? { email: email.trim().toLowerCase() }
+        ? { email: email.trim().toLowerCase(), tenantId }
         : null;
 
     if (!query) {

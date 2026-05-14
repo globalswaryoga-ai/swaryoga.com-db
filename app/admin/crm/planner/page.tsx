@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import {
   ArrowLeft,
@@ -52,8 +52,17 @@ function LoadingSpinner() {
 
 export default function PlannerPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [activeSidebar, setActiveSidebar] = useState<SidebarType>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  // Handle section query parameter (e.g., ?section=health)
+  useEffect(() => {
+    const section = searchParams.get('section');
+    if (section) {
+      setActiveSidebar(section as SidebarType);
+    }
+  }, [searchParams]);
 
   const sidebarItems = [
     { id: 'dashboard', label: 'Dashboard', icon: CheckSquare },
