@@ -222,8 +222,8 @@ export default function TodosPage() {
   };
 
   const handleSaveTodo = () => {
-    if (!formData.taskId || !formData.title.trim()) {
-      alert('Please select a task and enter a title');
+    if (!formData.title.trim()) {
+      alert('Please enter a title');
       return;
     }
     if (!formData.dueDate) {
@@ -493,8 +493,8 @@ export default function TodosPage() {
               )}
 
               {/* Task Selector */}
-              <div className="rounded-lg bg-green-50 border-2 border-green-200 p-3">
-                <label className="block text-sm font-semibold text-swar-text mb-2">✓ Task *</label>
+              <div className="rounded-lg border border-swar-border p-3">
+                <label className="block text-sm font-semibold text-swar-text mb-2">🔗 Link to Task (Optional)</label>
                 {(() => {
                   const tasksToShow = formData.goalId
                     ? tasks.filter(t => t.goalId === formData.goalId)
@@ -512,9 +512,9 @@ export default function TodosPage() {
                         ...prev,
                         taskId: e.target.value,
                       }))}
-                      className="w-full px-4 py-2 border border-swar-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                      className="w-full px-4 py-2 border border-swar-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
-                      <option value="">Select a task...</option>
+                      <option value="">-- No parent task (standalone) --</option>
                       {tasksToShow.map(t => (
                         <option key={t.id} value={t.id}>{t.title}</option>
                       ))}

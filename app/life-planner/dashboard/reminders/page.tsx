@@ -190,8 +190,8 @@ export default function RemindersPage() {
   }, [mounted, searchParams, openCreate, router]);
 
   const isFormValid = useMemo(
-    () => formData.text.trim().length > 0 && formData.date && formData.time && Boolean(formData.visionHead),
-    [formData.text, formData.date, formData.time, formData.visionHead]
+    () => formData.text.trim().length > 0 && Boolean(formData.date) && Boolean(formData.time),
+    [formData.text, formData.date, formData.time]
   );
 
   const handleAddReminder = useCallback(() => {
@@ -392,7 +392,7 @@ export default function RemindersPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-swar-text mb-2">Vision Head *</label>
+                <label className="block text-sm font-medium text-swar-text mb-2">Vision Head (Optional)</label>
                 <select
                   value={formData.visionHead}
                   onChange={(e) => setFormData({ ...formData, visionHead: e.target.value as any, visionId: '', actionPlanId: '', goalId: '', taskId: '', todoId: '' })}

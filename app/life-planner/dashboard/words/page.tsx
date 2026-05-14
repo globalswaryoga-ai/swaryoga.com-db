@@ -243,10 +243,6 @@ export default function WordsPage() {
       alert('Please enter a word title');
       return;
     }
-    if (!form.selectedCategory) {
-      alert('Please choose a head (category)');
-      return;
-    }
     if (!form.startDate || !form.endDate) {
       alert('Please choose start date and end date');
       return;
@@ -631,7 +627,7 @@ function WordModal({
 
       <div className="p-6 space-y-5">
         <div className="rounded-lg bg-blue-50 border-2 border-blue-200 p-3">
-          <label className="block text-sm font-semibold text-swar-text mb-2">📂 Category Head *</label>
+          <label className="block text-sm font-semibold text-swar-text mb-2">📂 Category Head (Optional)</label>
           <select
             value={form.selectedCategory}
             onChange={(e) => setForm(prev => ({
