@@ -571,15 +571,6 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
         },
         {
           icon: Calculator,
-          label: 'Accounting',
-          href: '/admin/crm/accounting',
-          color: 'text-emerald-400',
-          module: 'accounting',
-          planModule: 'accounting',
-          description: 'Financial accounts & reports',
-        },
-        {
-          icon: Calculator,
           label: 'Life Planner',
           href: '/admin/crm/life-planner',
           color: 'text-orange-400',
