@@ -52,25 +52,14 @@ const GoalForm: React.FC<GoalFormProps> = ({
 
   // Filtered lists - computed inline without storing in variables to avoid TDZ
   const getVisionsUnderHead = () => formData.selectedVisionHead ? visions.filter(v => v.category === formData.selectedVisionHead) : [];
-  const getActionPlansUnderVision = () => formData.visionId ? actionPlans.filter(ap => ap.visionId === formData.visionId) : [];
+  // NOTE: Show all action plans when vision selected, don't filter by visionId (compatibility)
+  const getActionPlansUnderVision = () => formData.visionId ? actionPlans : [];
   const getMilestonesUnderPlan = () => formData.actionPlanId ? (actionPlans.find(ap => ap.id === formData.actionPlanId)?.milestones || []) : [];
 
   const visionsUnderHead = getVisionsUnderHead();
   const actionPlansUnderVision = getActionPlansUnderVision();
   const milestonesUnderPlan = getMilestonesUnderPlan();
   const selectedVision = visions.find(v => v.id === formData.visionId);
-
-  // Debug: Log filtering logic
-  React.useEffect(() => {
-    if (formData.visionId) {
-      console.log('[GoalForm Debug]', {
-        selectedVisionId: formData.visionId,
-        selectedVision,
-        allActionPlans: actionPlans.map(ap => ({ id: ap.id, visionId: ap.visionId, title: ap.title })),
-        actionPlansUnderVision,
-      });
-    }
-  }, [formData.visionId, selectedVision, actionPlansUnderVision, actionPlans]);
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
