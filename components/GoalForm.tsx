@@ -26,21 +26,15 @@ const GoalForm: React.FC<GoalFormProps> = ({
   parentActionPlanId,
   parentMilestoneId,
 }) => {
-  // Determine initial state based on parent context or existing data
-  const getInitialVisionHead = () => {
-    if (initialData?.visionId) {
-      return visions.find(v => v.id === initialData.visionId)?.category || '';
-    }
-    if (parentVisionId) {
-      return visions.find(v => v.id === parentVisionId)?.category || '';
-    }
-    return '';
-  };
+  // Compute initial values first to avoid TDZ errors
+  const initialVisionHead = initialData?.visionId
+    ? (visions.find(v => v.id === initialData.visionId)?.category || '')
+    : (parentVisionId ? (visions.find(v => v.id === parentVisionId)?.category || '') : '');
 
   const [formData, setFormData] = useState({
     title: initialData?.title || '',
     description: initialData?.description || '',
-    selectedVisionHead: getInitialVisionHead(),
+    selectedVisionHead: initialVisionHead,
     visionId: initialData?.visionId || parentVisionId || '',
     actionPlanId: initialData?.actionPlanId || parentActionPlanId || '',
     milestoneId: initialData?.milestoneId || parentMilestoneId || '',
@@ -54,6 +48,21 @@ const GoalForm: React.FC<GoalFormProps> = ({
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Compute filtered lists before using in useEffect
+  const visionsUnderHead = formData.selectedVisionHead
+    ? visions.filter(v => v.category === formData.selectedVisionHead)
+    : [];
+
+  const actionPlansUnderVision = formData.visionId
+    ? actionPlans.filter(ap => ap.visionId === formData.visionId)
+    : [];
+
+  const milestonesUnderPlan = formData.actionPlanId
+    ? actionPlans.find(ap => ap.id === formData.actionPlanId)?.milestones || []
+    : [];
+
+  const selectedVision = visions.find(v => v.id === formData.visionId);
 
   // Auto-select single vision when only one option exists
   React.useEffect(() => {
@@ -87,21 +96,6 @@ const GoalForm: React.FC<GoalFormProps> = ({
       }));
     }
   }, [formData.actionPlanId, milestonesUnderPlan]);
-
-  // Filtered lists
-  const visionsUnderHead = formData.selectedVisionHead
-    ? visions.filter(v => v.category === formData.selectedVisionHead)
-    : [];
-
-  const actionPlansUnderVision = formData.visionId
-    ? actionPlans.filter(ap => ap.visionId === formData.visionId)
-    : [];
-
-  const milestonesUnderPlan = formData.actionPlanId
-    ? actionPlans.find(ap => ap.id === formData.actionPlanId)?.milestones || []
-    : [];
-
-  const selectedVision = visions.find(v => v.id === formData.visionId);
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
