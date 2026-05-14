@@ -159,39 +159,39 @@ export default function LifePlannerTopNav({
 
   return (
     <header className="bg-white border-b border-swar-border shadow-sm sticky top-0 z-50">
-      <div className="px-3 sm:px-6 py-2.5 sm:py-4 flex items-center justify-between gap-2 sm:gap-4">
-        <div className="flex items-center space-x-2 sm:space-x-4">
+      <div className="px-2 sm:px-6 py-2 sm:py-4 flex items-center justify-between gap-1.5 sm:gap-4">
+        <div className="flex items-center gap-1.5 sm:gap-4 min-w-0">
           <button
             onClick={onToggleSidebar}
-            className="md:hidden relative p-2.5 rounded-xl bg-gradient-to-br from-swar-primary to-emerald-600 text-white shadow-md active:scale-95 transition-all duration-200 pointer-events-auto cursor-pointer"
+            className="md:hidden relative p-2 sm:p-2.5 rounded-lg sm:rounded-xl bg-gradient-to-br from-swar-primary to-emerald-600 text-white shadow-md active:scale-95 transition-all duration-200 pointer-events-auto cursor-pointer flex-shrink-0"
             aria-label="Toggle sidebar"
             type="button"
           >
-            {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            {sidebarOpen ? <X className="h-4 w-4 sm:h-5 sm:w-5" /> : <Menu className="h-4 w-4 sm:h-5 sm:w-5" />}
           </button>
-          
+
           {/* Logo and Title */}
-          <div className="flex items-center space-x-2 sm:space-x-3">
+          <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
             <img
               src="/logo.png"
               alt="Swar Yoga Logo"
-              className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg shadow-sm"
+              className="w-7 h-7 sm:w-10 sm:h-10 rounded-lg shadow-sm flex-shrink-0"
             />
-            <h1 className="text-base sm:text-2xl font-bold text-swar-primary flex items-center space-x-1 sm:space-x-2 whitespace-nowrap">
+            <h1 className="text-sm sm:text-2xl font-bold text-swar-primary flex items-center gap-1 sm:gap-2 whitespace-nowrap truncate">
               <span className="hidden sm:inline">🗓️</span>
               <span>Life Planner</span>
             </h1>
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5 sm:gap-3">
+        <div className="flex items-center gap-1 sm:gap-3 flex-shrink-0">
           <div className="hidden sm:block">
             <HealthTracker />
           </div>
           <div className="hidden sm:block">
             <ServerStatus />
           </div>
-          
+
           {/* Back Button */}
           <button
             onClick={() => router.back()}
@@ -201,10 +201,10 @@ export default function LifePlannerTopNav({
             <ArrowLeft className="h-4 w-4" />
             <span>Back</span>
           </button>
-          
+
           <Link
             href="/life-planner/profile"
-            className={`inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2 rounded-xl text-sm font-medium transition-all duration-200 hover:scale-105 active:scale-95 ${
+            className={`inline-flex items-center gap-1 sm:gap-2 p-1.5 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl text-sm font-medium transition-all duration-200 hover:scale-105 active:scale-95 flex-shrink-0 ${
               pathname === '/life-planner/profile'
                 ? 'bg-swar-primary text-white shadow-md'
                 : 'text-swar-text-secondary hover:text-swar-text hover:bg-swar-primary-light'
@@ -216,16 +216,16 @@ export default function LifePlannerTopNav({
 
           <button
             onClick={logout}
-            className="p-2 sm:p-2 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 transition-all duration-200 hover:scale-105 active:scale-95 shadow-sm"
+            className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-red-50 text-red-600 hover:bg-red-100 transition-all duration-200 hover:scale-105 active:scale-95 shadow-sm flex-shrink-0"
             title="Logout"
           >
-            <LogOut className="h-5 w-5 sm:h-6 sm:w-6" />
+            <LogOut className="h-4 w-4 sm:h-5 sm:w-6" />
           </button>
         </div>
       </div>
 
-      <div className="border-t border-swar-border px-2 sm:px-4 md:px-6 py-2 overflow-x-auto scroll-smooth scrollbar-hide">
-        <nav className="flex items-center gap-1.5 sm:gap-2 min-w-max">
+      <div className="border-t border-swar-border px-1 sm:px-4 md:px-6 py-1.5 sm:py-2 overflow-x-auto scroll-smooth scrollbar-hide">
+        <nav className="flex items-center gap-1 sm:gap-2 min-w-max">
           {topTabs.map((tab) => {
             const Icon = tab.icon;
             const active = pathname === tab.href;
@@ -233,14 +233,14 @@ export default function LifePlannerTopNav({
               <Link
                 key={tab.href}
                 href={tab.href}
-                className={`shrink-0 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2 rounded-xl px-3 sm:px-4 py-2.5 sm:py-2 text-[10px] sm:text-sm font-medium transition-all duration-200 text-center sm:text-left whitespace-nowrap active:scale-95 ${
+                className={`shrink-0 flex flex-col sm:flex-row items-center justify-center gap-0.5 rounded-lg sm:rounded-xl px-2 sm:px-4 py-1.5 sm:py-2 text-[9px] sm:text-sm font-medium transition-all duration-200 text-center sm:text-left whitespace-nowrap active:scale-95 ${
                   active
                     ? 'bg-swar-primary text-white shadow-md'
                     : 'text-swar-text-secondary hover:text-swar-text hover:bg-swar-primary-light hover:scale-105'
                 }`}
               >
-                <Icon className="h-4 w-4 sm:h-4 sm:w-4" />
-                <span>{tab.label}</span>
+                <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">{tab.label}</span>
               </Link>
             );
           })}
