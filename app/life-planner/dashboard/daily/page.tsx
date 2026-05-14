@@ -741,8 +741,9 @@ export default function DailyViewPage() {
                             </span>
                             <button
                               onClick={() => deleteWorkshopTask(task.id)}
-                              className="opacity-0 group-hover:opacity-100 transition p-1 hover:bg-red-50 rounded text-red-600"
-                              title="Delete"
+                              className="p-1 hover:bg-red-50 rounded text-red-600 transition"
+                              title="Delete task"
+                              aria-label="Delete task"
                             >
                               <Trash2 size={14} />
                             </button>
