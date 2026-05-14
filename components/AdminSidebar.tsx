@@ -319,6 +319,24 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       ],
     },
 
+    // ===== PLANNER =====
+    {
+      key: 'planner',
+      label: 'Planner',
+      icon: LayoutDashboard,
+      items: [
+        {
+          icon: LayoutDashboard,
+          label: 'Planner',
+          href: '/admin/crm/planner',
+          color: 'text-orange-400',
+          module: 'lifePlanner',
+          planModule: 'lifePlanner',
+          description: 'Goals, tasks, vision & planning',
+        },
+      ],
+    },
+
     // ===== WEB ADMIN (Only show on swaryoga.com, hide on crm.swaryoga.com) =====
     ...(isMainAdminDomain ? [{
       key: 'web-admin',
@@ -568,15 +586,6 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
           color: 'text-gray-400',
           module: 'dashboard' as CrmModule,
           description: 'Third-party integrations',
-        },
-        {
-          icon: Calculator,
-          label: 'Life Planner',
-          href: '/admin/crm/life-planner',
-          color: 'text-orange-400',
-          module: 'lifePlanner',
-          planModule: 'lifePlanner',
-          description: 'Goals, tasks & planning',
         },
         {
           icon: Settings,
