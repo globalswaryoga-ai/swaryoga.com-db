@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import {
   ArrowLeft,
   CheckSquare,
@@ -15,26 +16,40 @@ import {
   Bell,
   BookOpen,
   Calculator,
-  DollarSign,
-  Eye,
+  Loader,
 } from 'lucide-react';
 
-type TabType = 'daily' | 'calendar' | 'health' | 'diamond' | 'progress';
 type SidebarType = 'daily' | 'vision' | 'action-plan' | 'goals' | 'tasks' | 'todos' | 'reminders' | 'words' | 'accounting' | 'journal' | 'events';
+
+// Dynamically import Life Planner pages
+const DailyPage = dynamic(() => import('@/app/life-planner/dashboard/daily/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
+const VisionPage = dynamic(() => import('@/app/life-planner/dashboard/vision/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
+const ActionPlanPage = dynamic(() => import('@/app/life-planner/dashboard/action-plan/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
+const GoalsPage = dynamic(() => import('@/app/life-planner/dashboard/goals/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
+const TasksPage = dynamic(() => import('@/app/life-planner/dashboard/tasks/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
+const TodosPage = dynamic(() => import('@/app/life-planner/dashboard/todos/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
+const RemindersPage = dynamic(() => import('@/app/life-planner/dashboard/reminders/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
+const WordsPage = dynamic(() => import('@/app/life-planner/dashboard/words/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
+const CalendarPage = dynamic(() => import('@/app/life-planner/dashboard/calendar/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
+const AccountingPage = dynamic(() => import('@/app/life-planner/dashboard/accounting/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
+const NotesPage = dynamic(() => import('@/app/life-planner/dashboard/notes/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
+const EventsPage = dynamic(() => import('@/app/life-planner/dashboard/events/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
+
+function LoadingSpinner() {
+  return (
+    <div className="flex items-center justify-center h-96">
+      <div className="flex flex-col items-center gap-2">
+        <Loader className="animate-spin" size={40} />
+        <p className="text-gray-600">Loading page...</p>
+      </div>
+    </div>
+  );
+}
 
 export default function PlannerPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<TabType>('daily');
   const [activeSidebar, setActiveSidebar] = useState<SidebarType>('daily');
   const [sidebarOpen, setSidebarOpen] = useState(true);
-
-  const tabs = [
-    { id: 'daily', label: 'Daily', icon: CheckSquare },
-    { id: 'calendar', label: 'Calendar', icon: Calendar },
-    { id: 'health', label: 'Health', icon: Heart },
-    { id: 'diamond', label: 'Diamond', icon: Gem },
-    { id: 'progress', label: 'Progress', icon: TrendingUp },
-  ] as const;
 
   const sidebarItems = [
     { id: 'daily', label: 'Daily', icon: CheckSquare },
@@ -50,12 +65,41 @@ export default function PlannerPage() {
     { id: 'events', label: 'Events', icon: Calendar },
   ] as const;
 
+  const renderContent = () => {
+    switch (activeSidebar) {
+      case 'daily':
+        return <DailyPage />;
+      case 'vision':
+        return <VisionPage />;
+      case 'action-plan':
+        return <ActionPlanPage />;
+      case 'goals':
+        return <GoalsPage />;
+      case 'tasks':
+        return <TasksPage />;
+      case 'todos':
+        return <TodosPage />;
+      case 'reminders':
+        return <RemindersPage />;
+      case 'words':
+        return <WordsPage />;
+      case 'accounting':
+        return <AccountingPage />;
+      case 'journal':
+        return <NotesPage />;
+      case 'events':
+        return <EventsPage />;
+      default:
+        return <DailyPage />;
+    }
+  };
+
   return (
     <div className="flex h-screen bg-white overflow-hidden">
       {/* Sidebar */}
       <aside className={`${sidebarOpen ? 'w-64' : 'w-0'} bg-gradient-to-b from-emerald-700 to-emerald-800 text-white transition-all duration-300 overflow-hidden flex-shrink-0`}>
         <div className="h-full flex flex-col p-4 space-y-3 overflow-y-auto">
-          <h3 className="text-lg font-bold text-emerald-100 mb-4">Planner Menu</h3>
+          <h3 className="text-lg font-bold text-emerald-100 mb-4">Planner</h3>
           {sidebarItems.map(item => {
             const Icon = item.icon;
             const isActive = activeSidebar === item.id;
@@ -79,66 +123,28 @@ export default function PlannerPage() {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <header className="bg-white border-b border-gray-200 px-6 py-4">
-          <div className="flex items-center justify-between mb-4">
-            {/* Back Button */}
-            <button
-              onClick={() => router.push('/admin/crm')}
-              className="flex items-center gap-2 px-3 py-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-700 font-semibold"
-            >
-              <ArrowLeft size={20} />
-              Back to CRM
-            </button>
+        {/* Header with Back Arrow */}
+        <header className="bg-white border-b border-gray-200 px-4 md:px-6 py-3 md:py-4 flex items-center justify-between">
+          <button
+            onClick={() => router.push('/admin/crm')}
+            className="flex items-center gap-2 px-3 py-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-700 font-semibold"
+          >
+            <ArrowLeft size={20} />
+            <span className="hidden sm:inline">Back to CRM</span>
+            <span className="sm:hidden">Back</span>
+          </button>
 
-            {/* Toggle Sidebar Button */}
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="md:hidden flex items-center gap-2 px-3 py-2 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              {sidebarOpen ? '✕' : '☰'}
-            </button>
-          </div>
-
-          {/* Tabs */}
-          <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0">
-            {tabs.map(tab => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all whitespace-nowrap ${
-                    isActive
-                      ? 'bg-emerald-600 text-white shadow-md'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  <Icon size={18} />
-                  <span>{tab.label}</span>
-                </button>
-              );
-            })}
-          </div>
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="md:hidden flex items-center gap-2 px-3 py-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-700"
+          >
+            {sidebarOpen ? '✕' : '☰'}
+          </button>
         </header>
 
         {/* Content Area */}
-        <main className="flex-1 overflow-auto p-4 md:p-6 bg-gray-50">
-          <div className="max-w-7xl mx-auto">
-            <div className="bg-white rounded-2xl shadow-sm p-6 md:p-8 border border-gray-200">
-              <h2 className="text-2xl font-bold text-gray-800 mb-4">
-                {tabs.find(t => t.id === activeTab)?.label} - {sidebarItems.find(s => s.id === activeSidebar)?.label}
-              </h2>
-              <p className="text-gray-600 mb-6">
-                Content for <strong>{activeSidebar}</strong> page in <strong>{activeTab}</strong> view.
-              </p>
-              <div className="text-center py-12 bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-lg">
-                <p className="text-gray-700 font-medium">📋 Planner pages will be integrated here</p>
-                <p className="text-gray-600 text-sm mt-2">Tab: {activeTab} | Page: {activeSidebar}</p>
-              </div>
-            </div>
-          </div>
+        <main className="flex-1 overflow-auto bg-gray-50">
+          {renderContent()}
         </main>
       </div>
     </div>
