@@ -13,15 +13,29 @@ import { Types } from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
+const TENANT_HEADER = 'x-tenant-id';
+
+function getTenantId(request: NextRequest): string | null {
+  return request.headers.get(TENANT_HEADER);
+}
+
 
 export async function GET(request: NextRequest) {
   try {
     await connectDB();
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
+    const tenantId = getTenantId(request);
     const decoded = verifyToken(token);
 
     if (!decoded?.userId && !decoded?.email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (!tenantId) {
+      return NextResponse.json(
+        { error: 'Tenant information missing' },
+        { status: 400 }
+      );
     }
 
     const userId = decoded.userId;
@@ -39,9 +53,9 @@ export async function GET(request: NextRequest) {
     }
 
     const user = userId && Types.ObjectId.isValid(userId)
-      ? await User.findById(userId).lean()
+      ? await User.findOne({ _id: userId, tenantId }).lean()
       : email
-        ? await User.findOne({ email: email.trim().toLowerCase() }).lean()
+        ? await User.findOne({ email: email.trim().toLowerCase(), tenantId }).lean()
         : null;
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
@@ -84,10 +98,18 @@ export async function POST(request: NextRequest) {
   try {
     await connectDB();
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
+    const tenantId = getTenantId(request);
     const decoded = verifyToken(token);
 
     if (!decoded?.userId && !decoded?.email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (!tenantId) {
+      return NextResponse.json(
+        { error: 'Tenant information missing' },
+        { status: 400 }
+      );
     }
 
     const userId = decoded.userId;
@@ -103,11 +125,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update user's daily tasks
+    // Update user's daily tasks (with tenant filtering)
     const query = userId && Types.ObjectId.isValid(userId)
-      ? { _id: userId }
+      ? { _id: userId, tenantId }
       : email
-        ? { email: email.trim().toLowerCase() }
+        ? { email: email.trim().toLowerCase(), tenantId }
         : null;
 
     if (!query) {

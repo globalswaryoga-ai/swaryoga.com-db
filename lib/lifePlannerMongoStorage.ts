@@ -43,13 +43,28 @@ class LifePlannerMongoStorage {
     return localStorage.getItem('lifePlannerToken') || localStorage.getItem('token') || getSession()?.token || null;
   }
 
+  private getTenantId(): string | null {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem('tenantId') || null;
+  }
+
   private hasAuth(): boolean {
     return Boolean(this.getToken());
   }
 
   private authHeaders(): Record<string, string> {
     const token = this.getToken();
-    return token ? { Authorization: `Bearer ${token}` } : {};
+    const tenantId = this.getTenantId();
+    const headers: Record<string, string> = {};
+
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    if (tenantId) {
+      headers['x-tenant-id'] = tenantId;
+    }
+
+    return headers;
   }
 
   private handleUnauthorized(): void {
