@@ -906,7 +906,7 @@ export default function LifePlannerAccountingPage() {
 
         {/* Account Modal */}
         {showAccountModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000]">
             <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
               <div className="p-6">
                 <h3 className="text-lg font-semibold text-swar-text mb-4">{editingAccount ? 'Edit Account' : 'Add New Account'}</h3>
@@ -1010,7 +1010,7 @@ export default function LifePlannerAccountingPage() {
 
         {/* Transaction Modal */}
         {showTransactionModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000]">
             <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
               <div className="p-6">
                 <h3 className="text-lg font-semibold text-swar-text mb-4">{editingTransaction ? 'Edit Transaction' : 'Add New Transaction'}</h3>
@@ -1119,7 +1119,7 @@ export default function LifePlannerAccountingPage() {
 
         {/* Investment Modal */}
         {showInvestmentModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000]">
             <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
               <div className="p-6">
                 <h3 className="text-lg font-semibold text-swar-text mb-4">{editingInvestment ? 'Edit Investment' : 'Add New Investment'}</h3>

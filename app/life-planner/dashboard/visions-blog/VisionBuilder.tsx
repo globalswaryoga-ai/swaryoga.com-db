@@ -333,7 +333,7 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2 sm:p-4">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[10000] p-2 sm:p-4">
       <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-6xl max-h-[95vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="bg-gradient-to-r from-swar-primary to-pink-600 p-4 sm:p-6 md:p-8 flex items-center justify-between gap-3">

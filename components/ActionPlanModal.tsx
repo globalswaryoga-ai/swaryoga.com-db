@@ -187,7 +187,7 @@ export default function ActionPlanModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000] p-4">
       <div className="bg-white rounded-lg shadow-2xl max-w-4xl w-full max-h-screen overflow-y-auto">
         <div className="sticky top-0 bg-gradient-to-r from-swar-primary to-blue-700 p-6 text-white flex justify-between items-center">
           <h2 className="text-2xl font-bold text-white">

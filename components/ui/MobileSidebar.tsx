@@ -81,7 +81,7 @@ export function MobileSidebar({ children, title = 'Menu', position = 'left' }: M
 
       {/* Sidebar Panel */}
       <div
-        className={`fixed inset-y-0 ${position === 'left' ? 'left-0' : 'right-0'} z-50 w-80 max-w-[85vw] bg-white shadow-2xl lg:hidden transform transition-transform duration-300 ease-out ${
+        className={`fixed inset-y-0 ${position === 'left' ? 'left-0' : 'right-0'} z-[10000] w-80 max-w-[85vw] bg-white shadow-2xl lg:hidden transform transition-transform duration-300 ease-out ${
           isOpen
             ? 'translate-x-0'
             : position === 'left'

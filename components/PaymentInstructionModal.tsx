@@ -39,7 +39,7 @@ export default function PaymentInstructionModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center px-4 py-6">
+    <div className="fixed inset-0 z-[10000] bg-black/50 flex items-center justify-center px-4 py-6">
       <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl overflow-hidden">
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-6 flex items-center justify-between">

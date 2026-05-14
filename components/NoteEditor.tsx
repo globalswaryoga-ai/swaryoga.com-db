@@ -199,7 +199,7 @@ export default function NoteEditor({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[10000] bg-black/50 flex items-center justify-center p-4">
       <div 
         className="w-full max-w-4xl max-h-[90vh] rounded-2xl overflow-hidden shadow-2xl flex flex-col"
         style={{ backgroundColor: currentTheme.bg }}

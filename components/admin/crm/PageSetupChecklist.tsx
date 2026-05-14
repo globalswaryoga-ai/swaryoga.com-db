@@ -338,7 +338,7 @@ export default function PageSetupChecklist({
 
       {/* Video Modal */}
       {showVideo && pageConfig.tutorialVideo && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/80">
           <div className="relative w-full max-w-4xl mx-4">
             <button
               onClick={() => setShowVideo(false)}

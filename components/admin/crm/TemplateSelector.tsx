@@ -606,7 +606,7 @@ export default function TemplateSelector({
   // Render based on mode
   if (mode === 'modal') {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+      <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/50">
         <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[80vh] overflow-hidden">
           {content}
         </div>
@@ -616,7 +616,7 @@ export default function TemplateSelector({
 
   if (mode === 'dropdown') {
     return (
-      <div className="absolute bottom-full left-0 right-0 mb-2 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-50">
+      <div className="absolute bottom-full left-0 right-0 mb-2 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-[10000]">
         {content}
       </div>
     );

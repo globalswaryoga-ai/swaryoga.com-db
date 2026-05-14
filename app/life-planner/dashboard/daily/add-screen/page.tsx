@@ -164,7 +164,7 @@ export default function AddScreenPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50">
       {/* Header */}
-      <div className="sticky top-0 z-50 bg-white border-b border-swar-border shadow-sm">
+      <div className="sticky top-0 z-[10000] bg-white border-b border-swar-border shadow-sm">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between mb-3">
             <h1 className="text-2xl sm:text-3xl font-bold text-swar-text">Manage Todos</h1>

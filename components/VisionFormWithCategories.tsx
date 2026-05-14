@@ -142,7 +142,7 @@ const VisionForm: React.FC<VisionFormProps> = ({ vision, onSave, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[10000] p-4">
       <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[95vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b border-swar-border sticky top-0 bg-white">
           <h2 className="text-2xl font-bold text-swar-text">

@@ -150,7 +150,7 @@ export default function ProtectedVideoPlayer({
 
       {/* Concurrent Stream Error */}
       {showConcurrentError && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="mx-4 max-w-md rounded-lg bg-white p-6 shadow-xl">
             <div className="mb-4 flex items-center gap-3">
               <span className="text-3xl">🚫</span>

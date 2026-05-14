@@ -294,7 +294,7 @@ export default function AICallModal({ leadId, leadName, leadPhone, token, onClos
   })();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/40" onClick={onClose}>
       <div
         className="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4 max-h-[85vh] flex flex-col overflow-hidden"
         onClick={e => e.stopPropagation()}

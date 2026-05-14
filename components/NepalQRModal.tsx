@@ -44,7 +44,7 @@ export default function NepalQRModal({ onClose, amount, currency }: NepalQRModal
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[10000] bg-black/50 flex items-center justify-center p-4">
       <div className="bg-white rounded-lg shadow-2xl max-w-md w-full overflow-hidden">
         {/* Header */}
         <div className="bg-swar-primary text-white px-6 py-4 flex items-center justify-between">

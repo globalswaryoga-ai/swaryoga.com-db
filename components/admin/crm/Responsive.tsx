@@ -295,7 +295,7 @@ export function ResponsiveModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur flex items-end md:items-center justify-center">
+    <div className="fixed inset-0 z-[10000] bg-black/50 backdrop-blur flex items-end md:items-center justify-center">
       <div
         className={`
           bg-slate-800 rounded-t-2xl md:rounded-xl border border-purple-500/50 

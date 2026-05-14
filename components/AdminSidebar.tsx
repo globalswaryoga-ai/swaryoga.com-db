@@ -683,7 +683,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
 
       {/* Sidebar */}
       <aside
-        className={`fixed md:static inset-y-0 left-0 z-50 ${sidebarWidth} bg-gray-900 text-white transform transition-all duration-300 ease-in-out flex flex-col ${
+        className={`fixed md:static inset-y-0 left-0 z-[10000] ${sidebarWidth} bg-gray-900 text-white transform transition-all duration-300 ease-in-out flex flex-col ${
           isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
       >
@@ -785,7 +785,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
                           </span>
                         )}
                         {isCollapsed && (
-                          <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-lg border border-gray-700 transition-opacity">
+                          <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-[10000] shadow-lg border border-gray-700 transition-opacity">
                             <div className="font-medium">{item.label}</div>
                             {item.description && (
                               <div className="text-[10px] text-gray-400 mt-0.5">{item.description}</div>
@@ -838,7 +838,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
                   )}
                   {/* Tooltip when collapsed */}
                   {isCollapsed && (
-                    <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-lg border border-gray-700 transition-opacity">
+                    <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-[10000] shadow-lg border border-gray-700 transition-opacity">
                       <div className="font-medium">{category.label}</div>
                       <div className="text-[10px] text-gray-400">{category.items.length} items</div>
                     </div>
@@ -888,7 +888,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
                           )}
                           {/* Tooltip when collapsed */}
                           {isCollapsed && (
-                            <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-lg border border-gray-700 transition-opacity">
+                            <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-[10000] shadow-lg border border-gray-700 transition-opacity">
                               <div className="font-medium">{item.label}</div>
                               {item.description && (
                                 <div className="text-[10px] text-gray-400 mt-0.5">{item.description}</div>
@@ -937,7 +937,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
                       </span>
                     )}
                     {isCollapsed && (
-                      <div className="absolute left-full ml-2 px-2.5 py-1 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-lg border border-gray-700 transition-opacity">
+                      <div className="absolute left-full ml-2 px-2.5 py-1 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-[10000] shadow-lg border border-gray-700 transition-opacity">
                         {item.label}
                       </div>
                     )}
@@ -1030,7 +1030,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
                 storageUsage.percentage > 80 ? 'text-red-400' : 
                 storageUsage.percentage > 50 ? 'text-yellow-400' : 'text-cyan-400'
               }`} />
-              <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-lg border border-gray-700 transition-opacity">
+              <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-[10000] shadow-lg border border-gray-700 transition-opacity">
                 <div className="font-medium">{storageUsage.display}</div>
                 <div className="text-amber-400 text-[10px]">{isIndiaUser ? `₹${storageUsage.monthlyCostINR}` : `$${storageUsage.monthlyCostUSD}`}/mo</div>
                 {!isSuperAdmin && storageUsage.storagePlan === 'free' && (
@@ -1069,7 +1069,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
               <span className="font-medium text-[13px] text-gray-400 group-hover:text-white">Settings</span>
             )}
             {isCollapsed && (
-              <div className="absolute left-full ml-2 px-2.5 py-1 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-lg border border-gray-700 transition-opacity">
+              <div className="absolute left-full ml-2 px-2.5 py-1 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-[10000] shadow-lg border border-gray-700 transition-opacity">
                 Settings
               </div>
             )}
@@ -1097,7 +1097,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
               <span className="font-medium text-[13px] text-gray-400 group-hover:text-red-400">Sign Out</span>
             )}
             {isCollapsed && (
-              <div className="absolute left-full ml-2 px-2.5 py-1 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-lg border border-gray-700 transition-opacity">
+              <div className="absolute left-full ml-2 px-2.5 py-1 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-[10000] shadow-lg border border-gray-700 transition-opacity">
                 Sign Out
               </div>
             )}

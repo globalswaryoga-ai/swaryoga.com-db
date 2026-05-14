@@ -24,7 +24,7 @@ export default function ReminderModal({ reminders, onDismiss }: ReminderModalPro
     : '';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50">
       <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 p-6 animate-in fade-in slide-in-from-bottom-4">
         {/* Header with X button */}
         <div className="flex items-start justify-between mb-4">

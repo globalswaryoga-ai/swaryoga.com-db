@@ -362,7 +362,7 @@ export default function LeadDetailModal({
   // ── Loading State ──
   if (loading) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
+      <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
         <div className="bg-white rounded-2xl p-8 shadow-xl" onClick={e => e.stopPropagation()}>
           <div className="animate-spin h-8 w-8 border-4 border-indigo-500 border-t-transparent rounded-full mx-auto" />
           <p className="mt-4 text-gray-500 text-sm">Loading lead details...</p>
@@ -373,7 +373,7 @@ export default function LeadDetailModal({
 
   if (!lead) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
+      <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
         <div className="bg-white rounded-2xl p-8 shadow-xl text-center" onClick={e => e.stopPropagation()}>
           <AlertCircle className="h-10 w-10 text-red-500 mx-auto" />
           <p className="mt-4 text-gray-700 font-medium">Lead not found</p>
@@ -384,7 +384,7 @@ export default function LeadDetailModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-2 sm:p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 backdrop-blur-sm p-2 sm:p-4" onClick={onClose}>
       <div
         className="bg-white rounded-2xl shadow-xl w-full max-w-5xl max-h-[95vh] overflow-hidden flex flex-col"
         onClick={e => e.stopPropagation()}

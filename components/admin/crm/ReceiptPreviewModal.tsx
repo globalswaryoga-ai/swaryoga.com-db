@@ -149,7 +149,7 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
   const formatCurrency = (amt: number | undefined) => `₹${(amt || 0).toLocaleString('en-IN')}`;
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[10000] flex items-center justify-center p-4" onClick={onClose}>
       <div
         className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden"
         onClick={e => e.stopPropagation()}

@@ -64,7 +64,7 @@ export default function SecurityWarningPopup({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="relative mx-4 w-full max-w-md rounded-2xl bg-white shadow-2xl">
         {/* Header */}
         <div className="flex items-center gap-3 rounded-t-2xl bg-gradient-to-r from-orange-500 to-red-500 px-6 py-4">
