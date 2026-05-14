@@ -3,15 +3,25 @@ import { uploadToBunnyStorage, getPublicFileUrl } from '@/lib/bunny-storage';
 import { buildLifePlannerPath } from '@/lib/lifePlannerImageUpload';
 import { getSession } from '@/lib/sessionManager';
 
+const TENANT_HEADER = 'x-tenant-id';
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const urlInput = formData.get('url') as string;
 
-    // Get user ID from session
+    // Get user ID and tenant from session/headers
     const session = await getSession();
     const userId = session?.userId || session?.email || 'anonymous';
+    const tenantId = request.headers.get(TENANT_HEADER);
+
+    if (!tenantId) {
+      return NextResponse.json(
+        { error: 'Tenant information missing' },
+        { status: 400 }
+      );
+    }
 
     // Handle URL input
     if (urlInput && !file) {
@@ -55,8 +65,8 @@ export async function POST(request: NextRequest) {
     // Convert file to buffer
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    // Build Bunny path
-    const bunnyPath = buildLifePlannerPath(userId, file.name);
+    // Build Bunny path with tenant isolation
+    const bunnyPath = buildLifePlannerPath(userId, file.name, false, tenantId);
 
     // Upload to Bunny Storage
     const storageKey = await uploadToBunnyStorage(buffer, file.name, {
