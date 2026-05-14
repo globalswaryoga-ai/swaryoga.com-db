@@ -258,43 +258,6 @@ export default function DailyViewPage() {
       }
     })();
 
-    // Restore per-card hero images from localStorage (previously a single shared key).
-    try {
-      const legacy = localStorage.getItem(HERO_STORAGE_LEGACY_KEY);
-      if (legacy) {
-        // Migrate legacy shared hero image to card 1 only (workshop).
-        localStorage.removeItem(HERO_STORAGE_LEGACY_KEY);
-        try {
-          localStorage.setItem(`${HERO_STORAGE_PREFIX}workshop`, legacy);
-        } catch {
-          // ignore
-        }
-      }
-
-      setHeroImgByCard((prev) => {
-        const next = { ...prev };
-        for (const c of DAILY_HERO_CARDS) {
-          const key = `${HERO_STORAGE_PREFIX}${c}`;
-          const stored = localStorage.getItem(key);
-          if (!stored) continue;
-          // Migrate older default that doesn't exist anymore
-          if (stored === '/images/swar-yoga-hero.jpg') {
-            try {
-              localStorage.removeItem(key);
-            } catch {
-              // ignore
-            }
-            next[c] = HERO_DEFAULT_BY_CARD[c];
-          } else {
-            next[c] = stored;
-          }
-        }
-        return next;
-      });
-    } catch {
-      // ignore
-    }
-
     // Load Health routines (same source as Health dashboard)
     (async () => {
       setHealthLoading(true);
@@ -323,23 +286,23 @@ export default function DailyViewPage() {
     if (!sadhanaHasLoaded) return;
     try {
       localStorage.setItem(sadhanaStorageKey, JSON.stringify(sadhanaState));
-      
+
       // Auto-save to MongoDB (debounced with 500ms timeout)
       const timer = setTimeout(() => {
         (async () => {
           try {
-            await lifePlannerStorage.saveSadhana(today, sadhanaState);
+            await lifePlannerStorage.saveSadhana(selectedDate, sadhanaState);
           } catch (error) {
             console.error('Error saving sadhana to MongoDB:', error);
           }
         })();
       }, 500);
-      
+
       return () => clearTimeout(timer);
     } catch {
       // ignore
     }
-  }, [sadhanaState, sadhanaHasLoaded, sadhanaStorageKey, today]);
+  }, [sadhanaState, sadhanaHasLoaded, sadhanaStorageKey, selectedDate]);
 
   // Persist health routines when changed (debounced, like Health page)
   useEffect(() => {
@@ -410,12 +373,12 @@ export default function DailyViewPage() {
   const persistWorkshopTasks = (updated: WorkshopTask[]) => {
     setWorkshopTasks(updated);
     localStorage.setItem(getWorkshopStorageKey(), JSON.stringify(updated));
-    
+
     // Auto-save to MongoDB (debounced)
     setTimeout(() => {
       (async () => {
         try {
-          await lifePlannerStorage.saveWorkshopTasks(today, updated);
+          await lifePlannerStorage.saveWorkshopTasks(selectedDate, updated);
         } catch (error) {
           console.error('Error saving workshop tasks to MongoDB:', error);
         }
