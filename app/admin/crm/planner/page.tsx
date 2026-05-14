@@ -19,7 +19,7 @@ import {
   Loader,
 } from 'lucide-react';
 
-type SidebarType = 'daily' | 'vision' | 'action-plan' | 'goals' | 'tasks' | 'todos' | 'reminders' | 'words' | 'accounting' | 'journal' | 'events';
+type SidebarType = 'daily' | 'vision' | 'action-plan' | 'goals' | 'tasks' | 'todos' | 'reminders' | 'words' | 'accounting' | 'journal' | 'events' | 'health' | 'diamond' | 'progress';
 
 // Dynamically import Life Planner pages
 const DailyPage = dynamic(() => import('@/app/life-planner/dashboard/daily/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
@@ -34,6 +34,9 @@ const CalendarPage = dynamic(() => import('@/app/life-planner/dashboard/calendar
 const AccountingPage = dynamic(() => import('@/app/life-planner/dashboard/accounting/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
 const NotesPage = dynamic(() => import('@/app/life-planner/dashboard/notes/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
 const EventsPage = dynamic(() => import('@/app/life-planner/dashboard/events/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
+const HealthPage = dynamic(() => import('@/app/life-planner/dashboard/health/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
+const DiamondPage = dynamic(() => import('@/app/life-planner/dashboard/diamond-people/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
+const ProgressPage = dynamic(() => import('@/app/life-planner/dashboard/progress/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
 
 function LoadingSpinner() {
   return (
@@ -63,6 +66,9 @@ export default function PlannerPage() {
     { id: 'accounting', label: 'Accounting', icon: Calculator },
     { id: 'journal', label: 'Journal', icon: BookOpen },
     { id: 'events', label: 'Events', icon: Calendar },
+    { id: 'health', label: 'Health', icon: Heart },
+    { id: 'diamond', label: 'Diamond', icon: Gem },
+    { id: 'progress', label: 'Progress', icon: TrendingUp },
   ] as const;
 
   const renderContent = () => {
@@ -89,6 +95,12 @@ export default function PlannerPage() {
         return <NotesPage />;
       case 'events':
         return <EventsPage />;
+      case 'health':
+        return <HealthPage />;
+      case 'diamond':
+        return <DiamondPage />;
+      case 'progress':
+        return <ProgressPage />;
       default:
         return <DailyPage />;
     }

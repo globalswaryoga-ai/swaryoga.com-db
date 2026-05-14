@@ -60,13 +60,8 @@ export default function NotesPage() {
   // Fetch notes
   useEffect(() => {
     const storedToken = localStorage.getItem('lifePlannerToken') || localStorage.getItem('token');
-    if (!storedToken) {
-      setError('Please login first');
-      setLoading(false);
-      return;
-    }
 
-    setToken(storedToken);
+    setToken(storedToken || '');
 
     (async () => {
       try {
