@@ -24,7 +24,7 @@ export default function LifePlannerSettingsPage() {
       return;
     }
 
-    // Keep session alive (7 days sliding window) as long as user doesn't logout.
+    // Keep session alive (1 year sliding window) as long as user doesn't logout.
     ensureSessionExpiry();
     extendSession();
 
@@ -43,7 +43,7 @@ export default function LifePlannerSettingsPage() {
         <div className="mb-6">
           <h1 className="text-3xl sm:text-4xl font-bold text-swar-text mb-2">⚙️ Settings</h1>
           <p className="text-swar-text-secondary">
-            Life Planner stays logged in for <span className="font-semibold">7 days</span> from your latest activity (unless you logout).
+            Life Planner stays logged in for <span className="font-semibold">1 year</span> from your latest activity (unless you logout).
           </p>
         </div>
 
