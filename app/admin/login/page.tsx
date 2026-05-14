@@ -57,12 +57,16 @@ export default function AdminLogin() {
 
       if (response.ok && data.token) {
         setSubmitStatus('success');
-        
+
         // Store admin token in localStorage (support both key formats used across the repo)
         const resolvedUserId = data.user?.userId || formData.username;
+        const tenantId = data.tenantId || resolvedUserId;
+
         localStorage.setItem('adminToken', data.token);
         localStorage.setItem('adminUser', resolvedUserId);
         localStorage.setItem('admin_token', data.token);
+        localStorage.setItem('tenantId', tenantId); // Store tenantId for Life Planner access
+
         // Prefer storing the full user payload for permission-based routing.
         // Keep backward compatibility by ensuring at least { userId } exists.
         localStorage.setItem(

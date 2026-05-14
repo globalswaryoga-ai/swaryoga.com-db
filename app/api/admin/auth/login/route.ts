@@ -74,6 +74,9 @@ export async function POST(request: Request) {
       );
     }
 
+    // For admins, tenantId is their userId (they own their own CRM tenant)
+    const tenantId = user.userId || user.email || user._id?.toString();
+
     // Generate JWT token using the same secret/config as the rest of the app.
     const token = generateToken({
       userId: user.userId,
@@ -83,11 +86,13 @@ export async function POST(request: Request) {
       permissions: user.permissions,
       permissionsV2: user.permissionsV2 || null,
       managedUserIds: user.managedUserIds || [], // For managers: IDs of users they supervise
+      tenantId, // Add tenantId to JWT for Life Planner access
     });
 
     return jsonResponse({
       success: true,
       token,
+      tenantId, // Return tenantId so client can store it
       user: {
         userId: user.userId,
         email: user.email,
