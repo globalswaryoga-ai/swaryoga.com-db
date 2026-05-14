@@ -152,7 +152,9 @@ export default function VisionPage() {
       return dateA - dateB;
     });
 
-  const handleSaveVision = (visionData: Omit<Vision, 'id' | 'createdAt' | 'updatedAt'>) => {
+  const handleSaveVision = async (visionData: Omit<Vision, 'id' | 'createdAt' | 'updatedAt'>) => {
+    let updatedVisions: Vision[];
+
     if (editingVision) {
       const visionId = editingVision.id;
       const fixedVisionData: Omit<Vision, 'id' | 'createdAt' | 'updatedAt'> = {
@@ -161,12 +163,10 @@ export default function VisionPage() {
           ? (visionData as any).goals.map((g: any) => ({ ...g, visionId }))
           : (visionData as any).goals,
       };
-      setVisions(prev =>
-        prev.map(v =>
-          v.id === editingVision.id
-            ? { ...v, ...fixedVisionData, updatedAt: new Date().toISOString() }
-            : v
-        )
+      updatedVisions = visions.map(v =>
+        v.id === editingVision.id
+          ? { ...v, ...fixedVisionData, updatedAt: new Date().toISOString() }
+          : v
       );
     } else {
       const newId = Date.now().toString();
@@ -183,9 +183,20 @@ export default function VisionPage() {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-      setVisions(prev => [...prev, newVision]);
+      updatedVisions = [...visions, newVision];
     }
+
+    // Update UI
+    setVisions(updatedVisions);
     setIsModalOpen(false);
+
+    // Save to database
+    try {
+      await lifePlannerStorage.saveVisions(updatedVisions);
+    } catch (error) {
+      console.error('Error saving vision:', error);
+      alert('Failed to save vision');
+    }
   };
 
   const handleAddActionPlanForVision = (vision: Vision) => {
