@@ -52,6 +52,13 @@ export async function GET(request: NextRequest) {
     const userId = identity.userId;
     const email = identity.email;
 
+    console.log(`[GET] User context:`, {
+      hasUserId: !!userId,
+      hasEmail: !!email,
+      tenantId: tenantId || 'none',
+      userIdIsValidObjectId: userId && Types.ObjectId.isValid(userId),
+    });
+
     // Find user: if tenantId provided, use it for filtering (admin/CRM context)
     // Otherwise just filter by userId/email (regular user context)
     const query = tenantId
@@ -66,7 +73,10 @@ export async function GET(request: NextRequest) {
             ? { email: email.trim().toLowerCase() }
             : null);
 
+    console.log(`[GET] Query:`, JSON.stringify(query));
+
     if (!query) {
+      console.error(`[GET] Invalid user context - query is null`);
       return NextResponse.json(
         { error: 'Invalid user context' },
         { status: 400 }
@@ -155,6 +165,14 @@ export async function PUT(request: NextRequest) {
     const userId = identity.userId;
     const email = identity.email;
 
+    console.log(`[PUT] User context:`, {
+      type,
+      hasUserId: !!userId,
+      hasEmail: !!email,
+      tenantId: tenantId || 'none',
+      userIdIsValidObjectId: userId && Types.ObjectId.isValid(userId),
+    });
+
     // Update user with new Life Planner data
     // If tenantId provided, use it for filtering (admin/CRM context)
     // Otherwise just filter by userId/email (regular user context)
@@ -170,7 +188,10 @@ export async function PUT(request: NextRequest) {
             ? { email: email.trim().toLowerCase() }
             : null);
 
+    console.log(`[PUT] Query:`, JSON.stringify(query));
+
     if (!query) {
+      console.error(`[PUT] Invalid user context - query is null`);
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
