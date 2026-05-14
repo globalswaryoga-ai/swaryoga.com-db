@@ -679,27 +679,85 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
         {/* Top Bar */}
-        <div className="h-14 bg-gray-800 border-b border-gray-700 flex items-center px-4 gap-4">
+        <div className="h-14 sm:h-16 bg-gray-800 border-b border-gray-700 flex items-center px-2 sm:px-4 gap-2 sm:gap-4">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 -m-2 text-gray-400 hover:text-white transition-colors"
+            className="p-2 -m-2 text-gray-400 hover:text-white transition-colors flex-shrink-0 hidden sm:block"
+            title="Toggle sidebar"
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 w-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          
-          <div className="flex-1">
+
+          {/* Play/Pause Buttons */}
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <button
+              onClick={() => {
+                if (videoRef.current) {
+                  videoRef.current.pause();
+                }
+              }}
+              className="p-1.5 sm:p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+              title="Pause"
+            >
+              <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
+              </svg>
+            </button>
+            <button
+              onClick={() => {
+                if (videoRef.current) {
+                  videoRef.current.play();
+                }
+              }}
+              className="p-1.5 sm:p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+              title="Play"
+            >
+              <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+            </button>
+          </div>
+
+          <div className="flex-1 min-w-0">
             {currentVideo && (
-              <h1 className="text-white font-medium truncate">{currentVideo.title}</h1>
+              <h1 className="text-xs sm:text-sm md:text-base text-white font-medium truncate">{currentVideo.title}</h1>
             )}
           </div>
 
+          {/* Mobile Sidebar Toggle */}
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="p-2 -m-2 text-gray-400 hover:text-white transition-colors flex-shrink-0 sm:hidden"
+            title="Toggle sidebar"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
         </div>
 
         {/* Video Player Area */}
         <div className="flex-1 flex flex-col bg-black">
-          {currentVideo && videoStream ? (
+          {currentVideo && !currentVideo.canWatch && currentVideo.isLocked ? (
+            // Locked Video Screen
+            <div className="flex-1 flex flex-col items-center justify-center px-4 py-8">
+              <div className="text-center">
+                <svg className="w-16 h-16 sm:w-20 sm:h-20 mx-auto text-gray-600 mb-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">{t.locked}</h2>
+                <p className="text-gray-400 mb-6 text-sm sm:text-base">This video is only available for enrolled students.</p>
+                <Link
+                  href={`/e-learning/${slug}`}
+                  className="inline-block px-6 sm:px-8 py-2.5 sm:py-3 bg-orange-500 text-white font-semibold rounded-lg hover:bg-orange-600 transition-colors text-sm sm:text-base"
+                >
+                  {t.enrollNow}
+                </Link>
+              </div>
+            </div>
+          ) : currentVideo && videoStream ? (
             <>
               {/* Video */}
               <div className="flex-1 flex items-center justify-center">
@@ -843,8 +901,8 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
               </div>
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center">
-              <p className="text-gray-500 text-lg">{t.selectVideo}</p>
+            <div className="flex-1 flex items-center justify-center px-4 py-8">
+              <p className="text-gray-500 text-base sm:text-lg text-center">{t.selectVideo}</p>
             </div>
           )}
         </div>
