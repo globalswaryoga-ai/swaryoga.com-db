@@ -64,6 +64,16 @@ class LifePlannerMongoStorage {
       headers['x-tenant-id'] = tenantId;
     }
 
+    // Debug logging
+    if (typeof window !== 'undefined') {
+      console.debug('[LifePlannerStorage] Headers:', {
+        hasToken: !!token,
+        hasTenantId: !!tenantId,
+        tenantId: tenantId || 'MISSING',
+        tokenPrefix: token ? token.substring(0, 20) + '...' : 'MISSING',
+      });
+    }
+
     return headers;
   }
 
@@ -131,23 +141,39 @@ class LifePlannerMongoStorage {
   }
 
   async saveVisions(visions: Vision[]): Promise<void> {
-    if (!this.hasAuth()) return;
+    if (!this.hasAuth()) {
+      console.warn('[LifePlannerMongoStorage] saveVisions: No auth, skipping save');
+      return;
+    }
     try {
+      const headers = { 'Content-Type': 'application/json', ...this.authHeaders() };
+      console.log('[LifePlannerMongoStorage] Saving visions with headers:', {
+        hasAuthorization: !!headers.Authorization,
+        hasTenantId: !!headers['x-tenant-id'],
+        visionsCount: visions.length,
+      });
+
       const response = await fetch('/api/life-planner/data', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
+        headers,
         body: JSON.stringify({ type: 'visions', data: visions }),
       });
+
+      console.log('[LifePlannerMongoStorage] saveVisions response:', { status: response.status });
+
       if (response.status === 401) {
+        console.error('[LifePlannerMongoStorage] Unauthorized (401) when saving visions');
         this.handleUnauthorized();
         return;
       }
       if (!response.ok) {
         const body = await response.text().catch(() => '');
         console.error('[LifePlannerMongoStorage] saveVisions failed', { status: response.status, body });
+      } else {
+        console.log('[LifePlannerMongoStorage] ✅ Visions saved successfully');
       }
-    } catch {
-      console.error('Failed to save visions');
+    } catch (error) {
+      console.error('[LifePlannerMongoStorage] Failed to save visions:', error);
     }
   }
 
