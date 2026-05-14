@@ -135,7 +135,9 @@ export default function LifePlannerDashboardLayout({ children }: { children: Rea
         <LifePlannerSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
         <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-          <LifePlannerTopNav sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
+          <div className="sticky top-0 z-50">
+            <LifePlannerTopNav sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
+          </div>
           <main className="flex-1 overflow-auto p-3 sm:p-4 md:p-6 bg-white">{children}</main>
         </div>
       </div>

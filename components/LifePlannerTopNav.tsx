@@ -158,7 +158,7 @@ export default function LifePlannerTopNav({
   };
 
   return (
-    <header className="bg-white border-b border-swar-border shadow-sm sticky top-0 z-40">
+    <header className="bg-white border-b border-swar-border shadow-sm sticky top-0 z-50">
       <div className="px-3 sm:px-6 py-2.5 sm:py-4 flex items-center justify-between gap-2 sm:gap-4">
         <div className="flex items-center space-x-2 sm:space-x-4">
           <button

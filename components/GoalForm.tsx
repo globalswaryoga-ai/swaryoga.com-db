@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useMemo } from 'react';
-import { Calendar, DollarSign, Image, Flag, ChevronDown } from 'lucide-react';
+import { Calendar, DollarSign, Image, Flag } from 'lucide-react';
 import LifePlannerImageUpload from '@/components/LifePlannerImageUpload';
 import { VISION_CATEGORIES, Goal } from '@/lib/types/lifePlanner';
 import type { Vision, ActionPlan, Milestone } from '@/lib/types/lifePlanner';
@@ -16,58 +16,6 @@ interface GoalFormProps {
   parentActionPlanId?: string;
   parentMilestoneId?: string;
 }
-
-interface CollapsibleSelectProps {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: { id: string; title: string }[];
-  placeholder?: string;
-}
-
-const CollapsibleSelect: React.FC<CollapsibleSelectProps> = ({
-  label,
-  value,
-  onChange,
-  options,
-  placeholder = 'Choose...',
-}) => {
-  const [isOpen, setIsOpen] = useState(value === '');
-  const selectedOption = options.find(opt => opt.id === value);
-  const displayValue = selectedOption?.title || placeholder;
-
-  return (
-    <div className="rounded-lg bg-blue-50 border-2 border-blue-200 p-4">
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between px-4 py-3 border-2 border-swar-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition text-left"
-      >
-        <span className={`text-sm font-semibold ${!value ? 'text-swar-text-secondary' : 'text-swar-text'}`}>
-          {label}: {value ? displayValue : placeholder}
-        </span>
-        <ChevronDown size={18} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-      </button>
-
-      {isOpen && (
-        <select
-          value={value}
-          onChange={(e) => {
-            onChange(e.target.value);
-            setIsOpen(false);
-          }}
-          className="w-full mt-2 px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
-          autoFocus
-        >
-          <option value="">{placeholder}</option>
-          {options.map(opt => (
-            <option key={opt.id} value={opt.id}>{opt.title}</option>
-          ))}
-        </select>
-      )}
-    </div>
-  );
-};
 
 const GoalForm: React.FC<GoalFormProps> = ({
   onSubmit,
