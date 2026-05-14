@@ -47,6 +47,7 @@ const GoalForm: React.FC<GoalFormProps> = ({
     completed: initialData?.completed || false,
   });
 
+  const [hasVisionHead, setHasVisionHead] = useState(!!initialVisionHead);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Filtered lists - computed inline without storing in variables to avoid TDZ
@@ -197,27 +198,53 @@ const GoalForm: React.FC<GoalFormProps> = ({
       {/* Manual selection (no parent context) */}
       {!parentVisionId && !parentActionPlanId && (
         <>
-          {/* Vision Head Selector */}
+          {/* Vision Head Checkbox and Selector */}
           <div className="rounded-lg bg-blue-50 border-2 border-blue-200 p-4">
-            <label className="block text-sm font-semibold text-swar-text mb-3">🎯 Select Vision Head</label>
-            <select
-              value={formData.selectedVisionHead}
-              onChange={(e) => {
-                setFormData(prev => ({
-                  ...prev,
-                  selectedVisionHead: e.target.value,
-                  visionId: '',
-                  actionPlanId: '',
-                  milestoneId: '',
-                }));
-              }}
-              className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
-            >
-              <option value="">Choose vision head...</option>
-              {VISION_CATEGORIES.map(head => (
-                <option key={head} value={head}>{head}</option>
-              ))}
-            </select>
+            <div className="flex items-center mb-4">
+              <input
+                type="checkbox"
+                id="hasVisionHead"
+                checked={hasVisionHead}
+                onChange={(e) => {
+                  setHasVisionHead(e.target.checked);
+                  if (!e.target.checked) {
+                    // Clear vision head and related fields when unchecked
+                    setFormData(prev => ({
+                      ...prev,
+                      selectedVisionHead: '',
+                      visionId: '',
+                      actionPlanId: '',
+                      milestoneId: '',
+                    }));
+                  }
+                }}
+                className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500 cursor-pointer"
+              />
+              <label htmlFor="hasVisionHead" className="ml-3 text-sm font-semibold text-swar-text cursor-pointer">
+                🎯 Select Vision Head
+              </label>
+            </div>
+
+            {hasVisionHead && (
+              <select
+                value={formData.selectedVisionHead}
+                onChange={(e) => {
+                  setFormData(prev => ({
+                    ...prev,
+                    selectedVisionHead: e.target.value,
+                    visionId: '',
+                    actionPlanId: '',
+                    milestoneId: '',
+                  }));
+                }}
+                className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+              >
+                <option value="">Choose vision head...</option>
+                {VISION_CATEGORIES.map(head => (
+                  <option key={head} value={head}>{head}</option>
+                ))}
+              </select>
+            )}
           </div>
 
           {/* Vision Selector - Dropdown if multiple, Auto if single */}
