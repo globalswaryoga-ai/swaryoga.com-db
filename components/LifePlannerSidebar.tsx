@@ -105,14 +105,14 @@ export default function LifePlannerSidebar({ isOpen, onClose }: LifePlannerSideb
     <>
       {/* Mobile Backdrop with blur */}
       {isOpen && (
-        <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden transition-opacity duration-300" 
-          onClick={onClose} 
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9998] md:hidden transition-opacity duration-300"
+          onClick={onClose}
         />
       )}
 
       <aside
-        className={`fixed md:static inset-y-0 left-0 z-50 w-64 md:w-72 bg-gradient-to-b from-swar-primary to-emerald-800 text-white transform transition-all duration-300 ease-out shadow-2xl md:shadow-none ${
+        className={`fixed md:static inset-y-0 left-0 z-[9999] md:z-auto w-64 md:w-72 bg-gradient-to-b from-swar-primary to-emerald-800 text-white transform transition-all duration-300 ease-out shadow-2xl md:shadow-none ${
           isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
       >

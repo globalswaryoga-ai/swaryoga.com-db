@@ -131,10 +131,10 @@ export default function LifePlannerDashboardLayout({ children }: { children: Rea
       {!isCrmAccess && <Navigation />}
 
       {/* Life Planner UI sits below website header */}
-      <div className="flex flex-1 min-h-0 bg-white">
+      <div className="flex flex-1 min-h-0 bg-white overflow-hidden relative">
         <LifePlannerSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-        <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+        <div className="flex-1 flex flex-col overflow-hidden min-h-0 w-full">
           <LifePlannerTopNav sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
           <main className="flex-1 overflow-auto p-3 sm:p-4 md:p-6 bg-white">{children}</main>
         </div>
