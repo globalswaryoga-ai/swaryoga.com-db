@@ -16,12 +16,8 @@ export async function POST(request: NextRequest) {
     const userId = session?.userId || session?.email || 'anonymous';
     const tenantId = request.headers.get(TENANT_HEADER);
 
-    if (!tenantId) {
-      return NextResponse.json(
-        { error: 'Tenant information missing' },
-        { status: 400 }
-      );
-    }
+    // tenantId is optional - required for CRM admins, optional for regular users
+    const effectiveTenantId = tenantId || 'default';
 
     // Handle URL input
     if (urlInput && !file) {
@@ -66,7 +62,7 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer());
 
     // Build Bunny path with tenant isolation
-    const bunnyPath = buildLifePlannerPath(userId, file.name, false, tenantId);
+    const bunnyPath = buildLifePlannerPath(userId, file.name, false, effectiveTenantId);
 
     // Upload to Bunny Storage
     const storageKey = await uploadToBunnyStorage(buffer, file.name, {

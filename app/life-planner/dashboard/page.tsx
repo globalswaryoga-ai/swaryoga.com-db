@@ -36,21 +36,21 @@ export default function LifePlannerDashboardHome() {
 
               <div className="flex flex-col sm:flex-row flex-wrap gap-2 sm:gap-3">
                 <Link
-                  href="/admin/crm/planner?section=dashboard"
+                  href="/life-planner/dashboard"
                   className="rounded-2xl bg-white px-4 py-2.5 text-sm font-semibold text-[#0b3d2e] hover:bg-white/90 transition shadow-md touch-target text-center active:scale-95 min-h-10 inline-flex items-center justify-center gap-2"
                 >
                   <Sparkles className="h-4 w-4" />
                   Dashboard
                 </Link>
                 <Link
-                  href="/admin/crm/planner?section=daily"
+                  href="/life-planner/dashboard/daily"
                   className="rounded-2xl bg-white px-4 py-2.5 text-sm font-semibold text-[#0b3d2e] hover:bg-white/90 transition shadow-md touch-target text-center active:scale-95 min-h-10 inline-flex items-center justify-center gap-2"
                 >
                   <Flame className="h-4 w-4" />
                   Open Daily
                 </Link>
                 <Link
-                  href="/admin/crm/planner?section=vision"
+                  href="/life-planner/dashboard/vision"
                   className="rounded-2xl bg-[#ff7a18] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#ff6a00] transition shadow-md touch-target text-center active:scale-95 min-h-10 inline-flex items-center justify-center gap-2"
                 >
                   <Target className="h-4 w-4" />
@@ -85,31 +85,31 @@ export default function LifePlannerDashboardHome() {
 
         <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
           <Link
-            href="/admin/crm/planner?section=vision"
+            href="/life-planner/dashboard/vision"
             className="rounded-2xl bg-[#0b3d2e] px-3 py-3 text-sm font-semibold text-white hover:opacity-95 transition text-center active:scale-95 inline-flex items-center justify-center gap-2"
           >
             <Target className="h-4 w-4" /> + Vision
           </Link>
           <Link
-            href="/admin/crm/planner?section=action-plan"
+            href="/life-planner/dashboard/action-plan"
             className="rounded-2xl bg-emerald-600 px-3 py-3 text-sm font-semibold text-white hover:bg-emerald-700 transition text-center active:scale-95 inline-flex items-center justify-center gap-2"
           >
             <ClipboardList className="h-4 w-4" /> + Action Plan
           </Link>
           <Link
-            href="/admin/crm/planner?section=tasks"
+            href="/life-planner/dashboard/tasks"
             className="rounded-2xl bg-orange-500 px-3 py-3 text-sm font-semibold text-white hover:bg-orange-600 transition text-center active:scale-95 inline-flex items-center justify-center gap-2"
           >
             <BookOpen className="h-4 w-4" /> + Task
           </Link>
           <Link
-            href="/admin/crm/planner?section=words"
+            href="/life-planner/dashboard/words"
             className="rounded-2xl bg-red-600 px-3 py-3 text-sm font-semibold text-white hover:bg-red-700 transition text-center active:scale-95 inline-flex items-center justify-center gap-2"
           >
             <Sparkles className="h-4 w-4" /> + Word
           </Link>
           <Link
-            href="/admin/crm/planner?section=reminders"
+            href="/life-planner/dashboard/reminders"
             className="rounded-2xl border border-swar-border bg-white px-3 py-3 text-sm font-semibold text-swar-text hover:bg-swar-bg transition text-center active:scale-95 inline-flex items-center justify-center gap-2"
           >
             <Bell className="h-4 w-4 text-emerald-700" /> + Reminder
@@ -133,7 +133,7 @@ export default function LifePlannerDashboardHome() {
           <div className="mt-3 sm:mt-4 flex gap-2">
             <Link
               className="rounded-xl bg-emerald-600 px-3 py-2 text-xs sm:text-sm text-white hover:bg-emerald-700 transition font-semibold touch-target text-center flex-1"
-              href="/admin/crm/planner?section=daily"
+              href="/life-planner/dashboard/daily"
             >
               Open
             </Link>
@@ -155,7 +155,7 @@ export default function LifePlannerDashboardHome() {
           <div className="mt-3 sm:mt-4 flex gap-2">
             <Link
               className="rounded-xl bg-orange-500 px-3 py-2 text-xs sm:text-sm text-white hover:bg-orange-600 transition font-semibold touch-target text-center flex-1"
-              href="/admin/crm/planner?section=calendar"
+              href="/life-planner/dashboard/calendar"
             >
               Open
             </Link>

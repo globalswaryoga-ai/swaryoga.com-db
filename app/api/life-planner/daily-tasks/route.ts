@@ -31,13 +31,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!tenantId) {
-      return NextResponse.json(
-        { error: 'Tenant information missing' },
-        { status: 400 }
-      );
-    }
-
     const userId = decoded.userId;
     const email = decoded.email;
 
@@ -52,11 +45,28 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const user = userId && Types.ObjectId.isValid(userId)
-      ? await User.findOne({ _id: userId, tenantId }).lean()
-      : email
-        ? await User.findOne({ email: email.trim().toLowerCase(), tenantId }).lean()
-        : null;
+    // Find user: if tenantId provided, use it for filtering (admin/CRM context)
+    // Otherwise just filter by userId/email (regular user context)
+    const query = tenantId
+      ? (userId && Types.ObjectId.isValid(userId)
+          ? { _id: userId, tenantId }
+          : email
+            ? { email: email.trim().toLowerCase(), tenantId }
+            : null)
+      : (userId && Types.ObjectId.isValid(userId)
+          ? { _id: userId }
+          : email
+            ? { email: email.trim().toLowerCase() }
+            : null);
+
+    if (!query) {
+      return NextResponse.json(
+        { error: 'Invalid user context' },
+        { status: 400 }
+      );
+    }
+
+    const user = await User.findOne(query).lean();
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
@@ -105,13 +115,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!tenantId) {
-      return NextResponse.json(
-        { error: 'Tenant information missing' },
-        { status: 400 }
-      );
-    }
-
     const userId = decoded.userId;
     const email = decoded.email;
 
@@ -125,12 +128,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update user's daily tasks (with tenant filtering)
-    const query = userId && Types.ObjectId.isValid(userId)
-      ? { _id: userId, tenantId }
-      : email
-        ? { email: email.trim().toLowerCase(), tenantId }
-        : null;
+    // Update user's daily tasks
+    // If tenantId provided, use it for filtering (admin/CRM context)
+    // Otherwise just filter by userId/email (regular user context)
+    const query = tenantId
+      ? (userId && Types.ObjectId.isValid(userId)
+          ? { _id: userId, tenantId }
+          : email
+            ? { email: email.trim().toLowerCase(), tenantId }
+            : null)
+      : (userId && Types.ObjectId.isValid(userId)
+          ? { _id: userId }
+          : email
+            ? { email: email.trim().toLowerCase() }
+            : null);
 
     if (!query) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

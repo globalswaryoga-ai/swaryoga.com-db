@@ -49,23 +49,31 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    if (!tenantId) {
-      console.warn('[GET] Tenant not provided');
+    const userId = identity.userId;
+    const email = identity.email;
+
+    // Find user: if tenantId provided, use it for filtering (admin/CRM context)
+    // Otherwise just filter by userId/email (regular user context)
+    const query = tenantId
+      ? (userId && Types.ObjectId.isValid(userId)
+          ? { _id: userId, tenantId }
+          : email
+            ? { email: email.trim().toLowerCase(), tenantId }
+            : null)
+      : (userId && Types.ObjectId.isValid(userId)
+          ? { _id: userId }
+          : email
+            ? { email: email.trim().toLowerCase() }
+            : null);
+
+    if (!query) {
       return NextResponse.json(
-        { error: 'Tenant information missing' },
+        { error: 'Invalid user context' },
         { status: 400 }
       );
     }
 
-    const userId = identity.userId;
-    const email = identity.email;
-
-    // Find user (prefer userId when available) with tenant filtering
-    const user = userId && Types.ObjectId.isValid(userId)
-      ? await User.findOne({ _id: userId, tenantId })
-      : email
-        ? await User.findOne({ email: email.trim().toLowerCase(), tenantId })
-        : null;
+    const user = await User.findOne(query);
 
     if (!user) {
       console.error(`[GET] User not found`, {
@@ -135,14 +143,6 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    if (!tenantId) {
-      console.warn('[PUT] Tenant not provided');
-      return NextResponse.json(
-        { error: 'Tenant information missing' },
-        { status: 400 }
-      );
-    }
-
     if (!type) {
       return NextResponse.json(
         { error: 'Type is required' },
@@ -155,12 +155,20 @@ export async function PUT(request: NextRequest) {
     const userId = identity.userId;
     const email = identity.email;
 
-    // Update user with new Life Planner data (with tenant filtering)
-    const query = userId && Types.ObjectId.isValid(userId)
-      ? { _id: userId, tenantId }
-      : email
-        ? { email: email.trim().toLowerCase(), tenantId }
-        : null;
+    // Update user with new Life Planner data
+    // If tenantId provided, use it for filtering (admin/CRM context)
+    // Otherwise just filter by userId/email (regular user context)
+    const query = tenantId
+      ? (userId && Types.ObjectId.isValid(userId)
+          ? { _id: userId, tenantId }
+          : email
+            ? { email: email.trim().toLowerCase(), tenantId }
+            : null)
+      : (userId && Types.ObjectId.isValid(userId)
+          ? { _id: userId }
+          : email
+            ? { email: email.trim().toLowerCase() }
+            : null);
 
     if (!query) {
       return NextResponse.json(

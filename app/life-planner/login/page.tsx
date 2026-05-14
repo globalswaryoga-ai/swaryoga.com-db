@@ -113,11 +113,14 @@ export default function LifePlannerLoginPage() {
 
       // Also keep life-planner specific keys for backward compatibility with existing life planner code.
       try {
+        const userEmail = user?.email || email.trim();
         localStorage.setItem('lifePlannerToken', token);
         localStorage.setItem(
           'lifePlannerUser',
-          JSON.stringify({ email: user?.email || email.trim(), createdAt: Date.now() })
+          JSON.stringify({ email: userEmail, createdAt: Date.now() })
         );
+        // Set tenantId for Life Planner data persistence (for regular users, tenantId = email)
+        localStorage.setItem('tenantId', userEmail);
       } catch {
         // ignore storage failures
       }
