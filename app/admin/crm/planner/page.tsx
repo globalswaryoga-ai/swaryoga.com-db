@@ -19,7 +19,7 @@ import {
   Loader,
 } from 'lucide-react';
 
-type SidebarType = 'dashboard' | 'daily' | 'vision' | 'action-plan' | 'goals' | 'tasks' | 'todos' | 'reminders' | 'words' | 'accounting' | 'journal' | 'events' | 'health' | 'diamond' | 'progress';
+type SidebarType = 'dashboard' | 'calendar' | 'daily' | 'vision' | 'action-plan' | 'goals' | 'tasks' | 'todos' | 'reminders' | 'words' | 'accounting' | 'journal' | 'events' | 'health' | 'diamond' | 'progress';
 
 // Dynamically import Life Planner pages
 const DashboardPage = dynamic(() => import('@/app/life-planner/dashboard/comprehensive-dashboard/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
@@ -57,6 +57,7 @@ export default function PlannerPage() {
 
   const sidebarItems = [
     { id: 'dashboard', label: 'Dashboard', icon: CheckSquare },
+    { id: 'calendar', label: 'Calendar', icon: Calendar },
     { id: 'daily', label: 'Daily', icon: CheckSquare },
     { id: 'vision', label: 'Vision', icon: Target },
     { id: 'action-plan', label: 'Action Plan', icon: Flag },
@@ -77,6 +78,8 @@ export default function PlannerPage() {
     switch (activeSidebar) {
       case 'dashboard':
         return <DashboardPage />;
+      case 'calendar':
+        return <CalendarPage />;
       case 'daily':
         return <DailyPage />;
       case 'vision':
