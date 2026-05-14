@@ -47,7 +47,7 @@ const GoalForm: React.FC<GoalFormProps> = ({
     completed: initialData?.completed || false,
   });
 
-  const [hasVisionHead, setHasVisionHead] = useState(!!initialVisionHead);
+  const [hasVisionHead, setHasVisionHead] = useState(true);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Filtered lists - computed inline without storing in variables to avoid TDZ
