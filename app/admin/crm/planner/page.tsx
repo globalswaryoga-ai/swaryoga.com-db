@@ -19,9 +19,10 @@ import {
   Loader,
 } from 'lucide-react';
 
-type SidebarType = 'daily' | 'vision' | 'action-plan' | 'goals' | 'tasks' | 'todos' | 'reminders' | 'words' | 'accounting' | 'journal' | 'events' | 'health' | 'diamond' | 'progress';
+type SidebarType = 'dashboard' | 'daily' | 'vision' | 'action-plan' | 'goals' | 'tasks' | 'todos' | 'reminders' | 'words' | 'accounting' | 'journal' | 'events' | 'health' | 'diamond' | 'progress';
 
 // Dynamically import Life Planner pages
+const DashboardPage = dynamic(() => import('@/app/life-planner/dashboard/comprehensive-dashboard/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
 const DailyPage = dynamic(() => import('@/app/life-planner/dashboard/daily/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
 const VisionPage = dynamic(() => import('@/app/life-planner/dashboard/vision/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
 const ActionPlanPage = dynamic(() => import('@/app/life-planner/dashboard/action-plan/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
@@ -51,10 +52,11 @@ function LoadingSpinner() {
 
 export default function PlannerPage() {
   const router = useRouter();
-  const [activeSidebar, setActiveSidebar] = useState<SidebarType>('daily');
+  const [activeSidebar, setActiveSidebar] = useState<SidebarType>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const sidebarItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: CheckSquare },
     { id: 'daily', label: 'Daily', icon: CheckSquare },
     { id: 'vision', label: 'Vision', icon: Target },
     { id: 'action-plan', label: 'Action Plan', icon: Flag },
@@ -73,6 +75,8 @@ export default function PlannerPage() {
 
   const renderContent = () => {
     switch (activeSidebar) {
+      case 'dashboard':
+        return <DashboardPage />;
       case 'daily':
         return <DailyPage />;
       case 'vision':
