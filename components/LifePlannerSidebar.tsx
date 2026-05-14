@@ -45,7 +45,7 @@ export default function LifePlannerSidebar({ isOpen, onClose }: LifePlannerSideb
     if (window.innerWidth < 768) {
       onClose();
     }
-  }, [pathname, onClose]);
+  }, [pathname]);
 
   // Prevent body scroll when sidebar is open on mobile
   useEffect(() => {

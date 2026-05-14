@@ -30,9 +30,6 @@ export default function ActionPlanModal({
   const [description, setDescription] = useState('');
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(today);
-  const [workingHoursStart, setWorkingHoursStart] = useState('11:00');
-  const [workingHoursEnd, setWorkingHoursEnd] = useState('11:00');
-  const [place, setPlace] = useState('');
   const [expectedAmount, setExpectedAmount] = useState(0);
   const [imageUrl, setImageUrl] = useState('');
   const [completed, setCompleted] = useState(false);
@@ -54,9 +51,6 @@ export default function ActionPlanModal({
       setDescription(editingPlan.description || '');
       setStartDate(editingPlan.startDate || today);
       setEndDate(editingPlan.endDate || today);
-      setWorkingHoursStart(editingPlan.workingHoursStart || '11:00');
-      setWorkingHoursEnd(editingPlan.workingHoursEnd || '11:00');
-      setPlace(editingPlan.place || '');
       setExpectedAmount(editingPlan.expectedAmount || 0);
       setImageUrl(editingPlan.imageUrl || '');
       setCompleted(editingPlan.completed || false);
@@ -74,9 +68,6 @@ export default function ActionPlanModal({
         setDescription('');
         setStartDate(today);
         setEndDate(today);
-        setWorkingHoursStart('11:00');
-        setWorkingHoursEnd('11:00');
-        setPlace('');
         setExpectedAmount(0);
         setImageUrl('');
         setCompleted(false);
@@ -92,9 +83,6 @@ export default function ActionPlanModal({
     setDescription('');
     setStartDate(today);
     setEndDate(today);
-    setWorkingHoursStart('11:00');
-    setWorkingHoursEnd('11:00');
-    setPlace('');
     setExpectedAmount(0);
     setImageUrl('');
     setCompleted(false);
@@ -123,6 +111,7 @@ export default function ActionPlanModal({
       workingHoursStart: '11:00',
       workingHoursEnd: '11:00',
       place: '',
+      amount: undefined,
       status: 'not-started',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -139,7 +128,7 @@ export default function ActionPlanModal({
   };
 
   const handleSave = () => {
-    if (!selectedVisionId || !title || !place || !startDate || !endDate) {
+    if (!selectedVisionId || !title || !startDate || !endDate) {
       alert('Please fill in all required fields');
       return;
     }
@@ -152,9 +141,6 @@ export default function ActionPlanModal({
       imageUrl: imageUrl || selectedVision?.imageUrl || selectedVision?.categoryImageUrl,
       startDate,
       endDate,
-      workingHoursStart,
-      workingHoursEnd,
-      place,
       expectedAmount: expectedAmount || undefined,
       milestones,
       status: editingPlan?.status || 'not-started',
@@ -175,9 +161,6 @@ export default function ActionPlanModal({
     setDescription('');
     setStartDate(today);
     setEndDate(today);
-    setWorkingHoursStart('11:00');
-    setWorkingHoursEnd('11:00');
-    setPlace('');
     setExpectedAmount(0);
     setImageUrl('');
     setCompleted(false);
@@ -339,46 +322,6 @@ export default function ActionPlanModal({
                 className="w-full px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-blue-500"
               />
             </div>
-          </div>
-
-          {/* Working Hours */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-semibold text-swar-text mb-2">
-                Working Hours Start
-              </label>
-              <input
-                type="time"
-                value={workingHoursStart}
-                onChange={e => setWorkingHoursStart(e.target.value)}
-                className="w-full px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-swar-text mb-2">
-                Working Hours End
-              </label>
-              <input
-                type="time"
-                value={workingHoursEnd}
-                onChange={e => setWorkingHoursEnd(e.target.value)}
-                className="w-full px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-blue-500"
-              />
-            </div>
-          </div>
-
-          {/* Place */}
-          <div>
-            <label className="block text-sm font-semibold text-swar-text mb-2">
-              Working Place *
-            </label>
-            <input
-              type="text"
-              value={place}
-              onChange={e => setPlace(e.target.value)}
-              placeholder="e.g., Home Gym, Office, Studio"
-              className="w-full px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-blue-500"
-            />
           </div>
 
           {/* Expected Amount */}
@@ -589,6 +532,22 @@ function MilestoneCard({
               })
             }
             placeholder="Working location"
+            className="w-full px-3 py-2 border border-swar-border rounded text-sm focus:outline-none focus:border-blue-500"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-swar-text-secondary mb-1">Amount (Rs.)</label>
+          <input
+            type="number"
+            value={milestone.amount || ''}
+            onChange={e =>
+              onUpdate(milestone.id, {
+                ...milestone,
+                amount: e.target.value ? Number(e.target.value) : undefined,
+              })
+            }
+            placeholder="Amount in rupees"
             className="w-full px-3 py-2 border border-swar-border rounded text-sm focus:outline-none focus:border-blue-500"
           />
         </div>
