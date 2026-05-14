@@ -227,6 +227,9 @@ export function middleware(request: NextRequest) {
   } else if (path.startsWith('/api/admin/crm/')) {
     bucket = 'crm_admin';
     baseLimit = hasAuthHeader ? 300 : 120;
+  } else if (path.startsWith('/api/life-planner/')) {
+    bucket = 'life_planner';
+    baseLimit = hasAuthHeader ? 100 : 30;
   } else if (path.startsWith('/api/crm-site/')) {
     bucket = 'crm_site';
     baseLimit = 60;
