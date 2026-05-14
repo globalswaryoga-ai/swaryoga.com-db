@@ -54,7 +54,15 @@ export default function PlannerPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [activeSidebar, setActiveSidebar] = useState<SidebarType>('dashboard');
+  const [mounted, setMounted] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  // On mobile, sidebar starts closed; on desktop, it starts open
+  React.useEffect(() => {
+    setMounted(true);
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+    setSidebarOpen(!isMobile);
+  }, []);
 
   // Handle section query parameter (e.g., ?section=health)
   useEffect(() => {
@@ -122,12 +130,24 @@ export default function PlannerPage() {
     }
   };
 
+  if (!mounted) return null;
+
   return (
     <div className="flex h-screen bg-white overflow-hidden">
+      {/* Mobile Overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-30 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className={`${sidebarOpen ? 'w-64' : 'w-0'} bg-gradient-to-b from-emerald-700 to-emerald-800 text-white transition-all duration-300 overflow-hidden flex-shrink-0`}>
-        <div className="h-full flex flex-col p-4 space-y-3 overflow-y-auto">
-          <h3 className="text-lg font-bold text-emerald-100 mb-4">Planner</h3>
+      <aside className={`fixed md:relative h-full z-40 md:z-auto bg-gradient-to-b from-emerald-700 to-emerald-800 text-white transition-all duration-300 overflow-hidden flex-shrink-0 ${
+        sidebarOpen ? 'w-64' : 'w-0'
+      }`}>
+        <div className="h-full flex flex-col p-3 md:p-4 space-y-2 md:space-y-3 overflow-y-auto">
+          <h3 className="text-base md:text-lg font-bold text-emerald-100 mb-2 md:mb-4">Planner</h3>
           {sidebarItems.map(item => {
             const Icon = item.icon;
             const isActive = activeSidebar === item.id;
@@ -164,9 +184,16 @@ export default function PlannerPage() {
 
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="md:hidden flex items-center gap-2 px-3 py-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-700"
+            className="md:hidden p-2 hover:bg-gray-200 rounded-lg transition-colors text-gray-700"
+            aria-label="Toggle menu"
           >
-            {sidebarOpen ? '✕' : '☰'}
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {sidebarOpen ? (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              )}
+            </svg>
           </button>
         </header>
 
