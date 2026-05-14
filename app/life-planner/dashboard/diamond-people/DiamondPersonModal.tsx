@@ -61,100 +61,100 @@ const DiamondPersonModal: React.FC<DiamondPersonModalProps> = ({ person, onSave,
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b border-swar-border">
-          <h2 className="text-2xl font-bold text-swar-text">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-3 sm:p-4">
+      <div className="bg-white rounded-lg sm:rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-4 sm:p-6 border-b border-swar-border sticky top-0 bg-white">
+          <h2 className="text-lg sm:text-2xl font-bold text-swar-text">
             {person ? 'Edit Person' : 'Add New Person'}
           </h2>
           <button
             onClick={onClose}
             className="p-2 text-swar-text-secondary hover:text-swar-text hover:bg-swar-primary-light rounded-lg transition-colors"
           >
-            <X className="h-6 w-6" />
+            <X className="h-5 sm:h-6 w-5 sm:w-6" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 sm:space-y-6">
           {/* Row 1: Name and Profession */}
-          <div className="grid md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
             <div>
-              <label className="block text-sm font-medium text-swar-text mb-2">Name *</label>
+              <label className="block text-xs sm:text-sm font-medium text-swar-text mb-1 sm:mb-2">Name *</label>
               <input
                 type="text"
                 name="name"
                 value={formData.name}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full px-3 sm:px-4 py-1.5 sm:py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
                 placeholder="Full name"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-swar-text mb-2">Profession *</label>
+              <label className="block text-xs sm:text-sm font-medium text-swar-text mb-1 sm:mb-2">Profession *</label>
               <input
                 type="text"
                 name="profession"
                 value={formData.profession}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full px-3 sm:px-4 py-1.5 sm:py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
                 placeholder="e.g., Yoga Instructor"
               />
             </div>
           </div>
 
           {/* Row 2: Email and Phone */}
-          <div className="grid md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
             <div>
-              <label className="block text-sm font-medium text-swar-text mb-2">Email *</label>
+              <label className="block text-xs sm:text-sm font-medium text-swar-text mb-1 sm:mb-2">Email *</label>
               <input
                 type="email"
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full px-3 sm:px-4 py-1.5 sm:py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
                 placeholder="email@example.com"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-swar-text mb-2">Mobile *</label>
+              <label className="block text-xs sm:text-sm font-medium text-swar-text mb-1 sm:mb-2">Mobile *</label>
               <input
                 type="tel"
                 name="mobile"
                 value={formData.mobile}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full px-3 sm:px-4 py-1.5 sm:py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
                 placeholder="+1 (555) 123-4567"
               />
             </div>
           </div>
 
           {/* Row 3: Country and State */}
-          <div className="grid md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
             <div>
-              <label className="block text-sm font-medium text-swar-text mb-2">Country *</label>
+              <label className="block text-xs sm:text-sm font-medium text-swar-text mb-1 sm:mb-2">Country *</label>
               <input
                 type="text"
                 name="country"
                 value={formData.country}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full px-3 sm:px-4 py-1.5 sm:py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
                 placeholder="United States"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-swar-text mb-2">State/Province *</label>
+              <label className="block text-xs sm:text-sm font-medium text-swar-text mb-1 sm:mb-2">State/Province *</label>
               <input
                 type="text"
                 name="state"
                 value={formData.state}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full px-3 sm:px-4 py-1.5 sm:py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
                 placeholder="California"
               />
             </div>
@@ -162,27 +162,27 @@ const DiamondPersonModal: React.FC<DiamondPersonModalProps> = ({ person, onSave,
 
           {/* Address */}
           <div>
-            <label className="block text-sm font-medium text-swar-text mb-2">Address *</label>
+            <label className="block text-xs sm:text-sm font-medium text-swar-text mb-1 sm:mb-2">Address *</label>
             <input
               type="text"
               name="address"
               value={formData.address}
               onChange={handleChange}
               required
-              className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              className="w-full px-3 sm:px-4 py-1.5 sm:py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
               placeholder="123 Street, City, ZIP"
             />
           </div>
 
           {/* Row 4: Category and Relationship */}
-          <div className="grid md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
             <div>
-              <label className="block text-sm font-medium text-swar-text mb-2">Category *</label>
+              <label className="block text-xs sm:text-sm font-medium text-swar-text mb-1 sm:mb-2">Category *</label>
               <select
                 name="category"
                 value={formData.category}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full px-3 sm:px-4 py-1.5 sm:py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
               >
                 <option>Spiritual Mentor</option>
                 <option>Health Professional</option>
@@ -192,12 +192,12 @@ const DiamondPersonModal: React.FC<DiamondPersonModalProps> = ({ person, onSave,
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-swar-text mb-2">Relationship *</label>
+              <label className="block text-xs sm:text-sm font-medium text-swar-text mb-1 sm:mb-2">Relationship *</label>
               <select
                 name="relationship"
                 value={formData.relationship}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full px-3 sm:px-4 py-1.5 sm:py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
               >
                 <option value="professional">Professional</option>
                 <option value="personal">Personal</option>
@@ -209,70 +209,70 @@ const DiamondPersonModal: React.FC<DiamondPersonModalProps> = ({ person, onSave,
 
           {/* Vision Head */}
           <div>
-            <label className="block text-sm font-medium text-swar-text mb-2">Vision Head</label>
+            <label className="block text-xs sm:text-sm font-medium text-swar-text mb-1 sm:mb-2">Vision Head</label>
             <select
               name="visionHead"
               value={formData.visionHead}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-white"
+              className="w-full px-3 sm:px-4 py-1.5 sm:py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-white text-sm"
             >
               <option value="">Select Vision Head</option>
               {VISION_CATEGORIES.map((h) => (
                 <option key={h} value={h}>{h}</option>
               ))}
             </select>
-            <p className="mt-1 text-xs text-swar-text-secondary">Optional: connects this person to one of your 10 Vision Heads.</p>
+            <p className="mt-1 text-xs text-swar-text-secondary">Optional: connects to your Vision Heads.</p>
           </div>
 
           {/* Last Contact */}
           <div>
-            <label className="block text-sm font-medium text-swar-text mb-2">Last Contact</label>
+            <label className="block text-xs sm:text-sm font-medium text-swar-text mb-1 sm:mb-2">Last Contact</label>
             <input
               type="date"
               name="lastContact"
               value={formData.lastContact}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              className="w-full px-3 sm:px-4 py-1.5 sm:py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
             />
           </div>
 
           {/* Image URL */}
           <div>
-            <label className="block text-sm font-medium text-swar-text mb-2">Image URL</label>
+            <label className="block text-xs sm:text-sm font-medium text-swar-text mb-1 sm:mb-2">Image URL</label>
             <input
               type="text"
               name="imageUrl"
               value={formData.imageUrl}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              className="w-full px-3 sm:px-4 py-1.5 sm:py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
               placeholder="https://example.com/image.jpg"
             />
           </div>
           {/* Notes */}
           <div>
-            <label className="block text-sm font-medium text-swar-text mb-2">Notes</label>
+            <label className="block text-xs sm:text-sm font-medium text-swar-text mb-1 sm:mb-2">Notes</label>
             <textarea
               name="notes"
               value={formData.notes}
               onChange={handleChange}
               rows={4}
-              className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              className="w-full px-3 sm:px-4 py-1.5 sm:py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
               placeholder="Add any notes about this person..."
             />
           </div>
 
           {/* Form Actions */}
-          <div className="flex items-center justify-end space-x-3 pt-6 border-t border-swar-border">
+          <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 sm:gap-3 pt-4 sm:pt-6 border-t border-swar-border">
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-2 border border-swar-border rounded-lg text-swar-text font-medium hover:bg-swar-bg transition-colors"
+              className="w-full sm:w-auto px-4 sm:px-6 py-2 border border-swar-border rounded-lg text-swar-text font-medium hover:bg-swar-bg transition-colors text-sm"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-6 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors"
+              className="w-full sm:w-auto px-4 sm:px-6 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors text-sm"
             >
               {person ? 'Update Person' : 'Add Person'}
             </button>

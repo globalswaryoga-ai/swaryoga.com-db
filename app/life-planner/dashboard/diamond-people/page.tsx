@@ -131,66 +131,66 @@ const DiamondPeoplePage = () => {
   if (!mounted) return null;
 
   return (
-    <div className="max-w-7xl mx-auto">
-      <div className="flex items-center justify-between mb-8">
+    <div className="max-w-7xl mx-auto px-3 sm:px-0">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 sm:mb-8 gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-swar-text mb-2">Diamond People</h1>
-          <p className="text-swar-text-secondary">Manage your most important relationships and connections</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-swar-text mb-1 sm:mb-2">Diamond People</h1>
+          <p className="text-xs sm:text-sm text-swar-text-secondary">Manage your most important relationships and connections</p>
         </div>
-        <div className="flex space-x-3">
+        <div className="flex gap-2 sm:gap-3 flex-shrink-0">
           <button
             onClick={exportToCSV}
-            className="flex items-center space-x-2 bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"
+            className="flex items-center gap-2 sm:gap-2 bg-gray-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors text-xs sm:text-sm font-medium"
           >
             <Download className="h-4 w-4" />
-            <span>Export</span>
+            <span className="hidden sm:inline">Export</span>
           </button>
           <button
             onClick={handleAddPerson}
-            className="flex items-center space-x-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-6 py-3 rounded-lg hover:from-emerald-700 hover:to-teal-700 transition-all shadow-lg hover:shadow-xl"
+            className="flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-3 sm:px-6 py-2 sm:py-3 rounded-lg hover:from-emerald-700 hover:to-teal-700 transition-all shadow-lg hover:shadow-xl text-xs sm:text-sm font-medium"
           >
-            <Plus className="h-5 w-5" />
-            <span>Add Person</span>
+            <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
+            <span>Add</span>
           </button>
         </div>
       </div>
 
       {/* Stats */}
-      <div className="grid md:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white rounded-xl p-6 shadow-lg">
-          <div className="text-2xl font-bold text-emerald-600 mb-1">{people.length}</div>
-          <div className="text-swar-text-secondary text-sm">Total People</div>
+      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6 mb-6 sm:mb-8">
+        <div className="bg-white rounded-lg sm:rounded-xl p-3 sm:p-6 shadow-lg">
+          <div className="text-lg sm:text-2xl font-bold text-emerald-600 mb-0.5 sm:mb-1">{people.length}</div>
+          <div className="text-xs sm:text-sm text-swar-text-secondary">Total People</div>
         </div>
-        <div className="bg-white rounded-xl p-6 shadow-lg">
-          <div className="text-2xl font-bold text-blue-600 mb-1">
+        <div className="bg-white rounded-lg sm:rounded-xl p-3 sm:p-6 shadow-lg">
+          <div className="text-lg sm:text-2xl font-bold text-blue-600 mb-0.5 sm:mb-1">
             {people.filter(p => p.relationship === 'professional').length}
           </div>
-          <div className="text-swar-text-secondary text-sm">Professional</div>
+          <div className="text-xs sm:text-sm text-swar-text-secondary">Professional</div>
         </div>
-        <div className="bg-white rounded-xl p-6 shadow-lg">
-          <div className="text-2xl font-bold text-purple-600 mb-1">
+        <div className="bg-white rounded-lg sm:rounded-xl p-3 sm:p-6 shadow-lg">
+          <div className="text-lg sm:text-2xl font-bold text-purple-600 mb-0.5 sm:mb-1">
             {people.filter(p => p.relationship === 'personal').length}
           </div>
-          <div className="text-swar-text-secondary text-sm">Personal</div>
+          <div className="text-xs sm:text-sm text-swar-text-secondary">Personal</div>
         </div>
-        <div className="bg-white rounded-xl p-6 shadow-lg">
-          <div className="text-2xl font-bold text-orange-600 mb-1">
+        <div className="bg-white rounded-lg sm:rounded-xl p-3 sm:p-6 shadow-lg">
+          <div className="text-lg sm:text-2xl font-bold text-orange-600 mb-0.5 sm:mb-1">
             {new Set(people.map(p => p.category)).size}
           </div>
-          <div className="text-swar-text-secondary text-sm">Categories</div>
+          <div className="text-xs sm:text-sm text-swar-text-secondary">Categories</div>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="mb-8 bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-          <div>
+      <div className="mb-6 sm:mb-8 bg-white rounded-lg sm:rounded-2xl shadow-sm border border-gray-100 p-3 sm:p-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2 sm:gap-3">
+          <div className="sm:col-span-2 md:col-span-1">
             <label className="block text-xs font-bold text-swar-text mb-1">Search</label>
             <input
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search name / profession / email"
-              className="w-full px-3 py-2 rounded-lg border border-swar-border focus:outline-none focus:ring-2 focus:ring-emerald-200"
+              placeholder="Search..."
+              className="w-full px-3 py-1.5 sm:py-2 rounded-lg border border-swar-border focus:outline-none focus:ring-2 focus:ring-emerald-200 text-sm"
             />
           </div>
 
@@ -199,7 +199,7 @@ const DiamondPeoplePage = () => {
             <select
               value={filterCategory}
               onChange={(e) => setFilterCategory(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-swar-border bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200"
+              className="w-full px-3 py-1.5 sm:py-2 rounded-lg border border-swar-border bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200 text-sm"
             >
               {categories.map(category => (
                 <option key={category} value={category}>
@@ -214,10 +214,10 @@ const DiamondPeoplePage = () => {
             <select
               value={filterRelationship}
               onChange={(e) => setFilterRelationship(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-swar-border bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200"
+              className="w-full px-3 py-1.5 sm:py-2 rounded-lg border border-swar-border bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200 text-sm"
             >
               <option value="all">All</option>
-              <option value="professional">Professional</option>
+              <option value="professional">Prof</option>
               <option value="personal">Personal</option>
             </select>
           </div>
@@ -227,7 +227,7 @@ const DiamondPeoplePage = () => {
             <select
               value={filterMonth}
               onChange={(e) => setFilterMonth(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-swar-border bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200"
+              className="w-full px-3 py-1.5 sm:py-2 rounded-lg border border-swar-border bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200 text-sm"
             >
               <option value="all">All</option>
               {MONTHS.map((m) => (
@@ -236,7 +236,7 @@ const DiamondPeoplePage = () => {
             </select>
           </div>
 
-          <div className="flex items-end gap-2">
+          <div className="flex items-end">
             <button
               type="button"
               onClick={() => {
@@ -245,53 +245,53 @@ const DiamondPeoplePage = () => {
                 setFilterRelationship('all');
                 setFilterMonth('all');
               }}
-              className="w-full px-3 py-2 rounded-lg bg-swar-primary-light text-swar-text font-bold hover:bg-swar-primary-light transition"
+              className="w-full px-3 py-1.5 sm:py-2 rounded-lg bg-swar-primary-light text-swar-text font-bold hover:bg-swar-primary-light transition text-xs sm:text-sm"
             >
-              Clear Filters
+              Clear
             </button>
           </div>
         </div>
 
-        <p className="mt-3 text-sm text-swar-text-secondary">Showing {filteredPeople.length} of {people.length} people</p>
+        <p className="mt-2 sm:mt-3 text-xs sm:text-sm text-swar-text-secondary">Showing {filteredPeople.length} of {people.length} people</p>
       </div>
 
       {/* People Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-max justify-items-center">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 auto-rows-max">
         {filteredPeople.map(person => (
-          <div key={person.id} className="w-80 bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 flex flex-col h-full">
-            {/* Image header (Vision style - h-40) */}
-            <div 
-              className="relative h-40 overflow-hidden bg-emerald-600 flex items-center justify-center"
+          <div key={person.id} className="w-full bg-white rounded-lg sm:rounded-2xl shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 flex flex-col h-full">
+            {/* Image header (h-32 mobile, h-40 desktop) */}
+            <div
+              className="relative h-28 sm:h-40 overflow-hidden bg-emerald-600 flex items-center justify-center"
               style={{ backgroundImage: `url('${person.imageUrl || DEFAULT_IMAGE}')`, backgroundSize: 'cover', backgroundPosition: 'center' }}
             >
               {!person.imageUrl && (
-                <div className="w-full h-full flex items-center justify-center text-white text-5xl font-bold opacity-0">
+                <div className="w-full h-full flex items-center justify-center text-white text-3xl sm:text-5xl font-bold opacity-0">
                   💎
                 </div>
               )}
               {/* Top-right Badge */}
-              <div className="absolute top-3 right-3">
-                <div className="bg-emerald-600 text-white px-3 py-1 rounded-full text-xs font-bold">
-                  {person.relationship ? person.relationship.toUpperCase() : 'CONTACT'}
+              <div className="absolute top-2 right-2 sm:top-3 sm:right-3">
+                <div className="bg-emerald-600 text-white px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs font-bold">
+                  {person.relationship ? person.relationship.toUpperCase().substring(0, 4) : 'CONT'}
                 </div>
               </div>
             </div>
-            
+
             {/* Card content */}
-            <div className="p-5 flex-1 flex flex-col">
-              <h3 className="text-xl font-bold text-swar-text mb-1 line-clamp-2">{person.name}</h3>
-              <p className="text-sm text-swar-text-secondary mb-4 line-clamp-2">{person.profession || 'No profession'}</p>
+            <div className="p-3 sm:p-5 flex-1 flex flex-col">
+              <h3 className="text-base sm:text-xl font-bold text-swar-text mb-0.5 sm:mb-1 line-clamp-2">{person.name}</h3>
+              <p className="text-xs sm:text-sm text-swar-text-secondary mb-2 sm:mb-4 line-clamp-2">{person.profession || 'No profession'}</p>
 
               {/* Metadata (Vision style with icons) */}
-              <div className="space-y-2 text-xs text-swar-text mb-auto">
+              <div className="space-y-1 sm:space-y-2 text-xs sm:text-sm text-swar-text mb-auto">
                 {person.mobile && (
-                  <div className="flex items-center gap-2">
-                    📱 {person.mobile}
+                  <div className="flex items-center gap-2 truncate">
+                    📱 <span className="truncate">{person.mobile}</span>
                   </div>
                 )}
                 {person.state && person.country && (
-                  <div className="flex items-center gap-2">
-                    📍 {person.state}, {person.country}
+                  <div className="flex items-center gap-2 truncate">
+                    📍 <span className="truncate">{person.state}, {person.country}</span>
                   </div>
                 )}
                 {person.lastContact && (
@@ -302,31 +302,31 @@ const DiamondPeoplePage = () => {
               </div>
 
               {/* Category Badge */}
-              <div className="mt-3">
+              <div className="mt-2 sm:mt-3 flex flex-wrap gap-1">
                 {person.category && (
-                  <span className="inline-block bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-medium">
-                    {person.category}
+                  <span className="inline-block bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-medium truncate">
+                    {person.category.substring(0, 10)}
                   </span>
                 )}
                 {person.visionHead && (
-                  <span className="ml-2 inline-block bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-xs font-medium">
-                    {person.visionHead}
+                  <span className="inline-block bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-xs font-medium truncate">
+                    {person.visionHead.substring(0, 10)}
                   </span>
                 )}
               </div>
             </div>
 
-            {/* Action Buttons (Vision style) */}
-            <div className="flex gap-2 p-4 border-t border-gray-100">
+            {/* Action Buttons */}
+            <div className="flex gap-2 p-3 sm:p-4 border-t border-gray-100">
               <button
                 onClick={() => handleEditPerson(person)}
-                className="flex-1 px-3 py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700 transition"
+                className="flex-1 px-3 py-1.5 sm:py-2 bg-emerald-600 text-white text-xs sm:text-sm font-bold rounded-lg hover:bg-emerald-700 transition"
               >
                 Edit
               </button>
               <button
                 onClick={() => handleDeletePerson(person.id)}
-                className="flex-1 px-3 py-2 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-700 transition"
+                className="flex-1 px-3 py-1.5 sm:py-2 bg-red-600 text-white text-xs sm:text-sm font-bold rounded-lg hover:bg-red-700 transition"
               >
                 Delete
               </button>
@@ -336,17 +336,17 @@ const DiamondPeoplePage = () => {
       </div>
 
       {filteredPeople.length === 0 && (
-        <div className="text-center py-12">
+        <div className="text-center py-12 sm:py-16">
           <div className="text-swar-text-secondary mb-4">
-            <svg className="h-12 w-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="h-10 sm:h-12 w-10 sm:w-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
             </svg>
           </div>
-          <h3 className="text-lg font-medium text-swar-text mb-2">No people found</h3>
-          <p className="text-swar-text-secondary mb-4">Start by adding your first diamond person.</p>
+          <h3 className="text-base sm:text-lg font-medium text-swar-text mb-2">No people found</h3>
+          <p className="text-xs sm:text-sm text-swar-text-secondary mb-4 px-4">Start by adding your first diamond person.</p>
           <button
             onClick={handleAddPerson}
-            className="inline-flex items-center space-x-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors"
+            className="inline-flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors text-xs sm:text-sm font-medium"
           >
             <Plus className="h-4 w-4" />
             <span>Add Person</span>
