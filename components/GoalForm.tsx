@@ -60,6 +60,18 @@ const GoalForm: React.FC<GoalFormProps> = ({
   const milestonesUnderPlan = getMilestonesUnderPlan();
   const selectedVision = visions.find(v => v.id === formData.visionId);
 
+  // Debug: Log filtering logic
+  React.useEffect(() => {
+    if (formData.visionId) {
+      console.log('[GoalForm Debug]', {
+        selectedVisionId: formData.visionId,
+        selectedVision,
+        allActionPlans: actionPlans.map(ap => ({ id: ap.id, visionId: ap.visionId, title: ap.title })),
+        actionPlansUnderVision,
+      });
+    }
+  }, [formData.visionId, selectedVision, actionPlansUnderVision, actionPlans]);
+
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     const targetValue = type === 'checkbox' ? (e.target as HTMLInputElement).checked : value;
