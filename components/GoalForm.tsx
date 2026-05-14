@@ -277,12 +277,19 @@ const GoalForm: React.FC<GoalFormProps> = ({
             </div>
           )}
 
-          {/* Action Plan Selector - Dropdown if multiple, Auto if single */}
-          {formData.visionId && actionPlans.length > 0 && (
+          {/* Action Plan Selector - Always show when vision is selected */}
+          {formData.visionId && (
             <div className="space-y-4">
               <div className="rounded-lg bg-indigo-50 border-2 border-indigo-200 p-4">
-                <label className="block text-sm font-semibold text-swar-text mb-3">📋 Link to Action Plan (Optional)</label>
-                {actionPlansUnderVision.length === 1 ? (
+                <label className="block text-sm font-semibold text-swar-text mb-3">📋 Link to Action Plan</label>
+                {actionPlansUnderVision.length === 0 ? (
+                  <div className="px-4 py-3 bg-white border-2 border-red-200 rounded-lg text-red-700 text-sm font-medium">
+                    ⚠️ No action plans found for this vision!
+                    <div className="text-xs mt-2 text-red-600">
+                      Go to <strong>Action Plan</strong> section and create one first with milestones.
+                    </div>
+                  </div>
+                ) : actionPlansUnderVision.length === 1 ? (
                   <div className="px-4 py-2 bg-white border border-swar-border rounded-lg text-swar-text">
                     {actionPlansUnderVision[0].title} (Auto - only option)
                   </div>
