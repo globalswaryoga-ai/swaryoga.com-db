@@ -163,8 +163,9 @@ export default function LifePlannerTopNav({
         <div className="flex items-center space-x-2 sm:space-x-4">
           <button
             onClick={onToggleSidebar}
-            className="md:hidden p-2.5 rounded-xl bg-gradient-to-br from-swar-primary to-emerald-600 text-white shadow-md active:scale-95 transition-all duration-200"
+            className="md:hidden relative p-2.5 rounded-xl bg-gradient-to-br from-swar-primary to-emerald-600 text-white shadow-md active:scale-95 transition-all duration-200 pointer-events-auto cursor-pointer"
             aria-label="Toggle sidebar"
+            type="button"
           >
             {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
