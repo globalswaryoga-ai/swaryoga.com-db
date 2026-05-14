@@ -198,8 +198,8 @@ const GoalForm: React.FC<GoalFormProps> = ({
       {/* Manual selection (no parent context) */}
       {!parentVisionId && !parentActionPlanId && (
         <>
-          {/* Vision Head Checkbox and Selector */}
-          <div className="rounded-lg bg-blue-50 border-2 border-blue-200 p-4">
+          {/* Vision Head Checkbox and Selector - Optional */}
+          <div className={`rounded-lg border-2 p-4 ${hasVisionHead ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
             <div className="flex items-center mb-4">
               <input
                 type="checkbox"
@@ -218,10 +218,10 @@ const GoalForm: React.FC<GoalFormProps> = ({
                     }));
                   }
                 }}
-                className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500 cursor-pointer"
               />
               <label htmlFor="hasVisionHead" className="ml-3 text-sm font-semibold text-swar-text cursor-pointer">
-                🎯 Select Vision Head
+                🎯 Link to Vision Head (Optional)
               </label>
             </div>
 
