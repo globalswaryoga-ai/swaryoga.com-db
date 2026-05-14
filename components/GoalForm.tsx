@@ -49,53 +49,15 @@ const GoalForm: React.FC<GoalFormProps> = ({
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Compute filtered lists before using in useEffect
-  const visionsUnderHead = formData.selectedVisionHead
-    ? visions.filter(v => v.category === formData.selectedVisionHead)
-    : [];
+  // Filtered lists - computed inline without storing in variables to avoid TDZ
+  const getVisionsUnderHead = () => formData.selectedVisionHead ? visions.filter(v => v.category === formData.selectedVisionHead) : [];
+  const getActionPlansUnderVision = () => formData.visionId ? actionPlans.filter(ap => ap.visionId === formData.visionId) : [];
+  const getMilestonesUnderPlan = () => formData.actionPlanId ? (actionPlans.find(ap => ap.id === formData.actionPlanId)?.milestones || []) : [];
 
-  const actionPlansUnderVision = formData.visionId
-    ? actionPlans.filter(ap => ap.visionId === formData.visionId)
-    : [];
-
-  const milestonesUnderPlan = formData.actionPlanId
-    ? actionPlans.find(ap => ap.id === formData.actionPlanId)?.milestones || []
-    : [];
-
+  const visionsUnderHead = getVisionsUnderHead();
+  const actionPlansUnderVision = getActionPlansUnderVision();
+  const milestonesUnderPlan = getMilestonesUnderPlan();
   const selectedVision = visions.find(v => v.id === formData.visionId);
-
-  // Auto-select single vision when only one option exists
-  React.useEffect(() => {
-    if (formData.selectedVisionHead && visionsUnderHead.length === 1 && !formData.visionId) {
-      setFormData(prev => ({
-        ...prev,
-        visionId: visionsUnderHead[0].id,
-        actionPlanId: '',
-        milestoneId: '',
-      }));
-    }
-  }, [formData.selectedVisionHead, visionsUnderHead]);
-
-  // Auto-select single action plan when only one option exists
-  React.useEffect(() => {
-    if (formData.visionId && actionPlansUnderVision.length === 1 && !formData.actionPlanId) {
-      setFormData(prev => ({
-        ...prev,
-        actionPlanId: actionPlansUnderVision[0].id,
-        milestoneId: '',
-      }));
-    }
-  }, [formData.visionId, actionPlansUnderVision]);
-
-  // Auto-select single milestone when only one option exists
-  React.useEffect(() => {
-    if (formData.actionPlanId && milestonesUnderPlan.length === 1 && !formData.milestoneId) {
-      setFormData(prev => ({
-        ...prev,
-        milestoneId: milestonesUnderPlan[0].id,
-      }));
-    }
-  }, [formData.actionPlanId, milestonesUnderPlan]);
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
