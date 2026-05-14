@@ -61,6 +61,39 @@ const GoalForm: React.FC<GoalFormProps> = ({
   const milestonesUnderPlan = getMilestonesUnderPlan();
   const selectedVision = visions.find(v => v.id === formData.visionId);
 
+  // Auto-set visionId when only one vision exists under selected head
+  React.useEffect(() => {
+    if (visionsUnderHead.length === 1 && !formData.visionId) {
+      setFormData(prev => ({
+        ...prev,
+        visionId: visionsUnderHead[0].id,
+        actionPlanId: '',
+        milestoneId: '',
+      }));
+    }
+  }, [visionsUnderHead, formData.visionId]);
+
+  // Auto-set actionPlanId when only one action plan exists under selected vision
+  React.useEffect(() => {
+    if (actionPlansUnderVision.length === 1 && !formData.actionPlanId) {
+      setFormData(prev => ({
+        ...prev,
+        actionPlanId: actionPlansUnderVision[0].id,
+        milestoneId: '',
+      }));
+    }
+  }, [actionPlansUnderVision, formData.actionPlanId]);
+
+  // Auto-set milestoneId when only one milestone exists under selected action plan
+  React.useEffect(() => {
+    if (milestonesUnderPlan.length === 1 && !formData.milestoneId) {
+      setFormData(prev => ({
+        ...prev,
+        milestoneId: milestonesUnderPlan[0].id,
+      }));
+    }
+  }, [milestonesUnderPlan, formData.milestoneId]);
+
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     const targetValue = type === 'checkbox' ? (e.target as HTMLInputElement).checked : value;
