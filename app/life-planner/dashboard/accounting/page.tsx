@@ -79,9 +79,13 @@ export default function LifePlannerAccountingPage() {
 
   const getAuthHeaders = useCallback((): Record<string, string> => {
     const headers: Record<string, string> = {};
-    const token = typeof window !== 'undefined' ? localStorage.getItem('lifePlannerToken') : null;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('lifePlannerToken') || localStorage.getItem('token') : null;
+    const tenantId = typeof window !== 'undefined' ? localStorage.getItem('tenantId') : null;
     if (token) {
       headers.Authorization = `Bearer ${token}`;
+    }
+    if (tenantId) {
+      headers['x-tenant-id'] = tenantId;
     }
     return headers;
   }, []);
@@ -123,44 +127,54 @@ export default function LifePlannerAccountingPage() {
     setLoading(true);
     try {
       const headers = getAuthHeaders();
-      const [accountsRes, transactionsRes, investmentsRes, budgetRes] = await Promise.all([
-        fetch('/api/accounting/accounts', { headers }),
-        fetch('/api/accounting/transactions', { headers }),
-        fetch('/api/accounting/investments', { headers }),
-        fetch('/api/accounting/budget', { headers })
-      ]);
+      const res = await fetch('/api/life-planner/data?type=accounting', { headers });
 
-      if (accountsRes.ok) {
-        const accountsData = await accountsRes.json();
-        setAccounts(accountsData.data || []);
-      } else {
-        console.error('Failed to fetch accounts');
-      }
+      if (res.ok) {
+        const response = await res.json();
+        const accountingData = response.data || {};
 
-      if (transactionsRes.ok) {
-        const transactionsData = await transactionsRes.json();
-        setTransactions(transactionsData.data || []);
+        setAccounts(accountingData.accounts || []);
+        setTransactions(accountingData.transactions || []);
+        setInvestments(accountingData.investments || []);
+        setBudgetPlan(accountingData.budget || null);
       } else {
-        console.error('Failed to fetch transactions');
-      }
-
-      if (investmentsRes.ok) {
-        const investmentsData = await investmentsRes.json();
-        setInvestments(investmentsData.data || []);
-      } else {
-        console.error('Failed to fetch investments');
-      }
-
-      if (budgetRes.ok) {
-        const budgetData = await budgetRes.json();
-        setBudgetPlan(budgetData.data || null);
-      } else {
-        console.error('Failed to fetch budget plan');
+        console.error('Failed to fetch accounting data');
       }
     } catch (error) {
-      console.error('Error loading data:', error);
+      console.error('Error loading accounting data:', error);
     } finally {
       setLoading(false);
+    }
+  }, [getAuthHeaders]);
+
+  // Save all accounting data to unified Life Planner API
+  const saveAccountingData = useCallback(async (updatedAccounts: Account[], updatedTransactions: Transaction[], updatedInvestments: Investment[], updatedBudget: any) => {
+    try {
+      const headers = getAuthHeaders();
+      const accountingPayload = {
+        accounts: updatedAccounts,
+        transactions: updatedTransactions,
+        investments: updatedInvestments,
+        budget: updatedBudget
+      };
+
+      const response = await fetch('/api/life-planner/data', {
+        method: 'PUT',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'accounting',
+          data: accountingPayload
+        })
+      });
+
+      if (!response.ok) {
+        console.error('Failed to save accounting data');
+        return false;
+      }
+      return true;
+    } catch (error) {
+      console.error('Error saving accounting data:', error);
+      return false;
     }
   }, [getAuthHeaders]);
 
@@ -232,22 +246,27 @@ export default function LifePlannerAccountingPage() {
     }
 
     try {
-      const method = editingAccount ? 'PUT' : 'POST';
-      const url = editingAccount ? `/api/accounting/accounts?id=${editingAccount.id}` : '/api/accounting/accounts';
+      let updatedAccounts = accounts;
 
-      const response = await fetch(url, {
-        method,
-        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify(accountForm)
-      });
+      if (editingAccount) {
+        updatedAccounts = accounts.map(acc =>
+          acc.id === editingAccount.id
+            ? { ...accountForm, id: editingAccount.id, created_at: editingAccount.created_at }
+            : acc
+        );
+      } else {
+        const newAccount: Account = {
+          ...accountForm,
+          id: Math.random().toString(36).substr(2, 9),
+          created_at: new Date().toISOString()
+        };
+        updatedAccounts = [...accounts, newAccount];
+      }
 
-      if (response.ok) {
-        const result = await response.json();
-        if (editingAccount) {
-          setAccounts(accounts.map(acc => acc.id === editingAccount.id ? result.data : acc));
-        } else {
-          setAccounts([...accounts, result.data]);
-        }
+      const success = await saveAccountingData(updatedAccounts, transactions, investments, budgetPlan);
+
+      if (success) {
+        setAccounts(updatedAccounts);
         setShowAccountModal(false);
         setEditingAccount(null);
         resetAccountForm();
@@ -264,13 +283,11 @@ export default function LifePlannerAccountingPage() {
   const handleDeleteAccount = async (id: string) => {
     if (window.confirm('Are you sure?')) {
       try {
-        const response = await fetch(`/api/accounting/accounts?id=${id}`, {
-          method: 'DELETE',
-          headers: getAuthHeaders()
-        });
+        const updatedAccounts = accounts.filter(acc => acc.id !== id);
+        const success = await saveAccountingData(updatedAccounts, transactions, investments, budgetPlan);
 
-        if (response.ok) {
-          setAccounts(accounts.filter(acc => acc.id !== id));
+        if (success) {
+          setAccounts(updatedAccounts);
           alert('Account deleted successfully');
         } else {
           alert('Failed to delete account');
@@ -292,25 +309,31 @@ export default function LifePlannerAccountingPage() {
     if (!selectedAccount) return;
 
     try {
-      const method = editingTransaction ? 'PUT' : 'POST';
-      const url = editingTransaction ? `/api/accounting/transactions?id=${editingTransaction.id}` : '/api/accounting/transactions';
+      let updatedTransactions = transactions;
+      const transactionData = {
+        ...transactionForm,
+        account_name: selectedAccount.name
+      };
 
-      const response = await fetch(url, {
-        method,
-        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...transactionForm,
-          account_name: selectedAccount.name
-        })
-      });
+      if (editingTransaction) {
+        updatedTransactions = transactions.map(t =>
+          t.id === editingTransaction.id
+            ? { ...transactionData, id: editingTransaction.id, created_at: editingTransaction.created_at }
+            : t
+        );
+      } else {
+        const newTransaction: Transaction = {
+          ...transactionData,
+          id: Math.random().toString(36).substr(2, 9),
+          created_at: new Date().toISOString()
+        };
+        updatedTransactions = [...transactions, newTransaction];
+      }
 
-      if (response.ok) {
-        const result = await response.json();
-        if (editingTransaction) {
-          setTransactions(transactions.map(t => t.id === editingTransaction.id ? result.data : t));
-        } else {
-          setTransactions([...transactions, result.data]);
-        }
+      const success = await saveAccountingData(accounts, updatedTransactions, investments, budgetPlan);
+
+      if (success) {
+        setTransactions(updatedTransactions);
         setShowTransactionModal(false);
         setEditingTransaction(null);
         resetTransactionForm();
@@ -327,13 +350,11 @@ export default function LifePlannerAccountingPage() {
   const handleDeleteTransaction = async (id: string) => {
     if (window.confirm('Are you sure?')) {
       try {
-        const response = await fetch(`/api/accounting/transactions?id=${id}`, {
-          method: 'DELETE',
-          headers: getAuthHeaders()
-        });
+        const updatedTransactions = transactions.filter(t => t.id !== id);
+        const success = await saveAccountingData(accounts, updatedTransactions, investments, budgetPlan);
 
-        if (response.ok) {
-          setTransactions(transactions.filter(t => t.id !== id));
+        if (success) {
+          setTransactions(updatedTransactions);
           alert('Transaction deleted successfully');
         } else {
           alert('Failed to delete transaction');
@@ -355,25 +376,31 @@ export default function LifePlannerAccountingPage() {
     if (!selectedAccount) return;
 
     try {
-      const method = editingInvestment ? 'PUT' : 'POST';
-      const url = editingInvestment ? `/api/accounting/investments?id=${editingInvestment.id}` : '/api/accounting/investments';
+      let updatedInvestments = investments;
+      const investmentData = {
+        ...investmentForm,
+        account_name: selectedAccount.name
+      };
 
-      const response = await fetch(url, {
-        method,
-        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...investmentForm,
-          account_name: selectedAccount.name
-        })
-      });
+      if (editingInvestment) {
+        updatedInvestments = investments.map(inv =>
+          inv.id === editingInvestment.id
+            ? { ...investmentData, id: editingInvestment.id, created_at: editingInvestment.created_at }
+            : inv
+        );
+      } else {
+        const newInvestment: Investment = {
+          ...investmentData,
+          id: Math.random().toString(36).substr(2, 9),
+          created_at: new Date().toISOString()
+        };
+        updatedInvestments = [...investments, newInvestment];
+      }
 
-      if (response.ok) {
-        const result = await response.json();
-        if (editingInvestment) {
-          setInvestments(investments.map(inv => inv.id === editingInvestment.id ? result.data : inv));
-        } else {
-          setInvestments([...investments, result.data]);
-        }
+      const success = await saveAccountingData(accounts, transactions, updatedInvestments, budgetPlan);
+
+      if (success) {
+        setInvestments(updatedInvestments);
         setShowInvestmentModal(false);
         setEditingInvestment(null);
         resetInvestmentForm();
@@ -390,13 +417,11 @@ export default function LifePlannerAccountingPage() {
   const handleDeleteInvestment = async (id: string) => {
     if (window.confirm('Are you sure?')) {
       try {
-        const response = await fetch(`/api/accounting/investments?id=${id}`, {
-          method: 'DELETE',
-          headers: getAuthHeaders()
-        });
+        const updatedInvestments = investments.filter(inv => inv.id !== id);
+        const success = await saveAccountingData(accounts, transactions, updatedInvestments, budgetPlan);
 
-        if (response.ok) {
-          setInvestments(investments.filter(inv => inv.id !== id));
+        if (success) {
+          setInvestments(updatedInvestments);
           alert('Investment deleted successfully');
         } else {
           alert('Failed to delete investment');

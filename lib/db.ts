@@ -221,6 +221,7 @@ const userSchema = new mongoose.Schema({
   lifePlannerDailyTasks: mongoose.Schema.Types.Mixed, // Daily workshop tasks and sadhana per date
   lifePlannerDiamondPeople: [mongoose.Schema.Types.Mixed],
   lifePlannerProgress: [mongoose.Schema.Types.Mixed],
+  lifePlannerAccounting: mongoose.Schema.Types.Mixed, // Accounting data: accounts, transactions, investments, budget
   
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
