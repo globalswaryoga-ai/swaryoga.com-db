@@ -6,11 +6,14 @@ import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 import type { Goal, HealthRoutine, Task, Vision } from '@/lib/types/lifePlanner';
 
 type WorkshopCategory = 'self' | 'family' | 'workStudy' | 'parents' | 'friendsRelatives' | 'social';
+type TaskRepeat = 'none' | 'daily' | 'weekly' | 'monthly';
 
 interface WorkshopTask {
   id: string;
   category: WorkshopCategory;
   text: string;
+  repeat?: TaskRepeat;
+  createdDate?: string;
 }
 
 type SadhanaSection = 'morning' | 'evening';
@@ -77,6 +80,7 @@ export default function DailyViewPage() {
   const [workshopTasks, setWorkshopTasks] = useState<WorkshopTask[]>([]);
   const [newWorkshopTask, setNewWorkshopTask] = useState('');
   const [selectedWorkshopCategory, setSelectedWorkshopCategory] = useState<WorkshopCategory>('workStudy');
+  const [newTaskRepeat, setNewTaskRepeat] = useState<TaskRepeat>('none');
   const [workshopError, setWorkshopError] = useState<string>('');
 
   const workshopCategoryRefs = useRef<Record<WorkshopCategory, HTMLDivElement | null>>({
@@ -344,13 +348,61 @@ export default function DailyViewPage() {
 
   const getWorkshopStorageKey = () => `dailyWorkshopPlannerTasks:${selectedDate}`;
 
+  // Check if a task should appear on a given date based on its repeat frequency
+  const shouldTaskAppear = (task: WorkshopTask, targetDate: string): boolean => {
+    if (!task.repeat || task.repeat === 'none' || !task.createdDate) return false;
+
+    const created = new Date(task.createdDate + 'T00:00:00');
+    const target = new Date(targetDate + 'T00:00:00');
+
+    if (target < created) return false; // Task hasn't been created yet
+
+    const daysDiff = Math.floor((target.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
+
+    switch (task.repeat) {
+      case 'daily':
+        return true; // Appears every day
+      case 'weekly':
+        return daysDiff % 7 === 0; // Appears every 7 days
+      case 'monthly':
+        return target.getDate() === created.getDate(); // Appears on same day of month
+      default:
+        return false;
+    }
+  };
+
   const loadWorkshopTasks = () => {
     const stored = localStorage.getItem(getWorkshopStorageKey());
-    if (stored) {
-      setWorkshopTasks(JSON.parse(stored));
-    } else {
-      setWorkshopTasks([]);
+    const tasksForDate = stored ? JSON.parse(stored) : [];
+
+    // Get all recurring tasks (need to check all dates)
+    const allStoredDates: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith('dailyWorkshopPlannerTasks:')) {
+        const dateStr = key.replace('dailyWorkshopPlannerTasks:', '');
+        allStoredDates.push(dateStr);
+      }
     }
+
+    // Collect recurring tasks that should appear today
+    const recurringTasks: WorkshopTask[] = [];
+    for (const dateStr of allStoredDates) {
+      if (dateStr === selectedDate) continue; // Already added above
+      const dayTasks = localStorage.getItem(`dailyWorkshopPlannerTasks:${dateStr}`);
+      if (dayTasks) {
+        try {
+          const parsed = JSON.parse(dayTasks) as WorkshopTask[];
+          for (const task of parsed) {
+            if (shouldTaskAppear(task, selectedDate)) {
+              recurringTasks.push(task);
+            }
+          }
+        } catch {}
+      }
+    }
+
+    setWorkshopTasks([...tasksForDate, ...recurringTasks]);
   };
 
   // Reload workshop tasks and sadhana state when selectedDate changes
@@ -396,10 +448,13 @@ export default function DailyViewPage() {
       id: Date.now().toString(),
       category: selectedWorkshopCategory,
       text,
+      repeat: newTaskRepeat,
+      createdDate: selectedDate,
     };
 
     persistWorkshopTasks([...workshopTasks, task]);
     setNewWorkshopTask('');
+    setNewTaskRepeat('none');
 
     // Ensure the user sees the category they added to (Social is at the bottom and can look “hidden”).
     requestAnimationFrame(() => {
@@ -689,6 +744,24 @@ export default function DailyViewPage() {
               {workshopError ? (
                 <p className="text-xs text-red-600">{workshopError}</p>
               ) : null}
+
+              {/* Repeat frequency buttons */}
+              <div className="mt-2 flex flex-wrap gap-2">
+                <span className="text-xs font-semibold text-swar-text-secondary">Repeat:</span>
+                {['none', 'daily', 'weekly', 'monthly'].map(repeat => (
+                  <button
+                    key={repeat}
+                    onClick={() => setNewTaskRepeat(repeat as TaskRepeat)}
+                    className={`px-2.5 py-1 text-xs font-medium rounded transition ${
+                      newTaskRepeat === repeat
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {repeat === 'none' ? 'Once' : repeat.charAt(0).toUpperCase() + repeat.slice(1)}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Category summary chips */}
@@ -725,20 +798,27 @@ export default function DailyViewPage() {
                         {catTasks.map(task => (
                           <li key={task.id} className="flex items-center gap-2 group">
                             <span className="flex-shrink-0 w-2 h-2 rounded-full bg-blue-500" />
-                            <span
-                              className="text-xs sm:text-sm flex-grow text-swar-text outline-none rounded px-1 -mx-1 focus:bg-blue-50"
-                              contentEditable
-                              suppressContentEditableWarning
-                              onBlur={(e) => updateWorkshopTask(task.id, e.currentTarget.textContent ?? '')}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  e.preventDefault();
-                                  (e.currentTarget as HTMLElement).blur();
-                                }
-                              }}
-                            >
-                              {task.text}
-                            </span>
+                            <div className="flex-grow flex items-center gap-1.5">
+                              <span
+                                className="text-xs sm:text-sm flex-grow text-swar-text outline-none rounded px-1 -mx-1 focus:bg-blue-50"
+                                contentEditable
+                                suppressContentEditableWarning
+                                onBlur={(e) => updateWorkshopTask(task.id, e.currentTarget.textContent ?? '')}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    (e.currentTarget as HTMLElement).blur();
+                                  }
+                                }}
+                              >
+                                {task.text}
+                              </span>
+                              {task.repeat && task.repeat !== 'none' && (
+                                <span className="text-xs px-1.5 py-0.5 bg-green-100 text-green-700 rounded whitespace-nowrap font-medium">
+                                  🔄 {task.repeat}
+                                </span>
+                              )}
+                            </div>
                             <button
                               onClick={() => deleteWorkshopTask(task.id)}
                               className="p-1 hover:bg-red-50 rounded text-red-600 transition"
