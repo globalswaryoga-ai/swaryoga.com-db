@@ -46,6 +46,15 @@ export default function GoalsPage() {
       setGoals(Array.isArray(savedGoals) ? savedGoals : []);
       setVisions(Array.isArray(savedVisions) ? savedVisions : []);
       setActionPlans(Array.isArray(savedActionPlans) ? savedActionPlans : []);
+
+      // Debug logging
+      console.log('[GoalsPage] Data loaded:', {
+        goalsCount: savedGoals?.length || 0,
+        visionsCount: savedVisions?.length || 0,
+        actionPlansCount: savedActionPlans?.length || 0,
+        actionPlans: savedActionPlans,
+      });
+
       setHasLoaded(true);
     })();
   }, []);
