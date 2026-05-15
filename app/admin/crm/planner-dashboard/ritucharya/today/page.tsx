@@ -58,10 +58,19 @@ export default function CRMRitucharyaTodayPage() {
   // Fetch weather based on location from localStorage
   useEffect(() => {
     const storedLocation = localStorage.getItem('ritucharya_location');
+    const storedWeather = localStorage.getItem('ritucharya_weather');
+
     if (storedLocation) {
       const parsed = JSON.parse(storedLocation);
       setLocation(parsed);
-      fetchWeatherData(parsed);
+
+      // If admin has edited weather data in manage form, use that instead of API
+      if (storedWeather) {
+        const parsedWeather = JSON.parse(storedWeather);
+        loadSavedWeatherData(parsed, parsedWeather);
+      } else {
+        fetchWeatherData(parsed);
+      }
     }
     fetchRecipes();
   }, []);
@@ -78,6 +87,53 @@ export default function CRMRitucharyaTodayPage() {
       console.error('Error fetching recipes:', error);
     } finally {
       setRecipesLoading(false);
+    }
+  };
+
+  const loadSavedWeatherData = (loc: any, savedWeather: any) => {
+    try {
+      setLoading(true);
+      const selectedCountry = locationData.find(c => c.name === loc.country);
+      const selectedState = selectedCountry?.states.find(s => s.name === loc.state);
+      const selectedCity = selectedState?.cities.find(c => c.name === loc.city);
+
+      if (!selectedCity) throw new Error('City not found');
+
+      // Use saved weather data from manage form
+      const weatherData = {
+        temp: savedWeather.currentTemp || 28,
+        tempMin: savedWeather.minTemp || 24,
+        tempMax: savedWeather.maxTemp || 35,
+        humidity: savedWeather.humidity || 61,
+        windSpeed: savedWeather.windSpeed || 10,
+        airQuality: savedWeather.airQuality || 50,
+        description: savedWeather.description || 'Partly cloudy',
+        climate: savedWeather.climateType || 'Moderate',
+        ritu: getRituBySeason(getClimateRitu(savedWeather.currentTemp, savedWeather.humidity, savedWeather.description))?.nameHi || 'Unknown',
+        rituId: getClimateRitu(savedWeather.currentTemp, savedWeather.humidity, savedWeather.description),
+        lat: selectedCity.latitude,
+        lon: selectedCity.longitude,
+      };
+
+      setWeather(weatherData);
+
+      // Analyze and get taste recommendations
+      const tasteAnalysis = analyzeWeatherAndRecommendRasas(
+        weatherData.temp,
+        weatherData.humidity,
+        weatherData.windSpeed || 0,
+        0,
+        weatherData.rituId
+      );
+      setAnalysis(tasteAnalysis);
+
+      setInitialized(true);
+    } catch (error) {
+      console.error('Error loading saved weather:', error);
+      // Fallback to API fetch if something goes wrong
+      fetchWeatherData(loc);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -325,10 +381,13 @@ export default function CRMRitucharyaTodayPage() {
                 <h3 className="font-bold mb-3 text-gray-900 flex items-center gap-2">
                   <span>🌡️</span> Today's Weather
                 </h3>
-                <div className="space-y-2 text-gray-700">
-                  <div>Temperature: {weather.temp}°C ({weather.tempMin}°-{weather.tempMax}°)</div>
-                  <div>Humidity: {weather.humidity}%</div>
-                  <div>Climate: {weather.climate}</div>
+                <div className="space-y-2 text-gray-700 text-sm">
+                  <div><strong>Temperature:</strong> {weather.temp}°C ({weather.tempMin}°-{weather.tempMax}°)</div>
+                  <div><strong>Humidity:</strong> {weather.humidity}%</div>
+                  <div><strong>Wind Speed:</strong> {weather.windSpeed} km/h</div>
+                  <div><strong>Air Quality (AQI):</strong> {weather.airQuality}</div>
+                  <div><strong>Description:</strong> {weather.description}</div>
+                  <div><strong>Climate:</strong> {weather.climate}</div>
                 </div>
               </div>
               <div className="p-6 rounded-lg border-2 border-green-500 bg-green-50">
