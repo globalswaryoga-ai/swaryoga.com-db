@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { MapPin, Loader, Plus, X, Save, Trash2, Calendar, AlertCircle, Zap } from 'lucide-react';
 import { locationData } from '@/lib/locationData';
-import { getClimateRitu, getRituBySeason } from '@/lib/ritucharya/seasons';
+import { getClimateRitu, getRituBySeason, getCurrentSeasonByDate } from '@/lib/ritucharya/seasons';
 import { foodDatabase, searchFood, RASAS } from '@/lib/ritucharya/foodDatabase';
 import { analyzeWeatherAndRecommendRasas, getSeasonalDetails } from '@/lib/ritucharya/seasonalAnalysis';
 
@@ -394,7 +394,8 @@ export default function CRMRitucharyaTodayPage() {
                 <h3 className="font-bold mb-3 text-gray-900 flex items-center gap-2">
                   <span>🌸</span> Today's Ritu
                 </h3>
-                <div className="text-2xl font-bold text-green-700">{weather.ritu}</div>
+                <div className="text-2xl font-bold text-green-700">{getRituBySeason(getCurrentSeasonByDate())?.nameHi}</div>
+                <div className="text-lg text-green-700 font-semibold">{getRituBySeason(getCurrentSeasonByDate())?.nameEn}</div>
                 <p className="text-gray-600 mt-2 text-sm">Adjust diet based on this season</p>
               </div>
             </div>

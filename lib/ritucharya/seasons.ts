@@ -760,3 +760,36 @@ export function getClimateRitu(temp: number, humidity: number, description: stri
   if (temp >= 18 && temp <= 28 && humidity >= 40 && humidity <= 70) return 'vasant';
   return 'vasant'; // default
 }
+
+export function getCurrentSeasonByDate(date: Date = new Date()): string {
+  const month = date.getMonth() + 1; // 1-12
+  const day = date.getDate();
+
+  // 6 Ayurvedic seasons with date ranges (approximate for Northern Hemisphere India)
+  // Grishma (Summer): March 15 - May 15
+  if ((month === 3 && day >= 15) || (month >= 4 && month < 5) || (month === 5 && day <= 15)) {
+    return 'grisham';
+  }
+  // Varsha (Monsoon): May 15 - July 15
+  if ((month === 5 && day >= 15) || (month === 6) || (month === 7 && day <= 15)) {
+    return 'varsha';
+  }
+  // Sharad (Autumn): July 15 - September 15
+  if ((month === 7 && day >= 15) || (month === 8) || (month === 9 && day <= 15)) {
+    return 'sharad';
+  }
+  // Hemant (Early Winter): September 15 - November 15
+  if ((month === 9 && day >= 15) || (month === 10) || (month === 11 && day <= 15)) {
+    return 'hemant';
+  }
+  // Shishir (Winter): November 15 - January 15
+  if ((month === 11 && day >= 15) || (month === 12) || (month === 1 && day <= 15)) {
+    return 'shishir';
+  }
+  // Vasant (Spring): January 15 - March 15
+  if ((month === 1 && day >= 15) || (month === 2) || (month === 3 && day <= 15)) {
+    return 'vasant';
+  }
+
+  return 'vasant'; // default fallback
+}
