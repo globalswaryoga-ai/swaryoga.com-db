@@ -71,7 +71,7 @@ const TasksPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/tasks/
 const TodosPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/todos/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
 const RemindersPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/reminders/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
 const WordsPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/words/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
-const RitucharyaPage = dynamic(() => import('@/app/admin/crm/planner/ritucharya/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
+// const RitucharyaPage = dynamic(() => import('@/app/admin/crm/planner/ritucharya/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
 const CalendarPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/calendar/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
 const AccountingPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/accounting/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
 const NotesPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/notes/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
@@ -124,7 +124,7 @@ function PlannerPageContent() {
     { id: 'todos', label: 'Todos', icon: CheckSquare },
     { id: 'reminders', label: 'Reminders', icon: Bell },
     { id: 'words', label: 'Words', icon: BookOpen },
-    { id: 'ritucharya', label: 'Ritucharya', icon: Leaf },
+    // { id: 'ritucharya', label: 'Ritucharya', icon: Leaf },
     { id: 'accounting', label: 'Accounting', icon: Calculator },
     { id: 'journal', label: 'Journal', icon: BookOpen },
     { id: 'events', label: 'Events', icon: Calendar },
@@ -156,8 +156,8 @@ function PlannerPageContent() {
         return <RemindersPage />;
       case 'words':
         return <WordsPage />;
-      case 'ritucharya':
-        return <RitucharyaPage />;
+      // case 'ritucharya':
+      //   return <RitucharyaPage />;
       case 'accounting':
         return <AccountingPage />;
       case 'journal':
