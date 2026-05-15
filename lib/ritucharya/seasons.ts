@@ -793,3 +793,36 @@ export function getCurrentSeasonByDate(date: Date = new Date()): string {
 
   return 'vasant'; // default fallback
 }
+
+export function validateSeasonByWeather(
+  dateBasedSeason: string,
+  temperature: number,
+  humidity: number,
+  description: string,
+  windSpeed: number
+): {
+  season: string;
+  isAccurate: boolean;
+  weatherMatch: string;
+} {
+  // Validate the date-based season with actual weather parameters
+  const weatherDetectedSeason = getClimateRitu(temperature, humidity, description);
+
+  const isAccurate = dateBasedSeason === weatherDetectedSeason;
+
+  // Create weather match description
+  let weatherMatch = '';
+
+  if (temperature > 32) weatherMatch = 'Hot climate';
+  else if (temperature < 10) weatherMatch = 'Cold climate';
+  else if (humidity > 75 && description.toLowerCase().includes('rain')) weatherMatch = 'Heavy moisture with rain';
+  else if (temperature >= 20 && temperature <= 28 && humidity < 50) weatherMatch = 'Moderate temp, dry';
+  else if (temperature >= 18 && temperature <= 28 && humidity >= 40 && humidity <= 70) weatherMatch = 'Pleasant & balanced';
+  else weatherMatch = 'Variable weather';
+
+  return {
+    season: dateBasedSeason, // Primary is always date-based
+    isAccurate,
+    weatherMatch
+  };
+}

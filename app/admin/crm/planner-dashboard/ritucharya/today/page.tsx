@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { MapPin, Loader, Plus, X, Save, Trash2, Calendar, AlertCircle, Zap } from 'lucide-react';
 import { locationData } from '@/lib/locationData';
-import { getClimateRitu, getRituBySeason, getCurrentSeasonByDate } from '@/lib/ritucharya/seasons';
+import { getClimateRitu, getRituBySeason, getCurrentSeasonByDate, validateSeasonByWeather } from '@/lib/ritucharya/seasons';
 import { foodDatabase, searchFood, RASAS } from '@/lib/ritucharya/foodDatabase';
 import { analyzeWeatherAndRecommendRasas, getSeasonalDetails } from '@/lib/ritucharya/seasonalAnalysis';
 
@@ -392,11 +392,31 @@ export default function CRMRitucharyaTodayPage() {
               </div>
               <div className="p-6 rounded-lg border-2 border-green-500 bg-green-50">
                 <h3 className="font-bold mb-3 text-gray-900 flex items-center gap-2">
-                  <span>🌸</span> Today's Ritu
+                  <span>🌸</span> Today's Ritu (By Calendar Date & Weather)
                 </h3>
                 <div className="text-2xl font-bold text-green-700">{getRituBySeason(getCurrentSeasonByDate())?.nameHi}</div>
                 <div className="text-lg text-green-700 font-semibold">{getRituBySeason(getCurrentSeasonByDate())?.nameEn}</div>
-                <p className="text-gray-600 mt-2 text-sm">Adjust diet based on this season</p>
+                <div className="mt-3 text-sm">
+                  <p className="text-gray-600">
+                    <strong>Weather Match:</strong> {validateSeasonByWeather(
+                      getCurrentSeasonByDate(),
+                      weather.temp,
+                      weather.humidity,
+                      weather.description,
+                      weather.windSpeed || 0
+                    ).weatherMatch}
+                  </p>
+                  <p className="text-gray-500 mt-1">
+                    {validateSeasonByWeather(
+                      getCurrentSeasonByDate(),
+                      weather.temp,
+                      weather.humidity,
+                      weather.description,
+                      weather.windSpeed || 0
+                    ).isAccurate ? '✅ Weather confirms this season' : '⚠️ Weather conditions vary from typical season'}
+                  </p>
+                </div>
+                <p className="text-gray-600 mt-3 text-sm">Adjust diet based on this season</p>
               </div>
             </div>
 
