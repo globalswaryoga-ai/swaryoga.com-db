@@ -939,7 +939,7 @@ export default function DailyViewPage() {
             ) : healthRoutines.length === 0 ? (
               <p className="text-xs text-swar-text-secondary italic">No health routines yet. Add some in the Health page.</p>
             ) : (
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 {healthRoutines.map((r) => {
                   const completedToday = (Array.isArray((r as any).completedDates) ? (r as any).completedDates : []).includes(selectedDate);
                   const category = ((r as any).category || (r as any).type || 'other') as string;
@@ -951,7 +951,14 @@ export default function DailyViewPage() {
                     other: '✨',
                   };
                   return (
-                    <div key={r.id} className="rounded-lg p-2 border border-swar-border hover:shadow-sm transition flex items-center gap-3">
+                    <div
+                      key={r.id}
+                      className={`rounded-lg p-2.5 border transition flex items-center gap-2.5 ${
+                        completedToday
+                          ? 'bg-green-50 border-green-200'
+                          : 'border-swar-border hover:shadow-sm'
+                      }`}
+                    >
                       <button
                         onClick={() => toggleHealthRoutineComplete(r.id)}
                         className="text-emerald-600 hover:text-emerald-700 flex-shrink-0"
@@ -960,14 +967,24 @@ export default function DailyViewPage() {
                         {completedToday ? <CheckCircle2 className="h-4 w-4" /> : <Circle className="h-4 w-4" />}
                       </button>
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-swar-text truncate">
+                        <p className={`text-xs font-semibold truncate ${
+                          completedToday ? 'line-through text-swar-text-secondary' : 'text-swar-text'
+                        }`}>
                           {(categoryEmoji[category] || '✨')} {r.title}
                         </p>
+                        {(r as any).duration && (
+                          <p className="text-xs text-swar-text-secondary">⏱️ {(r as any).duration}</p>
+                        )}
                       </div>
-                      {completedToday ? (
-                        <span className="text-xs font-semibold text-green-700 whitespace-nowrap">Done</span>
-                      ) : (
-                        <span className="text-xs font-semibold text-swar-text-secondary whitespace-nowrap">Pending</span>
+                      {(r as any).repeat && (r as any).repeat !== 'once' && (
+                        <span className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded whitespace-nowrap font-medium">
+                          🔄 {((r as any).repeat || 'daily')}
+                        </span>
+                      )}
+                      {completedToday && (
+                        <span className="text-xs px-1.5 py-0.5 bg-green-100 text-green-700 rounded whitespace-nowrap font-medium">
+                          ✅ Done
+                        </span>
                       )}
                     </div>
                   );
