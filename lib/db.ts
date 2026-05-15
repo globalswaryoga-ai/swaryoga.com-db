@@ -222,7 +222,20 @@ const userSchema = new mongoose.Schema({
   lifePlannerDiamondPeople: [mongoose.Schema.Types.Mixed],
   lifePlannerProgress: [mongoose.Schema.Types.Mixed],
   lifePlannerAccounting: mongoose.Schema.Types.Mixed, // Accounting data: accounts, transactions, investments, budget
-  
+
+  // CRM Planner Data (completely separate from Life Planner)
+  crmVisions: [mongoose.Schema.Types.Mixed],
+  crmActionPlans: [mongoose.Schema.Types.Mixed],
+  crmGoals: [mongoose.Schema.Types.Mixed],
+  crmTasks: [mongoose.Schema.Types.Mixed],
+  crmTodos: [mongoose.Schema.Types.Mixed],
+  crmWords: [mongoose.Schema.Types.Mixed],
+  crmReminders: [mongoose.Schema.Types.Mixed],
+  crmHealthRoutines: [mongoose.Schema.Types.Mixed],
+  crmDailyHealthPlans: [mongoose.Schema.Types.Mixed],
+  crmDiamondPeople: [mongoose.Schema.Types.Mixed],
+  crmProgress: [mongoose.Schema.Types.Mixed],
+
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
 });
