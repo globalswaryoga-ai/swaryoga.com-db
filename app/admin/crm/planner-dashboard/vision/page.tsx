@@ -65,6 +65,8 @@ export default function VisionPage() {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterMonth, setFilterMonth] = useState<string>('all');
   const [searchText, setSearchText] = useState('');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [saveError, setSaveError] = useState<string>('');
 
   useEffect(() => {
     setMounted(true);
@@ -79,9 +81,25 @@ export default function VisionPage() {
   useEffect(() => {
     if (!mounted || !hasLoaded) return;
     if (skipNextSave.current) { skipNextSave.current = false; return; }
-    (async () => {
-      await crmPlannerStorage.saveVisions(visions);
-    })();
+
+    setSaveStatus('saving');
+    setSaveError('');
+    const timer = setTimeout(() => {
+      (async () => {
+        try {
+          await crmPlannerStorage.saveVisions(visions);
+          setSaveStatus('saved');
+          setTimeout(() => setSaveStatus('idle'), 2000);
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : 'Failed to save visions';
+          console.error('Error saving visions:', error);
+          setSaveStatus('error');
+          setSaveError(errorMsg);
+        }
+      })();
+    }, 500);
+
+    return () => clearTimeout(timer);
   }, [visions, mounted, hasLoaded]);
 
   const handleAddVision = () => {
@@ -217,6 +235,34 @@ export default function VisionPage() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
+      {/* Save Status Indicator */}
+      {saveStatus !== 'idle' && (
+        <div className={`fixed bottom-4 right-4 px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 ${
+          saveStatus === 'saving' ? 'bg-blue-100 text-blue-800' :
+          saveStatus === 'saved' ? 'bg-green-100 text-green-800' :
+          'bg-red-100 text-red-800'
+        }`}>
+          {saveStatus === 'saving' && (
+            <>
+              <div className="animate-spin w-4 h-4 border-2 border-blue-800 border-t-transparent rounded-full"></div>
+              <span className="text-sm font-medium">Saving...</span>
+            </>
+          )}
+          {saveStatus === 'saved' && (
+            <>
+              <span>✓</span>
+              <span className="text-sm font-medium">Saved</span>
+            </>
+          )}
+          {saveStatus === 'error' && (
+            <>
+              <span>⚠️</span>
+              <span className="text-sm font-medium">{saveError || 'Save failed'}</span>
+            </>
+          )}
+        </div>
+      )}
+
       {/* Report-style header */}
       <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-200" style={{ background: 'linear-gradient(90deg, rgba(16,185,129,0.12) 0%, rgba(99,102,241,0.10) 45%, rgba(236,72,153,0.10) 100%)' }}>

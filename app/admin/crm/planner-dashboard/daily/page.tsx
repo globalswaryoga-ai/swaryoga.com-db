@@ -74,6 +74,8 @@ export default function DailyViewPage() {
 
   const [today] = useState(() => getLocalDayKey(new Date()));
   const [selectedDate, setSelectedDate] = useState(() => getLocalDayKey(new Date()));
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [saveError, setSaveError] = useState<string>('');
   const isToday = selectedDate === today;
 
   const goPrevDay = () => {
@@ -303,32 +305,47 @@ export default function DailyViewPage() {
       localStorage.setItem(sadhanaStorageKey, JSON.stringify(sadhanaState));
 
       // Auto-save to MongoDB (debounced with 500ms timeout)
+      setSaveStatus('saving');
+      setSaveError('');
       const timer = setTimeout(() => {
         (async () => {
           try {
             await crmPlannerStorage.saveSadhana(selectedDate, sadhanaState);
+            setSaveStatus('saved');
+            setTimeout(() => setSaveStatus('idle'), 2000);
           } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : 'Failed to save sadhana';
             console.error('Error saving sadhana to MongoDB:', error);
+            setSaveStatus('error');
+            setSaveError(errorMsg);
           }
         })();
       }, 500);
 
       return () => clearTimeout(timer);
-    } catch {
-      // ignore
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Local storage error';
+      console.error('Sadhana storage error:', err);
+      setSaveError(errorMsg);
     }
   }, [sadhanaState, sadhanaHasLoaded, sadhanaStorageKey, selectedDate]);
 
   // Persist health routines when changed (debounced, like Health page)
   useEffect(() => {
     if (!healthMounted || !healthHasLoaded) return;
+    setSaveStatus('saving');
+    setSaveError('');
     const timer = window.setTimeout(() => {
       (async () => {
         try {
           await crmPlannerStorage.saveHealthRoutines(healthRoutines);
+          setSaveStatus('saved');
+          setTimeout(() => setSaveStatus('idle'), 2000);
         } catch (e) {
+          const errorMsg = e instanceof Error ? e.message : 'Failed to save health routines';
           console.error('Error saving health routines:', e);
-          // Avoid noisy UI; show only if user interacts and errors persist.
+          setSaveStatus('error');
+          setSaveError(errorMsg);
         }
       })();
     }, 500);
@@ -473,12 +490,19 @@ export default function DailyViewPage() {
     localStorage.setItem(getWorkshopStorageKey(), JSON.stringify(updated));
 
     // Auto-save to MongoDB (debounced)
+    setSaveStatus('saving');
+    setSaveError('');
     setTimeout(() => {
       (async () => {
         try {
           await crmPlannerStorage.saveWorkshopTasks(selectedDate, updated);
+          setSaveStatus('saved');
+          setTimeout(() => setSaveStatus('idle'), 2000);
         } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : 'Failed to save workshop tasks';
           console.error('Error saving workshop tasks to MongoDB:', error);
+          setSaveStatus('error');
+          setSaveError(errorMsg);
         }
       })();
     }, 500);
@@ -749,6 +773,34 @@ export default function DailyViewPage() {
           </button>
         </div>
       </div>
+
+      {/* Save Status Indicator */}
+      {saveStatus !== 'idle' && (
+        <div className={`fixed bottom-4 right-4 px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 ${
+          saveStatus === 'saving' ? 'bg-blue-100 text-blue-800' :
+          saveStatus === 'saved' ? 'bg-green-100 text-green-800' :
+          'bg-red-100 text-red-800'
+        }`}>
+          {saveStatus === 'saving' && (
+            <>
+              <div className="animate-spin w-4 h-4 border-2 border-blue-800 border-t-transparent rounded-full"></div>
+              <span className="text-sm font-medium">Saving...</span>
+            </>
+          )}
+          {saveStatus === 'saved' && (
+            <>
+              <span>✓</span>
+              <span className="text-sm font-medium">Saved</span>
+            </>
+          )}
+          {saveStatus === 'error' && (
+            <>
+              <span>⚠️</span>
+              <span className="text-sm font-medium">{saveError || 'Save failed'}</span>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Top 3 Cards with Professional Headers */}
       <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
