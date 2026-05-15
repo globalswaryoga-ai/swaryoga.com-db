@@ -326,6 +326,36 @@ export default function DailyViewPage() {
     return () => window.clearTimeout(timer);
   }, [healthRoutines, healthMounted, healthHasLoaded]);
 
+  // Reload health routines when page becomes visible (user returns from Health page)
+  useEffect(() => {
+    const reloadRoutines = async () => {
+      setHealthLoading(true);
+      try {
+        const saved = await lifePlannerStorage.getHealthRoutines();
+        const normalized = (Array.isArray(saved) ? saved : []).map((r) => {
+          const completedDates = Array.isArray((r as any).completedDates) ? (r as any).completedDates : [];
+          const streak = typeof (r as any).streak === 'number' ? (r as any).streak : 0;
+          const category = (r as any).category || (r as any).type || 'other';
+          return { ...r, completedDates, streak, category } as HealthRoutine;
+        });
+        setHealthRoutines(normalized);
+      } catch (e) {
+        console.error('Error reloading health routines:', e);
+      } finally {
+        setHealthLoading(false);
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        reloadRoutines();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
+
   const toggleHealthRoutineComplete = (id: string) => {
     setHealthRoutines((prev) =>
       prev.map((r) => {
