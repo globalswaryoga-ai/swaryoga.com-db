@@ -4,6 +4,7 @@ import './globals.css';
 import WhatsAppWidget from '@/components/WhatsAppWidget';
 import AppInitializer from '@/components/AppInitializer';
 import ErrorCatcher from '@/components/ErrorCatcher';
+import { RootErrorBoundary } from '@/components/RootErrorBoundary';
 import { PerformanceMonitor } from '@/components/PerformanceMonitor';
 import { CartProvider } from '@/lib/context/CartContext';
 import { Space_Grotesk } from 'next/font/google';
@@ -169,14 +170,16 @@ export default function RootLayout({
         {/* Schema.org JSON-LD */}
         <OrganizationJsonLd />
         <WebsiteJsonLd />
-        
-        <CartProvider>
-          <ErrorCatcher />
-          <PerformanceMonitor />
-          <AppInitializer />
-          {children}
-          <WhatsAppWidget />
-        </CartProvider>
+
+        <RootErrorBoundary>
+          <CartProvider>
+            <ErrorCatcher />
+            <PerformanceMonitor />
+            <AppInitializer />
+            {children}
+            <WhatsAppWidget />
+          </CartProvider>
+        </RootErrorBoundary>
       </body>
     </html>
   );
