@@ -308,42 +308,19 @@ function RitucharyaPageContent() {
 }
 
 export default function RitucharyaPage() {
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    // Catch any errors that might occur during render
-    const handleError = (e: ErrorEvent) => {
-      if (e.message.includes('auth')) {
-        setError('There was an issue loading this page. Please refresh.');
-      }
-    };
-
-    window.addEventListener('error', handleError);
-    return () => window.removeEventListener('error', handleError);
-  }, []);
-
-  if (error) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-8 flex items-center gap-4">
-          <AlertCircle className="w-8 h-8 text-red-600 flex-shrink-0" />
-          <div>
-            <h3 className="text-lg font-bold text-red-800">{error}</h3>
-            <button
-              onClick={() => window.location.reload()}
-              className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-            >
-              Refresh Page
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <Suspense fallback={<div className="text-center py-20">Loading...</div>}>
-      <RitucharyaPageContent />
-    </Suspense>
+    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      <div className="bg-white rounded-lg shadow-lg p-8 max-w-md text-center">
+        <AlertCircle className="w-12 h-12 text-red-600 mx-auto mb-4" />
+        <h1 className="text-2xl font-bold text-red-800 mb-2">Maintenance Mode</h1>
+        <p className="text-gray-600 mb-4">The Ritucharya page is currently undergoing maintenance and will be back soon.</p>
+        <button
+          onClick={() => window.location.href = '/admin/crm'}
+          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+        >
+          Go Back to CRM
+        </button>
+      </div>
+    </div>
   );
 }

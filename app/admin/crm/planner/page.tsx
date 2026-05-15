@@ -33,7 +33,9 @@ const TasksPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/tasks/
 const TodosPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/todos/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
 const RemindersPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/reminders/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
 const WordsPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/words/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
-const RitucharyaPage = dynamic(() => import('@/app/admin/crm/planner/ritucharya/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
+// Temporarily disable Ritucharya while debugging auth issue
+// const RitucharyaPage = dynamic(() => import('@/app/admin/crm/planner/ritucharya/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
+const RitucharyaPage = () => <div className="p-8"><p className="text-red-600">Ritucharya page is temporarily disabled due to an issue. Please check back soon.</p></div>;
 const CalendarPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/calendar/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
 const AccountingPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/accounting/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
 const NotesPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/notes/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
