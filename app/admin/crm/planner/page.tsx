@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import {
@@ -19,6 +19,44 @@ import {
   Loader,
   Leaf,
 } from 'lucide-react';
+
+// Error boundary for render errors
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error) {
+    console.error('Planner error boundary caught:', error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-6 text-center">
+          <h2 className="text-2xl font-bold text-red-600 mb-4">Oops, something went wrong</h2>
+          <p className="text-gray-600 mb-4">{this.state.error?.message || 'Unknown error'}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Reload Page
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 type SidebarType = 'dashboard' | 'calendar' | 'daily' | 'vision' | 'vision-download' | 'action-plan' | 'goals' | 'tasks' | 'todos' | 'reminders' | 'words' | 'ritucharya' | 'accounting' | 'journal' | 'events' | 'health' | 'diamond' | 'progress';
 
@@ -53,7 +91,7 @@ function LoadingSpinner() {
   );
 }
 
-export default function PlannerPage() {
+function PlannerPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [activeSidebar, setActiveSidebar] = useState<SidebarType>('dashboard');
@@ -212,5 +250,15 @@ export default function PlannerPage() {
         </main>
       </div>
     </div>
+  );
+}
+
+export default function PlannerPage() {
+  return (
+    <ErrorBoundary>
+      <Suspense fallback={<LoadingSpinner />}>
+        <PlannerPageContent />
+      </Suspense>
+    </ErrorBoundary>
   );
 }
