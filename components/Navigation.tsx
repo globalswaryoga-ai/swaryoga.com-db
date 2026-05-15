@@ -21,6 +21,7 @@ export default function Navigation() {
     { name: 'Workshops', href: '/workshop' },
     { name: 'E-Learning', href: '/e-learning' },
     { name: 'Resort', href: '/resort' },
+    { name: 'Ritucharya', href: '/life-planner/ritucharya' },
     { name: 'Blog', href: '/blog' },
     { name: 'Community', href: '/community' },
     { name: 'Contact', href: '/contact' },

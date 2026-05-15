@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { Menu, X, LogOut, CheckSquare, HeartPulse, BarChart3, User, ArrowLeft, Calendar, Gem } from 'lucide-react';
+import { Menu, X, LogOut, CheckSquare, HeartPulse, BarChart3, User, ArrowLeft, Calendar, Gem, Leaf } from 'lucide-react';
 import HealthTracker from './HealthTracker';
 import ServerStatus from './ServerStatus';
 import { clearSession } from '@/lib/sessionManager';
@@ -12,6 +12,17 @@ import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 const topTabs = [
   { href: '/admin/crm/planner?section=daily', label: 'Daily', icon: CheckSquare },
   { href: '/admin/crm/planner?section=calendar', label: 'Calendar', icon: Calendar },
+  { href: '/admin/crm/planner?section=vision', label: 'Vision', icon: CheckSquare },
+  { href: '/admin/crm/planner?section=action-plan', label: 'Action Plan', icon: CheckSquare },
+  { href: '/admin/crm/planner?section=goals', label: 'Goals', icon: CheckSquare },
+  { href: '/admin/crm/planner?section=tasks', label: 'Tasks', icon: CheckSquare },
+  { href: '/admin/crm/planner?section=todos', label: 'Todos', icon: CheckSquare },
+  { href: '/admin/crm/planner?section=reminders', label: 'Reminders', icon: CheckSquare },
+  { href: '/admin/crm/planner?section=words', label: 'Words', icon: CheckSquare },
+  { href: '/admin/crm/planner/ritucharya', label: 'Ritucharya', icon: Leaf },
+  { href: '/admin/crm/planner?section=accounting', label: 'Accounting', icon: CheckSquare },
+  { href: '/admin/crm/planner?section=journal', label: 'Journal', icon: CheckSquare },
+  { href: '/admin/crm/planner?section=events', label: 'Events', icon: Calendar },
   { href: '/admin/crm/planner?section=health', label: 'Health', icon: HeartPulse },
   { href: '/admin/crm/planner?section=diamond', label: 'Diamond', icon: Gem },
   { href: '/admin/crm/planner?section=progress', label: 'Progress', icon: BarChart3 },

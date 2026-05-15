@@ -17,9 +17,10 @@ import {
   BookOpen,
   Calculator,
   Loader,
+  Leaf,
 } from 'lucide-react';
 
-type SidebarType = 'dashboard' | 'calendar' | 'daily' | 'vision' | 'vision-download' | 'action-plan' | 'goals' | 'tasks' | 'todos' | 'reminders' | 'words' | 'accounting' | 'journal' | 'events' | 'health' | 'diamond' | 'progress';
+type SidebarType = 'dashboard' | 'calendar' | 'daily' | 'vision' | 'vision-download' | 'action-plan' | 'goals' | 'tasks' | 'todos' | 'reminders' | 'words' | 'ritucharya' | 'accounting' | 'journal' | 'events' | 'health' | 'diamond' | 'progress';
 
 // Dynamically import Life Planner pages
 const DashboardPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/comprehensive-dashboard/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
@@ -32,6 +33,7 @@ const TasksPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/tasks/
 const TodosPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/todos/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
 const RemindersPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/reminders/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
 const WordsPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/words/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
+const RitucharyaPage = dynamic(() => import('@/app/admin/crm/planner/ritucharya/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
 const CalendarPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/calendar/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
 const AccountingPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/accounting/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
 const NotesPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/notes/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
@@ -84,6 +86,7 @@ export default function PlannerPage() {
     { id: 'todos', label: 'Todos', icon: CheckSquare },
     { id: 'reminders', label: 'Reminders', icon: Bell },
     { id: 'words', label: 'Words', icon: BookOpen },
+    { id: 'ritucharya', label: 'Ritucharya', icon: Leaf },
     { id: 'accounting', label: 'Accounting', icon: Calculator },
     { id: 'journal', label: 'Journal', icon: BookOpen },
     { id: 'events', label: 'Events', icon: Calendar },
@@ -115,6 +118,8 @@ export default function PlannerPage() {
         return <RemindersPage />;
       case 'words':
         return <WordsPage />;
+      case 'ritucharya':
+        return <RitucharyaPage />;
       case 'accounting':
         return <AccountingPage />;
       case 'journal':

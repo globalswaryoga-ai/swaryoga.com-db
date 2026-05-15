@@ -46,7 +46,7 @@ export default function Footer() {
 
   const resources = [
     { name: 'Blog', href: '/blog' },
-    { name: 'Free Resources', href: '#' },
+    { name: 'Ritucharya', href: '/life-planner/ritucharya' },
     { name: 'Success Stories', href: '#' },
     { name: 'FAQ', href: '#' },
     { name: 'Terms & Conditions', href: '/terms' },

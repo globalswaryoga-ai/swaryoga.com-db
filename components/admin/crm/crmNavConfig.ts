@@ -53,6 +53,7 @@ import {
   Puzzle,
   CreditCard,
   Plug,
+  Leaf,
 } from 'lucide-react';
 
 import type { SubNavItem } from './CrmSubNav';
@@ -134,6 +135,8 @@ export const sectionConfigs: SectionConfig[] = [
       {
         label: 'Tools', href: '/admin/crm/web-admin?tab=tools', icon: Wrench,
         children: [
+          { label: 'Ritucharya Admin', href: '/admin/crm/planner-dashboard/ritucharya/ritus-admin', icon: Leaf },
+          { label: 'Ritucharya', href: '/admin/crm/planner/ritucharya', icon: Leaf },
           { label: 'Offers', href: '/admin/offers', icon: Tag },
           { label: 'Devices', href: '/admin/crm/devices', icon: Smartphone },
           { label: 'Knowledge Base', href: '/admin/crm/knowledge-base', icon: BookOpen },
@@ -152,7 +155,7 @@ export const sectionConfigs: SectionConfig[] = [
       },
     ],
     moreItems: [],
-    prefixes: ['/admin/crm/web-admin'],
+    prefixes: ['/admin/crm/web-admin', '/admin/crm/planner/ritucharya', '/admin/crm/planner-dashboard/ritucharya/ritus-admin'],
   },
 
   // 3. Sales & Funnel

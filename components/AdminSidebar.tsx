@@ -50,6 +50,7 @@ import {
   CalendarDays,
   Video,
   Clock,
+  Leaf,
 } from 'lucide-react';
 import { PlanBadge, SidebarLock } from './admin/crm/PlanComponents';
 import type { CrmModule } from '@/lib/crm-site/planConfig';
@@ -333,6 +334,15 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
           module: 'lifePlanner',
           planModule: 'lifePlanner',
           description: 'Goals, tasks, vision & planning',
+        },
+        {
+          icon: Leaf,
+          label: 'Ritucharya',
+          href: '/admin/crm/planner/ritucharya',
+          color: 'text-green-400',
+          module: 'lifePlanner',
+          planModule: 'lifePlanner',
+          description: 'Ayurvedic seasonal guide',
         },
       ],
     },
