@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/mongodb';
+import connectDB from '@/lib/mongodb';
 import { Recipe } from '@/lib/ritucharya/recipeSchema';
 
 export async function GET(request: NextRequest) {
