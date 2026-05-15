@@ -471,6 +471,95 @@ class CrmPlannerMongoStorage {
       throw err;
     }
   }
+
+  async getDailyTasks(date: string): Promise<{ workshopTasks: any[]; sadhana: any; date: string } | null> {
+    if (!this.hasAuth()) return null;
+    try {
+      const response = await fetch(`/api/crm-planner/daily-tasks?date=${date}&type=all`, {
+        method: 'GET',
+        headers: this.authHeaders(),
+      });
+      if (response.status === 401) {
+        this.handleUnauthorized();
+        return null;
+      }
+      if (!response.ok) return null;
+      const result = await response.json();
+      return result.data || null;
+    } catch (error) {
+      console.error('Failed to fetch daily tasks:', error);
+      return null;
+    }
+  }
+
+  async getWorkshopTasks(date: string): Promise<any[]> {
+    if (!this.hasAuth()) return [];
+    try {
+      const response = await fetch(`/api/crm-planner/daily-tasks?date=${date}&type=workshopTasks`, {
+        method: 'GET',
+        headers: this.authHeaders(),
+      });
+      if (response.status === 401) {
+        this.handleUnauthorized();
+        return [];
+      }
+      if (!response.ok) return [];
+      const result = await response.json();
+      return result.data || [];
+    } catch (error) {
+      console.error('Failed to fetch workshop tasks:', error);
+      return [];
+    }
+  }
+
+  async getSadhana(date: string): Promise<any | null> {
+    if (!this.hasAuth()) return null;
+    try {
+      const response = await fetch(`/api/crm-planner/daily-tasks?date=${date}&type=sadhana`, {
+        method: 'GET',
+        headers: this.authHeaders(),
+      });
+      if (response.status === 401) {
+        this.handleUnauthorized();
+        return null;
+      }
+      if (!response.ok) return null;
+      const result = await response.json();
+      return result.data || null;
+    } catch (error) {
+      console.error('Failed to fetch sadhana:', error);
+      return null;
+    }
+  }
+
+  async saveDailyTasks(date: string, workshopTasks?: any[], sadhana?: any): Promise<void> {
+    if (!this.hasAuth()) return;
+    try {
+      const response = await fetch('/api/crm-planner/daily-tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
+        body: JSON.stringify({ date, workshopTasks, sadhana }),
+      });
+      if (response.status === 401) {
+        this.handleUnauthorized();
+        throw new Error('Unauthorized');
+      }
+      if (!response.ok) {
+        throw new Error(`Failed to save daily tasks: ${response.statusText}`);
+      }
+    } catch (error) {
+      console.error('Error saving daily tasks:', error);
+      throw error;
+    }
+  }
+
+  async saveWorkshopTasks(date: string, workshopTasks: any[]): Promise<void> {
+    await this.saveDailyTasks(date, workshopTasks, undefined);
+  }
+
+  async saveSadhana(date: string, sadhana: any): Promise<void> {
+    await this.saveDailyTasks(date, undefined, sadhana);
+  }
 }
 
 export const crmPlannerStorage = new CrmPlannerMongoStorage();

@@ -233,6 +233,7 @@ const userSchema = new mongoose.Schema({
   crmReminders: [mongoose.Schema.Types.Mixed],
   crmHealthRoutines: [mongoose.Schema.Types.Mixed],
   crmDailyHealthPlans: [mongoose.Schema.Types.Mixed],
+  crmDailyTasks: mongoose.Schema.Types.Mixed, // Daily workshop tasks and sadhana per date (CRM version)
   crmDiamondPeople: [mongoose.Schema.Types.Mixed],
   crmProgress: [mongoose.Schema.Types.Mixed],
 
