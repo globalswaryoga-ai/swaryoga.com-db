@@ -281,7 +281,7 @@ export default function RitucharyaPage() {
                   type="submit"
                   disabled={loading}
                   className="w-full font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors"
-                  style={{ backgroundColor: disabled ? '#666666' : '#00FF00', color: '#000000' }}
+                  style={{ backgroundColor: loading ? '#666666' : '#00FF00', color: '#000000' }}
                 >
                   {loading ? (
                     <>
