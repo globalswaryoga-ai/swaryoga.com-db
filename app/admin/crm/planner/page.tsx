@@ -19,12 +19,13 @@ import {
   Loader,
 } from 'lucide-react';
 
-type SidebarType = 'dashboard' | 'calendar' | 'daily' | 'vision' | 'action-plan' | 'goals' | 'tasks' | 'todos' | 'reminders' | 'words' | 'accounting' | 'journal' | 'events' | 'health' | 'diamond' | 'progress';
+type SidebarType = 'dashboard' | 'calendar' | 'daily' | 'vision' | 'vision-download' | 'action-plan' | 'goals' | 'tasks' | 'todos' | 'reminders' | 'words' | 'accounting' | 'journal' | 'events' | 'health' | 'diamond' | 'progress';
 
 // Dynamically import Life Planner pages
 const DashboardPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/comprehensive-dashboard/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
 const DailyPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/daily/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
 const VisionPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/vision/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
+const VisionDownloadPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/vision-download/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
 const ActionPlanPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/action-plan/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
 const GoalsPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/goals/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
 const TasksPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/tasks/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
@@ -89,6 +90,7 @@ export default function PlannerPage() {
     { id: 'health', label: 'Health', icon: Heart },
     { id: 'diamond', label: 'Diamond', icon: Gem },
     { id: 'progress', label: 'Progress', icon: TrendingUp },
+    { id: 'vision-download', label: 'Download Vision', icon: Calendar },
   ] as const;
 
   const renderContent = () => {
@@ -125,6 +127,8 @@ export default function PlannerPage() {
         return <DiamondPage />;
       case 'progress':
         return <ProgressPage />;
+      case 'vision-download':
+        return <VisionDownloadPage />;
       default:
         return <DailyPage />;
     }
