@@ -97,7 +97,7 @@ export default function RitucharyaPage() {
               >
                 <option value="">Select Country...</option>
                 {countries.map(c => (
-                  <option key={c.code} value={c.name}>{c.name}</option>
+                  <option key={c.name} value={c.name}>{c.name}</option>
                 ))}
               </select>
             </div>
