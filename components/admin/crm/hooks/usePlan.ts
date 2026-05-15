@@ -92,7 +92,7 @@ const PlanContext = createContext<PlanContextValue | null>(null);
 // ============================================================================
 
 export function PlanProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<PlanState>(getDefaultState);
+  const [state, setState] = useState<PlanState>(() => getDefaultState());
 
   const fetchPlan = useCallback(async () => {
     try {
@@ -227,7 +227,7 @@ export function usePlan(): PlanContextValue {
  * Fetches plan data independently.
  */
 function usePlanStandalone(): PlanContextValue {
-  const [state, setState] = useState<PlanState>(getDefaultState);
+  const [state, setState] = useState<PlanState>(() => getDefaultState());
 
   const fetchPlan = useCallback(async () => {
     try {
