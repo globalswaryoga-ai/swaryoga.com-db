@@ -347,11 +347,16 @@ export default function HealthPage() {
   const [foodFormTitle, setFoodFormTitle] = useState('');
   const [foodFormTime, setFoodFormTime] = useState('09:00');
   const [foodFormSubheading, setFoodFormSubheading] = useState('Breakfast');
+  const [foodFormRepeat, setFoodFormRepeat] = useState<'once' | 'daily' | 'weekly' | 'monthly' | 'yearly'>('daily');
+  const [editingFoodId, setEditingFoodId] = useState<string | null>(null);
 
   // Categories management
   const [categories, setCategories] = useState<string[]>(['exercise', 'meditation', 'nutrition', 'sleep', 'other']);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [showCategoryInput, setShowCategoryInput] = useState(false);
+
+  // Minimize/Maximize state
+  const [expandedRoutines, setExpandedRoutines] = useState<Set<string>>(new Set());
 
   const [form, setForm] = useState({
     title: '',
@@ -362,6 +367,7 @@ export default function HealthPage() {
     time: '09:00',
     startTime: '09:00',
     endTime: '10:00',
+    repeat: 'daily' as 'once' | 'daily' | 'weekly' | 'monthly' | 'yearly',
   });
 
   const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -627,24 +633,35 @@ export default function HealthPage() {
   );
 
   const addFoodPlanItem = (dayPart: DayPart) => {
-    // Use form values instead of defaults
+    if (!foodFormTitle.trim()) {
+      alert('Please enter a food item title');
+      return;
+    }
+
     const item: FoodPlanItem = {
-      id: `fpi-${Date.now()}`,
+      id: editingFoodId || `fpi-${Date.now()}`,
       dayPart,
       subheading: foodFormSubheading || FOOD_SUBHEADINGS[0] || 'Gond Pani',
-      title: foodFormTitle.trim() || 'Untitled',
+      title: foodFormTitle.trim(),
       time: foodFormTime || '09:00',
+      repeat: foodFormRepeat,
       completed: false,
     };
 
-    updatePlanForDate(activeDate, (plan) => ({
-      ...plan,
-      foodPlanItems: [...(Array.isArray((plan as any).foodPlanItems) ? ((plan as any).foodPlanItems as FoodPlanItem[]) : []), item],
-    }));
+    if (editingFoodId) {
+      updateFoodPlanItem(editingFoodId, item);
+      setEditingFoodId(null);
+    } else {
+      updatePlanForDate(activeDate, (plan) => ({
+        ...plan,
+        foodPlanItems: [...(Array.isArray((plan as any).foodPlanItems) ? ((plan as any).foodPlanItems as FoodPlanItem[]) : []), item],
+      }));
+    }
 
     // Reset form
     setFoodFormTitle('');
     setFoodFormTime('09:00');
+    setFoodFormRepeat('daily');
   };
 
   const updateFoodPlanItem = (id: string, patch: Partial<FoodPlanItem>) => {
@@ -656,13 +673,29 @@ export default function HealthPage() {
     }));
   };
 
+  const editFoodPlanItem = (item: FoodPlanItem) => {
+    setEditingFoodId(item.id);
+    setFoodFormDayPart(item.dayPart);
+    setFoodFormTitle(item.title);
+    setFoodFormTime(item.time || '09:00');
+    setFoodFormSubheading(item.subheading);
+    setFoodFormRepeat(item.repeat || 'daily');
+  };
+
   const deleteFoodPlanItem = (id: string) => {
+    if (!confirm('Delete this food item?')) return;
     updatePlanForDate(activeDate, (plan) => ({
       ...plan,
       foodPlanItems: (Array.isArray((plan as any).foodPlanItems) ? ((plan as any).foodPlanItems as FoodPlanItem[]) : []).filter(
         (it) => it.id !== id
       ),
     }));
+    if (editingFoodId === id) {
+      setEditingFoodId(null);
+      setFoodFormTitle('');
+      setFoodFormTime('09:00');
+      setFoodFormRepeat('daily');
+    }
   };
 
   const updateIntakeSections = (nextSections: HealthIntakeSection[]) => {
@@ -727,21 +760,23 @@ export default function HealthPage() {
       time: '09:00',
       startTime: '09:00',
       endTime: '10:00',
+      repeat: 'daily' as 'once' | 'daily' | 'weekly' | 'monthly' | 'yearly',
     });
     setIsFormOpen(true);
   };
 
   const openEdit = (r: HealthRoutine) => {
     setEditingId(r.id);
-    setForm({ 
-      title: r.title || '', 
-      description: r.description || '', 
-      category: r.category || 'exercise', 
+    setForm({
+      title: r.title || '',
+      description: r.description || '',
+      category: r.category || 'exercise',
       frequency: r.frequency || 'daily',
       dailyFrequency: r.dailyFrequency || 'daily',
       time: r.time || '09:00',
       startTime: r.startTime || '09:00',
       endTime: r.endTime || '10:00',
+      repeat: ((r as any).repeat || 'daily') as 'once' | 'daily' | 'weekly' | 'monthly' | 'yearly',
     });
     setIsFormOpen(true);
   };
@@ -749,8 +784,8 @@ export default function HealthPage() {
   const saveRoutine = () => {
     if (!form.title.trim()) return alert('Please enter a title');
     if (editingId) {
-      setRoutines(prev => prev.map(r => r.id === editingId ? { 
-        ...r, 
+      setRoutines(prev => prev.map(r => r.id === editingId ? {
+        ...r,
         title: form.title,
         description: form.description,
         category: form.category,
@@ -759,12 +794,13 @@ export default function HealthPage() {
         time: form.time,
         startTime: form.startTime,
         endTime: form.endTime,
-        updatedAt: new Date().toISOString() 
+        repeat: form.repeat,
+        updatedAt: new Date().toISOString()
       } : r));
     } else {
-      const newR: HealthRoutine = { 
-        id: `hr-${Date.now()}`, 
-        title: form.title, 
+      const newR: HealthRoutine = {
+        id: `hr-${Date.now()}`,
+        title: form.title,
         description: form.description,
         category: form.category,
         frequency: form.frequency as any,
@@ -772,10 +808,11 @@ export default function HealthPage() {
         time: form.time,
         startTime: form.startTime,
         endTime: form.endTime,
+        repeat: form.repeat,
         completedDates: [],
         streak: 0,
-        createdAt: new Date().toISOString(), 
-        updatedAt: new Date().toISOString() 
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       } as HealthRoutine;
       setRoutines(prev => [...prev, newR]);
     }
@@ -789,6 +826,18 @@ export default function HealthPage() {
       setEditingId(null);
       setIsFormOpen(false);
     }
+  };
+
+  const toggleExpanded = (routineId: string) => {
+    setExpandedRoutines(prev => {
+      const next = new Set(prev);
+      if (next.has(routineId)) {
+        next.delete(routineId);
+      } else {
+        next.add(routineId);
+      }
+      return next;
+    });
   };
 
   const closeOftenDropdown = () => {
@@ -884,12 +933,12 @@ export default function HealthPage() {
         )}
 
         {/* Header (Diamond-style) */}
-        <div className="flex items-center justify-between mb-8 gap-4 flex-wrap">
+        <div className="flex items-center justify-between mb-8 gap-4 flex-wrap bg-gradient-to-r from-emerald-50 to-amber-50 rounded-xl p-4 sm:p-6">
           <div>
             <h1 className="text-3xl sm:text-4xl font-bold text-swar-text mb-2">💪 Health Planner</h1>
-            <p className="text-swar-text-secondary">Daily routine + food plan checklist. Track progress month-wise using the watch icon.</p>
+            <p className="text-swar-text-secondary text-sm sm:text-base">Daily routine + food plan checklist. Track progress month-wise using the calendar icon.</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Link
               href="/life-planner/dashboard/health-month"
               className="h-11 w-11 rounded-full border border-gray-200 bg-white shadow-sm hover:shadow-md transition flex items-center justify-center"
@@ -902,26 +951,24 @@ export default function HealthPage() {
             <button
               type="button"
               onClick={() => setActiveTab('daily')}
-              className={
-                'px-4 py-2 rounded-lg font-semibold transition border-2 ' +
-                (activeTab === 'daily'
-                  ? 'bg-swar-primary text-white border-swar-primary'
-                  : 'bg-white text-swar-text border-gray-200 hover:border-swar-primary')
-              }
+              className={`px-3 sm:px-4 py-2 text-sm sm:text-base rounded-lg font-semibold transition-all border-2 ${
+                activeTab === 'daily'
+                  ? 'bg-sky-600 text-white border-sky-600 shadow-lg hover:shadow-xl'
+                  : 'bg-white text-swar-text border-gray-200 hover:border-sky-400 hover:bg-sky-50'
+              }`}
             >
-              Daily Plan
+              📅 Daily Plan
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('routines')}
-              className={
-                'px-4 py-2 rounded-lg font-semibold transition border-2 ' +
-                (activeTab === 'routines'
-                  ? 'bg-swar-primary text-white border-swar-primary'
-                  : 'bg-white text-swar-text border-gray-200 hover:border-swar-primary')
-              }
+              className={`px-3 sm:px-4 py-2 text-sm sm:text-base rounded-lg font-semibold transition-all border-2 ${
+                activeTab === 'routines'
+                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg hover:shadow-xl'
+                  : 'bg-white text-swar-text border-gray-200 hover:border-emerald-400 hover:bg-emerald-50'
+              }`}
             >
-              Routines
+              🔁 Routines
             </button>
           </div>
         </div>
@@ -962,46 +1009,46 @@ export default function HealthPage() {
 
       {/* Inline create/edit (replaces modal) */}
       {isFormOpen && (
-        <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 border border-gray-100">
-          <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className=”bg-gradient-to-br from-white to-emerald-50 rounded-2xl shadow-lg p-4 sm:p-6 border-2 border-emerald-200”>
+          <div className=”flex items-start justify-between gap-3 flex-wrap”>
             <div>
-              <h3 className="text-base font-bold text-swar-text">{editingId ? 'Edit Often item' : 'Add Often item'}</h3>
-              <p className="text-sm text-swar-text-secondary">Used inside the “Often” dropdown buttons.</p>
+              <h3 className=”text-lg sm:text-xl font-bold text-swar-text”>{editingId ? '✏️ Edit Health Routine' : '➕ Add Health Routine'}</h3>
+              <p className=”text-xs sm:text-sm text-swar-text-secondary”>Create reusable health routines to add to your daily plan</p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
               <button
                 type="button"
                 onClick={() => setIsFormOpen(false)}
-                className="px-3 py-2 rounded-lg border-2 border-gray-200 text-sm font-semibold hover:border-swar-primary transition"
+                className="px-4 py-2 rounded-lg border-2 border-gray-300 text-sm font-semibold text-swar-text hover:bg-gray-100 transition"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={saveRoutine}
-                className="px-3 py-2 rounded-lg bg-swar-primary text-white text-sm font-semibold hover:bg-swar-primary/90 transition"
+                className="px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-600 to-emerald-500 text-white text-sm font-semibold hover:from-emerald-700 hover:to-emerald-600 transition shadow-md hover:shadow-lg"
               >
-                {editingId ? 'Update' : 'Create'}
+                {editingId ? '✏️ Update' : '✅ Create'}
               </button>
             </div>
           </div>
 
-          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-swar-text mb-1">Title</label>
+              <label className="block text-xs font-semibold text-swar-text mb-2">Title *</label>
               <input
                 value={form.title}
                 onChange={e => setForm(prev => ({ ...prev, title: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-swar-primary focus:outline-none"
+                className="w-full px-4 py-2.5 rounded-lg border-2 border-gray-200 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-100 transition text-sm"
                 placeholder="e.g. Yoga / Walk / Pranayama"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-swar-text mb-1">Category</label>
+              <label className="block text-xs font-semibold text-swar-text mb-2">Category *</label>
               <select
                 value={form.category}
                 onChange={e => setForm(prev => ({ ...prev, category: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 bg-white focus:border-swar-primary focus:outline-none"
+                className="w-full px-4 py-2.5 rounded-lg border-2 border-gray-200 bg-white focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-100 transition text-sm"
               >
                 {categories.map(cat => (
                   <option key={cat} value={cat}>{cat}</option>
@@ -1010,75 +1057,96 @@ export default function HealthPage() {
             </div>
           </div>
 
-          <div className="mt-3 grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
             <div>
-              <label className="block text-xs font-semibold text-swar-text mb-1">Tracking frequency</label>
+              <label className="block text-xs font-semibold text-swar-text mb-2">Tracking Frequency *</label>
               <select
                 value={form.frequency}
                 onChange={(e) => setForm((prev) => ({ ...prev, frequency: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 bg-white focus:border-swar-primary focus:outline-none"
+                className="w-full px-4 py-2.5 rounded-lg border-2 border-gray-200 bg-white focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-100 transition text-sm"
               >
-                <option value="daily">daily</option>
-                <option value="weekly">weekly</option>
-                <option value="monthly">monthly</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
               </select>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-swar-text mb-1">Often mode</label>
+              <label className="block text-xs font-semibold text-swar-text mb-2">Daily Mode *</label>
               <select
                 value={form.dailyFrequency}
                 onChange={(e) => setForm((prev) => ({ ...prev, dailyFrequency: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 bg-white focus:border-swar-primary focus:outline-none"
+                className="w-full px-4 py-2.5 rounded-lg border-2 border-gray-200 bg-white focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-100 transition text-sm"
               >
                 <option value="once">Once</option>
                 <option value="daily">Daily</option>
-                <option value="custom">Custom time slot</option>
+                <option value="custom">Custom Slot</option>
               </select>
             </div>
 
             {form.dailyFrequency !== 'custom' ? (
               <div>
-                <label className="block text-xs font-semibold text-swar-text mb-1">Time</label>
+                <label className="block text-xs font-semibold text-swar-text mb-2">Time *</label>
                 <input
                   type="time"
                   value={form.time}
                   onChange={(e) => setForm((prev) => ({ ...prev, time: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-swar-primary focus:outline-none"
+                  className="w-full px-4 py-2.5 rounded-lg border-2 border-gray-200 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-100 transition text-sm"
                 />
               </div>
             ) : (
               <>
                 <div>
-                  <label className="block text-xs font-semibold text-swar-text mb-1">Start</label>
+                  <label className="block text-xs font-semibold text-swar-text mb-2">Start Time *</label>
                   <input
                     type="time"
                     value={form.startTime}
                     onChange={(e) => setForm((prev) => ({ ...prev, startTime: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-swar-primary focus:outline-none"
+                    className="w-full px-4 py-2.5 rounded-lg border-2 border-gray-200 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-100 transition text-sm"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-swar-text mb-1">End</label>
+                  <label className="block text-xs font-semibold text-swar-text mb-2">End Time *</label>
                   <input
                     type="time"
                     value={form.endTime}
                     onChange={(e) => setForm((prev) => ({ ...prev, endTime: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-swar-primary focus:outline-none"
+                    className="w-full px-4 py-2.5 rounded-lg border-2 border-gray-200 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-100 transition text-sm"
                   />
                 </div>
               </>
             )}
           </div>
 
-          <div className="mt-3">
-            <label className="block text-xs font-semibold text-swar-text mb-1">Description (optional)</label>
+          <div className="mt-4">
+            <label className="block text-xs font-semibold text-swar-text mb-2">Description (Optional)</label>
             <textarea
               value={form.description}
               onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))}
-              className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-swar-primary focus:outline-none"
+              className="w-full px-4 py-2.5 rounded-lg border-2 border-gray-200 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-100 transition text-sm"
               rows={2}
+              placeholder="Add notes or details about this routine..."
             />
+          </div>
+
+          <div className="mt-4">
+            <label className="block text-xs font-semibold text-swar-text mb-2">Repeat Pattern *</label>
+            <div className="flex gap-2 flex-wrap">
+              {['once', 'daily', 'weekly', 'monthly', 'yearly'].map(option => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => setForm(prev => ({ ...prev, repeat: option as any }))}
+                  className={`px-3 py-2 rounded-lg font-semibold text-xs sm:text-sm transition-all ${
+                    form.repeat === option
+                      ? 'bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-md'
+                      : 'bg-gray-100 text-swar-text hover:bg-gray-200 border border-gray-200'
+                  }`}
+                >
+                  {option === 'once' ? '⏱️' : option === 'daily' ? '📅' : option === 'weekly' ? '📆' : option === 'monthly' ? '📊' : '📈'} {option.charAt(0).toUpperCase() + option.slice(1)}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -1120,9 +1188,9 @@ export default function HealthPage() {
             {/* ===== CARD 1: DAILY ROUTINE ===== */}
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
               {/* Card Header */}
-              <div className="px-6 py-5 border-b border-gray-200 bg-gradient-to-r from-sky-50 to-emerald-50">
-                <h2 className="text-2xl font-bold text-swar-text">Daily Routine</h2>
-                <p className="mt-1 text-xs text-swar-text-secondary">Add routines for each time period</p>
+              <div className="px-4 sm:px-6 py-4 sm:py-5 border-b-2 border-gray-200 bg-gradient-to-r from-sky-50 via-emerald-50 to-blue-50">
+                <h2 className="text-xl sm:text-2xl font-bold text-swar-text">⏰ Daily Routine</h2>
+                <p className="mt-1 text-xs sm:text-sm text-swar-text-secondary">Add and track routines for each time period</p>
               </div>
 
               {/* Add Form */}
@@ -1232,9 +1300,9 @@ export default function HealthPage() {
             {/* ===== CARD 2: FOOD PLAN ===== */}
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
               {/* Card Header */}
-              <div className="px-6 py-5 border-b border-gray-200 bg-gradient-to-r from-amber-50 to-purple-50">
-                <h2 className="text-2xl font-bold text-swar-text">Food Plan</h2>
-                <p className="mt-1 text-xs text-swar-text-secondary">Add food items for each time period</p>
+              <div className="px-4 sm:px-6 py-4 sm:py-5 border-b-2 border-gray-200 bg-gradient-to-r from-amber-50 via-orange-50 to-red-50">
+                <h2 className="text-xl sm:text-2xl font-bold text-swar-text">🍽️ Food Plan</h2>
+                <p className="mt-1 text-xs sm:text-sm text-swar-text-secondary">Add and track food items for each time period</p>
               </div>
 
               {/* Add Form */}
@@ -1291,14 +1359,48 @@ export default function HealthPage() {
                     />
                   </div>
 
+                  <div>
+                    <label className="block text-xs font-semibold text-swar-text mb-2">Repeat</label>
+                    <div className="flex gap-2 flex-wrap">
+                      {['once', 'daily', 'weekly', 'monthly', 'yearly'].map(option => (
+                        <button
+                          key={option}
+                          type="button"
+                          onClick={() => setFoodFormRepeat(option as any)}
+                          className={`px-3 py-2 rounded-lg font-semibold text-xs transition ${
+                            foodFormRepeat === option
+                              ? 'bg-amber-600 text-white'
+                              : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200'
+                          }`}
+                        >
+                          {option.charAt(0).toUpperCase() + option.slice(1)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   <button
                     type="button"
                     onClick={() => addFoodPlanItem(foodFormDayPart)}
                     className="w-full rounded-lg bg-amber-600 px-4 py-2.5 font-bold text-white hover:bg-amber-700 transition flex items-center justify-center gap-2"
                   >
                     <Plus className="h-5 w-5" />
-                    Add Food
+                    {editingFoodId ? 'Update Food' : 'Add Food'}
                   </button>
+                  {editingFoodId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingFoodId(null);
+                        setFoodFormTitle('');
+                        setFoodFormTime('09:00');
+                        setFoodFormRepeat('daily');
+                      }}
+                      className="w-full rounded-lg bg-gray-400 px-4 py-2.5 font-bold text-white hover:bg-gray-500 transition"
+                    >
+                      Cancel Edit
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -1314,7 +1416,7 @@ export default function HealthPage() {
                       <h3 className="text-xs font-extrabold text-swar-text-secondary uppercase tracking-wider mb-2 mt-3">{part.label}</h3>
                       <div className="space-y-2">
                         {items.map((it) => (
-                          <div key={it.id} className={`rounded-lg border-2 p-3 flex items-center gap-3 ${part.cardTint}`}>
+                          <div key={it.id} className={`rounded-lg border-2 p-3 flex items-center gap-2 ${it.completed ? 'bg-green-50 border-green-300' : part.cardTint}`}>
                             <input
                               type="checkbox"
                               checked={Boolean(it.completed)}
@@ -1325,24 +1427,37 @@ export default function HealthPage() {
 
                             <div className="flex-1 min-w-0">
                               <div className="flex items-baseline gap-2 flex-wrap">
-                                <p className={`text-xs font-bold text-swar-text-secondary`}>
+                                <p className={`text-xs font-bold ${it.completed ? 'line-through text-gray-400' : 'text-swar-text-secondary'}`}>
                                   {it.subheading}
                                 </p>
                                 <p className={`text-sm font-semibold truncate ${it.completed ? 'line-through text-gray-400' : 'text-swar-text'}`}>
                                   {it.title}
                                 </p>
                               </div>
-                              <p className="text-xs text-swar-text-secondary">{it.time || '--:--'}</p>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="text-xs text-swar-text-secondary">{it.time || '--:--'}</p>
+                                {it.repeat && <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded">📅 {it.repeat}</span>}
+                              </div>
                             </div>
 
-                            <button
-                              type="button"
-                              onClick={() => deleteFoodPlanItem(it.id)}
-                              className="flex-shrink-0 p-1.5 rounded-lg text-red-600 hover:bg-red-50 transition"
-                              title="Delete"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
+                            <div className="flex-shrink-0 flex gap-1">
+                              <button
+                                type="button"
+                                onClick={() => editFoodPlanItem(it)}
+                                className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition"
+                                title="Edit"
+                              >
+                                <Edit2 className="h-4 w-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => deleteFoodPlanItem(it.id)}
+                                className="p-1.5 rounded-lg text-red-600 hover:bg-red-50 transition"
+                                title="Delete"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -1505,36 +1620,78 @@ export default function HealthPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-[10px] auto-rows-max justify-items-center">
-          {filteredRoutines.map(r => (
-            <div key={r.id} className="w-80 bg-white rounded-2xl shadow-lg overflow-hidden h-full flex flex-col">
-              <div className="relative h-48 overflow-hidden bg-emerald-600" style={{ backgroundImage: `url('https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&w=600&q=80')`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
+          {filteredRoutines.map(r => {
+            const isCompletedToday = (r.completedDates || []).map((d) => String(d).slice(0, 10)).includes(todayISO);
+            const isExpanded = expandedRoutines.has(r.id);
+            return (
+            <div key={r.id} className={`w-80 rounded-2xl shadow-lg overflow-hidden flex flex-col transition ${isCompletedToday ? 'bg-emerald-50 border-2 border-emerald-300' : 'bg-white'} ${isExpanded ? 'h-auto' : 'h-96'}`}>
+              <div className={`relative ${isExpanded ? 'h-32' : 'h-48'} overflow-hidden transition-all ${isCompletedToday ? 'bg-emerald-500' : 'bg-emerald-600'}`} style={{ backgroundImage: `url('https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&w=600&q=80')`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
+                {isCompletedToday && <div className="absolute inset-0 bg-emerald-600/30 flex items-center justify-center"><span className="text-white font-bold text-lg sm:text-2xl">✅ Done Today!</span></div>}
                 <div className="absolute top-3 left-3 w-6 h-6 rounded-full border-2 border-white bg-white/20 flex items-center justify-center cursor-pointer hover:bg-white/40 transition">
                   <input
                     type="checkbox"
-                    checked={(r.completedDates || []).map((d) => String(d).slice(0, 10)).includes(todayISO)}
+                    checked={isCompletedToday}
                     onChange={() => toggleRoutineDoneToday(r.id)}
                     className="w-4 h-4 rounded-full cursor-pointer"
                     aria-label="Mark done today"
                   />
                 </div>
+                <button
+                  onClick={() => toggleExpanded(r.id)}
+                  className="absolute top-3 right-3 w-6 h-6 rounded-full border-2 border-white bg-white/20 flex items-center justify-center cursor-pointer hover:bg-white/40 transition text-white text-lg leading-none"
+                  title={isExpanded ? 'Minimize' : 'Maximize'}
+                >
+                  {isExpanded ? '−' : '+'}
+                </button>
               </div>
 
-              <div className="p-5 flex-1 flex flex-col">
-                <h3 className="text-lg font-bold text-swar-text mb-2 line-clamp-2">{r.title}</h3>
-                <p className="text-sm text-swar-text-secondary mb-4 line-clamp-2">{r.description}</p>
-                <div className="space-y-2 text-xs text-swar-text mb-auto">
-                  {r.category && <div className="flex items-center gap-2">📂 {r.category}</div>}
-                  <div className="flex items-center gap-2">🔁 {(r.frequency || 'daily').toUpperCase()}</div>
-                  {r.streak > 0 && <div className="flex items-center gap-2">🔥 {r.streak} day streak</div>}
+              {!isExpanded ? (
+                <>
+                  <div className="p-5 flex-1 flex flex-col">
+                    <h3 className={`text-lg font-bold mb-2 line-clamp-2 ${isCompletedToday ? 'line-through text-emerald-600' : 'text-swar-text'}`}>{r.title}</h3>
+                    <p className={`text-sm mb-4 line-clamp-2 ${isCompletedToday ? 'line-through text-emerald-500' : 'text-swar-text-secondary'}`}>{r.description}</p>
+                    <div className="space-y-2 text-xs text-swar-text mb-auto">
+                      {r.category && <div className="flex items-center gap-2">📂 {r.category}</div>}
+                      <div className="flex items-center gap-2">🔁 {(r.frequency || 'daily').toUpperCase()}</div>
+                      {r.repeat && <div className="flex items-center gap-2">📅 {r.repeat.charAt(0).toUpperCase() + r.repeat.slice(1)}</div>}
+                      {r.streak > 0 && <div className="flex items-center gap-2">🔥 {r.streak} day streak</div>}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 p-4 border-t border-gray-100">
+                    <button onClick={() => openEdit(r)} className="flex-1 px-3 py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700 transition">Edit</button>
+                    <button onClick={() => deleteRoutine(r.id)} className="flex-1 px-3 py-2 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-700 transition">Delete</button>
+                  </div>
+                </>
+              ) : (
+                <div className="p-5 flex-1 flex flex-col overflow-y-auto">
+                  <h3 className={`text-lg font-bold mb-2 ${isCompletedToday ? 'line-through text-emerald-600' : 'text-swar-text'}`}>{r.title}</h3>
+                  <div className="space-y-3 text-sm mb-4">
+                    {r.description && (
+                      <div>
+                        <p className="font-semibold text-swar-text">Description</p>
+                        <p className={isCompletedToday ? 'line-through text-emerald-500' : 'text-swar-text-secondary'}>{r.description}</p>
+                      </div>
+                    )}
+                    <div className="space-y-1">
+                      {r.category && <div className="text-swar-text">📂 Category: <span className="font-semibold">{r.category}</span></div>}
+                      <div className="text-swar-text">🔁 Frequency: <span className="font-semibold">{(r.frequency || 'daily').toUpperCase()}</span></div>
+                      {r.repeat && <div className="text-swar-text">📅 Repeat: <span className="font-semibold">{r.repeat.charAt(0).toUpperCase() + r.repeat.slice(1)}</span></div>}
+                      {r.time && <div className="text-swar-text">⏰ Time: <span className="font-semibold">{r.time}</span></div>}
+                      {r.startTime && r.endTime && <div className="text-swar-text">⏱️ Duration: <span className="font-semibold">{r.startTime} - {r.endTime}</span></div>}
+                      {r.streak > 0 && <div className="text-swar-text">🔥 Streak: <span className="font-semibold">{r.streak} days</span></div>}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 mt-auto">
+                    <button onClick={() => openEdit(r)} className="flex-1 px-3 py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700 transition">Edit</button>
+                    <button onClick={() => deleteRoutine(r.id)} className="flex-1 px-3 py-2 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-700 transition">Delete</button>
+                  </div>
                 </div>
-              </div>
-
-              <div className="flex gap-2 p-4 border-t border-gray-100">
-                <button onClick={() => openEdit(r)} className="flex-1 px-3 py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg">Edit</button>
-                <button onClick={() => deleteRoutine(r.id)} className="flex-1 px-3 py-2 bg-red-600 text-white text-xs font-bold rounded-lg">Delete</button>
-              </div>
+              )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
       </>
@@ -1543,3 +1700,4 @@ export default function HealthPage() {
     </div>
   );
 }
+

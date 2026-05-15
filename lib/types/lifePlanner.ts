@@ -227,6 +227,7 @@ export interface HealthRoutine {
    * Stored in Mongo as Mixed, so these are safe to add without migrations.
    */
   dailyFrequency?: 'once' | 'daily' | 'custom';
+  repeat?: 'once' | 'daily' | 'weekly' | 'monthly' | 'yearly';
   time?: string; // HH:mm
   startTime?: string; // HH:mm (for custom slot)
   endTime?: string; // HH:mm (for custom slot)
@@ -304,6 +305,7 @@ export type FoodPlanItem = {
   title: string;
   time?: string; // HH:mm
   completed?: boolean;
+  repeat?: 'once' | 'daily' | 'weekly' | 'monthly' | 'yearly';
 };
 
 export type DailyHealthPlan = {
