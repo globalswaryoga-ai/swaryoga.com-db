@@ -280,7 +280,7 @@ export default function RitucharyaPage() {
             </p>
 
             {/* Links to detailed pages */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4">
               <Link
                 href="/admin/crm/planner-dashboard/ritucharya/today"
                 className="p-6 rounded-xl bg-white border-2 border-emerald-200 hover:border-emerald-400 hover:shadow-lg transition-all flex items-center justify-between group"
@@ -288,17 +288,6 @@ export default function RitucharyaPage() {
                 <div>
                   <h3 className="text-lg font-bold text-emerald-700">🍲 Today's Meals</h3>
                   <p className="text-sm text-gray-600">Time-based meal recommendations</p>
-                </div>
-                <ArrowRight className="text-emerald-600 group-hover:translate-x-1 transition-transform" />
-              </Link>
-
-              <Link
-                href="/admin/crm/planner-dashboard/ritucharya/ritus-admin"
-                className="p-6 rounded-xl bg-white border-2 border-emerald-200 hover:border-emerald-400 hover:shadow-lg transition-all flex items-center justify-between group"
-              >
-                <div>
-                  <h3 className="text-lg font-bold text-emerald-700">⚙️ Manage Ritus</h3>
-                  <p className="text-sm text-gray-600">Edit seasonal details</p>
                 </div>
                 <ArrowRight className="text-emerald-600 group-hover:translate-x-1 transition-transform" />
               </Link>
