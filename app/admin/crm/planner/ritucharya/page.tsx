@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { MapPin, Cloud, Zap, Edit2, ArrowRight, Loader } from 'lucide-react';
+import React, { useState, useEffect, Suspense } from 'react';
+import { MapPin, Cloud, Zap, Edit2, ArrowRight, Loader, AlertCircle } from 'lucide-react';
 import { locationData } from '@/lib/locationData';
 import Link from 'next/link';
 
-export default function RitucharyaPage() {
+function RitucharyaPageContent() {
   const [location, setLocation] = useState({ country: '', state: '', city: '' });
   const [weather, setWeather] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -304,5 +304,46 @@ export default function RitucharyaPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function RitucharyaPage() {
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Catch any errors that might occur during render
+    const handleError = (e: ErrorEvent) => {
+      if (e.message.includes('auth')) {
+        setError('There was an issue loading this page. Please refresh.');
+      }
+    };
+
+    window.addEventListener('error', handleError);
+    return () => window.removeEventListener('error', handleError);
+  }, []);
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-8 flex items-center gap-4">
+          <AlertCircle className="w-8 h-8 text-red-600 flex-shrink-0" />
+          <div>
+            <h3 className="text-lg font-bold text-red-800">{error}</h3>
+            <button
+              onClick={() => window.location.reload()}
+              className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+            >
+              Refresh Page
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Suspense fallback={<div className="text-center py-20">Loading...</div>}>
+      <RitucharyaPageContent />
+    </Suspense>
   );
 }
