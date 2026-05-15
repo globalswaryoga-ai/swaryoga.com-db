@@ -344,6 +344,37 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
           planModule: 'lifePlanner',
           description: 'Ayurvedic seasonal guide',
         },
+        {
+          icon: Zap,
+          label: 'Ritucharya Admin',
+          color: 'text-emerald-500',
+          module: 'lifePlanner',
+          planModule: 'lifePlanner',
+          description: 'Manage weather & seasons',
+          items: [
+            {
+              icon: Wrench,
+              label: 'Manage Weather Form',
+              href: '/admin/crm/planner/ritucharya/manage',
+              color: 'text-blue-400',
+              description: 'Edit weather parameters',
+            },
+            {
+              icon: CalendarDays,
+              label: 'Manage Seasons',
+              href: '/admin/crm/planner-dashboard/ritucharya/ritus-admin',
+              color: 'text-yellow-400',
+              description: 'Edit ritu details & doshas',
+            },
+            {
+              icon: BarChart3,
+              label: 'Today\'s Recommendations',
+              href: '/admin/crm/planner-dashboard/ritucharya/today',
+              color: 'text-green-400',
+              description: 'View today\'s recommendations',
+            },
+          ],
+        },
       ],
     },
 
