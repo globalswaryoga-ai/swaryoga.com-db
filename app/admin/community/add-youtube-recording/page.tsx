@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Plus, Loader2, AlertCircle, CheckCircle2, YouTube } from 'lucide-react';
+import { Plus, Loader2, AlertCircle, CheckCircle2, Video } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
 interface Community {
@@ -142,7 +142,7 @@ export default function AddYouTubeRecordingPage() {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-gray-800 flex items-center gap-3">
-            <YouTube className="w-10 h-10 text-red-600" />
+            <Video className="w-10 h-10 text-red-600" />
             Add Private YouTube Recording
           </h1>
           <p className="text-gray-600 mt-2">
