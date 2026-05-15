@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { MapPin, Loader, Plus, X, Save, Trash2, Calendar, Zap } from 'lucide-react';
+import { MapPin, Loader, Plus, X, Calendar, Zap } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import { locationData } from '@/lib/locationData';
@@ -735,23 +735,6 @@ export default function TodayRecommendationsPage() {
             )}
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex gap-4 justify-center">
-            <button
-              className="font-bold py-3 px-8 rounded-lg flex items-center gap-2"
-              style={{ backgroundColor: '#00FF00', color: '#000000' }}
-            >
-              <Save size={20} />
-              Save Today's Plan
-            </button>
-            <button
-              className="font-bold py-3 px-8 rounded-lg flex items-center gap-2"
-              style={{ backgroundColor: '#666666', color: '#FFFFFF' }}
-            >
-              <Trash2 size={20} />
-              Clear All
-            </button>
-          </div>
         </div>
       </main>
       <Footer />
