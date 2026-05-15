@@ -510,10 +510,10 @@ export default function VideosPage({ params }: { params: { courseId: string } })
       </div>
 
       {/* Modals - keep existing ones */}
-      {showEditModal && editingItem?.type === 'video' && (
+      {showEditModal && editingItem?.type === 'video' && token && (
         <EditVideoModal
           token={token}
-          video={editingItem as VideoItem}
+          video={editingItem as unknown as VideoItem}
           onClose={() => { setShowEditModal(false); setEditingItem(null); }}
           onUpdated={() => { setShowEditModal(false); fetchData(); }}
         />
@@ -526,7 +526,7 @@ export default function VideosPage({ params }: { params: { courseId: string } })
         />
       )}
 
-      {showAddModal && addModalType === 'video' && (
+      {showAddModal && addModalType === 'video' && token && (
         <AddVideoModal
           token={token}
           courseId={courseId}
@@ -535,7 +535,7 @@ export default function VideosPage({ params }: { params: { courseId: string } })
         />
       )}
 
-      {showAddModal && addModalType === 'material' && (
+      {showAddModal && addModalType === 'material' && token && (
         <AddMaterialModal
           token={token}
           courseId={courseId}
@@ -545,7 +545,7 @@ export default function VideosPage({ params }: { params: { courseId: string } })
         />
       )}
 
-      {showAddModal && (addModalType === 'assignment' || addModalType === 'task' || addModalType === 'question') && (
+      {showAddModal && (addModalType === 'assignment' || addModalType === 'task' || addModalType === 'question') && token && (
         <AddAssignmentModal
           token={token}
           courseId={courseId}

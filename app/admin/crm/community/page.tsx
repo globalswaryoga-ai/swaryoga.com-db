@@ -2084,7 +2084,7 @@ export default function AdminCommunityPage() {
           activeTab={activeTab}
           counts={submissionsCounts}
           currentFilter={submissionsFilter}
-          onFilterChange={setSubmissionsFilter}
+          onFilterChange={(filter) => setSubmissionsFilter(filter as 'pending' | 'approved' | 'rejected' | 'posted' | 'all')}
           onFetchSubmissions={fetchSubmissions}
           onCreatePost={loadSubmissionToPost}
           onApprove={(submissionId, source) => updateSubmissionStatus(submissionId, 'approved', undefined, source)}

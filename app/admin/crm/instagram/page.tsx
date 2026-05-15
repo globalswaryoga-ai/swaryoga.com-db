@@ -468,13 +468,13 @@ export default function InstagramInboxPage() {
   };
 
   const filteredConversations = conversations.filter(c => {
-    const matchesSearch = !searchQuery || (c.participantName || c.name || '').toLowerCase().includes(searchQuery.toLowerCase()) || (c.participantUsername || c.username || '').toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = !searchQuery || (c.name || '').toLowerCase().includes(searchQuery.toLowerCase()) || (c.username || '').toLowerCase().includes(searchQuery.toLowerCase());
     const matchesArchiveFilter = showArchived ? c.isArchived : !c.isArchived;
     return matchesSearch && matchesArchiveFilter;
   });
 
   const filteredMessages = messages.filter(m =>
-    !messageSearchQuery || (m.messageContent || m.text || '').toLowerCase().includes(messageSearchQuery.toLowerCase())
+    !messageSearchQuery || (m.messageContent || '').toLowerCase().includes(messageSearchQuery.toLowerCase())
   );
 
   const connectionBadgeLabel = instagramAccount
@@ -649,14 +649,14 @@ export default function InstagramInboxPage() {
                   }}
                 >
                   <div className="h-9 w-9 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0" style={{ background: 'linear-gradient(135deg, #833AB4, #C13584, #E1306C, #F77737)' }}>
-                    {conv.participantName || conv.name?.[0]?.toUpperCase() || 'U'}
+                    {conv.name?.[0]?.toUpperCase() || 'U'}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-1">
-                      <span className="text-[13px] font-bold text-slate-900 truncate">{conv.participantName || conv.name || 'Unknown'}</span>
+                      <span className="text-[13px] font-bold text-slate-900 truncate">{conv.name || 'Unknown'}</span>
                       <span className="text-[10px] text-slate-400 shrink-0">{conv.lastMessageAt ? new Date(conv.lastMessageAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' }) : ''}</span>
                     </div>
-                    {conv.participantUsername || conv.username && <p className="text-[10px] text-pink-500/70 font-semibold">@{conv.participantUsername || conv.username}</p>}
+                    {conv.username && <p className="text-[10px] text-pink-500/70 font-semibold">@{conv.username}</p>}
                     <p className="text-[11px] text-slate-500 truncate mt-0.5">{conv.lastMessage || 'No messages'}</p>
                   </div>
                   {(conv.unreadCount || 0) > 0 && (
@@ -681,8 +681,8 @@ export default function InstagramInboxPage() {
                     <i className="ph ph-user text-sm"></i>
                   </div>
                   <div>
-                    <div className="text-[13px] font-bold text-slate-900 leading-none">{selected.participantName || selected.name || 'Unknown'}</div>
-                    <div className="text-[10px] font-semibold mt-0.5" style={{ color: '#C13584' }}>{selected.participantUsername || selected.username ? `@${selected.participantUsername || selected.username}` : selected.participantId || 'Instagram'}</div>
+                    <div className="text-[13px] font-bold text-slate-900 leading-none">{selected.name || 'Unknown'}</div>
+                    <div className="text-[10px] font-semibold mt-0.5" style={{ color: '#C13584' }}>{selected.username ? `@${selected.username}` : selected.participantId || 'Instagram'}</div>
                   </div>
                   <div className="ml-auto lg:ml-0">
                     <button
@@ -749,7 +749,7 @@ export default function InstagramInboxPage() {
                               ) : null}
                             </div>
                           )}
-                          {msg.messageContent || msg.text || msg.messageText || ''}
+                          {msg.messageContent || ''}
                           <div className={`text-[9px] mt-1 flex items-center gap-1 ${msg.direction === 'outbound' ? 'text-white/60' : 'text-slate-400'}`}>
                             <span>
                               {new Date(msg.sentAt || msg.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
@@ -858,11 +858,11 @@ export default function InstagramInboxPage() {
             <div className="mb-4 p-1 pb-3" style={{ borderBottom: '1px solid rgba(193,53,132,0.1)' }}>
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white font-extrabold text-xl shrink-0" style={{ background: 'linear-gradient(135deg, #833AB4 0%, #C13584 35%, #E1306C 70%, #F77737 100%)', boxShadow: '0 4px 12px rgba(193,53,132,0.3)' }}>
-                  {selected.participantName || selected.name?.[0]?.toUpperCase() || 'U'}
+                  {selected.name?.[0]?.toUpperCase() || 'U'}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h3 className="font-extrabold text-slate-900 leading-tight">{selected.participantName || selected.name || 'Unknown'}</h3>
-                  <p className="text-xs font-semibold" style={{ color: '#C13584' }}>{selected.participantUsername || selected.username ? `@${selected.participantUsername || selected.username}` : 'Instagram'}</p>
+                  <h3 className="font-extrabold text-slate-900 leading-tight">{selected.name || 'Unknown'}</h3>
+                  <p className="text-xs font-semibold" style={{ color: '#C13584' }}>{selected.username ? `@${selected.username}` : 'Instagram'}</p>
                 </div>
               </div>
             </div>

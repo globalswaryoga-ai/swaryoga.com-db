@@ -17,7 +17,6 @@ import {
   Calendar,
   Download,
   Eye,
-  Click,
 } from 'lucide-react';
 
 export default function AllReportsPage() {

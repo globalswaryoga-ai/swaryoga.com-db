@@ -328,16 +328,18 @@ function VisionView({
                   </button>
                 </div>
 
-                {/* Date and Amount */}
+                {/* Date and Budget */}
                 <div className="space-y-2 mb-4">
-                  <div className="flex items-center gap-2" style={{ color: '#FFFFFF' }}>
-                    <Calendar size={16} />
-                    <span className="text-sm">Due: {new Date(vision.targetDate || '').toLocaleDateString()}</span>
-                  </div>
-                  {vision.amount && (
+                  {vision.endDate && (
+                    <div className="flex items-center gap-2" style={{ color: '#FFFFFF' }}>
+                      <Calendar size={16} />
+                      <span className="text-sm">Due: {new Date(vision.endDate).toLocaleDateString()}</span>
+                    </div>
+                  )}
+                  {vision.budget && (
                     <div className="flex items-center gap-2" style={{ color: '#FFFFFF' }}>
                       <DollarSign size={16} />
-                      <span className="text-sm">₹{parseFloat(vision.amount).toLocaleString()}</span>
+                      <span className="text-sm">₹{vision.budget.toLocaleString()}</span>
                     </div>
                   )}
                 </div>

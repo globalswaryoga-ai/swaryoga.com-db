@@ -450,7 +450,7 @@ export default function DLearningPage() {
       ) : error ? (
         <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-4 rounded-lg">
           {error}
-          <button onClick={fetchCourses} className="ml-4 text-yellow-400 underline hover:no-underline">Retry</button>
+          <button onClick={() => fetchCourses()} className="ml-4 text-yellow-400 underline hover:no-underline">Retry</button>
         </div>
       ) : courses.length === 0 ? (
         <div className="text-center py-20 bg-gray-900/50 rounded-2xl border border-gray-800">

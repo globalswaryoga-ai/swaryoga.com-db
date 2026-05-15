@@ -560,6 +560,46 @@ class CrmPlannerMongoStorage {
   async saveSadhana(date: string, sadhana: any): Promise<void> {
     await this.saveDailyTasks(date, undefined, sadhana);
   }
+
+  async getEvents(): Promise<any[]> {
+    if (!this.hasAuth()) return [];
+    try {
+      const response = await fetch('/api/crm-planner/events', {
+        headers: this.authHeaders(),
+      });
+      if (response.status === 401) {
+        this.handleUnauthorized();
+        return [];
+      }
+      if (!response.ok) return [];
+      const data = await response.json();
+      return Array.isArray(data.events) ? data.events : [];
+    } catch (error) {
+      console.error('Error fetching events:', error);
+      return [];
+    }
+  }
+
+  async saveEvents(events: any[]): Promise<void> {
+    if (!this.hasAuth()) return;
+    try {
+      const response = await fetch('/api/crm-planner/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
+        body: JSON.stringify({ events }),
+      });
+      if (response.status === 401) {
+        this.handleUnauthorized();
+        throw new Error('Unauthorized');
+      }
+      if (!response.ok) {
+        throw new Error(`Failed to save events: ${response.statusText}`);
+      }
+    } catch (error) {
+      console.error('Error saving events:', error);
+      throw error;
+    }
+  }
 }
 
 // Create a single instance and ensure methods are accessible
