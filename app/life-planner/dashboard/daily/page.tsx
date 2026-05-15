@@ -14,6 +14,8 @@ interface WorkshopTask {
   text: string;
   repeat?: TaskRepeat;
   createdDate?: string;
+  completed?: boolean;
+  completedDate?: string;
 }
 
 type SadhanaSection = 'morning' | 'evening';
@@ -394,6 +396,11 @@ export default function DailyViewPage() {
         try {
           const parsed = JSON.parse(dayTasks) as WorkshopTask[];
           for (const task of parsed) {
+            // Don't show completed recurring tasks on future dates
+            if (task.completed && task.completedDate && task.completedDate !== selectedDate) {
+              // If completed, only show on the completion date
+              continue;
+            }
             if (shouldTaskAppear(task, selectedDate)) {
               recurringTasks.push(task);
             }
@@ -473,6 +480,20 @@ export default function DailyViewPage() {
     const text = nextText.trim();
     if (!text) return;
     persistWorkshopTasks(workshopTasks.map(t => (t.id === id ? { ...t, text } : t)));
+  };
+
+  const toggleTaskCompletion = (id: string) => {
+    persistWorkshopTasks(
+      workshopTasks.map(t =>
+        t.id === id
+          ? {
+              ...t,
+              completed: !t.completed,
+              completedDate: !t.completed ? selectedDate : undefined,
+            }
+          : t
+      )
+    );
   };
 
   const toggleSadhanaPractice = (section: SadhanaSection, id: string) => {
@@ -797,11 +818,21 @@ export default function DailyViewPage() {
                       <ul className="space-y-1.5">
                         {catTasks.map(task => (
                           <li key={task.id} className="flex items-center gap-2 group">
-                            <span className="flex-shrink-0 w-2 h-2 rounded-full bg-blue-500" />
+                            <input
+                              type="checkbox"
+                              checked={task.completed || false}
+                              onChange={() => toggleTaskCompletion(task.id)}
+                              className="w-4 h-4 text-blue-600 rounded cursor-pointer"
+                              title="Mark as complete"
+                            />
                             <div className="flex-grow flex items-center gap-1.5">
                               <span
-                                className="text-xs sm:text-sm flex-grow text-swar-text outline-none rounded px-1 -mx-1 focus:bg-blue-50"
-                                contentEditable
+                                className={`text-xs sm:text-sm flex-grow text-swar-text outline-none rounded px-1 -mx-1 focus:bg-blue-50 transition ${
+                                  task.completed
+                                    ? 'line-through text-swar-text-secondary bg-gray-50'
+                                    : ''
+                                }`}
+                                contentEditable={!task.completed}
                                 suppressContentEditableWarning
                                 onBlur={(e) => updateWorkshopTask(task.id, e.currentTarget.textContent ?? '')}
                                 onKeyDown={(e) => {
@@ -816,6 +847,11 @@ export default function DailyViewPage() {
                               {task.repeat && task.repeat !== 'none' && (
                                 <span className="text-xs px-1.5 py-0.5 bg-green-100 text-green-700 rounded whitespace-nowrap font-medium">
                                   🔄 {task.repeat}
+                                </span>
+                              )}
+                              {task.completed && (
+                                <span className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded whitespace-nowrap font-medium">
+                                  ✅ Done
                                 </span>
                               )}
                             </div>
