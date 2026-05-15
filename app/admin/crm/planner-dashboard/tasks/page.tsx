@@ -26,6 +26,8 @@ export default function TasksPage() {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterMonth, setFilterMonth] = useState<string>('all');
   const [searchText, setSearchText] = useState('');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [saveError, setSaveError] = useState<string>('');
 
   // Load data on mount
   useEffect(() => {
@@ -114,9 +116,25 @@ export default function TasksPage() {
   useEffect(() => {
     if (!mounted || !hasLoaded) return;
     if (skipNextSave.current) { skipNextSave.current = false; return; }
-    crmPlannerStorage.saveTasks(tasks).catch((err: any) =>
-      console.error('Error saving tasks:', err)
-    );
+
+    setSaveStatus('saving');
+    setSaveError('');
+    const timer = setTimeout(() => {
+      (async () => {
+        try {
+          await crmPlannerStorage.saveTasks(tasks);
+          setSaveStatus('saved');
+          setTimeout(() => setSaveStatus('idle'), 2000);
+        } catch (err) {
+          const errorMsg = err instanceof Error ? err.message : 'Failed to save tasks';
+          console.error('Error saving tasks:', err);
+          setSaveStatus('error');
+          setSaveError(errorMsg);
+        }
+      })();
+    }, 500);
+
+    return () => clearTimeout(timer);
   }, [tasks, mounted, hasLoaded]);
 
   const handleAddTask = () => {
@@ -213,6 +231,34 @@ export default function TasksPage() {
 
   return (
     <div className="max-w-7xl mx-auto">
+      {/* Save Status Indicator */}
+      {saveStatus !== 'idle' && (
+        <div className={`fixed bottom-4 right-4 px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 ${
+          saveStatus === 'saving' ? 'bg-blue-100 text-blue-800' :
+          saveStatus === 'saved' ? 'bg-green-100 text-green-800' :
+          'bg-red-100 text-red-800'
+        }`}>
+          {saveStatus === 'saving' && (
+            <>
+              <div className="animate-spin w-4 h-4 border-2 border-blue-800 border-t-transparent rounded-full"></div>
+              <span className="text-sm font-medium">Saving...</span>
+            </>
+          )}
+          {saveStatus === 'saved' && (
+            <>
+              <span>✓</span>
+              <span className="text-sm font-medium">Saved</span>
+            </>
+          )}
+          {saveStatus === 'error' && (
+            <>
+              <span>⚠️</span>
+              <span className="text-sm font-medium">{saveError || 'Save failed'}</span>
+            </>
+          )}
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold text-swar-text mb-2">My Tasks</h1>

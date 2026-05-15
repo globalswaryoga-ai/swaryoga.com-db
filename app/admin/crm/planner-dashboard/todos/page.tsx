@@ -39,6 +39,8 @@ export default function TodosPage() {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterPriority, setFilterPriority] = useState<string>('all');
   const [searchText, setSearchText] = useState('');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [saveError, setSaveError] = useState<string>('');
 
   // Form state
   const [formData, setFormData] = useState({
@@ -82,9 +84,25 @@ export default function TodosPage() {
   useEffect(() => {
     if (!mounted || !hasLoaded) return;
     if (skipNextSave.current) { skipNextSave.current = false; return; }
-    (async () => {
-      await crmPlannerStorage.saveTodos(todos);
-    })();
+
+    setSaveStatus('saving');
+    setSaveError('');
+    const timer = setTimeout(() => {
+      (async () => {
+        try {
+          await crmPlannerStorage.saveTodos(todos);
+          setSaveStatus('saved');
+          setTimeout(() => setSaveStatus('idle'), 2000);
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : 'Failed to save todos';
+          console.error('Error saving todos:', error);
+          setSaveStatus('error');
+          setSaveError(errorMsg);
+        }
+      })();
+    }, 500);
+
+    return () => clearTimeout(timer);
   }, [todos, mounted, hasLoaded]);
 
   // Auto-select single vision when only one option exists
@@ -285,6 +303,34 @@ export default function TodosPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-0">
+      {/* Save Status Indicator */}
+      {saveStatus !== 'idle' && (
+        <div className={`fixed bottom-4 right-4 px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 ${
+          saveStatus === 'saving' ? 'bg-blue-100 text-blue-800' :
+          saveStatus === 'saved' ? 'bg-green-100 text-green-800' :
+          'bg-red-100 text-red-800'
+        }`}>
+          {saveStatus === 'saving' && (
+            <>
+              <div className="animate-spin w-4 h-4 border-2 border-blue-800 border-t-transparent rounded-full"></div>
+              <span className="text-sm font-medium">Saving...</span>
+            </>
+          )}
+          {saveStatus === 'saved' && (
+            <>
+              <span>✓</span>
+              <span className="text-sm font-medium">Saved</span>
+            </>
+          )}
+          {saveStatus === 'error' && (
+            <>
+              <span>⚠️</span>
+              <span className="text-sm font-medium">{saveError || 'Save failed'}</span>
+            </>
+          )}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
         <div>

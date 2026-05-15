@@ -102,6 +102,8 @@ export default function RemindersPage() {
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'completed'>('all');
   const [filterFrequency, setFilterFrequency] = useState<'all' | UiReminder['frequency']>('all');
   const [filterMonth, setFilterMonth] = useState<string>('all');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [saveError, setSaveError] = useState<string>('');
 
   const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
 
@@ -131,7 +133,23 @@ export default function RemindersPage() {
     const save = async () => {
       if (!mounted || !hasLoaded) return;
       if (skipNextSave.current) { skipNextSave.current = false; return; }
-      await crmPlannerStorage.saveReminders(reminders.map(uiToDbReminder));
+
+      setSaveStatus('saving');
+      setSaveError('');
+      const timer = setTimeout(async () => {
+        try {
+          await crmPlannerStorage.saveReminders(reminders.map(uiToDbReminder));
+          setSaveStatus('saved');
+          setTimeout(() => setSaveStatus('idle'), 2000);
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : 'Failed to save reminders';
+          console.error('Error saving reminders:', error);
+          setSaveStatus('error');
+          setSaveError(errorMsg);
+        }
+      }, 500);
+
+      return () => clearTimeout(timer);
     };
     save();
   }, [reminders, mounted, hasLoaded]);
@@ -263,6 +281,34 @@ export default function RemindersPage() {
 
   return (
     <div className="space-y-6 p-4 sm:p-6">
+      {/* Save Status Indicator */}
+      {saveStatus !== 'idle' && (
+        <div className={`fixed bottom-4 right-4 px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 ${
+          saveStatus === 'saving' ? 'bg-blue-100 text-blue-800' :
+          saveStatus === 'saved' ? 'bg-green-100 text-green-800' :
+          'bg-red-100 text-red-800'
+        }`}>
+          {saveStatus === 'saving' && (
+            <>
+              <div className="animate-spin w-4 h-4 border-2 border-blue-800 border-t-transparent rounded-full"></div>
+              <span className="text-sm font-medium">Saving...</span>
+            </>
+          )}
+          {saveStatus === 'saved' && (
+            <>
+              <span>✓</span>
+              <span className="text-sm font-medium">Saved</span>
+            </>
+          )}
+          {saveStatus === 'error' && (
+            <>
+              <span>⚠️</span>
+              <span className="text-sm font-medium">{saveError || 'Save failed'}</span>
+            </>
+          )}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
