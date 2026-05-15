@@ -562,4 +562,21 @@ class CrmPlannerMongoStorage {
   }
 }
 
-export const crmPlannerStorage = new CrmPlannerMongoStorage();
+// Create a single instance and ensure methods are accessible
+const _instance = new CrmPlannerMongoStorage();
+
+// Export the instance
+export const crmPlannerStorage = _instance;
+
+// Debug logging
+if (typeof window !== 'undefined') {
+  console.debug('[CrmPlannerStorage] Instance created:', {
+    isDefined: _instance !== undefined && _instance !== null,
+    type: typeof _instance,
+    hasGetDailyTasks: typeof _instance?.getDailyTasks === 'function',
+    hasSaveSadhana: typeof _instance?.saveSadhana === 'function',
+    hasGetVisions: typeof _instance?.getVisions === 'function',
+    constructorName: _instance?.constructor?.name,
+    methods: _instance ? Object.getOwnPropertyNames(Object.getPrototypeOf(_instance)) : [],
+  });
+}

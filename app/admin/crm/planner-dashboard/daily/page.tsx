@@ -5,6 +5,15 @@ import { Plus, Check, Trash2, CheckCircle2, Circle, Pencil } from 'lucide-react'
 import { crmPlannerStorage } from '@/lib/crmPlannerMongoStorage';
 import type { Goal, HealthRoutine, Task, Vision } from '@/lib/types/lifePlanner';
 
+// Debug logging
+if (typeof window !== 'undefined') {
+  console.debug('[DailyPage] Storage object check:', {
+    isDefined: crmPlannerStorage !== undefined,
+    hasGetDailyTasks: typeof crmPlannerStorage?.getDailyTasks === 'function',
+    hasSaveSadhana: typeof crmPlannerStorage?.saveSadhana === 'function',
+  });
+}
+
 type WorkshopCategory = 'self' | 'family' | 'workStudy' | 'parents' | 'friendsRelatives' | 'social';
 type TaskRepeat = 'none' | 'daily' | 'weekly' | 'monthly';
 
