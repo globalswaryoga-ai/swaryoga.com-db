@@ -22,22 +22,22 @@ import {
 type SidebarType = 'dashboard' | 'calendar' | 'daily' | 'vision' | 'action-plan' | 'goals' | 'tasks' | 'todos' | 'reminders' | 'words' | 'accounting' | 'journal' | 'events' | 'health' | 'diamond' | 'progress';
 
 // Dynamically import Life Planner pages
-const DashboardPage = dynamic(() => import('@/app/life-planner/dashboard/comprehensive-dashboard/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
-const DailyPage = dynamic(() => import('@/app/life-planner/dashboard/daily/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
-const VisionPage = dynamic(() => import('@/app/life-planner/dashboard/vision/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
-const ActionPlanPage = dynamic(() => import('@/app/life-planner/dashboard/action-plan/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
-const GoalsPage = dynamic(() => import('@/app/life-planner/dashboard/goals/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
-const TasksPage = dynamic(() => import('@/app/life-planner/dashboard/tasks/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
-const TodosPage = dynamic(() => import('@/app/life-planner/dashboard/todos/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
-const RemindersPage = dynamic(() => import('@/app/life-planner/dashboard/reminders/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
-const WordsPage = dynamic(() => import('@/app/life-planner/dashboard/words/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
-const CalendarPage = dynamic(() => import('@/app/life-planner/dashboard/calendar/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
-const AccountingPage = dynamic(() => import('@/app/life-planner/dashboard/accounting/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
-const NotesPage = dynamic(() => import('@/app/life-planner/dashboard/notes/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
-const EventsPage = dynamic(() => import('@/app/life-planner/dashboard/events/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
-const HealthPage = dynamic(() => import('@/app/life-planner/dashboard/health/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
-const DiamondPage = dynamic(() => import('@/app/life-planner/dashboard/diamond-people/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
-const ProgressPage = dynamic(() => import('@/app/life-planner/dashboard/progress/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
+const DashboardPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/comprehensive-dashboard/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
+const DailyPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/daily/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
+const VisionPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/vision/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
+const ActionPlanPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/action-plan/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
+const GoalsPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/goals/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
+const TasksPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/tasks/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
+const TodosPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/todos/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
+const RemindersPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/reminders/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
+const WordsPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/words/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
+const CalendarPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/calendar/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
+const AccountingPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/accounting/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
+const NotesPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/notes/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
+const EventsPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/events/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
+const HealthPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/health/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
+const DiamondPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/diamond-people/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
+const ProgressPage = dynamic(() => import('@/app/admin/crm/planner-dashboard/progress/page').then(mod => mod.default), { loading: () => <LoadingSpinner /> });
 
 function LoadingSpinner() {
   return (

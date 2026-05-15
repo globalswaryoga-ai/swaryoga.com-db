@@ -1,0 +1,860 @@
+'use client';
+
+import React, { useCallback, useMemo, useState } from 'react';
+import { Eye, Trash2, Plus } from 'lucide-react';
+import { Task, Vision, VisionCategory, VISION_CATEGORIES, MiniReminder } from '@/lib/types/lifePlanner';
+import { getDefaultCategoryImage } from '@/lib/visionCategoryImages';
+import LifePlannerImageUpload from '@/components/LifePlannerImageUpload';
+
+type GoalOption = {
+  id: string;
+  title: string;
+  visionId?: string;
+};
+
+interface TaskFormState {
+  visionHead: string;
+  visionId: string;
+  goalId: string;
+  title: string;
+  description: string;
+  startDate: string;
+  dueDate: string;
+  timeStart: string;
+  timeEnd: string;
+  place: string;
+  imageUrl: string;
+  status: 'not-started' | 'in-progress' | 'pending' | 'completed' | 'overdue';
+  priority: 'high' | 'medium' | 'low';
+  completed: boolean;
+  todos: Array<{ id: string; title: string; dueDate?: string; dueTime?: string; completed: boolean; reminders?: MiniReminder[] }>;
+}
+
+interface TaskModalProps {
+  isOpen?: boolean;
+  onClose: () => void;
+  onSave: (taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  task?: Task | null;
+  editingTask?: Task | null;
+  goals: GoalOption[];
+  visions: Vision[];
+  formState?: TaskFormState;
+  setFormState?: React.Dispatch<React.SetStateAction<TaskFormState>>;
+  visionOptionsForHead?: (head: string) => Vision[];
+  goalOptionsForVision?: (visionId: string) => GoalOption[];
+  parentVisionId?: string; // Auto-populate from parent Vision
+  parentGoalId?: string; // Auto-populate from parent Goal
+}
+
+const TaskModal: React.FC<TaskModalProps> = ({
+  isOpen = true,
+  onClose,
+  onSave,
+  editingTask,
+  goals,
+  visions,
+  formState: externalFormState,
+  setFormState: externalSetFormState,
+  visionOptionsForHead: externalVisionOptionsForHead,
+  goalOptionsForVision: externalGoalOptionsForVision,
+  parentVisionId,
+  parentGoalId,
+}) => {
+  const [showImageEditor, setShowImageEditor] = useState(false);
+  const [showTodosEditor, setShowTodosEditor] = useState(false);
+  const [formError, setFormError] = useState<string>('');
+  const [newTodoTitle, setNewTodoTitle] = useState('');
+  const [newTodoDueDate, setNewTodoDueDate] = useState('');
+  const [newTodoDueTime, setNewTodoDueTime] = useState('11:00');
+
+  // Get initial vision head from parent context
+  const getInitialVisionHead = () => {
+    if (editingTask?.visionHead) return editingTask.visionHead;
+    if (parentVisionId) {
+      const vision = visions.find(v => v.id === parentVisionId);
+      return vision?.category ? String(vision.category) : '';
+    }
+    return '';
+  };
+
+  // Initialize local form state if not provided
+  const [localFormState, setLocalFormState] = useState<TaskFormState>({
+    visionHead: getInitialVisionHead(),
+    visionId: editingTask?.visionId || parentVisionId || '',
+    goalId: editingTask?.goalId || parentGoalId || '',
+    title: editingTask?.title || '',
+    description: editingTask?.description || '',
+    startDate: editingTask?.startDate || '',
+    dueDate: editingTask?.dueDate || '',
+    timeStart: editingTask?.timeStart || '',
+    timeEnd: editingTask?.timeEnd || '',
+    place: editingTask?.place || '',
+    imageUrl: editingTask?.imageUrl || '',
+    status: editingTask?.status || 'not-started',
+    priority: editingTask?.priority || 'medium',
+    completed: editingTask?.completed || false,
+    todos: editingTask?.todos || [],
+  });
+
+  const formState = externalFormState || localFormState;
+  const setFormState = externalSetFormState || setLocalFormState;
+
+  // Auto-select single vision when only one option exists
+  React.useEffect(() => {
+    if (formState.visionHead && !parentVisionId) {
+      const visionsForThisHead = visions.filter((v) =>
+        String(v.category || '').toLowerCase() === formState.visionHead.toLowerCase()
+      );
+      if (visionsForThisHead.length === 1 && !formState.visionId) {
+        setFormState(prev => ({
+          ...prev,
+          visionId: visionsForThisHead[0].id,
+          goalId: '',
+        }));
+      }
+    }
+  }, [formState.visionHead, formState.visionId, parentVisionId, visions, setFormState]);
+
+  // Auto-select single goal when only one option exists
+  React.useEffect(() => {
+    if (formState.visionId && !parentGoalId) {
+      const goalsForVision = goals.filter(g =>
+        g.visionId === formState.visionId
+      );
+      if (goalsForVision.length === 1 && !formState.goalId) {
+        setFormState(prev => ({
+          ...prev,
+          goalId: goalsForVision[0].id,
+        }));
+      }
+    }
+  }, [formState.visionId, formState.goalId, parentGoalId, goals, setFormState]);
+
+  const normalizeHead = useCallback((value: unknown): string => {
+    const raw = String(value ?? '').trim();
+    if (!raw) return '';
+    const canonical = VISION_CATEGORIES.find((c) => c.toLowerCase() === raw.toLowerCase());
+    return canonical || raw;
+  }, []);
+
+  const defaultVisionOptionsForHead = useCallback(
+    (head: string) => {
+      const h = normalizeHead(head);
+      return visions.filter((v) => normalizeHead((v as any).category) === h);
+    },
+    [normalizeHead, visions]
+  );
+
+  const defaultGoalOptionsForVision = useCallback(
+    (visionId: string) => {
+      const selectedVision = visions.find((v) => v.id === visionId);
+      const selectedVisionTitle = (selectedVision?.title || '').trim().toLowerCase();
+      const embeddedGoalIds = new Set(
+        (Array.isArray((selectedVision as any)?.goals) ? ((selectedVision as any).goals as any[]) : [])
+          .map((g: any) => String(g?.id || ''))
+          .filter(Boolean)
+      );
+
+      return goals.filter((g: any) => {
+        if (g?.visionId === visionId) return true;
+        // Legacy shape: some UIs stored visionTitle on the goal
+        if (selectedVisionTitle && String(g?.visionTitle || '').trim().toLowerCase() === selectedVisionTitle) return true;
+        // If the goal exists in the selected vision's embedded goals list, include it.
+        if (g?.id && embeddedGoalIds.has(String(g.id))) return true;
+        return false;
+      });
+    },
+    [goals, visions]
+  );
+
+  const visionOptionsForHead = externalVisionOptionsForHead ?? defaultVisionOptionsForHead;
+  const goalOptionsForVision = externalGoalOptionsForVision ?? defaultGoalOptionsForVision;
+
+  const handleHeadChange = (head: string) => {
+    setFormError('');
+    setFormState(prev => ({
+      ...prev,
+      visionHead: normalizeHead(head),
+      visionId: '',
+      goalId: '',
+    }));
+  };
+
+  const handleVisionChange = (visionId: string) => {
+    setFormError('');
+    const v = visions.find(vv => vv.id === visionId);
+    setFormState(prev => ({
+      ...prev,
+      visionHead: v?.category ? normalizeHead(v.category) : prev.visionHead,
+      visionId,
+      goalId: '',
+    }));
+  };
+
+  const handleGoalChange = (goalId: string) => {
+    setFormError('');
+    setFormState(prev => ({
+      ...prev,
+      goalId,
+    }));
+  };
+
+  const availableHeads = Array.from(new Set(visions.map((v) => normalizeHead((v as any).category)).filter(Boolean)));
+  const visionsForHead = formState.visionHead ? visionOptionsForHead(normalizeHead(formState.visionHead)) : [];
+
+  const goalsForVision = useMemo(() => {
+    if (!formState.visionId) return [] as GoalOption[];
+    return goalOptionsForVision(formState.visionId);
+  }, [formState.visionId, goalOptionsForVision]);
+
+  const visionById = useMemo(() => {
+    const map = new Map<string, Vision>();
+    for (const v of visions) map.set(v.id, v);
+    return map;
+  }, [visions]);
+
+  const selectedVision = formState.visionId ? visionById.get(formState.visionId) : undefined;
+
+  const computedDefaultImageUrl = useMemo(() => {
+    // Priority: explicit formState.imageUrl > selected vision image > head default image
+    if (formState.imageUrl?.trim()) return formState.imageUrl.trim();
+    if (selectedVision?.imageUrl?.trim()) return selectedVision.imageUrl.trim();
+    if (formState.visionHead?.trim()) return getDefaultCategoryImage(formState.visionHead.trim());
+    if (selectedVision?.category) return getDefaultCategoryImage(String(selectedVision.category));
+    return getDefaultCategoryImage('Life');
+  }, [formState.imageUrl, formState.visionHead, selectedVision]);
+
+  const selectedGoal = useMemo(() => {
+    return formState.goalId ? goals.find(g => g.id === formState.goalId) : undefined;
+  }, [formState.goalId, goals]);
+
+  const addTodo = () => {
+    const title = newTodoTitle.trim();
+    if (!title) return;
+
+    const fallbackDate = formState.dueDate || new Date().toISOString().split('T')[0];
+    const dueDate = (newTodoDueDate || fallbackDate).trim();
+    const dueTime = (newTodoDueTime || '11:00').trim();
+
+    setFormState(prev => ({
+      ...prev,
+      todos: [
+        ...(prev.todos || []),
+        { id: `todo-${Date.now()}`, title, dueDate, dueTime, completed: false },
+      ],
+    }));
+    setNewTodoTitle('');
+    setNewTodoDueDate('');
+    setNewTodoDueTime('11:00');
+  };
+
+  const toggleTodo = (id: string) => {
+    setFormState(prev => ({
+      ...prev,
+      todos: (prev.todos || []).map(t => (t.id === id ? { ...t, completed: !t.completed } : t)),
+    }));
+  };
+
+  const updateTodo = (id: string, patch: Record<string, any>) => {
+    setFormState(prev => ({
+      ...prev,
+      todos: (prev.todos || []).map(t => (t.id === id ? { ...t, ...patch } : t)),
+    }));
+  };
+
+  const addReminderToTodo = (todoId: string, title: string) => {
+    setFormState(prev => ({
+      ...prev,
+      todos: (prev.todos || []).map(t => {
+        if (t.id !== todoId) return t;
+        const newRem: MiniReminder = { id: `rem-${Date.now()}`, title, date: t.dueDate, time: t.dueTime || '11:00', completed: false };
+        return { ...t, reminders: [...(t.reminders || []), newRem] };
+      }),
+    }));
+  };
+
+  const deleteReminderFromTodo = (todoId: string, remId: string) => {
+    setFormState(prev => ({
+      ...prev,
+      todos: (prev.todos || []).map(t => {
+        if (t.id !== todoId) return t;
+        return { ...t, reminders: (t.reminders || []).filter(r => r.id !== remId) };
+      }),
+    }));
+  };
+
+  const deleteTodo = (id: string) => {
+    setFormState(prev => ({
+      ...prev,
+      todos: (prev.todos || []).filter(t => t.id !== id),
+    }));
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[10000] p-4">
+      <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-gradient-to-r from-swar-primary to-blue-700 p-6 text-white flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-white">
+            {editingTask ? 'Edit Task' : 'Create New Task'}
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-2xl font-bold hover:scale-110 transition-transform"
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </div>
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+
+            if (!formState.visionHead?.trim()) {
+              setFormError('Please select a Head / Category.');
+              return;
+            }
+            if (!formState.visionId?.trim()) {
+              setFormError('Please select a Vision.');
+              return;
+            }
+            if (!formState.goalId?.trim()) {
+              setFormError('Please select a Goal.');
+              return;
+            }
+            if (!formState.title?.trim()) {
+              setFormError('Please enter a Task Title.');
+              return;
+            }
+
+            const taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt'> = {
+              title: formState.title,
+              description: formState.description,
+              visionHead: (formState.visionHead as VisionCategory) || undefined,
+              visionId: formState.visionId || undefined,
+              goalId: formState.goalId || undefined,
+              startDate: formState.startDate,
+              dueDate: formState.dueDate,
+              status: formState.status,
+              priority: formState.priority,
+              completed: formState.completed,
+              imageUrl: formState.imageUrl || undefined,
+              place: formState.place || undefined,
+              timeStart: formState.timeStart || undefined,
+              timeEnd: formState.timeEnd || undefined,
+              todos: formState.todos,
+            };
+            onSave(taskData);
+          }}
+          className="p-6 space-y-5"
+        >
+          {formError ? (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+              {formError}
+            </div>
+          ) : null}
+
+          {/* Parent Context Display (if provided) */}
+          {(parentVisionId || parentGoalId) && (
+            <>
+              {parentVisionId && selectedVision && (
+                <div className="rounded-lg bg-purple-50 border-2 border-purple-200 p-3">
+                  <label className="block text-sm font-semibold text-swar-text mb-2">💡 Vision</label>
+                  <div className="px-4 py-2 bg-white border border-swar-border rounded-lg text-swar-text text-sm">
+                    {selectedVision.title} (Auto)
+                  </div>
+                </div>
+              )}
+              {parentGoalId && selectedGoal && (
+                <div className="rounded-lg bg-indigo-50 border-2 border-indigo-200 p-3">
+                  <label className="block text-sm font-semibold text-swar-text mb-2">🎯 Goal</label>
+                  <div className="px-4 py-2 bg-white border border-swar-border rounded-lg text-swar-text text-sm">
+                    {selectedGoal.title} (Auto)
+                  </div>
+                </div>
+              )}
+              <hr className="my-4" />
+            </>
+          )}
+
+          {/* Head Selection (only show if no parent context) */}
+          {!parentVisionId && !parentGoalId && (
+          <>
+          <div>
+            <label className="block text-sm font-semibold text-swar-text mb-2">
+              Head / Category <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={formState.visionHead}
+              onChange={(e) => handleHeadChange(e.target.value)}
+              className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="">Select a head...</option>
+              {availableHeads.map(head => (
+                <option key={head} value={head}>
+                  {head}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Vision Selection */}
+          <div>
+            <label className="block text-sm font-semibold text-swar-text mb-2">
+              Vision <span className="text-red-500">*</span>
+            </label>
+            {!formState.visionHead ? (
+              <div className="px-4 py-2 border border-swar-border rounded-lg bg-swar-bg text-swar-text-secondary">
+                Choose a heading first
+              </div>
+            ) : visionsForHead.length === 1 ? (
+              <div className="px-4 py-2 border border-swar-border rounded-lg bg-blue-50 text-swar-text">
+                {visionsForHead[0].title} (Auto - only option)
+              </div>
+            ) : (
+              <select
+                value={formState.visionId}
+                onChange={(e) => handleVisionChange(e.target.value)}
+                className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">Select a vision...</option>
+                {visionsForHead.map(vision => (
+                  <option key={vision.id} value={vision.id}>
+                    {vision.title}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* Goal Selection */}
+          <div>
+            <label className="block text-sm font-semibold text-swar-text mb-2">
+              Goal <span className="text-red-500">*</span>
+            </label>
+            {!formState.visionId ? (
+              <div className="px-4 py-2 border border-swar-border rounded-lg bg-swar-bg text-swar-text-secondary">
+                Choose a vision first
+              </div>
+            ) : goalsForVision.length === 0 ? (
+              <div className="px-4 py-2 border border-swar-border rounded-lg bg-swar-bg text-swar-text-secondary">
+                No goals found for this vision
+              </div>
+            ) : goalsForVision.length === 1 ? (
+              <div className="px-4 py-2 border border-swar-border rounded-lg bg-blue-50 text-swar-text">
+                {goalsForVision[0].title} (Auto - only option)
+              </div>
+            ) : (
+              <select
+                value={formState.goalId}
+                onChange={(e) => handleGoalChange(e.target.value)}
+                className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">Select a goal...</option>
+                {goalsForVision.map(goal => (
+                  <option key={goal.id} value={goal.id}>
+                    {goal.title}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            {formState.goalId && (
+              <div className="mt-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+                <p className="text-xs text-blue-800">
+                  ✓ Selected: <span className="font-semibold">{selectedGoal?.title || 'Goal'}</span>
+                  {selectedVision?.title ? (
+                    <>  • Vision: <span className="font-semibold">{selectedVision.title}</span></>
+                  ) : null}
+                </p>
+              </div>
+            )}
+          </div>
+          </>
+          )}
+
+          <hr className="my-4" />
+
+          {/* Task Title */}
+          <div>
+            <label className="block text-sm font-semibold text-swar-text mb-2">
+              Task Title <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={formState.title}
+              onChange={(e) =>
+                setFormState(prev => ({ ...prev, title: e.target.value }))
+              }
+              className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="Enter task title"
+            />
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="block text-sm font-semibold text-swar-text mb-2">
+              Description
+            </label>
+            <textarea
+              value={formState.description}
+              onChange={(e) =>
+                setFormState(prev => ({ ...prev, description: e.target.value }))
+              }
+              rows={3}
+              className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="Enter task description"
+            />
+          </div>
+
+          {/* Dates */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-swar-text mb-2">
+                Start Date <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="date"
+                value={formState.startDate}
+                onChange={(e) =>
+                  setFormState(prev => ({ ...prev, startDate: e.target.value }))
+                }
+                className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-swar-text mb-2">
+                Due Date <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="date"
+                value={formState.dueDate}
+                onChange={(e) =>
+                  setFormState(prev => ({ ...prev, dueDate: e.target.value }))
+                }
+                className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+
+          {/* Time */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-swar-text mb-2">
+                Start Time
+              </label>
+              <input
+                type="time"
+                value={formState.timeStart}
+                onChange={(e) =>
+                  setFormState(prev => ({ ...prev, timeStart: e.target.value }))
+                }
+                className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-swar-text mb-2">
+                End Time
+              </label>
+              <input
+                type="time"
+                value={formState.timeEnd}
+                onChange={(e) =>
+                  setFormState(prev => ({ ...prev, timeEnd: e.target.value }))
+                }
+                className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+
+          {/* Place */}
+          <div>
+            <label className="block text-sm font-semibold text-swar-text mb-2">
+              Place <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={formState.place}
+              onChange={(e) =>
+                setFormState(prev => ({ ...prev, place: e.target.value }))
+              }
+              className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="Enter location"
+            />
+          </div>
+
+          {/* Image */}
+          <div>
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <label className="block text-sm font-bold text-swar-text">
+                Default Image (Editable)
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowImageEditor(v => !v)}
+                className="flex items-center gap-2 text-sm font-medium text-emerald-700 hover:text-emerald-800"
+              >
+                <Eye className="h-4 w-4" />
+                <span>{showImageEditor ? 'Hide' : 'Edit'}</span>
+              </button>
+            </div>
+
+            <div className="rounded-lg overflow-hidden h-48 border-2 border-swar-border bg-swar-bg">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={computedDefaultImageUrl}
+                alt="Task visual"
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = 'https://via.placeholder.com/800x400?text=Image+Not+Found';
+                }}
+              />
+            </div>
+
+            {showImageEditor && (
+              <div className="mt-3">
+                <LifePlannerImageUpload
+                  label="Custom Task Image (optional)"
+                  onImageUrlChange={(url) => setFormState(prev => ({ ...prev, imageUrl: url }))}
+                  currentImageUrl={formState.imageUrl}
+                  maxSizeMB={5}
+                />
+                <button
+                  type="button"
+                  onClick={() => setFormState(prev => ({ ...prev, imageUrl: '' }))}
+                  className="mt-2 px-4 py-2 rounded-lg border border-emerald-300 bg-white text-emerald-800 hover:bg-emerald-100 transition"
+                >
+                  Use default
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Todos */}
+          <div className="rounded-xl border-2 border-blue-200 bg-blue-50 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-blue-900">📌 Todos</h3>
+                <p className="text-xs text-blue-800">Break the task into small checkbox items.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTodosEditor(v => !v)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                <span>{showTodosEditor ? 'Hide Todos' : 'Todos'}</span>
+              </button>
+            </div>
+
+            {showTodosEditor && (
+              <div className="mt-4 space-y-3">
+                {/* Add todo (2-line layout) */}
+                <div className="rounded-xl border border-blue-200 bg-white p-3">
+                  <input
+                    type="text"
+                    value={newTodoTitle}
+                    onChange={(e) => setNewTodoTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addTodo();
+                      }
+                    }}
+                    className="w-full px-4 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                    placeholder="Todo title (e.g., Sadha)"
+                  />
+
+                  <div className="mt-2 flex flex-col md:flex-row gap-2">
+                    <input
+                      type="date"
+                      value={newTodoDueDate || formState.dueDate || ''}
+                      onChange={(e) => setNewTodoDueDate(e.target.value)}
+                      className="w-full md:w-auto md:flex-1 px-4 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                      title="Due date"
+                    />
+                    <input
+                      type="time"
+                      value={newTodoDueTime}
+                      onChange={(e) => setNewTodoDueTime(e.target.value)}
+                      className="w-full md:w-44 px-4 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                      title="Due time (default 11:00)"
+                    />
+                    <button
+                      type="button"
+                      onClick={addTodo}
+                      className="w-full md:w-28 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
+
+                {(formState.todos || []).length === 0 ? (
+                  <div className="text-sm text-blue-800 bg-white border border-blue-200 rounded-lg px-4 py-3">
+                    No todos yet.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {(formState.todos || []).map(todo => (
+                      <TaskTodoCard
+                        key={todo.id}
+                        todo={todo}
+                        onToggle={toggleTodo}
+                        onUpdate={updateTodo}
+                        onDelete={deleteTodo}
+                        onAddReminder={addReminderToTodo}
+                        onDeleteReminder={deleteReminderFromTodo}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Completed Checkbox */}
+          <div className="flex items-center gap-3 px-4 py-3 bg-swar-bg rounded-lg">
+            <input
+              type="checkbox"
+              id="taskCompleted"
+              checked={formState.completed}
+              onChange={(e) => setFormState(prev => ({ ...prev, completed: e.target.checked }))}
+              className="w-5 h-5 rounded border-2 border-swar-border cursor-pointer"
+            />
+            <label htmlFor="taskCompleted" className="text-sm font-medium text-swar-text cursor-pointer">
+              Mark as Completed
+            </label>
+          </div>
+
+          {/* Submit Buttons */}
+          <div className="flex items-center justify-end gap-3 px-0 pt-5 pb-5 border-t-2 border-blue-200 bg-gradient-to-r from-blue-50 via-white to-emerald-50 sticky bottom-0">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-6 py-2 border border-swar-border rounded-lg text-swar-text font-medium hover:bg-swar-bg transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+            >
+              {editingTask ? 'Update Task' : 'Create Task'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+export default TaskModal;
+
+/* ────────── Task Todo Card (with Reminders) ────────── */
+function TaskTodoCard({
+  todo, onToggle, onUpdate, onDelete, onAddReminder, onDeleteReminder,
+}: {
+  todo: { id: string; title: string; dueDate?: string; dueTime?: string; completed: boolean; reminders?: MiniReminder[] };
+  onToggle: (id: string) => void;
+  onUpdate: (id: string, patch: Record<string, any>) => void;
+  onDelete: (id: string) => void;
+  onAddReminder: (todoId: string, title: string) => void;
+  onDeleteReminder: (todoId: string, remId: string) => void;
+}) {
+  const [showRem, setShowRem] = React.useState(false);
+  const [newRemTitle, setNewRemTitle] = React.useState('');
+  const reminders = todo.reminders || [];
+
+  return (
+    <div className="bg-white border border-blue-200 rounded-xl px-3 py-3">
+      <input
+        type="text"
+        value={todo.title}
+        onChange={(e) => onUpdate(todo.id, { title: e.target.value })}
+        className={`w-full bg-transparent outline-none text-sm px-1 ${todo.completed ? 'text-swar-text-secondary line-through' : 'text-swar-text'}`}
+      />
+
+      <div className="mt-2 flex flex-col md:flex-row md:items-center gap-2">
+        <label className="inline-flex items-center gap-2 text-sm text-swar-text md:mr-1">
+          <input
+            type="checkbox"
+            checked={!!todo.completed}
+            onChange={() => onToggle(todo.id)}
+            className="rounded border-swar-border"
+          />
+          <span className="text-xs">Done</span>
+        </label>
+
+        <input
+          type="date"
+          value={todo.dueDate || ''}
+          onChange={(e) => onUpdate(todo.id, { dueDate: e.target.value })}
+          className="w-full md:w-auto md:flex-1 px-3 py-2 text-sm border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
+
+        <input
+          type="time"
+          value={todo.dueTime || '11:00'}
+          onChange={(e) => onUpdate(todo.id, { dueTime: e.target.value })}
+          className="w-full md:w-44 px-3 py-2 text-sm border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
+
+        <button
+          type="button"
+          onClick={() => setShowRem(v => !v)}
+          className="px-2 py-2 text-amber-600 hover:bg-amber-50 rounded-lg transition text-sm font-medium"
+          title="Reminders"
+        >
+          🔔 {reminders.length}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onDelete(todo.id)}
+          className="w-full md:w-auto px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition inline-flex items-center justify-center gap-2"
+          aria-label="Delete todo"
+          title="Remove"
+        >
+          <Trash2 className="h-4 w-4" />
+          <span className="text-sm font-medium">Remove</span>
+        </button>
+      </div>
+
+      {showRem && (
+        <div className="mt-2 ml-6 space-y-1">
+          <div className="flex gap-1">
+            <input
+              type="text"
+              value={newRemTitle}
+              onChange={e => setNewRemTitle(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (newRemTitle.trim()) { onAddReminder(todo.id, newRemTitle.trim()); setNewRemTitle(''); } } }}
+              placeholder="Reminder title"
+              className="flex-1 px-3 py-1.5 border border-amber-200 rounded-lg text-xs focus:ring-2 focus:ring-amber-400 focus:border-transparent bg-white"
+            />
+            <button type="button" onClick={() => { if (newRemTitle.trim()) { onAddReminder(todo.id, newRemTitle.trim()); setNewRemTitle(''); } }}
+              className="px-3 py-1.5 bg-amber-500 text-white text-xs rounded-lg hover:bg-amber-600 transition">
+              Add
+            </button>
+          </div>
+          {reminders.map(rem => (
+            <div key={rem.id} className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+              <span className="text-xs">🔔</span>
+              <span className="flex-1 text-xs text-swar-text">{rem.title}</span>
+              <input type="date" value={rem.date || ''} onChange={e => {
+                onUpdate(todo.id, { reminders: reminders.map(r => r.id === rem.id ? { ...r, date: e.target.value } : r) });
+              }} className="px-2 py-0.5 border border-amber-200 rounded text-xs w-28" />
+              <input type="time" value={rem.time || '11:00'} onChange={e => {
+                onUpdate(todo.id, { reminders: reminders.map(r => r.id === rem.id ? { ...r, time: e.target.value } : r) });
+              }} className="px-2 py-0.5 border border-amber-200 rounded text-xs w-20" />
+              <button type="button" onClick={() => onDeleteReminder(todo.id, rem.id)}
+                className="text-red-400 text-xs hover:text-red-600">✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

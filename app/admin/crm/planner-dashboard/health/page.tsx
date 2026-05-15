@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Clock, Plus, Edit2, Trash2 } from 'lucide-react';
-import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
+import { crmPlannerStorage } from '@/lib/crmPlannerMongoStorage';
 import type {
   DayPart,
   DailyHealthPlan,
@@ -369,7 +369,7 @@ export default function HealthPage() {
   const loadDailyPlans = useCallback(async () => {
     setDailyLoading(true);
     try {
-      const saved = await lifePlannerStorage.getDailyHealthPlans();
+      const saved = await crmPlannerStorage.getDailyHealthPlans();
       const list = Array.isArray(saved) ? (saved as DailyHealthPlan[]) : [];
 
       const normalized = list.map((p) => {
@@ -440,7 +440,7 @@ export default function HealthPage() {
         return;
       }
 
-      const saved = await lifePlannerStorage.getHealthRoutines();
+      const saved = await crmPlannerStorage.getHealthRoutines();
       if (Array.isArray(saved)) {
         setRoutines(saved);
       } else {
@@ -484,7 +484,7 @@ export default function HealthPage() {
           return;
         }
 
-        await lifePlannerStorage.saveHealthRoutines(routines);
+        await crmPlannerStorage.saveHealthRoutines(routines);
         console.log('✅ Health routines saved successfully');
       } catch (err) {
         console.error('Error saving health routines:', err);
@@ -510,7 +510,7 @@ export default function HealthPage() {
           return;
         }
 
-        await lifePlannerStorage.saveDailyHealthPlans(dailyPlans);
+        await crmPlannerStorage.saveDailyHealthPlans(dailyPlans);
       } catch (err) {
         console.error('Error saving daily health plans:', err);
       }
