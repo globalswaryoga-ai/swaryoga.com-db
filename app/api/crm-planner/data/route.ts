@@ -83,19 +83,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const user = await User.findOne(query);
+    const user = await User.findOne(query).lean();
 
     if (!user) {
-      console.error(`[CRM-GET] User not found`, {
-        userId: userId && Types.ObjectId.isValid(userId) ? userId : undefined,
-        email: email ? email.trim().toLowerCase() : undefined,
-        tenantId,
-      });
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
+      console.error(`[CRM-GET] User not found`);
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
+
+    const doc = user as Record<string, any>;
 
     // Return specific data type or all data
     if (dataType) {
@@ -106,25 +101,23 @@ export async function GET(request: NextRequest) {
         .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
         .join('');
 
-      const result = user[fieldName as keyof typeof user] || [];
-      return NextResponse.json({
-        data: result,
-      });
+      const result = Array.isArray(doc[fieldName]) ? doc[fieldName] : [];
+      return NextResponse.json({ data: result });
     }
 
     // Return all CRM Planner data
     return NextResponse.json({
-      visions: user.crmVisions || [],
-      actionPlans: user.crmActionPlans || [],
-      goals: user.crmGoals || [],
-      tasks: user.crmTasks || [],
-      todos: user.crmTodos || [],
-      words: user.crmWords || [],
-      reminders: user.crmReminders || [],
-      healthRoutines: user.crmHealthRoutines || [],
-      dailyHealthPlans: user.crmDailyHealthPlans || [],
-      diamondPeople: user.crmDiamondPeople || [],
-      progress: user.crmProgress || [],
+      visions: doc.crmVisions || [],
+      actionPlans: doc.crmActionPlans || [],
+      goals: doc.crmGoals || [],
+      tasks: doc.crmTasks || [],
+      todos: doc.crmTodos || [],
+      words: doc.crmWords || [],
+      reminders: doc.crmReminders || [],
+      healthRoutines: doc.crmHealthRoutines || [],
+      dailyHealthPlans: doc.crmDailyHealthPlans || [],
+      diamondPeople: doc.crmDiamondPeople || [],
+      progress: doc.crmProgress || [],
     });
   } catch (error: any) {
     console.error('CRM Planner data fetch error:', error?.message || error, error?.stack);
