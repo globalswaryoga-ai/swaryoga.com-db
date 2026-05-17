@@ -236,6 +236,7 @@ const userSchema = new mongoose.Schema({
   crmDailyTasks: mongoose.Schema.Types.Mixed, // Daily workshop tasks and sadhana per date (CRM version)
   crmDiamondPeople: [mongoose.Schema.Types.Mixed],
   crmProgress: [mongoose.Schema.Types.Mixed],
+  crmEvents: [mongoose.Schema.Types.Mixed],
 
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },

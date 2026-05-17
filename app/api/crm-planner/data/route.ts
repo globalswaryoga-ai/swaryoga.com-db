@@ -128,10 +128,10 @@ export async function GET(request: NextRequest) {
       diamondPeople: user.crmDiamondPeople || [],
       progress: user.crmProgress || [],
     });
-  } catch (error) {
-    console.error('CRM Planner data fetch error:', error);
+  } catch (error: any) {
+    console.error('CRM Planner data fetch error:', error?.message || error, error?.stack);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', detail: error?.message },
       { status: 500 }
     );
   }
@@ -235,10 +235,10 @@ export async function POST(request: NextRequest) {
       message: 'Data saved successfully',
       data: user[fieldName as keyof typeof user],
     });
-  } catch (error) {
-    console.error('CRM Planner data update error:', error);
+  } catch (error: any) {
+    console.error('CRM Planner data update error:', error?.message || error, error?.stack);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', detail: error?.message },
       { status: 500 }
     );
   }
