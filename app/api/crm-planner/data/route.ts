@@ -99,14 +99,12 @@ export async function GET(request: NextRequest) {
 
     // Return specific data type or all data
     if (dataType) {
-      // Convert crm_visions -> crmVisions, crm_goals -> crmGoals, etc.
-      const fieldName = dataType
+      // Convert crm_visions -> crmVisions, crm_actionPlans -> crmActionPlans, etc.
+      const fieldName = 'crm' + dataType
         .replace(/^crm_/, '')
         .split('_')
-        .reduce((acc, word, index) => {
-          if (index === 0) return word;
-          return acc + word.charAt(0).toUpperCase() + word.slice(1);
-        }, 'crm');
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join('');
 
       const result = user[fieldName as keyof typeof user] || [];
       return NextResponse.json({
@@ -169,13 +167,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Convert crm_visions -> crmVisions, crm_goals -> crmGoals, etc.
-    const fieldName = type
+    const fieldName = 'crm' + type
       .replace(/^crm_/, '')
       .split('_')
-      .reduce((acc, word, index) => {
-        if (index === 0) return word;
-        return acc + word.charAt(0).toUpperCase() + word.slice(1);
-      }, 'crm');
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join('');
 
     const userId = identity.userId;
     const email = identity.email;
