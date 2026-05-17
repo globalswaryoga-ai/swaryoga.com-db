@@ -347,7 +347,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
         {
           icon: Zap,
           label: 'Ritucharya Admin',
-          href: '/admin/crm/planner/ritucharya',
+          href: '/admin/crm/planner/ritucharya/manage',
           color: 'text-emerald-500',
           module: 'lifePlanner',
           planModule: 'lifePlanner',
