@@ -139,31 +139,66 @@ export default function ChatbotsPage() {
   const fetchStats = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch all flows (no limit)
-      const flowsRes = await crmFetch('/api/admin/crm/chatbot-flows', { params: { limit: 100 } }).catch(() => ({ flows: [] }));
-      const flows = Array.isArray(flowsRes?.flows) ? flowsRes.flows : [];
-      
-      // Fetch automation rules
-      const rulesRes = await crmFetch('/api/admin/crm/automations', { params: { limit: 100 } }).catch(() => ({ rules: [] }));
-      const rules = Array.isArray(rulesRes?.rules) ? rulesRes.rules : [];
-      
-      // Fetch knowledge base articles
-      const kbRes = await crmFetch('/api/admin/crm/knowledge-base', { params: { limit: 5 } }).catch(() => ({ articles: [], total: 0 }));
-      const articles = Array.isArray(kbRes?.articles) ? kbRes.articles : [];
-      
+      // Fetch all flows with error handling
+      let flows: ChatbotFlow[] = [];
+      try {
+        const flowsRes = await crmFetch('/api/admin/crm/chatbot-flows', { params: { limit: 100 } });
+        flows = Array.isArray(flowsRes?.flows) ? flowsRes.flows : [];
+      } catch (err) {
+        console.error('Failed to fetch flows:', err);
+        flows = [];
+      }
+
+      // Fetch automation rules with error handling
+      let rules: ChatbotRule[] = [];
+      try {
+        const rulesRes = await crmFetch('/api/admin/crm/automations', { params: { limit: 100 } });
+        rules = Array.isArray(rulesRes?.rules) ? rulesRes.rules : [];
+      } catch (err) {
+        console.error('Failed to fetch rules:', err);
+        rules = [];
+      }
+
+      // Fetch knowledge base articles with error handling
+      let articles: KnowledgeArticle[] = [];
+      let kbTotal = 0;
+      try {
+        const kbRes = await crmFetch('/api/admin/crm/knowledge-base', { params: { limit: 5 } });
+        articles = Array.isArray(kbRes?.articles) ? kbRes.articles : [];
+        kbTotal = kbRes?.total || articles.length || 0;
+      } catch (err) {
+        console.error('Failed to fetch KB articles:', err);
+        articles = [];
+        kbTotal = 0;
+      }
+
       setStats({
         flowsCount: flows.length,
         activeFlows: flows.filter((f: any) => f.enabled).length,
         rulesCount: rules.length,
         activeRules: rules.filter((r: any) => r.enabled).length,
-        kbArticles: kbRes?.total || articles.length,
+        kbArticles: kbTotal,
         activeKb: articles.filter((a: any) => a.enabled).length,
-        recentFlows: flows, // Show ALL flows
+        recentFlows: flows,
         recentRules: rules.slice(0, 3),
         recentArticles: articles.slice(0, 3),
       });
+      setError(null);
     } catch (err) {
       console.error('Failed to fetch chatbot stats:', err);
+      setError('Failed to load chatbot data. Please try again.');
+      // Set default stats on error so page doesn't crash
+      setStats({
+        flowsCount: 0,
+        activeFlows: 0,
+        rulesCount: 0,
+        activeRules: 0,
+        kbArticles: 0,
+        activeKb: 0,
+        recentFlows: [],
+        recentRules: [],
+        recentArticles: [],
+      });
     } finally {
       setLoading(false);
     }
