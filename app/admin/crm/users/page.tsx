@@ -59,7 +59,10 @@ export default function CRMUsersPage() {
   }, []);
 
   const loadUsers = async () => {
-    if (!token) return;
+    if (!token) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
@@ -68,11 +71,17 @@ export default function CRMUsersPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        if (res.status === 401) {
+          setError('Session expired. Please login again.');
+          return;
+        }
         throw new Error(data?.error || 'Failed to load admin users');
       }
       setUsers(Array.isArray(data?.data) ? data.data : []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load admin users');
+      if (err instanceof Error && err.message.includes('Session')) {
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
     }
