@@ -8,10 +8,15 @@
  * =====================================================
  */
 
-import cron from 'node-cron';
 import mongoose from 'mongoose';
 import { BunnyStorageClient } from './bunny-client';
 import { logger } from './logger';
+
+// Import node-cron only on server side
+let cron: any = null;
+if (typeof window === 'undefined') {
+  cron = require('node-cron');
+}
 
 export class DailyExportService {
   private bunny: BunnyStorageClient;

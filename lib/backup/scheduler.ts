@@ -6,11 +6,13 @@
  * =====================================================
  */
 
-import cron from 'node-cron';
 import { BackupService } from './backup-service';
 import { ArchiveService } from './archive-service';
 import { logger } from './logger';
 import { sendNotification } from './notification-service';
+
+// Import node-cron only on server side
+const cron = typeof window === 'undefined' ? require('node-cron') : null;
 
 export class BackupScheduler {
   private backupService: BackupService;

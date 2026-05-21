@@ -10,7 +10,6 @@
  * =====================================================
  */
 
-import cron from 'node-cron';
 import mongoose from 'mongoose';
 import { BackupService } from './backup-service';
 import { RestoreService } from './restore-service';
@@ -19,6 +18,12 @@ import { logger } from './logger';
 import * as zlib from 'zlib';
 import * as fs from 'fs';
 import * as path from 'path';
+
+// Import node-cron only on server side
+let cron: any = null;
+if (typeof window === 'undefined') {
+  cron = require('node-cron');
+}
 
 export class WeeklySyncService {
   private backupService: BackupService;
