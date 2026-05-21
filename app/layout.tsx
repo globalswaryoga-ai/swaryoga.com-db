@@ -115,7 +115,7 @@ export default function RootLayout({
           }}
         />
 
-        {/* Meta Pixel Code - Latest version with event tracking */}
+        {/* Meta Pixel Code - autoConfig disabled to prevent broken CAPI gateway */}
         <Script
           id="meta-pixel"
           strategy="afterInteractive"
@@ -129,18 +129,17 @@ export default function RootLayout({
               t.src=v;s=b.getElementsByTagName(e)[0];
               s.parentNode.insertBefore(t,s)}(window, document,'script',
               'https://connect.facebook.net/en_US/fbevents.js');
-              fbq('init', '906922940547021');
+              fbq('init', '906922940547021', {}, {autoConfig: false});
               fbq('track', 'PageView');
-              
+
               // Enhanced tracking for cost optimization
               document.addEventListener('DOMContentLoaded', function() {
-                // Track when user views content (sessions, workshops, investments)
-                const contentElements = document.querySelectorAll('[data-track-view]');
-                contentElements.forEach(el => {
+                var contentElements = document.querySelectorAll('[data-track-view]');
+                contentElements.forEach(function(el) {
                   el.addEventListener('click', function() {
-                    const contentName = this.getAttribute('data-content-name');
-                    const contentType = this.getAttribute('data-content-type');
-                    const price = this.getAttribute('data-price');
+                    var contentName = this.getAttribute('data-content-name');
+                    var contentType = this.getAttribute('data-content-type');
+                    var price = this.getAttribute('data-price');
                     if (contentName) {
                       fbq('track', 'ViewContent', {
                         content_name: contentName,
