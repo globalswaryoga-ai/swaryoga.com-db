@@ -28,7 +28,7 @@ export async function initBackupOnStartup() {
     }
 
     // Initialize backup system
-    const scheduler = initializeBackupSystem();
+    const scheduler = await initializeBackupSystem();
     logger.info('✅ Backup system initialized', scheduler.getStatus());
   } catch (error) {
     logger.error('❌ Failed to initialize backup system', {

@@ -14,19 +14,25 @@ export { BunnyStorageClient } from './bunny-client';
 export { ChunkedUploadService } from './chunked-upload';
 export { logger } from './logger';
 export { sendNotification } from './notification-service';
+export { WeeklySyncService, initializeWeeklySync } from './weekly-sync';
+export { DailyExportService, initializeDailyExport } from './daily-export';
 
 import { BackupScheduler } from './scheduler';
 import { logger } from './logger';
+import { initializeWeeklySync } from './weekly-sync';
+import { initializeDailyExport } from './daily-export';
 
 /**
  * Global backup scheduler instance
  */
 let scheduler: BackupScheduler | null = null;
+let weeklySyncInitialized = false;
+let dailyExportInitialized = false;
 
 /**
  * Initialize backup system
  */
-export function initializeBackupSystem(): BackupScheduler {
+export async function initializeBackupSystem(): Promise<BackupScheduler> {
   if (scheduler) {
     logger.warn('⚠️  Backup system already initialized');
     return scheduler;
@@ -39,6 +45,20 @@ export function initializeBackupSystem(): BackupScheduler {
 
   scheduler = new BackupScheduler(bunnyStorageKey);
   scheduler.initialize();
+
+  // Initialize weekly sync if not already done
+  if (!weeklySyncInitialized) {
+    await initializeWeeklySync(bunnyStorageKey);
+    weeklySyncInitialized = true;
+    logger.info('✅ Weekly sync initialized');
+  }
+
+  // Initialize daily export if not already done
+  if (!dailyExportInitialized) {
+    await initializeDailyExport(bunnyStorageKey);
+    dailyExportInitialized = true;
+    logger.info('✅ Daily export initialized');
+  }
 
   logger.info('✅ Backup system initialized successfully');
   return scheduler;
