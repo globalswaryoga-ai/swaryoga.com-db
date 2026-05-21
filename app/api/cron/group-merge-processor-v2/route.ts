@@ -1,0 +1,314 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { connectDB } from '@/lib/db';
+import { getNextGroupOperationGap, shouldStopDueToFailureRate, addErrorToLog } from '@/lib/safeGroupMergeV2';
+import { checkSessionHealth, sendSessionHeartbeat } from '@/lib/whatsappConnectionManager';
+import { ObjectId } from 'mongodb';
+
+export const dynamic = 'force-dynamic';
+export const maxDuration = 300; // 5 minutes max
+
+/**
+ * Execute single add/remove operation with WhatsApp bridge
+ */
+async function executeGroupOperation(
+  operation: 'add' | 'remove',
+  groupId: string,
+  participantId: string,
+  sessionKey: string,
+  bridgeUrl: string,
+  bridgeSecret: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const endpoint = operation === 'add' ? '/add-participant' : '/remove-participant';
+
+    const response = await fetch(`${bridgeUrl}${endpoint}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-bridge-secret': bridgeSecret,
+      },
+      body: JSON.stringify({
+        sessionKey,
+        groupId,
+        participantId,
+      }),
+    });
+
+    if (!response.ok) {
+      return {
+        success: false,
+        error: `Bridge returned ${response.status}`,
+      };
+    }
+
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+/**
+ * Process single merge operation
+ */
+async function processMergeOperation(
+  item: any,
+  bridgeUrl: string,
+  bridgeSecret: string,
+  db: any
+) {
+  const collection = db.collection('merge_group_v2_queue');
+
+  console.log(
+    `[Group Merge V2] Processing: ${item._id} (${item.operationType} to ${item.targetGroupId})`
+  );
+
+  try {
+    // CHECK 0: Session health (prevents auto-signout cascade)
+    const sessionHealth = await checkSessionHealth(
+      item.userId,
+      item.sessionKey,
+      bridgeUrl,
+      bridgeSecret
+    );
+
+    if (!sessionHealth.connected) {
+      console.warn(`[Group Merge V2] ⚠️ Session health check failed. Pausing.`);
+      await collection.updateOne(
+        { _id: item._id },
+        {
+          $set: {
+            status: 'paused',
+            lastError: 'Auto-signout detected - pausing to reconnect',
+            updatedAt: new Date(),
+          },
+        }
+      );
+      return {
+        status: 'paused',
+        reason: 'auto_signout_detected',
+      };
+    }
+
+    // Check if should proceed (based on delay)
+    const now = new Date();
+    if (item.nextOperationTime > now) {
+      // Heartbeat check every 5 operations
+      if (item.completedOperations % 5 === 0) {
+        const heartbeat = await sendSessionHeartbeat(item.userId, item.sessionKey, bridgeUrl, bridgeSecret);
+        if (!heartbeat.alive) {
+          console.warn(`[Group Merge V2] 🚨 Session lost during merge. Pausing.`);
+          await collection.updateOne(
+            { _id: item._id },
+            {
+              $set: {
+                status: 'paused',
+                lastError: 'Auto-signout detected - pausing to reconnect',
+                updatedAt: new Date(),
+              },
+            }
+          );
+          return {
+            status: 'paused',
+            reason: 'auto_signout_during_merge',
+          };
+        }
+      }
+
+      return {
+        status: 'waiting',
+        nextCheckIn: item.nextOperationTime.getTime() - now.getTime(),
+      };
+    }
+
+    // Check if should stop due to failure rate
+    if (shouldStopDueToFailureRate(item.failedOperations, item.completedOperations + item.failedOperations)) {
+      console.error(`[Group Merge V2] High failure rate detected. Stopping.`);
+
+      await collection.updateOne(
+        { _id: item._id },
+        {
+          $set: {
+            status: 'failed',
+            lastError: `High failure rate (${item.failedOperations}/${item.completedOperations + item.failedOperations})`,
+            updatedAt: new Date(),
+          },
+        }
+      );
+
+      return {
+        status: 'failed',
+        reason: 'high_failure_rate',
+      };
+    }
+
+    // Get next participant
+    if (item.currentParticipantIndex >= item.participantIds.length) {
+      // All done
+      await collection.updateOne(
+        { _id: item._id },
+        {
+          $set: {
+            status: 'completed',
+            completedAt: new Date(),
+            updatedAt: new Date(),
+          },
+        }
+      );
+
+      console.log(
+        `[Group Merge V2] ✅ Complete: ${item.completedOperations} succeeded, ${item.failedOperations} failed`
+      );
+
+      return {
+        status: 'completed',
+        completed: item.completedOperations,
+        failed: item.failedOperations,
+      };
+    }
+
+    // Execute operation for current participant
+    const participantId = item.participantIds[item.currentParticipantIndex];
+
+    const result = await executeGroupOperation(
+      item.operationType,
+      item.targetGroupId,
+      participantId,
+      item.sessionKey,
+      bridgeUrl,
+      bridgeSecret
+    );
+
+    // Calculate next delay
+    const nextDelay = getNextGroupOperationGap(item.completedOperations + item.failedOperations);
+    const nextOperationTime = new Date(now.getTime() + nextDelay);
+
+    if (result.success) {
+      await collection.updateOne(
+        { _id: item._id },
+        {
+          $set: {
+            completedOperations: item.completedOperations + 1,
+            currentParticipantIndex: item.currentParticipantIndex + 1,
+            lastOperationTime: now,
+            nextOperationTime,
+            operationDelayMs: nextDelay,
+            updatedAt: new Date(),
+          },
+        }
+      );
+
+      console.log(
+        `[Group Merge V2] ✓ ${item.operationType} ${item.completedOperations + 1}/${item.totalOperations} (${(nextDelay / 1000).toFixed(1)}s delay)`
+      );
+    } else {
+      await collection.updateOne(
+        { _id: item._id },
+        {
+          $set: {
+            failedOperations: item.failedOperations + 1,
+            currentParticipantIndex: item.currentParticipantIndex + 1,
+            lastOperationTime: now,
+            nextOperationTime,
+            operationDelayMs: nextDelay,
+            lastError: result.error,
+            errorLog: [
+              ...item.errorLog,
+              {
+                participantId,
+                error: result.error,
+                timestamp: new Date(),
+              },
+            ],
+            updatedAt: new Date(),
+          },
+        }
+      );
+
+      console.error(
+        `[Group Merge V2] ✗ ${item.operationType} ${item.completedOperations + item.failedOperations}/${item.totalOperations} failed: ${result.error}`
+      );
+    }
+
+    return {
+      status: 'in-progress',
+      operationIndex: item.currentParticipantIndex + 1,
+      total: item.totalOperations,
+    };
+  } catch (error) {
+    console.error(`[Group Merge V2] Error:`, error);
+
+    await collection.updateOne(
+      { _id: item._id },
+      {
+        $set: {
+          status: 'failed',
+          lastError: error instanceof Error ? error.message : 'Unknown error',
+          updatedAt: new Date(),
+        },
+      }
+    );
+
+    return {
+      status: 'error',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+/**
+ * GET: Process all pending merge operations
+ */
+export async function GET(req: NextRequest) {
+  try {
+    // Verify cron secret
+    const cronSecret = req.headers.get('authorization') || req.nextUrl.searchParams.get('secret');
+    if (cronSecret !== process.env.CRON_SECRET) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    await connectDB();
+
+    const db = (await import('@/lib/db')).getDb();
+    const collection = db.collection('merge_group_v2_queue');
+
+    const bridgeUrl = process.env.WHATSAPP_BRIDGE_HTTP_URL || 'http://localhost:3333';
+    const bridgeSecret = process.env.WHATSAPP_BRIDGE_SECRET || 'swar-bridge-secret-2024';
+
+    // Find in-progress operations
+    const operations = await collection
+      .find({
+        status: { $in: ['pending', 'in-progress'] },
+      })
+      .toArray();
+
+    console.log(`[Group Merge V2] Found ${operations.length} active operations`);
+
+    const results = [];
+    for (const op of operations) {
+      const result = await processMergeOperation(op, bridgeUrl, bridgeSecret, db);
+      results.push({
+        operationId: op._id.toString(),
+        operationType: op.operationType,
+        targetGroupId: op.targetGroupId,
+        ...result,
+      });
+    }
+
+    return NextResponse.json({
+      success: true,
+      timestamp: new Date().toISOString(),
+      processedOperations: results.length,
+      results,
+      note: '✅ Group merge operations processed with WhatsApp-safe variable gaps',
+    });
+  } catch (error) {
+    console.error('[Group Merge V2] Fatal error:', error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}

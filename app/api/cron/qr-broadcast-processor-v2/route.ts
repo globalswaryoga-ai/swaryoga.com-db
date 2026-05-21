@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { getQRBroadcastSchedule } from '@/lib/schemas/enterpriseSchemas';
 import { shuffleArray, calculateVariableGaps, getWhatsAppComplianceStatus } from '@/lib/whatsappGapCalculator';
+import { checkSessionHealth, sendSessionHeartbeat } from '@/lib/whatsappConnectionManager';
+import { canSendMessageToUser, recordMessageSent } from '@/lib/messageDeduplication';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 minutes max
@@ -42,16 +44,29 @@ function shouldRunToday(frequency: string, daysOfWeek: number[]): boolean {
 }
 
 /**
- * Send single message with WhatsApp compliance
+ * Send single message with deduplication check
  */
 async function sendMessageWithGaps(
   chatId: string,
   messageText: string,
   bridgeUrl: string,
   bridgeSecret: string,
-  delayBefore: number // Milliseconds to wait before sending
-): Promise<{ success: boolean; error?: string; sendTimeMs?: number }> {
+  delayBefore: number,
+  userId: string,
+  scheduleId: string,
+  db: any
+): Promise<{ success: boolean; error?: string; sendTimeMs?: number; skipped?: boolean }> {
   try {
+    // CHECK 1: Deduplication - prevent same message to same user today
+    const dedupCheck = await canSendMessageToUser(userId, chatId, messageText, db);
+    if (!dedupCheck.canSend) {
+      return {
+        success: false,
+        error: dedupCheck.reason,
+        skipped: true, // Mark as skipped, not failed
+      };
+    }
+
     // Wait before sending (honor gap)
     await new Promise(resolve => setTimeout(resolve, delayBefore));
 
@@ -75,6 +90,9 @@ async function sendMessageWithGaps(
     if (!response.ok) {
       throw new Error(`Bridge returned ${response.status}`);
     }
+
+    // Record message as sent (for deduplication)
+    await recordMessageSent(userId, chatId, messageText, scheduleId, db);
 
     return { success: true, sendTimeMs };
   } catch (error) {
@@ -104,6 +122,32 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
   console.log(`[QR Broadcast Processor V2] Processing: ${schedule._id} (${schedule.name})`);
 
   try {
+    // CHECK 0: Session health (prevents auto-signout cascade)
+    const sessionHealth = await checkSessionHealth(
+      schedule.userId,
+      schedule.sessionKey,
+      bridgeUrl,
+      bridgeSecret
+    );
+
+    if (!sessionHealth.connected) {
+      console.warn(`[QR Broadcast V2] ⚠️ Session health check failed: ${sessionHealth.message}`);
+      const QRBroadcastSchedule = (await connectDB(), (await import('@/lib/schemas/enterpriseSchemas')).getQRBroadcastSchedule());
+      await QRBroadcastSchedule.updateOne(
+        { _id: schedule._id },
+        {
+          status: 'paused',
+          lastError: 'Auto-signout detected - pausing to reconnect',
+          lastErrorAt: new Date(),
+        }
+      );
+      return {
+        status: 'paused',
+        reason: 'auto_signout_detected',
+        message: 'Session reconnecting - operation paused',
+      };
+    }
+
     // Check time window
     if (!isWithinTimeWindow(schedule.startTime, schedule.endTime, schedule.timezone)) {
       console.log(`[QR Broadcast Processor V2] Outside time window: ${schedule.startTime}-${schedule.endTime}`);
@@ -166,22 +210,74 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
 
     let sent = 0;
     let failed = 0;
+    let skipped = 0;
     let totalSendTimeMs = 0;
+    let heartbeatCheckCounter = 0;
+
+    // Get database for deduplication
+    const db = (await connectDB(), (await import('@/lib/db')).getDb());
 
     // Send with gaps
     for (let i = 0; i < recipients.length; i++) {
       const chatId = recipients[i];
       const gap = gaps[i] || 60000; // Fallback to 60 sec
 
+      // HEARTBEAT CHECK: Every 10 messages, verify session is still connected
+      heartbeatCheckCounter++;
+      if (heartbeatCheckCounter >= 10) {
+        const heartbeat = await sendSessionHeartbeat(
+          schedule.userId,
+          schedule.sessionKey,
+          bridgeUrl,
+          bridgeSecret
+        );
+
+        if (!heartbeat.alive) {
+          console.error('[QR Broadcast V2] 🚨 Session lost during broadcast. Pausing.');
+          const QRBroadcastSchedule = (await connectDB(), (await import('@/lib/schemas/enterpriseSchemas')).getQRBroadcastSchedule());
+          await QRBroadcastSchedule.updateOne(
+            { _id: schedule._id },
+            {
+              status: 'paused',
+              lastError: 'Auto-signout during broadcast - pausing to reconnect',
+              lastErrorAt: new Date(),
+              'stats.totalAttempted': (schedule.stats?.totalAttempted || 0) + (sent + failed + skipped),
+              'stats.totalSent': (schedule.stats?.totalSent || 0) + sent,
+              'stats.totalFailed': (schedule.stats?.totalFailed || 0) + failed,
+              'stats.totalSkipped': (schedule.stats?.totalSkipped || 0) + skipped,
+            }
+          );
+          return {
+            status: 'paused',
+            reason: 'auto_signout_during_broadcast',
+            sent,
+            failed,
+            skipped,
+            message: `Paused after ${sent + failed + skipped} messages. Session lost. Will resume when reconnected.`,
+          };
+        }
+
+        heartbeatCheckCounter = 0;
+        console.log(`[QR Broadcast V2] ✅ Heartbeat OK - session still alive`);
+      }
+
       const result = await sendMessageWithGaps(
         chatId,
         schedule.messageText,
         bridgeUrl,
         bridgeSecret,
-        gap
+        gap,
+        schedule.userId,
+        schedule._id.toString(),
+        db
       );
 
-      if (result.success) {
+      if (result.skipped) {
+        skipped++;
+        console.log(
+          `[QR Broadcast V2] ⊘ ${i + 1}/${recipients.length} skipped: ${result.error} (already sent today)`
+        );
+      } else if (result.success) {
         sent++;
         totalSendTimeMs += (result.sendTimeMs || 0);
         console.log(
@@ -202,7 +298,8 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
           reason: 'high_failure_rate',
           sent,
           failed,
-          message: `Stopped after ${sent + failed} messages due to ${Math.round((failed / (sent + failed)) * 100)}% failure rate`,
+          skipped,
+          message: `Stopped after ${sent + failed + skipped} messages due to ${Math.round((failed / (sent + failed)) * 100)}% failure rate`,
         };
       }
     }
@@ -221,18 +318,21 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
         'stats.totalAttempted': (schedule.stats?.totalAttempted || 0) + recipients.length,
         'stats.totalSent': (schedule.stats?.totalSent || 0) + sent,
         'stats.totalFailed': (schedule.stats?.totalFailed || 0) + failed,
+        'stats.totalSkipped': (schedule.stats?.totalSkipped || 0) + skipped,
         'stats.averageDeliveryTimeMs': avgSendTimeMs,
       }
     );
 
-    console.log(`[QR Broadcast V2] ✅ Complete: ${sent} sent, ${failed} failed (Avg: ${avgSendTimeMs}ms)`);
+    console.log(`[QR Broadcast V2] ✅ Complete: ${sent} sent, ${skipped} skipped (duplicate), ${failed} failed (Avg: ${avgSendTimeMs}ms)`);
 
     return {
       status: 'completed',
       sent,
+      skipped,
       failed,
       total: recipients.length,
-      successRate: `${Math.round((sent / recipients.length) * 100)}%`,
+      successRate: `${Math.round((sent / (sent + failed)) * 100)}%`,
+      deduplicateRate: `${Math.round((skipped / recipients.length) * 100)}%`,
       averageSendTimeMs: avgSendTimeMs,
       compliance: compliance.riskLevel,
     };
