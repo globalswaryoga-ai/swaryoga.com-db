@@ -71,20 +71,33 @@ export async function POST(request: NextRequest) {
     if (!authHeader) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
-    
-    const decoded = await verifyToken(authHeader.replace("Bearer ", ""));
-    if (!decoded || !decoded.isAdmin) {
+
+    const decoded = verifyToken(authHeader.replace("Bearer ", ""));
+    // Accept admin tokens (have isAdmin:true) and regular admin users (have userId)
+    if (!decoded || (!decoded.isAdmin && !decoded.userId && !decoded.username)) {
       return NextResponse.json({ success: false, error: "Admin access required" }, { status: 403 });
     }
 
-    // ── Access Gate (isolated session required for every QR user) ──
     const superAdmin = checkSuperAdmin(decoded);
     const viewerUserId = getViewerUserId(decoded);
-    const bridgeConfig = await resolveBridgeConfig(viewerUserId);
+    let bridgeConfig = await resolveBridgeConfig(viewerUserId);
+
+    // Super admins always get bridge access — use global bridge if no custom one set
+    if (!bridgeConfig.hasOwnBridge && superAdmin) {
+      bridgeConfig = {
+        bridgeUrl: BRIDGE_URL,
+        bridgeSecret: BRIDGE_SECRET,
+        bridgeSessionId: viewerUserId,
+        tenantId: null,
+        hasOwnBridge: true,
+        qrWhatsappEnabled: true,
+      };
+    }
+
     if (!bridgeConfig.hasOwnBridge) {
       return NextResponse.json({
         success: false,
-        error: 'Access denied. Every QR user needs an isolated WhatsApp session (permanentTenantId or custom bridge).'
+        error: 'Access denied. WhatsApp session not configured. Please scan QR code first.',
       }, { status: 403 });
     }
 
@@ -276,20 +289,20 @@ export async function GET(request: NextRequest) {
     if (!authHeader) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
-    
-    const decoded = await verifyToken(authHeader.replace("Bearer ", ""));
-    if (!decoded || !decoded.isAdmin) {
+
+    const decoded = verifyToken(authHeader.replace("Bearer ", ""));
+    if (!decoded || (!decoded.isAdmin && !decoded.userId && !decoded.username)) {
       return NextResponse.json({ success: false, error: "Admin access required" }, { status: 403 });
     }
 
-    // ── Access Gate (Super Admin Team / CRM Admin Team Protection) ──
     const viewerUserId = getViewerUserId(decoded);
-    const bridgeConfig = await resolveBridgeConfig(viewerUserId);
+    const superAdmin = checkSuperAdmin(decoded);
+    let bridgeConfig = await resolveBridgeConfig(viewerUserId);
+    if (!bridgeConfig.hasOwnBridge && superAdmin) {
+      bridgeConfig = { bridgeUrl: BRIDGE_URL, bridgeSecret: BRIDGE_SECRET, bridgeSessionId: viewerUserId, tenantId: null, hasOwnBridge: true, qrWhatsappEnabled: true };
+    }
     if (!bridgeConfig.hasOwnBridge) {
-      return NextResponse.json({
-        success: false,
-        error: 'Access denied. Every QR user needs an isolated WhatsApp session (permanentTenantId or custom bridge).'
-      }, { status: 403 });
+      return NextResponse.json({ success: false, error: 'WhatsApp session not configured.' }, { status: 403 });
     }
 
     const response = await fetch(`${bridgeConfig.bridgeUrl}/broadcast/scheduled`, {
@@ -316,20 +329,20 @@ export async function DELETE(request: NextRequest) {
     if (!authHeader) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
-    
-    const decoded = await verifyToken(authHeader.replace("Bearer ", ""));
-    if (!decoded || !decoded.isAdmin) {
+
+    const decoded = verifyToken(authHeader.replace("Bearer ", ""));
+    if (!decoded || (!decoded.isAdmin && !decoded.userId && !decoded.username)) {
       return NextResponse.json({ success: false, error: "Admin access required" }, { status: 403 });
     }
 
-    // ── Access Gate (Super Admin Team / CRM Admin Team Protection) ──
     const viewerUserId = getViewerUserId(decoded);
-    const bridgeConfig = await resolveBridgeConfig(viewerUserId);
+    const superAdmin = checkSuperAdmin(decoded);
+    let bridgeConfig = await resolveBridgeConfig(viewerUserId);
+    if (!bridgeConfig.hasOwnBridge && superAdmin) {
+      bridgeConfig = { bridgeUrl: BRIDGE_URL, bridgeSecret: BRIDGE_SECRET, bridgeSessionId: viewerUserId, tenantId: null, hasOwnBridge: true, qrWhatsappEnabled: true };
+    }
     if (!bridgeConfig.hasOwnBridge) {
-      return NextResponse.json({
-        success: false,
-        error: 'Access denied. Every QR user needs an isolated WhatsApp session (permanentTenantId or custom bridge).'
-      }, { status: 403 });
+      return NextResponse.json({ success: false, error: 'WhatsApp session not configured.' }, { status: 403 });
     }
 
     const { id } = await request.json();
