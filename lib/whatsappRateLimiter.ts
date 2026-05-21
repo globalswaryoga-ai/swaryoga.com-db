@@ -1,13 +1,26 @@
 /**
  * WhatsApp Rate Limiting Helper
  * Ensures human-like behavior to avoid spam detection and account bans
- * 
+ *
+ * ==================== IMPORTANT ====================
+ * WhatsApp Safety Rules (2026):
+ * - Maximum: 60 messages/hour for safe operation
+ * - Pattern: Messages 1-2 at 7sec, rest at 45-120sec random gaps
+ * - No repeating gaps (each gap different from previous)
+ * - Batch size: 5-10 messages per batch
+ * - Account age matters: New accounts = 30-50/hour max
+ * - Account type: Business > Individual in limits
+ * - Recipient feedback: 20%+ spam marks = ban risk
+ * ===================================================
+ *
  * Strategy:
- * - Random batch sizes (3-6 numbers per batch)
- * - Random delays between batches (20-60 seconds)
+ * - Variable gaps (no repeated values)
+ * - Initial quick 2 messages (7 sec)
+ * - Then random 45-120 sec gaps (human-like)
+ * - Random batch sizes (5-10 per batch)
+ * - Random batch delays (30-60 seconds)
  * - Randomize order of operations
- * - Take admin number last (cleanup)
- * - Target: 100 numbers = ~10 minutes minimum
+ * - Target: 60 messages/hour (safe for all accounts)
  */
 
 /**

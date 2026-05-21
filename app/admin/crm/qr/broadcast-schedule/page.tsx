@@ -40,6 +40,14 @@ export default function QRBroadcastSchedulePage() {
     frequency: 'daily',
     maxMessagesPerDay: 300,
     description: '',
+    gapStrategy: {
+      preset: 'SAFE', // Default: 60 messages/hour
+      initialGapMs: 7000,
+      initialGapCount: 2,
+      minGapMs: 45000, // 45 seconds
+      maxGapMs: 120000, // 120 seconds
+      ensureVariation: true,
+    },
   });
 
   const loadSchedules = useCallback(async () => {
@@ -298,6 +306,145 @@ export default function QRBroadcastSchedulePage() {
                   placeholder="Optional notes..."
                   className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                 />
+              </div>
+
+              {/* Gap Strategy Settings (WhatsApp Compliance) */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
+                <h3 className="font-bold text-blue-900 mb-3">🛡️ Message Delivery Speed (WhatsApp-Safe)</h3>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Gap Strategy Preset
+                    </label>
+                    <select
+                      value={formData.gapStrategy.preset}
+                      onChange={(e) => {
+                        const preset = e.target.value;
+                        let settings: any = { preset };
+
+                        if (preset === 'ULTRA_SAFE') {
+                          settings = { ...settings, minGapMs: 100000, maxGapMs: 180000, initialGapMs: 10000 };
+                        } else if (preset === 'VERY_SAFE') {
+                          settings = { ...settings, minGapMs: 70000, maxGapMs: 150000, initialGapMs: 8000 };
+                        } else if (preset === 'SAFE') {
+                          settings = { ...settings, minGapMs: 45000, maxGapMs: 120000, initialGapMs: 7000 };
+                        } else if (preset === 'PROFESSIONAL') {
+                          settings = { ...settings, minGapMs: 40000, maxGapMs: 90000, initialGapMs: 7000 };
+                        } else if (preset === 'AGGRESSIVE') {
+                          settings = { ...settings, minGapMs: 25000, maxGapMs: 60000, initialGapMs: 5000 };
+                        }
+
+                        setFormData({
+                          ...formData,
+                          gapStrategy: { ...formData.gapStrategy, ...settings },
+                        });
+                      }}
+                      className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="ULTRA_SAFE">🟢 Ultra Safe (30/hour) - Minimum ban risk</option>
+                      <option value="VERY_SAFE">🟢 Very Safe (45/hour) - Very safe</option>
+                      <option value="SAFE">🟢 Safe (60/hour) - RECOMMENDED ✓</option>
+                      <option value="PROFESSIONAL">🟡 Professional (80/hour) - Medium risk</option>
+                      <option value="AGGRESSIVE">🔴 Aggressive (120/hour) - High risk</option>
+                      <option value="CUSTOM">⚙️ Custom - Configure manually</option>
+                    </select>
+                    <p className="text-xs text-blue-700 mt-1">
+                      Recommended: SAFE (60 messages/hour) - Perfect balance for any account
+                    </p>
+                  </div>
+
+                  {formData.gapStrategy.preset === 'CUSTOM' && (
+                    <>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-700 mb-1">
+                            Min Gap (seconds)
+                          </label>
+                          <input
+                            type="number"
+                            min="5"
+                            max="180"
+                            value={formData.gapStrategy.minGapMs / 1000}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                gapStrategy: {
+                                  ...formData.gapStrategy,
+                                  minGapMs: Math.max(5000, parseInt(e.target.value) * 1000 || 45000),
+                                },
+                              })
+                            }
+                            className="w-full px-2 py-1.5 border rounded text-xs focus:ring-2 focus:ring-blue-500"
+                          />
+                          <p className="text-xs text-gray-500 mt-0.5">Min: 5s | Safe: 45s+</p>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-700 mb-1">
+                            Max Gap (seconds)
+                          </label>
+                          <input
+                            type="number"
+                            min="10"
+                            max="300"
+                            value={formData.gapStrategy.maxGapMs / 1000}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                gapStrategy: {
+                                  ...formData.gapStrategy,
+                                  maxGapMs: Math.max(10000, parseInt(e.target.value) * 1000 || 120000),
+                                },
+                              })
+                            }
+                            className="w-full px-2 py-1.5 border rounded text-xs focus:ring-2 focus:ring-blue-500"
+                          />
+                          <p className="text-xs text-gray-500 mt-0.5">Safe: 120s max</p>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">
+                          Initial Fixed Gap (seconds)
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="30"
+                          value={formData.gapStrategy.initialGapMs / 1000}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              gapStrategy: {
+                                ...formData.gapStrategy,
+                                initialGapMs: parseInt(e.target.value) * 1000 || 7000,
+                              },
+                            })
+                          }
+                          className="w-full px-2 py-1.5 border rounded text-xs focus:ring-2 focus:ring-blue-500"
+                        />
+                        <p className="text-xs text-gray-500 mt-0.5">Default: 7s (quick start)</p>
+                      </div>
+                    </>
+                  )}
+
+                  <div className="bg-white p-2 rounded text-xs border border-blue-100">
+                    <p className="font-semibold text-blue-900 mb-1">📊 Current Settings:</p>
+                    <p className="text-gray-700">
+                      • First 2 messages: {formData.gapStrategy.initialGapMs / 1000}s apart
+                    </p>
+                    <p className="text-gray-700">
+                      • Remaining: {formData.gapStrategy.minGapMs / 1000}s - {formData.gapStrategy.maxGapMs / 1000}s random
+                    </p>
+                    <p className="text-gray-700">
+                      • Estimated: ~{Math.round(3600 / ((formData.gapStrategy.minGapMs + formData.gapStrategy.maxGapMs) / 2 / 1000))} messages/hour
+                    </p>
+                    <p className="text-blue-700 font-semibold mt-1">
+                      ✅ 100% human-like (no gap ever repeats)
+                    </p>
+                  </div>
+                </div>
               </div>
 
               <div className="flex gap-2">

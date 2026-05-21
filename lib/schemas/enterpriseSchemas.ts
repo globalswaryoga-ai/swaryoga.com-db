@@ -4018,13 +4018,31 @@ const QRBroadcastScheduleSchema = new mongoose.Schema(
     // Daily limits (300 per day max)
     maxMessagesPerDay: { type: Number, default: 300, min: 1, max: 300 },
 
-    // Anti-ban protection settings
-    rateLimiting: {
-      enabled: { type: Boolean, default: true },
-      minDelayMs: { type: Number, default: 3000 }, // Min 3 sec between messages
-      maxDelayMs: { type: Number, default: 15000 }, // Max 15 sec between messages
-      batchSize: { type: Number, default: 5 }, // Messages per batch
-      batchDelayMs: { type: Number, default: 30000 }, // Delay between batches (30 sec)
+    // Anti-ban protection settings (WhatsApp-compliant)
+    gapStrategy: {
+      // Initial fixed gap (for first N messages - 7 seconds recommended)
+      initialGapMs: { type: Number, default: 7000 }, // 7 seconds
+      initialGapCount: { type: Number, default: 2 }, // First 2 messages use this gap
+
+      // Random variable gaps (45-120 seconds recommended for 60 msg/hour)
+      minGapMs: { type: Number, default: 45000 }, // Minimum 45 seconds (safe for WhatsApp)
+      maxGapMs: { type: Number, default: 120000 }, // Maximum 120 seconds (2 minutes)
+
+      // Batch settings
+      batchSize: { type: Number, default: 5 }, // 5-10 messages per batch
+      batchGapMs: { type: Number, default: 30000 }, // 30 seconds between batches
+
+      // Variation settings
+      ensureVariation: { type: Boolean, default: true }, // Never send with exact same gap twice
+      ensureJitter: { type: Boolean, default: true }, // Add ±random jitter to gaps
+      jitterPercent: { type: Number, default: 15 }, // ±15% variation
+
+      // Preset used
+      preset: {
+        type: String,
+        enum: ['ULTRA_SAFE', 'VERY_SAFE', 'SAFE', 'PROFESSIONAL', 'AGGRESSIVE', 'CUSTOM'],
+        default: 'SAFE',
+      },
     },
 
     // Randomization strategy
