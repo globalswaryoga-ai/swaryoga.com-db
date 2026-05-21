@@ -1,20 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { verifyJWT } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
-
-// Mark as dynamic since this route uses request.headers or request.url
-
 
 /**
  * POST /api/admin/crm/ai-suggest
  * Get AI-powered suggestions for message composition using Claude API
- * 
+ *
  * Body: { message: string }
  * Response: { suggestions: string[] }
  */
 
 export async function POST(request: NextRequest) {
   try {
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
+    }
+
+    const token = authHeader.slice(7);
+    const decoded = verifyJWT(token);
+    if (!decoded) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
+
     const body = await request.json();
     const { message } = body;
 
