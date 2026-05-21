@@ -119,7 +119,11 @@ export default function ChatbotsPage() {
 
   const crmOptions = useMemo(() => ({ token }), [token]);
   const crm = useCRM(crmOptions);
-  const crmFetch = crm.fetch;
+  const crmFetchRef = useRef(crm.fetch);
+
+  useEffect(() => {
+    crmFetchRef.current = crm.fetch;
+  }, [crm.fetch]);
 
   const [stats, setStats] = useState({
     flowsCount: 0,
@@ -142,7 +146,7 @@ export default function ChatbotsPage() {
       // Fetch all flows with error handling
       let flows: ChatbotFlow[] = [];
       try {
-        const flowsRes = await crmFetch('/api/admin/crm/chatbot-flows', { params: { limit: 100 } });
+        const flowsRes = await crmFetchRef.current('/api/admin/crm/chatbot-flows', { params: { limit: 100 } });
         flows = Array.isArray(flowsRes?.flows) ? flowsRes.flows : [];
       } catch (err) {
         console.error('Failed to fetch flows:', err);
@@ -152,7 +156,7 @@ export default function ChatbotsPage() {
       // Fetch automation rules with error handling
       let rules: ChatbotRule[] = [];
       try {
-        const rulesRes = await crmFetch('/api/admin/crm/automations', { params: { limit: 100 } });
+        const rulesRes = await crmFetchRef.current('/api/admin/crm/automations', { params: { limit: 100 } });
         rules = Array.isArray(rulesRes?.rules) ? rulesRes.rules : [];
       } catch (err) {
         console.error('Failed to fetch rules:', err);
@@ -163,7 +167,7 @@ export default function ChatbotsPage() {
       let articles: KnowledgeArticle[] = [];
       let kbTotal = 0;
       try {
-        const kbRes = await crmFetch('/api/admin/crm/knowledge-base', { params: { limit: 5 } });
+        const kbRes = await crmFetchRef.current('/api/admin/crm/knowledge-base', { params: { limit: 5 } });
         articles = Array.isArray(kbRes?.articles) ? kbRes.articles : [];
         kbTotal = kbRes?.total || articles.length || 0;
       } catch (err) {
@@ -202,7 +206,7 @@ export default function ChatbotsPage() {
     } finally {
       setLoading(false);
     }
-  }, [crmFetch]);
+  }, []);
 
   useEffect(() => {
     if (!token) {
@@ -217,7 +221,7 @@ export default function ChatbotsPage() {
     if (duplicating) return;
     setDuplicating(flowId);
     try {
-      const res = await crmFetch(`/api/admin/crm/chatbot-flows/${flowId}/duplicate`, { method: 'POST' });
+      const res = await crmFetchRef.current(`/api/admin/crm/chatbot-flows/${flowId}/duplicate`, { method: 'POST' });
       if (res?._id) {
         // Refresh stats to show the new flow
         await fetchStats();
@@ -229,7 +233,7 @@ export default function ChatbotsPage() {
     } finally {
       setDuplicating(null);
     }
-  }, [duplicating, crmFetch, fetchStats, router]);
+  }, [duplicating, fetchStats, router]);
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
