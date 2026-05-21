@@ -29,7 +29,7 @@ export async function POST(
     const schedule = await QRBroadcastSchedule.findOneAndUpdate(
       {
         _id: params.id,
-        \$or: [{ userId: decoded?.userId || decoded?.username || 'admin' }, { createdBy: decoded?.userId || decoded?.username || 'admin' }],
+        $or: [{ userId: decoded?.userId || decoded?.username || 'admin' }, { createdBy: decoded?.userId || decoded?.username || 'admin' }],
       },
       {
         isActive: true,
