@@ -3992,9 +3992,9 @@ const QRBroadcastScheduleSchema = new mongoose.Schema(
     messageText: { type: String, required: true, maxlength: 4096 },
     mediaUrls: [{ type: String }], // Images, videos, documents
 
-    // Recipients
-    recipientChatIds: [{ type: String, required: true }], // WhatsApp chat IDs
-    totalRecipients: { type: Number, required: true },
+    // Recipients (can be empty at creation, added before broadcast)
+    recipientChatIds: [{ type: String }], // WhatsApp chat IDs
+    totalRecipients: { type: Number, default: 0 },
     groupIds: [{ type: String }], // Groups included
     individualIds: [{ type: String }], // Individual chats included
 

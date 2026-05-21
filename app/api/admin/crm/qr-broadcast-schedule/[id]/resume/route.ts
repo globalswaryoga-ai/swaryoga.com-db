@@ -15,7 +15,7 @@ export async function POST(
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const decoded = verifyToken(token);
-    if (!decoded?.isAdmin && !decoded?.userId) {
+    if (!decoded?.isAdmin && !decoded?.userId && !decoded?.username) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
@@ -29,8 +29,7 @@ export async function POST(
     const schedule = await QRBroadcastSchedule.findOneAndUpdate(
       {
         _id: params.id,
-        userId: decoded.userId,
-        tenantId: decoded.tenantId || 'default',
+        \$or: [{ userId: decoded?.userId || decoded?.username || 'admin' }, { createdBy: decoded?.userId || decoded?.username || 'admin' }],
       },
       {
         isActive: true,

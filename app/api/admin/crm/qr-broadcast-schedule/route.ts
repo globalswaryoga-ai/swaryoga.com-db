@@ -5,50 +5,61 @@ import { getQRBroadcastSchedule } from '@/lib/schemas/enterpriseSchemas';
 
 export const dynamic = 'force-dynamic';
 
+/** Get consistent user ID from token (handles both admin and regular tokens) */
+function getUserId(decoded: any): string {
+  return decoded?.userId || decoded?.username || decoded?.id || 'admin';
+}
+
+/** Build filter for finding schedules owned by this user */
+function ownerFilter(decoded: any) {
+  const uid = getUserId(decoded);
+  // Match by userId OR createdBy — covers both creation paths
+  return { $or: [{ userId: uid }, { createdBy: uid }] };
+}
+
 export async function POST(req: NextRequest) {
   try {
     const token = req.headers.get('authorization')?.replace('Bearer ', '');
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const decoded = verifyToken(token);
-    if (!decoded?.isAdmin && !decoded?.userId) {
+    if (!decoded?.isAdmin && !decoded?.userId && !decoded?.username) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
     await connectDB();
     const QRBroadcastSchedule = getQRBroadcastSchedule();
-    const body = await req.json();
+    const body = await req.json().catch(() => null);
+
+    if (!body) {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
 
     // Validate required fields
-    if (!body.name || !body.messageText || !body.recipientChatIds?.length) {
-      return NextResponse.json(
-        { error: 'Missing required fields: name, messageText, recipientChatIds' },
-        { status: 400 }
-      );
+    if (!body.name?.trim()) {
+      return NextResponse.json({ error: 'Schedule name is required' }, { status: 400 });
     }
-
+    if (!body.messageText?.trim()) {
+      return NextResponse.json({ error: 'Message text is required' }, { status: 400 });
+    }
     if (!body.startTime || !body.endTime) {
-      return NextResponse.json(
-        { error: 'Time window required (startTime, endTime)' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Time window required (startTime, endTime)' }, { status: 400 });
+    }
+    if (body.maxMessagesPerDay && (body.maxMessagesPerDay < 1 || body.maxMessagesPerDay > 300)) {
+      return NextResponse.json({ error: 'maxMessagesPerDay must be 1-300' }, { status: 400 });
     }
 
-    if (body.maxMessagesPerDay && (body.maxMessagesPerDay < 1 || body.maxMessagesPerDay > 300)) {
-      return NextResponse.json(
-        { error: 'maxMessagesPerDay must be 1-300' },
-        { status: 400 }
-      );
-    }
+    const uid = getUserId(decoded);
+    const recipients = Array.isArray(body.recipientChatIds) ? body.recipientChatIds : [];
 
     const schedule = await QRBroadcastSchedule.create({
-      userId: decoded.userId,
-      tenantId: decoded.tenantId || 'default',
-      name: body.name,
-      messageText: body.messageText,
+      userId: uid,
+      tenantId: decoded?.tenantId || 'default',
+      name: body.name.trim(),
+      messageText: body.messageText.trim(),
       mediaUrls: body.mediaUrls || [],
-      recipientChatIds: body.recipientChatIds,
-      totalRecipients: body.recipientChatIds.length,
+      recipientChatIds: recipients,
+      totalRecipients: recipients.length,
       groupIds: body.groupIds || [],
       individualIds: body.individualIds || [],
       isActive: body.isActive !== false,
@@ -58,6 +69,16 @@ export async function POST(req: NextRequest) {
       frequency: body.frequency || 'once',
       daysOfWeek: body.daysOfWeek || [],
       maxMessagesPerDay: body.maxMessagesPerDay || 300,
+      gapStrategy: body.gapStrategy || {
+        initialGapMs: 7000,
+        initialGapCount: 2,
+        minGapMs: 45000,
+        maxGapMs: 120000,
+        ensureVariation: true,
+        ensureJitter: true,
+        jitterPercent: 15,
+        preset: 'SAFE',
+      },
       rateLimiting: body.rateLimiting || {
         enabled: true,
         minDelayMs: 3000,
@@ -72,18 +93,16 @@ export async function POST(req: NextRequest) {
         jitterPercent: 15,
       },
       status: 'draft',
-      createdBy: decoded.userId,
-      description: body.description,
+      createdBy: uid,
+      description: body.description || '',
       tags: body.tags || [],
     });
 
     return NextResponse.json({ success: true, data: schedule }, { status: 201 });
   } catch (error) {
-    console.error('[QR Broadcast Schedule API] Error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
-      { status: 500 }
-    );
+    console.error('[QR Broadcast Schedule POST] Error:', error);
+    const msg = error instanceof Error ? error.message : 'Internal server error';
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
 
@@ -93,28 +112,30 @@ export async function GET(req: NextRequest) {
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const decoded = verifyToken(token);
-    if (!decoded?.isAdmin && !decoded?.userId) {
+    if (!decoded?.isAdmin && !decoded?.userId && !decoded?.username) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
     await connectDB();
     const QRBroadcastSchedule = getQRBroadcastSchedule();
 
-    const schedules = await QRBroadcastSchedule.find(
-      {
-        userId: decoded.userId,
-        tenantId: decoded.tenantId || 'default',
-      },
-      {},
-      { sort: { createdAt: -1 }, lean: true }
-    );
+    const url = new URL(req.url);
+    const search = url.searchParams.get('search') || '';
+    const status = url.searchParams.get('status') || '';
+
+    const filter: any = { ...ownerFilter(decoded) };
+    if (status) filter.status = status;
+    if (search) filter.name = { $regex: search, $options: 'i' };
+
+    const schedules = await QRBroadcastSchedule.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .lean();
 
     return NextResponse.json({ success: true, data: schedules });
   } catch (error) {
-    console.error('[QR Broadcast Schedule API] Error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
-      { status: 500 }
-    );
+    console.error('[QR Broadcast Schedule GET] Error:', error);
+    const msg = error instanceof Error ? error.message : 'Internal server error';
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
