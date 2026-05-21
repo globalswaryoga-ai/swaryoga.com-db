@@ -115,6 +115,35 @@ export default function RootLayout({
           }}
         />
 
+        {/* Block broken CAPI gateway requests to AWS AppRunner (must run before pixel loads) */}
+        <Script
+          id="block-capi-gateway"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                var _origFetch = window.fetch;
+                window.fetch = function(url) {
+                  if (typeof url === 'string' && url.indexOf('awsapprunner.com') !== -1) {
+                    return Promise.resolve(new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } }));
+                  }
+                  return _origFetch.apply(this, arguments);
+                };
+                var _origOpen = XMLHttpRequest.prototype.open;
+                XMLHttpRequest.prototype.open = function(m, url) {
+                  this._blockedAppRunner = typeof url === 'string' && url.indexOf('awsapprunner.com') !== -1;
+                  return _origOpen.apply(this, arguments);
+                };
+                var _origSend = XMLHttpRequest.prototype.send;
+                XMLHttpRequest.prototype.send = function() {
+                  if (this._blockedAppRunner) return;
+                  return _origSend.apply(this, arguments);
+                };
+              })();
+            `,
+          }}
+        />
+
         {/* Meta Pixel Code - autoConfig disabled to prevent broken CAPI gateway */}
         <Script
           id="meta-pixel"
