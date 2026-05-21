@@ -27,29 +27,31 @@ export async function GET(req: NextRequest) {
     await connectDB();
 
     const decoded = verifyToken(req.headers.get('authorization') || '');
-    if (!decoded?.isAdmin && !decoded?.userId) {
+    if (!decoded?.isAdmin && !decoded?.userId && !decoded?.username) {
       return apiError('Unauthorized', 401);
     }
 
+    // Resolve effective userId — admin tokens have username not userId
+    const effectiveUserId = (decoded?.userId || decoded?.username || 'admin') as string;
+
     const CRMUserSettings = getCRMUserSettings();
-    let settings: any = await CRMUserSettings.findOne({ userId: decoded.userId }).lean();
+    let settings: any = await CRMUserSettings.findOne({ userId: effectiveUserId }).lean();
 
     // ── Auto-generate unique bridge secret for new users ──
-    // Every user gets a unique secret on first access so configs never collide.
     if (!settings?.qrBridgeSecret) {
-      const uniqueSecret = generateUniqueBridgeSecret(decoded.userId);
+      const uniqueSecret = generateUniqueBridgeSecret(effectiveUserId);
       settings = await CRMUserSettings.findOneAndUpdate(
-        { userId: decoded.userId },
+        { userId: effectiveUserId },
         {
-          $setOnInsert: { userId: decoded.userId },
+          $setOnInsert: { userId: effectiveUserId },
           $set: { qrBridgeSecret: uniqueSecret },
         },
         { upsert: true, new: true }
       ).lean();
-      console.log(`[crm-settings] Auto-generated unique bridge secret for user ${decoded.userId}`);
+      console.log(`[crm-settings] Auto-generated unique bridge secret for user ${effectiveUserId}`);
     }
 
-    const reconciled = await reconcileQrConnectedPhone(decoded.userId, {
+    const reconciled = await reconcileQrConnectedPhone(effectiveUserId, {
       isSuperAdmin: isSuperAdmin(decoded),
       storedPhone: settings?.qrConnectedPhoneNumber || '',
       phoneChangedAt: settings?.qrPhoneChangedAt || null,
@@ -92,9 +94,12 @@ export async function PUT(req: NextRequest) {
     await connectDB();
 
     const decoded = verifyToken(req.headers.get('authorization') || '');
-    if (!decoded?.isAdmin && !decoded?.userId) {
+    if (!decoded?.isAdmin && !decoded?.userId && !decoded?.username) {
       return apiError('Unauthorized', 401);
     }
+
+    // Resolve effective userId — admin tokens have username not userId
+    const effectiveUserId = (decoded?.userId || decoded?.username || 'admin') as string;
 
     const body = await req.json();
     const update: Record<string, any> = {};
@@ -121,22 +126,23 @@ export async function PUT(req: NextRequest) {
     const CRMUserSettings = getCRMUserSettings();
 
     // ── Uniqueness check for bridge secret ──
-    // Ensure no other user has the same bridge secret (prevents collision / shared access)
     if (update.qrBridgeSecret) {
       const conflict = await CRMUserSettings.findOne({
-        userId: { $ne: decoded.userId },
+        userId: { $ne: effectiveUserId },
         qrBridgeSecret: update.qrBridgeSecret,
       }).lean();
       if (conflict) {
-        // Collision detected — auto-regenerate a new unique secret
-        update.qrBridgeSecret = generateUniqueBridgeSecret(decoded.userId);
-        console.warn(`[crm-settings] Bridge secret collision for ${decoded.userId}, auto-regenerated`);
+        update.qrBridgeSecret = generateUniqueBridgeSecret(effectiveUserId);
+        console.warn(`[crm-settings] Bridge secret collision for ${effectiveUserId}, auto-regenerated`);
       }
     }
 
     const settings = await CRMUserSettings.findOneAndUpdate(
-      { userId: decoded.userId },
-      { $set: update },
+      { userId: effectiveUserId },
+      {
+        $set: update,
+        $setOnInsert: { userId: effectiveUserId },
+      },
       { upsert: true, new: true }
     );
 

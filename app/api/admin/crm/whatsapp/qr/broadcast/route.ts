@@ -28,8 +28,9 @@ const { url: BRIDGE_URL, secret: BRIDGE_SECRET } = getWhatsAppBridgeConfig();
 async function resolveBridgeConfig(userId: string) {
   await connectDB();
   const CRMUserSettings = getCRMUserSettings();
+  // Match by userId OR permanentTenantId (covers admin tokens using username as id)
   const settings = await CRMUserSettings.findOne(
-    { userId },
+    { $or: [{ userId }, { permanentTenantId: userId }] },
     { permanentTenantId: 1, qrBridgeUrl: 1, qrBridgeSecret: 1, qrWhatsappEnabled: 1 }
   ).lean() as any;
 

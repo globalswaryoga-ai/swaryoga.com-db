@@ -2,53 +2,43 @@
  * Auto-provision bridge URL + secret for QR WhatsApp tenants
  * Called on first access to QR page — uses permanent tenant ID
  * ALL users (including Super Admin) use /tenant/{permanentTenantId} pattern
- * 
+ *
  * POST /api/admin/crm/whatsapp/qr/auto-provision
  * Returns: { success: boolean, bridgeUrl?: string, bridgeSecret?: string, permanentTenantId?: string }
  */
 
 import { NextRequest } from 'next/server';
-import mongoose from 'mongoose';
 import { randomBytes } from 'crypto';
 import { connectDB } from '@/lib/db';
 import { getCRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 import { getWhatsAppBridgeUrl } from '@/lib/whatsappBridgeConfig';
 
 const BRIDGE_BASE_URL = getWhatsAppBridgeUrl();
 
 export async function POST(req: NextRequest) {
   try {
-    // ══════════════════════════════════════════════════════════════════════════
-    // AUTHENTICATION
-    // ══════════════════════════════════════════════════════════════════════════
     const decoded = verifyToken(req.headers.get('authorization') || '');
-    if (!decoded?.isAdmin && !decoded?.userId) {
+    if (!decoded?.isAdmin && !decoded?.userId && !decoded?.username) {
       return apiError('Unauthorized', 403);
     }
-    const userId = decoded.userId;
 
-    // ══════════════════════════════════════════════════════════════════════════
-    // DATABASE CONNECTION
-    // ══════════════════════════════════════════════════════════════════════════
+    // Resolve effective userId — admin tokens have username not userId
+    const userId = (decoded?.userId || decoded?.username || 'admin') as string;
+    const superAdmin = isSuperAdmin(decoded);
+
     await connectDB();
     const CRMUserSettings = getCRMUserSettings();
 
-    // ══════════════════════════════════════════════════════════════════════════
-    // AUTO-PROVISION: Check if permanent tenant ID & secret exist
-    // ══════════════════════════════════════════════════════════════════════════
-    let settings = await CRMUserSettings.findOne({ userId });
+    let settings = await CRMUserSettings.findOne({ userId }).lean() as any;
 
-    // ── PERMANENT TENANT ID (ONE USER = ONE BRIDGE SESSION) ──
-    // The live bridge isolates sessions via x-user-id header, so provision users
-    // against the working base bridge URL while keeping their own secret/session.
+    // ── If settings exist with permanentTenantId ──
     if (settings?.permanentTenantId) {
       const bridgeUrl = BRIDGE_BASE_URL;
-      const existingSecret = settings.qrBridgeSecret;
-      
-      // Ensure secret exists (generate if missing)
-      let bridgeSecret = existingSecret;
+      let bridgeSecret = settings.qrBridgeSecret;
+
       if (!bridgeSecret) {
         bridgeSecret = randomBytes(16).toString('hex');
         await CRMUserSettings.updateOne(
@@ -57,28 +47,51 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      console.log(`[QR Auto-Provision] ════════════════════════════════════════`);
-      console.log(`[QR Auto-Provision] userId=${userId}`);
-      console.log(`[QR Auto-Provision] permanentTenantId=${settings.permanentTenantId}`);
-      console.log(`[QR Auto-Provision] Using isolated header-based bridge session=${bridgeUrl}`);
-      console.log(`[QR Auto-Provision] ════════════════════════════════════════`);
+      console.log(`[QR Auto-Provision] userId=${userId} permanentTenantId=${settings.permanentTenantId}`);
 
       return apiSuccess({
         success: true,
         bridgeUrl,
         bridgeSecret,
         permanentTenantId: settings.permanentTenantId,
-        created: false, // already provisioned
+        created: false,
       });
     }
 
-    // Fallback: If somehow permanentTenantId doesn't exist (shouldn't happen)
-    // Return error asking user to contact admin
+    // ── Super admins: auto-provision with their userId as session key ──
+    if (superAdmin) {
+      const bridgeSecret = settings?.qrBridgeSecret || randomBytes(16).toString('hex');
+      const permanentTenantId = userId; // Use userId as their permanent session key
+
+      // Upsert the settings with permanentTenantId
+      await CRMUserSettings.findOneAndUpdate(
+        { userId },
+        {
+          $set: {
+            qrBridgeSecret: bridgeSecret,
+            permanentTenantId,
+            qrWhatsappEnabled: true,
+          },
+          $setOnInsert: { userId },
+        },
+        { upsert: true, new: true }
+      );
+
+      console.log(`[QR Auto-Provision] Super admin ${userId} auto-provisioned with tenantId=${permanentTenantId}`);
+
+      return apiSuccess({
+        success: true,
+        bridgeUrl: BRIDGE_BASE_URL,
+        bridgeSecret,
+        permanentTenantId,
+        created: true,
+      });
+    }
+
+    // Non-super-admin with no permanentTenantId
     console.warn(`[QR Auto-Provision] BLOCKED: User ${userId} has no permanentTenantId`);
-    return apiError(
-      'Permanent tenant ID not found. Please contact support.',
-      422
-    );
+    return apiError('Permanent tenant ID not found. Please contact support.', 422);
+
   } catch (error: any) {
     const msg = error?.message || 'Unknown error';
     console.error('[QR Auto-Provision] Error:', msg, error);
