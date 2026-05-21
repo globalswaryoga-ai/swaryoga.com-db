@@ -34,6 +34,15 @@
     },
     "app/api/whatsapp/qr/webhook/route.ts": {
       "maxDuration": 60
+    },
+    "app/api/cron/backup/route.ts": {
+      "maxDuration": 300
+    },
+    "app/api/cron/export/route.ts": {
+      "maxDuration": 300
+    },
+    "app/api/cron/weekly-sync/route.ts": {
+      "maxDuration": 300
     }
   },
   "crons": [
@@ -64,6 +73,18 @@
     {
       "path": "/api/admin/crm/inactive-cleanup/run",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/backup",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/export",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/weekly-sync",
+      "schedule": "0 2 * * 0"
     }
   ],
   "headers": [
