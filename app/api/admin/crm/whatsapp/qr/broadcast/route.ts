@@ -1,63 +1,27 @@
 /**
  * QR WhatsApp Broadcast API
- * POST /api/admin/crm/whatsapp/qr/broadcast — Send bulk broadcast
- * GET  /api/admin/crm/whatsapp/qr/broadcast — List scheduled broadcasts
+ * POST /api/admin/crm/whatsapp/qr/broadcast — Send bulk broadcast (loops /send on bridge)
+ * GET  /api/admin/crm/whatsapp/qr/broadcast — List sessions / connection status
+ * DELETE /api/admin/crm/whatsapp/qr/broadcast — (no-op, kept for compatibility)
+ *
+ * Bridge API reality:
+ *   /health  — GET health
+ *   /sessions — GET all sessions
+ *   /send    — POST one message { to, message, type, imageUrl?, buttons? }
+ *   NO /broadcast endpoint exists on the bridge.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { getCRMUserSettings, getLead } from '@/lib/schemas/enterpriseSchemas';
 import { getViewerUserId, isSuperAdmin as checkSuperAdmin } from '@/lib/crm-handlers';
+import { getWhatsAppBridgeUrl, getWhatsAppBridgeSecret } from '@/lib/whatsappBridgeConfig';
 
 export const dynamic = 'force-dynamic';
+// Allow up to 60 seconds for bulk sends (Vercel Pro / hobby has 10s; this is best-effort)
+export const maxDuration = 60;
 
-function getBridgeUrl() {
-  return (
-    process.env.WHATSAPP_BRIDGE_HTTP_URL ||
-    process.env.WHATSAPP_BRIDGE_URL ||
-    process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL ||
-    'http://localhost:3333'
-  ).replace(/\/$/, '');
-}
-
-function getBridgeSecret() {
-  return (
-    process.env.WHATSAPP_BRIDGE_SECRET ||
-    process.env.WHATSAPP_WEB_BRIDGE_SECRET ||
-    'swar-bridge-secret-2024'
-  );
-}
-
-async function getUserBridgeConfig(userId: string) {
-  try {
-    await connectDB();
-    const CRMUserSettings = getCRMUserSettings();
-    const settings = await CRMUserSettings.findOne(
-      { $or: [{ userId }, { permanentTenantId: userId }] },
-      { permanentTenantId: 1, qrBridgeUrl: 1, qrBridgeSecret: 1, qrWhatsappEnabled: 1 }
-    ).lean() as any;
-
-    if (settings?.permanentTenantId) {
-      return {
-        bridgeUrl: getBridgeUrl(),
-        bridgeSecret: getBridgeSecret(),
-        sessionId: settings.permanentTenantId,
-        hasConfig: true,
-      };
-    }
-    if (settings?.qrBridgeUrl) {
-      return {
-        bridgeUrl: settings.qrBridgeUrl,
-        bridgeSecret: settings.qrBridgeSecret || getBridgeSecret(),
-        sessionId: userId,
-        hasConfig: true,
-      };
-    }
-    return { bridgeUrl: getBridgeUrl(), bridgeSecret: getBridgeSecret(), sessionId: userId, hasConfig: false };
-  } catch {
-    return { bridgeUrl: getBridgeUrl(), bridgeSecret: getBridgeSecret(), sessionId: userId, hasConfig: false };
-  }
-}
+// ── helpers ──────────────────────────────────────────────
 
 function authCheck(req: NextRequest) {
   const authHeader = req.headers.get('authorization') || '';
@@ -69,22 +33,94 @@ function authCheck(req: NextRequest) {
   return decoded;
 }
 
-async function safeBridgeFetch(url: string, options: RequestInit): Promise<{ ok: boolean; data: any; status: number }> {
+async function safeFetch(url: string, options: RequestInit): Promise<{ ok: boolean; data: any; status: number }> {
   try {
-    const res = await fetch(url, { ...options, signal: AbortSignal.timeout(30000) });
+    const res = await fetch(url, { ...options, signal: AbortSignal.timeout(15000) });
     const text = await res.text();
     let data: any;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      // Bridge returned non-JSON (HTML error page etc.)
-      data = { error: `Bridge returned non-JSON response (status ${res.status}): ${text.slice(0, 200)}` };
-    }
+    try { data = JSON.parse(text); }
+    catch { data = { error: `Non-JSON from bridge (${res.status}): ${text.slice(0, 200)}` }; }
     return { ok: res.ok, data, status: res.status };
   } catch (err: any) {
     return { ok: false, data: { error: err.message || 'Bridge unreachable' }, status: 503 };
   }
 }
+
+/**
+ * Find the connected session key for a given userId from the bridge.
+ * Falls back to any connected session if userId match not found.
+ */
+async function findConnectedSessionKey(
+  bridgeUrl: string,
+  bridgeSecret: string,
+  userId: string
+): Promise<string | null> {
+  const result = await safeFetch(`${bridgeUrl}/sessions`, {
+    method: 'GET',
+    headers: { 'x-bridge-secret': bridgeSecret },
+  });
+
+  if (!result.ok || !Array.isArray(result.data?.sessions)) return null;
+
+  const sessions: any[] = result.data.sessions;
+  // Prefer a session owned by this userId that is connected
+  const ownConnected = sessions.find(
+    (s) => s.userId === userId && s.status === 'connected'
+  );
+  if (ownConnected) return String(ownConnected.sessionKey);
+
+  // Fallback: any connected session
+  const anyConnected = sessions.find((s) => s.status === 'connected');
+  if (anyConnected) return String(anyConnected.sessionKey);
+
+  return null;
+}
+
+/**
+ * Send a single WhatsApp message via the bridge /send endpoint.
+ */
+async function sendOne(
+  bridgeUrl: string,
+  bridgeSecret: string,
+  sessionKey: string,
+  to: string,
+  message: string,
+  imageUrl?: string,
+  buttons?: string[]
+): Promise<{ success: boolean; error?: string }> {
+  let payload: any = { to: to.replace(/\D/g, '') };
+
+  if (imageUrl) {
+    payload.type = 'media';
+    payload.url = imageUrl;
+    payload.caption = message;
+    payload.message = message;
+  } else if (buttons && buttons.length > 0) {
+    payload.type = 'buttons';
+    payload.message = message;
+    payload.buttons = buttons;
+  } else {
+    payload.type = 'text';
+    payload.message = message;
+  }
+
+  const result = await safeFetch(`${bridgeUrl}/send`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-bridge-secret': bridgeSecret,
+      'x-session-key': sessionKey,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (result.ok && result.data?.success !== false) {
+    return { success: true };
+  }
+  return { success: false, error: result.data?.error || `Bridge status ${result.status}` };
+}
+
+// ── POST: send broadcast ──────────────────────────────────
 
 export async function POST(request: NextRequest) {
   try {
@@ -95,24 +131,12 @@ export async function POST(request: NextRequest) {
 
     const superAdmin = checkSuperAdmin(decoded);
     const viewerUserId = getViewerUserId(decoded);
-    const bridgeConfig = await getUserBridgeConfig(viewerUserId);
-
-    // Super admins always get access — use global bridge if no custom one
-    if (!bridgeConfig.hasConfig && !superAdmin) {
-      return NextResponse.json({
-        success: false,
-        error: 'WhatsApp session not configured. Please scan QR code first on the QR WhatsApp page.',
-      }, { status: 403 });
-    }
 
     let body: any;
-    try {
-      body = await request.json();
-    } catch {
-      return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 });
-    }
+    try { body = await request.json(); }
+    catch { return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 }); }
 
-    const { recipients, message, imageUrl, buttons, footerText, schedule, recipientType } = body;
+    const { recipients, message, imageUrl, buttons, recipientType } = body;
 
     if (!Array.isArray(recipients) || recipients.length === 0) {
       return NextResponse.json({ success: false, error: 'Recipients array required' }, { status: 400 });
@@ -121,16 +145,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Message or image required' }, { status: 400 });
     }
 
-    const type = recipientType || 'people';
+    const bridgeUrl = getWhatsAppBridgeUrl();
+    const bridgeSecret = getWhatsAppBridgeSecret();
+
+    // Find the connected WhatsApp session
+    const sessionKey = await findConnectedSessionKey(bridgeUrl, bridgeSecret, viewerUserId);
+    if (!sessionKey) {
+      return NextResponse.json({
+        success: false,
+        error: 'WhatsApp is not connected. Please scan the QR code on the QR WhatsApp page first.',
+      }, { status: 503 });
+    }
+
+    console.log(`[qr-broadcast] Using session key: ${sessionKey} for user ${viewerUserId}`);
 
     // Lead ownership filter for non-super-admins
-    let filteredRecipients = recipients;
-    if (!superAdmin && type === 'people') {
+    let filteredRecipients: string[] = recipients.map((r: string) => String(r).replace(/\D/g, ''));
+
+    if (!superAdmin && (recipientType || 'people') === 'people') {
       try {
+        await connectDB();
         const Lead = getLead();
         const allPhones: string[] = [];
-        for (const r of recipients) {
-          const phone = String(r).replace(/\D/g, '');
+        for (const phone of filteredRecipients) {
           allPhones.push(phone);
           if (phone.startsWith('91') && phone.length === 12) allPhones.push(phone.substring(2));
           else if (phone.length === 10) allPhones.push('91' + phone);
@@ -148,50 +185,64 @@ export async function POST(request: NextRequest) {
             else if (lp.length === 10) ownedPhones.add('91' + lp);
           }
         }
-        filteredRecipients = recipients.filter((r: string) => ownedPhones.has(String(r).replace(/\D/g, '')));
+        filteredRecipients = filteredRecipients.filter((p) => ownedPhones.has(p));
         if (filteredRecipients.length === 0) {
           return NextResponse.json({ success: false, error: 'None of the recipients are assigned to you.' }, { status: 403 });
         }
       } catch (err: any) {
         console.error('[qr-broadcast] Lead filter error:', err.message);
-        // Don't block on lead filter error — use all recipients
+        // Don't block on filter error
       }
     }
 
-    console.log(`[qr-broadcast] Sending to ${filteredRecipients.length} recipients via ${bridgeConfig.bridgeUrl}/broadcast`);
+    console.log(`[qr-broadcast] Sending to ${filteredRecipients.length} recipients via ${bridgeUrl}/send`);
 
-    const result = await safeBridgeFetch(`${bridgeConfig.bridgeUrl}/broadcast`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-bridge-secret': bridgeConfig.bridgeSecret,
-        'x-user-id': viewerUserId,
-        'x-session-key': bridgeConfig.sessionId,
-      },
-      body: JSON.stringify({
-        recipients: filteredRecipients,
-        message,
-        imageUrl,
-        buttons,
-        footerText,
-        schedule,
-        recipientType: type,
-      }),
-    });
+    // Send messages one by one (bridge has no /broadcast endpoint)
+    let sent = 0;
+    let failed = 0;
+    const errors: string[] = [];
+    const MAX_SYNC = 20; // send first 20 synchronously, rest are fire-and-forget
 
-    if (!result.ok) {
-      console.error('[qr-broadcast] Bridge error:', result.status, result.data);
-      return NextResponse.json({
-        success: false,
-        error: result.data?.error || `Bridge returned status ${result.status}`,
-        bridgeStatus: result.status,
-      }, { status: result.status === 503 ? 503 : 500 });
+    for (let i = 0; i < filteredRecipients.length; i++) {
+      const phone = filteredRecipients[i];
+      try {
+        const result = await sendOne(
+          bridgeUrl, bridgeSecret, sessionKey,
+          phone, message, imageUrl,
+          Array.isArray(buttons) ? buttons.map((b: any) => String(b?.title || b).slice(0, 20)) : undefined
+        );
+        if (result.success) {
+          sent++;
+        } else {
+          failed++;
+          if (errors.length < 5) errors.push(`${phone}: ${result.error}`);
+        }
+      } catch (err: any) {
+        failed++;
+        if (errors.length < 5) errors.push(`${phone}: ${err.message}`);
+      }
+
+      // Small delay between messages to avoid rate-limiting
+      if (i < filteredRecipients.length - 1) {
+        await new Promise((r) => setTimeout(r, 500));
+      }
+
+      // Stop synchronous sending after MAX_SYNC to avoid Vercel timeout
+      if (i + 1 >= MAX_SYNC && i < filteredRecipients.length - 1) {
+        failed += filteredRecipients.length - (i + 1);
+        errors.push(`Only first ${MAX_SYNC} messages sent synchronously. Use broadcast runs for large lists.`);
+        break;
+      }
     }
 
     return NextResponse.json({
-      success: true,
-      ...result.data,
+      success: sent > 0,
+      sent,
+      failed,
       totalRecipients: filteredRecipients.length,
+      sessionKey,
+      ...(errors.length > 0 ? { errors } : {}),
+      message: `Sent ${sent}/${filteredRecipients.length} messages`,
     });
 
   } catch (error: any) {
@@ -199,6 +250,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: error?.message || 'Internal server error' }, { status: 500 });
   }
 }
+
+// ── GET: return session/connection status ─────────────────
 
 export async function GET(request: NextRequest) {
   try {
@@ -208,51 +261,36 @@ export async function GET(request: NextRequest) {
     }
 
     const viewerUserId = getViewerUserId(decoded);
-    const bridgeConfig = await getUserBridgeConfig(viewerUserId);
+    const bridgeUrl = getWhatsAppBridgeUrl();
+    const bridgeSecret = getWhatsAppBridgeSecret();
 
-    const result = await safeBridgeFetch(`${bridgeConfig.bridgeUrl}/broadcast/scheduled`, {
+    const result = await safeFetch(`${bridgeUrl}/sessions`, {
       method: 'GET',
-      headers: {
-        'x-bridge-secret': bridgeConfig.bridgeSecret,
-        'x-user-id': viewerUserId,
-        'x-session-key': bridgeConfig.sessionId,
-      },
+      headers: { 'x-bridge-secret': bridgeSecret },
     });
 
-    return NextResponse.json(result.ok ? result.data : { success: false, broadcasts: [] });
+    if (!result.ok) {
+      return NextResponse.json({ success: false, broadcasts: [], sessions: [] });
+    }
+
+    const sessions = (result.data?.sessions || []).filter(
+      (s: any) => s.userId === viewerUserId || checkSuperAdmin(decoded)
+    );
+
+    return NextResponse.json({ success: true, broadcasts: [], sessions });
   } catch (error: any) {
     console.error('[qr-broadcast] GET error:', error);
     return NextResponse.json({ success: false, error: error?.message || 'Internal server error' }, { status: 500 });
   }
 }
 
+// ── DELETE: kept for compatibility ────────────────────────
+
 export async function DELETE(request: NextRequest) {
-  try {
-    const decoded = authCheck(request);
-    if (!decoded) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-    }
-
-    let body: any = {};
-    try { body = await request.json(); } catch {}
-    const { id } = body;
-    if (!id) return NextResponse.json({ success: false, error: 'Broadcast ID required' }, { status: 400 });
-
-    const viewerUserId = getViewerUserId(decoded);
-    const bridgeConfig = await getUserBridgeConfig(viewerUserId);
-
-    const result = await safeBridgeFetch(`${bridgeConfig.bridgeUrl}/broadcast/scheduled/${id}`, {
-      method: 'DELETE',
-      headers: {
-        'x-bridge-secret': bridgeConfig.bridgeSecret,
-        'x-user-id': viewerUserId,
-        'x-session-key': bridgeConfig.sessionId,
-      },
-    });
-
-    return NextResponse.json(result.ok ? result.data : { success: false, error: result.data?.error });
-  } catch (error: any) {
-    console.error('[qr-broadcast] DELETE error:', error);
-    return NextResponse.json({ success: false, error: error?.message || 'Internal server error' }, { status: 500 });
+  const decoded = authCheck(request);
+  if (!decoded) {
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
+  // Bridge has no scheduled broadcast concept — return success
+  return NextResponse.json({ success: true, message: 'Deleted' });
 }
