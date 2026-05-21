@@ -38,7 +38,14 @@ class CrmPlannerMongoStorage {
 
   private getToken(): string | null {
     if (typeof window === 'undefined') return null;
-    return localStorage.getItem('token') || getSession()?.token || null;
+    return (
+      localStorage.getItem('admin_token') ||
+      localStorage.getItem('adminToken') ||
+      localStorage.getItem('crm_token') ||
+      localStorage.getItem('token') ||
+      getSession()?.token ||
+      null
+    );
   }
 
   private getTenantId(): string | null {

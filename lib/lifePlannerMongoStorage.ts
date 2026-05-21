@@ -40,7 +40,15 @@ class LifePlannerMongoStorage {
 
   private getToken(): string | null {
     if (typeof window === 'undefined') return null;
-    return localStorage.getItem('lifePlannerToken') || localStorage.getItem('token') || getSession()?.token || null;
+    return (
+      localStorage.getItem('admin_token') ||
+      localStorage.getItem('adminToken') ||
+      localStorage.getItem('crm_token') ||
+      localStorage.getItem('lifePlannerToken') ||
+      localStorage.getItem('token') ||
+      getSession()?.token ||
+      null
+    );
   }
 
   private getTenantId(): string | null {
