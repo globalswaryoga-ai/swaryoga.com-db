@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { handleCrmError } from '@/lib/crm-handlers';
 import { getProgramsCollection, slugify } from '@/lib/sadhanaPrograms';
-import { verifyJWT } from '@/lib/auth';
+import { verifyToken } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     }
 
     const token = authHeader.slice(7);
-    const decoded = verifyJWT(token);
+    const decoded = verifyToken(token);
     if (!decoded) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
     }
 
     const token = authHeader.slice(7);
-    const decoded = verifyJWT(token);
+    const decoded = verifyToken(token);
     if (!decoded) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
