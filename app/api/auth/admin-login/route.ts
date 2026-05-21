@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
         clearFailures();
         const token = jwt.sign(
           { username, isAdmin: true },
-          process.env.JWT_SECRET || 'your-secret-key',
+          process.env.JWT_SECRET || 'your-secret-key-change-in-production',
           { expiresIn: '7d' }
         );
         return NextResponse.json({ success: true, token, username, message: 'Admin login successful' });
@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
       clearFailures();
       const token = jwt.sign(
         { username, isAdmin: true },
-        process.env.JWT_SECRET || 'your-secret-key',
+        process.env.JWT_SECRET || 'your-secret-key-change-in-production',
         { expiresIn: '7d' }
       );
       return NextResponse.json({ success: true, token, username, message: 'Admin login successful' });
