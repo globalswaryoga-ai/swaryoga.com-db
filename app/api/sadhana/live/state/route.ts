@@ -6,7 +6,7 @@ import mongoose from 'mongoose';
 
 async function getDb() {
   await connectDB();
-  return mongoose.connection.useDb('swaryoga_admin_crm');
+  return mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
 }
 
 /**

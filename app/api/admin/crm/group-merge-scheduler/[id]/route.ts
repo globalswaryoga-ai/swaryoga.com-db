@@ -48,7 +48,7 @@ let GroupMergeSchedule: any;
 
 async function getGroupMergeScheduleModel() {
   if (!GroupMergeSchedule) {
-    const db = mongoose.connection.useDb('swaryoga_admin_crm');
+    const db = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
     if (db.models.GroupMergeSchedule) {
       GroupMergeSchedule = db.models.GroupMergeSchedule;
     } else {

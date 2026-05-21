@@ -51,7 +51,7 @@ const sadhanaScheduleSchema = new mongoose.Schema(
 );
 
 async function getSadhanaScheduleModel() {
-  const db = mongoose.connection.useDb('swaryoga_admin_crm');
+  const db = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
   return db.models.SadhanaSchedule || db.model('SadhanaSchedule', sadhanaScheduleSchema);
 }
 

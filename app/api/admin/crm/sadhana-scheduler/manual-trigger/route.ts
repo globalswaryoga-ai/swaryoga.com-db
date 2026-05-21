@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get the schedule
-    const db = mongoose.connection.useDb('swaryoga_admin_crm');
+    const db = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
     const schedule = await db.collection('sadhana_schedules').findOne({
       _id: new mongoose.Types.ObjectId(scheduleId),
     });

@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     console.log(`[Sadhana Check] ⏰ Running scheduler check at ${now.toISOString()}`);
 
     // Get all active Sadhana schedules
-    const db = mongoose.connection.useDb('swaryoga_admin_crm');
+    const db = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
     const SadhanaSchedule =
       db.models.SadhanaSchedule ||
       db.model(

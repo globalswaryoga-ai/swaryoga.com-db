@@ -30,9 +30,10 @@ export const verifyAdminAccess = (request: NextRequest): string => {
   const token = request.headers.get('authorization')?.slice('Bearer '.length);
   const decoded = verifyToken(token);
 
-  if (!decoded?.isAdmin && !decoded?.userId) throw new Error('Unauthorized');
+  if (!decoded?.isAdmin && !decoded?.userId && !decoded?.username) throw new Error('Unauthorized');
 
-  return decoded.userId as string;
+  // Return userId for regular admins, or username for admin-login tokens
+  return (decoded?.userId || decoded?.username || 'admin') as string;
 };
 
 /**
@@ -121,10 +122,18 @@ export const getViewerUserId = (decoded: any): string => {
  *   Leads             = end-users / contacts (not admin users)
  */
 const SUPER_ADMIN_IDS = new Set(['admin', 'admincrm']);
+const SUPER_ADMIN_USERNAMES = new Set(['admin', 'admincrm']);
 
 export const isSuperAdmin = (decoded: any): boolean => {
+  // Check userId (regular admin users stored in DB)
   const uid = String(decoded?.userId || '').trim();
-  return SUPER_ADMIN_IDS.has(uid);
+  if (SUPER_ADMIN_IDS.has(uid)) return true;
+  // Check username (admin-login tokens have username instead of userId)
+  const uname = String(decoded?.username || '').trim().toLowerCase();
+  if (SUPER_ADMIN_USERNAMES.has(uname)) return true;
+  // Check isAdmin flag (admin-login tokens set this)
+  if (decoded?.isAdmin === true) return true;
+  return false;
 };
 
 /**

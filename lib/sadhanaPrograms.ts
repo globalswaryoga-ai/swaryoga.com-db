@@ -3,7 +3,8 @@ import mongoose from 'mongoose';
 
 export async function getProgramsDb() {
   await connectDB();
-  return mongoose.connection.useDb('swaryoga_admin_crm');
+  const crmDb = process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm';
+  return mongoose.connection.useDb(crmDb);
 }
 
 export async function getProgramsCollection() {
