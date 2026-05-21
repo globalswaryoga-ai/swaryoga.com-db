@@ -24,70 +24,79 @@ function getTenantId(request: NextRequest): string | null {
   return request.headers.get(TENANT_HEADER);
 }
 
+// Empty data structure returned when user not found
+const EMPTY_DATA = {
+  data: [],
+  visions: [], actionPlans: [], goals: [], tasks: [],
+  todos: [], words: [], reminders: [], healthRoutines: [],
+  dailyHealthPlans: [], diamondPeople: [], progress: [],
+};
+
 // GET CRM Planner data for a user
 export async function GET(request: NextRequest) {
   try {
     await connectDB();
 
-    // Auth: accept either userId or email in JWT
-    const identity = getAuthedIdentity(request);
+    // Auth: accept userId/email in JWT, also handle admin tokens (isAdmin:true)
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const token = authHeader.slice(7);
+    const { verifyToken: vt } = await import('@/lib/auth');
+    const payload = vt(token);
+    if (!payload) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
+
     const tenantId = getTenantId(request);
     const searchParams = request.nextUrl.searchParams;
     const dataType = searchParams.get('type'); // crm_visions, crm_goals, etc.
 
-    console.log(`[CRM-GET] Fetching ${dataType || 'all'} for user`, {
-      hasUserId: !!identity?.userId,
-      hasEmail: !!identity?.email,
-      tenantId,
-    });
+    // Extract user identity: try userId, email, or username (admin fallback)
+    const userId = payload.userId || payload._id || payload.id;
+    const email = payload.email;
+    const adminUsername = payload.username;
+    const isAdmin = payload.isAdmin;
 
-    if (!identity?.userId && !identity?.email) {
-      console.warn('[CRM-GET] Unauthorized - no userId/email found');
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+    // Require at least one identifier
+    if (!userId && !email && !adminUsername) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const userId = identity.userId;
-    const email = identity.email;
-
-    console.log(`[CRM-GET] User context:`, {
-      hasUserId: !!userId,
-      hasEmail: !!email,
-      tenantId: tenantId || 'none',
-      userIdIsValidObjectId: userId && Types.ObjectId.isValid(userId),
-    });
-
-    // Find user: if tenantId provided, use it for filtering (CRM context)
-    // Otherwise just filter by userId/email (regular user context)
-    const query = tenantId
-      ? (userId && Types.ObjectId.isValid(userId)
-          ? { _id: userId, tenantId }
-          : email
-            ? { email: email.trim().toLowerCase(), tenantId }
-            : null)
-      : (userId && Types.ObjectId.isValid(userId)
-          ? { _id: userId }
-          : email
-            ? { email: email.trim().toLowerCase() }
-            : null);
-
-    console.log(`[CRM-GET] Query:`, JSON.stringify(query));
-
-    if (!query) {
-      console.error(`[CRM-GET] Invalid user context - query is null`);
-      return NextResponse.json(
-        { error: 'Invalid user context' },
-        { status: 400 }
-      );
+    // Build query with fallbacks: try userId first, then email, then admin username
+    const orConditions: any[] = [];
+    if (userId && Types.ObjectId.isValid(String(userId))) {
+      orConditions.push(tenantId ? { _id: userId, tenantId } : { _id: userId });
+    }
+    if (email) {
+      orConditions.push(tenantId
+        ? { email: email.trim().toLowerCase(), tenantId }
+        : { email: email.trim().toLowerCase() });
+    }
+    // For admin users, look for a user matching their admin email or username
+    if (isAdmin && adminUsername) {
+      orConditions.push({ adminUsername });
+      // Also check if admin has a user email set in their profile
+      const adminEmail = process.env.ADMIN_EMAIL || `${adminUsername}@admin.swaryoga.com`;
+      orConditions.push({ email: adminEmail.toLowerCase() });
     }
 
-    const user = await User.findOne(query).lean();
+    if (orConditions.length === 0) {
+      return NextResponse.json({ error: 'Invalid user context' }, { status: 400 });
+    }
 
+    const query = orConditions.length === 1 ? orConditions[0] : { $or: orConditions };
+    let user = await User.findOne(query).lean();
+
+    // If admin user not found, return empty data (admin's planner starts empty)
     if (!user) {
-      console.error(`[CRM-GET] User not found`);
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      console.warn(`[CRM-GET] User not found for query, returning empty data`);
+      if (dataType) {
+        return NextResponse.json({ data: [] });
+      }
+      return NextResponse.json(EMPTY_DATA);
     }
 
     const doc = user as Record<string, any>;
@@ -133,96 +142,95 @@ export async function POST(request: NextRequest) {
   try {
     await connectDB();
 
-    const body = await request.json();
-    const { type, data } = body;
-    const identity = getAuthedIdentity(request);
-    const tenantId = getTenantId(request);
-
-    console.log(`[CRM-POST] Updating ${type} for user`, {
-      hasUserId: !!identity?.userId,
-      hasEmail: !!identity?.email,
-      tenantId,
-    });
-
-    if (!identity?.userId && !identity?.email) {
-      console.warn('[CRM-POST] Unauthorized - no userId/email found');
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const token = authHeader.slice(7);
+    const { verifyToken: vt } = await import('@/lib/auth');
+    const payload = vt(token);
+    if (!payload) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { type, data } = body;
+    const tenantId = getTenantId(request);
+
     if (!type) {
-      return NextResponse.json(
-        { error: 'Type is required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Type is required' }, { status: 400 });
     }
 
     // Convert crm_visions -> crmVisions, crm_goals -> crmGoals, etc.
     const fieldName = 'crm' + type
       .replace(/^crm_/, '')
       .split('_')
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
       .join('');
 
-    const userId = identity.userId;
-    const email = identity.email;
+    const userId = payload.userId || payload._id || payload.id;
+    const email = payload.email;
+    const adminUsername = payload.username;
+    const isAdmin = payload.isAdmin;
 
-    console.log(`[CRM-POST] User context:`, {
-      type,
-      fieldName,
-      hasUserId: !!userId,
-      hasEmail: !!email,
-      tenantId: tenantId || 'none',
-      userIdIsValidObjectId: userId && Types.ObjectId.isValid(userId),
-    });
+    if (!userId && !email && !adminUsername) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-    // Update user with new CRM Planner data
-    // If tenantId provided, use it for filtering (CRM context)
-    // Otherwise just filter by userId/email (regular user context)
-    const query = tenantId
-      ? (userId && Types.ObjectId.isValid(userId)
-          ? { _id: userId, tenantId }
-          : email
-            ? { email: email.trim().toLowerCase(), tenantId }
-            : null)
-      : (userId && Types.ObjectId.isValid(userId)
-          ? { _id: userId }
-          : email
-            ? { email: email.trim().toLowerCase() }
-            : null);
+    // Build query with all possible identifiers
+    const orConditions: any[] = [];
+    if (userId && Types.ObjectId.isValid(String(userId))) {
+      orConditions.push(tenantId ? { _id: userId, tenantId } : { _id: userId });
+    }
+    if (email) {
+      orConditions.push(tenantId
+        ? { email: email.trim().toLowerCase(), tenantId }
+        : { email: email.trim().toLowerCase() });
+    }
+    if (isAdmin && adminUsername) {
+      orConditions.push({ adminUsername });
+      const adminEmail = process.env.ADMIN_EMAIL || `${adminUsername}@admin.swaryoga.com`;
+      orConditions.push({ email: adminEmail.toLowerCase() });
+    }
 
-    console.log(`[CRM-POST] Query:`, JSON.stringify(query));
+    if (orConditions.length === 0) {
+      return NextResponse.json({ error: 'Invalid user context' }, { status: 400 });
+    }
 
-    if (!query) {
-      console.error(`[CRM-POST] Invalid user context - query is null`);
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
+    const query = orConditions.length === 1 ? orConditions[0] : { $or: orConditions };
+
+    // Try to update existing user, or upsert for admin
+    let user;
+    if (isAdmin && adminUsername) {
+      // For admin users, upsert so they can save data even if no user record exists
+      const adminEmail = (process.env.ADMIN_EMAIL || `${adminUsername}@admin.swaryoga.com`).toLowerCase();
+      user = await User.findOneAndUpdate(
+        { $or: [{ adminUsername }, { email: adminEmail }] },
+        {
+          $set: { [fieldName]: data, updatedAt: new Date() },
+          $setOnInsert: { email: adminEmail, adminUsername, name: adminUsername, createdAt: new Date() },
+        },
+        { new: true, upsert: true }
+      );
+    } else {
+      user = await User.findOneAndUpdate(
+        query,
+        { $set: { [fieldName]: data, updatedAt: new Date() } },
+        { new: true }
       );
     }
 
-    const user = await User.findOneAndUpdate(
-      query,
-      {
-        [fieldName]: data,
-        updatedAt: new Date(),
-      },
-      { new: true }
-    );
-
     if (!user) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
+      // Return success with empty data instead of 404
+      console.warn(`[CRM-POST] User not found, data not saved`);
+      return NextResponse.json({ message: 'No user found to update', data: [] });
     }
 
     console.log(`[CRM-POST] ✅ Updated ${type}`);
     return NextResponse.json({
       message: 'Data saved successfully',
-      data: user[fieldName as keyof typeof user],
+      data: (user as any)[fieldName],
     });
   } catch (error: any) {
     console.error('CRM Planner data update error:', error?.message || error, error?.stack);

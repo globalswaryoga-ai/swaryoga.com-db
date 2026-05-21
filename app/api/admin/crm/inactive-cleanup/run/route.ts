@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
       // Super admin authorization
       const token = authHeader.slice('Bearer '.length);
       const decoded = verifyToken(token);
-      isAuthorized = decoded && isSuperAdmin(decoded);
+      isAuthorized = !!(decoded && isSuperAdmin(decoded));
     }
 
     if (!isAuthorized) {
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
       // Super admin authorization
       const token = authHeader.slice('Bearer '.length);
       const decoded = verifyToken(token);
-      isAuthorized = decoded && isSuperAdmin(decoded);
+      isAuthorized = !!(decoded && isSuperAdmin(decoded));
     }
 
     if (!isAuthorized) {

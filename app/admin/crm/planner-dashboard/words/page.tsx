@@ -277,7 +277,7 @@ export default function WordsPage() {
       priority: form.priority as any,
       customDays: form.repeat === 'custom' ? form.customDays : undefined,
       todos: form.todos,
-    } as Word;
+    } as unknown as Word;
 
     setWords(prev => {
       if (editingId) return prev.map(w => (w.id === editingId ? next : w));

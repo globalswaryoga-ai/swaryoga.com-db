@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,7 +37,7 @@ export async function GET(req: NextRequest) {
     // 1. Database Connectivity
     try {
       await connectDB();
-      const db = (await import('@/lib/db')).getDb();
+      const db = mongoose.connection.db!;
 
       // Check if collections exist
       const collections = await db.listCollections().toArray();
@@ -86,7 +87,7 @@ export async function GET(req: NextRequest) {
 
     // 2. Scheduled Broadcasts
     try {
-      const db = (await import('@/lib/db')).getDb();
+      const db = mongoose.connection.db!;
       const broadcastCollection = db.collection('qr_broadcast_schedules');
 
       const stats = {
@@ -144,7 +145,7 @@ export async function GET(req: NextRequest) {
 
     // 3. Group Merge Operations
     try {
-      const db = (await import('@/lib/db')).getDb();
+      const db = mongoose.connection.db!;
       const mergeCollection = db.collection('merge_group_v2_queue');
 
       const stats = {
@@ -204,7 +205,7 @@ export async function GET(req: NextRequest) {
 
     // 4. Message Deduplication
     try {
-      const db = (await import('@/lib/db')).getDb();
+      const db = mongoose.connection.db!;
       const dedupCollection = db.collection('message_dedup_log');
 
       const today = new Date();
@@ -242,10 +243,13 @@ export async function GET(req: NextRequest) {
     // 5. WhatsApp Bridge Connectivity
     const bridgeUrl = process.env.WHATSAPP_BRIDGE_HTTP_URL || 'http://localhost:3333';
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
       const response = await fetch(`${bridgeUrl}/health`, {
         method: 'GET',
-        timeout: 5000,
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
 
       components.push({
         name: '🌐 WhatsApp Bridge',

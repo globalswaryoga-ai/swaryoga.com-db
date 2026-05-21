@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
     const Model = await getSadhanaScheduleModel();
 
     // Get first active schedule
-    const schedule = await Model.findOne({ status: 'active' }).lean();
+    const schedule = await Model.findOne({ status: 'active' }).lean() as any;
 
     if (!schedule) {
       return NextResponse.json(

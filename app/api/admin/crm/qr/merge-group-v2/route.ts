@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
-import { verifyJWT } from '@/lib/auth';
+import mongoose from 'mongoose';
+import { verifyToken } from '@/lib/auth';
 import {
   createMergeGroupV2Entry,
   calculateGroupOperationGaps,
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
     }
 
     const token = authHeader.slice(7);
-    const decoded = verifyJWT(token);
+    const decoded = verifyToken(token);
     if (!decoded) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
@@ -86,7 +87,7 @@ export async function POST(req: NextRequest) {
     );
 
     // Store in MongoDB
-    const db = (await import('@/lib/db')).getDb();
+    const db = mongoose.connection.db!;
     const collection = db.collection('merge_group_v2_queue');
 
     const result = await collection.insertOne({
@@ -129,7 +130,7 @@ export async function GET(req: NextRequest) {
     }
 
     const token = authHeader.slice(7);
-    const decoded = verifyJWT(token);
+    const decoded = verifyToken(token);
     if (!decoded) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
@@ -138,7 +139,7 @@ export async function GET(req: NextRequest) {
 
     await connectDB();
 
-    const db = (await import('@/lib/db')).getDb();
+    const db = mongoose.connection.db!;
     const collection = db.collection('merge_group_v2_queue');
 
     const operations = await collection

@@ -111,6 +111,14 @@ export default function QRBroadcastSchedulePage() {
           frequency: 'daily',
           maxMessagesPerDay: 300,
           description: '',
+          gapStrategy: {
+            preset: 'SAFE',
+            initialGapMs: 7000,
+            initialGapCount: 2,
+            minGapMs: 45000,
+            maxGapMs: 120000,
+            ensureVariation: true,
+          },
         });
         await loadSchedules();
       } else {
@@ -186,6 +194,14 @@ export default function QRBroadcastSchedulePage() {
                 frequency: 'daily',
                 maxMessagesPerDay: 300,
                 description: '',
+                gapStrategy: {
+                  preset: 'SAFE',
+                  initialGapMs: 7000,
+                  initialGapCount: 2,
+                  minGapMs: 45000,
+                  maxGapMs: 120000,
+                  ensureVariation: true,
+                },
               });
               setShowForm(!showForm);
             }}

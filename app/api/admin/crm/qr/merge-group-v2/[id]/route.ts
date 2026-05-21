@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
-import { verifyJWT } from '@/lib/auth';
+import mongoose from 'mongoose';
+import { verifyToken } from '@/lib/auth';
 import { ObjectId } from 'mongodb';
 import { formatMergeGroupV2Progress } from '@/lib/safeGroupMergeV2';
 
@@ -21,7 +22,7 @@ export async function GET(
     }
 
     const token = authHeader.slice(7);
-    const decoded = verifyJWT(token);
+    const decoded = verifyToken(token);
     if (!decoded) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
@@ -30,7 +31,7 @@ export async function GET(
 
     await connectDB();
 
-    const db = (await import('@/lib/db')).getDb();
+    const db = mongoose.connection.db!;
     const collection = db.collection('merge_group_v2_queue');
 
     const operation = await collection.findOne({
@@ -51,10 +52,10 @@ export async function GET(
       success: true,
       operation: {
         id: operation._id.toString(),
-        operationType: operation.operationType,
         targetGroupId: operation.targetGroupId,
         totalParticipants: operation.totalOperations,
         ...progress,
+        operationType: operation.operationType,
         createdAt: operation.createdAt,
         updatedAt: operation.updatedAt,
         completedAt: operation.completedAt,
@@ -84,7 +85,7 @@ export async function DELETE(
     }
 
     const token = authHeader.slice(7);
-    const decoded = verifyJWT(token);
+    const decoded = verifyToken(token);
     if (!decoded) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
@@ -93,7 +94,7 @@ export async function DELETE(
 
     await connectDB();
 
-    const db = (await import('@/lib/db')).getDb();
+    const db = mongoose.connection.db!;
     const collection = db.collection('merge_group_v2_queue');
 
     const operation = await collection.findOne({

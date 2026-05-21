@@ -492,11 +492,11 @@ try {
                   </p>
                   <div className="flex items-center gap-2">
                     <code className="flex-1 text-white text-sm bg-black/40 px-3 py-2 rounded font-mono break-all">
-                      {typeof window !== 'undefined' ? window.location.origin : 'https://swaryoga.com'}/sadhana/live/{schedule.programSlug || schedule.slug || schedule.name?.toLowerCase().replace(/\s+/g, '-')}
+                      {typeof window !== 'undefined' ? window.location.origin : 'https://swaryoga.com'}/sadhana/live/{(schedule as any).programSlug || (schedule as any).slug || schedule.name?.toLowerCase().replace(/\s+/g, '-')}
                     </code>
                     <button
                       onClick={() => {
-                        const slug = schedule.programSlug || schedule.slug || schedule.name?.toLowerCase().replace(/\s+/g, '-');
+                        const slug = (schedule as any).programSlug || (schedule as any).slug || schedule.name?.toLowerCase().replace(/\s+/g, '-');
                         const url = `${window.location.origin}/sadhana/live/${slug}`;
                         navigator.clipboard.writeText(url);
                         setSuccessMessage('✅ Live URL copied!');
@@ -507,7 +507,7 @@ try {
                       📋 Copy
                     </button>
                     <a
-                      href={`/sadhana/live/${schedule.programSlug || schedule.slug || schedule.name?.toLowerCase().replace(/\s+/g, '-')}`}
+                      href={`/sadhana/live/${(schedule as any).programSlug || (schedule as any).slug || schedule.name?.toLowerCase().replace(/\s+/g, '-')}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="px-4 py-2 bg-white/10 text-white rounded-lg text-sm font-semibold hover:bg-white/20 whitespace-nowrap"
