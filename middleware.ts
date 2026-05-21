@@ -120,7 +120,7 @@ const STRICT_CSP_RULES = [
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com",
   "img-src 'self' data: https: blob:",
   "font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com data:",
-  "connect-src 'self' https://*.cashfree.com https://*.payu.in https://*.googleapis.com https://*.awsapprunner.com https://vercel.live https://*.vercel.live wss://*.vercel.live",
+  "connect-src 'self' https://*.cashfree.com https://*.payu.in https://*.googleapis.com https://vercel.live https://*.vercel.live wss://*.vercel.live",
   "frame-src 'self' https://*.cashfree.com https://*.payu.in https://vercel.live",
   "object-src 'none'",
   "base-uri 'self'",
