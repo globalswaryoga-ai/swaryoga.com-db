@@ -3972,3 +3972,115 @@ TenantTrialSchema.index({ storagePaymentPaid: 1, status: 1 });
 
 export function getTenantTrial() { return getModel('TenantTrial', TenantTrialSchema); }
 export const TenantTrial = createModelProxy('TenantTrial', TenantTrialSchema);
+
+// ============================================================================
+// QR BROADCAST SCHEDULE SCHEMA - Scheduled messaging with anti-ban protection
+// ============================================================================
+// Supports:
+// - Time windows (5 AM - 10:30 PM)
+// - Daily limits (300 per day)
+// - Random scheduling to avoid WhatsApp detection
+// - Staggered message sending with randomized delays
+const QRBroadcastScheduleSchema = new mongoose.Schema(
+  {
+    // Schedule identification
+    userId: { type: String, required: true, index: true },
+    tenantId: { type: String, required: true, index: true },
+    name: { type: String, required: true }, // e.g., "Daily Notification - 9 AM"
+
+    // Message details
+    messageText: { type: String, required: true, maxlength: 4096 },
+    mediaUrls: [{ type: String }], // Images, videos, documents
+
+    // Recipients
+    recipientChatIds: [{ type: String, required: true }], // WhatsApp chat IDs
+    totalRecipients: { type: Number, required: true },
+    groupIds: [{ type: String }], // Groups included
+    individualIds: [{ type: String }], // Individual chats included
+
+    // Scheduling parameters
+    isActive: { type: Boolean, default: true, index: true },
+
+    // Time window (5 AM to 10:30 PM IST)
+    startTime: { type: String, required: true }, // HH:mm format, e.g., "05:00"
+    endTime: { type: String, required: true }, // HH:mm format, e.g., "22:30"
+    timezone: { type: String, default: 'Asia/Kolkata' },
+
+    // Frequency
+    frequency: {
+      type: String,
+      enum: ['once', 'daily', 'weekly', 'custom'],
+      default: 'once',
+    },
+    daysOfWeek: [{ type: Number }], // 0-6 (Sun-Sat) for weekly
+    customScheduleDates: [{ type: Date }], // For custom frequency
+
+    // Daily limits (300 per day max)
+    maxMessagesPerDay: { type: Number, default: 300, min: 1, max: 300 },
+
+    // Anti-ban protection settings
+    rateLimiting: {
+      enabled: { type: Boolean, default: true },
+      minDelayMs: { type: Number, default: 3000 }, // Min 3 sec between messages
+      maxDelayMs: { type: Number, default: 15000 }, // Max 15 sec between messages
+      batchSize: { type: Number, default: 5 }, // Messages per batch
+      batchDelayMs: { type: Number, default: 30000 }, // Delay between batches (30 sec)
+    },
+
+    // Randomization strategy
+    randomization: {
+      enabled: { type: Boolean, default: true },
+      shuffleRecipients: { type: Boolean, default: true }, // Random order
+      randomizeTimings: { type: Boolean, default: true }, // Vary delays
+      jitterPercent: { type: Number, default: 15 }, // ±15% jitter on delays
+    },
+
+    // Execution tracking
+    status: {
+      type: String,
+      enum: ['draft', 'scheduled', 'in-progress', 'paused', 'completed', 'failed'],
+      default: 'draft',
+      index: true,
+    },
+
+    // Scheduling window
+    firstRunDate: { type: Date }, // When to first send
+    lastRunDate: { type: Date }, // When last sent
+    nextRunDate: { type: Date, index: true }, // Calculated next run
+
+    // Execution stats
+    stats: {
+      totalAttempted: { type: Number, default: 0 },
+      totalSent: { type: Number, default: 0 },
+      totalFailed: { type: Number, default: 0 },
+      totalSkipped: { type: Number, default: 0 },
+      averageDeliveryTimeMs: { type: Number, default: 0 },
+    },
+
+    // Error tracking
+    lastError: { type: String },
+    lastErrorAt: { type: Date },
+    errorCount: { type: Number, default: 0 },
+
+    // Settings
+    stopOnError: { type: Boolean, default: false },
+    retryFailed: { type: Boolean, default: true },
+    maxRetries: { type: Number, default: 3 },
+
+    // Metadata & audit
+    createdBy: { type: String, required: true },
+    description: { type: String },
+    tags: [{ type: String }],
+    metadata: mongoose.Schema.Types.Mixed,
+  },
+  { timestamps: true, collection: 'qr_broadcast_schedules' }
+);
+
+// Indexes for efficient queries
+QRBroadcastScheduleSchema.index({ userId: 1, tenantId: 1 });
+QRBroadcastScheduleSchema.index({ isActive: 1, status: 1 });
+QRBroadcastScheduleSchema.index({ nextRunDate: 1, isActive: 1 });
+QRBroadcastScheduleSchema.index({ status: 1, frequency: 1 });
+
+export function getQRBroadcastSchedule() { return getModel('QRBroadcastSchedule', QRBroadcastScheduleSchema); }
+export const QRBroadcastSchedule = createModelProxy('QRBroadcastSchedule', QRBroadcastScheduleSchema);
