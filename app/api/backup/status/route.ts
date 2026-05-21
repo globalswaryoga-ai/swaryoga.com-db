@@ -27,11 +27,14 @@ export async function GET(req: NextRequest) {
     }
 
     // Get MongoDB size
-    const mongodbStats = await mongoose.connection.db.stats();
-    const mongodbSize = Math.round(mongodbStats.dataSize / 1024 / 1024);
+    let mongodbSize = 0;
+    if (mongoose.connection.db) {
+      const mongodbStats = await mongoose.connection.db.stats();
+      mongodbSize = Math.round(mongodbStats.dataSize / 1024 / 1024);
+    }
 
     // Get latest backup info
-    const bunny = new BunnyStorageClient(process.env.BUNNY_STORAGE_KEY!);
+    const bunny = new BunnyStorageClient(process.env.BUNNY_STORAGE_KEY!, 'backupmobgo');
     const dateStr = new Date().toISOString().split('T')[0];
     const files = await bunny.list(`/backups/mongodb/${dateStr}`);
     const latestBackup = files.find(

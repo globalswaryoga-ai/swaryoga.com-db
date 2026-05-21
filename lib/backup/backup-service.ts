@@ -74,7 +74,7 @@ export class BackupService {
   private encryptionKey: string;
 
   constructor(bunnyStorageKey: string) {
-    this.bunny = new BunnyStorageClient(bunnyStorageKey);
+    this.bunny = new BunnyStorageClient(bunnyStorageKey, 'backupmobgo');
     this.encryptionKey = process.env.ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex');
   }
 
@@ -472,6 +472,10 @@ export class BackupService {
    */
   private async getMongoDBSize(): Promise<number> {
     try {
+      if (!mongoose.connection.db) {
+        logger.warn('MongoDB not connected, returning 0');
+        return 0;
+      }
       const stats = await mongoose.connection.db.stats();
       return Math.round(stats.dataSize / 1024 / 1024);
     } catch (error) {

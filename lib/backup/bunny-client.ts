@@ -18,11 +18,11 @@ export class BunnyStorageClient {
   private region: string;
   private baseUrl: string;
 
-  constructor(storageKey: string) {
+  constructor(storageKey: string, storageZone?: string) {
     this.storageKey = storageKey;
-    this.storageZone = process.env.BUNNY_STORAGE_ZONE || 'swaryoga-storage';
-    this.region = process.env.BUNNY_REGION || 'sg'; // Singapore
-    this.baseUrl = `https://${this.region}.storage.bunnycdn.com`;
+    this.storageZone = storageZone || process.env.BUNNY_STORAGE_ZONE_BACKUP || process.env.BUNNY_STORAGE_ZONE || 'swaryoga-storage';
+    this.region = process.env.BUNNY_REGION || 'de';
+    this.baseUrl = 'https://storage.bunnycdn.com';
   }
 
   /**

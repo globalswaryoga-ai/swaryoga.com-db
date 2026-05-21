@@ -34,7 +34,7 @@ export class ArchiveService {
   private config: TieringConfig;
 
   constructor(bunnyStorageKey: string, config?: TieringConfig) {
-    this.bunny = new BunnyStorageClient(bunnyStorageKey);
+    this.bunny = new BunnyStorageClient(bunnyStorageKey, 'backupmobgo');
     this.config = config || DEFAULT_CONFIG;
   }
 
