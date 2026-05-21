@@ -375,7 +375,12 @@ export default function ELearningUsersPage() {
                   </td>
                 </tr>
               )}
-              {enrollments.map((enrollment) => (
+              {enrollments.map((enrollment) => {
+                // Skip rows where userId or courseId is null
+                if (!enrollment.userId || !enrollment.courseId) {
+                  return null;
+                }
+                return (
                 <tr key={enrollment._id} className="hover:bg-gray-800/50 transition-colors">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
@@ -433,7 +438,9 @@ export default function ELearningUsersPage() {
                     </Link>
                   </td>
                 </tr>
-              ))}
+              );
+              })}
+
             </tbody>
           </table>
         </div>
