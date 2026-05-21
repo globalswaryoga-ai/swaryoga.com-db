@@ -67,8 +67,8 @@ const nextConfig = {
   poweredByHeader: false,
   productionBrowserSourceMaps: false,
   experimental: {
-    // Keep @distube/ytdl-core out of webpack bundle (modern syntax Terser can't parse)
-    serverComponentsExternalPackages: ['@distube/ytdl-core'],
+    // Keep server-only packages out of webpack bundle
+    serverComponentsExternalPackages: ['@distube/ytdl-core', 'node-cron'],
   },
   // CORS & security headers are handled by middleware.ts (Edge runtime)
   // with a strict origin allowlist. Do NOT add Access-Control-Allow-Origin: *
@@ -185,6 +185,8 @@ const nextConfig = {
       config.externals['whatsapp-web.js'] = 'commonjs2 whatsapp-web.js';
       config.externals['puppeteer'] = 'commonjs2 puppeteer';
       config.externals['qrcode'] = 'commonjs2 qrcode';
+      // Backup/cron is server-only
+      config.externals['node-cron'] = 'commonjs2 node-cron';
     } else {
       // On server side, also mark these as external to prevent webpack analysis
       config.externals = config.externals || {};
