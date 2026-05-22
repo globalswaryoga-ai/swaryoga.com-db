@@ -1,84 +1,114 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, User } from '@/lib/db';
+import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { Types } from 'mongoose';
 import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
 const TENANT_HEADER = 'x-tenant-id';
 
-// Admin's personal email — planner data saved here for admin users
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'swarsakshi9@gmail.com';
+// ── Schema: dedicated planner data collection ──────────────
+// One document per owner — owner = admin username or user email/id
+// Stored in the CRM database (swaryoga_admin_crm)
+let CrmPlannerModel: mongoose.Model<any> | null = null;
 
-function getTenantId(request: NextRequest): string | null {
-  return request.headers.get(TENANT_HEADER);
+function getPlannerModel() {
+  if (CrmPlannerModel) return CrmPlannerModel;
+
+  const crmDb = mongoose.connection.useDb(
+    process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm',
+    { useCache: true }
+  );
+
+  if (crmDb.models['CrmPlannerData']) {
+    CrmPlannerModel = crmDb.models['CrmPlannerData'];
+    return CrmPlannerModel;
+  }
+
+  const schema = new mongoose.Schema({
+    ownerId:           { type: String, required: true, unique: true, index: true },
+    ownerType:         { type: String, default: 'user' }, // 'admin' | 'user'
+    crmVisions:        { type: mongoose.Schema.Types.Mixed, default: [] },
+    crmActionPlans:    { type: mongoose.Schema.Types.Mixed, default: [] },
+    crmGoals:          { type: mongoose.Schema.Types.Mixed, default: [] },
+    crmTasks:          { type: mongoose.Schema.Types.Mixed, default: [] },
+    crmTodos:          { type: mongoose.Schema.Types.Mixed, default: [] },
+    crmWords:          { type: mongoose.Schema.Types.Mixed, default: [] },
+    crmReminders:      { type: mongoose.Schema.Types.Mixed, default: [] },
+    crmHealthRoutines: { type: mongoose.Schema.Types.Mixed, default: [] },
+    crmDailyHealthPlans: { type: mongoose.Schema.Types.Mixed, default: [] },
+    crmDiamondPeople:  { type: mongoose.Schema.Types.Mixed, default: [] },
+    crmProgress:       { type: mongoose.Schema.Types.Mixed, default: [] },
+    crmEvents:         { type: mongoose.Schema.Types.Mixed, default: [] },
+    updatedAt:         { type: Date, default: Date.now },
+    createdAt:         { type: Date, default: Date.now },
+  }, { strict: false });
+
+  CrmPlannerModel = crmDb.model('CrmPlannerData', schema, 'crm_planner_data');
+  return CrmPlannerModel;
 }
 
-// All CRM planner field names
-const CRM_FIELDS = [
-  'crmVisions', 'crmActionPlans', 'crmGoals', 'crmTasks', 'crmTodos',
-  'crmWords', 'crmReminders', 'crmHealthRoutines', 'crmDailyHealthPlans',
-  'crmDiamondPeople', 'crmProgress', 'crmEvents',
-];
+// ── helpers ────────────────────────────────────────────────
 
 const EMPTY_DATA = {
-  data: [],
   visions: [], actionPlans: [], goals: [], tasks: [], todos: [],
   words: [], reminders: [], healthRoutines: [], dailyHealthPlans: [],
   diamondPeople: [], progress: [], events: [],
 };
 
-/**
- * Fallback: Get admin planner collection from CRM database.
- * Used only when no User document exists for ADMIN_EMAIL.
- */
-function getAdminPlannerCollection() {
-  const crmDb = mongoose.connection.useDb(
-    process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm',
-    { useCache: true }
-  );
-  return crmDb.collection('admin_planner_data');
-}
-
-/**
- * Convert type string to field name: crm_visions → crmVisions
- */
 function typeToField(type: string): string {
+  // crm_visions → crmVisions, crm_actionPlans → crmActionPlans, etc.
   return 'crm' + type
-    .replace(/^crm_/, '')
+    .replace(/^crm_?/, '')
     .split('_')
     .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
     .join('');
 }
 
-/**
- * Auth: returns payload or null. Accepts admin and regular user tokens.
- */
-function getPayload(request: NextRequest) {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) return null;
-  return verifyToken(authHeader.slice(7));
+function buildResponse(doc: any) {
+  return {
+    visions:          Array.isArray(doc?.crmVisions)          ? doc.crmVisions          : [],
+    actionPlans:      Array.isArray(doc?.crmActionPlans)      ? doc.crmActionPlans      : [],
+    goals:            Array.isArray(doc?.crmGoals)            ? doc.crmGoals            : [],
+    tasks:            Array.isArray(doc?.crmTasks)            ? doc.crmTasks            : [],
+    todos:            Array.isArray(doc?.crmTodos)            ? doc.crmTodos            : [],
+    words:            Array.isArray(doc?.crmWords)            ? doc.crmWords            : [],
+    reminders:        Array.isArray(doc?.crmReminders)        ? doc.crmReminders        : [],
+    healthRoutines:   Array.isArray(doc?.crmHealthRoutines)   ? doc.crmHealthRoutines   : [],
+    dailyHealthPlans: Array.isArray(doc?.crmDailyHealthPlans) ? doc.crmDailyHealthPlans : [],
+    diamondPeople:    Array.isArray(doc?.crmDiamondPeople)    ? doc.crmDiamondPeople    : [],
+    progress:         Array.isArray(doc?.crmProgress)         ? doc.crmProgress         : [],
+    events:           Array.isArray(doc?.crmEvents)           ? doc.crmEvents           : [],
+  };
 }
 
 /**
- * Build a full planner response object from a document (User or admin_planner_data)
+ * Resolve the owner ID from the JWT token.
+ * Admin: uses username (e.g. 'admincrm')
+ * Tenant/user: uses email or userId
  */
-function buildPlannerResponse(doc: any) {
-  return {
-    visions: doc.crmVisions || [],
-    actionPlans: doc.crmActionPlans || [],
-    goals: doc.crmGoals || [],
-    tasks: doc.crmTasks || [],
-    todos: doc.crmTodos || [],
-    words: doc.crmWords || [],
-    reminders: doc.crmReminders || [],
-    healthRoutines: doc.crmHealthRoutines || [],
-    dailyHealthPlans: doc.crmDailyHealthPlans || [],
-    diamondPeople: doc.crmDiamondPeople || [],
-    progress: doc.crmProgress || [],
-    events: doc.crmEvents || [],
-  };
+function getOwnerId(payload: any): { ownerId: string; ownerType: string } | null {
+  if (!payload) return null;
+
+  // Admin token: { username, isAdmin: true }
+  if (payload.isAdmin && payload.username) {
+    return { ownerId: String(payload.username).trim().toLowerCase(), ownerType: 'admin' };
+  }
+
+  // Regular user token: { email, userId }
+  const email  = payload.email ? String(payload.email).trim().toLowerCase() : null;
+  const userId = payload.userId || payload._id || payload.id;
+
+  if (email) return { ownerId: email, ownerType: 'user' };
+  if (userId) return { ownerId: String(userId), ownerType: 'user' };
+
+  return null;
+}
+
+function getPayload(request: NextRequest) {
+  const auth = request.headers.get('authorization');
+  if (!auth?.startsWith('Bearer ')) return null;
+  return verifyToken(auth.slice(7));
 }
 
 // ─────────────────────────────────────────────────────────
@@ -87,76 +117,31 @@ function buildPlannerResponse(doc: any) {
 export async function GET(request: NextRequest) {
   try {
     const payload = getPayload(request);
-    if (!payload) {
+    const owner   = getOwnerId(payload);
+
+    if (!owner) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     await connectDB();
+    const Model = getPlannerModel();
 
     const dataType = request.nextUrl.searchParams.get('type');
-    const fieldName = dataType ? typeToField(dataType) : null;
 
-    // ── Admin users: read from User doc at ADMIN_EMAIL ──
-    if (payload.isAdmin && payload.username) {
-      // Primary: find User by admin email
-      const adminUser = await User.findOne({ email: ADMIN_EMAIL }).lean() as any;
+    const doc = await Model.findOne({ ownerId: owner.ownerId }).lean() as any;
 
-      if (adminUser) {
-        if (fieldName) {
-          return NextResponse.json({ data: Array.isArray(adminUser[fieldName]) ? adminUser[fieldName] : [] });
-        }
-        return NextResponse.json(buildPlannerResponse(adminUser));
-      }
-
-      // Fallback: read from admin_planner_data collection
-      const col = getAdminPlannerCollection();
-      const doc = await col.findOne({ adminId: payload.username });
-
-      if (!doc) {
-        return fieldName
-          ? NextResponse.json({ data: [] })
-          : NextResponse.json(EMPTY_DATA);
-      }
-
-      if (fieldName) {
-        return NextResponse.json({ data: Array.isArray(doc[fieldName]) ? doc[fieldName] : [] });
-      }
-      return NextResponse.json(buildPlannerResponse(doc));
-    }
-
-    // ── Regular users: read from User collection by userId or email ──
-    const tenantId = getTenantId(request);
-    const userId = payload.userId || payload._id || payload.id;
-    const email = payload.email;
-
-    if (!userId && !email) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const orConditions: any[] = [];
-    if (userId && Types.ObjectId.isValid(String(userId))) {
-      orConditions.push(tenantId ? { _id: userId, tenantId } : { _id: userId });
-    }
-    if (email) {
-      orConditions.push(tenantId
-        ? { email: email.trim().toLowerCase(), tenantId }
-        : { email: email.trim().toLowerCase() });
-    }
-
-    const query = orConditions.length === 1 ? orConditions[0] : { $or: orConditions };
-    const user = await User.findOne(query).lean() as any;
-
-    if (!user) {
-      return fieldName
+    if (!doc) {
+      return dataType
         ? NextResponse.json({ data: [] })
         : NextResponse.json(EMPTY_DATA);
     }
 
-    if (fieldName) {
-      return NextResponse.json({ data: Array.isArray(user[fieldName]) ? user[fieldName] : [] });
+    if (dataType) {
+      const field = typeToField(dataType);
+      return NextResponse.json({ data: Array.isArray(doc[field]) ? doc[field] : [] });
     }
 
-    return NextResponse.json(buildPlannerResponse(user));
+    return NextResponse.json(buildResponse(doc));
 
   } catch (error: any) {
     console.error('[CRM Planner GET]', error?.message);
@@ -165,21 +150,20 @@ export async function GET(request: NextRequest) {
 }
 
 // ─────────────────────────────────────────────────────────
-// POST /api/crm-planner/data  — Save data
+// POST /api/crm-planner/data
 // ─────────────────────────────────────────────────────────
 export async function POST(request: NextRequest) {
   try {
     const payload = getPayload(request);
-    if (!payload) {
+    const owner   = getOwnerId(payload);
+
+    if (!owner) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    await connectDB();
-
     let body: any;
-    try { body = await request.json(); } catch {
-      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
-    }
+    try { body = await request.json(); }
+    catch { return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 }); }
 
     const { type, data } = body;
     if (!type) {
@@ -188,68 +172,32 @@ export async function POST(request: NextRequest) {
 
     const fieldName = typeToField(type);
 
-    // ── Admin users: save to User doc at ADMIN_EMAIL ──
-    if (payload.isAdmin && payload.username) {
-      // Primary: try to update the User document for admin email
-      const adminUser = await User.findOneAndUpdate(
-        { email: ADMIN_EMAIL },
-        { $set: { [fieldName]: data, updatedAt: new Date() } },
-        { new: true }
-      );
+    await connectDB();
+    const Model = getPlannerModel();
 
-      if (adminUser) {
-        console.log(`[CRM Planner POST] ✅ Saved ${type} for admin at ${ADMIN_EMAIL}`);
-        return NextResponse.json({ message: 'Data saved successfully', data: (adminUser as any)[fieldName] });
-      }
-
-      // Fallback: save to admin_planner_data collection if no User doc for admin email
-      const col = getAdminPlannerCollection();
-      await col.updateOne(
-        { adminId: payload.username },
-        {
-          $set: { [fieldName]: data, updatedAt: new Date() },
-          $setOnInsert: { adminId: payload.username, createdAt: new Date() },
+    // Upsert — always succeeds even if no document exists yet
+    await Model.findOneAndUpdate(
+      { ownerId: owner.ownerId },
+      {
+        $set: {
+          [fieldName]: Array.isArray(data) ? data : [],
+          ownerType: owner.ownerType,
+          updatedAt: new Date(),
         },
-        { upsert: true }
-      );
-
-      console.log(`[CRM Planner POST] ✅ Saved ${type} for admin ${payload.username} (fallback collection)`);
-      return NextResponse.json({ message: 'Data saved successfully', data });
-    }
-
-    // ── Regular users: save to User collection by userId or email ──
-    const tenantId = getTenantId(request);
-    const userId = payload.userId || payload._id || payload.id;
-    const email = payload.email;
-
-    if (!userId && !email) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const orConditions: any[] = [];
-    if (userId && Types.ObjectId.isValid(String(userId))) {
-      orConditions.push(tenantId ? { _id: userId, tenantId } : { _id: userId });
-    }
-    if (email) {
-      orConditions.push(tenantId
-        ? { email: email.trim().toLowerCase(), tenantId }
-        : { email: email.trim().toLowerCase() });
-    }
-
-    const query = orConditions.length === 1 ? orConditions[0] : { $or: orConditions };
-    const user = await User.findOneAndUpdate(
-      query,
-      { $set: { [fieldName]: data, updatedAt: new Date() } },
-      { new: true }
+        $setOnInsert: {
+          ownerId: owner.ownerId,
+          createdAt: new Date(),
+        },
+      },
+      { upsert: true, new: true }
     );
 
-    if (!user) {
-      console.warn(`[CRM Planner POST] User not found for query`);
-      return NextResponse.json({ message: 'No user found to update', data: [] });
-    }
+    console.log(`[CRM Planner POST] ✅ Saved ${type} for ${owner.ownerType} "${owner.ownerId}"`);
 
-    console.log(`[CRM Planner POST] ✅ Saved ${type} for user ${email || userId}`);
-    return NextResponse.json({ message: 'Data saved successfully', data: (user as any)[fieldName] });
+    return NextResponse.json({
+      message: 'Data saved successfully',
+      data: Array.isArray(data) ? data : [],
+    });
 
   } catch (error: any) {
     console.error('[CRM Planner POST]', error?.message);
