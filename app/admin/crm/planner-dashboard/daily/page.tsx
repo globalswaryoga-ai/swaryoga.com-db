@@ -146,85 +146,7 @@ export default function DailyViewPage() {
   useEffect(() => {
     setHealthMounted(true);
 
-    const sadhanaKey = `dailySadhanaV2:${today}`;
-
-    // Try to load from MongoDB first, then fallback to localStorage
-    (async () => {
-      try {
-        const dailyTasks = await crmPlannerStorage.getDailyTasks(today);
-        if (dailyTasks?.workshopTasks && Array.isArray(dailyTasks.workshopTasks)) {
-          setWorkshopTasks(dailyTasks.workshopTasks);
-        } else {
-          // Fallback to localStorage
-          const key = `dailyWorkshopPlannerTasks:${today}`;
-          const stored = localStorage.getItem(key);
-          if (stored) {
-            setWorkshopTasks(JSON.parse(stored));
-          }
-        }
-
-        if (dailyTasks?.sadhana) {
-          setSadhanaState(dailyTasks.sadhana);
-          setSadhanaHasLoaded(true);
-          return; // Skip localStorage load if MongoDB has data
-        }
-      } catch (error) {
-        console.error('Error loading daily tasks from MongoDB:', error);
-      }
-
-      // Fallback to localStorage if MongoDB fails
-      try {
-        const storedV2 = localStorage.getItem(sadhanaKey);
-        if (storedV2) {
-          setSadhanaState(JSON.parse(storedV2));
-          setSadhanaHasLoaded(true);
-        } else {
-          const legacy = localStorage.getItem('dailySadhana');
-          if (legacy) {
-            const legacyItems = JSON.parse(legacy) as Array<{
-              id?: string;
-              name?: string;
-              frequency?: string;
-              duration?: string;
-              completed?: boolean;
-            }>;
-
-            const migrated: DailySadhanaState = {
-              ...DEFAULT_SADHANA,
-              morning: (Array.isArray(legacyItems) ? legacyItems : [])
-                .filter((x) => typeof x?.name === 'string' && x.name.trim().length > 0)
-                .map((x, idx) => ({
-                  id: `migr-${x.id || idx}-${Date.now()}`,
-                  name: String(x.name || '').trim(),
-                  frequency: String(x.frequency || '').trim(),
-                  duration: String(x.duration || '').trim(),
-                  completed: Boolean(x.completed),
-                })),
-            };
-
-            // Try to parse water liters from a legacy "Water" item
-            const waterItem = (Array.isArray(legacyItems) ? legacyItems : []).find(
-              (x) => typeof x?.name === 'string' && x.name.toLowerCase().includes('water')
-            );
-            if (waterItem?.duration) {
-              const match = String(waterItem.duration).match(/(\d+(?:\.\d+)?)/);
-              if (match?.[1]) migrated.diet.waterLiters = Number(match[1]) || 0;
-            }
-
-            setSadhanaState(migrated);
-            localStorage.setItem(sadhanaKey, JSON.stringify(migrated));
-            setSadhanaHasLoaded(true);
-          } else {
-            setSadhanaState(DEFAULT_SADHANA);
-            setSadhanaHasLoaded(true);
-          }
-        }
-      } catch {
-        setSadhanaHasLoaded(true);
-      }
-    })();
-
-    // Load Vision/Goals/Tasks from Mongo-backed storage so Daily matches other dashboards.
+    // Load Vision/Goals/Tasks from MongoDB (no localStorage fallback)
     (async () => {
       try {
         const [savedVisions, savedGoals, savedTasks] = await Promise.all([
@@ -232,44 +154,9 @@ export default function DailyViewPage() {
           crmPlannerStorage.getGoals(),
           crmPlannerStorage.getTasks(),
         ]);
-
-        const nextVisions = Array.isArray(savedVisions) ? savedVisions : [];
-        const nextGoals = Array.isArray(savedGoals) ? savedGoals : [];
-        const nextTasks = Array.isArray(savedTasks) ? savedTasks : [];
-
-        // Fallback: if storage returns empty, try older localStorage keys (offline/back-compat)
-        if (nextVisions.length === 0) {
-          try {
-            const stored = localStorage.getItem('lifePlannerVision');
-            if (stored) setVision(JSON.parse(stored));
-          } catch {
-            setVision([]);
-          }
-        } else {
-          setVision(nextVisions);
-        }
-
-        if (nextGoals.length === 0) {
-          try {
-            const stored = localStorage.getItem('lifePlannerGoals');
-            if (stored) setGoals(JSON.parse(stored));
-          } catch {
-            setGoals([]);
-          }
-        } else {
-          setGoals(nextGoals);
-        }
-
-        if (nextTasks.length === 0) {
-          try {
-            const stored = localStorage.getItem('lifePlannerTasks');
-            if (stored) setTasks(JSON.parse(stored));
-          } catch {
-            setTasks([]);
-          }
-        } else {
-          setTasks(nextTasks);
-        }
+        setVision(Array.isArray(savedVisions) ? savedVisions : []);
+        setGoals(Array.isArray(savedGoals) ? savedGoals : []);
+        setTasks(Array.isArray(savedTasks) ? savedTasks : []);
       } catch (e) {
         console.error('Error loading vision/goals/tasks:', e);
       }
@@ -302,9 +189,7 @@ export default function DailyViewPage() {
   useEffect(() => {
     if (!sadhanaHasLoaded) return;
     try {
-      localStorage.setItem(sadhanaStorageKey, JSON.stringify(sadhanaState));
-
-      // Auto-save to MongoDB (debounced with 500ms timeout)
+      // Auto-save to MongoDB only — no localStorage writes for planner data
       setSaveStatus('saving');
       setSaveError('');
       const timer = setTimeout(() => {
@@ -429,67 +314,37 @@ export default function DailyViewPage() {
     }
   };
 
-  const loadWorkshopTasks = () => {
-    const stored = localStorage.getItem(getWorkshopStorageKey());
-    const tasksForDate = stored ? JSON.parse(stored) : [];
-
-    // Get all recurring tasks (need to check all dates)
-    const allStoredDates: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key?.startsWith('dailyWorkshopPlannerTasks:')) {
-        const dateStr = key.replace('dailyWorkshopPlannerTasks:', '');
-        allStoredDates.push(dateStr);
-      }
+  const loadWorkshopTasksForDate = async (date: string) => {
+    try {
+      const dailyTasks = await crmPlannerStorage.getDailyTasks(date);
+      setWorkshopTasks(dailyTasks?.workshopTasks || []);
+    } catch (error) {
+      console.error('Error loading workshop tasks from MongoDB:', error);
+      setWorkshopTasks([]);
     }
-
-    // Collect recurring tasks that should appear today
-    const recurringTasks: WorkshopTask[] = [];
-    for (const dateStr of allStoredDates) {
-      if (dateStr === selectedDate) continue; // Already added above
-      const dayTasks = localStorage.getItem(`dailyWorkshopPlannerTasks:${dateStr}`);
-      if (dayTasks) {
-        try {
-          const parsed = JSON.parse(dayTasks) as WorkshopTask[];
-          for (const task of parsed) {
-            // Don't show completed recurring tasks on future dates
-            if (task.completed && task.completedDate && task.completedDate !== selectedDate) {
-              // If completed, only show on the completion date
-              continue;
-            }
-            if (shouldTaskAppear(task, selectedDate)) {
-              recurringTasks.push(task);
-            }
-          }
-        } catch {}
-      }
-    }
-
-    setWorkshopTasks([...tasksForDate, ...recurringTasks]);
   };
 
-  // Reload workshop tasks and sadhana state when selectedDate changes
+  // Reload workshop tasks and sadhana from MongoDB when selectedDate changes
   useEffect(() => {
-    loadWorkshopTasks();
-
-    // Load sadhana state for selected date
-    const storedSadhana = localStorage.getItem(sadhanaStorageKey);
-    if (storedSadhana) {
+    setSadhanaHasLoaded(false);
+    (async () => {
       try {
-        setSadhanaState(JSON.parse(storedSadhana));
-      } catch {
+        const dailyTasks = await crmPlannerStorage.getDailyTasks(selectedDate);
+        setWorkshopTasks(dailyTasks?.workshopTasks || []);
+        setSadhanaState(dailyTasks?.sadhana || DEFAULT_SADHANA);
+      } catch (error) {
+        console.error('Error loading daily tasks for date:', selectedDate, error);
+        setWorkshopTasks([]);
         setSadhanaState(DEFAULT_SADHANA);
+      } finally {
+        setSadhanaHasLoaded(true);
       }
-    } else {
-      setSadhanaState(DEFAULT_SADHANA);
-    }
-  }, [selectedDate, sadhanaStorageKey]);
+    })();
+  }, [selectedDate]);
 
   const persistWorkshopTasks = (updated: WorkshopTask[]) => {
     setWorkshopTasks(updated);
-    localStorage.setItem(getWorkshopStorageKey(), JSON.stringify(updated));
-
-    // Auto-save to MongoDB (debounced)
+    // Auto-save to MongoDB only
     setSaveStatus('saving');
     setSaveError('');
     setTimeout(() => {

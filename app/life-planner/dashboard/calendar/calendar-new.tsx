@@ -124,61 +124,44 @@ export default function EnhancedCalendar() {
   };
 
   useEffect(() => {
-    // Load custom events from localStorage (client-only)
-    try {
-      const raw = localStorage.getItem(CUSTOM_EVENT_STORAGE_KEY);
-      const parsed = raw ? JSON.parse(raw) : [];
-      const list: CalendarItem[] = Array.isArray(parsed) ? parsed : [];
-      setCustomEvents(
-        list
-          .filter((x) => x && typeof x.id === 'string' && x.type === 'event')
-          .map((x) => {
-            const subtype = (x as any).subtype as CalendarItem['subtype'];
-            const fallbackMeta =
-              subtype === 'birthday'
-                ? { icon: 'cake' as const, colorClass: 'bg-pink-600' }
-                : subtype === 'meeting'
-                ? { icon: 'briefcase' as const, colorClass: 'bg-swar-primary' }
-                : { icon: 'calendar' as const, colorClass: 'bg-swar-accent' };
-
-            // Events are rendered as range-lines (light blue) regardless of subtype.
-            // Keep any saved icon/subtype, but standardize the color.
-            const colorClass = TYPE_META.event.colorClass;
-            const icon = ((): CalendarItem['icon'] => {
-              const rawIcon = (x as any).icon;
-              if (
-                rawIcon === 'target' ||
-                rawIcon === 'flag' ||
-                rawIcon === 'trophy' ||
-                rawIcon === 'check' ||
-                rawIcon === 'todo' ||
-                rawIcon === 'bell' ||
-                rawIcon === 'book' ||
-                rawIcon === 'calendar' ||
-                rawIcon === 'briefcase' ||
-                rawIcon === 'cake'
-              ) {
-                return rawIcon;
-              }
-              return fallbackMeta.icon;
-            })();
-
-            const title = typeof (x as any).title === 'string' && (x as any).title.trim().length > 0 ? (x as any).title : 'Event';
-
-            return {
-              ...x,
-              title,
-              startDate: normalizeISO((x as any).startDate),
-              endDate: normalizeISO((x as any).endDate),
-              imageUrl: typeof (x as any).imageUrl === 'string' ? (x as any).imageUrl : undefined,
-              colorClass,
-              icon,
-            };
-          })
-      );
-    } catch {
-      setCustomEvents([]);
-    }
+    // Load custom events from MongoDB
+    (async () => {
+      try {
+        const mongoEvents = await lifePlannerStorage.getEvents();
+        const list: CalendarItem[] = Array.isArray(mongoEvents) ? mongoEvents : [];
+        setCustomEvents(
+          list
+            .filter((x: any) => x && typeof x.id === 'string' && x.type === 'event')
+            .map((x: any) => {
+              const subtype = x.subtype as CalendarItem['subtype'];
+              const fallbackMeta =
+                subtype === 'birthday'
+                  ? { icon: 'cake' as const }
+                  : subtype === 'meeting'
+                  ? { icon: 'briefcase' as const }
+                  : { icon: 'calendar' as const };
+              const colorClass = TYPE_META.event.colorClass;
+              const icon = ((): CalendarItem['icon'] => {
+                const rawIcon = x.icon;
+                if (['target','flag','trophy','check','todo','bell','book','calendar','briefcase','cake'].includes(rawIcon)) return rawIcon;
+                return fallbackMeta.icon;
+              })();
+              const title = typeof x.title === 'string' && x.title.trim().length > 0 ? x.title : 'Event';
+              return {
+                ...x,
+                title,
+                startDate: normalizeISO(x.startDate),
+                endDate: normalizeISO(x.endDate),
+                imageUrl: typeof x.imageUrl === 'string' ? x.imageUrl : undefined,
+                colorClass,
+                icon,
+              };
+            })
+        );
+      } catch {
+        setCustomEvents([]);
+      }
+    })();
   }, []);
 
   useEffect(() => {
@@ -471,7 +454,6 @@ export default function EnhancedCalendar() {
         updatedAt: nowIso,
       };
 
-      appendLocalArray(LOCAL_TODOS_KEY, todo);
       lifePlannerStorage
         .getTodos()
         .then((existing) => (Array.isArray(existing) ? existing : []))
@@ -494,7 +476,6 @@ export default function EnhancedCalendar() {
         updatedAt: nowIso,
       };
 
-      appendLocalArray(LOCAL_REMINDERS_KEY, reminder);
       lifePlannerStorage
         .getReminders()
         .then((existing) => (Array.isArray(existing) ? existing : []))
@@ -506,11 +487,8 @@ export default function EnhancedCalendar() {
 
     const next = [...customEvents, newItem];
     setCustomEvents(next);
-    try {
-      localStorage.setItem(CUSTOM_EVENT_STORAGE_KEY, JSON.stringify(next));
-    } catch {
-      // ignore
-    }
+    // Save to MongoDB only
+    lifePlannerStorage.saveEvents(next).catch(() => {/* ignore */});
     setIsAddOpen(false);
   };
 

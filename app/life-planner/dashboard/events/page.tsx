@@ -144,8 +144,7 @@ export default function LifePlannerEventsPage() {
   useEffect(() => {
     if (!mounted || !hasLoaded) return;
     if (skipNextSave.current) { skipNextSave.current = false; return; }
-    // Save to both MongoDB and localStorage (localStorage as offline fallback)
-    writeArray(EVENTS_STORAGE_KEY, events);
+    // Save to MongoDB only
     (async () => {
       await lifePlannerStorage.saveEvents(events);
     })();
@@ -251,9 +250,7 @@ export default function LifePlannerEventsPage() {
         .filter(Boolean) as Todo[];
 
       if (createdTodos.length > 0) {
-        createdTodos.forEach((t) => appendLocal(LOCAL_TODOS_KEY, t));
         setTodos((prev) => [...prev, ...createdTodos]);
-
         try {
           const existing = await lifePlannerStorage.getTodos();
           await lifePlannerStorage.saveTodos([...(Array.isArray(existing) ? existing : []), ...createdTodos]);
@@ -282,7 +279,6 @@ export default function LifePlannerEventsPage() {
         updatedAt: nowIso,
       };
 
-      appendLocal(LOCAL_REMINDERS_KEY, reminder);
       setReminders((prev) => [...prev, reminder]);
       try {
         const existing = await lifePlannerStorage.getReminders();
