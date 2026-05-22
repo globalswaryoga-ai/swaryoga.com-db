@@ -67,8 +67,13 @@ export async function GET(request: NextRequest) {
     }
 
     const user = await User.findOne(query).lean();
+    // Return empty data for new users (not a 404 — they just haven't saved anything yet)
     if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      return NextResponse.json({
+        workshopTasks: [],
+        sadhana: null,
+        date,
+      });
     }
 
     // Return stored daily tasks (using crmDailyTasks instead of lifePlannerDailyTasks)
@@ -159,11 +164,11 @@ export async function POST(request: NextRequest) {
           },
         },
       },
-      { new: true, runValidators: false }
+      { new: true, runValidators: false, upsert: true }  // upsert for new users
     );
 
     if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Failed to save daily tasks' }, { status: 500 });
     }
 
     console.log(`[CRM POST] ✅ Saved daily tasks on ${date}:`, {

@@ -1,7 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, Note } from '@/lib/db';
+import { connectDB, Note, User } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { Types } from 'mongoose';
+import mongoose from 'mongoose';
+
+async function resolveUserId(decoded: any): Promise<string | null> {
+  const rawId = decoded?.userId || '';
+  if (rawId && mongoose.Types.ObjectId.isValid(rawId)) return rawId;
+  const email = decoded?.email;
+  const username = decoded?.username;
+  const filter: any = {};
+  if (rawId) filter.userId = rawId;
+  else if (email) filter.email = email.toLowerCase();
+  else if (username) filter.userId = username;
+  else return null;
+  const user = await User.findOne(filter).select('_id').lean();
+  return user ? String((user as any)._id) : null;
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -16,9 +31,11 @@ export async function PUT(
 
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
-    if (!decoded?.userId) {
+    if (!decoded?.userId && !decoded?.email && !decoded?.username) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    const resolvedUserId = await resolveUserId(decoded);
 
     const { id } = params;
     if (!Types.ObjectId.isValid(id)) {
@@ -29,7 +46,7 @@ export async function PUT(
     const { title, content, fontFamily, colorTheme, linkedTo, tags, mood, attachments, canvasItems, isPinned } = body;
 
     // Fetch note to verify ownership
-    const note = await Note.findOne({ _id: id, userId: decoded.userId });
+    const note = await Note.findOne({ _id: id, userId: resolvedUserId || decoded.userId });
     if (!note) {
       return NextResponse.json({ error: 'Note not found or unauthorized' }, { status: 404 });
     }
@@ -77,16 +94,18 @@ export async function DELETE(
 
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
-    if (!decoded?.userId) {
+    if (!decoded?.userId && !decoded?.email && !decoded?.username) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    const resolvedUserId = await resolveUserId(decoded);
 
     const { id } = params;
     if (!Types.ObjectId.isValid(id)) {
       return NextResponse.json({ error: 'Invalid note ID' }, { status: 400 });
     }
 
-    const result = await Note.findOneAndDelete({ _id: id, userId: decoded.userId });
+    const result = await Note.findOneAndDelete({ _id: id, userId: resolvedUserId || decoded.userId });
 
     if (!result) {
       return NextResponse.json({ error: 'Note not found or unauthorized' }, { status: 404 });

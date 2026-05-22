@@ -1,9 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, Note, User } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * Resolve the authenticated user to a MongoDB ObjectId for Note queries.
+ * Admin tokens have string userId (e.g. 'admincrm') not ObjectId — find the
+ * matching User doc and use its _id.
+ */
+async function resolveUserId(decoded: any): Promise<string | null> {
+  const rawId = decoded?.userId || '';
+  // If it's already a valid ObjectId, use it directly
+  if (rawId && mongoose.Types.ObjectId.isValid(rawId)) return rawId;
+  // Otherwise look up by userId string or email
+  const email = decoded?.email;
+  const username = decoded?.username;
+  const filter: any = {};
+  if (rawId) filter.userId = rawId;
+  else if (email) filter.email = email.toLowerCase();
+  else if (username) filter.userId = username;
+  else return null;
+
+  const user = await User.findOne(filter).select('_id').lean();
+  return user ? String((user as any)._id) : null;
+}
 
 // GET - Fetch user's notes with filtering
 export async function GET(request: NextRequest) {
@@ -12,8 +34,14 @@ export async function GET(request: NextRequest) {
 
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
-    if (!decoded?.userId) {
+    if (!decoded?.userId && !decoded?.email && !decoded?.username) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const resolvedUserId = await resolveUserId(decoded);
+    if (!resolvedUserId) {
+      // User not found — return empty notes (new admin user)
+      return NextResponse.json({ success: true, data: [], total: 0, limit: 50, skip: 0 });
     }
 
     // Query parameters for filtering
@@ -27,7 +55,7 @@ export async function GET(request: NextRequest) {
     const skip = parseInt(searchParams.get('skip') || '0');
 
     // Build filter
-    const filter: any = { userId: decoded.userId };
+    const filter: any = { userId: resolvedUserId };
     
     if (search) {
       filter.$or = [
@@ -73,8 +101,13 @@ export async function POST(request: NextRequest) {
 
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
-    if (!decoded?.userId) {
+    if (!decoded?.userId && !decoded?.email && !decoded?.username) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const resolvedUserId = await resolveUserId(decoded);
+    if (!resolvedUserId) {
+      return NextResponse.json({ error: 'User not found. Please ensure your account is set up.' }, { status: 404 });
     }
 
     const body = await request.json();
@@ -96,7 +129,7 @@ export async function POST(request: NextRequest) {
 
     // Create note
     const note = new Note({
-      userId: decoded.userId,
+      userId: resolvedUserId,
       title: title.trim(),
       content: safeContent,
       fontFamily: fontFamily || 'poppins',
