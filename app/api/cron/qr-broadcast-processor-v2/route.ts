@@ -57,7 +57,8 @@ async function sendMessageWithGaps(
   userId: string,
   scheduleId: string,
   db: any,
-  mediaUrls?: string[] // Optional image/media URLs
+  mediaUrls?: string[], // Optional image/media URLs
+  sessionKey?: string   // Bridge session key for proper routing
 ): Promise<{ success: boolean; error?: string; sendTimeMs?: number; skipped?: boolean }> {
   try {
     // CHECK 1: Deduplication - prevent same message to same user today
@@ -76,15 +77,20 @@ async function sendMessageWithGaps(
     const startTime = Date.now();
     const hasMedia = mediaUrls && mediaUrls.length > 0;
 
+    // Build bridge headers — include session key and user ID for proper session routing
+    const bridgeHeaders: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'x-bridge-secret': bridgeSecret,
+      'x-user-id': userId,
+    };
+    if (sessionKey) bridgeHeaders['x-session-key'] = sessionKey;
+
     // If we have media, send image first then text caption
     if (hasMedia) {
       for (const mediaUrl of mediaUrls!) {
         const mediaResponse = await fetch(`${bridgeUrl}/send`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-bridge-secret': bridgeSecret,
-          },
+          headers: bridgeHeaders,
           body: JSON.stringify({
             to: chatId,
             message: messageText, // Caption with the image
@@ -105,10 +111,7 @@ async function sendMessageWithGaps(
     if (shouldSendText) {
       response = await fetch(`${bridgeUrl}/send`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-bridge-secret': bridgeSecret,
-        },
+        headers: bridgeHeaders,
         body: JSON.stringify({
           to: chatId,
           message: messageText,
@@ -119,10 +122,7 @@ async function sendMessageWithGaps(
       // No media and no text - shouldn't happen but fallback
       response = await fetch(`${bridgeUrl}/send`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-bridge-secret': bridgeSecret,
-        },
+        headers: bridgeHeaders,
         body: JSON.stringify({
           to: chatId,
           message: messageText,
@@ -314,7 +314,8 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
         db,
         Array.isArray(schedule.mediaUrls) && schedule.mediaUrls.length > 0
           ? schedule.mediaUrls
-          : undefined
+          : undefined,
+        schedule.sessionKey || undefined
       );
 
       if (result.skipped) {

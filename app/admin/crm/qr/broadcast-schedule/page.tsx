@@ -185,10 +185,10 @@ export default function QRBroadcastSchedulePage() {
 
   const handleToggleActive = async (id: string, isActive: boolean) => {
     try {
-      const endpoint = isActive ? 'pause' : 'resume';
-      const res = await fetch(`/api/admin/crm/qr-broadcast-schedule/${id}/${endpoint}`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+      const res = await fetch(`/api/admin/crm/qr-broadcast-schedule/${id}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: !isActive }),
       });
 
       const data = await res.json();

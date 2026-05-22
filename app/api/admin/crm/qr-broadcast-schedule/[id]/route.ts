@@ -25,19 +25,21 @@ function checkAuth(req: NextRequest) {
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const decoded = checkAuth(req);
     if (!decoded) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    if (!mongoose.Types.ObjectId.isValid(params.id)) {
+    const { id } = await params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json({ error: 'Invalid schedule ID' }, { status: 400 });
     }
 
     await connectDB();
     const QRBroadcastSchedule = getQRBroadcastSchedule();
-    const schedule = await QRBroadcastSchedule.findOne(ownerFilter(decoded, params.id)).lean();
+    const schedule = await QRBroadcastSchedule.findOne(ownerFilter(decoded, id)).lean();
 
     if (!schedule) {
       return NextResponse.json({ error: 'Schedule not found' }, { status: 404 });
@@ -52,13 +54,15 @@ export async function GET(
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const decoded = checkAuth(req);
     if (!decoded) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    if (!mongoose.Types.ObjectId.isValid(params.id)) {
+    const { id } = await params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json({ error: 'Invalid schedule ID' }, { status: 400 });
     }
 
@@ -76,7 +80,7 @@ export async function PUT(
     const { _id, userId, createdBy, createdAt, ...updateFields } = body;
 
     const schedule = await QRBroadcastSchedule.findOneAndUpdate(
-      ownerFilter(decoded, params.id),
+      ownerFilter(decoded, id),
       { $set: { ...updateFields, updatedAt: new Date() } },
       { new: true }
     ).lean();
@@ -94,19 +98,21 @@ export async function PUT(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const decoded = checkAuth(req);
     if (!decoded) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    if (!mongoose.Types.ObjectId.isValid(params.id)) {
+    const { id } = await params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json({ error: 'Invalid schedule ID' }, { status: 400 });
     }
 
     await connectDB();
     const QRBroadcastSchedule = getQRBroadcastSchedule();
-    const deleted = await QRBroadcastSchedule.findOneAndDelete(ownerFilter(decoded, params.id)).lean();
+    const deleted = await QRBroadcastSchedule.findOneAndDelete(ownerFilter(decoded, id)).lean();
 
     if (!deleted) {
       return NextResponse.json({ error: 'Schedule not found' }, { status: 404 });

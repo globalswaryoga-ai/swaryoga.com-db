@@ -83,7 +83,7 @@ function getStartOfYear(date: Date) {
 }
 
 export default function BroadcastReportPage() {
-  useAuth();
+  const token = useAuth();
 
   const [allRuns, setAllRuns] = useState<BroadcastRun[]>([]);
   const [loading, setLoading] = useState(true);
@@ -91,9 +91,43 @@ export default function BroadcastReportPage() {
   const [expandedRun, setExpandedRun] = useState<string | null>(null);
 
   useEffect(() => {
-    setAllRuns(loadRuns());
-    setLoading(false);
-  }, []);
+    // First load from localStorage for backward compatibility
+    const localRuns = loadRuns();
+    if (localRuns.length > 0) setAllRuns(localRuns);
+
+    // Then fetch scheduled broadcasts from MongoDB API
+    if (!token) { setLoading(false); return; }
+    fetch('/api/admin/crm/qr-broadcast-schedule', {
+      headers: { 'Authorization': `Bearer ${token}` },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.success && Array.isArray(data.data) && data.data.length > 0) {
+          // Map MongoDB schedule docs to the BroadcastRun shape used by this page
+          const apiRuns: BroadcastRun[] = data.data.map((s: any) => ({
+            id: s._id,
+            message: s.messageText || '',
+            templateId: undefined,
+            templateName: s.name,
+            recipients: s.recipientChatIds || [],
+            recipientNames: {},
+            status: s.status || 'scheduled',
+            sent: s.stats?.totalSent || 0,
+            failed: s.stats?.totalFailed || 0,
+            total: s.totalRecipients || 0,
+            createdAt: s.createdAt ? new Date(s.createdAt).getTime() : Date.now(),
+            scheduledAt: s.scheduledDate ? new Date(s.scheduledDate).getTime() : undefined,
+            batchesSent: 0,
+            dailySentCount: 0,
+            errors: [],
+            log: [],
+          }));
+          setAllRuns(apiRuns);
+        }
+      })
+      .catch(() => { /* keep localStorage data */ })
+      .finally(() => setLoading(false));
+  }, [token]);
 
   // Filter runs by period
   const filteredRuns = useMemo(() => {

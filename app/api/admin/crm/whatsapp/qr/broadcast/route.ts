@@ -88,7 +88,9 @@ async function sendOne(
   imageUrl?: string,
   buttons?: string[]
 ): Promise<{ success: boolean; error?: string }> {
-  let payload: any = { to: to.replace(/\D/g, '') };
+  // Preserve group IDs (@g.us) intact; only strip non-digits for individual phone numbers
+  const toNormalized = to.includes('@g.us') ? to : to.replace(/\D/g, '');
+  let payload: any = { to: toNormalized };
 
   if (imageUrl) {
     payload.type = 'media';

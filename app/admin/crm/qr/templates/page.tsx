@@ -142,7 +142,7 @@ export default function QRTemplatesPage() {
     }
   }, [crmFetch]);
 
-  useEffect(() => { if (token) fetchTemplates(); }, [token]);
+  useEffect(() => { if (token) fetchTemplates(); }, [token, fetchTemplates]);
 
   // Filter
   const filtered = useMemo(() => templates.filter(t => {
