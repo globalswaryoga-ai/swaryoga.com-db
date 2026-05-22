@@ -32,6 +32,7 @@ const GoalForm: React.FC<GoalFormProps> = ({
     : (parentVisionId ? (visions.find(v => v.id === parentVisionId)?.category || '') : '');
 
   const [formData, setFormData] = useState({
+    standalone: (initialData as any)?.standalone || false,
     title: initialData?.title || '',
     description: initialData?.description || '',
     selectedVisionHead: initialVisionHead,
@@ -131,11 +132,12 @@ const GoalForm: React.FC<GoalFormProps> = ({
 
     const goalData: Goal = {
       id: initialData?.id || Date.now().toString(),
+      standalone: formData.standalone,
       title: formData.title.trim(),
       description: formData.description.trim(),
-      visionId: formData.visionId || '',
-      actionPlanId: formData.actionPlanId || undefined,
-      milestoneId: formData.milestoneId || undefined,
+      visionId: formData.standalone ? '' : (formData.visionId || ''),
+      actionPlanId: formData.standalone ? undefined : (formData.actionPlanId || undefined),
+      milestoneId: formData.standalone ? undefined : (formData.milestoneId || undefined),
       startDate: formData.startDate,
       targetDate: formData.targetDate,
       budget: formData.budget ? Number(formData.budget) : undefined,
@@ -152,8 +154,34 @@ const GoalForm: React.FC<GoalFormProps> = ({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
+
+      {/* Standalone / Linked toggle */}
+      <div
+        className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all select-none ${formData.standalone ? 'bg-amber-50 border-amber-400' : 'bg-blue-50 border-blue-200 hover:border-blue-400'}`}
+        onClick={() => setFormData(prev => ({
+          ...prev,
+          standalone: !prev.standalone,
+          selectedVisionHead: !prev.standalone ? '' : prev.selectedVisionHead,
+          visionId: !prev.standalone ? '' : prev.visionId,
+          actionPlanId: !prev.standalone ? '' : prev.actionPlanId,
+          milestoneId: !prev.standalone ? '' : prev.milestoneId,
+        }))}
+      >
+        <div className={`mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${formData.standalone ? 'bg-amber-500 border-amber-500' : 'border-gray-400 bg-white'}`}>
+          {formData.standalone && <span className="text-white text-xs font-bold">✓</span>}
+        </div>
+        <div>
+          <p className="font-semibold text-sm">{formData.standalone ? '📌 Standalone (Independent Goal)' : '🔗 Linked to Vision / Action Plan'}</p>
+          <p className="text-xs text-gray-500 mt-0.5">
+            {formData.standalone
+              ? 'This goal will NOT be linked to any Vision or Action Plan. It stands alone.'
+              : 'This goal is connected to the Vision → Action Plan hierarchy. Check to make it independent.'}
+          </p>
+        </div>
+      </div>
+
       {/* If parent context provided, show auto-filled hierarchy */}
-      {(parentVisionId || parentActionPlanId) && (
+      {!formData.standalone && (parentVisionId || parentActionPlanId) && (
         <>
           {/* Category (Auto from Vision) */}
           <div className="rounded-lg bg-blue-50 border-2 border-blue-200 p-3">
@@ -229,8 +257,8 @@ const GoalForm: React.FC<GoalFormProps> = ({
         </>
       )}
 
-      {/* Manual selection (no parent context) */}
-      {!parentVisionId && !parentActionPlanId && (
+      {/* Manual selection (no parent context AND not standalone) */}
+      {!formData.standalone && !parentVisionId && !parentActionPlanId && (
         <>
           {/* Vision Head Checkbox and Selector - Optional */}
           <div className={`rounded-lg border-2 p-4 ${hasVisionHead ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>

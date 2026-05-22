@@ -44,6 +44,7 @@ export default function TodosPage() {
 
   // Form state
   const [formData, setFormData] = useState({
+    standalone: false,
     visionHead: '',
     visionId: '',
     actionPlanId: '',
@@ -176,6 +177,7 @@ export default function TodosPage() {
   const handleAddTodo = () => {
     setEditingTodo(null);
     setFormData({
+      standalone: false,
       visionHead: '',
       visionId: '',
       actionPlanId: '',
@@ -197,6 +199,7 @@ export default function TodosPage() {
   const handleEditTodo = (todo: Todo) => {
     setEditingTodo(todo);
     setFormData({
+      standalone: (todo as any).standalone || false,
       visionHead: (todo as any).visionHead || '',
       visionId: (todo as any).visionId || '',
       actionPlanId: (todo as any).actionPlanId || '',
@@ -256,7 +259,8 @@ export default function TodosPage() {
     const today = new Date().toISOString().split('T')[0];
     const todoData: Todo = {
       id: editingTodo?.id || `todo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      taskId: formData.taskId,
+      standalone: formData.standalone,
+      taskId: formData.standalone ? undefined : formData.taskId,
       title: formData.title.trim(),
       description: formData.description.trim(),
       startDate: formData.startDate || today,
@@ -428,7 +432,25 @@ export default function TodosPage() {
               </button>
             </div>
             <div className="p-6 space-y-4">
-              {/* Vision Head Selector */}
+
+              {/* Standalone / Linked toggle */}
+              <div
+                className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all select-none ${formData.standalone ? 'bg-amber-50 border-amber-400' : 'bg-blue-50 border-blue-200 hover:border-blue-400'}`}
+                onClick={() => setFormData(prev => ({ ...prev, standalone: !prev.standalone, visionHead: !prev.standalone ? '' : prev.visionHead, visionId: !prev.standalone ? '' : prev.visionId, actionPlanId: !prev.standalone ? '' : prev.actionPlanId, goalId: !prev.standalone ? '' : prev.goalId, taskId: !prev.standalone ? '' : prev.taskId }))}
+              >
+                <div className={`mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${formData.standalone ? 'bg-amber-500 border-amber-500' : 'border-gray-400 bg-white'}`}>
+                  {formData.standalone && <span className="text-white text-xs font-bold">✓</span>}
+                </div>
+                <div>
+                  <p className="font-semibold text-sm">{formData.standalone ? '📌 Standalone (Independent Todo)' : '🔗 Linked to Vision / Goal / Task'}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {formData.standalone ? 'Not linked to any Vision, Goal, or Task. Stands alone.' : 'Connected to Vision → Goal → Task hierarchy. Check to make it independent.'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Linking fields — only show when NOT standalone */}
+              {!formData.standalone && <>
               <div className="rounded-lg bg-blue-50 border-2 border-blue-200 p-3">
                 <label className="block text-sm font-semibold text-swar-text mb-2">📂 Vision Head</label>
                 <select
@@ -565,7 +587,7 @@ export default function TodosPage() {
                       }))}
                       className="w-full px-4 py-2 border border-swar-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
-                      <option value="">-- No parent task (standalone) --</option>
+                      <option value="">-- No parent task --</option>
                       {tasksToShow.map(t => (
                         <option key={t.id} value={t.id}>{t.title}</option>
                       ))}
@@ -573,6 +595,7 @@ export default function TodosPage() {
                   );
                 })()}
               </div>
+              </>}  {/* end !formData.standalone */}
 
               {/* Title */}
               <div>

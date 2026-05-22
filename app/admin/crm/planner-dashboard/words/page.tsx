@@ -27,6 +27,7 @@ const MONTHS = [
 ] as const;
 
 type WordFormState = {
+  standalone: boolean;
   title: string;
   description: string;
   selectedCategory: VisionCategory | '';
@@ -48,6 +49,7 @@ type WordFormState = {
 const todayIso = () => new Date().toISOString().split('T')[0];
 
 const emptyWordForm = (): WordFormState => ({
+  standalone: false,
   title: '',
   description: '',
   selectedCategory: '',
@@ -212,6 +214,7 @@ export default function WordsPage() {
     );
     setEditingId(word.id);
     setForm({
+      standalone: (word as any).standalone || false,
       title: word.title || '',
       description: word.description || '',
       selectedCategory: ((word.category as any) || '') as any,
@@ -254,15 +257,16 @@ export default function WordsPage() {
 
     const next: Word = {
       id: editingId || `word-${Date.now()}`,
+      standalone: form.standalone,
       title: form.title,
       description: form.description,
       type: (editingId
         ? (words.find(w => w.id === editingId)?.type || 'affirmation')
         : 'affirmation') as any,
-      category: form.selectedCategory as any,
-      visionId: form.visionId || undefined,
-      actionPlanId: form.actionPlanId || undefined,
-      milestoneId: form.milestoneId || undefined,
+      category: form.standalone ? undefined : (form.selectedCategory as any || undefined),
+      visionId: form.standalone ? undefined : (form.visionId || undefined),
+      actionPlanId: form.standalone ? undefined : (form.actionPlanId || undefined),
+      milestoneId: form.standalone ? undefined : (form.milestoneId || undefined),
       frequency: form.repeat as any,
       status: form.status as any,
       createdAt: editingId
@@ -626,6 +630,23 @@ function WordModal({
       </div>
 
       <div className="p-6 space-y-5">
+
+        {/* Standalone toggle */}
+        <div
+          className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all select-none ${form.standalone ? 'bg-amber-50 border-amber-400' : 'bg-green-50 border-green-200 hover:border-green-400'}`}
+          onClick={() => setForm(prev => ({ ...prev, standalone: !prev.standalone, selectedCategory: !prev.standalone ? '' : prev.selectedCategory, visionId: !prev.standalone ? '' : prev.visionId, actionPlanId: !prev.standalone ? '' : prev.actionPlanId, milestoneId: !prev.standalone ? '' : prev.milestoneId }))}
+        >
+          <div className={`mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${form.standalone ? 'bg-amber-500 border-amber-500' : 'border-gray-400 bg-white'}`}>
+            {form.standalone && <span className="text-white text-xs font-bold">✓</span>}
+          </div>
+          <div>
+            <p className="font-semibold text-sm">{form.standalone ? '📌 Standalone Word (Independent)' : '🔗 Linked to Category / Vision'}</p>
+            <p className="text-xs text-gray-500 mt-0.5">{form.standalone ? 'Not linked to any Category or Vision. Stands alone.' : 'Connected to Category → Vision hierarchy. Check to make it independent.'}</p>
+          </div>
+        </div>
+
+        {/* Category / Vision linking — only when NOT standalone */}
+        {!form.standalone && <>
         <div className="rounded-lg bg-blue-50 border-2 border-blue-200 p-3">
           <label className="block text-sm font-semibold text-swar-text mb-2">📂 Category Head (Optional)</label>
           <select
@@ -739,6 +760,7 @@ function WordModal({
             </div>
           );
         })()}
+        </>}  {/* end !form.standalone */}
 
         <div>
           <label className="block text-sm font-semibold text-swar-text mb-2">Word Title *</label>

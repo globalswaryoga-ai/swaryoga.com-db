@@ -104,6 +104,7 @@ export interface ActionPlanGoal {
 export interface ActionPlan {
   id: string;
   title: string;
+  standalone?: boolean;   // If true, not linked to any Vision/Category
   visionId: string;
   goal?: string;
   description?: string;
@@ -128,6 +129,7 @@ export interface ActionPlan {
 export interface Goal {
   id: string;
   title: string;
+  standalone?: boolean;   // If true, not linked to any Vision/Action Plan
   visionId: string;
   actionPlanId?: string;
   milestoneId?: string;
@@ -153,6 +155,7 @@ export interface Goal {
 export interface Reminder {
   id: string;
   title: string;
+  standalone?: boolean;   // If true, not linked to any other planner item
   description?: string;
   // Linkage (optional)
   visionId?: string;
@@ -187,6 +190,7 @@ export interface Reminder {
 export interface Word {
   id: string;
   title: string;
+  standalone?: boolean;   // If true, not linked to any Vision/Category
   visionId?: string;
   description?: string;
   // Legacy/alternate field name used in some dashboards
@@ -369,6 +373,7 @@ export interface ActionItem {
 export interface Todo {
   id: string;
   title: string;
+  standalone?: boolean;   // If true, not linked to Task/Event
   description?: string;
   taskId?: string;
   eventId?: string;
@@ -386,6 +391,7 @@ export interface Todo {
 export interface Task {
   id: string;
   title: string;
+  standalone?: boolean;   // If true, not linked to Vision/Goal/Category
   description?: string;
   visionHead?: VisionCategory;
   visionId?: string;

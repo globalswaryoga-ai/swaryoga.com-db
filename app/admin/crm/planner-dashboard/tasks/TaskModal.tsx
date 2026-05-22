@@ -13,6 +13,7 @@ type GoalOption = {
 };
 
 interface TaskFormState {
+  standalone: boolean;    // true = not linked to any Vision/Goal/Category
   visionHead: string;
   visionId: string;
   goalId: string;
@@ -79,6 +80,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
 
   // Initialize local form state if not provided
   const [localFormState, setLocalFormState] = useState<TaskFormState>({
+    standalone: (editingTask as any)?.standalone || false,
     visionHead: getInitialVisionHead(),
     visionId: editingTask?.visionId || parentVisionId || '',
     goalId: editingTask?.goalId || parentGoalId || '',
@@ -311,18 +313,24 @@ const TaskModal: React.FC<TaskModalProps> = ({
         <form
           onSubmit={(e) => {
             e.preventDefault();
+            setFormError('');
 
-            if (!formState.visionHead?.trim()) {
-              setFormError('Please select a Head / Category.');
-              return;
-            }
-            if (!formState.visionId?.trim()) {
-              setFormError('Please select a Vision.');
-              return;
-            }
-            if (!formState.goalId?.trim()) {
-              setFormError('Please select a Goal.');
-              return;
+            const isStandalone = formState.standalone;
+
+            // Only require linking fields when NOT standalone
+            if (!isStandalone) {
+              if (!formState.visionHead?.trim()) {
+                setFormError('Please select a Head / Category, or check "Standalone" to skip.');
+                return;
+              }
+              if (!formState.visionId?.trim()) {
+                setFormError('Please select a Vision, or check "Standalone" to skip.');
+                return;
+              }
+              if (!formState.goalId?.trim()) {
+                setFormError('Please select a Goal, or check "Standalone" to skip.');
+                return;
+              }
             }
             if (!formState.title?.trim()) {
               setFormError('Please enter a Task Title.');
@@ -330,11 +338,13 @@ const TaskModal: React.FC<TaskModalProps> = ({
             }
 
             const taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt'> = {
+              standalone: isStandalone,
               title: formState.title,
               description: formState.description,
-              visionHead: (formState.visionHead as VisionCategory) || undefined,
-              visionId: formState.visionId || undefined,
-              goalId: formState.goalId || undefined,
+              // Only include linking fields when connected
+              visionHead: isStandalone ? undefined : (formState.visionHead as VisionCategory) || undefined,
+              visionId: isStandalone ? undefined : formState.visionId || undefined,
+              goalId: isStandalone ? undefined : formState.goalId || undefined,
               startDate: formState.startDate,
               dueDate: formState.dueDate,
               status: formState.status,
@@ -355,6 +365,22 @@ const TaskModal: React.FC<TaskModalProps> = ({
               {formError}
             </div>
           ) : null}
+
+          {/* Standalone toggle — Two-way system */}
+          <div className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all select-none ${formState.standalone ? 'bg-amber-50 border-amber-400' : 'bg-blue-50 border-blue-200 hover:border-blue-400'}`}
+            onClick={() => setFormState(prev => ({ ...prev, standalone: !prev.standalone, visionHead: !prev.standalone ? '' : prev.visionHead, visionId: !prev.standalone ? '' : prev.visionId, goalId: !prev.standalone ? '' : prev.goalId }))}>
+            <div className={`mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${formState.standalone ? 'bg-amber-500 border-amber-500' : 'border-gray-400 bg-white'}`}>
+              {formState.standalone && <span className="text-white text-xs font-bold">✓</span>}
+            </div>
+            <div>
+              <p className="font-semibold text-sm">{formState.standalone ? '📌 Standalone Mode (Independent)' : '🔗 Linked Mode (Connected)'}</p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {formState.standalone
+                  ? 'This task will NOT be linked to any Vision, Goal, or Category. It stands alone.'
+                  : 'This task is connected to Vision → Goal hierarchy. Uncheck to make it independent.'}
+              </p>
+            </div>
+          </div>
 
           {/* Parent Context Display (if provided) */}
           {(parentVisionId || parentGoalId) && (
@@ -379,8 +405,8 @@ const TaskModal: React.FC<TaskModalProps> = ({
             </>
           )}
 
-          {/* Head Selection (only show if no parent context) */}
-          {!parentVisionId && !parentGoalId && (
+          {/* Head Selection (only show if no parent context AND not standalone) */}
+          {!parentVisionId && !parentGoalId && !formState.standalone && (
           <>
           <div>
             <label className="block text-sm font-semibold text-swar-text mb-2">

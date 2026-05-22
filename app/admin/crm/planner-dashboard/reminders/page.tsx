@@ -82,6 +82,7 @@ export default function RemindersPage() {
   const [showForm, setShowForm] = useState(false);
   const today = useMemo(() => new Date().toISOString().split('T')[0], []);
   const [formData, setFormData] = useState({
+    standalone: false,
     text: '',
     date: '',
     time: '11:00',
@@ -220,14 +221,15 @@ export default function RemindersPage() {
 
     const newReminder: UiReminder = {
       id: Date.now().toString(),
+      standalone: formData.standalone,
       text: formData.text,
       date: formData.date,
       time: formData.time,
-      visionHead: formData.visionHead || undefined,
-      visionId: formData.visionId || undefined,
-      goalId: formData.goalId || undefined,
-      taskId: formData.taskId || undefined,
-      todoId: formData.todoId || undefined,
+      visionHead: formData.standalone ? undefined : (formData.visionHead || undefined),
+      visionId: formData.standalone ? undefined : (formData.visionId || undefined),
+      goalId: formData.standalone ? undefined : (formData.goalId || undefined),
+      taskId: formData.standalone ? undefined : (formData.taskId || undefined),
+      todoId: formData.standalone ? undefined : (formData.todoId || undefined),
       frequency: formData.frequency,
       customDays: formData.frequency === 'custom' ? formData.customDays : undefined,
       imageUrl: formData.imageUrl || DEFAULT_IMAGE,
@@ -235,6 +237,7 @@ export default function RemindersPage() {
 
     setReminders(prev => [...prev, newReminder]);
     setFormData({
+      standalone: false,
       text: '',
       date: '',
       time: '11:00',
@@ -437,6 +440,22 @@ export default function RemindersPage() {
                 />
               </div>
 
+              {/* Standalone toggle */}
+              <div
+                className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all select-none ${formData.standalone ? 'bg-amber-50 border-amber-400' : 'bg-pink-50 border-pink-200 hover:border-pink-400'}`}
+                onClick={() => setFormData(prev => ({ ...prev, standalone: !prev.standalone, visionHead: !prev.standalone ? '' : prev.visionHead as any, visionId: !prev.standalone ? '' : prev.visionId, actionPlanId: !prev.standalone ? '' : prev.actionPlanId, goalId: !prev.standalone ? '' : prev.goalId, taskId: !prev.standalone ? '' : prev.taskId, todoId: !prev.standalone ? '' : prev.todoId }))}
+              >
+                <div className={`mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${formData.standalone ? 'bg-amber-500 border-amber-500' : 'border-gray-400 bg-white'}`}>
+                  {formData.standalone && <span className="text-white text-xs font-bold">✓</span>}
+                </div>
+                <div>
+                  <p className="font-semibold text-sm">{formData.standalone ? '📌 Standalone (No connection)' : '🔗 Linked to Vision / Goal / Task'}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{formData.standalone ? 'This reminder stands alone, not linked to any Vision or Task.' : 'Linked to planner hierarchy. Check to make it independent.'}</p>
+                </div>
+              </div>
+
+              {/* All linking fields — only when NOT standalone */}
+              {!formData.standalone && <>
               <div>
                 <label className="block text-sm font-medium text-swar-text mb-2">Vision Head (Optional)</label>
                 <select
@@ -576,6 +595,7 @@ export default function RemindersPage() {
                   </div>
                 ) : null;
               })()}
+              </>}  {/* end !formData.standalone */}
 
               <LifePlannerImageUpload
                 label="Reminder Image (Optional)"
